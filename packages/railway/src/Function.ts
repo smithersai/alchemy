@@ -940,7 +940,13 @@ export const FunctionProvider = () =>
           if (projectChanged || environmentChanged) {
             return { action: "replace" as const };
           }
-          const program = hostedProgramProps(news, news.port);
+          // Hash with the build options as written: `stripEffects` also
+          // drops the functions and class instances build plugins are made
+          // of. `desired` is resolved apart from its Effects, as `news` is.
+          const program = hostedProgramProps(
+            { ...news, build: (desired as FunctionProps).build },
+            news.port,
+          );
           if (program !== undefined) {
             const hash = yield* hosted.hash(program);
             if (hash !== output.code.hash) {

@@ -888,7 +888,10 @@ export const ServiceProvider = () =>
               image: news.image,
               env: news.env,
               isExternal: news.isExternal,
-              build: news.build,
+              // As written: `stripEffects` also drops the functions and class
+              // instances build plugins are made of. `desired` is resolved
+              // apart from its Effects, as `news` is.
+              build: (desired as Service["Props"]).build,
               extraFiles: news.extraFiles,
             });
             if (hash !== output.code.hash) {

@@ -4708,7 +4708,12 @@ export const LiveWorkerProvider = () =>
             (yield* hasChanged(
               id,
               fqn,
-              news,
+              // Bundle with the build options as written: `stripEffects`
+              // also drops functions and class instances, which removes
+              // every build plugin, and the apply reuses this bundle
+              // (`Artifacts.cached("build")`). `desired` is resolved apart
+              // from its Effects, as `news` is.
+              { ...news, build: (desired as WorkerProps).build },
               output,
               Array.isArray(newBindings)
                 ? (newBindings as ResourceBinding<Worker["Binding"]>[])

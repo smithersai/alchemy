@@ -18,6 +18,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
+import type * as rolldown from "rolldown";
 
 const { test } = Test.make({
   providers: Layer.mergeAll(ServiceProvider(), FunctionProvider()).pipe(
@@ -109,6 +110,94 @@ for (const kind of ["Service", "Function"] as const) {
         const updatedHash = yield* hosted.hash(props);
         expect(updatedHash).not.toBe(originalHash);
         expect(yield* diff(updatedHash)).toBeUndefined();
+      }),
+    {
+      tags: [
+        "unit",
+        "provider:railway",
+        "provider:railway:function",
+        "provider:railway:service",
+        "local",
+      ],
+      timeout: 30_000,
+    },
+  );
+
+  // The diff strips Effect-valued props, and `stripEffects` also drops the
+  // functions and class instances build plugins are made of. A plan must
+  // hash the program the deploy builds, plugins included.
+  test.provider(
+    `${kind} hashes a program with its build plugins`,
+    () =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const stack = yield* Stack;
+        const { dotAlchemy } = yield* AlchemyContext;
+        yield* fs.makeDirectory(path.resolve(".tmp"), { recursive: true });
+        const directory = yield* fs.makeTempDirectoryScoped({
+          directory: path.resolve(".tmp"),
+          prefix: "railway-plugin-diff-",
+        });
+        const main = path.join(directory, "main.ts");
+        yield* fs.writeFileString(
+          main,
+          [
+            `import greeting from "virtual:greeting";`,
+            `export default { fetch: () => new Response(greeting) };`,
+          ].join("\n"),
+        );
+        const greetingPlugin: rolldown.Plugin = {
+          name: "greeting",
+          resolveId: (source) => (source === "virtual:greeting" ? "\0virtual:greeting" : null),
+          load: (id) =>
+            id === "\0virtual:greeting" ? `export default "hello from a build plugin";` : null,
+        };
+        const options = {
+          stackName: stack.name,
+          stage: stack.stage,
+          dotAlchemy,
+          virtualEntryPlugin: yield* Bundle.virtualEntryPlugin,
+        };
+        const hosted =
+          kind === "Service"
+            ? createRailwayHostedSupport(options)
+            : createRailwayFunctionSupport(options);
+        const props = {
+          project: {
+            projectId: "project",
+            name: "project",
+            workspaceId: "workspace",
+            environmentId: "environment",
+            url: "https://railway.com/project/project",
+          } satisfies Railway.Project["Attributes"] as unknown as Railway.Project,
+          environment: { environmentId: "environment" },
+          main,
+          // An external Service ships `main` unbundled; an Effect-native one is bundled.
+          isExternal: kind === "Function",
+          port: 3000,
+          build: { input: { plugins: [greetingPlugin] } },
+        };
+        const deployedHash = yield* hosted.hash(props);
+        const provider =
+          kind === "Service"
+            ? yield* Provider.findProvider(Railway.Service)
+            : yield* Provider.findProvider(Railway.Function);
+        const diff = yield* provider.diff!({
+          id: "Api",
+          fqn: "Api",
+          instanceId: "plugin-diff",
+          olds: props,
+          news: props,
+          oldBindings: [],
+          newBindings: [],
+          output: {
+            projectId: "project",
+            environmentId: "environment",
+            code: { hash: deployedHash },
+          } as Railway.Service["Attributes"] & Railway.Function["Attributes"],
+        });
+        expect(diff).toBeUndefined();
       }),
     {
       tags: [
