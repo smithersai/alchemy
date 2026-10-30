@@ -18,7 +18,7 @@
  * the Cloudflare platform is in `@alchemy.run/cloudflare/Domain`.
  */
 import * as AggregateModule from "./Aggregate.ts";
-import * as ApiModule from "./Api.ts";
+import * as ApiModule from "./Api.vibe";
 import * as CommandModule from "./Command.vibe";
 import * as EventModule from "./Event.vibe";
 import * as ExternalSystemModule from "./ExternalSystem.ts";
