@@ -28,7 +28,7 @@ import * as PolicyModule from "./Policy.vibe";
 import * as ProjectionModule from "./Projection.vibe";
 import * as RejectionModule from "./Rejection.vibe";
 import * as RequestContextModule from "./RequestContext.ts";
-import * as SagaModule from "./Saga.ts";
+import * as SagaModule from "./Saga.vibe";
 import * as StreamModule from "./Stream.vibe";
 import * as ViewModule from "./View.ts";
 
