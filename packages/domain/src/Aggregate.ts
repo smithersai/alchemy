@@ -12,7 +12,7 @@ import type * as Event from "./Event.vibe";
 import { DefinitionError, judge, settle, targetId as internalTargetId } from "./internal.vibe";
 import type * as Middleware from "./Middleware.ts";
 import type * as Read from "./Read.ts";
-import type * as Rejection from "./Rejection.ts";
+import type * as Rejection from "./Rejection.vibe";
 import * as RequestContext from "./RequestContext.ts";
 import type * as Telemetry from "./Telemetry.ts";
 

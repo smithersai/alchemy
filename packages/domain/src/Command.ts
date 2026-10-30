@@ -3,7 +3,7 @@ import * as Schema from "effect/Schema";
 import type * as Event from "./Event.vibe";
 import type { Data, Fields } from "./Event.vibe";
 import * as Middleware from "./Middleware.ts";
-import type * as Rejection from "./Rejection.ts";
+import type * as Rejection from "./Rejection.vibe";
 import type * as Telemetry from "./Telemetry.ts";
 
 /**

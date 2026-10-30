@@ -9,7 +9,7 @@ import * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 import { type DurableDeferred, Workflow, WorkflowEngine } from "effect/workflow";
 import { targetId } from "./Aggregate.ts";
-import type * as Rejection from "./Rejection.ts";
+import type * as Rejection from "./Rejection.vibe";
 import * as Telemetry from "./Telemetry.ts";
 
 /** The hidden payload field that carries a run's cause. */

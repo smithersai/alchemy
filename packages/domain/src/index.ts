@@ -26,7 +26,7 @@ import type * as KeyModule from "./Key.ts";
 import * as ModelModule from "./Model.ts";
 import * as PolicyModule from "./Policy.ts";
 import * as ProjectionModule from "./Projection.ts";
-import * as RejectionModule from "./Rejection.ts";
+import * as RejectionModule from "./Rejection.vibe";
 import * as RequestContextModule from "./RequestContext.ts";
 import * as SagaModule from "./Saga.ts";
 import * as StreamModule from "./Stream.ts";
