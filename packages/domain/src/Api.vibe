@@ -466,7 +466,7 @@ const handlersOf = effect (entries: ReadonlyArray<Entry>): Record<string, Handle
       // (the session's actor) travels with the command to its aggregate.
       handlers[entry.tag] = ({ target, commandId, input }: CommandPayload): unknown!unknown!unknown =>
         declared.effect(effect {
-          // oxlint-disable-next-line effecttsgo/new-schema-class -- `make` on a generic command class loses its instance type
+          // @effect-diagnostics-next-line newSchemaClass:off -- `make` on a generic command class loses its instance type
           const receipt = try aggregate.send(target, new entry(input), { commandId })
           return { reply: receipt.reply, stream: receipt.stream, version: receipt.version }
         })
@@ -834,9 +834,7 @@ const makeProtocolInProcess = (
           disconnects,
           send: (clientId: number, response: RpcMessage.FromServerEncoded): void!! => toClient(clientId, response),
           end: effect () => {},
-          clientIds: effect {
-            return new Set(clientIds) as ReadonlySet<number>
-          },
+          clientIds: sync((ids) => new Set(ids) as ReadonlySet<number>, clientIds),
           initialMessage: Effect.succeedNone,
           supportsAck: true,
           supportsTransferables: false,
@@ -868,8 +866,8 @@ const makeProtocolInProcess = (
       try Effect.forkScoped(runServer())
       return RpcClient.Protocol.of({
         ...protocol,
-        run: effect (clientId, write) => {
-          return try Effect.onExit(
+        run: effect (clientId, write) =>
+          try Effect.onExit(
             effect {
               clientIds.add(clientId)
               return try protocol.run(clientId, write)
@@ -878,8 +876,7 @@ const makeProtocolInProcess = (
               clientIds.delete(clientId)
               try Queue.offer(disconnects, clientId)
             },
-          )
-        },
+          ),
       })
     },
   )
@@ -931,6 +928,7 @@ const build = (
   }
   const layerClient = Layer.effect(Client, client)
   const inProcess = makeProtocolInProcess(entries, group)
+  const inProcessClient: unknown!unknown!unknown = clientOver(inProcess)
   const prototype: unknown!unknown!unknown = Effectable.Prototype({
     label: `alchemy/Domain/Api<${name}>`,
     evaluate: (): infer _ => serve,
@@ -951,19 +949,11 @@ const build = (
       client,
       Client,
       layerClient,
-      clientHttp: (url: string): infer _ =>
-        effect {
-          return try clientOver(protocolHttp(url))
-        },
+      clientHttp: effect (url: string) => try clientOver(protocolHttp(url)),
       layerClientHttp: (url: string): infer _ => Layer.provide(layerClient, protocolHttp(url)),
-      clientWebSocket: (url: string): infer _ =>
-        effect {
-          return try clientOver(protocolWebSocket(url))
-        },
+      clientWebSocket: effect (url: string) => try clientOver(protocolWebSocket(url)),
       layerClientWebSocket: (url: string): infer _ => Layer.provide(layerClient, protocolWebSocket(url)),
-      clientInProcess: effect {
-        return try clientOver(inProcess)
-      },
+      clientInProcess: inProcessClient,
       layerClientInProcess: layerClient.pipe(Layer.provide(inProcess)),
     },
   )
@@ -1193,8 +1183,8 @@ export const protocolWebSocket = (
       }
 
       return RpcClient.Protocol.of({
-        run: effect (clientId, write) => {
-          return try Effect.ensuring(
+        run: effect (clientId, write) =>
+          try Effect.ensuring(
             effect {
               writers.set(clientId, write)
               return try http.run(clientId, write)
@@ -1202,8 +1192,7 @@ export const protocolWebSocket = (
             effect {
               writers.delete(clientId)
             },
-          )
-        },
+          ),
         send: effect (clientId, request, transferables) => {
           if (request._tag === "Request" && isLiveRead(request.tag)) {
             const stop = try Deferred.make<void>()
