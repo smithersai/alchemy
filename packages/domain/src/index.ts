@@ -25,7 +25,7 @@ import * as ExternalSystemModule from "./ExternalSystem.ts";
 import type * as KeyModule from "./Key.ts";
 import * as ModelModule from "./Model.ts";
 import * as PolicyModule from "./Policy.vibe";
-import * as ProjectionModule from "./Projection.ts";
+import * as ProjectionModule from "./Projection.vibe";
 import * as RejectionModule from "./Rejection.vibe";
 import * as RequestContextModule from "./RequestContext.ts";
 import * as SagaModule from "./Saga.ts";

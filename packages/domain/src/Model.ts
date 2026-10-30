@@ -26,13 +26,13 @@ import {
   type ViewStore,
 } from "./Platform.ts";
 import type * as Policy from "./Policy.vibe";
-import * as Projection from "./Projection.ts";
+import * as Projection from "./Projection.vibe";
 import * as RequestContext from "./RequestContext.ts";
 import * as Saga from "./Saga.ts";
 import type * as DomainStream from "./Stream.vibe";
 import * as Telemetry from "./Telemetry.ts";
 import * as View from "./View.ts";
-import * as Watch from "./Watch.ts";
+import * as Watch from "./Watch.vibe";
 
 type Identifier<T> = T extends Context.Key<infer I, unknown> ? I : never;
 
