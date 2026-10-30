@@ -29,7 +29,7 @@ import * as Stream from "effect/Stream";
 import * as Tracer from "effect/Tracer";
 import type * as Aggregate from "./Aggregate.ts";
 import * as Command from "./Command.ts";
-import { type Filter, matches } from "./Filter.ts";
+import { type Filter, matches } from "./Filter.vibe";
 import { decodeEnvelope } from "./Kernel.ts";
 import * as Key from "./Key.ts";
 import * as Middleware from "./Middleware.ts";

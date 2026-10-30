@@ -8,7 +8,7 @@ import * as Schema from "effect/Schema";
 import type * as Stream from "effect/Stream";
 import type * as Aggregate from "./Aggregate.ts";
 import type * as Event from "./Event.ts";
-import type { Filter } from "./Filter.ts";
+import type { Filter } from "./Filter.vibe";
 import { evolveView, type LocalViewInput } from "./internal.ts";
 import type * as Key from "./Key.ts";
 import type * as Middleware from "./Middleware.ts";

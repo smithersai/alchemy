@@ -112,7 +112,7 @@ const sourceFiles = Effect.fn(function* (root: string) {
   const path = yield* Path.Path;
   const entries = yield* fs.readDirectory(root, { recursive: true });
   return entries
-    .filter((entry) => /\.[cm]?tsx?$/.test(entry) && !entry.endsWith(".d.ts"))
+    .filter((entry) => /\.(?:[cm]?tsx?|vibe)$/.test(entry) && !entry.endsWith(".d.ts"))
     .map((entry) => path.join(root, entry));
 });
 

@@ -9,7 +9,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { WorkflowEngine } from "effect/workflow";
 import * as Aggregate from "./Aggregate.ts";
-import { matches } from "./Filter.ts";
+import { matches } from "./Filter.vibe";
 import * as Kernel from "./Kernel.ts";
 import type * as Key from "./Key.ts";
 import {

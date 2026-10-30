@@ -246,7 +246,7 @@ export { DefinitionError } from "./Kernel.ts";
 /** A service middleware provides to a request, carried into the domain. See {@link RequestContextModule.make}. */
 export const RequestContext = RequestContextModule.make;
 
-export type { Filter, OrderBy } from "./Filter.ts";
+export type { Filter, OrderBy } from "./Filter.vibe";
 export { InMemory } from "./InMemory.ts";
 export type * as Middleware from "./Middleware.ts";
 export { Platform } from "./Platform.ts";

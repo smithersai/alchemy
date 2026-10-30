@@ -5,7 +5,7 @@ import type * as Option from "effect/Option";
 import type * as EffectStream from "effect/Stream";
 import type * as Aggregate from "./Aggregate.ts";
 import type * as Event from "./Event.ts";
-import type { Filter } from "./Filter.ts";
+import type { Filter } from "./Filter.vibe";
 import type * as Key from "./Key.ts";
 import type * as Middleware from "./Middleware.ts";
 import type * as Read from "./Read.ts";

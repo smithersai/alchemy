@@ -152,6 +152,12 @@ const generateExports = Effect.fn(function* (
   const path = yield* Path.Path;
   const sourceDirectory = path.join(packageDirectory, "src");
   const directories = yield* sourceDirectories(sourceDirectory);
+  const vibeModules = (yield* fs.readDirectory(sourceDirectory, { recursive: true }))
+    .map((file) => file.split(path.sep).join("/"))
+    .filter((file) => file.endsWith(".vibe") && !isInternal(file) && !file.endsWith("/index.vibe"))
+    .map((file) => file.slice(0, -".vibe".length))
+    .filter((module) => module !== "index")
+    .sort((a, b) => a.localeCompare(b));
 
   const indexes: Array<string> = [];
   for (const directory of directories) {
@@ -173,6 +179,7 @@ const generateExports = Effect.fn(function* (
         .sort((a, b) => a.localeCompare(b))
         .map((directory) => [`./${directory}`, `./src/${directory}/index.ts`]),
     ),
+    ...Object.fromEntries(vibeModules.map((module) => [`./${module}`, `./src/${module}.vibe`])),
     "./*": "./src/*.ts",
     "./package.json": "./package.json",
   } as Record<string, string | null>;
@@ -199,9 +206,13 @@ const internalBlocks = Effect.fn(function* (packageDirectory: string) {
         .filter((directory) => !isInternal(directory.split("/").slice(0, -1).join("/")))
         .map((directory) => [`./${directory}/*`, null]),
     ),
-    ...(files.includes("internal.ts") ? { "./internal": null } : {}),
+    ...(files.includes("internal.ts") || files.includes("internal.vibe")
+      ? { "./internal": null }
+      : {}),
     ...(files.some(
-      (file) => file.endsWith("/internal.ts") && !isInternal(file.slice(0, file.lastIndexOf("/"))),
+      (file) =>
+        (file.endsWith("/internal.ts") || file.endsWith("/internal.vibe")) &&
+        !isInternal(file.slice(0, file.lastIndexOf("/"))),
     )
       ? { "./*/internal": null }
       : {}),
@@ -242,10 +253,12 @@ const syncPublishExports = Effect.fn(function* (
       return [
         subpath,
         {
-          types: output.replace(/\.tsx?$/, ".d.ts"),
-          bun: source,
-          ...(options.worker ? { worker: source } : {}),
-          default: output.replace(/\.tsx?$/, ".js"),
+          types: output.replace(/\.(?:tsx?|vibe)$/, ".d.ts"),
+          // A published .vibe source would need VibeLang's loader, so its consumers read the build.
+          ...(source.endsWith(".vibe")
+            ? {}
+            : { bun: source, ...(options.worker ? { worker: source } : {}) }),
+          default: output.replace(/\.(?:tsx?|vibe)$/, ".js"),
         },
       ];
     }),
