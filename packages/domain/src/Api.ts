@@ -41,10 +41,10 @@ import {
   type Subscription,
   type ViewStore,
 } from "./Platform.ts";
-import type * as Read from "./Read.ts";
+import type * as Read from "./Read.vibe";
 import { contractOf, nameOf, readRpcs } from "./ReadRpcs.ts";
 import * as RequestContext from "./RequestContext.ts";
-import type * as DomainStream from "./Stream.ts";
+import type * as DomainStream from "./Stream.vibe";
 import type * as View from "./View.ts";
 import * as Watch from "./Watch.ts";
 

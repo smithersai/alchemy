@@ -12,7 +12,7 @@ import type { Filter } from "./Filter.vibe";
 import { evolveView, type LocalViewInput } from "./internal.vibe";
 import type * as Key from "./Key.ts";
 import type * as Middleware from "./Middleware.ts";
-import type * as Read from "./Read.ts";
+import type * as Read from "./Read.vibe";
 import type * as Rejection from "./Rejection.vibe";
 
 /**

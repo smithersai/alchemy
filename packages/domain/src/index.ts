@@ -24,12 +24,12 @@ import * as EventModule from "./Event.vibe";
 import * as ExternalSystemModule from "./ExternalSystem.ts";
 import type * as KeyModule from "./Key.ts";
 import * as ModelModule from "./Model.ts";
-import * as PolicyModule from "./Policy.ts";
+import * as PolicyModule from "./Policy.vibe";
 import * as ProjectionModule from "./Projection.ts";
 import * as RejectionModule from "./Rejection.vibe";
 import * as RequestContextModule from "./RequestContext.ts";
 import * as SagaModule from "./Saga.ts";
-import * as StreamModule from "./Stream.ts";
+import * as StreamModule from "./Stream.vibe";
 import * as ViewModule from "./View.ts";
 
 export declare namespace Event {
@@ -250,6 +250,6 @@ export type { Filter, OrderBy } from "./Filter.vibe";
 export { InMemory } from "./InMemory.ts";
 export type * as Middleware from "./Middleware.ts";
 export { Platform } from "./Platform.ts";
-export * as Read from "./Read.ts";
+export * as Read from "./Read.vibe";
 /** Trace attributes, hosting options and the metrics a model records. */
 export * as Telemetry from "./Telemetry.ts";

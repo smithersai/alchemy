@@ -24,10 +24,10 @@ import type {
   ViewKit,
   ViewSnapshot,
 } from "./Platform.ts";
-import type * as Policy from "./Policy.ts";
+import type * as Policy from "./Policy.vibe";
 import type * as Projection from "./Projection.ts";
 import * as RequestContext from "./RequestContext.ts";
-import type * as DomainStream from "./Stream.ts";
+import type * as DomainStream from "./Stream.vibe";
 import * as Telemetry from "./Telemetry.ts";
 import type * as View from "./View.ts";
 

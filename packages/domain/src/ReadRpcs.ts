@@ -5,8 +5,8 @@ import type * as Event from "./Event.vibe";
 import { FilterJson } from "./Filter.vibe";
 import * as Key from "./Key.ts";
 import * as Middleware from "./Middleware.ts";
-import * as Read from "./Read.ts";
-import type * as DomainStream from "./Stream.ts";
+import * as Read from "./Read.vibe";
+import type * as DomainStream from "./Stream.vibe";
 import * as View from "./View.ts";
 
 /**

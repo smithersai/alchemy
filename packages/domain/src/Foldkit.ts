@@ -12,9 +12,9 @@ import type * as Aggregate from "./Aggregate.ts";
 import type * as Api from "./Api.ts";
 import type * as DomainCommand from "./Command.vibe";
 import * as Key from "./Key.ts";
-import * as Read from "./Read.ts";
+import * as Read from "./Read.vibe";
 import { nameOf } from "./ReadRpcs.ts";
-import type * as DomainStream from "./Stream.ts";
+import type * as DomainStream from "./Stream.vibe";
 import type * as View from "./View.ts";
 
 /** Per-call headers, resolved at execution time and excluded from replayable args. */
