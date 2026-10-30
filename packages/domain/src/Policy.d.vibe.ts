@@ -5,7 +5,7 @@ import type * as Schedule from "effect/Schedule";
 import type * as Aggregate from "./Aggregate.js";
 import type * as Event from "./Event.vibe";
 import type * as Key from "./Key.js";
-import type * as View from "./View.js";
+import type * as View from "./View.vibe";
 /** One source, or several. */
 export type From = View.Source | ReadonlyArray<View.Source>;
 /** The sources of a `from`. */

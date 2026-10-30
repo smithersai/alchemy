@@ -7,7 +7,7 @@ import * as Key from "./Key.ts";
 import * as Middleware from "./Middleware.ts";
 import * as Read from "./Read.vibe";
 import type * as DomainStream from "./Stream.vibe";
-import * as View from "./View.ts";
+import * as View from "./View.vibe";
 
 /**
  * The RPCs of the views and aggregates an Api exposes. Shared by the Api

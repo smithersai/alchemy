@@ -20,7 +20,7 @@ import type * as Key from "./Key.ts";
 import * as Model from "./Model.ts";
 import type * as Saga from "./Saga.vibe";
 import type * as DomainStream from "./Stream.vibe";
-import type * as View from "./View.ts";
+import type * as View from "./View.vibe";
 
 /** How far a story got with one step. */
 export interface StepReport {

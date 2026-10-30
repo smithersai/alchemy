@@ -10,7 +10,7 @@ import type * as Key from "./Key.js";
 import type * as Middleware from "./Middleware.js";
 import type * as Read from "./Read.vibe";
 import type * as Rejection from "./Rejection.vibe";
-import type { ConsistencyTimeout, Page } from "./View.js";
+import type { ConsistencyTimeout, Page } from "./View.vibe";
 /**
  * One entry of a stream key: the event appended, and where it sits.
  */

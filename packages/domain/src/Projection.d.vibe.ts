@@ -7,7 +7,7 @@ import type * as Aggregate from "./Aggregate.js";
 import type * as Event from "./Event.vibe";
 import type * as Key from "./Key.js";
 import type * as DomainStream from "./Stream.vibe";
-import type * as View from "./View.js";
+import type * as View from "./View.vibe";
 /**
  * One input a projection's handler receives: an event, the key it was routed
  * to, and where it came from.

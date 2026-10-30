@@ -5,7 +5,7 @@ import type * as Aggregate from "./Aggregate.js";
 import { type Kernel } from "./Kernel.js";
 import type { Json, Push, StoredEvent, StreamEntry, StreamMeta, Subscription, ViewEntry, ViewSnapshot } from "./Platform.js";
 import type * as DomainStream from "./Stream.vibe";
-import type * as View from "./View.js";
+import type * as View from "./View.vibe";
 /** Encode a read's refusal (a middleware error) as the `Exit` that ends it. */
 export declare const refuse: (rpc: Rpc.Any, error: unknown) => Effect.Effect<Json, Schema.SchemaError>;
 /** What a view key's subscriber receives after a commit (or when it connects). */

@@ -45,7 +45,7 @@ import type * as Read from "./Read.vibe";
 import { contractOf, nameOf, readRpcs } from "./ReadRpcs.ts";
 import * as RequestContext from "./RequestContext.ts";
 import type * as DomainStream from "./Stream.vibe";
-import type * as View from "./View.ts";
+import type * as View from "./View.vibe";
 import * as Watch from "./Watch.vibe";
 
 /**

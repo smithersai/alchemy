@@ -30,7 +30,7 @@ import * as RejectionModule from "./Rejection.vibe";
 import * as RequestContextModule from "./RequestContext.ts";
 import * as SagaModule from "./Saga.vibe";
 import * as StreamModule from "./Stream.vibe";
-import * as ViewModule from "./View.ts";
+import * as ViewModule from "./View.vibe";
 
 export declare namespace Event {
   /** Any Event class. */

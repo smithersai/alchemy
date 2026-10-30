@@ -9,7 +9,7 @@ import type * as Policy from "./Policy.vibe";
 import type * as Projection from "./Projection.vibe";
 import type * as DomainStream from "./Stream.vibe";
 import { TraceJson } from "./Telemetry.ts";
-import type * as View from "./View.ts";
+import type * as View from "./View.vibe";
 
 /**
  * Capture the services `R` for later use, minus the `Scope`: a captured
