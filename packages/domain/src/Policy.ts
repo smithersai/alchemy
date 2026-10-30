@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as Schedule from "effect/Schedule";
 import type * as Aggregate from "./Aggregate.ts";
-import type * as Event from "./Event.ts";
+import type * as Event from "./Event.vibe";
 import type * as Key from "./Key.ts";
 import type * as View from "./View.ts";
 

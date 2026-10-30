@@ -7,7 +7,7 @@ import type * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import type * as Stream from "effect/Stream";
 import type * as Aggregate from "./Aggregate.ts";
-import type * as Event from "./Event.ts";
+import type * as Event from "./Event.vibe";
 import type { Filter } from "./Filter.vibe";
 import { evolveView, type LocalViewInput } from "./internal.ts";
 import type * as Key from "./Key.ts";

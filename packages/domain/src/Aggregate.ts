@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import type * as Command from "./Command.ts";
-import type * as Event from "./Event.ts";
+import type * as Event from "./Event.vibe";
 import { DefinitionError, judge, settle, targetId as internalTargetId } from "./internal.ts";
 import type * as Middleware from "./Middleware.ts";
 import type * as Read from "./Read.ts";

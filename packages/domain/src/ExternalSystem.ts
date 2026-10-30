@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
-import type { Fields } from "./Event.ts";
+import type { Fields } from "./Event.vibe";
 import * as Telemetry from "./Telemetry.ts";
 
 type OpImpl = (args: unknown) => Effect.Effect<unknown, unknown, unknown>;

@@ -20,7 +20,7 @@
 import * as AggregateModule from "./Aggregate.ts";
 import * as ApiModule from "./Api.ts";
 import * as CommandModule from "./Command.ts";
-import * as EventModule from "./Event.ts";
+import * as EventModule from "./Event.vibe";
 import * as ExternalSystemModule from "./ExternalSystem.ts";
 import type * as KeyModule from "./Key.ts";
 import * as ModelModule from "./Model.ts";

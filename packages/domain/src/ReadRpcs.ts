@@ -1,7 +1,7 @@
 import * as Rpc from "effect/rpc/Rpc";
 import * as Schema from "effect/Schema";
 import * as Aggregate from "./Aggregate.ts";
-import type * as Event from "./Event.ts";
+import type * as Event from "./Event.vibe";
 import { FilterJson } from "./Filter.vibe";
 import * as Key from "./Key.ts";
 import * as Middleware from "./Middleware.ts";

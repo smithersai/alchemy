@@ -6,7 +6,7 @@ import * as Exit from "effect/Exit";
 import * as Schema from "effect/Schema";
 import * as Aggregate from "./Aggregate.ts";
 import * as Command from "./Command.ts";
-import type * as Event from "./Event.ts";
+import type * as Event from "./Event.vibe";
 import { DefinitionError, judge, rejectionTag, settle } from "./internal.ts";
 import * as Key from "./Key.ts";
 import type {

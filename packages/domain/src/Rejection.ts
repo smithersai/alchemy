@@ -1,6 +1,6 @@
 import type * as Cause from "effect/Cause";
 import * as Schema from "effect/Schema";
-import type { Data, Fields } from "./Event.ts";
+import type { Data, Fields } from "./Event.vibe";
 import type * as Telemetry from "./Telemetry.ts";
 
 /**
