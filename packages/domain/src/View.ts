@@ -9,7 +9,7 @@ import type * as Stream from "effect/Stream";
 import type * as Aggregate from "./Aggregate.ts";
 import type * as Event from "./Event.vibe";
 import type { Filter } from "./Filter.vibe";
-import { evolveView, type LocalViewInput } from "./internal.ts";
+import { evolveView, type LocalViewInput } from "./internal.vibe";
 import type * as Key from "./Key.ts";
 import type * as Middleware from "./Middleware.ts";
 import type * as Read from "./Read.ts";
