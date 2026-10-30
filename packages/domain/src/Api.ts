@@ -28,7 +28,7 @@ import * as Socket from "effect/socket/Socket";
 import * as Stream from "effect/Stream";
 import * as Tracer from "effect/Tracer";
 import type * as Aggregate from "./Aggregate.ts";
-import * as Command from "./Command.ts";
+import * as Command from "./Command.vibe";
 import { type Filter, matches } from "./Filter.vibe";
 import { decodeEnvelope } from "./Kernel.ts";
 import * as Key from "./Key.ts";

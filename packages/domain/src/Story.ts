@@ -13,7 +13,7 @@ import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import type { DurableDeferred, WorkflowEngine } from "effect/workflow";
 import * as Aggregate from "./Aggregate.ts";
-import type * as Command from "./Command.ts";
+import type * as Command from "./Command.vibe";
 import * as ExternalSystem from "./ExternalSystem.ts";
 import * as InMemory from "./InMemory.ts";
 import type * as Key from "./Key.ts";

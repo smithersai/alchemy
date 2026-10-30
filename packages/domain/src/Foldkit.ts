@@ -10,7 +10,7 @@ import { Command, type Subscription } from "foldkit";
 import { defineMessageUnion, type MessageUnion } from "foldkit/message";
 import type * as Aggregate from "./Aggregate.ts";
 import type * as Api from "./Api.ts";
-import type * as DomainCommand from "./Command.ts";
+import type * as DomainCommand from "./Command.vibe";
 import * as Key from "./Key.ts";
 import * as Read from "./Read.ts";
 import { nameOf } from "./ReadRpcs.ts";

@@ -7,7 +7,7 @@ import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import type * as Command from "./Command.ts";
+import type * as Command from "./Command.vibe";
 import type * as Event from "./Event.vibe";
 import { DefinitionError, judge, settle, targetId as internalTargetId } from "./internal.vibe";
 import type * as Middleware from "./Middleware.ts";
