@@ -1,5 +1,6 @@
 import path from "node:path";
 import react from "@vitejs/plugin-react";
+import vibelang from "vibelang-vite";
 import { defineConfig, type Plugin } from "vite";
 
 const captureDir = path.resolve(import.meta.dirname, "..", "out", "capture");
@@ -26,6 +27,6 @@ export default defineConfig({
   // Captures (scene.json, terminal clips, screenshots, intro.json) are served
   // at the root, where Remotion's staticFile() looks for them.
   publicDir: captureDir,
-  plugins: [react(), captureData()],
+  plugins: [vibelang(), react(), captureData()],
   server: { port: 5199, fs: { allow: [path.resolve(import.meta.dirname, "..", "..", "..")] } },
 });
