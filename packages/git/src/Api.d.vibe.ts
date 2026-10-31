@@ -1,4 +1,11 @@
 import * as HttpApi from "effect/http-api/HttpApi";
+import type * as HttpServerRequest from "effect/http/HttpServerRequest";
+import { GitHub } from "./Api/GitHub.js";
+import { Objects } from "./Api/Objects.js";
+import { Protocol } from "./Api/Protocol.js";
+import { Pulls } from "./Api/Pulls.js";
+import { Refs } from "./Api/Refs.js";
+import { Repos } from "./Api/Repos.js";
 /**
  * The typed HTTP contract for git-service (DESIGN.md §5): every plane as
  * one Effect `HttpApi`, so the Worker, the clients
@@ -22,36 +29,22 @@ import * as HttpApi from "effect/http-api/HttpApi";
  * {@link InternalApi}, mounted separately. Shared schemas and tagged
  * errors live in `Api/Schema.ts` and are re-exported flatly from here.
  */
-import type * as HttpServerRequest from "effect/http/HttpServerRequest";
-import { GitHub } from "./Api/GitHub.ts";
-import { Objects } from "./Api/Objects.ts";
-import { Protocol } from "./Api/Protocol.ts";
-import { Pulls } from "./Api/Pulls.ts";
-import { Refs } from "./Api/Refs.ts";
-import { Repos } from "./Api/Repos.ts";
-
-export * from "./Api/Schema.ts";
-export * from "./Api/GitHub.ts";
-export * from "./Api/Internal.ts";
-export * from "./Api/Objects.ts";
-export * from "./Api/Protocol.ts";
-export * from "./Api/Pulls.ts";
-export * from "./Api/Refs.ts";
-export * from "./Api/Repos.ts";
-
+export * from "./Api/Schema.js";
+export * from "./Api/GitHub.js";
+export * from "./Api/Internal.js";
+export * from "./Api/Objects.js";
+export * from "./Api/Protocol.js";
+export * from "./Api/Pulls.js";
+export * from "./Api/Refs.js";
+export * from "./Api/Repos.js";
+declare const GitApi_base: HttpApi.HttpApi<"git-service", typeof GitHub | typeof Objects | typeof Protocol | typeof Pulls | typeof Refs | typeof Repos>;
 /**
  * The complete git-service API: the REST plane at `/api/v1`, the git wire
  * protocol at the root, and the GitHub facade at `/api/v3`. Compose client
  * schemas with `AppApi.addHttpApi(Git.Api)`, or build one from the groups.
  */
-export class GitApi extends HttpApi.make("git-service")
-  .add(Repos)
-  .add(Refs)
-  .add(Objects)
-  .add(Pulls)
-  .add(Protocol)
-  .add(GitHub) {}
-
+export declare class GitApi extends GitApi_base {
+}
 /**
  * Whether a request to one of the engine's routes only reads: the REST
  * and raw reads, the GitHub facade's `GET`s, the ref advertisement for a
@@ -68,11 +61,4 @@ export class GitApi extends HttpApi.make("git-service")
  *   })
  * ```
  */
-export const isRead = (request: HttpServerRequest.HttpServerRequest): boolean => {
-  const url = new URL(request.url, "http://localhost");
-  if (request.method === "POST") return url.pathname.endsWith("/git-upload-pack");
-  if (request.method !== "GET" && request.method !== "HEAD") return false;
-  return (
-    !url.pathname.endsWith("/info/refs") || url.searchParams.get("service") !== "git-receive-pack"
-  );
-};
+export declare const isRead: (request: HttpServerRequest.HttpServerRequest) => boolean;

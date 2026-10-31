@@ -1,6 +1,28 @@
-import * as Cloudflare from "@alchemy.run/cloudflare";
-import type { Database } from "@alchemy.run/cloudflare/D1";
-import type { QueryDatabaseClient } from "@alchemy.run/cloudflare/D1";
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import type { Database } from "@alchemy.run/cloudflare/D1"
+import type { QueryDatabaseClient } from "@alchemy.run/cloudflare/D1"
+import type * as runtime from "@cloudflare/workers-types"
+import type { RuntimeContext } from "alchemy/RuntimeContext"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import { RepoAlreadyExists, ValidationError } from "./Api.vibe"
+import { StoreError } from "./Protocol/Store.ts"
+import {
+  type CreateRepoInput,
+  decodeCursor,
+  DEFAULT_LIST_LIMIT,
+  encodeCursor,
+  type ListReposInput,
+  type ListReposResult,
+  type RegistryEntry,
+  type RegistryShape,
+  RegistryStore,
+  type RepoSummary,
+  RESERVED_OWNERS,
+  toEntry,
+  ulid,
+} from "./RegistryObject.ts"
+import { REGISTRY_DDL, type RegistryRepoRow } from "./Store/Sql.ts"
 /**
  * `Git.RegistryD1` — the repo index on a D1 database.
  *
@@ -36,42 +58,19 @@ import type { QueryDatabaseClient } from "@alchemy.run/cloudflare/D1";
  * @provides Git.RegistryStore
  * @product Git
  */
-import type * as runtime from "@cloudflare/workers-types";
-import type { RuntimeContext } from "alchemy/RuntimeContext";
-import * as Cause from "effect/Cause";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import { RepoAlreadyExists, ValidationError } from "./Api.ts";
-import { StoreError } from "./Protocol/Store.ts";
-import {
-  DEFAULT_LIST_LIMIT,
-  RegistryStore,
-  RESERVED_OWNERS,
-  decodeCursor,
-  encodeCursor,
-  toEntry,
-  ulid,
-  type CreateRepoInput,
-  type ListReposInput,
-  type ListReposResult,
-  type RegistryEntry,
-  type RegistryShape,
-  type RepoSummary,
-} from "./RegistryObject.ts";
-import { REGISTRY_DDL, type RegistryRepoRow } from "./Store/Sql.ts";
 
 /**
  * D1's executors put failures in the defect channel (their error channel
  * is `never`), so every call is wrapped to surface as a typed
  * {@link StoreError} like the rest of the service.
  */
-const d1 = <A>(
+const d1 = effect <A>(
   what: string,
-  effect: Effect.Effect<A, never, RuntimeContext>,
-): Effect.Effect<A, StoreError, RuntimeContext> =>
-  Effect.catchCause(effect, (cause) =>
-    Effect.fail(StoreError.make({ reason: `registry ${what}: ${Cause.pretty(cause)}` })),
-  );
+  effect: A!!RuntimeContext,
+): A!StoreError!RuntimeContext =>
+  try Effect.catchCause(effect, effect (cause) => {
+    throw StoreError.make({ reason: `registry ${what}: ${Cause.pretty(cause)}` })
+  })
 
 /**
  * The repo index on D1. The database must already exist; the table is
@@ -81,37 +80,40 @@ const d1 = <A>(
 export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
   Layer.effect(
     RegistryStore,
-    Effect.gen(function* () {
-      const db: QueryDatabaseClient = yield* Cloudflare.D1.QueryDatabase(database);
+    effect {
+      const db: QueryDatabaseClient = try Cloudflare.D1.QueryDatabase(database)
 
       // The DDL is shared with the DO (Store/Sql.ts) — one definition, so
       // the backends can never drift apart.
-      const ready = Effect.suspend(() =>
-        Effect.forEach(REGISTRY_DDL, (statement) => d1("schema", db.prepare(statement).run())),
-      ).pipe(Effect.asVoid, Effect.cached);
-      const schema = yield* ready;
+      const ready = effect {
+        return try (Effect.suspend(effect () =>
+          try Effect.forEach(REGISTRY_DDL, effect (statement) => try d1("schema", db.prepare(statement).run()))
+        )
+          |> Effect.asVoid(%)
+          |> Effect.cached(%))
+      }
+      const schema = try ready
 
-      const rows = <T>(result: runtime.D1Result<T>): ReadonlyArray<T> =>
-        (result.results ?? []) as ReadonlyArray<T>;
+      const rows = <T>(result: runtime.D1Result<T>): ReadonlyArray<T> => (result.results ?? []) as ReadonlyArray<T>
 
       const shape: RegistryShape = {
-        createRepo: Effect.fn(function* (input: CreateRepoInput) {
-          const owner = input.owner.toLowerCase();
-          const name = input.name.toLowerCase();
+        createRepo: effect (input: CreateRepoInput) => {
+          const owner = input.owner.toLowerCase()
+          const name = input.name.toLowerCase()
           if (RESERVED_OWNERS.has(owner)) {
-            return yield* ValidationError.make({
+            throw ValidationError.make({
               message: `owner name '${owner}' is reserved`,
-            });
+            })
           }
-          yield* schema;
-          const repoId = yield* ulid();
-          const createdAt = Date.now();
+          try schema
+          const repoId = try ulid()
+          const createdAt = try Clock.currentTimeMillis
 
           // Guarded insert: SQLite evaluates the NOT EXISTS and the write
           // atomically, so this is the CAS the DO gets from its single
           // thread. `changes === 0` means someone already holds the name
           // (a soft-deleted row still does, until purge frees it).
-          const inserted = yield* d1(
+          const inserted = try d1(
             "createRepo",
             db
               .prepare(
@@ -134,22 +136,22 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
                 name,
               )
               .run(),
-          );
+          )
           if ((inserted.meta?.changes ?? 0) === 0) {
-            return yield* RepoAlreadyExists.make({ owner, repo: name });
+            throw RepoAlreadyExists.make({ owner, repo: name })
           }
           if (input.forkOf !== undefined) {
             // Deliberately not batched with the insert: the fork count is
             // only ever READ derived from live `fork_of` rows (see
             // `bumpForkCount` with delta 0), so a crash between the two
             // cannot strand a purge.
-            yield* d1(
+            try d1(
               "recordFork",
               db
                 .prepare(`UPDATE repos SET fork_count = fork_count + 1 WHERE repo_id = ?`)
                 .bind(input.forkOf)
                 .run(),
-            );
+            )
           }
           return {
             owner,
@@ -164,42 +166,42 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
             forkCount: 0,
             createdAt,
             deletedAt: null,
-          } satisfies RegistryEntry;
-        }),
+          } satisfies RegistryEntry
+        },
 
-        resolve: Effect.fn(function* (owner: string, name: string) {
-          yield* schema;
+        resolve: effect (owner: string, name: string) => {
+          try schema
           // Soft-deleted rows ARE returned (with `deletedAt` set) so the
           // Worker can report `status: "deleting"` rather than a 404 that
           // would race a re-create against the purge.
-          const row = yield* d1(
+          const row = try d1(
             "resolve",
             db
               .prepare(`SELECT * FROM repos WHERE owner = ? AND name = ?`)
               .bind(owner.toLowerCase(), name.toLowerCase())
               .first<RegistryRepoRow>(),
-          );
-          return row === null ? undefined : toEntry(row);
-        }),
+          )
+          return row === null ? undefined : toEntry(row)
+        },
 
-        list: Effect.fn(function* (input: ListReposInput) {
-          yield* schema;
-          const limit = Math.max(1, Math.min(input.limit ?? DEFAULT_LIST_LIMIT, 100));
-          const after = input.cursor === undefined ? undefined : decodeCursor(input.cursor);
-          const conditions: Array<string> = ["deleted_at IS NULL"];
-          const bindings: Array<string | number> = [];
+        list: effect (input: ListReposInput) => {
+          try schema
+          const limit = Math.max(1, Math.min(input.limit ?? DEFAULT_LIST_LIMIT, 100))
+          const after = input.cursor === undefined ? undefined : decodeCursor(input.cursor)
+          const conditions: Array<string> = ["deleted_at IS NULL"]
+          const bindings: Array<string | number> = []
           if (input.publicOnly === true) {
-            conditions.push("is_public = 1");
+            conditions.push("is_public = 1")
           }
           if (input.owner !== undefined) {
-            conditions.push("owner = ?");
-            bindings.push(input.owner.toLowerCase());
+            conditions.push("owner = ?")
+            bindings.push(input.owner.toLowerCase())
           }
           if (after !== undefined) {
-            conditions.push("(owner > ? OR (owner = ? AND name > ?))");
-            bindings.push(after[0], after[0], after[1]);
+            conditions.push("(owner > ? OR (owner = ? AND name > ?))")
+            bindings.push(after[0], after[0], after[1])
           }
-          const page = yield* d1(
+          const page = try d1(
             "list",
             db
               .prepare(
@@ -208,66 +210,66 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
               )
               .bind(...bindings, limit + 1)
               .all<RegistryRepoRow>(),
-          );
-          const all = rows(page);
-          const hasMore = all.length > limit;
-          const items = hasMore ? all.slice(0, limit) : all;
-          const last = items[items.length - 1];
+          )
+          const all = rows(page)
+          const hasMore = all.length > limit
+          const items = hasMore ? all.slice(0, limit) : all
+          const last = items[items.length - 1]
           return {
             items: items.map(toEntry),
             nextCursor: hasMore && last !== undefined ? encodeCursor(last.owner, last.name) : null,
             hasMore,
-          } satisfies ListReposResult;
-        }),
+          } satisfies ListReposResult
+        },
 
-        recordFork: (parentRepoId) => shape.bumpForkCount(parentRepoId, 1),
+        recordFork: effect (parentRepoId) => try shape.bumpForkCount(parentRepoId, 1),
 
-        bumpForkCount: Effect.fn(function* (repoId: string, delta: number) {
-          yield* schema;
+        bumpForkCount: effect (repoId: string, delta: number) => {
+          try schema
           if (delta !== 0) {
-            yield* d1(
+            try d1(
               "bumpForkCount",
               db
                 .prepare(`UPDATE repos SET fork_count = MAX(0, fork_count + ?) WHERE repo_id = ?`)
                 .bind(delta, repoId)
                 .run(),
-            );
-            const row = yield* d1(
+            )
+            const row = try d1(
               "bumpForkCount read",
               db
                 .prepare(`SELECT fork_count FROM repos WHERE repo_id = ?`)
                 .bind(repoId)
-                .first<{ fork_count: number }>(),
-            );
-            return row?.fork_count ?? 0;
+                .first<{ mutable fork_count: number }>(),
+            )
+            return row?.fork_count ?? 0
           }
           // Delta 0 DERIVES the count from live fork rows rather than the
           // stored column, so the purge fork-pin keeps working after the
           // parent's own row is removed (matching the DO exactly).
-          const row = yield* d1(
+          const row = try d1(
             "forkCount",
             db
               .prepare(`SELECT COUNT(*) AS n FROM repos WHERE fork_of = ?`)
               .bind(repoId)
-              .first<{ n: number }>(),
-          );
-          return row?.n ?? 0;
-        }),
+              .first<{ mutable n: number }>(),
+          )
+          return row?.n ?? 0
+        },
 
-        markDeleted: Effect.fn(function* (repoId: string) {
-          yield* schema;
-          yield* d1(
+        markDeleted: effect (repoId: string) => {
+          try schema
+          try d1(
             "markDeleted",
             db
               .prepare(`UPDATE repos SET deleted_at = ? WHERE repo_id = ? AND deleted_at IS NULL`)
-              .bind(Date.now(), repoId)
+              .bind(try Clock.currentTimeMillis, repoId)
               .run(),
-          );
-        }),
+          )
+        },
 
-        updateSummary: Effect.fn(function* (repoId: string, summary: RepoSummary) {
-          yield* schema;
-          yield* d1(
+        updateSummary: effect (repoId: string, summary: RepoSummary) => {
+          try schema
+          try d1(
             "updateSummary",
             db
               .prepare(
@@ -282,20 +284,20 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
                 repoId,
               )
               .run(),
-          );
-        }),
+          )
+        },
 
-        removeRow: Effect.fn(function* (repoId: string) {
-          yield* schema;
-          const row = yield* d1(
+        removeRow: effect (repoId: string) => {
+          try schema
+          const row = try d1(
             "removeRow read",
             db
               .prepare(`SELECT * FROM repos WHERE repo_id = ?`)
               .bind(repoId)
               .first<RegistryRepoRow>(),
-          );
+          )
           if (row === null) {
-            return; // idempotent — purge re-runs are expected
+            return // idempotent — purge re-runs are expected
           }
           // One batch: the row goes and the fork parent is decremented
           // together, or neither happens.
@@ -303,18 +305,18 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
             db.prepare(`DELETE FROM repos WHERE repo_id = ?`).bind(repoId),
             ...(row.fork_of !== null
               ? [
-                  db
-                    .prepare(
-                      `UPDATE repos SET fork_count = MAX(0, fork_count - 1) WHERE repo_id = ?`,
-                    )
-                    .bind(row.fork_of),
-                ]
+                db
+                  .prepare(
+                    `UPDATE repos SET fork_count = MAX(0, fork_count - 1) WHERE repo_id = ?`,
+                  )
+                  .bind(row.fork_of),
+              ]
               : []),
-          ];
-          yield* d1("removeRow", db.batch(statements));
-        }),
-      };
+          ]
+          try d1("removeRow", db.batch(statements))
+        },
+      }
 
-      return shape;
-    }),
-  ).pipe(Layer.provide(Cloudflare.D1.QueryDatabaseBinding)) as never;
+      return shape
+    },
+  ).pipe(Layer.provide(Cloudflare.D1.QueryDatabaseBinding)) as never
