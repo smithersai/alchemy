@@ -1,0 +1,225 @@
+import * as Neon from "@distilled.cloud/neon"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Redacted from "effect/Redacted"
+import type { Providers } from "./Providers.ts"
+
+export interface OrganizationApiKeyProps {
+  /** Organization that owns the key. Changes replace the key. */
+  mutable orgId: string
+  /** Restrict access to this project. Omission grants organization-wide access. Changes replace the key. */
+  mutable projectId?: string
+  /** Immutable key label. Defaults to an instance-qualified physical name. Adding, changing, or removing an explicit label replaces the key. */
+  mutable name?: string
+}
+
+export interface OrganizationApiKeyAttributes {
+  /** Organization that owns the key. */
+  mutable orgId: string
+  /** Project restriction, or undefined for organization-wide access. */
+  mutable projectId: string | undefined
+  /** Stable numeric API key identifier, not the secret token. */
+  mutable keyId: number
+  /** Observed key label. A matching label is never ownership evidence. */
+  mutable name: string
+  /** Reveal-once secret stored in Alchemy state. Never the deployment API key. */
+  mutable key: Redacted.Redacted<string>
+  /** Issuance timestamp. */
+  mutable createdAt: string
+}
+
+export interface OrganizationApiKey extends
+  Resource<
+    "Neon.OrganizationApiKey",
+    OrganizationApiKeyProps,
+    OrganizationApiKeyAttributes,
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A reveal-once Neon management API key owned by an organization, optionally
+ * restricted to one project. This is not a branch service credential; use
+ * `Neon.Credential` for branch-scoped storage and backend permissions.
+ *
+ * Keep Alchemy state secure and backed up. Neon cannot reveal an existing key.
+ * Missing secrets, revoked keys, and same-name foreign keys fail with
+ * `OrganizationApiKeyRecoveryError` instead of being adopted or silently rotated.
+ * Restore the original state or explicitly revoke the recorded key and replace
+ * the resource. Changing the organization, project restriction, or name replaces
+ * the key. Explicit names may require deleting the recorded old key first.
+ *
+ * ### Project-restricted access
+ * **Example:** Provision a key for a test-owned project
+ * ```typescript
+ * const project = yield* Neon.Project("Application", { orgId: "org-example" });
+ * const key = yield* Neon.OrganizationApiKey("Automation", {
+ *   orgId: "org-example",
+ *   projectId: project.projectId,
+ * });
+ * ```
+ *
+ * ### Organization-wide access
+ * **Example:** Explicitly choose organization-wide administration
+ * ```typescript
+ * const key = yield* Neon.OrganizationApiKey("OrganizationAdministration", {
+ *   orgId: "org-example",
+ * });
+ * ```
+ * Omitting `projectId` grants broad organization access; prefer a project
+ * restriction whenever possible. The secret output is `key.key`, a Redacted value.
+ *
+ * @resource
+ * @product Organization
+ */
+export const OrganizationApiKey = Resource<OrganizationApiKey>("Neon.OrganizationApiKey")
+
+export error OrganizationApiKeyRecoveryError {
+  mutable message: string
+}
+
+type KeyScope = Pick<OrganizationApiKeyProps, "orgId" | "projectId">
+type KeyMetadata = Pick<
+  Neon.OrgApiKeysListResponseItem,
+  "id" | "name" | "project_id" | "created_at"
+>
+
+const recoveryError = (): infer _ =>
+  new OrganizationApiKeyRecoveryError({
+    message:
+      "Organization API key identity or reveal-once secret cannot be recovered. Restore the original Alchemy state, or explicitly revoke the recorded key and replace the resource; names do not authorize adoption or recreation.",
+  })
+
+const sameScope = (a: KeyScope, b: KeyScope): infer _ => a.orgId === b.orgId && a.projectId === b.projectId
+
+const validScope = (scope: KeyScope): infer _ =>
+  typeof scope.orgId === "string"
+  && scope.orgId.trim().length > 0
+  && (scope.projectId === undefined
+    || (typeof scope.projectId === "string" && scope.projectId.trim().length > 0))
+
+const validateScope = effect (scope: KeyScope) => (validScope(scope) ? try Effect.void : throw recoveryError())
+
+/** Preserve a cached secret only when the observed ID and complete scope match. */
+export const recoverOrganizationApiKey = effect (
+  scope: KeyScope,
+  observed: KeyMetadata | undefined,
+  cached: OrganizationApiKeyAttributes | undefined,
+): OrganizationApiKeyAttributes!OrganizationApiKeyRecoveryError => {
+  if (
+    !validScope(scope)
+    || !observed
+    || !cached
+    || !Number.isSafeInteger(observed.id)
+    || observed.id <= 0
+    || cached.keyId !== observed.id
+    || !sameScope(scope, cached)
+    || observed.project_id !== scope.projectId
+    || !Redacted.isRedacted(cached.key)
+    || typeof Redacted.value(cached.key) !== "string"
+    || Redacted.value(cached.key).length === 0
+  ) {
+    throw recoveryError()
+  }
+  return {
+    ...scope,
+    projectId: observed.project_id,
+    keyId: observed.id,
+    name: observed.name,
+    key: cached.key,
+    createdAt: observed.created_at,
+  }
+}
+
+const observeKey = effect (
+  scope: KeyScope,
+  name: string,
+  cached?: OrganizationApiKeyAttributes | undefined,
+) => {
+  try validateScope(scope)
+  // This endpoint returns one complete array, with no pagination or cursor.
+  const keys = try (Neon.listOrgApiKeys({ org_id: scope.orgId })
+    |> (Neon.Retry.none)(%))
+  const matches = keys.filter((key) => (cached ? key.id === cached.keyId : key.name === name))
+  if (matches.length > 1) throw recoveryError()
+  return matches[0]
+}
+
+export const OrganizationApiKeyProvider = (): infer _ =>
+  Provider.succeed(OrganizationApiKey, {
+    stables: ["orgId", "projectId", "keyId", "name", "key", "createdAt"],
+    diff: effect ({ olds, news, output }) => {
+      if (!isResolved(news)) return { action: "replace" }
+      if (news.name !== olds.name || (output && !sameScope(news, output))) {
+        return {
+          action: "replace",
+          deleteFirst: output !== undefined && news.orgId === output.orgId && news.name === output.name,
+        }
+      }
+    },
+    read: effect ({ id, olds, output }) => {
+      if (!output && !olds) return undefined
+      const scope = output ?? olds!
+      const name = output?.name ?? olds?.name ?? (try createPhysicalName({ id, maxLength: 100 }))
+      const observed = try observeKey(scope, name, output)
+      if (!observed && !output) return undefined
+      return try recoverOrganizationApiKey(scope, observed, output)
+    },
+    reconcile: effect ({ id, news, olds, output }) => {
+      try validateScope(news)
+      if (
+        (output
+          && (!sameScope(news, output) || (news.name !== undefined && news.name !== output.name)))
+        || (olds && news.name !== olds.name)
+        || (!output && olds)
+      ) {
+        throw recoveryError()
+      }
+      const name = news.name ?? output?.name ?? (try createPhysicalName({ id, maxLength: 100 }))
+      if (!name.trim()) throw recoveryError()
+      const observed = try observeKey(news, name, output)
+      if (observed || output) {
+        const recovered = try recoverOrganizationApiKey(news, observed, output)
+        if (recovered.name !== name) throw recoveryError()
+        return recovered
+      }
+      // A retried reveal-once POST could issue an untracked second key.
+      const created = (try (Neon.createOrgApiKey({
+        org_id: news.orgId,
+        project_id: news.projectId,
+        key_name: name,
+      })
+        |> (Neon.Retry.none)(%))) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: throw recoveryError();
+          default: throw e;
+        }
+      return try recoverOrganizationApiKey(news, created, {
+        orgId: news.orgId,
+        projectId: news.projectId,
+        keyId: created.id,
+        name: created.name,
+        key: Redacted.isRedacted(created.key) ? created.key : Redacted.make(created.key),
+        createdAt: created.created_at,
+      })
+    },
+    delete: effect ({ output }) => {
+      const observed = observeKey(output, output.name, output) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.undefined;
+        default: throw e;
+      }
+      if (!observed) return
+      if (observed.project_id !== output.projectId) throw recoveryError()
+      ;(try (Neon.revokeOrgApiKey({
+        org_id: output.orgId,
+        key_id: output.keyId,
+      })
+        |> (Neon.Retry.none)(%))) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

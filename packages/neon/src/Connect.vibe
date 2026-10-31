@@ -1,24 +1,24 @@
-import * as Binding from "alchemy/Binding";
-import * as Output from "alchemy/Output";
-import { defaultProviderMode } from "alchemy/ProviderMode";
-import type { ResourceLike } from "alchemy/Resource";
-import { CurrentRuntimeContext, type RuntimeContext } from "alchemy/RuntimeContext";
-import * as Effect from "effect/Effect";
-import * as Layer from "effect/Layer";
-import * as Redacted from "effect/Redacted";
-import type { Branch } from "./Branch.ts";
-import { resolveBranchScope } from "./BranchScope.ts";
-import { branchScopeOf, type Function } from "./Function.vibe";
-import type { Project } from "./Project.ts";
+import * as Binding from "alchemy/Binding"
+import * as Output from "alchemy/Output"
+import { defaultProviderMode } from "alchemy/ProviderMode"
+import type { ResourceLike } from "alchemy/Resource"
+import { CurrentRuntimeContext, type RuntimeContext } from "alchemy/RuntimeContext"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Redacted from "effect/Redacted"
+import type { Branch } from "./Branch.ts"
+import { resolveBranchScope } from "./BranchScope.ts"
+import { branchScopeOf, type Function } from "./Function.vibe"
+import type { Project } from "./Project.ts"
 
 /** Postgres connection accessors. Resolving these Effects does not acquire a socket or pool. */
 export interface ConnectClient {
   /** Pooled URL for ordinary application queries. */
-  connectionString: Effect.Effect<Redacted.Redacted<string>, never, RuntimeContext>;
+  mutable connectionString: Redacted.Redacted<string>!never!RuntimeContext
   /** Pooled URL, including Neon's pooler hostname. */
-  pooledConnectionString: Effect.Effect<Redacted.Redacted<string>, never, RuntimeContext>;
+  mutable pooledConnectionString: Redacted.Redacted<string>!never!RuntimeContext
   /** Direct URL for migrations, notifications, and session-oriented clients. */
-  directConnectionString: Effect.Effect<Redacted.Redacted<string>, never, RuntimeContext>;
+  mutable directConnectionString: Redacted.Redacted<string>!never!RuntimeContext
 }
 
 /**
@@ -59,46 +59,46 @@ export interface ConnectClient {
  * @binding
  * @product Branch
  */
-export interface Connect extends Binding.Service<
-  Connect,
-  "Neon.Connect",
-  (database: Branch | Project) => Effect.Effect<ConnectClient>
-> {}
+export interface Connect extends
+  Binding.Service<
+    Connect,
+    "Neon.Connect",
+    (database: Branch | Project) => ConnectClient!!
+  >
+{}
 
-export const Connect = Binding.Service<Connect>("Neon.Connect");
+export const Connect = Binding.Service<Connect>("Neon.Connect")
 
 /** Stable, collision-free environment names for native cross-host consumers. */
-export const connectEnvKeys = (database: Pick<Branch | Project, "FQN">) => {
+export const connectEnvKeys = (database: Pick<Branch | Project, "FQN">): infer _ => {
   const name = Array.from(database.FQN, (character) => character.codePointAt(0)!.toString(16)).join(
     "_",
-  );
-  const prefix = `NEON_${name}`;
+  )
+  const prefix = `NEON_${name}`
   return {
     injected: `${prefix}_INJECTED`,
     pooledConnectionString: `${prefix}_DATABASE_URL`,
     directConnectionString: `${prefix}_DATABASE_URL_UNPOOLED`,
-  };
-};
+  }
+}
 
 /** Redacted environment outputs for native hosts. No deployment credentials are included. */
-export const connectEnv = (database: Branch | Project) => {
-  const keys = connectEnvKeys(database);
+export const connectEnv = (database: Branch | Project): infer _ => {
+  const keys = connectEnvKeys(database)
   return {
     [keys.pooledConnectionString]: database.pooledConnectionUri.pipe(Output.map(Redacted.make)),
     [keys.directConnectionString]: database.connectionUri.pipe(Output.map(Redacted.make)),
-  };
-};
+  }
+}
 
-const isFunction = (host: ResourceLike | undefined): host is Function =>
-  host?.Type === "Neon.Function";
-const stringOutput = (value: string | Output.Output<string>) =>
-  typeof value === "string" ? Output.literal(value) : value;
+const isFunction = (host: ResourceLike | undefined): host is Function => host?.Type === "Neon.Function"
+const stringOutput = (value: string | Output.Output<string>): infer _ =>
+  typeof value === "string" ? Output.literal(value) : value
 
-const injectedScope = (host: ResourceLike | undefined, database: Branch | Project) => {
-  if (!isFunction(host)) return Output.literal(false);
-  const scope = branchScopeOf(host.Props);
-  const targetBranch =
-    database.Type === "Neon.Branch" ? database.branchId : database.defaultBranchId;
+const injectedScope = (host: ResourceLike | undefined, database: Branch | Project): infer _ => {
+  if (!isFunction(host)) return Output.literal(false)
+  const scope = branchScopeOf(host.Props)
+  const targetBranch = database.Type === "Neon.Branch" ? database.branchId : database.defaultBranchId
   if (scope.branch) {
     return Output.all(
       stringOutput(scope.branch.projectId),
@@ -107,72 +107,72 @@ const injectedScope = (host: ResourceLike | undefined, database: Branch | Projec
       targetBranch,
     ).pipe(
       Output.map(
-        ([project, branch, targetProject, target]) =>
-          project === targetProject && branch === target,
+        ([project, branch, targetProject, target]) => project === targetProject && branch === target,
       ),
-    );
+    )
   }
   if (scope.project) {
     const resolved = stringOutput(scope.project.projectId).pipe(
-      Output.mapEffect((projectId: string) =>
-        resolveBranchScope({ project: { projectId } }).pipe(Effect.orDie),
+      Output.mapEffect(effect (projectId: string) =>
+        try (resolveBranchScope({ project: { projectId } })
+          |> Effect.orDie(%))
       ),
-    );
+    )
     return Output.all(resolved.projectId, resolved.branchId, database.projectId, targetBranch).pipe(
       Output.map(
-        ([project, branch, targetProject, target]) =>
-          project === targetProject && branch === target,
+        ([project, branch, targetProject, target]) => project === targetProject && branch === target,
       ),
-    );
+    )
   }
-  return Output.literal(false);
-};
+  return Output.literal(false)
+}
 
 /** Host-independent implementation using Platform's common environment channel. */
 export const ConnectHttp = Layer.effect(
   Connect,
-  Effect.gen(function* () {
-    const context = yield* CurrentRuntimeContext;
-    if (!context) return yield* Effect.die(new Error("Neon.Connect requires a Platform host"));
-    return Effect.fn(function* (database: Branch | Project) {
-      const keys = connectEnvKeys(database);
+  effect {
+    const context = try CurrentRuntimeContext
+    if (!context) return try Effect.die(new Error("Neon.Connect requires a Platform host"))
+    return effect (database: Branch | Project) => {
+      const keys = connectEnvKeys(database)
       if (!globalThis.__ALCHEMY_RUNTIME__) {
-        const host = yield* Binding.Host;
-        const mode = host?.Mode ?? (yield* defaultProviderMode);
-        const injected = mode === "local" ? Output.literal(false) : injectedScope(host, database);
-        yield* context.set(keys.injected, injected);
-        yield* context.set(
+        const host = try Binding.Host
+        const mode = host?.Mode ?? (try defaultProviderMode)
+        const injected = mode === "local" ? Output.literal(false) : injectedScope(host, database)
+        try context.set(keys.injected, injected)
+        try context.set(
           keys.pooledConnectionString,
           Output.all(injected, database.pooledConnectionUri).pipe(
             Output.map(([sameBranch, uri]) => (sameBranch ? "" : Redacted.make(uri))),
           ),
-        );
-        yield* context.set(
+        )
+        try context.set(
           keys.directConnectionString,
           Output.all(injected, database.connectionUri).pipe(
             Output.map(([sameBranch, uri]) => (sameBranch ? "" : Redacted.make(uri))),
           ),
-        );
+        )
       }
-      const connection = (key: string, injectedKey: string) =>
-        Effect.gen(function* () {
-          const injected = yield* context.get<boolean>(keys.injected);
-          const value = yield* context.get<string | Redacted.Redacted<string>>(
-            injected ? injectedKey : key,
-          );
-          if (value === undefined || value === "") {
-            return yield* Effect.die(
-              new Error(`Missing Neon database environment value: ${injected ? injectedKey : key}`),
-            );
-          }
-          return Redacted.isRedacted(value) ? value : Redacted.make(value);
-        });
-      const pooledConnectionString = connection(keys.pooledConnectionString, "DATABASE_URL");
+      const connection = effect (key: string, injectedKey: string) => {
+        const injected = try context.get<boolean>(keys.injected)
+        const value = try context.get<string | Redacted.Redacted<string>>(
+          injected ? injectedKey : key,
+        )
+        if (value === undefined || value === "") {
+          return try Effect.die(
+            new Error(`Missing Neon database environment value: ${injected ? injectedKey : key}`),
+          )
+        }
+        return Redacted.isRedacted(value) ? value : Redacted.make(value)
+      }
+      const pooledConnectionString = effect {
+        return try connection(keys.pooledConnectionString, "DATABASE_URL")
+      }
       return {
         connectionString: pooledConnectionString,
         pooledConnectionString,
         directConnectionString: connection(keys.directConnectionString, "DATABASE_URL_UNPOOLED"),
-      } satisfies ConnectClient;
-    });
-  }),
-);
+      } satisfies ConnectClient
+    }
+  },
+)

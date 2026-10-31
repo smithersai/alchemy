@@ -5,19 +5,19 @@ export {
   type AuthProps,
   type AuthAttributes,
 } from "./Auth.ts";
-export * from "./AuthOAuthProvider.ts";
+export * from "./AuthOAuthProvider.vibe";
 export * from "./AuthTrustedDomain.vibe";
-export * from "./DataApi.ts";
+export * from "./DataApi.vibe";
 export * from "./AIGateway.vibe";
 export * from "./ConnectAuth.vibe";
 export * from "./QueryDataApi.vibe";
 export * from "./QueryAIGateway.ts";
 export * from "./LanguageModel.ts";
 export * from "./Branch.ts";
-export * from "./Connect.ts";
+export * from "./Connect.vibe";
 export * from "./BranchScope.ts";
 export * from "./Credential.ts";
-export * from "./Role.ts";
+export * from "./Role.vibe";
 export * from "./Bucket.ts";
 export * from "./Object.ts";
 export * from "./ReadBucket.vibe";
@@ -39,7 +39,7 @@ export {
   OrganizationApiKeyRecoveryError,
   type OrganizationApiKeyProps,
   type OrganizationApiKeyAttributes,
-} from "./OrganizationApiKey.ts";
+} from "./OrganizationApiKey.vibe";
 export {
   OrganizationMemberRole,
   OrganizationMemberRoleProvider,
@@ -48,40 +48,40 @@ export {
   type OrganizationMemberRoleAttributes,
   type OrganizationRole,
   type GovernanceRoleBaseline,
-} from "./OrganizationMemberRole.ts";
+} from "./OrganizationMemberRole.vibe";
 export {
   ProjectMemberRole,
   ProjectMemberRoleProvider,
   type ProjectMemberRoleProps,
   type ProjectMemberRoleAttributes,
   type ProjectGovernanceRole,
-} from "./ProjectMemberRole.ts";
+} from "./ProjectMemberRole.vibe";
 export {
   OrganizationSpendingLimit,
   OrganizationSpendingLimitProvider,
   InvalidOrganizationSpendingLimit,
   type OrganizationSpendingLimitProps,
   type OrganizationSpendingLimitAttributes,
-} from "./OrganizationSpendingLimit.ts";
+} from "./OrganizationSpendingLimit.vibe";
 export {
   OrganizationVPCEndpoint,
   OrganizationVPCEndpointProvider,
   InvalidOrganizationVPCEndpoint,
   type OrganizationVPCEndpointProps,
   type OrganizationVPCEndpointAttributes,
-} from "./OrganizationVPCEndpoint.ts";
+} from "./OrganizationVPCEndpoint.vibe";
 export {
   ProjectVPCEndpoint,
   ProjectVPCEndpointProvider,
   InvalidProjectVPCEndpoint,
   type ProjectVPCEndpointProps,
   type ProjectVPCEndpointAttributes,
-} from "./ProjectVPCEndpoint.ts";
+} from "./ProjectVPCEndpoint.vibe";
 export * from "./Providers.ts";
 export * as Website from "./Website/index.ts";
 export * from "./Function.vibe";
 export * from "./FunctionEnvironment.ts";
-export * from "./FunctionTrigger.ts";
+export * from "./FunctionTrigger.vibe";
 export * from "./FunctionTriggerEvent.vibe";
 export * from "./CustomDomain.vibe";
 export * from "./CronEventSource.vibe";

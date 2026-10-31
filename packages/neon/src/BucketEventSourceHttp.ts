@@ -12,7 +12,7 @@ import {
 } from "./BucketEventSource.vibe";
 import { Function } from "./Function.vibe";
 import { FunctionRequest } from "./FunctionEnvironment.ts";
-import { FunctionTrigger } from "./FunctionTrigger.ts";
+import { FunctionTrigger } from "./FunctionTrigger.vibe";
 import { decodeFunctionTriggerEvent, type BucketEvent } from "./FunctionTriggerEvent.vibe";
 
 /**

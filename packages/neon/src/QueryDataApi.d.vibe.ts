@@ -8,7 +8,7 @@ import type * as HttpClientResponse from "effect/http/HttpClientResponse";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import type * as Scope from "effect/Scope";
-import type { DataApi } from "./DataApi.js";
+import type { DataApi } from "./DataApi.vibe";
 declare const DataApiRequestError_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "DataApiRequestError";
 } & Readonly<A>;

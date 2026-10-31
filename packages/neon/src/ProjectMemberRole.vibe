@@ -1,0 +1,416 @@
+import * as Neon from "@distilled.cloud/neon"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import {
+  type GovernanceRoleBaseline,
+  GovernanceRoleSafetyError,
+  governanceRoleTransition,
+  listGovernanceOrganizationMembers,
+  requireGovernanceBaseline,
+  sameOrganizationRole,
+  validateGovernanceActor,
+  validateGovernanceScope,
+} from "./OrganizationMemberRole.vibe"
+import type { Providers } from "./Providers.ts"
+
+/** Direct project roles supported by Neon. */
+export type ProjectGovernanceRole = "viewer" | "editor" | "admin"
+
+export interface ProjectMemberRoleProps {
+  /** Organization owning both the existing membership and project. */
+  mutable orgId: string
+  /** Existing organization membership ID, never a user ID or email. */
+  mutable memberId: string
+  /** Already-deployed organization project. Supply its resolved ID on first deployment. */
+  mutable project: { mutable projectId: string }
+  /** Direct project grant to manage; does not replace organization defaults. */
+  mutable role: ProjectGovernanceRole
+}
+
+export interface ProjectMemberRoleAttributes {
+  /** Project containing the direct grant. */
+  mutable projectId: string
+  /** Organization owning the project and member. */
+  mutable orgId: string
+  /** Existing membership receiving the direct grant. */
+  mutable memberId: string
+  /** Observed direct grant; null means no explicit grant, not no effective access. */
+  mutable role: ProjectGovernanceRole | null
+  /** Original direct grant and ownership evidence. Null originalRole means remove only our grant. */
+  mutable baseline: GovernanceRoleBaseline<ProjectGovernanceRole | null>
+}
+
+export interface ProjectMemberRole extends
+  Resource<
+    "Neon.ProjectMemberRole",
+    ProjectMemberRoleProps,
+    ProjectMemberRoleAttributes,
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Own one explicit project grant for an existing organization member.
+ * Inherited/default access is not owned or removed. Adopting an existing direct
+ * grant requires explicit adoption and captures it for exact restoration.
+ * Deletion removes only a newly created direct grant, or restores the adopted one.
+ * Organization-admin overrides and self changes are refused. This resource never
+ * enables confirm_self_demotion or confirm_self_lockout and never invites anyone.
+ *
+ * Requires user credentials with observable ADMIN project permission. A missing
+ * member, ambiguous grant source, or list failure is not evidence of no grant.
+ * The list API's 404 can mean disabled permissions or insufficient access.
+ * Cleanup accepts a removed membership only after a complete organization listing.
+ * A missing project additionally requires an organization-admin scoped project
+ * listing with no unavailable entries; an ambiguous 404 alone never discards state.
+ *
+ * The engine durably saves the initial read snapshot before reconciliation.
+ * Deploy the project first, then supply its resolved ID and resolved settings.
+ * Missing baselines and ambiguous interrupted writes fail closed. Do not discard
+ * state or edit this grant concurrently: Neon has no conditional role-write API.
+ *
+ * ### Grant access to an existing member
+ * **Example:** Manage a direct grant on an already-deployed project
+ * ```typescript
+ * const access = yield* Neon.ProjectMemberRole("ReviewerAccess", {
+ *   orgId: "org-example",
+ *   memberId: authorizedMemberId,
+ *   project: { projectId: deployedProjectId },
+ *   role: "viewer",
+ * });
+ * ```
+ *
+ * ### Adopt a direct grant
+ * **Example:** Preserve and restore an existing explicit role
+ * ```typescript
+ * const access = yield* Neon.ProjectMemberRole("ExistingAccess", {
+ *   orgId: "org-example",
+ *   memberId: authorizedMemberId,
+ *   project: { projectId: deployedProjectId },
+ *   role: "editor",
+ * }).pipe(Alchemy.adopt(true));
+ * ```
+ *
+ * @resource
+ * @product Project
+ */
+export const ProjectMemberRole = Resource<ProjectMemberRole>("Neon.ProjectMemberRole")
+
+/** Validate persisted or desired project grants. @internal */
+export const validateProjectGovernanceRole = effect (
+  role: ProjectGovernanceRole | null,
+): (void!never!never) | (never!GovernanceRoleSafetyError!never) => (role === null || role === "viewer" || role === "editor" || role === "admin"
+  ? try Effect.void
+  : throw new GovernanceRoleSafetyError({
+    message: "Unsupported project grant role",
+  }))
+
+/** Distinguish direct access from the effective role and organization defaults. @internal */
+export const projectMemberDirectRole = effect (member: Neon.ProjectMember): (null!never!never) | ("admin"!never!never) | ("editor"!never!never) | ("viewer"!never!never) | (never!GovernanceRoleSafetyError!never) => {
+  if (member.org_role === "admin" || member.grant_source === "org_admin_override") {
+    throw new GovernanceRoleSafetyError({
+      message: "Organization-admin project overrides cannot be managed as direct grants",
+    })
+  }
+  const permission = member.explicit_project_permission
+  if (member.grant_source === "explicit") {
+    if (permission === "VIEWER") return "viewer" as const
+    if (permission === "EDITOR") return "editor" as const
+    if (permission === "ADMIN") return "admin" as const
+  } else if (
+    (member.grant_source === "org_role_default" || member.grant_source === "unassigned")
+    && permission === undefined
+  ) {
+    return null
+  }
+  throw new GovernanceRoleSafetyError({
+    message: "Project grant source and explicit permission do not establish a recoverable direct grant",
+  })
+}
+
+const validateProps = effect (props: ProjectMemberRoleProps) => {
+  try validateGovernanceScope(props)
+  if (!props.project?.projectId || typeof props.project.projectId !== "string") {
+    throw new GovernanceRoleSafetyError({
+      message: "An explicit resolved existing project ID is required",
+    })
+  }
+  try validateProjectGovernanceRole(props.role)
+  if (props.role === null) {
+    throw new GovernanceRoleSafetyError({
+      message: "A desired direct project role is required",
+    })
+  }
+}
+
+const request = (scope: { mutable projectId: string; mutable memberId: string }): infer _ => ({
+  project_id: scope.projectId,
+  member_id: scope.memberId,
+})
+
+const observe = effect (
+  scope: { mutable orgId: string; mutable memberId: string; mutable projectId: string },
+  listedMembership?: Neon.Member | undefined,
+) => {
+  try validateGovernanceScope(scope)
+  const { project } = try Neon.getProject({ project_id: scope.projectId })
+  if (project.org_id !== scope.orgId || project.effective_project_permission !== "ADMIN") {
+    throw new GovernanceRoleSafetyError({
+      message: "Project organization and caller ADMIN permission must be observable before managing grants",
+    })
+  }
+  const membership = listedMembership
+    ?? (try Neon.getOrganizationMember({
+      org_id: scope.orgId,
+      member_id: scope.memberId,
+    }))
+  if (membership.org_id !== scope.orgId || membership.id !== scope.memberId) {
+    throw new GovernanceRoleSafetyError({
+      message: "Membership identity does not match the project organization",
+    })
+  }
+  let cursor: string | undefined
+  const seen = new Set<string>()
+  for (let page = 0; page < 10; page++) {
+    const response = try Neon.listProjectMembers({
+      project_id: scope.projectId,
+      cursor,
+      limit: 500,
+    })
+    const member = response.project_members.find((member) => member.member_id === scope.memberId)
+    if (member) {
+      if (
+        member.user_id !== membership.user_id
+        || member.org_role === undefined
+        || !sameOrganizationRole(member.org_role, membership.role)
+        || !member.user_id
+      ) {
+        throw new GovernanceRoleSafetyError({
+          message: "Project member does not match the observed organization membership",
+        })
+      }
+      return {
+        role: try projectMemberDirectRole(member),
+        userId: member.user_id,
+      }
+    }
+    const next = response.pagination?.next
+    if (!next) break
+    if (seen.has(next)) {
+      throw new GovernanceRoleSafetyError({
+        message: "Project membership pagination repeated a cursor",
+      })
+    }
+    seen.add(next)
+    cursor = next
+  }
+  throw new GovernanceRoleSafetyError({
+    message: "Member is not visible in a complete bounded project-member listing; refusing to infer an absent grant",
+  })
+}
+
+const projectAbsenceProven = effect (
+  scope: { mutable orgId: string; mutable projectId: string },
+  members: readonly Neon.Member[],
+) => {
+  const actor = try Neon.getCurrentUserInfo({})
+  if (!members.some((member) => member.user_id === actor.id && member.role === "admin")) {
+    throw new GovernanceRoleSafetyError({
+      message:
+        "Project absence requires an organization-admin listing; restricted project visibility is not proof of deletion",
+    })
+  }
+  const seen = new Set<string>()
+  let cursor: string | undefined
+  for (let page = 0; page < 10; page++) {
+    const response = try Neon.listProjects({
+      org_id: scope.orgId,
+      cursor,
+      limit: 400,
+    })
+    if (response.unavailable_project_ids?.length) {
+      throw new GovernanceRoleSafetyError({
+        message: "Project listing contains unavailable projects; absence is unproven",
+      })
+    }
+    if (
+      response.projects.some(
+        (project) => project.org_id !== undefined && project.org_id !== scope.orgId,
+      )
+    ) {
+      throw new GovernanceRoleSafetyError({
+        message: "Scoped project listing returned a different organization",
+      })
+    }
+    if (response.projects.some((project) => project.id === scope.projectId)) return false
+    if (response.projects.length === 0) return true
+    const next = response.pagination?.cursor
+    if (next === undefined) return true
+    if (!next || seen.has(next)) {
+      throw new GovernanceRoleSafetyError({
+        message: "Scoped project listing returned an invalid or repeated cursor",
+      })
+    }
+    seen.add(next)
+    cursor = next
+  }
+  throw new GovernanceRoleSafetyError({
+    message: "Scoped project listing exceeded its bounded pagination limit; absence is unproven",
+  })
+}
+
+const verifyBaseline = effect (
+  output: ProjectMemberRoleAttributes | undefined,
+  owner: { mutable fqn: string; mutable instanceId: string },
+) => {
+  const baseline = try requireGovernanceBaseline(output?.baseline, owner)
+  try validateProjectGovernanceRole(baseline.originalRole)
+  try validateProjectGovernanceRole(baseline.managedRole)
+  return baseline
+}
+
+export const ProjectMemberRoleProvider = (): infer _ =>
+  Provider.succeed(ProjectMemberRole, {
+    nuke: { skip: true },
+    stables: ["orgId", "memberId", "projectId"],
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return
+      try validateProps(news)
+      if (
+        news.orgId !== (output?.orgId ?? olds.orgId)
+        || news.memberId !== (output?.memberId ?? olds.memberId)
+        || news.project.projectId !== (output?.projectId ?? olds.project.projectId)
+      ) {
+        throw new GovernanceRoleSafetyError({
+          message:
+            "Restore and remove the existing grant control before changing its project or membership identity; a new durable grant snapshot is required",
+        })
+      }
+    },
+    read: effect ({ olds, output, fqn, instanceId }) => {
+      if (!output) try validateProps(olds)
+      const scope = output ?? {
+        orgId: olds.orgId,
+        memberId: olds.memberId,
+        projectId: olds.project.projectId,
+      }
+      const baseline = output ? try verifyBaseline(output, { fqn, instanceId }) : undefined
+      const observed = try observe(scope)
+      if (output && baseline) {
+        if (observed.userId !== baseline.userId) {
+          throw new GovernanceRoleSafetyError({
+            message: "Membership user changed",
+          })
+        }
+        try governanceRoleTransition(baseline, observed.role, observed.role)
+        return { ...output, role: observed.role }
+      }
+      const attributes: ProjectMemberRoleAttributes = {
+        orgId: scope.orgId,
+        memberId: scope.memberId,
+        projectId: scope.projectId,
+        role: observed.role,
+        baseline: {
+          fqn,
+          instanceId,
+          userId: observed.userId,
+          originalRole: observed.role,
+          managedRole: observed.role,
+        },
+      }
+      return observed.role === null ? attributes : Unowned(attributes)
+    },
+    reconcile: effect ({ news, output, fqn, instanceId }) => {
+      try validateProps(news)
+      const baseline = try verifyBaseline(output, { fqn, instanceId })
+      if (!output) {
+        throw new GovernanceRoleSafetyError({
+          message: "A persisted initial grant snapshot is required before changing project access",
+        })
+      }
+      if (
+        news.orgId !== output.orgId
+        || news.memberId !== output.memberId
+        || news.project.projectId !== output.projectId
+      ) {
+        throw new GovernanceRoleSafetyError({
+          message: "Project grant identity changed without replacement",
+        })
+      }
+      const observed = try observe(output)
+      if (observed.userId !== baseline.userId) {
+        throw new GovernanceRoleSafetyError({
+          message: "Membership user changed",
+        })
+      }
+      if (try governanceRoleTransition(baseline, observed.role, news.role)) {
+        try validateGovernanceActor(observed.userId, (try Neon.getCurrentUserInfo({})).id)
+        try Neon.setProjectMemberRole({
+          ...request(output),
+          role: news.role,
+          confirm_self_demotion: false,
+        })
+      }
+      const current = try observe(output)
+      if (current.userId !== baseline.userId || current.role !== news.role) {
+        throw new GovernanceRoleSafetyError({
+          message: "Direct project grant did not converge",
+        })
+      }
+      return {
+        ...output,
+        role: current.role,
+        baseline: { ...baseline, managedRole: current.role },
+      }
+    },
+    delete: effect ({ output, fqn, instanceId }) => {
+      const baseline = try verifyBaseline(output, { fqn, instanceId })
+      try validateGovernanceScope(output)
+      const members = try listGovernanceOrganizationMembers(output.orgId)
+      const membership = members.find((member) => member.id === output.memberId)
+      if (!membership) return
+      if (membership.user_id !== baseline.userId) {
+        throw new GovernanceRoleSafetyError({
+          message: "Membership user changed",
+        })
+      }
+      const observed = observe(output, membership) catch effect (error) => match (error) {
+        when { _tag: "NotFound" }: try effect {
+          if (try projectAbsenceProven(output, members)) return undefined
+          throw error
+        };
+        default: throw error;
+      }
+      if (!observed) return
+      if (observed.userId !== baseline.userId) {
+        throw new GovernanceRoleSafetyError({
+          message: "Membership user changed",
+        })
+      }
+      if (try governanceRoleTransition(baseline, observed.role, baseline.originalRole, true)) {
+        try validateGovernanceActor(observed.userId, (try Neon.getCurrentUserInfo({})).id)
+        if (baseline.originalRole === null) {
+          try Neon.removeProjectMemberRole({
+            ...request(output),
+            confirm_self_lockout: false,
+          })
+        } else {
+          try Neon.setProjectMemberRole({
+            ...request(output),
+            role: baseline.originalRole,
+            confirm_self_demotion: false,
+          })
+        }
+        const restored = try observe(output)
+        if (restored.userId !== baseline.userId || restored.role !== baseline.originalRole) {
+          throw new GovernanceRoleSafetyError({
+            message: "Original explicit project grant was not restored",
+          })
+        }
+      }
+    },
+  })
