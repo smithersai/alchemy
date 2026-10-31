@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { listSqlFiles, splitSqlStatements } from "../SqlFile.ts";
-import { detectLayout } from "./Detect.ts";
+import { detectLayout } from "./Detect.vibe";
 import { MigrationError, type MigrationRecord } from "./Format.vibe";
 import { DRIZZLE_DIR_PATTERN, timestampPrefixMillis } from "./Utils.ts";
 

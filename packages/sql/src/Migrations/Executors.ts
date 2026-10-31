@@ -6,8 +6,8 @@ import type { Client, ClientConfig } from "pg";
 import { importMySql } from "../MySQLDriver.vibe";
 import { importPg } from "../PostgresDriver.vibe";
 import { MigrationError, type MigrationDialect, type SqlExecutor } from "./Format.vibe";
-import { makeMySQLMigrationExecutor } from "./MySQLExecutor.ts";
-import { makePgMigrationExecutor } from "./PgExecutor.ts";
+import { makeMySQLMigrationExecutor } from "./MySQLExecutor.vibe";
+import { makePgMigrationExecutor } from "./PgExecutor.vibe";
 import { inlineSqlParams } from "./Utils.ts";
 
 const describeCause = (cause: unknown): string => {

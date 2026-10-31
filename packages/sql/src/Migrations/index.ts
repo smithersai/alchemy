@@ -5,7 +5,7 @@ export {
   type ConvertedRow,
   type ForeignHistory,
 } from "./Convert.ts";
-export { detectLayout, type MigrationLayout } from "./Detect.ts";
+export { detectLayout, type MigrationLayout } from "./Detect.vibe";
 export {
   makeStatementExecutor,
   migrationError,
@@ -31,8 +31,8 @@ export {
   type SqlExecutor,
 } from "./Format.vibe";
 export { classifyTable, tableColumns, type TableShape } from "./Introspect.ts";
-export { makeMySQLMigrationExecutor } from "./MySQLExecutor.ts";
-export { makePgMigrationExecutor } from "./PgExecutor.ts";
+export { makeMySQLMigrationExecutor } from "./MySQLExecutor.vibe";
+export { makePgMigrationExecutor } from "./PgExecutor.vibe";
 export {
   inlineSqlParams,
   quoteIdentifier,
