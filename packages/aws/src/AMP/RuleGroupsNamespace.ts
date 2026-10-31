@@ -8,7 +8,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import type { Providers } from "../Providers.ts";
-import { decodeDefinition, encodeDefinition, syncAmpTags, toTagRecord } from "./internal.ts";
+import { decodeDefinition, encodeDefinition, syncAmpTags, toTagRecord } from "./internal.vibe";
 
 export class RuleGroupsNamespaceNotReady extends Data.TaggedError("RuleGroupsNamespaceNotReady")<{
   readonly message: string;

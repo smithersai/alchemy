@@ -3,7 +3,7 @@ import type { StateStoreImpl, StateStoreLifecycle } from "alchemy/Contributions"
 import * as Provisioning from "alchemy/State/Provisioning";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { deleteAllObjects } from "../AssetsBucket.ts";
+import { deleteAllObjects } from "../AssetsBucket.vibe";
 import { AWSEnvironment } from "../Environment.ts";
 import { openLegacyBucket } from "../StateStore/LegacyLayout.ts";
 import {

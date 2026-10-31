@@ -9,7 +9,7 @@ import type {
   PrometheusInstantResult,
   PrometheusRangeResult,
   PrometheusTime,
-} from "./PrometheusTypes.ts";
+} from "./PrometheusTypes.vibe";
 import type { Workspace } from "./Workspace.ts";
 
 export interface QueryMetricsRequest {

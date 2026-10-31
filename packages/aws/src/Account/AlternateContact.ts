@@ -4,7 +4,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import type { Providers } from "../Providers.ts";
-import { unwrapSensitive as unwrap } from "./internal.ts";
+import { unwrapSensitive as unwrap } from "./internal.vibe";
 
 /**
  * The category of alternate contact. Each account has at most one contact of

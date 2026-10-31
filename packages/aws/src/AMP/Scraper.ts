@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { decodeDefinition, encodeDefinition, syncAmpTags, toTagRecord } from "./internal.ts";
+import { decodeDefinition, encodeDefinition, syncAmpTags, toTagRecord } from "./internal.vibe";
 
 export class ScraperNotReady extends Data.TaggedError("ScraperNotReady")<{
   readonly message: string;

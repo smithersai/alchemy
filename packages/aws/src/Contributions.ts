@@ -26,7 +26,7 @@ export default Contributions.make({
     provider: {
       description: "Manage AWS provider prerequisites",
       load: Contributions.lazy(
-        () => import("./Cli.ts"),
+        () => import("./Cli.vibe"),
         (module) => module.awsCommand,
       ),
     },
