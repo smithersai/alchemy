@@ -1,0 +1,11 @@
+import * as Layer from "effect/Layer";
+import { CreateFileLink } from "./CreateFileLink.js";
+/**
+ * HTTP implementation of {@link CreateFileLink}. Provide it on the
+ * Function or Worker Effect.
+ *
+ * @layer
+ * @product Files
+ * @provides Stripe.CreateFileLink
+ */
+export declare const CreateFileLinkHttp: Layer.Layer<CreateFileLink, never, never>;

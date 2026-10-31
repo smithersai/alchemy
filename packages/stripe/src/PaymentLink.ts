@@ -26,7 +26,7 @@ import {
   hasAlchemyMetadata,
   stripInternalMetadata,
   toMetadata,
-} from "./Metadata.ts";
+} from "./Metadata.vibe";
 import { isMissingStripeResource } from "./missing.ts";
 import type { Providers } from "./Providers.ts";
 

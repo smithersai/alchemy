@@ -13,7 +13,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { tagRecord } from "alchemy/Tags";
 import * as Effect from "effect/Effect";
-import { alchemyMetadataKeys } from "./Metadata.ts";
+import { alchemyMetadataKeys } from "./Metadata.vibe";
 import { isMissingStripeResource } from "./missing.ts";
 import type { Providers } from "./Providers.ts";
 

@@ -1,0 +1,26 @@
+import { type StoredAuthConfig } from "alchemy/Auth/StoredAuthProvider";
+import * as Redacted from "effect/Redacted";
+export declare const STRIPE_AUTH_PROVIDER_NAME = "Stripe";
+export declare const STRIPE_API_KEY_ENV = "STRIPE_API_KEY";
+export declare const STRIPE_API_BASE_URL_ENV = "STRIPE_API_BASE_URL";
+export type StripeAuthConfig = StoredAuthConfig;
+export type StripeResolvedCredentials = {
+    type: "apiKey";
+    apiKey: Redacted.Redacted<string>;
+    apiBaseUrl: string;
+    source: {
+        type: StripeAuthConfig["method"] | "env";
+        details?: string;
+    };
+};
+/**
+ * Layer that registers the Stripe {@link AuthProvider} into the
+ * {@link AuthProviders} registry. Include this in the Stripe `providers()`
+ * layer so the alchemy CLI can discover it.
+ *
+ * Auth is a Stripe secret API key (`STRIPE_API_KEY`, typically `sk_test_…`
+ * or `sk_live_…`). There is no OAuth flow. An optional
+ * `STRIPE_API_BASE_URL` overrides the API root (default
+ * `https://api.stripe.com`).
+ */
+export declare const StripeAuth: import("effect/Layer").Layer<never, never, import("alchemy/Auth/Registry").AuthProviders | import("effect/FileSystem").FileSystem | import("effect/Path").Path>;
