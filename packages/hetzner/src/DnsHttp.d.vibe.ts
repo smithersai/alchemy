@@ -2,8 +2,7 @@ import { Credentials } from "@distilled.cloud/hetzner";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import type { Zone } from "./Zone.ts";
-
+import type { Zone } from "./Zone.js";
 /**
  * Shared scaffolding for the HTTP-backed Hetzner DNS bindings.
  *
@@ -15,27 +14,13 @@ import type { Zone } from "./Zone.ts";
  *
  * NOT exported from `index.ts`.
  */
-export const makeHttpDnsBinding = <Client>(options: {
-  makeClient: (auth: DnsAuth, zoneId: Effect.Effect<number>) => Client;
-}) =>
-  Effect.gen(function* () {
-    const context = yield* Effect.context<Credentials | HttpClient.HttpClient>();
-
-    return Effect.fn(function* (zone: Zone) {
-      const zoneId = yield* zone.zoneId;
-      const auth: DnsAuth = {
-        authorize: (eff) => eff.pipe(Effect.provideContext(context)),
-      };
-      return options.makeClient(auth, zoneId);
-    });
-  });
-
+export declare const makeHttpDnsBinding: <Client>(options: {
+    makeClient: (auth: DnsAuth, zoneId: Effect.Effect<number>) => Client;
+}) => Effect.Effect<(zone: Zone) => Effect.Effect<Client, never, never>, never, Credentials | HttpClient.HttpClient>;
 /**
  * Injectable auth for the DNS HTTP client builders. Supplies an `authorize`
  * that provides `Credentials` + `HttpClient` to a raw SDK op.
  */
 export interface DnsAuth {
-  authorize: <A, E>(
-    eff: Effect.Effect<A, E, Credentials | HttpClient.HttpClient>,
-  ) => Effect.Effect<A, E, RuntimeContext>;
+    authorize: <A, E>(eff: Effect.Effect<A, E, Credentials | HttpClient.HttpClient>) => Effect.Effect<A, E, RuntimeContext>;
 }

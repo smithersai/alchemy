@@ -1,9 +1,8 @@
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import { type ReadDnsClient } from "./ReadDns.ts";
-import { type WriteDnsClient } from "./WriteDns.ts";
-import type { Zone } from "./Zone.ts";
-
+import { type ReadDnsClient } from "./ReadDns.vibe";
+import { type WriteDnsClient } from "./WriteDns.vibe";
+import type { Zone } from "./Zone.js";
 /**
  * Binding that lets runtime code perform the full Hetzner Cloud DNS RRSet
  * surface (read + write).
@@ -11,7 +10,6 @@ import type { Zone } from "./Zone.ts";
  * Authenticates with the ambient `HCLOUD_TOKEN`. The zone is fixed by
  * `ReadWriteDns(zone)` so calls take no zone id. Provide
  * {@link ReadWriteDnsHttp} on the Action / Function Effect.
- *
  *
  * ### Managing RRSets at runtime
  * **Example:** Full CRUD from an Action
@@ -45,13 +43,9 @@ import type { Zone } from "./Zone.ts";
  * @binding
  * @product DNS
  */
-export interface ReadWriteDns extends Binding.Service<
-  ReadWriteDns,
-  "Hetzner.DNS.ReadWriteDns",
-  (zone: Zone) => Effect.Effect<ReadWriteDnsClient>
-> {}
-
-export const ReadWriteDns = Binding.Service<ReadWriteDns>("Hetzner.DNS.ReadWriteDns");
-
+export interface ReadWriteDns extends Binding.Service<ReadWriteDns, "Hetzner.DNS.ReadWriteDns", (zone: Zone) => Effect.Effect<ReadWriteDnsClient>> {
+}
+export declare const ReadWriteDns: ReadWriteDns;
 /** Combined read + write DNS RRSet operations. */
-export interface ReadWriteDnsClient extends ReadDnsClient, WriteDnsClient {}
+export interface ReadWriteDnsClient extends ReadDnsClient, WriteDnsClient {
+}

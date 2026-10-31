@@ -16,7 +16,7 @@ import { recordsEqual } from "alchemy/Util/equal";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { waitForActions } from "./actions.ts";
+import { waitForActions } from "./actions.vibe";
 import {
   alchemyStackSelector,
   createInternalLabels,
@@ -25,7 +25,7 @@ import {
   labelSelector,
   stripInternalLabels,
   toLabels,
-} from "./Labels.ts";
+} from "./Labels.vibe";
 import type { Providers } from "./Providers.ts";
 
 /**

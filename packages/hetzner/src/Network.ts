@@ -10,7 +10,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { waitForAction } from "./actions.ts";
+import { waitForAction } from "./actions.vibe";
 import {
   alchemyStackSelector,
   createInternalLabels,
@@ -19,7 +19,7 @@ import {
   labelSelector,
   stripInternalLabels,
   toLabels,
-} from "./Labels.ts";
+} from "./Labels.vibe";
 import type { Providers } from "./Providers.ts";
 
 export class NetworkNotCreated extends Data.TaggedError("Hetzner.NetworkNotCreated")<{
