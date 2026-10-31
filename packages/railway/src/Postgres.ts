@@ -28,8 +28,8 @@ import {
   waitUntilDeleted,
   projectServices,
   environmentVolumes,
-} from "./GraphQL.vibe";
-import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
+} from "./GraphQL.ts";
+import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.ts";
 import { ownedProjects, type Project } from "./Project.ts";
 import type { Providers } from "./Providers.ts";
 
@@ -45,7 +45,7 @@ export const DEFAULT_POSTGRES_DATABASE = "railway";
 export const POSTGRES_PORT = 5432;
 export const POSTGRES_MOUNT_PATH = "/var/lib/postgresql/data";
 export const POSTGRES_PGDATA = "/var/lib/postgresql/data/pgdata";
-import { DATABASE_PUBLIC_URL_SECRET, DATABASE_URL_SECRET } from "./ConnectPostgres.vibe";
+import { DATABASE_PUBLIC_URL_SECRET, DATABASE_URL_SECRET } from "./ConnectPostgres.ts";
 
 const serviceFields = <E>(service: Query<RailwayService, E>) => ({
   id: service.id,

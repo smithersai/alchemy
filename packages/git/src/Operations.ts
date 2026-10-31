@@ -28,7 +28,7 @@ import type {
   UpdatePull,
   UpdateRef,
   UpdateRepo,
-} from "./Api.vibe";
+} from "./Api.ts";
 import {
   CommitDiff,
   CommitInfo,
@@ -49,7 +49,7 @@ import {
   RepoNotReady,
   TreeEntry,
   type Oid,
-} from "./Api.vibe";
+} from "./Api.ts";
 import { parseCommit, parseTree, treeEntryKind } from "./Protocol/ObjectCodec.ts";
 import type { StoreError } from "./Protocol/Store.ts";
 import { RegistryStore, type RegistryEntry } from "./RegistryObject.ts";

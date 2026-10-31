@@ -27,7 +27,7 @@ import {
   environmentServiceInstances,
   waitUntilDeleted,
   projectServices as fetchProjectServices,
-} from "./GraphQL.vibe";
+} from "./GraphQL.ts";
 import {
   collectBindingState,
   createRailwayFunctionSupport,
@@ -39,7 +39,7 @@ import {
   type RailwayBuildOptions,
   type RailwayHostRuntimeContext,
 } from "./hosted.ts";
-import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
+import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.ts";
 import { assertHostDisk, type MountSpec, type ServiceBinding } from "./MountVolume.ts";
 import { ownedProjects, projectEnvironmentIds, type Project } from "./Project.ts";
 import type { Providers } from "./Providers.ts";

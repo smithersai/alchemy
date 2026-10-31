@@ -57,7 +57,7 @@ import {
   WrongObjectType,
   type Oid as ApiOid,
   type RepoStatus,
-} from "./Api.vibe";
+} from "./Api.ts";
 import type { BlobMultipart, UploadedPart } from "./BlobStore.ts";
 import { BlobStore, type BlobStoreShape } from "./BlobStore.ts";
 import { type HasherShape, type HashPartResult } from "./Hasher/Hasher.ts";

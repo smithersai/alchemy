@@ -18,7 +18,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { waitUntilDeleted } from "./GraphQL.vibe";
+import { waitUntilDeleted } from "./GraphQL.ts";
 import { ownedProjects, projectEnvironmentIds } from "./Project.ts";
 import type { Providers } from "./Providers.ts";
 

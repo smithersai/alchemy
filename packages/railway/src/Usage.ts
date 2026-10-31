@@ -14,7 +14,7 @@ import { Resource } from "alchemy/Resource";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { RailwayEnvironment, resolveWorkspace } from "./Environment.ts";
-import { waitUntilDeleted } from "./GraphQL.vibe";
+import { waitUntilDeleted } from "./GraphQL.ts";
 import type { Providers } from "./Providers.ts";
 
 const usageFields = <E>(row: Query<AggregatedUsage, E>) => ({

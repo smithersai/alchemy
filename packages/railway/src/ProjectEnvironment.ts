@@ -7,15 +7,15 @@ import { Resource } from "alchemy/Resource";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { waitUntilDeleted } from "./GraphQL.vibe";
+import { waitUntilDeleted } from "./GraphQL.ts";
 import {
   createRailwayEnvironmentName,
   matchesAlchemyPhysicalName,
   sanitizeRailwayEnvironmentName,
-} from "./Metadata.vibe";
+} from "./Metadata.ts";
 import { ownedProjects, type Project } from "./Project.ts";
 import type { Providers } from "./Providers.ts";
-import { waitOutCreateRateLimit } from "./transient.vibe";
+import { waitOutCreateRateLimit } from "./transient.ts";
 
 const environmentFields = <E>(env: Query<RailwayEnvironment, E>) => ({
   id: env.id,

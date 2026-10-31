@@ -9,7 +9,7 @@ import {
   MongoUrlMissing,
   connectEnvKeys,
   type ConnectMongoClient,
-} from "./ConnectMongo.vibe";
+} from "./ConnectMongo.ts";
 import { MONGO_URL_SECRET, MONGO_PUBLIC_URL_SECRET, type Mongo } from "./Mongo.ts";
 import { isRailwayHost } from "./MountVolume.ts";
 

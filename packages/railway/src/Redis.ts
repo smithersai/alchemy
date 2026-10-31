@@ -16,8 +16,8 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
-import { environmentServiceInstances, waitUntilDeleted, projectServices } from "./GraphQL.vibe";
-import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
+import { environmentServiceInstances, waitUntilDeleted, projectServices } from "./GraphQL.ts";
+import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.ts";
 import { ownedProjects, projectEnvironmentIds, type Project } from "./Project.ts";
 import type { Providers } from "./Providers.ts";
 

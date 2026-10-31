@@ -24,7 +24,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { RepoAlreadyExists, ValidationError } from "./Api.vibe";
+import { RepoAlreadyExists, ValidationError } from "./Api.ts";
 import { StoreError } from "./Protocol/Store.ts";
 import { initRegistrySchema, makeSqlClient, type RegistryRepoRow } from "./Store/Sql.ts";
 
