@@ -10,7 +10,7 @@ import {
   matchesAlchemyPhysicalName,
   sanitizeFlyVolumeName,
 } from "./Metadata.ts";
-import type { DiskSpec } from "./MountVolume.ts";
+import type { DiskSpec } from "./MountVolume.vibe";
 
 export const DEFAULT_VOLUME_REGION = "iad";
 export const MIN_SIZE_GB = 1;

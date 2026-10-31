@@ -2,7 +2,7 @@ import type { FlyMachineConfig, FlyStopConfigSignal } from "@distilled.cloud/fly
 import * as Data from "effect/Data";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import { pinsFromConfig } from "./DeploymentImages.ts";
+import { pinsFromConfig } from "./DeploymentImages.vibe";
 import type { MachineServiceCheck } from "./Machine.ts";
 
 /** Replacement/readiness policy shared by Machines, Services, and websites; not an App-wide deployment lock. */

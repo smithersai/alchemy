@@ -10,8 +10,8 @@ import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import type { Bucket } from "./Bucket.ts";
-import { TigrisCredentialsMissing } from "./Errors.ts";
-import type { ServiceBinding } from "./MountVolume.ts";
+import { TigrisCredentialsMissing } from "./Errors.vibe";
+import type { ServiceBinding } from "./MountVolume.vibe";
 
 /**
  * Shared scaffolding for Tigris S3 bindings.

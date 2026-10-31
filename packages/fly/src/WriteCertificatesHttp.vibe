@@ -1,0 +1,124 @@
+import * as machines from "@distilled.cloud/fly-io/machines"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import { CredentialsFromAmbientOrEnv } from "./Credentials.ts"
+import { makeHttpAppBinding, type SecretAuth, unwrapSecretValue } from "./SecretHttp.vibe"
+import { WriteCertificates, type WriteCertificatesClient } from "./WriteCertificates.ts"
+
+/**
+ * HTTP implementation of {@link WriteCertificates}. Provide it on the
+ * {@link Service} or Action Effect.
+ *
+ * ### Provide the layer
+ * **Example:** On a Service
+ * ```typescript
+ * Effect.gen(function* () {
+ *   const certs = yield* Fly.WriteCertificates(Site);
+ *   // ...
+ * }).pipe(Effect.provide(Fly.WriteCertificatesHttp))
+ * ```
+ *
+ * @layer
+ * @product Certificate
+ * @provides Fly.WriteCertificates
+ */
+export const WriteCertificatesHttp = Layer.effect(
+  WriteCertificates,
+  Effect.suspend(effect () =>
+    try makeHttpAppBinding<WriteCertificatesClient>({
+      makeClient: certificatesWriteClient,
+    })
+  ),
+).pipe(Layer.provide(FetchHttpClient.layer), Layer.provide(CredentialsFromAmbientOrEnv))
+
+/** Build the client over an injectable auth and App name. */
+export const certificatesWriteClient = (
+  auth: SecretAuth,
+  appName: string!!,
+): WriteCertificatesClient => {
+  const authorize = auth.authorize
+  return {
+    request: effect (hostname) =>
+      try withSpan(
+        effect {
+          return try authorize(
+            effect {
+              return machines
+                .createAppAcmeCertificate({ app_name: try appName, hostname }) catch effect (e) => match (e) {
+                  when { _tag: "Conflict" }: try Effect.undefined;
+                  default: throw e;
+                }
+            },
+          )
+        },
+        "Fly.Certificates.request",
+      ),
+    upload: effect (request) =>
+      try withSpan(
+        effect {
+          const app_name = try appName
+          const body = {
+            app_name,
+            hostname: request.hostname,
+            fullchain: request.fullchain,
+            private_key: unwrapSecretValue(request.privateKey),
+          }
+          return try authorize(
+            effect {
+              return machines.createAppCustomCertificate(body) catch effect (e) => match (e) {
+                when { _tag: "Conflict" }: try (effect {
+                  return machines
+                    .deleteAppCustomCertificate({
+                      app_name,
+                      hostname: request.hostname,
+                    }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+                }
+                  |> Effect.andThen(%, machines.createAppCustomCertificate(body)));
+                default: throw e;
+              }
+            },
+          )
+        },
+        "Fly.Certificates.upload",
+      ),
+    check: effect (hostname) =>
+      try withSpan(
+        effect {
+          return try authorize(machines.checkAppCertificate({ app_name: try appName, hostname }))
+        },
+        "Fly.Certificates.check",
+      ),
+    get: effect (hostname) =>
+      try withSpan(
+        effect {
+          return try authorize(
+            effect {
+              return machines
+                .getAppCertificate({ app_name: try appName, hostname }) catch effect (e) => match (e) {
+                  when { _tag: "NotFound" }: try Effect.undefined;
+                  default: throw e;
+                }
+            },
+          )
+        },
+        "Fly.Certificates.get",
+      ),
+    remove: effect (hostname) =>
+      try withSpan(
+        effect {
+          return try authorize(
+            effect {
+              return try (effect {
+                return machines.deleteAppCertificate({ app_name: try appName, hostname }) catch effect (e) => match (e) {
+                  when { _tag: "NotFound" }: try Effect.void;
+                  default: throw e;
+                }
+              }
+                |> Effect.asVoid(%))
+            },
+          )
+        },
+        "Fly.Certificates.remove",
+      ),
+  }
+}

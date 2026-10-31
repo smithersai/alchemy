@@ -26,9 +26,9 @@ import {
   sameContainerWorkload,
   toFlyContainers,
   validateMachineContainers,
-} from "./MachineContainers.ts";
+} from "./MachineContainers.vibe";
 import { createFlyResourceName, diffMachineMetadata, sanitizeFlyAppName } from "./Metadata.ts";
-import type { DiskSpec, MountedDisk, ServiceBinding } from "./MountVolume.ts";
+import type { DiskSpec, MountedDisk, ServiceBinding } from "./MountVolume.vibe";
 import type { Providers } from "./Providers.ts";
 import {
   deleteReplicaSet,

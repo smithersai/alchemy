@@ -54,7 +54,7 @@ import {
   diffMachineMetadata,
   sanitizeFlyAppName,
 } from "./Metadata.ts";
-import type { BoundTarget, MountedDisk, ServiceBinding } from "./MountVolume.ts";
+import type { BoundTarget, MountedDisk, ServiceBinding } from "./MountVolume.vibe";
 import { bindingPortOf, findPortConflict, portsOfFly } from "./ports.ts";
 import { attachPostgresSecrets } from "./Postgres.ts";
 import type { Providers } from "./Providers.ts";

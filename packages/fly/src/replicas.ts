@@ -33,7 +33,7 @@ import {
   sanitizeFlyAppName,
   type FlyAlchemyType,
 } from "./Metadata.ts";
-import type { DiskSpec, MountedDisk } from "./MountVolume.ts";
+import type { DiskSpec, MountedDisk } from "./MountVolume.vibe";
 import { regionOfReplica } from "./Region.ts";
 import { deleteVolume, ensureVolumeGroup, getVolumeById, volumeGroupName } from "./Volume.ts";
 

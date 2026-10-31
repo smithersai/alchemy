@@ -4,8 +4,8 @@
  * NOT exported from `index.ts`.
  */
 import type * as Effect from "effect/Effect";
-import type { SecretAuth } from "./SecretHttp.ts";
-import { makeHttpSecretBinding } from "./SecretHttp.ts";
+import type { SecretAuth } from "./SecretHttp.vibe";
+import { makeHttpSecretBinding } from "./SecretHttp.vibe";
 import type { SecretKey } from "./SecretKey.ts";
 
 export const bytesToBase64 = (bytes: Uint8Array | ArrayLike<number>): string =>

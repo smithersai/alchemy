@@ -12,10 +12,10 @@ import {
   pinsFromConfig,
   sameImageSet,
   validObservedImageSet,
-} from "./DeploymentImages.ts";
+} from "./DeploymentImages.vibe";
 import { classifyDeploymentState, validProtocol2Generation } from "./DeploymentState.ts";
 import { usingMachineLeases, type MachineLeases } from "./leases.ts";
-import { canonicalContainers } from "./MachineContainers.ts";
+import { canonicalContainers } from "./MachineContainers.vibe";
 import { alchemyMetadataKeys as keys } from "./Metadata.ts";
 import { regionOfReplica } from "./Region.ts";
 import {
