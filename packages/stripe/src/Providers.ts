@@ -7,18 +7,18 @@ import { Account, AccountProvider } from "./Account.ts";
 import {
   AccountExternalAccount,
   AccountExternalAccountProvider,
-} from "./AccountExternalAccount.ts";
-import { AccountPerson, AccountPersonProvider } from "./AccountPerson.ts";
-import { Alert, AlertProvider } from "./Alert.ts";
+} from "./AccountExternalAccount.vibe";
+import { AccountPerson, AccountPersonProvider } from "./AccountPerson.vibe";
+import { Alert, AlertProvider } from "./Alert.vibe";
 import { ApplePayDomain, ApplePayDomainProvider } from "./ApplePayDomain.vibe";
 import { AppsSecret, AppsSecretProvider } from "./AppsSecret.ts";
 import { StripeAuth } from "./AuthProvider.vibe";
-import { BillingMeter, BillingMeterProvider } from "./BillingMeter.ts";
+import { BillingMeter, BillingMeterProvider } from "./BillingMeter.vibe";
 import {
   BillingPortalConfiguration,
   BillingPortalConfigurationProvider,
 } from "./BillingPortalConfiguration.ts";
-import { Coupon, CouponProvider } from "./Coupon.ts";
+import { Coupon, CouponProvider } from "./Coupon.vibe";
 import { CreateAccountHttp } from "./CreateAccountHttp.vibe";
 import { CreateAccountLinkHttp } from "./CreateAccountLinkHttp.vibe";
 import { CreateAppsSecretHttp } from "./CreateAppsSecretHttp.vibe";
@@ -39,18 +39,18 @@ import { IssuingCardholder, IssuingCardholderProvider } from "./IssuingCardholde
 import {
   IssuingPersonalizationDesign,
   IssuingPersonalizationDesignProvider,
-} from "./IssuingPersonalizationDesign.ts";
+} from "./IssuingPersonalizationDesign.vibe";
 import { PaymentLink, PaymentLinkProvider } from "./PaymentLink.ts";
 import {
   PaymentMethodConfiguration,
   PaymentMethodConfigurationProvider,
 } from "./PaymentMethodConfiguration.ts";
 import { PaymentMethodDomain, PaymentMethodDomainProvider } from "./PaymentMethodDomain.ts";
-import { Plan, PlanProvider } from "./Plan.ts";
-import { Price, PriceProvider } from "./Price.ts";
+import { Plan, PlanProvider } from "./Plan.vibe";
+import { Price, PriceProvider } from "./Price.vibe";
 import { Product, ProductProvider } from "./Product.ts";
 import { ProductFeature, ProductFeatureProvider } from "./ProductFeature.vibe";
-import { PromotionCode, PromotionCodeProvider } from "./PromotionCode.ts";
+import { PromotionCode, PromotionCodeProvider } from "./PromotionCode.vibe";
 import { RadarValueList, RadarValueListProvider } from "./RadarValueList.ts";
 import { RadarValueListItem, RadarValueListItemProvider } from "./RadarValueListItem.vibe";
 import { RestrictedApiKey, RestrictedApiKeyProvider } from "./RestrictedApiKey.vibe";
@@ -89,8 +89,8 @@ import { RetrieveTerminalConfigurationHttp } from "./RetrieveTerminalConfigurati
 import { RetrieveTerminalLocationHttp } from "./RetrieveTerminalLocationHttp.vibe";
 import { RetrieveTerminalReaderHttp } from "./RetrieveTerminalReaderHttp.vibe";
 import { RetrieveWebhookEndpointHttp } from "./RetrieveWebhookEndpointHttp.vibe";
-import { ShippingRate, ShippingRateProvider } from "./ShippingRate.ts";
-import { TaxRate, TaxRateProvider } from "./TaxRate.ts";
+import { ShippingRate, ShippingRateProvider } from "./ShippingRate.vibe";
+import { TaxRate, TaxRateProvider } from "./TaxRate.vibe";
 import { TaxRegistration, TaxRegistrationProvider } from "./TaxRegistration.ts";
 import { TaxSettings, TaxSettingsProvider } from "./TaxSettings.ts";
 import { TerminalConfiguration, TerminalConfigurationProvider } from "./TerminalConfiguration.ts";

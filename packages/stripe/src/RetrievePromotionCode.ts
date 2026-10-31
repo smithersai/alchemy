@@ -6,7 +6,7 @@ import type {
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { PromotionCode } from "./PromotionCode.ts";
+import type { PromotionCode } from "./PromotionCode.vibe";
 
 export interface RetrievePromotionCodeRequest extends Omit<
   GetPromotionCodeRequest,
