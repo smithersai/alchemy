@@ -60,7 +60,7 @@ export {
   type NormalizedMigrationsInput,
   type ResolvedMigrations,
   type StampedMigrationsState,
-} from "./Registry.ts";
+} from "./Registry.vibe";
 export {
   scanSqlScript,
   splitSqlScript,
