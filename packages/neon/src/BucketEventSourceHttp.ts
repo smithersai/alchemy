@@ -9,11 +9,11 @@ import {
   BucketEventSource,
   type BucketEventSourceProps,
   type BucketEventSourceService,
-} from "./BucketEventSource.ts";
-import { Function } from "./Function.ts";
+} from "./BucketEventSource.vibe";
+import { Function } from "./Function.vibe";
 import { FunctionRequest } from "./FunctionEnvironment.ts";
 import { FunctionTrigger } from "./FunctionTrigger.ts";
-import { decodeFunctionTriggerEvent, type BucketEvent } from "./FunctionTriggerEvent.ts";
+import { decodeFunctionTriggerEvent, type BucketEvent } from "./FunctionTriggerEvent.vibe";
 
 /**
  * Neon Function HTTP object-event dispatch and deployment wiring.

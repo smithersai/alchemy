@@ -1,0 +1,57 @@
+import {
+  type NormalizedMigrationsInput,
+  runMigrations,
+  type StampedMigrationsState,
+  withPgClient as withClient,
+  withPgExecutor,
+} from "@alchemy.run/sql/Migrations"
+import { stripSslQueryParams } from "@alchemy.run/sql/PostgresDriver"
+import { applySqlImports } from "@alchemy.run/sql/SqlFile"
+import * as Effect from "effect/Effect"
+import * as Redacted from "effect/Redacted"
+import type { Client, ClientConfig } from "pg"
+
+/**
+ * Neon's URIs carry `sslmode=require`; TLS is set on the client instead,
+ * without verifying Neon's certificate chain.
+ */
+const clientConfig = (connectionUri: Redacted.Redacted<string>): ClientConfig => ({
+  connectionString: connectionUri.pipe(Redacted.value, stripSslQueryParams),
+  ssl: { rejectUnauthorized: false },
+})
+
+/** A `pg` client on a Neon connection URI for the scope of `use`. */
+export const withPgClient = effect <A, E, R>(
+  connectionUri: Redacted.Redacted<string>,
+  use: (client: Client) => A!E!R,
+) => try withClient(clientConfig(connectionUri), use)
+
+/** Run one SQL script (several statements are fine). */
+export const runSql = effect (connectionUri: Redacted.Redacted<string>, sql: string) =>
+  try (withPgExecutor(clientConfig(connectionUri), effect (executor) => try executor.query(sql))
+    |> Effect.asVoid(%))
+
+export const runPgMigrations = effect (options: {
+  mutable connectionUri: Redacted.Redacted<string>
+  mutable input: NormalizedMigrationsInput
+  mutable stamped: StampedMigrationsState
+}) =>
+  try runMigrations({
+    input: options.input,
+    stamped: options.stamped,
+    withExecutor: effect (apply) => try withPgExecutor(clientConfig(options.connectionUri), apply),
+  })
+
+/** Apply `importFiles`, each once and again only when it changes. */
+export const runImports = effect (
+  connectionUri: Redacted.Redacted<string>,
+  importFiles: ReadonlyArray<string>,
+  rootDir: string,
+  previous: Record<string, string>,
+) =>
+  try applySqlImports({
+    importFiles,
+    rootDir,
+    previous,
+    apply: effect (file) => try runSql(connectionUri, file.sql),
+  })

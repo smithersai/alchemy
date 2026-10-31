@@ -11,9 +11,9 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { resolveBranchScope, type ResolvedBranchScope } from "./BranchScope.ts";
-import { branchScopeOf, Function, type FunctionAttributes } from "./Function.ts";
+import { branchScopeOf, Function, type FunctionAttributes } from "./Function.vibe";
 import { buildFunctionArtifact } from "./FunctionArtifact.ts";
-import { functionEnvironment, functionSlug } from "./FunctionConfig.ts";
+import { functionEnvironment, functionSlug } from "./FunctionConfig.vibe";
 import { LocalFunctionProvider } from "./LocalFunctionProvider.ts";
 
 export class FunctionDeploymentFailed extends Data.TaggedError("FunctionDeploymentFailed")<{

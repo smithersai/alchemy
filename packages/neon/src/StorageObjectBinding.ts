@@ -11,13 +11,13 @@ import {
   storageBodyBytes,
   type Object,
 } from "./Object.ts";
-import type { ReadObjectClient, ObjectValue } from "./ReadObject.ts";
+import type { ReadObjectClient, ObjectValue } from "./ReadObject.vibe";
 import {
   makeStorageBinding,
   StorageBindingError,
   type StorageBindingOptions,
 } from "./StorageBinding.ts";
-import type { WriteObjectClient } from "./WriteObject.ts";
+import type { WriteObjectClient } from "./WriteObject.vibe";
 
 const isBucket = (value: unknown): value is Bucket =>
   isResource(value) && value.Type === "Neon.Bucket";

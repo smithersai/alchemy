@@ -8,7 +8,7 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import type { Branch } from "./Branch.ts";
 import { resolveBranchScope } from "./BranchScope.ts";
-import { branchScopeOf, type Function } from "./Function.ts";
+import { branchScopeOf, type Function } from "./Function.vibe";
 import type { Project } from "./Project.ts";
 
 /** Postgres connection accessors. Resolving these Effects does not acquire a socket or pool. */

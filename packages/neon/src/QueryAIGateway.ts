@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
-import type { AIGateway } from "./AIGateway.ts";
+import type { AIGateway } from "./AIGateway.vibe";
 import {
   backendEnvKey,
   backendSecret,
@@ -16,7 +16,7 @@ import {
   bindBackendEnvironment,
 } from "./BackendConnection.ts";
 import { Credential, validateCredential } from "./Credential.ts";
-import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.ts";
+import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.vibe";
 import { FunctionEnvironment } from "./FunctionEnvironment.ts";
 import { makeLanguageModelLayer, type LanguageModelOptions } from "./LanguageModel.ts";
 

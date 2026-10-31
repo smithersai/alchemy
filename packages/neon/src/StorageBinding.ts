@@ -12,7 +12,7 @@ import * as Redacted from "effect/Redacted";
 import { bindBackendEnvironment } from "./BackendConnection.ts";
 import type { Bucket } from "./Bucket.ts";
 import { Credential, validateCredential } from "./Credential.ts";
-import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.ts";
+import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.vibe";
 import { FunctionEnvironment } from "./FunctionEnvironment.ts";
 import { makeStorageClient, type StorageClient, type StorageConfig } from "./Storage.ts";
 
