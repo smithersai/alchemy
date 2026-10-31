@@ -1241,7 +1241,7 @@ When many agents work concurrently (see **The Resource Factory Process**), do NO
 
 | Command           | Description                                                                                  |
 | ----------------- | -------------------------------------------------------------------------------------------- |
-| `pnpm exec tsrs -b`      | Type check all projects (always run before committing)                                       |
+| `pnpm typecheck`      | Check VibeLang sources and downstream TypeScript consumers (always run before committing)                                       |
 | `pnpm build`   | Clean, type check, and build the alchemy package                                             |
 | `pnpm build:clean` | Full clean rebuild: cleans all artifacts, reinstalls dependencies, builds, and downloads env |
 

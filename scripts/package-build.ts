@@ -108,16 +108,26 @@ export const exec = (bin: string, ...args: Array<string>): Step => ({
 });
 
 /**
- * Run the TypeScript compiler: tsrs where it ships a native binary, `tsc`
- * elsewhere (Windows, Intel macOS).
+ * Compile packages containing `.vibe` sources with `vibelang`. TypeScript-only
+ * packages use `tsrs` where it ships a native binary and `tsc` elsewhere.
  */
-export const typescript = (...args: Array<string>): Step =>
-  exec(
-    ["darwin-arm64", "linux-x64", "linux-arm64"].includes(`${process.platform}-${process.arch}`)
-      ? "tsrs"
-      : "tsc",
-    ...args,
-  );
+export const typescript = (...args: Array<string>): Step => ({
+  name: `typescript ${args.join(" ")}`,
+  run: Effect.fn(function* (packageDirectory) {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const sources = yield* fs.readDirectory(path.join(packageDirectory, "src"), {
+      recursive: true,
+    });
+    const binary = sources.some((file) => file.endsWith(".vibe"))
+      ? "vibelang"
+      : ["darwin-arm64", "linux-x64", "linux-arm64"].includes(`${process.platform}-${process.arch}`)
+        ? "tsrs"
+        : "tsc";
+    yield* Console.log(`[typescript] compiler=${binary}`);
+    yield* exec(binary, ...args).run(packageDirectory);
+  }),
+});
 
 /** Copy a file, paths relative to the package directory. */
 export const copy = (from: string, to: string): Step => ({
