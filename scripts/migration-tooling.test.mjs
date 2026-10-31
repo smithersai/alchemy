@@ -247,7 +247,6 @@ function providerLintResult({
           rootDir: "src",
         },
         include: includeSidecars ? ["src/**/*.ts", "src/**/*.vibe"] : ["src/**/*.vibe"],
-        vibelang: { declarationSidecars: true },
       }),
     );
     if (extension === ".vibe" && sidecar) {
@@ -342,7 +341,6 @@ async function referencedBuild(pipeline = "package") {
           compilerOptions: options,
           include: ["src/**/*.ts", "src/**/*.vibe"],
           references: name === "b" ? [{ path: "../a" }] : [],
-          vibelang: { declarationSidecars: true },
         }),
       );
     }
