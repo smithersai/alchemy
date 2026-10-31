@@ -1,0 +1,616 @@
+import * as Hetzner from "@distilled.cloud/hetzner"
+import type {
+  CreateFirewallRequestApplyToItem,
+  CreateFirewallRequestRulesItem,
+  GetFirewallResponseFirewall,
+  GetFirewallResponseFirewallAppliedToItem,
+  GetFirewallResponseFirewallRulesItem,
+  ListFirewallsResponseFirewallsItem,
+} from "@distilled.cloud/hetzner/firewalls"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { recordsEqual } from "alchemy/Util/equal"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import { waitForActions } from "./actions.vibe"
+import {
+  alchemyStackSelector,
+  createInternalLabels,
+  diffLabels,
+  hasAlchemyLabels,
+  labelSelector,
+  stripInternalLabels,
+  toLabels,
+} from "./Labels.vibe"
+import type { Providers } from "./Providers.ts"
+
+/**
+ * Resource-valued prop. The engine resolves `Effect`s (including other
+ * Resources) before lifecycle operations see the value.
+ */
+type Ref<T> = T | (T!!Providers)
+
+/**
+ * Server identity used by `applyTo`. A `Hetzner.Server` resource
+ * satisfies this via `serverId`.
+ */
+type Server = { readonly serverId: number }
+
+export type FirewallDirection = "in" | "out"
+export type FirewallProtocol = "tcp" | "udp" | "icmp" | "esp" | "gre"
+
+export interface FirewallRule {
+  /**
+   * Description of the rule.
+   */
+  mutable description?: string
+  /**
+   * Traffic direction. Incoming rules use `sourceIps`; outgoing rules
+   * use `destinationIps`.
+   */
+  mutable direction: FirewallDirection
+  /**
+   * Network protocol this rule applies to.
+   */
+  mutable protocol: FirewallProtocol
+  /**
+   * Port or port range (`22` or `1024-5000`). Only valid for `tcp` and
+   * `udp`.
+   */
+  mutable port?: string
+  /**
+   * Permitted source CIDRs for incoming traffic. Use `0.0.0.0/0` and
+   * `::/0` to allow any address.
+   */
+  mutable sourceIps?: string[]
+  /**
+   * Permitted destination CIDRs for outgoing traffic. Use `0.0.0.0/0`
+   * and `::/0` to allow any address.
+   */
+  mutable destinationIps?: string[]
+}
+
+export interface FirewallProps {
+  /**
+   * Name of the firewall. Must be unique per Hetzner project. If
+   * omitted, a unique name is generated from `${stack}-${id}-${stage}`.
+   */
+  mutable name?: string
+  /**
+   * Firewall rules. Limited to 50 entries per firewall. An empty list
+   * (the default) drops all inbound traffic and accepts all outbound
+   * traffic.
+   */
+  mutable rules?: FirewallRule[]
+  /**
+   * Servers this firewall is applied to. This wave's tests leave
+   * `applyTo` empty; the type still accepts `Server` resources.
+   */
+  mutable applyTo?: Array<Ref<Server>>
+  /**
+   * User-defined labels. Alchemy ownership labels (`alchemy.stack`,
+   * `alchemy.stage`, `alchemy.id`) are always merged in.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type FirewallAppliedTo = { mutable type: "server"; mutable serverId: number }
+
+export interface Firewall extends
+  Resource<
+    "Hetzner.Firewall",
+    FirewallProps,
+    {
+      /**
+       * Numeric Hetzner firewall id.
+       */
+      mutable id: number
+      /**
+       * Name of the firewall.
+       */
+      mutable name: string
+      /**
+       * RFC3339 timestamp when the firewall was created.
+       */
+      mutable created: string
+      /**
+       * Current rules, in the same camelCase shape as {@link FirewallRule}.
+       */
+      mutable rules: FirewallRule[]
+      /**
+       * Server ids the firewall is currently applied to (direct
+       * `type=server` attachments only).
+       */
+      mutable appliedTo: FirewallAppliedTo[]
+      /**
+       * User-facing labels (Alchemy ownership labels stripped).
+       */
+      mutable labels: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A Hetzner Cloud firewall — a named set of inbound/outbound rules that
+ * can be applied to one or more Servers.
+ *
+ * Name, rules, labels, and `applyTo` are all mutable. Changing the name
+ * updates the existing firewall in place (it is unique per project).
+ * @see https://docs.hetzner.cloud/reference/cloud#firewalls
+ *
+ * ### Creating a Firewall
+ * **Example:** Basic firewall
+ * ```typescript
+ * const web = yield* Hetzner.Firewall("web", {
+ *   rules: [
+ *     {
+ *       direction: "in",
+ *       protocol: "tcp",
+ *       port: "22",
+ *       sourceIps: ["0.0.0.0/0", "::/0"],
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * **Example:** Firewall applied to a Server
+ * ```typescript
+ * const server = yield* Hetzner.Server("app", {
+ *   image: "ubuntu-24.04",
+ *   serverType: "cx22",
+ *   location: "nbg1",
+ * });
+ * const web = yield* Hetzner.Firewall("web", {
+ *   applyTo: [server],
+ *   rules: [
+ *     {
+ *       direction: "in",
+ *       protocol: "tcp",
+ *       port: "443",
+ *       sourceIps: ["0.0.0.0/0", "::/0"],
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * ### Updating rules
+ * **Example:** Replace the rule set
+ * ```typescript
+ * const web = yield* Hetzner.Firewall("web", {
+ *   rules: [
+ *     {
+ *       direction: "in",
+ *       protocol: "tcp",
+ *       port: "80",
+ *       sourceIps: ["0.0.0.0/0", "::/0"],
+ *     },
+ *     {
+ *       direction: "in",
+ *       protocol: "tcp",
+ *       port: "443",
+ *       sourceIps: ["0.0.0.0/0", "::/0"],
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @product Firewall
+ */
+export const Firewall = Resource<Firewall>("Hetzner.Firewall")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class FirewallNotCreated extends Data.TaggedError("Hetzner.FirewallNotCreated")<{
+  mutable resourceName: string
+}> {}
+
+type FirewallAttributes = Firewall["Attributes"]
+type ObservedFirewall = GetFirewallResponseFirewall | ListFirewallsResponseFirewallsItem
+
+const NAME_MAX_LENGTH = 128
+
+const createFirewallName = effect (id: string, name: string | undefined) => {
+  if (name !== undefined) return name
+  return try createPhysicalName({ id, maxLength: NAME_MAX_LENGTH })
+}
+
+const compactLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(labels ?? {}).filter(
+      (entry): entry is [string, string] => entry[1] !== undefined,
+    ),
+  )
+
+const desiredLabels = effect (id: string, user: Record<string, string> | undefined) => {
+  const internal = try createInternalLabels(id)
+  return { ...toLabels(user), ...internal }
+}
+
+const sortIps = (ips: ReadonlyArray<string> | undefined): string[] =>
+  [...(ips ?? [])].map((ip) => ip.toLowerCase()).sort()
+
+const normalizeRule = (rule: {
+  mutable description?: string | null
+  mutable direction: string
+  mutable protocol: string
+  mutable port?: string | null
+  mutable sourceIps?: ReadonlyArray<string>
+  mutable destinationIps?: ReadonlyArray<string>
+}): FirewallRule => {
+  const description = rule.description ?? undefined
+  const port = rule.port ?? undefined
+  return {
+    direction: rule.direction as FirewallDirection,
+    protocol: rule.protocol as FirewallProtocol,
+    ...(description !== undefined ? { description } : {}),
+    ...(port !== undefined && port.length > 0 ? { port } : {}),
+    sourceIps: sortIps(rule.sourceIps),
+    destinationIps: sortIps(rule.destinationIps),
+  }
+}
+
+const fromObservedRule = (rule: GetFirewallResponseFirewallRulesItem): FirewallRule =>
+  normalizeRule({
+    description: rule.description,
+    direction: rule.direction,
+    protocol: rule.protocol,
+    port: rule.port,
+    sourceIps: rule.source_ips,
+    destinationIps: rule.destination_ips,
+  })
+
+const toWireRule = (rule: FirewallRule): CreateFirewallRequestRulesItem => {
+  const description = rule.description
+  const port = (rule.protocol === "tcp" || rule.protocol === "udp") && rule.port ? rule.port : undefined
+  return {
+    direction: rule.direction,
+    protocol: rule.protocol,
+    ...(description !== undefined ? { description } : {}),
+    ...(port !== undefined ? { port } : {}),
+    ...(rule.sourceIps !== undefined ? { source_ips: [...rule.sourceIps] } : {}),
+    ...(rule.destinationIps !== undefined ? { destination_ips: [...rule.destinationIps] } : {}),
+  }
+}
+
+const desiredRules = (rules: FirewallRule[] | undefined): FirewallRule[] =>
+  (rules ?? []).map((rule) =>
+    normalizeRule({
+      description: rule.description,
+      direction: rule.direction,
+      protocol: rule.protocol,
+      port: rule.port,
+      sourceIps: rule.sourceIps,
+      destinationIps: rule.destinationIps,
+    })
+  )
+
+const rulesEqual = (a: FirewallRule[], b: FirewallRule[]): boolean => deepEqual(a, b, { stripNullish: true })
+
+const serverIdOf = (value: unknown): number | undefined => {
+  if (value === null || typeof value !== "object") return undefined
+  const rec = value as { mutable serverId?: unknown; mutable id?: unknown }
+  if (typeof rec.serverId === "number") return rec.serverId
+  if (typeof rec.id === "number") return rec.id
+  return undefined
+}
+
+const desiredServerIds = (applyTo: FirewallProps["applyTo"] | undefined): number[] => {
+  const ids = new Set<number>()
+  for (const item of applyTo ?? []) {
+    const id = serverIdOf(item)
+    if (id !== undefined) ids.add(id)
+  }
+  return [...ids].sort((a, b) => a - b)
+}
+
+const observedServerIds = (
+  appliedTo: ReadonlyArray<GetFirewallResponseFirewallAppliedToItem>,
+): number[] => {
+  const ids = new Set<number>()
+  for (const item of appliedTo) {
+    if (item.type === "server" && item.server?.id !== undefined) {
+      ids.add(item.server.id)
+    }
+  }
+  return [...ids].sort((a, b) => a - b)
+}
+
+const toAppliedTo = (
+  appliedTo: ReadonlyArray<GetFirewallResponseFirewallAppliedToItem>,
+): FirewallAppliedTo[] => observedServerIds(appliedTo).map((serverId) => ({ type: "server" as const, serverId }))
+
+const toServerApplyItems = (ids: ReadonlyArray<number>): CreateFirewallRequestApplyToItem[] =>
+  ids.map((id) => ({ type: "server" as const, server: { id } }))
+
+const detachItems = (
+  appliedTo: ReadonlyArray<GetFirewallResponseFirewallAppliedToItem>,
+): CreateFirewallRequestApplyToItem[] => {
+  const items: CreateFirewallRequestApplyToItem[] = []
+  for (const item of appliedTo) {
+    if (item.type === "server" && item.server?.id !== undefined) {
+      items.push({ type: "server", server: { id: item.server.id } })
+    } else if (item.type === "label_selector" && item.label_selector?.selector !== undefined) {
+      items.push({
+        type: "label_selector",
+        label_selector: { selector: item.label_selector.selector },
+      })
+    }
+  }
+  return items
+}
+
+const toAttrs = (firewall: ObservedFirewall): FirewallAttributes => ({
+  id: firewall.id,
+  name: firewall.name,
+  created: firewall.created,
+  rules: firewall.rules.map(fromObservedRule),
+  appliedTo: toAppliedTo(firewall.applied_to),
+  labels: stripInternalLabels(compactLabels(firewall.labels)),
+})
+
+const getById = effect (id: number) =>
+  (try effect {
+    const { firewall } = try Hetzner.firewalls.getFirewall({ id })
+    return firewall
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+const findByName = effect (name: string) => {
+  const { firewalls } = try Hetzner.firewalls.listFirewalls({ name, per_page: 50 })
+  return firewalls.find((item) => item.name === name)
+}
+
+const findByLabels = effect (id: string) => {
+  const selector = labelSelector(try createInternalLabels(id))
+  const { firewalls } = try Hetzner.firewalls.listFirewalls({
+    label_selector: selector,
+    per_page: 50,
+  })
+  return firewalls[0]
+}
+
+const observe = effect (
+  input: { mutable id: string; mutable name: string; mutable output: FirewallAttributes | undefined },
+) => {
+  if (input.output?.id !== undefined) {
+    const byId = try getById(input.output.id)
+    if (byId !== undefined) return byId
+  }
+  const byName = try findByName(input.name)
+  if (byName !== undefined) return byName
+  return try findByLabels(input.id)
+}
+
+const waitActions = effect (actions: ReadonlyArray<{ readonly id: number }>) =>
+  try waitForActions(actions.map((action) => action.id))
+
+const ensureFirewall = effect (input: {
+  mutable name: string
+  mutable labels: Record<string, string>
+  mutable rules: FirewallRule[]
+  mutable serverIds: number[]
+}) => {
+  const created = Hetzner.firewalls
+    .createFirewall({
+      name: input.name,
+      labels: input.labels,
+      ...(input.rules.length > 0 ? { rules: input.rules.map(toWireRule) } : {}),
+      ...(input.serverIds.length > 0 ? { apply_to: toServerApplyItems(input.serverIds) } : {}),
+    }) catch effect (e) => match (e) {
+      when { _tag: "Conflict" }: try effect {
+        const existing = try findByName(input.name)
+        return (existing !== undefined ? { firewall: existing, actions: [] } : try effect {
+          const { firewalls } = try Hetzner.firewalls
+            .listFirewalls({ name: input.name, per_page: 1 })
+          return ({ firewall: firewalls[0], actions: [] })
+        })
+      };
+      default: throw e;
+    }
+  try waitActions(created.actions ?? [])
+  return created.firewall ?? (try findByName(input.name))
+}
+
+const syncNameAndLabels = effect (input: {
+  mutable firewallId: number
+  mutable observedName: string
+  mutable desiredName: string
+  mutable observedLabels: Record<string, string>
+  mutable desiredLabels: Record<string, string>
+}) => {
+  const nameChanged = input.observedName !== input.desiredName
+  const { upsert, removed } = diffLabels(input.observedLabels, input.desiredLabels)
+  const labelsChanged = upsert.length > 0 || removed.length > 0
+  if (!nameChanged && !labelsChanged) return
+  try Hetzner.firewalls.updateFirewall({
+    id: input.firewallId,
+    ...(nameChanged ? { name: input.desiredName } : {}),
+    ...(labelsChanged ? { labels: input.desiredLabels } : {}),
+  })
+}
+
+const syncRules = effect (input: {
+  mutable firewallId: number
+  mutable observed: FirewallRule[]
+  mutable desired: FirewallRule[]
+}) => {
+  if (rulesEqual(input.observed, input.desired)) return
+  const { actions } = try Hetzner.firewallActions.setFirewallRules({
+    id: input.firewallId,
+    rules: input.desired.map(toWireRule),
+  })
+  try waitActions(actions)
+}
+
+const syncApplyTo = effect (input: {
+  mutable firewallId: number
+  mutable observed: ReadonlyArray<GetFirewallResponseFirewallAppliedToItem>
+  mutable desiredIds: number[]
+}) => {
+  const observedIds = new Set(observedServerIds(input.observed))
+  const desiredIds = new Set(input.desiredIds)
+  const toAdd = [...desiredIds].filter((id) => !observedIds.has(id))
+  const toRemove = [...observedIds].filter((id) => !desiredIds.has(id))
+  if (toAdd.length > 0) {
+    const { actions } = try Hetzner.firewallActions.applyFirewallToResources({
+      id: input.firewallId,
+      apply_to: toServerApplyItems(toAdd),
+    })
+    try waitActions(actions)
+  }
+  if (toRemove.length > 0) {
+    const { actions } = try Hetzner.firewallActions.removeFirewallFromResources({
+      id: input.firewallId,
+      remove_from: toServerApplyItems(toRemove),
+    })
+    try waitActions(actions)
+  }
+}
+
+const detachAll = effect (
+  firewallId: number,
+  appliedTo: ReadonlyArray<GetFirewallResponseFirewallAppliedToItem>,
+) => {
+  const removeFrom = detachItems(appliedTo)
+  if (removeFrom.length === 0) return
+  const result = Hetzner.firewallActions
+    .removeFirewallFromResources({ id: firewallId, remove_from: removeFrom }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "UnprocessableEntity" }: { actions: [] };
+      default: throw e;
+    }
+  try waitActions(result.actions)
+}
+
+export const FirewallProvider = (): infer _ =>
+  Provider.succeed(Firewall, {
+    stables: ["id", "created"],
+    list: effect () => {
+      const rows = try Hetzner.firewalls.listFirewalls
+        .items({ label_selector: alchemyStackSelector, per_page: 50 })
+        .pipe(Stream.runCollect)
+      return Array.from(rows, toAttrs)
+    },
+    diff: effect ({ id, olds, news, output }) => {
+      if (!isResolved(news)) return undefined
+      const oldName = output?.name ?? (try createFirewallName(id, olds?.name))
+      const newName = news.name ?? oldName
+      if (oldName !== newName) {
+        return { action: "update" } as const
+      }
+      if (
+        !rulesEqual(desiredRules(olds?.rules), desiredRules(news.rules))
+        || !recordsEqual(olds?.labels ?? {}, news.labels ?? {})
+      ) {
+        return { action: "update" } as const
+      }
+      const oldIds = desiredServerIds(olds?.applyTo)
+      const newIds = desiredServerIds(news.applyTo)
+      if (!deepEqual(oldIds, newIds)) {
+        return { action: "update" } as const
+      }
+      if (output !== undefined) {
+        if (!rulesEqual(output.rules, desiredRules(news.rules))) {
+          return { action: "update" } as const
+        }
+        const outputIds = output.appliedTo.map((item) => item.serverId)
+        if (
+          !deepEqual(
+            [...outputIds].sort((a, b) => a - b),
+            newIds,
+          )
+        ) {
+          return { action: "update" } as const
+        }
+      }
+      return undefined
+    },
+    read: effect ({ id, olds, output }) => {
+      const name = output?.name
+        ?? (olds?.name !== undefined
+          ? olds.name
+          : output !== undefined
+          ? undefined
+          : try createFirewallName(id, olds?.name))
+      const observed = output?.id !== undefined
+        ? ((try getById(output.id))
+          ?? (name !== undefined ? try findByName(name) : undefined)
+          ?? (try findByLabels(id)))
+        : name !== undefined
+        ? ((try findByName(name)) ?? (try findByLabels(id)))
+        : try findByLabels(id)
+      if (observed === undefined) return undefined
+      const attrs = toAttrs(observed)
+      const ours = try hasAlchemyLabels(id, compactLabels(observed.labels))
+      return ours ? attrs : Unowned(attrs)
+    },
+    reconcile: effect ({ id, news, output }) => {
+      const name = news.name ?? output?.name ?? (try createFirewallName(id, news.name))
+      const labels = try desiredLabels(id, news.labels)
+      const rules = desiredRules(news.rules)
+      const serverIds = desiredServerIds(news.applyTo)
+
+      // Observe — cached id is a hint; cloud state is authoritative.
+      let current = try observe({ id, name, output })
+
+      // Ensure — create if missing. A Conflict is a name-race; look up
+      // the existing firewall and fall through to sync.
+      if (current === undefined) {
+        try ensureFirewall({ name, labels, rules, serverIds })
+      }
+      if (current === undefined) {
+        current = try observe({ id, name, output })
+      }
+      if (current === undefined) {
+        throw new FirewallNotCreated({ resourceName: name })
+      }
+
+      // Sync each mutable aspect against observed cloud state.
+      try syncNameAndLabels({
+        firewallId: current.id,
+        observedName: current.name,
+        desiredName: name,
+        observedLabels: compactLabels(current.labels),
+        desiredLabels: labels,
+      })
+      try syncRules({
+        firewallId: current.id,
+        observed: current.rules.map(fromObservedRule),
+        desired: rules,
+      })
+      try syncApplyTo({
+        firewallId: current.id,
+        observed: current.applied_to,
+        desiredIds: serverIds,
+      })
+
+      const fresh = (try getById(current.id)) ?? current
+      return toAttrs(fresh)
+    },
+    delete: effect ({ output }) => {
+      const id = output.id
+      const observed = try getById(id)
+      if (observed !== undefined) {
+        try detachAll(id, observed.applied_to)
+      }
+      Hetzner.firewalls.deleteFirewall({ id }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.void;
+        when { _tag: "UnprocessableEntity" }: try effect {
+          const again = try getById(id)
+          if (again === undefined) return
+          try detachAll(id, again.applied_to)
+          Hetzner.firewalls
+            .deleteFirewall({ id }) catch effect (e) => match (e) {
+              when { _tag: "NotFound" }: try Effect.void;
+              default: throw e;
+            }
+        };
+        default: throw e;
+      }
+    },
+  })

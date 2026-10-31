@@ -17,13 +17,13 @@ import {
   RecordListProvider as DnsRecordListProvider,
 } from "./DNS.ts";
 import { fromCredentials } from "./Environment.ts";
-import { Firewall, FirewallProvider } from "./Firewall.ts";
+import { Firewall, FirewallProvider } from "./Firewall.vibe";
 import { FloatingIp, FloatingIpProvider } from "./FloatingIp.vibe";
 import { FloatingIpAssignment, FloatingIpAssignmentProvider } from "./FloatingIpAssignment.vibe";
 import { Image, ImageProvider } from "./Image.vibe";
-import { LoadBalancer, LoadBalancerProvider } from "./LoadBalancer.ts";
+import { LoadBalancer, LoadBalancerProvider } from "./LoadBalancer.vibe";
 import { MountVolumeLive } from "./MountVolume.vibe";
-import { Network, NetworkProvider } from "./Network.ts";
+import { Network, NetworkProvider } from "./Network.vibe";
 import { PlacementGroup, PlacementGroupProvider } from "./PlacementGroup.vibe";
 import { PrimaryIp, PrimaryIpProvider } from "./PrimaryIp.vibe";
 import { ReadDnsHttp } from "./ReadDnsHttp.vibe";
