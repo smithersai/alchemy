@@ -7,7 +7,7 @@ import { concatBytes } from "../Protocol/ObjectCodec.ts";
 import { errPkt, flushPkt, pktText } from "../Protocol/Pkt.ts";
 import { sidebandFrames } from "../Protocol/Sideband.ts";
 import { StoreError } from "../Protocol/Store.ts";
-import { incomingStates, type PushInput } from "../Push.ts";
+import { incomingStates, type PushInput } from "../Push.vibe";
 import { parseReceivePackRequest, type CommitPushResult } from "../RepoObject.ts";
 import { feedBody, HEAD_BYTES } from "../Store/IncomingBody.ts";
 import { makeStreamingSource } from "../Store/StreamingSource.ts";

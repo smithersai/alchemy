@@ -19,7 +19,7 @@ import {
   type PreparedPush,
   type PushInput,
   type RefUpdate,
-} from "./Push.ts";
+} from "./Push.vibe";
 import { encodeStagedBatch } from "./PushWire.ts";
 import { ulid } from "./RegistryObject.ts";
 import {

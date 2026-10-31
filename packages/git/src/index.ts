@@ -23,7 +23,7 @@
 export * from "./Api.vibe";
 export { GitApi as Api } from "./Api.vibe";
 export { Engine, EngineLive } from "./Engine.ts";
-export type { PushInput, PreparedPush, RefUpdate } from "./Push.ts";
+export type { PushInput, PreparedPush, RefUpdate } from "./Push.vibe";
 export * as Http from "./Http.ts";
 export * as Push from "./PushInput.ts";
 export * from "./Server.ts";

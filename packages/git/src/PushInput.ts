@@ -5,7 +5,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { Oid, RefName } from "./Api/Schema.ts";
 import { StoreError } from "./Protocol/Store.ts";
-import { incomingStates, type PushInput, type RefUpdate } from "./Push.ts";
+import { incomingStates, type PushInput, type RefUpdate } from "./Push.vibe";
 import { makeStreamingSource } from "./Store/StreamingSource.ts";
 
 const Commands = Schema.Array(Schema.Struct({ ref: RefName, oldOid: Oid, newOid: Oid }));
