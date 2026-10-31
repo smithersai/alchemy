@@ -3,7 +3,7 @@ import type * as Issues from "@distilled.cloud/github/issues";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { IssueNotFound } from "./Errors.ts";
+import type { IssueNotFound } from "./Errors.vibe";
 import type { Repository } from "./Repository.ts";
 
 export interface GetIssueRequest extends Omit<Issues.GetRequest, "owner" | "repo"> {}

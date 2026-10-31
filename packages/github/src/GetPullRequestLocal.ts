@@ -1,8 +1,8 @@
 import * as Layer from "effect/Layer";
 import * as BindingLocal from "./BindingLocal.ts";
-import type { Credentials } from "./Credentials.ts";
+import type { Credentials } from "./Credentials.vibe";
 import { GetPullRequest } from "./GetPullRequest.ts";
-import { getPullRequestOperation } from "./GetPullRequestHttp.ts";
+import { getPullRequestOperation } from "./GetPullRequestHttp.vibe";
 
 /**
  * Implementation of {@link GetPullRequest} with the provider's current credentials.
