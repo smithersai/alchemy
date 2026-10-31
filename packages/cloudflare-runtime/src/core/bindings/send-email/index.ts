@@ -1,2 +1,2 @@
-export * from "./SendEmail.vibe";
+export * from "./SendEmail.ts";
 export * from "./SendEmailOptions.shared.ts";

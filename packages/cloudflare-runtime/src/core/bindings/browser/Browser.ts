@@ -19,11 +19,11 @@ const BrowserWorker = {
   worker: () =>
     loadInternalWorker("#cloudflare-runtime-core-worker/bindings/browser/Browser.worker"),
 };
-import * as Loopback from "../../globals/Loopback.vibe";
+import * as Loopback from "../../globals/Loopback.ts";
 import type * as LoopbackServer from "../../globals/LoopbackServer.ts";
 import { DEFAULT_COMPATIBILITY_DATE } from "../../internal/constants.ts";
 import { formatInternalWorkerModules } from "../../internal/internal-modules.ts";
-import * as Plugin from "../../Plugin.vibe";
+import * as Plugin from "../../Plugin.ts";
 import type { BindingHook, PluginContext } from "../../PluginContext.ts";
 import { makeRemoteBinding } from "../../remote-bindings/RemoteBindings.ts";
 import type { ConfigError } from "../../RuntimeError.shared.ts";

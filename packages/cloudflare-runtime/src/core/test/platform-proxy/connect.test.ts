@@ -1,6 +1,6 @@
 import { expect, it } from "@effect/vitest";
 import * as KvNamespace from "../../bindings/kv-namespace/index.ts";
-import * as Text from "../../bindings/Text.vibe";
+import * as Text from "../../bindings/Text.ts";
 import { connect } from "../../platform-proxy/connect.ts";
 import { getPlatformProxy } from "../../platform-proxy/getPlatformProxy.ts";
 

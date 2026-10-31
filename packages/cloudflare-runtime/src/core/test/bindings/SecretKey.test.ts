@@ -1,6 +1,6 @@
 import { expect, layer } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import * as SecretKey from "../../bindings/SecretKey.vibe";
+import * as SecretKey from "../../bindings/SecretKey.ts";
 import { localRuntimeLayer, startTestWorker } from "../helpers/runtime.ts";
 
 // Fixtures — generated once and checked in as constants.

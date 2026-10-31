@@ -8,7 +8,7 @@ const DispatchNamespaceBindingWorker = {
     ),
 };
 import { formatExtensionModule } from "../../internal/internal-modules.ts";
-import * as Plugin from "../../Plugin.vibe";
+import * as Plugin from "../../Plugin.ts";
 import type { BindingHook } from "../../PluginContext.ts";
 import type { RemoteBindings } from "../../remote-bindings/RemoteBindings.ts";
 import { makeRemoteBinding } from "../../remote-bindings/RemoteBindings.ts";

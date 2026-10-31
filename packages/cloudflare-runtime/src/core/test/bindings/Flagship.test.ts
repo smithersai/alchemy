@@ -6,7 +6,7 @@
 import { expect, layer } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Flagship from "../../bindings/flagship/index.ts";
-import * as Storage from "../../globals/Storage.vibe";
+import * as Storage from "../../globals/Storage.ts";
 import type { TestWorker } from "../helpers/runtime.ts";
 import { localRuntimeLayer, startTestWorker } from "../helpers/runtime.ts";
 

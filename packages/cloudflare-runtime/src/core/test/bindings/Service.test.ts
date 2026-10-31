@@ -1,7 +1,7 @@
 import { expect, layer } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Assets from "../../bindings/assets/Assets.ts";
-import * as Service from "../../bindings/Service.vibe";
+import * as Service from "../../bindings/Service.ts";
 import { getFixture } from "../helpers/fixture.ts";
 import { localRuntimeLayer, startTestWorker } from "../helpers/runtime.ts";
 

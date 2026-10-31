@@ -6,7 +6,7 @@ import { assert, describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Predicate from "effect/Predicate";
-import * as Storage from "../../globals/Storage.vibe";
+import * as Storage from "../../globals/Storage.ts";
 import { makeTempDirectory } from "../helpers/runtime.ts";
 
 const services = NodeServices.layer;

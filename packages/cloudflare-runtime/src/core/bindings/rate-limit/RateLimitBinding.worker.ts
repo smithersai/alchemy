@@ -1,5 +1,5 @@
 // Emulated Ratelimit Binding
-import type { RateLimitProps } from "./RateLimitProps.shared.vibe";
+import type { RateLimitProps } from "./RateLimitProps.shared.ts";
 
 // options for Ratelimit
 //   (should be kept in sync with https://bitbucket.cfdata.org/projects/EW/repos/edgeworker/browse/src/edgeworker/internal-api/ratelimit.capnp)

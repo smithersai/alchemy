@@ -11,7 +11,7 @@ import type * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import * as SubscriptionRef from "effect/SubscriptionRef";
-import * as Paths from "../internal/Paths.vibe";
+import * as Paths from "../internal/Paths.ts";
 import * as System from "../internal/System.ts";
 import { SystemError } from "../RuntimeError.shared.ts";
 import {

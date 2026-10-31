@@ -27,11 +27,11 @@ import {
   SOCKET_USER_ENTRY,
 } from "../internal/constants.ts";
 import { formatInternalWorkerModules } from "../internal/internal-modules.ts";
-import * as Plugin from "../Plugin.vibe";
+import * as Plugin from "../Plugin.ts";
 import { PluginContext } from "../PluginContext.ts";
 import { ConfigError } from "../RuntimeError.shared.ts";
 import type * as WorkerdConfig from "../workerd/Config.ts";
-import * as Cf from "./Cf.vibe";
+import * as Cf from "./Cf.ts";
 import { cfImageHandler } from "./CfImage.ts";
 import {
   BINDING_EMAIL_DIRECTORY,
@@ -44,10 +44,10 @@ import {
   HEADER_ACCESS_BLOB,
 } from "./EntryOptions.shared.ts";
 import * as Internet from "./Internet.ts";
-import * as Loopback from "./Loopback.vibe";
+import * as Loopback from "./Loopback.ts";
 import { BINDING_PROXY_SHARED_SECRET } from "./ProxyHeaders.shared.ts";
 import { PATH_SCHEDULED } from "./ScheduledOptions.shared.ts";
-import * as Storage from "./Storage.vibe";
+import * as Storage from "./Storage.ts";
 
 export class Globals extends Plugin.Service<Globals>()("cloudflare-runtime/plugin/Globals") {}
 

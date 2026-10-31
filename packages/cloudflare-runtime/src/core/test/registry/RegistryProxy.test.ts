@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { expect, layer } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import * as DurableObjectNamespace from "../../bindings/DurableObjectNamespace.vibe";
+import * as DurableObjectNamespace from "../../bindings/DurableObjectNamespace.ts";
 import * as Registry from "../../registry/Registry.ts";
 import { resolvedTargetKey, type Subscriber } from "../../registry/RegistryTypes.shared.ts";
 import { localRuntimeLayer, startTestWorker } from "../helpers/runtime.ts";

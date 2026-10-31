@@ -1,2 +1,2 @@
 export * from "./RateLimit.ts";
-export * from "./RateLimitProps.shared.vibe";
+export * from "./RateLimitProps.shared.ts";

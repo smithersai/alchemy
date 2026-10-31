@@ -11,7 +11,7 @@ import * as Path from "effect/Path";
 import * as Queue from "effect/Queue";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
-import * as Paths from "../../internal/Paths.vibe";
+import * as Paths from "../../internal/Paths.ts";
 import * as Registry from "../../registry/Registry.ts";
 import {
   resolvedTargetKey,

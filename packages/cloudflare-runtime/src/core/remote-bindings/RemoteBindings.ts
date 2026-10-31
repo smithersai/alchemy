@@ -14,10 +14,10 @@ const OutboundWorker = {
   worker: () =>
     loadInternalWorker("#cloudflare-runtime-core-worker/remote-bindings/workers/outbound.worker"),
 };
-import * as Loopback from "../globals/Loopback.vibe";
+import * as Loopback from "../globals/Loopback.ts";
 import { DEFAULT_COMPATIBILITY_DATE } from "../internal/constants.ts";
 import { formatInternalWorkerModules } from "../internal/internal-modules.ts";
-import * as Plugin from "../Plugin.vibe";
+import * as Plugin from "../Plugin.ts";
 import * as PluginContext from "../PluginContext.ts";
 import type { ApiError, ConfigError, SystemError } from "../RuntimeError.shared.ts";
 import * as WorkerdConfig from "../workerd/Config.ts";

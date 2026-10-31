@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import * as DurableObjectNamespace from "../../bindings/DurableObjectNamespace.vibe";
+import * as DurableObjectNamespace from "../../bindings/DurableObjectNamespace.ts";
 import { localRuntimeLayer, startTestWorker } from "../helpers/runtime.ts";
 
 const script = `

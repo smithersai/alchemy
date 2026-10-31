@@ -1,6 +1,6 @@
 import { expect, layer } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import * as UnsafeEval from "../../bindings/UnsafeEval.vibe";
+import * as UnsafeEval from "../../bindings/UnsafeEval.ts";
 import { localRuntimeLayer, startTestWorker } from "../helpers/runtime.ts";
 
 const SCRIPT = `

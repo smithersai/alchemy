@@ -1,6 +1,6 @@
 import { expect, layer } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import * as Loopback from "../../bindings/Loopback.vibe";
+import * as Loopback from "../../bindings/Loopback.ts";
 import { localRuntimeLayer, startTestWorker } from "../helpers/runtime.ts";
 
 const SCRIPT = `

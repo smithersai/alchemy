@@ -25,7 +25,7 @@ import {
 } from "./DockerLoopback.ts";
 import { makeDockerLoopbackForwarders } from "./internal/docker-loopback-forwarders.ts";
 import { makeDockerUpgradeRouter } from "./internal/docker-upgrade-router.ts";
-import { listenOnLoopback } from "./internal/listen-on-loopback.vibe";
+import { listenOnLoopback } from "./internal/listen-on-loopback.ts";
 import { ConfigError, SystemError } from "./RuntimeError.shared.ts";
 import type * as WorkerdConfig from "./workerd/Config.ts";
 

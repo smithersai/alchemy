@@ -7,7 +7,7 @@ import type * as HttpServerRequest from "effect/http/HttpServerRequest";
 import type * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as MutableHashMap from "effect/MutableHashMap";
-import { getAddress } from "../internal/get-address.vibe";
+import { getAddress } from "../internal/get-address.ts";
 import { makeErrorEnvelope } from "../internal/response.shared.ts";
 import type { RuntimeError } from "../RuntimeError.shared.ts";
 import { isRuntimeError, SystemError } from "../RuntimeError.shared.ts";

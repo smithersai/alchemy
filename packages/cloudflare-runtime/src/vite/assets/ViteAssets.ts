@@ -5,7 +5,7 @@ import * as Layer from "effect/Layer";
 import mime from "mime";
 import type * as vite from "vite";
 import * as Assets from "../../core/bindings/assets/Assets.ts";
-import * as Loopback from "../../core/globals/Loopback.vibe";
+import * as Loopback from "../../core/globals/Loopback.ts";
 import { DEFAULT_COMPATIBILITY_DATE } from "../../core/internal/constants.ts";
 // Alchemy modifications are licensed under Apache-2.0.
 // This file includes third-party code; see /THIRD_PARTY_LICENSES.md.
