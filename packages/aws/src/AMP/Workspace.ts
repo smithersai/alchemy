@@ -11,7 +11,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { syncAmpTags, toTagRecord } from "./internal.vibe";
+import { syncAmpTags, toTagRecord } from "./internal.ts";
 
 export class AMPWorkspaceNotReady extends Data.TaggedError("AMPWorkspaceNotReady")<{
   readonly message: string;

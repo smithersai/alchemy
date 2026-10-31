@@ -5,7 +5,7 @@ import * as Provisioning from "alchemy/State/Provisioning";
 import { StateStoreError } from "alchemy/State/State";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { deleteAllObjects } from "../AssetsBucket.vibe";
+import { deleteAllObjects } from "../AssetsBucket.ts";
 import { AWSEnvironment } from "../Environment.ts";
 import {
   createOverflowBucketName,

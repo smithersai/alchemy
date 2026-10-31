@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import type { Providers } from "../Providers.ts";
-import { normalizeAmpLogGroupArn } from "./internal.vibe";
+import { normalizeAmpLogGroupArn } from "./internal.ts";
 
 export interface QueryLoggingDestination {
   /**

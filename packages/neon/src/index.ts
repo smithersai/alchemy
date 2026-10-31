@@ -48,7 +48,7 @@ export {
   type OrganizationMemberRoleAttributes,
   type OrganizationRole,
   type GovernanceRoleBaseline,
-} from "./OrganizationMemberRole.vibe";
+} from "./OrganizationMemberRole.ts";
 export {
   ProjectMemberRole,
   ProjectMemberRoleProvider,

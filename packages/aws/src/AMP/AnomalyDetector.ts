@@ -11,7 +11,7 @@ import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { syncAmpTags, toTagRecord } from "./internal.vibe";
+import { syncAmpTags, toTagRecord } from "./internal.ts";
 
 /**
  * Tolerance band around the expected value inside which deviations are not

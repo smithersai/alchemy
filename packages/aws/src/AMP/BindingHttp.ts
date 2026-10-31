@@ -20,7 +20,7 @@ import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as AWSBindings from "../AWSBindings.ts";
-import { PrometheusApiError, type PrometheusTime } from "./PrometheusTypes.vibe";
+import { PrometheusApiError, type PrometheusTime } from "./PrometheusTypes.ts";
 import type { Workspace } from "./Workspace.ts";
 
 /** A request against the workspace's Prometheus-compatible endpoint. */

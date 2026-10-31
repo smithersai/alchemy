@@ -23,7 +23,7 @@ import { OrganizationApiKey, OrganizationApiKeyProvider } from "./OrganizationAp
 import {
   OrganizationMemberRole,
   OrganizationMemberRoleProvider,
-} from "./OrganizationMemberRole.vibe";
+} from "./OrganizationMemberRole.ts";
 import {
   OrganizationSpendingLimit,
   OrganizationSpendingLimitProvider,
