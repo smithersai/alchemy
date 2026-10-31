@@ -1,38 +1,37 @@
-import * as Neon from "@distilled.cloud/neon"
-import { Unowned } from "alchemy/AdoptPolicy"
-import { isResolved } from "alchemy/Diff"
-import * as Provider from "alchemy/Provider"
-import { Resource } from "alchemy/Resource"
-import * as Effect from "effect/Effect"
-import type { Providers } from "./Providers.ts"
+import * as Neon from "@distilled.cloud/neon";
+import { Unowned } from "alchemy/AdoptPolicy";
+import { isResolved } from "alchemy/Diff";
+import * as Provider from "alchemy/Provider";
+import { Resource } from "alchemy/Resource";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import type { Providers } from "./Providers.ts";
 
 export interface OrganizationSpendingLimitProps {
   /** Existing Neon organization ID. Restore and remove this control before changing organizations. */
-  mutable orgId: string
+  orgId: string;
   /** Positive integer monthly alert threshold in cents; zero and null are not supported. */
-  mutable spendingLimitCents: number
+  spendingLimitCents: number;
 }
 
 export interface OrganizationSpendingLimitAttributes {
   /** Organization whose billing alert is managed. */
-  mutable orgId: string
+  orgId: string;
   /** Observed monthly threshold in cents, or null when no threshold is configured. */
-  mutable spendingLimitCents: number | null
+  spendingLimitCents: number | null;
   /** Original threshold captured before adoption; null means Alchemy created the threshold. */
-  mutable initialSpendingLimitCents: number | null
+  initialSpendingLimitCents: number | null;
   /** Last managed threshold, retained across refreshes to detect external changes on destroy. */
-  mutable managedSpendingLimitCents: number | null
+  managedSpendingLimitCents: number | null;
 }
 
-export interface OrganizationSpendingLimit extends
-  Resource<
-    "Neon.OrganizationSpendingLimit",
-    OrganizationSpendingLimitProps,
-    OrganizationSpendingLimitAttributes,
-    never,
-    Providers
-  >
-{}
+export interface OrganizationSpendingLimit extends Resource<
+  "Neon.OrganizationSpendingLimit",
+  OrganizationSpendingLimitProps,
+  OrganizationSpendingLimitAttributes,
+  never,
+  Providers
+> {}
 
 /**
  * Manage an ALERT-ONLY monthly spending threshold on an existing organization.
@@ -68,26 +67,31 @@ export interface OrganizationSpendingLimit extends
  */
 export const OrganizationSpendingLimit = Resource<OrganizationSpendingLimit>(
   "Neon.OrganizationSpendingLimit",
-)
+);
 
-export error InvalidOrganizationSpendingLimit {
+export class InvalidOrganizationSpendingLimit extends Data.TaggedError(
+  "InvalidOrganizationSpendingLimit",
+)<{
   /** Invalid configuration or unsafe cleanup condition. */
-  mutable message: string
-}
+  message: string;
+}> {}
 
 /** @internal */
-export const validateOrganizationSpendingLimit = effect (
-  props: OrganizationSpendingLimitProps,
-): (void!never!never) | (never!InvalidOrganizationSpendingLimit!never) => (/^[a-z0-9-]{1,60}$/.test(props.orgId)
-    && Number.isSafeInteger(props.spendingLimitCents)
-    && props.spendingLimitCents > 0
-  ? try Effect.void
-  : throw new InvalidOrganizationSpendingLimit({
-    message: "An organization ID and a positive safe integer threshold in cents are required",
-  }))
+export const validateOrganizationSpendingLimit = (props: OrganizationSpendingLimitProps) =>
+  /^[a-z0-9-]{1,60}$/.test(props.orgId) &&
+  Number.isSafeInteger(props.spendingLimitCents) &&
+  props.spendingLimitCents > 0
+    ? Effect.void
+    : Effect.fail(
+        new InvalidOrganizationSpendingLimit({
+          message: "An organization ID and a positive safe integer threshold in cents are required",
+        }),
+      );
 
-const observe = effect (orgId: string) =>
-  (try Neon.getOrganizationSpendingLimit({ org_id: orgId })).spending_limit_cents
+const observe = (orgId: string) =>
+  Neon.getOrganizationSpendingLimit({ org_id: orgId }).pipe(
+    Effect.map((value) => value.spending_limit_cents),
+  );
 
 /** Preserve the original baseline and last managed value across refreshes. @internal */
 export const organizationSpendingLimitSnapshot = (
@@ -95,100 +99,100 @@ export const organizationSpendingLimitSnapshot = (
   spendingLimitCents: number | null,
   output?: OrganizationSpendingLimitAttributes,
 ): OrganizationSpendingLimitAttributes => {
-  if (output) return { ...output, spendingLimitCents }
+  if (output) return { ...output, spendingLimitCents };
   const snapshot = {
     orgId,
     spendingLimitCents,
     initialSpendingLimitCents: spendingLimitCents,
     managedSpendingLimitCents: spendingLimitCents,
-  }
-  return spendingLimitCents === null ? snapshot : Unowned(snapshot)
-}
+  };
+  return spendingLimitCents === null ? snapshot : Unowned(snapshot);
+};
 
-export const OrganizationSpendingLimitProvider = (): infer _ =>
+export const OrganizationSpendingLimitProvider = () =>
   Provider.succeed(OrganizationSpendingLimit, {
     nuke: { singleton: true },
     stables: ["orgId", "initialSpendingLimitCents"],
-    diff: effect ({ olds, news, output }) => {
-      if (!isResolved(news)) return
+    diff: Effect.fn(function* ({ olds, news, output }) {
+      if (!isResolved(news)) return;
       if (news.orgId !== (output?.orgId ?? olds.orgId)) {
-        throw new InvalidOrganizationSpendingLimit({
+        return yield* new InvalidOrganizationSpendingLimit({
           message:
             "Restore and remove the existing spending control before changing organizations; the new organization requires a separately persisted baseline",
-        })
+        });
       }
-      try validateOrganizationSpendingLimit(news)
-      if ((try observe(news.orgId)) !== news.spendingLimitCents) {
-        return { action: "update" } as const
+      yield* validateOrganizationSpendingLimit(news);
+      if ((yield* observe(news.orgId)) !== news.spendingLimitCents) {
+        return { action: "update" } as const;
       }
-    },
-    read: effect ({ olds, output }) => {
-      const orgId = output?.orgId ?? olds?.orgId
-      if (!orgId) return
-      const value = try observe(orgId)
-      return organizationSpendingLimitSnapshot(orgId, value, output)
-    },
-    reconcile: effect ({ news, output, olds }) => {
-      try validateOrganizationSpendingLimit(news)
+    }),
+    read: Effect.fn(function* ({ olds, output }) {
+      const orgId = output?.orgId ?? olds?.orgId;
+      if (!orgId) return;
+      const value = yield* observe(orgId);
+      return organizationSpendingLimitSnapshot(orgId, value, output);
+    }),
+    reconcile: Effect.fn(function* ({ news, output, olds }) {
+      yield* validateOrganizationSpendingLimit(news);
       if (
-        !output
-        || output.initialSpendingLimitCents === undefined
-        || output.managedSpendingLimitCents === undefined
+        !output ||
+        output.initialSpendingLimitCents === undefined ||
+        output.managedSpendingLimitCents === undefined
       ) {
-        throw new InvalidOrganizationSpendingLimit({
+        return yield* new InvalidOrganizationSpendingLimit({
           message:
             "A persisted spending baseline is required before mutation; resolve all initial props during planning",
-        })
+        });
       }
       if (output.orgId !== news.orgId) {
-        throw new InvalidOrganizationSpendingLimit({
+        return yield* new InvalidOrganizationSpendingLimit({
           message: "Organization identity changed without replacement",
-        })
+        });
       }
-      const observed = try observe(news.orgId)
+      const observed = yield* observe(news.orgId);
       if (
-        !olds
-        && observed !== output.managedSpendingLimitCents
-        && observed !== news.spendingLimitCents
+        !olds &&
+        observed !== output.managedSpendingLimitCents &&
+        observed !== news.spendingLimitCents
       ) {
-        throw new InvalidOrganizationSpendingLimit({
+        return yield* new InvalidOrganizationSpendingLimit({
           message: "Spending threshold changed since its adoption baseline was captured",
-        })
+        });
       }
       if (observed !== news.spendingLimitCents) {
-        try Neon.setOrganizationSpendingLimit({
+        yield* Neon.setOrganizationSpendingLimit({
           org_id: news.orgId,
           spending_limit_cents: news.spendingLimitCents,
-        })
+        });
       }
-      const value = try observe(news.orgId)
+      const value = yield* observe(news.orgId);
       if (value !== news.spendingLimitCents) {
-        throw new InvalidOrganizationSpendingLimit({
+        return yield* new InvalidOrganizationSpendingLimit({
           message: "Spending threshold changed during reconciliation",
-        })
+        });
       }
       return {
         orgId: news.orgId,
         spendingLimitCents: value,
         initialSpendingLimitCents: output.initialSpendingLimitCents,
         managedSpendingLimitCents: news.spendingLimitCents,
-      }
-    },
-    delete: effect ({ output, olds }) => {
-      const observed = try observe(output.orgId)
-      if (observed === output.initialSpendingLimitCents) return
+      };
+    }),
+    delete: Effect.fn(function* ({ output, olds }) {
+      const observed = yield* observe(output.orgId);
+      if (observed === output.initialSpendingLimitCents) return;
       if (observed !== output.managedSpendingLimitCents && observed !== olds.spendingLimitCents) {
-        throw new InvalidOrganizationSpendingLimit({
+        return yield* new InvalidOrganizationSpendingLimit({
           message: "Refusing to overwrite an externally changed spending threshold during cleanup",
-        })
+        });
       }
       if (output.initialSpendingLimitCents === null) {
-        try Neon.deleteOrganizationSpendingLimit({ org_id: output.orgId })
+        yield* Neon.deleteOrganizationSpendingLimit({ org_id: output.orgId });
       } else {
-        try Neon.setOrganizationSpendingLimit({
+        yield* Neon.setOrganizationSpendingLimit({
           org_id: output.orgId,
           spending_limit_cents: output.initialSpendingLimitCents,
-        })
+        });
       }
-    },
-  })
+    }),
+  });

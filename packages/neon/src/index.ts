@@ -55,21 +55,21 @@ export {
   type ProjectMemberRoleProps,
   type ProjectMemberRoleAttributes,
   type ProjectGovernanceRole,
-} from "./ProjectMemberRole.vibe";
+} from "./ProjectMemberRole.ts";
 export {
   OrganizationSpendingLimit,
   OrganizationSpendingLimitProvider,
   InvalidOrganizationSpendingLimit,
   type OrganizationSpendingLimitProps,
   type OrganizationSpendingLimitAttributes,
-} from "./OrganizationSpendingLimit.vibe";
+} from "./OrganizationSpendingLimit.ts";
 export {
   OrganizationVPCEndpoint,
   OrganizationVPCEndpointProvider,
   InvalidOrganizationVPCEndpoint,
   type OrganizationVPCEndpointProps,
   type OrganizationVPCEndpointAttributes,
-} from "./OrganizationVPCEndpoint.vibe";
+} from "./OrganizationVPCEndpoint.ts";
 export {
   ProjectVPCEndpoint,
   ProjectVPCEndpointProvider,

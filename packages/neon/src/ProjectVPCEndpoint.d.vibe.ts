@@ -78,6 +78,6 @@ export declare class InvalidProjectVPCEndpoint extends InvalidProjectVPCEndpoint
 }> {
 }
 /** @internal */
-export declare const validateProjectVPCEndpoint: (props: ProjectVPCEndpointProps) => Effect.Effect<undefined, import("./OrganizationVPCEndpoint.vibe").InvalidOrganizationVPCEndpoint | InvalidProjectVPCEndpoint, never>;
+export declare const validateProjectVPCEndpoint: (props: ProjectVPCEndpointProps) => Effect.Effect<undefined, import("./OrganizationVPCEndpoint.js").InvalidOrganizationVPCEndpoint | InvalidProjectVPCEndpoint, never>;
 export declare const ProjectVPCEndpointProvider: () => import("effect/Layer").Layer<Provider.Provider<ProjectVPCEndpoint>, never, Neon.NeonOpContext>;
 export {};

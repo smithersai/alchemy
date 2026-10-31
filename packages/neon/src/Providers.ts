@@ -27,13 +27,13 @@ import {
 import {
   OrganizationSpendingLimit,
   OrganizationSpendingLimitProvider,
-} from "./OrganizationSpendingLimit.vibe";
+} from "./OrganizationSpendingLimit.ts";
 import {
   OrganizationVPCEndpoint,
   OrganizationVPCEndpointProvider,
-} from "./OrganizationVPCEndpoint.vibe";
+} from "./OrganizationVPCEndpoint.ts";
 import { Project, ProjectProvider } from "./Project.ts";
-import { ProjectMemberRole, ProjectMemberRoleProvider } from "./ProjectMemberRole.vibe";
+import { ProjectMemberRole, ProjectMemberRoleProvider } from "./ProjectMemberRole.ts";
 import { ProjectVPCEndpoint, ProjectVPCEndpointProvider } from "./ProjectVPCEndpoint.vibe";
 import { Role, RoleProvider } from "./Role.vibe";
 import { WebsiteArtifact, WebsiteArtifactProvider } from "./Website/Artifact.ts";
