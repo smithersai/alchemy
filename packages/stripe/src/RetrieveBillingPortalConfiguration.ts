@@ -6,7 +6,7 @@ import type {
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { BillingPortalConfiguration } from "./BillingPortalConfiguration.ts";
+import type { BillingPortalConfiguration } from "./BillingPortalConfiguration.vibe";
 
 export interface RetrieveBillingPortalConfigurationRequest extends Omit<
   GetBillingPortalConfigurationRequest,

@@ -17,7 +17,7 @@ import { BillingMeter, BillingMeterProvider } from "./BillingMeter.vibe";
 import {
   BillingPortalConfiguration,
   BillingPortalConfigurationProvider,
-} from "./BillingPortalConfiguration.ts";
+} from "./BillingPortalConfiguration.vibe";
 import { Coupon, CouponProvider } from "./Coupon.vibe";
 import { CreateAccountHttp } from "./CreateAccountHttp.vibe";
 import { CreateAccountLinkHttp } from "./CreateAccountLinkHttp.vibe";
@@ -93,7 +93,7 @@ import { ShippingRate, ShippingRateProvider } from "./ShippingRate.vibe";
 import { TaxRate, TaxRateProvider } from "./TaxRate.vibe";
 import { TaxRegistration, TaxRegistrationProvider } from "./TaxRegistration.ts";
 import { TaxSettings, TaxSettingsProvider } from "./TaxSettings.ts";
-import { TerminalConfiguration, TerminalConfigurationProvider } from "./TerminalConfiguration.ts";
+import { TerminalConfiguration, TerminalConfigurationProvider } from "./TerminalConfiguration.vibe";
 import { TerminalLocation, TerminalLocationProvider } from "./TerminalLocation.vibe";
 import { TerminalReader, TerminalReaderProvider } from "./TerminalReader.ts";
 import { UpdateAccountHttp } from "./UpdateAccountHttp.vibe";
