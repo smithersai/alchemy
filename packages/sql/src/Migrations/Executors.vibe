@@ -1,32 +1,30 @@
-import type * as Duration from "effect/Duration";
-import * as Effect from "effect/Effect";
-import * as Schedule from "effect/Schedule";
-import type { Connection, ConnectionOptions } from "mysql2/promise";
-import type { Client, ClientConfig } from "pg";
-import { importMySql } from "../MySQLDriver.vibe";
-import { importPg } from "../PostgresDriver.vibe";
-import { MigrationError, type MigrationDialect, type SqlExecutor } from "./Format.vibe";
-import { makeMySQLMigrationExecutor } from "./MySQLExecutor.vibe";
-import { makePgMigrationExecutor } from "./PgExecutor.vibe";
-import { inlineSqlParams } from "./Utils.ts";
+import type * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
+import type { Connection, ConnectionOptions } from "mysql2/promise"
+import type { Client, ClientConfig } from "pg"
+import { importMySql } from "../MySQLDriver.vibe"
+import { importPg } from "../PostgresDriver.vibe"
+import { MigrationError, type MigrationDialect, type SqlExecutor } from "./Format.vibe"
+import { makeMySQLMigrationExecutor } from "./MySQLExecutor.vibe"
+import { makePgMigrationExecutor } from "./PgExecutor.vibe"
+import { inlineSqlParams } from "./Utils.ts"
 
 const describeCause = (cause: unknown): string => {
   if (typeof cause === "object" && cause !== null) {
-    const { message, _tag } = cause as { message?: unknown; _tag?: unknown };
-    if (typeof message === "string" && message.length > 0) return message;
-    if (typeof _tag === "string") return _tag;
+    const { message, _tag } = cause as { message?: unknown; _tag?: unknown }
+    if (typeof message === "string" && message.length > 0) return message
+    if (typeof _tag === "string") return _tag
   }
-  return String(cause);
-};
+  return String(cause)
+}
 
 /**
  * Wrap any failure from a migration transport as a {@link MigrationError}
  * that names what failed: `Effect.mapError(migrationError("executeSql on app"))`.
  */
-export const migrationError =
-  (context: string) =>
-  (cause: unknown): MigrationError =>
-    new MigrationError({ message: `${context} failed: ${describeCause(cause)}`, cause });
+export const migrationError = (context: string): infer _ => (cause: unknown): MigrationError =>
+  new MigrationError({ message: `${context} failed: ${describeCause(cause)}`, cause })
 
 /**
  * Open a `pg` client for the scope of `use`; it always closes afterwards,
@@ -42,53 +40,58 @@ export interface ConnectOptions {
    * error, e.g. DNS that hasn't propagated for a just-created host.
    */
   readonly retryConnect?: {
-    readonly while: (cause: unknown) => boolean;
-    readonly times: number;
-    readonly interval: Duration.Input;
-  };
+    readonly while: (cause: unknown) => boolean
+    readonly times: number
+    readonly interval: Duration.Input
+  }
   /** Rewrite a connect failure that survived the retry, e.g. to add a hint. */
-  readonly onConnectFailure?: (error: MigrationError) => MigrationError;
+  readonly onConnectFailure?: (error: MigrationError) => MigrationError
 }
 
-const retryingConnect = <A>(
-  connect: Effect.Effect<A, MigrationError>,
+const retryingConnect = effect <A>(
+  connect: A!MigrationError,
   options: ConnectOptions | undefined,
-): Effect.Effect<A, MigrationError> => {
-  const retry = options?.retryConnect;
-  const retried = retry
-    ? connect.pipe(
-        Effect.retry({
-          while: (error) => retry.while(error.cause),
-          schedule: Schedule.spaced(retry.interval),
-          times: retry.times,
-        }),
-      )
-    : connect;
-  const rewrite = options?.onConnectFailure;
-  return rewrite ? retried.pipe(Effect.mapError(rewrite)) : retried;
-};
+): A!MigrationError => {
+  const policy = options?.retryConnect
+  const retried = effect {
+    if (!policy) return try connect
+    return try retry(connect, {
+      while: (error) => policy.while(error.cause),
+      schedule: Schedule.spaced(policy.interval),
+      times: policy.times,
+    })
+  }
+  const rewrite = options?.onConnectFailure
+  if (rewrite) {
+    return retried catch effect (error) => {
+      throw rewrite(error)
+    }
+  }
+  return try retried
+}
 
 export const withPgClient = <A, E, R>(
   config: ClientConfig,
-  use: (client: Client) => Effect.Effect<A, E, R>,
+  use: (client: Client) => A!E!R,
   options?: ConnectOptions,
-): Effect.Effect<A, MigrationError | E, R> =>
+): A!MigrationError | E!R =>
   Effect.acquireUseRelease(
     retryingConnect(
       Effect.tryPromise({
+        // tryPromise's first argument is plain TypeScript, not VibeLang.
         try: async () => {
-          const { Client } = await importPg();
-          const client = new Client(config);
+          const { Client } = await importPg()
+          const client = new Client(config)
           // pg reports idle socket failures as events; the next query fails
           // through the error channel instead of crashing the process.
-          client.on("error", () => {});
-          try {
-            await client.connect();
-          } catch (error) {
-            await client.end().catch(() => {});
-            throw error;
-          }
-          return client;
+          client.on("error", () => {})
+          await client.connect().catch((error: unknown) =>
+            client
+              .end()
+              .catch(() => {})
+              .then(() => Promise.reject(error))
+          )
+          return client
         },
         catch: migrationError(`Connecting to postgres${config.host ? ` at ${config.host}` : ""}`),
       }),
@@ -96,15 +99,14 @@ export const withPgClient = <A, E, R>(
     ),
     use,
     (client) => Effect.promise(() => client.end().catch(() => {})),
-  );
+  )
 
 /** {@link withPgClient} handing over the client as a {@link SqlExecutor}. */
 export const withPgExecutor = <A, E, R>(
   config: ClientConfig,
-  use: (executor: SqlExecutor) => Effect.Effect<A, E, R>,
+  use: (executor: SqlExecutor) => A!E!R,
   options?: ConnectOptions,
-): Effect.Effect<A, MigrationError | E, R> =>
-  withPgClient(config, (client) => use(makePgMigrationExecutor(client)), options);
+): A!MigrationError | E!R => withPgClient(config, (client) => use(makePgMigrationExecutor(client)), options)
 
 /**
  * Open a `mysql2` connection for the scope of `use`; it always closes
@@ -113,15 +115,16 @@ export const withPgExecutor = <A, E, R>(
  */
 export const withMySqlConnection = <A, E, R>(
   config: ConnectionOptions,
-  use: (connection: Connection) => Effect.Effect<A, E, R>,
+  use: (connection: Connection) => A!E!R,
   options?: ConnectOptions,
-): Effect.Effect<A, MigrationError | E, R> =>
+): A!MigrationError | E!R =>
   Effect.acquireUseRelease(
     retryingConnect(
       Effect.tryPromise({
+        // tryPromise's first argument is plain TypeScript, not VibeLang.
         try: async () => {
-          const { createConnection } = await importMySql();
-          return createConnection(config);
+          const { createConnection } = await importMySql()
+          return createConnection(config)
         },
         catch: migrationError(`Connecting to mysql${config.host ? ` at ${config.host}` : ""}`),
       }),
@@ -129,23 +132,23 @@ export const withMySqlConnection = <A, E, R>(
     ),
     use,
     (connection) => Effect.promise(() => connection.end().catch(() => {})),
-  );
+  )
 
 /** {@link withMySqlConnection} handing over the connection as a {@link SqlExecutor}. */
 export const withMySqlExecutor = <A, E, R>(
   config: ConnectionOptions,
-  use: (executor: SqlExecutor) => Effect.Effect<A, E, R>,
+  use: (executor: SqlExecutor) => A!E!R,
   options?: ConnectOptions,
-): Effect.Effect<A, MigrationError | E, R> =>
-  withMySqlConnection(config, (connection) => use(makeMySQLMigrationExecutor(connection)), options);
+): A!MigrationError | E!R =>
+  withMySqlConnection(config, (connection) => use(makeMySQLMigrationExecutor(connection)), options)
 
-export type Rows = Array<Record<string, unknown>>;
+export type Rows = Array<Record<string, unknown>>
 
 /** Each statement ends with exactly one `;`, so several share one request. */
-const terminated = (statement: string) => {
-  const trimmed = statement.trim();
-  return trimmed.endsWith(";") ? trimmed : `${trimmed};`;
-};
+const terminated = (statement: string): infer _ => {
+  const trimmed = statement.trim()
+  return trimmed.endsWith(";") ? trimmed : `${trimmed};`
+}
 
 /**
  * A {@link SqlExecutor} over an API that runs a SQL string and returns rows —
@@ -160,24 +163,21 @@ const terminated = (statement: string) => {
  * - `"atomic"` — one request the API already commits as a unit.
  */
 export const makeStatementExecutor = (options: {
-  dialect: MigrationDialect;
-  execute: (sql: string) => Effect.Effect<Rows, MigrationError>;
-  batch: "transaction" | "atomic";
+  dialect: MigrationDialect
+  execute: (sql: string) => Rows!MigrationError
+  batch: "transaction" | "atomic"
 }): SqlExecutor => ({
   dialect: options.dialect,
   query: (sql, params) => options.execute(inlineSqlParams(sql, params ?? [], options.dialect)),
-  batch: (statements) => {
-    const body = statements.map(terminated);
-    return options
-      .execute(
-        (options.batch === "transaction"
-          ? [options.dialect === "mysql" ? "START TRANSACTION;" : "BEGIN;", ...body, "COMMIT;"]
-          : body
-        ).join("\n"),
-      )
-      .pipe(Effect.asVoid);
+  batch: effect (statements) => {
+    const body = statements.map(terminated)
+    try options.execute(
+      (options.batch === "transaction"
+        ? [options.dialect === "mysql" ? "START TRANSACTION;" : "BEGIN;", ...body, "COMMIT;"]
+        : body).join("\n"),
+    )
   },
-});
+})
 
 /**
  * Rows keyed by column name from the `columns` + `rows[].values[]` shape the
@@ -187,20 +187,20 @@ export const rowsFromCells = (
   columns: ReadonlyArray<{ readonly name?: string }> | undefined,
   rows:
     | ReadonlyArray<{
-        readonly values?: ReadonlyArray<{ readonly value?: string; readonly nullValue?: boolean }>;
-      }>
+      readonly values?: ReadonlyArray<{ readonly value?: string; readonly nullValue?: boolean }>
+    }>
     | undefined,
 ): Rows => {
-  const names = (columns ?? []).map((column) => column.name ?? "");
+  const names = (columns ?? []).map((column) => column.name ?? "")
   return (rows ?? []).map((row) =>
     Object.fromEntries(
       names.map((name, index) => {
-        const cell = row.values?.[index];
-        return [name, cell?.nullValue ? null : (cell?.value ?? null)];
+        const cell = row.values?.[index]
+        return [name, cell?.nullValue ? null : (cell?.value ?? null)]
       }),
-    ),
-  );
-};
+    )
+  )
+}
 
 /**
  * Retry `effect` while a just-created user or database starts accepting
@@ -208,19 +208,19 @@ export const rowsFromCells = (
  * query or a connection that runs one — never a migration batch.
  */
 export const retryLogin = <A, E, R>(
-  effect: Effect.Effect<A, E, R>,
+  effect: A!E!R,
   options?: { attempts?: number; interval?: Duration.Input },
-): Effect.Effect<A, E, R> =>
-  effect.pipe(
-    Effect.retry({
-      schedule: Schedule.spaced(options?.interval ?? "5 seconds"),
-      times: options?.attempts ?? 6,
-    }),
-  );
+): A!E!R =>
+  retry(effect, {
+    schedule: Schedule.spaced(options?.interval ?? "5 seconds"),
+    times: options?.attempts ?? 6,
+  })
 
 /**
  * Run `SELECT 1` under {@link retryLogin}, then return the executor, so a
  * login delay is retried before any migration batch runs.
  */
-export const probeExecutor = (executor: SqlExecutor): Effect.Effect<SqlExecutor, MigrationError> =>
-  retryLogin(executor.query("SELECT 1")).pipe(Effect.as(executor));
+export const probeExecutor = effect (executor: SqlExecutor): SqlExecutor!MigrationError => {
+  try retryLogin(executor.query("SELECT 1"))
+  return executor
+}

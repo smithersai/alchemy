@@ -1,61 +1,64 @@
-import crypto from "node:crypto";
-import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
-import * as Path from "effect/Path";
+import * as Digest from "effect/crypto/Digest"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
 
 export interface SqlFile {
-  id: string;
-  sql: string;
-  hash: string;
+  id: string
+  sql: string
+  hash: string
 }
 
 /**
  * Recursively list `.sql` files under `directory`, sorted by their numeric
  * prefix (e.g. `0001_init.sql`) and then by name.
  */
-export const listSqlFiles = (directory: string) =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const entries = yield* fs.readDirectory(directory, { recursive: true });
+export const listSqlFiles = effect (directory: string) => {
+  const fs = try FileSystem.FileSystem
+  const entries = try fs.readDirectory(directory, { recursive: true })
 
-    const sqlFiles = entries
-      .filter((name) => name.endsWith(".sql"))
-      .sort((a, b) => {
-        const aNum = getPrefix(a);
-        const bNum = getPrefix(b);
-        if (aNum !== null && bNum !== null) return aNum - bNum;
-        if (aNum !== null) return -1;
-        if (bNum !== null) return 1;
-        return a.localeCompare(b);
-      });
+  const sqlFiles = entries
+    .filter((name) => name.endsWith(".sql"))
+    .sort((a, b) => {
+      const aNum = getPrefix(a)
+      const bNum = getPrefix(b)
+      if (aNum !== null && bNum !== null) return aNum - bNum
+      if (aNum !== null) return -1
+      if (bNum !== null) return 1
+      return a.localeCompare(b)
+    })
 
-    return yield* Effect.forEach(sqlFiles, (id) => readSqlFile(directory, id));
-  });
+  return try forEach(sqlFiles, (id) => readSqlFile(directory, id))
+}
+
+const sha256Hex = effect (text: string) => {
+  provide Digest.layerWebCrypto {
+    const digest = try Digest.Digest
+    return try digest.digestHex(Digest.sha256, new TextEncoder().encode(text))
+  }
+}
 
 /**
  * Read a single `.sql` file relative to `directory` and compute its content
  * hash. The `sql` field is marked non-enumerable so it isn't serialized into
  * resource state.
  */
-export const readSqlFile = (directory: string, name: string) =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-    const sql = yield* fs.readFileString(path.resolve(directory, name));
-    const hash = crypto.createHash("sha256").update(sql).digest("hex");
-    const file: SqlFile = { id: name, sql, hash };
-    Object.defineProperty(file, "sql", { enumerable: false });
-    return file;
-  });
+export const readSqlFile = effect (directory: string, name: string) => {
+  const fs = try FileSystem.FileSystem
+  const path = try Path.Path
+  const sql = try fs.readFileString(path.resolve(directory, name))
+  const hash = try sha256Hex(sql)
+  const file: SqlFile = { id: name, sql, hash }
+  Object.defineProperty(file, "sql", { enumerable: false })
+  return file
+}
 
-export const hashMigrations = (migrationsDir: string) =>
-  listSqlFiles(migrationsDir).pipe(
-    Effect.map((files) => {
-      const hashes: Record<string, string> = {};
-      for (const file of files) hashes[file.id] = file.hash;
-      return hashes;
-    }),
-  );
+export const hashMigrations = effect (migrationsDir: string) => {
+  const files = try listSqlFiles(migrationsDir)
+  const hashes: Record<string, string> = {}
+  for (const file of files) hashes[file.id] = file.hash
+  return hashes
+}
 
 /**
  * Apply `importFiles` (paths relative to `rootDir`): each file runs through
@@ -63,45 +66,43 @@ export const hashMigrations = (migrationsDir: string) =>
  * `importHashes` a prior deploy persisted; the result is the new
  * `importHashes`, covering exactly the files still listed.
  */
-export const applySqlImports = <E, R>(options: {
-  importFiles: ReadonlyArray<string> | undefined;
-  rootDir: string;
-  previous: Record<string, string> | undefined;
-  apply: (file: SqlFile) => Effect.Effect<void, E, R>;
-}) =>
-  Effect.gen(function* () {
-    const hashes: Record<string, string> = {};
-    for (const filePath of options.importFiles ?? []) {
-      const file = yield* readSqlFile(options.rootDir, filePath);
-      if (options.previous?.[filePath] !== file.hash) {
-        yield* options.apply(file);
-      }
-      hashes[filePath] = file.hash;
+export const applySqlImports = effect <E, R>(options: {
+  importFiles: ReadonlyArray<string> | undefined
+  rootDir: string
+  previous: Record<string, string> | undefined
+  apply: (file: SqlFile) => void!E!R
+}) => {
+  const hashes: Record<string, string> = {}
+  for (const filePath of options.importFiles ?? []) {
+    const file = try readSqlFile(options.rootDir, filePath)
+    if (options.previous?.[filePath] !== file.hash) {
+      try options.apply(file)
     }
-    return hashes;
-  });
+    hashes[filePath] = file.hash
+  }
+  return hashes
+}
 
-export const hashImports = (importFiles: ReadonlyArray<string>, rootDir: string) =>
-  Effect.gen(function* () {
-    const hashes: Record<string, string> = {};
-    for (const filePath of importFiles) {
-      const file = yield* readSqlFile(rootDir, filePath);
-      hashes[filePath] = file.hash;
-    }
-    return hashes;
-  });
+export const hashImports = effect (importFiles: ReadonlyArray<string>, rootDir: string) => {
+  const hashes: Record<string, string> = {}
+  for (const filePath of importFiles) {
+    const file = try readSqlFile(rootDir, filePath)
+    hashes[filePath] = file.hash
+  }
+  return hashes
+}
 
 const getPrefix = (name: string): number | null => {
-  const prefix = name.split("_")[0];
-  const num = Number.parseInt(prefix, 10);
-  return Number.isNaN(num) ? null : num;
-};
+  const prefix = name.split("_")[0]
+  const num = Number.parseInt(prefix, 10)
+  return Number.isNaN(num) ? null : num
+}
 
 // Drizzle (and other migration tools) emit `--> statement-breakpoint` between
 // statements. drizzle-kit puts the marker directly after single-line
 // statements (`...;--> statement-breakpoint`), so the split can't anchor on a
 // preceding newline.
-const STATEMENT_BREAKPOINT = /\s*-->\s*statement-breakpoint\s*/g;
+const STATEMENT_BREAKPOINT = /\s*-->\s*statement-breakpoint\s*/g
 
 /**
  * Split a migration file into individual statements on its
@@ -115,9 +116,9 @@ export const splitSqlStatements = (sql: string): string[] =>
   sql
     .split(STATEMENT_BREAKPOINT)
     .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+    .filter((s) => s.length > 0)
 
-type SqliteToken = "semi" | "ws" | "other" | "explain" | "create" | "temp" | "trigger" | "end";
+type SqliteToken = "semi" | "ws" | "other" | "explain" | "create" | "temp" | "trigger" | "end"
 type SqliteState =
   | "invalid"
   | "start"
@@ -126,7 +127,7 @@ type SqliteState =
   | "create"
   | "trigger"
   | "semi"
-  | "end";
+  | "end"
 
 // SQLite's `sqlite3_complete` state machine: a `;` ends a statement unless
 // it sits inside a `CREATE [TEMP] TRIGGER ... BEGIN ... END` body.
@@ -211,27 +212,27 @@ const SQLITE_TRANSITIONS: Record<SqliteState, Record<SqliteToken, SqliteState>> 
     trigger: "trigger",
     end: "trigger",
   },
-};
+}
 
-const SQLITE_IDENTIFIER_CHAR = /[A-Za-z0-9_$\u0080-￿]/;
+const SQLITE_IDENTIFIER_CHAR = /[A-Za-z0-9_$\u0080-￿]/
 
 const classifySqliteIdentifier = (identifier: string): SqliteToken => {
   switch (identifier.toLowerCase()) {
     case "explain":
-      return "explain";
+      return "explain"
     case "create":
-      return "create";
+      return "create"
     case "temp":
     case "temporary":
-      return "temp";
+      return "temp"
     case "trigger":
-      return "trigger";
+      return "trigger"
     case "end":
-      return "end";
+      return "end"
     default:
-      return "other";
+      return "other"
   }
-};
+}
 
 /**
  * Split a SQLite script into its statements, without their terminating `;`.
@@ -241,48 +242,48 @@ const classifySqliteIdentifier = (identifier: string): SqliteToken => {
  * `wrangler d1 execute --file` splits a file.
  */
 export const splitSqliteStatements = (sql: string): string[] => {
-  const statements: string[] = [];
-  let start = 0;
-  let state: SqliteState = "invalid";
-  let hasContent = false;
-  const flush = (end: number) => {
-    const statement = sql.slice(start, end).trim();
-    if (hasContent && statement.length > 0) statements.push(statement);
-  };
+  const statements: string[] = []
+  let start = 0
+  let state: SqliteState = "invalid"
+  let hasContent = false
+  const flush = (end: number): infer _ => {
+    const statement = sql.slice(start, end).trim()
+    if (hasContent && statement.length > 0) statements.push(statement)
+  }
   for (let index = 0; index < sql.length; index++) {
-    const char = sql[index];
-    let token: SqliteToken;
+    const char = sql[index]
+    let token: SqliteToken
     if (char === ";") {
-      token = "semi";
+      token = "semi"
     } else if (/\s/.test(char)) {
-      token = "ws";
+      token = "ws"
     } else if (char === "/" && sql[index + 1] === "*") {
-      const end = sql.indexOf("*/", index + 2);
-      index = end === -1 ? sql.length : end + 1;
-      token = "ws";
+      const end = sql.indexOf("*/", index + 2)
+      index = end === -1 ? sql.length : end + 1
+      token = "ws"
     } else if (char === "-" && sql[index + 1] === "-") {
-      const end = sql.indexOf("\n", index + 2);
-      index = end === -1 ? sql.length : end;
-      token = "ws";
-    } else if (char === "'" || char === '"' || char === "`" || char === "[") {
-      const end = sql.indexOf(char === "[" ? "]" : char, index + 1);
-      index = end === -1 ? sql.length : end;
-      token = "other";
+      const end = sql.indexOf("\n", index + 2)
+      index = end === -1 ? sql.length : end
+      token = "ws"
+    } else if (char === "'" || char === "\"" || char === "`" || char === "[") {
+      const end = sql.indexOf(char === "[" ? "]" : char, index + 1)
+      index = end === -1 ? sql.length : end
+      token = "other"
     } else if (SQLITE_IDENTIFIER_CHAR.test(char)) {
-      const identifierStart = index;
-      while (index + 1 < sql.length && SQLITE_IDENTIFIER_CHAR.test(sql[index + 1])) index++;
-      token = classifySqliteIdentifier(sql.slice(identifierStart, index + 1));
+      const identifierStart = index
+      while (index + 1 < sql.length && SQLITE_IDENTIFIER_CHAR.test(sql[index + 1])) index++
+      token = classifySqliteIdentifier(sql.slice(identifierStart, index + 1))
     } else {
-      token = "other";
+      token = "other"
     }
-    hasContent ||= token !== "semi" && token !== "ws";
-    state = SQLITE_TRANSITIONS[state][token];
+    hasContent ||= token !== "semi" && token !== "ws"
+    state = SQLITE_TRANSITIONS[state][token]
     if (token === "semi" && state === "start") {
-      flush(index);
-      start = index + 1;
-      hasContent = false;
+      flush(index)
+      start = index + 1
+      hasContent = false
     }
   }
-  flush(sql.length);
-  return statements;
-};
+  flush(sql.length)
+  return statements
+}
