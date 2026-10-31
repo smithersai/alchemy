@@ -1,47 +1,41 @@
 import * as LibsqlClient from "@effect/sql-libsql/LibsqlClient";
-import { makeExecutionMemo } from "alchemy/Runtime/ExecutionMemo";
-import { proxyChain } from "alchemy/Util/proxy-chain";
-import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as Redacted from "effect/Redacted";
 import * as Sql from "effect/sql/SqlClient";
-
 /**
  * Where to reach a libSQL database: its URL and (for remote databases) an
  * auth token, as plain values or Effects of them. Structurally matches the
  * client returned by `Turso.Connect(db)`, so it can be passed straight in.
  */
 export interface LibSQLSource<E = never, R = never> {
-  readonly url: string | Effect.Effect<string, E, R>;
-  readonly authToken?: Redacted.Redacted<string> | Effect.Effect<Redacted.Redacted<string>, E, R>;
+    readonly url: string | (Effect.Effect<string, E, R>);
+    readonly authToken?: Redacted.Redacted<string> | (Effect.Effect<Redacted.Redacted<string>, E, R>);
 }
-
 /**
  * Options forwarded to `@effect/sql-libsql`'s `LibsqlClient` (everything
  * except the connection, which comes from the {@link LibSQLSource}).
  */
-export type LibSQLConfig = Omit<
-  Extract<LibsqlClient.LibsqlClientConfig, { readonly url: unknown }>,
-  "url" | "authToken"
->;
-
-const resolve = <A, E, R>(value: A | Effect.Effect<A, E, R>) =>
-  Effect.isEffect(value) ? value : Effect.succeed(value);
-
+export type LibSQLConfig = Omit<Extract<LibsqlClient.LibsqlClientConfig, {
+    readonly url: unknown;
+}>, "url" | "authToken">;
 /**
  * Resolve a {@link LibSQLSource} and {@link LibSQLConfig} into the
  * `LibsqlClientConfig` handed to `@effect/sql-libsql`.
  */
-export const resolveLibSQLConfig = Effect.fn(function* <E = never, R = never>(
-  source: LibSQLSource<E, R>,
-  config?: LibSQLConfig,
-) {
-  const url = yield* resolve(source.url);
-  const authToken = source.authToken === undefined ? undefined : yield* resolve(source.authToken);
-  return { ...config, url, authToken } satisfies LibsqlClient.LibsqlClientConfig;
-});
-
+export declare const resolveLibSQLConfig: <E = never, R = never>(source: LibSQLSource<E, R>, config?: LibSQLConfig | undefined) => Effect.Effect<{
+    spanAttributes?: Record<string, unknown> | undefined;
+    transformResultNames?: ((str: string) => string) | undefined;
+    transformQueryNames?: ((str: string) => string) | undefined;
+    encryptionKey?: Redacted.Redacted | undefined;
+    syncUrl?: string | URL | undefined;
+    syncInterval?: number | undefined;
+    tls?: boolean | undefined;
+    intMode?: "number" | "bigint" | "string" | undefined;
+    concurrency?: number | undefined;
+    url: string;
+    authToken: Redacted.Redacted<string> | undefined;
+}, E, R>;
 /**
  * Open an `@effect/sql-libsql` client over a SQLite database through
  * libSQL — a Turso database, any other libSQL server, or a local
@@ -72,19 +66,7 @@ export const resolveLibSQLConfig = Effect.fn(function* <E = never, R = never>(
  *
  * @binding
  */
-export const LibSQL = <E = never, R = never>(source: LibSQLSource<E, R>, config?: LibSQLConfig) =>
-  Effect.map(
-    makeExecutionMemo(
-      Effect.gen(function* () {
-        const ctx = yield* Layer.build(
-          LibsqlClient.layer(yield* resolveLibSQLConfig(source, config)),
-        );
-        return Context.get(ctx, LibsqlClient.LibsqlClient);
-      }),
-    ),
-    (client) => proxyChain<LibsqlClient.LibsqlClient>(client),
-  );
-
+export declare const LibSQL: <E = never, R = never>(source: LibSQLSource<E, R>, config?: LibSQLConfig) => Effect.Effect<LibsqlClient.LibsqlClient, never, never>;
 /**
  * Provide an `@effect/sql-libsql` client as the `LibsqlClient` and generic
  * `SqlClient` services, so cloud-agnostic services written against
@@ -99,12 +81,4 @@ export const LibSQL = <E = never, R = never>(source: LibSQLSource<E, R>, config?
  * The layer itself builds synchronously at init; the underlying client is
  * created lazily per execution (see {@link LibSQL}).
  */
-export const LibSQLLayer = <E = never, R = never>(
-  source: LibSQLSource<E, R>,
-  config?: LibSQLConfig,
-) =>
-  // Derive SqlClient from the single LibsqlClient build so both tags share
-  // one per-execution client.
-  Layer.effect(Sql.SqlClient, LibsqlClient.LibsqlClient).pipe(
-    Layer.provideMerge(Layer.effect(LibsqlClient.LibsqlClient, LibSQL(source, config))),
-  );
+export declare const LibSQLLayer: <E = never, R = never>(source: LibSQLSource<E, R>, config?: LibSQLConfig) => Layer.Layer<LibsqlClient.LibsqlClient | Sql.SqlClient, never, never>;
