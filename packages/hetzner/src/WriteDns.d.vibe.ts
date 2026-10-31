@@ -17,7 +17,6 @@ import type { Zone } from "./Zone.js";
  * that must reach `success` before a subsequent read is guaranteed to
  * see the change. Poll with {@link waitForZoneAction}.
  *
- *
  * ### Mutating RRSets at runtime
  * **Example:** Create, replace records, and delete from an Action
  * Bind the client in the Action's Init phase and provide {@link WriteDnsHttp}.

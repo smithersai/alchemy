@@ -25,7 +25,7 @@ export * from "./Server.ts";
 export * from "./Service.ts";
 export * from "./Ssh.ts";
 export * from "./SshKey.ts";
-export * from "./Volume.vibe";
+export * from "./Volume.ts";
 export * from "./VolumeAttachment.vibe";
 export * as Website from "./Website/index.ts";
 export * from "./WriteDns.vibe";

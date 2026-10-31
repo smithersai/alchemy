@@ -3,53 +3,53 @@ import type { GetActionResponseAction } from "@distilled.cloud/hetzner/actions"
 import * as Effect from "effect/Effect"
 
 export error ActionPending {
-  mutable actionId: number;
-  mutable status: string;
+  mutable actionId: number
+  mutable status: string
 }
 
 export error ActionFailed {
-  mutable actionId: number;
-  mutable command: string;
-  mutable code?: string;
-  mutable message: string;
+  mutable actionId: number
+  mutable command: string
+  mutable code?: string
+  mutable message: string
 }
 
 export error ActionTimeout {
-  mutable actionId: number;
-  mutable status: string;
+  mutable actionId: number
+  mutable status: string
 }
 
-export type ActionRef = number | Pick<GetActionResponseAction, "id"> | GetActionResponseAction;
+export type ActionRef = number | Pick<GetActionResponseAction, "id"> | GetActionResponseAction
 
-const actionIdOf = (ref: ActionRef): number => (typeof ref === "number" ? ref : ref.id);
+const actionIdOf = (ref: ActionRef): number => (typeof ref === "number" ? ref : ref.id)
 
-const isErrorStatus = (status: string): boolean => status === "error";
-const isSuccessStatus = (status: string): boolean => status === "success";
+const isErrorStatus = (status: string): boolean => status === "error"
+const isSuccessStatus = (status: string): boolean => status === "success"
 
 const failIfError = effect (action: GetActionResponseAction) => {
   if (isErrorStatus(action.status)) {
     throw new ActionFailed({
-        actionId: action.id,
-        command: action.command,
-        code: action.error?.code,
-        message: action.error?.message ?? "Hetzner Action failed",
-      });
+      actionId: action.id,
+      command: action.command,
+      code: action.error?.code,
+      message: action.error?.message ?? "Hetzner Action failed",
+    })
   }
-  return;
-};
+  return
+}
 
 const retryable = (e: { readonly _tag: string }): boolean =>
-  e._tag === "ActionPending" ||
-  e._tag === "TooManyRequests" ||
-  e._tag === "ServiceUnavailable" ||
-  e._tag === "InternalServerError" ||
-  e._tag === "BadGateway" ||
-  e._tag === "GatewayTimeout";
+  e._tag === "ActionPending"
+  || e._tag === "TooManyRequests"
+  || e._tag === "ServiceUnavailable"
+  || e._tag === "InternalServerError"
+  || e._tag === "BadGateway"
+  || e._tag === "GatewayTimeout"
 
 const backoff = Schedule.min([
   Schedule.exponential(Duration.millis(500), 1.5),
   Schedule.spaced(Duration.seconds(5)),
-]);
+])
 
 /**
  * Poll a Hetzner Action until it reaches `success` or `error`.
@@ -60,41 +60,49 @@ const backoff = Schedule.min([
 export const waitForAction = effect (
   ref: ActionRef,
 ): GetActionResponseAction!ActionFailed | ActionTimeout | Hetzner.actions.GetActionError!Hetzner.actions.HetznerOpContext => {
-    if (typeof ref !== "number" && "status" in ref) {
-      try failIfError(ref);
-      if (isSuccessStatus(ref.status)) {
-        return ref;
+  if (typeof ref !== "number" && "status" in ref) {
+    try failIfError(ref)
+    if (isSuccessStatus(ref.status)) {
+      return ref
+    }
+  }
+
+  const id = actionIdOf(ref)
+  return (try (effect {
+    return try effect {
+      const { action } = try Hetzner.actions.getAction({ id })
+      return try effect {
+        try failIfError(action)
+        if (!isSuccessStatus(action.status)) {
+          throw new ActionPending({
+            actionId: action.id,
+            status: action.status,
+          })
+        }
+        return action
       }
     }
-
-    const id = actionIdOf(ref);
-    return (try (effect { return try effect { const { action } = try Hetzner.actions.getAction({ id })
-return try effect {
-          try failIfError(action);
-          if (!isSuccessStatus(action.status)) {
-            throw new ActionPending({
-              actionId: action.id,
-              status: action.status,
-            });
-          }
-          return action;
-        } } }
-  |> Effect.retry(%, {
-        while: retryable,
-        times: 24,
-        schedule: backoff,
-      }))) catch effect (e) => match (e) { when { _tag: "ActionPending" }: throw new ActionTimeout({
-            actionId: e.actionId,
-            status: e.status,
-          }); default: throw e; };
-  };
+  }
+    |> Effect.retry(%, {
+      while: retryable,
+      times: 24,
+      schedule: backoff,
+    }))) catch effect (e) => match (e) {
+      when { _tag: "ActionPending" }: throw new ActionTimeout({
+        actionId: e.actionId,
+        status: e.status,
+      });
+      default: throw e;
+    }
+}
 
 /**
  * Wait for every Action in `refs` (in order). Empty input is a no-op.
  */
 export const waitForActions = effect (
   refs: ReadonlyArray<ActionRef>,
-): GetActionResponseAction[]!ActionFailed | ActionTimeout | Hetzner.actions.GetActionError!Hetzner.actions.HetznerOpContext => try Effect.forEach(refs, waitForAction, { concurrency: 1 });
+): GetActionResponseAction[]!ActionFailed | ActionTimeout | Hetzner.actions.GetActionError!Hetzner.actions.HetznerOpContext =>
+  try Effect.forEach(refs, waitForAction, { concurrency: 1 })
 
 /**
  * Poll a Hetzner Cloud DNS Zone Action (`GET /zones/actions/{id}`) until it
@@ -108,31 +116,38 @@ export const waitForActions = effect (
 export const waitForZoneAction = effect (
   ref: ActionRef,
 ): GetActionResponseAction!ActionFailed | ActionTimeout | Hetzner.zoneActions.GetZonesActionError!Hetzner.zoneActions.HetznerOpContext => {
-    if (typeof ref !== "number" && "status" in ref) {
-      try failIfError(ref as GetActionResponseAction);
-      if (isSuccessStatus(ref.status)) {
-        return ref as GetActionResponseAction;
+  if (typeof ref !== "number" && "status" in ref) {
+    try failIfError(ref as GetActionResponseAction)
+    if (isSuccessStatus(ref.status)) {
+      return ref as GetActionResponseAction
+    }
+  }
+
+  const id = actionIdOf(ref)
+  return (try (effect {
+    return try effect {
+      const { action } = try Hetzner.zoneActions.getZonesAction({ id })
+      return try effect {
+        try failIfError(action as GetActionResponseAction)
+        if (!isSuccessStatus(action.status)) {
+          throw new ActionPending({
+            actionId: action.id,
+            status: action.status,
+          })
+        }
+        return action as GetActionResponseAction
       }
     }
-
-    const id = actionIdOf(ref);
-    return (try (effect { return try effect { const { action } = try Hetzner.zoneActions.getZonesAction({ id })
-return try effect {
-          try failIfError(action as GetActionResponseAction);
-          if (!isSuccessStatus(action.status)) {
-            throw new ActionPending({
-              actionId: action.id,
-              status: action.status,
-            });
-          }
-          return action as GetActionResponseAction;
-        } } }
-  |> Effect.retry(%, {
-        while: retryable,
-        times: 24,
-        schedule: backoff,
-      }))) catch effect (e) => match (e) { when { _tag: "ActionPending" }: throw new ActionTimeout({
-            actionId: e.actionId,
-            status: e.status,
-          }); default: throw e; };
-  };
+  }
+    |> Effect.retry(%, {
+      while: retryable,
+      times: 24,
+      schedule: backoff,
+    }))) catch effect (e) => match (e) {
+      when { _tag: "ActionPending" }: throw new ActionTimeout({
+        actionId: e.actionId,
+        status: e.status,
+      });
+      default: throw e;
+    }
+}

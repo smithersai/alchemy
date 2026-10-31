@@ -33,7 +33,7 @@ import { Server, ServerProvider } from "./Server.ts";
 import { Service, ServiceProvider } from "./Service.ts";
 import { SshLive } from "./Ssh.ts";
 import { SshKey, SshKeyProvider } from "./SshKey.ts";
-import { Volume, VolumeProvider } from "./Volume.vibe";
+import { Volume, VolumeProvider } from "./Volume.ts";
 import { VolumeAttachment, VolumeAttachmentProvider } from "./VolumeAttachment.vibe";
 import { WriteDnsHttp } from "./WriteDnsHttp.vibe";
 import { Zone, ZoneProvider } from "./Zone.ts";

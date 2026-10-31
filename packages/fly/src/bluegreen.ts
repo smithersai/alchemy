@@ -15,7 +15,7 @@ import {
 } from "./DeploymentImages.vibe";
 import { classifyDeploymentState, validProtocol2Generation } from "./DeploymentState.ts";
 import { usingMachineLeases, type MachineLeases } from "./leases.ts";
-import { canonicalContainers } from "./MachineContainers.vibe";
+import { canonicalContainers } from "./MachineContainers.ts";
 import { alchemyMetadataKeys as keys } from "./Metadata.ts";
 import { regionOfReplica } from "./Region.ts";
 import {

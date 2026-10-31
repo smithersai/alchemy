@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { Volume } from "./Volume.vibe";
+import type { Volume } from "./Volume.js";
 export interface MountVolumeOptions {
     /**
      * Absolute path on the Server the Volume is mounted at
