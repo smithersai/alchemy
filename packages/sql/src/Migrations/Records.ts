@@ -4,7 +4,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { listSqlFiles, splitSqlStatements } from "../SqlFile.ts";
 import { detectLayout } from "./Detect.ts";
-import { MigrationError, type MigrationRecord } from "./Format.ts";
+import { MigrationError, type MigrationRecord } from "./Format.vibe";
 import { DRIZZLE_DIR_PATTERN, timestampPrefixMillis } from "./Utils.ts";
 
 export {

@@ -9,7 +9,7 @@ import {
   type DrizzleV0LayoutError,
   type MigrationApplyError,
   type SqlExecutor,
-} from "./Format.ts";
+} from "./Format.vibe";
 import { readMigrationRecords } from "./Records.ts";
 
 /**

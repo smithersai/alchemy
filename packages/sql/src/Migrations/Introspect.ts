@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { MigrationError, SqlExecutor } from "./Format.ts";
+import type { MigrationError, SqlExecutor } from "./Format.vibe";
 import { quoteIdentifier, scalarText, sqlLiteral } from "./Utils.ts";
 
 export interface TableColumn {

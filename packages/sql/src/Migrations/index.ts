@@ -29,7 +29,7 @@ export {
   type MigrationDialect,
   type MigrationRecord,
   type SqlExecutor,
-} from "./Format.ts";
+} from "./Format.vibe";
 export { classifyTable, tableColumns, type TableShape } from "./Introspect.ts";
 export { makeMySQLMigrationExecutor } from "./MySQLExecutor.ts";
 export { makePgMigrationExecutor } from "./PgExecutor.ts";

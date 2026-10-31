@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { Client } from "pg";
-import { MigrationError, type SqlExecutor } from "./Format.ts";
+import { MigrationError, type SqlExecutor } from "./Format.vibe";
 
 /**
  * Adapt an open `pg` client into the registry's {@link SqlExecutor}.

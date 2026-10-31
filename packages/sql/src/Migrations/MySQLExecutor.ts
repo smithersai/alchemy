@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { Connection } from "mysql2/promise";
-import { MigrationError, type SqlExecutor } from "./Format.ts";
+import { MigrationError, type SqlExecutor } from "./Format.vibe";
 
 /**
  * Adapt an open `mysql2` connection into the registry's
