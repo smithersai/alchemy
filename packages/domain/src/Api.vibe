@@ -386,11 +386,11 @@ const declaredOnly = (rpc: Rpc.Any): infer _ => {
   const success = props.successSchema as Schema.Top & { readonly error?: Schema.Top }
   const isDeclaredInStream = success.error ? Schema.is(success.error) : isDeclared
   return {
-    effect: <A, E, R>(program: A!E!R): A!E!R =>
-      Effect.catchIf(
+    effect: effect <A, E, R>(program: A!E!R): A!E!R =>
+      try Effect.catchIf(
         program,
         (e) => !isDeclared(e),
-        (e) => Effect.die(e),
+        effect (e) => try Effect.die(e),
       ),
     stream: <A, E, R>(stream: Stream.Stream<A, E, R>): Stream.Stream<A, E, R> =>
       Stream.catchIf(
@@ -453,7 +453,7 @@ const rpcsFor = trusted(readRpcs, [])
 const contractFor = trusted(contractOf, [])
 
 const handlersOf = effect (entries: ReadonlyArray<Entry>): Record<string, Handler>!!Model.Internals => {
-  const internals = Model.Internals()
+  const internals = try Model.Internals()
   const handlers: Record<string, Handler> = {}
   for (const entry of entries) {
     if (entry.kind === "Command") {
@@ -464,8 +464,8 @@ const handlersOf = effect (entries: ReadonlyArray<Entry>): Record<string, Handle
       const declared = declaredOnly(entry.rpc)
       // Runs inside the command's middleware, so the context it provides
       // (the session's actor) travels with the command to its aggregate.
-      handlers[entry.tag] = ({ target, commandId, input }: CommandPayload): unknown!unknown!unknown =>
-        declared.effect(effect {
+      handlers[entry.tag] = effect ({ target, commandId, input }: CommandPayload): unknown!unknown!unknown =>
+        try declared.effect(effect {
           // @effect-diagnostics-next-line newSchemaClass:off -- `make` on a generic command class loses its instance type
           const receipt = try aggregate.send(target, new entry(input), { commandId })
           return { reply: receipt.reply, stream: receipt.stream, version: receipt.version }
@@ -482,7 +482,7 @@ const handlersOf = effect (entries: ReadonlyArray<Entry>): Record<string, Handle
     }
     const unary =
       (rpc: Rpc.Any, handle: (payload: ReadPayload) => unknown!unknown): infer _ =>
-      (payload: ReadPayload): unknown!unknown!unknown => declaredOnly(rpc).effect(handle(payload))
+      effect (payload: ReadPayload): unknown!unknown!unknown => try declaredOnly(rpc).effect(handle(payload))
     const streaming =
       (rpc: Rpc.Any, handle: (payload: ReadPayload) => Stream.Stream<unknown, unknown>): infer _ =>
       (payload: ReadPayload): Stream.Stream<unknown, unknown> => declaredOnly(rpc).stream(handle(payload))
@@ -706,7 +706,7 @@ const liveReads = (
     reads.set(`${name}.events`, { rpc: rpcs.events as Rpc.AnyWithProps, mode: "events", store })
   }
   const serve = effect {
-    const request = HttpServerRequest()
+    const request = try HttpServerRequest()
     const live = liveRequestOf(request)
     const read = live && reads.get(live.tag)
     if (!live || !read) return HttpServerResponse.text("Unknown live read", { status: 400 })
@@ -758,7 +758,7 @@ const liveReads = (
   }
   // A live read continues the trace of the client that opened it, like an RPC call.
   return effect {
-    const live = liveRequestOf(HttpServerRequest())
+    const live = liveRequestOf(try HttpServerRequest())
     return try Effect.withSpan(serve, `Domain.read ${live?.tag ?? "unknown"}`, {
       kind: "server",
       ...(live?.traceId && live.spanId
@@ -832,7 +832,8 @@ const makeProtocolInProcess = (
         toServer = write
         return {
           disconnects,
-          send: (clientId: number, response: RpcMessage.FromServerEncoded): void!! => toClient(clientId, response),
+          send: effect (clientId: number, response: RpcMessage.FromServerEncoded): void!! =>
+            try toClient(clientId, response),
           end: effect () => {},
           clientIds: sync((ids) => new Set(ids) as ReadonlySet<number>, clientIds),
           initialMessage: Effect.succeedNone,
@@ -846,7 +847,8 @@ const makeProtocolInProcess = (
       const protocol = try RpcClient.Protocol.make(effect (write) => {
         toClient = write
         return {
-          send: (clientId: number, request: RpcMessage.FromClientEncoded): void!! => toServer(clientId, request),
+          send: effect (clientId: number, request: RpcMessage.FromClientEncoded): void!! =>
+            try toServer(clientId, request),
           supportsAck: true,
           supportsTransferables: false,
           codecFor,
@@ -912,9 +914,9 @@ const build = (
         return try http
       }
     }
-    const live: ReturnType<typeof liveReads> = liveReads(entries, Model.Internals(), middleware)
+    const live: ReturnType<typeof liveReads> = liveReads(entries, try Model.Internals(), middleware)
     const fetch = effect {
-      const request = HttpServerRequest()
+      const request = try HttpServerRequest()
       return request.headers.upgrade?.toLowerCase() === "websocket" ? try live : try rpc
     } as unknown as HttpEffect
     return { fetch }
@@ -1117,14 +1119,14 @@ export const protocolWebSocket = (
   Layer.effect(
     RpcClient.Protocol,
     effect {
-      const client = HttpClient.mapRequest(HttpClient.HttpClient(), HttpClientRequest.prependUrl(url))
+      const client = HttpClient.mapRequest(try HttpClient.HttpClient(), HttpClientRequest.prependUrl(url))
       const makeHttp = effect () => {
         provide RpcSerialization.layerNdjson {
           return try RpcClient.makeProtocolHttp(client)
         }
       }
       const http = try makeHttp()
-      const constructor = Socket.WebSocketConstructor()
+      const constructor = try Socket.WebSocketConstructor()
       const socketUrl = url.replace(/^http/, "ws")
       const writers = new Map<
         number,
