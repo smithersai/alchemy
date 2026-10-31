@@ -6,11 +6,11 @@ import { Resource } from "alchemy/Resource";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { waitUntilDeleted, projectServices as fetchProjectServices } from "./GraphQL.ts";
-import { matchesAlchemyPhysicalName } from "./Metadata.ts";
+import { waitUntilDeleted, projectServices as fetchProjectServices } from "./GraphQL.vibe";
+import { matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { ownedProjects, projectEnvironmentIds } from "./Project.ts";
 import type { Providers } from "./Providers.ts";
-import { withEnvironmentConfigLock } from "./transient.ts";
+import { withEnvironmentConfigLock } from "./transient.vibe";
 
 const domainFields = <E>(domain: Query<RailwayCustomDomain, E>) => ({
   id: domain.id,

@@ -12,11 +12,11 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
-import { projectServices as fetchProjectServices } from "./GraphQL.ts";
-import { sanitizeRailwayName } from "./Metadata.ts";
+import { projectServices as fetchProjectServices } from "./GraphQL.vibe";
+import { sanitizeRailwayName } from "./Metadata.vibe";
 import { ownedProjects, projectEnvironmentIds } from "./Project.ts";
 import type { Providers } from "./Providers.ts";
-import { withEnvironmentConfigLock } from "./transient.ts";
+import { withEnvironmentConfigLock } from "./transient.vibe";
 
 const networkFields = <E>(network: Query<RailwayPrivateNetwork, E>) => ({
   createdAt: network.createdAt,

@@ -1,0 +1,10 @@
+import * as Layer from "effect/Layer";
+import { ReadRedis } from "./ReadRedis.js";
+/**
+ * HTTP implementation of {@link ReadRedis}.
+ *
+ * @layer
+ * @product Redis
+ * @provides Railway.ReadRedis
+ */
+export declare const ReadRedisHttp: Layer.Layer<ReadRedis, never, never>;

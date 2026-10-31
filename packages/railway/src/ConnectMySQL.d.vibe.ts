@@ -1,10 +1,8 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
-import * as Data from "effect/Data";
 import type * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { MySQL } from "./MySQL.ts";
-
+import type { MySQL } from "./MySQL.js";
 /**
  * Bind a {@link MySQL} service to a Railway {@link Service} and obtain
  * the Effect-native connection string for `Drizzle.MySQL` /
@@ -46,35 +44,30 @@ import type { MySQL } from "./MySQL.ts";
  * @product MySQL
  * @category Storage & Databases
  */
-export interface ConnectMySQL extends Binding.Service<
-  ConnectMySQL,
-  "Railway.ConnectMySQL",
-  (mysql: MySQL) => Effect.Effect<ConnectMySQLClient>
-> {}
-
-export const ConnectMySQL = Binding.Service<ConnectMySQL>("Railway.ConnectMySQL");
-
-export const connectEnvKeys = (mysql: Pick<MySQL, "LogicalId">) => {
-  const id = mysql.LogicalId.replaceAll(/[^a-zA-Z0-9]/g, "_").toUpperCase();
-  return {
-    pooled: `RAILWAY_MYSQL_${id}_POOLED`,
-    direct: `RAILWAY_MYSQL_${id}_DIRECT`,
-  };
-};
-
-export class MySQLUrlMissing extends Data.TaggedError("Railway.MySQLUrlMissing")<{
-  resourceName: string;
-}> {}
-
-export interface ConnectMySQLClient {
-  /**
-   * Private (`{name}.railway.internal`) connection string. Pass this to
-   * {@link Drizzle.MySQL} or `SQL.MySQL` from a {@link Service}.
-   */
-  connectionString: Effect.Effect<Redacted.Redacted<string>, MySQLUrlMissing, RuntimeContext>;
-  /**
-   * Same private URI — Railway MySQL has no proxy-pooler split. Kept so
-   * callers matching the `ConnectPostgres` shape keep working.
-   */
-  directConnectionString: Effect.Effect<Redacted.Redacted<string>, MySQLUrlMissing, RuntimeContext>;
+export interface ConnectMySQL extends Binding.Service<ConnectMySQL, "Railway.ConnectMySQL", (mysql: MySQL) => Effect.Effect<ConnectMySQLClient>> {
 }
+export declare const ConnectMySQL: ConnectMySQL;
+export declare const connectEnvKeys: (mysql: Pick<MySQL, "LogicalId">) => {
+    pooled: string;
+    direct: string;
+};
+declare const MySQLUrlMissing_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
+    readonly _tag: "Railway.MySQLUrlMissing";
+} & Readonly<A>;
+export declare class MySQLUrlMissing extends MySQLUrlMissing_base<{
+    resourceName: string;
+}> {
+}
+export interface ConnectMySQLClient {
+    /**
+     * Private (`{name}.railway.internal`) connection string. Pass this to
+     * {@link Drizzle.MySQL} or `SQL.MySQL` from a {@link Service}.
+     */
+    connectionString: Effect.Effect<Redacted.Redacted<string>, MySQLUrlMissing, RuntimeContext>;
+    /**
+     * Same private URI — Railway MySQL has no proxy-pooler split. Kept so
+     * callers matching the `ConnectPostgres` shape keep working.
+     */
+    directConnectionString: Effect.Effect<Redacted.Redacted<string>, MySQLUrlMissing, RuntimeContext>;
+}
+export {};

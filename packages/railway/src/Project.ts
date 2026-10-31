@@ -8,10 +8,14 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { RailwayEnvironment } from "./Environment.ts";
-import { waitUntilDeleted } from "./GraphQL.ts";
-import { createRailwayName, matchesAlchemyPhysicalName, sanitizeRailwayName } from "./Metadata.ts";
+import { waitUntilDeleted } from "./GraphQL.vibe";
+import {
+  createRailwayName,
+  matchesAlchemyPhysicalName,
+  sanitizeRailwayName,
+} from "./Metadata.vibe";
 import type { Providers } from "./Providers.ts";
-import { waitOutCreateRateLimit } from "./transient.ts";
+import { waitOutCreateRateLimit } from "./transient.vibe";
 
 const projectFields = <E>(project: Query<RailwayProject, E>) => ({
   id: project.id,

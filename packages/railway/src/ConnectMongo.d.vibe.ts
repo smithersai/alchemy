@@ -1,10 +1,8 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
-import * as Data from "effect/Data";
 import type * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { Mongo } from "./Mongo.ts";
-
+import type { Mongo } from "./Mongo.js";
 /**
  * Bind a {@link Mongo} service to a Railway {@link Service} and obtain
  * the Effect-native connection string for the MongoDB driver.
@@ -45,35 +43,30 @@ import type { Mongo } from "./Mongo.ts";
  * @product MongoDB
  * @category Storage & Databases
  */
-export interface ConnectMongo extends Binding.Service<
-  ConnectMongo,
-  "Railway.ConnectMongo",
-  (mongo: Mongo) => Effect.Effect<ConnectMongoClient>
-> {}
-
-export const ConnectMongo = Binding.Service<ConnectMongo>("Railway.ConnectMongo");
-
-export const connectEnvKeys = (mongo: Pick<Mongo, "LogicalId">) => {
-  const id = mongo.LogicalId.replaceAll(/[^a-zA-Z0-9]/g, "_").toUpperCase();
-  return {
-    pooled: `RAILWAY_MONGO_${id}_POOLED`,
-    direct: `RAILWAY_MONGO_${id}_DIRECT`,
-  };
-};
-
-export class MongoUrlMissing extends Data.TaggedError("Railway.MongoUrlMissing")<{
-  resourceName: string;
-}> {}
-
-export interface ConnectMongoClient {
-  /**
-   * Private (`{name}.railway.internal`) connection string. Pass this to
-   * the MongoDB driver from a {@link Service}.
-   */
-  connectionString: Effect.Effect<Redacted.Redacted<string>, MongoUrlMissing, RuntimeContext>;
-  /**
-   * Same private URI. Kept so callers matching the Postgres
-   * `ConnectPostgres` shape keep working.
-   */
-  directConnectionString: Effect.Effect<Redacted.Redacted<string>, MongoUrlMissing, RuntimeContext>;
+export interface ConnectMongo extends Binding.Service<ConnectMongo, "Railway.ConnectMongo", (mongo: Mongo) => Effect.Effect<ConnectMongoClient>> {
 }
+export declare const ConnectMongo: ConnectMongo;
+export declare const connectEnvKeys: (mongo: Pick<Mongo, "LogicalId">) => {
+    pooled: string;
+    direct: string;
+};
+declare const MongoUrlMissing_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
+    readonly _tag: "Railway.MongoUrlMissing";
+} & Readonly<A>;
+export declare class MongoUrlMissing extends MongoUrlMissing_base<{
+    resourceName: string;
+}> {
+}
+export interface ConnectMongoClient {
+    /**
+     * Private (`{name}.railway.internal`) connection string. Pass this to
+     * the MongoDB driver from a {@link Service}.
+     */
+    connectionString: Effect.Effect<Redacted.Redacted<string>, MongoUrlMissing, RuntimeContext>;
+    /**
+     * Same private URI. Kept so callers matching the Postgres
+     * `ConnectPostgres` shape keep working.
+     */
+    directConnectionString: Effect.Effect<Redacted.Redacted<string>, MongoUrlMissing, RuntimeContext>;
+}
+export {};

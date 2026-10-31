@@ -20,11 +20,11 @@ import {
   projectBuckets as fetchProjectBuckets,
   projectGroups as fetchProjectGroups,
   environmentVolumes,
-} from "./GraphQL.ts";
-import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.ts";
+} from "./GraphQL.vibe";
+import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { ownedProjects, type Project } from "./Project.ts";
 import type { Providers } from "./Providers.ts";
-import { withEnvironmentConfigLock } from "./transient.ts";
+import { withEnvironmentConfigLock } from "./transient.vibe";
 
 const groupSelection = (group: Query<RailwayGroup>) => ({
   id: group.id,
