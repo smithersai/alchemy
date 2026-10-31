@@ -25,7 +25,7 @@ import type {
   MachineImageRef,
   MachineService,
   MachineServiceCheck,
-} from "./Machine.ts";
+} from "./Machine.vibe";
 import {
   alchemyMetadataKeys,
   createMachineMetadata,

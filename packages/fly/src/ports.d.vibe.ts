@@ -1,5 +1,5 @@
 import type { FlyMachineService } from "@distilled.cloud/fly-io/machines";
-import type { MachineService } from "./Machine.js";
+import type { MachineService } from "./Machine.vibe";
 /** One port, or an inclusive port range, published on Fly's proxy. */
 export interface PublishedPort {
     protocol: string;

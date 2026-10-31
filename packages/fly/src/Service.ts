@@ -46,7 +46,7 @@ import {
   type HostedProgramProps,
 } from "./hosted.ts";
 import { ensureFlycastAddress, hasPublicAddress, syncOwnedAppAddresses } from "./IpAssignment.vibe";
-import type { MachineGuest, MachineImageRef, MachineService } from "./Machine.ts";
+import type { MachineGuest, MachineImageRef, MachineService } from "./Machine.vibe";
 import {
   alchemyMetadataKeys,
   createFlyAppName,

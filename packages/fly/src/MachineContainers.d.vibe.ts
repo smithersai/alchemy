@@ -1,6 +1,6 @@
 import type { FlyContainerConfig, FlyMachineConfig } from "@distilled.cloud/fly-io/machines";
 import * as Effect from "effect/Effect";
-import type { MachineContainer, MachineProps } from "./Machine.js";
+import type { MachineContainer, MachineProps } from "./Machine.vibe";
 declare const InvalidMachineContainers_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "Fly.InvalidMachineContainers";
 } & Readonly<A>;

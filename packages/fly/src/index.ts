@@ -30,7 +30,7 @@ export * from "./ListObjectsV2.ts";
 export * from "./ListObjectsV2Http.vibe";
 export * from "./ListSecrets.ts";
 export * from "./ListSecretsHttp.vibe";
-export * from "./Machine.ts";
+export * from "./Machine.vibe";
 export * from "./Metadata.ts";
 export * from "./MountVolume.vibe";
 export { ServicePortConflict } from "./ports.vibe";

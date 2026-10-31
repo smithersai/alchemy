@@ -27,7 +27,7 @@ import { HeadObjectHttp } from "./HeadObjectHttp.vibe";
 import { IpAssignment, IpAssignmentProvider } from "./IpAssignment.vibe";
 import { ListObjectsV2Http } from "./ListObjectsV2Http.vibe";
 import { ListSecretsHttp } from "./ListSecretsHttp.vibe";
-import { Machine, MachineProvider } from "./Machine.ts";
+import { Machine, MachineProvider } from "./Machine.vibe";
 import { MountVolumeLive } from "./MountVolume.vibe";
 import { Postgres, PostgresProvider } from "./Postgres.ts";
 import { PutObjectHttp } from "./PutObjectHttp.vibe";
