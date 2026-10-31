@@ -18,12 +18,12 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
-import { CustomDomain } from "../CustomDomain.ts";
+import { CustomDomain } from "../CustomDomain.vibe";
 import type { ExtraFile } from "../hosted.ts";
 import { Project, type Project as ProjectResource } from "../Project.ts";
 import type { Environment as EnvironmentResource } from "../ProjectEnvironment.ts";
 import type { Providers } from "../Providers.ts";
-import { Service, type Service as ServiceResource } from "../Service.ts";
+import { Service, type Service as ServiceResource } from "../Service.vibe";
 import { Cdn } from "./Cdn.ts";
 
 /** Port the generated Node serve entry and Railway Service listen on. */

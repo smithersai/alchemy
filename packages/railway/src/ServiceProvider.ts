@@ -43,7 +43,7 @@ import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { assertHostDisk, type MountSpec } from "./MountVolume.ts";
 import { ownedProjects } from "./Project.ts";
 import { RPC_TOKEN_ENV } from "./rpc-token.ts";
-import { Service } from "./Service.ts";
+import { Service } from "./Service.vibe";
 import {
   deleteOwnedServiceDomain,
   ensureServiceDomain,

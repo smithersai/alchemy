@@ -8,9 +8,9 @@ import { loadFrontendCore } from "alchemy/Website/FrontendCore";
 import * as Effect from "effect/Effect";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
-import { CustomDomain } from "../CustomDomain.ts";
+import { CustomDomain } from "../CustomDomain.vibe";
 import { Project } from "../Project.ts";
-import { Service } from "../Service.ts";
+import { Service } from "../Service.vibe";
 import {
   publishWebsiteDomainDns,
   WEBSITE_PORT,
