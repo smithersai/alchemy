@@ -9,8 +9,8 @@ import * as Sql from "effect/sql/SqlClient";
  * client returned by `Turso.Connect(db)`, so it can be passed straight in.
  */
 export interface LibSQLSource<E = never, R = never> {
-    readonly url: string | (Effect.Effect<string, E, R>);
-    readonly authToken?: Redacted.Redacted<string> | (Effect.Effect<Redacted.Redacted<string>, E, R>);
+    readonly url: string | Effect.Effect<string, E, R>;
+    readonly authToken?: Redacted.Redacted<string> | Effect.Effect<Redacted.Redacted<string>, E, R>;
 }
 /**
  * Options forwarded to `@effect/sql-libsql`'s `LibsqlClient` (everything

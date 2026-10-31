@@ -9,7 +9,7 @@ import * as Sql from "effect/sql/SqlClient";
  * string, which resolves from the Worker environment at runtime).
  */
 export type MySQLConfig<E = never, R = never> = Omit<MysqlClient.MysqlClientConfig, "url"> & {
-    readonly url: Redacted.Redacted<string> | (Effect.Effect<Redacted.Redacted<string>, E, R>);
+    readonly url: Redacted.Redacted<string> | Effect.Effect<Redacted.Redacted<string>, E, R>;
 };
 declare const MySQLUrlError_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "MySQLUrlError";

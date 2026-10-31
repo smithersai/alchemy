@@ -9,7 +9,7 @@ import * as Sql from "effect/sql/SqlClient";
  * string, which resolves from the Worker environment at runtime).
  */
 export type PostgresConfig<E, R> = Omit<PgClient.PgPoolConfig, "url"> & {
-    readonly url: Redacted.Redacted<string> | (Effect.Effect<Redacted.Redacted<string>, E, R>);
+    readonly url: Redacted.Redacted<string> | Effect.Effect<Redacted.Redacted<string>, E, R>;
 };
 /**
  * Open an `@effect/sql-pg` client (a connection pool) from a connection URL.
