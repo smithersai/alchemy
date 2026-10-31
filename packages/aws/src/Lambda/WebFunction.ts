@@ -32,7 +32,7 @@ import type { PolicyDocument, PolicyStatement } from "../IAM/Policy.ts";
 import type { Providers } from "../Providers.ts";
 import type { FunctionBuildOptions, FunctionZipProps } from "./Function.ts";
 import { makeFunctionBundler, type FunctionBundleOptions } from "./FunctionBundle.ts";
-import type { NetworkConnectorProps } from "./NetworkConnector.ts";
+import type { NetworkConnectorProps } from "./NetworkConnector.vibe";
 import { createConnector, getConnector, syncConnector } from "./NetworkConnectorLifecycle.ts";
 import {
   connectorOfRevision,

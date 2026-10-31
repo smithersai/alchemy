@@ -10,7 +10,7 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { toTagRecord, unwrapRedactedString } from "./common.ts";
+import { toTagRecord, unwrapRedactedString } from "./common.vibe";
 
 export class SAMLProviderConflict extends Data.TaggedError("SAMLProviderConflict")<{
   readonly message: string;

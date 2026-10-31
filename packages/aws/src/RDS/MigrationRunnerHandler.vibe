@@ -1,0 +1,37 @@
+import * as Cause from "effect/Cause"
+import * as Effect from "effect/Effect"
+import * as Exit from "effect/Exit"
+import { withMigrationConnection, type MigrationConnectionTarget } from "./MigrationConnection.ts"
+
+/**
+ * One SQL operation the deploying machine asks the in-VPC runner to perform.
+ * `batch` runs its statements in one transaction.
+ */
+export type MigrationRunnerRequest =
+  | { mutable op: "query"; mutable target: MigrationConnectionTarget; mutable sql: string }
+  | { mutable op: "batch"; mutable target: MigrationConnectionTarget; mutable statements: ReadonlyArray<string> }
+
+export type MigrationRunnerResponse =
+  | { mutable ok: true; mutable rows: Array<Record<string, unknown>> }
+  | { mutable ok: false; mutable message: string }
+
+/**
+ * Entry point of the `AWS.RDS.MigrationRunner` Lambda. Each invocation
+ * opens one connection, runs one query or one transactional batch, and
+ * closes the connection. Failures return `{ ok: false }` so the deploying
+ * machine reports the database's own error message.
+ */
+export const handler = async (event: MigrationRunnerRequest): Promise<MigrationRunnerResponse> => {
+  const exit = await Effect.runPromiseExit(
+    withMigrationConnection(
+      event.target,
+      effect (
+        executor,
+      ) => (event.op === "query" ? try executor.query(event.sql) : try (executor.batch(event.statements)
+        |> Effect.as(%, []))),
+    ),
+  )
+  if (Exit.isSuccess(exit)) return { ok: true, rows: exit.value }
+  const error = Cause.squash(exit.cause)
+  return { ok: false, message: error instanceof Error ? error.message : Cause.pretty(exit.cause) }
+}

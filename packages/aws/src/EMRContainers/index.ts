@@ -12,13 +12,13 @@
 // - tagResource/untagResource/listTagsForResource: covered by the
 //   VirtualCluster/JobTemplate providers' tag sync.
 export * from "./CancelJobRun.ts";
-export * from "./CancelJobRunHttp.ts";
+export * from "./CancelJobRunHttp.vibe";
 export * from "./DescribeJobRun.ts";
-export * from "./DescribeJobRunHttp.ts";
+export * from "./DescribeJobRunHttp.vibe";
 export * from "./DescribeJobTemplate.ts";
-export * from "./DescribeJobTemplateHttp.ts";
+export * from "./DescribeJobTemplateHttp.vibe";
 export * from "./DescribeManagedEndpoint.ts";
-export * from "./DescribeManagedEndpointHttp.ts";
+export * from "./DescribeManagedEndpointHttp.vibe";
 export * from "./DescribeVirtualCluster.ts";
 export * from "./DescribeVirtualClusterHttp.ts";
 export * from "./GetManagedEndpointSessionCredentials.ts";
@@ -26,13 +26,13 @@ export * from "./GetManagedEndpointSessionCredentialsHttp.ts";
 export * from "./JobRunEventSource.ts";
 export * from "./JobTemplate.ts";
 export * from "./ListJobRuns.ts";
-export * from "./ListJobRunsHttp.ts";
+export * from "./ListJobRunsHttp.vibe";
 export * from "./ListJobTemplates.ts";
-export * from "./ListJobTemplatesHttp.ts";
+export * from "./ListJobTemplatesHttp.vibe";
 export * from "./ListManagedEndpoints.ts";
-export * from "./ListManagedEndpointsHttp.ts";
+export * from "./ListManagedEndpointsHttp.vibe";
 export * from "./ListVirtualClusters.ts";
-export * from "./ListVirtualClustersHttp.ts";
+export * from "./ListVirtualClustersHttp.vibe";
 export * from "./StartJobRun.ts";
 export * from "./StartJobRunHttp.ts";
 export * from "./VirtualCluster.ts";

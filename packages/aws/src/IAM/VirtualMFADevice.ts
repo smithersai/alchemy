@@ -10,7 +10,7 @@ import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { toRedactedBytes, toTagRecord } from "./common.ts";
+import { toRedactedBytes, toTagRecord } from "./common.vibe";
 
 export class VirtualMFADeviceUnexpectedResponse extends Data.TaggedError(
   "VirtualMFADeviceUnexpectedResponse",

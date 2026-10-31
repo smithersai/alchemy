@@ -1,0 +1,182 @@
+import * as iam from "@distilled.cloud/aws/iam"
+import { isResolved } from "alchemy/Diff"
+import type { Input } from "alchemy/Input"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
+import type { Providers } from "../Providers.ts"
+
+export interface GroupMembershipProps {
+  /**
+   * Name of the IAM group to manage membership for.
+   */
+  mutable groupName: Input<string>
+  /**
+   * Exact set of user names that should be members of the group.
+   */
+  mutable userNames: Input<string[]>
+}
+
+export interface GroupMembership extends
+  Resource<
+    "AWS.IAM.GroupMembership",
+    GroupMembershipProps,
+    {
+      /** The group whose membership is managed. */
+      mutable groupName: string
+      /** The user names currently in the group. */
+      mutable userNames: string[]
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An explicit IAM group membership resource that owns a group's managed users.
+ *
+ * `GroupMembership` models the exact set of users in a group, making membership
+ * reconciliation explicit instead of spreading it across user or group resources.
+ * ### Managing Group Membership
+ * **Example:** Sync a Group's Members
+ * ```typescript
+ * const admins = yield* Group("Admins", {
+ *   groupName: "admins",
+ * });
+ *
+ * const alice = yield* User("Alice", {
+ *   userName: "alice",
+ * });
+ *
+ * const bob = yield* User("Bob", {
+ *   userName: "bob",
+ * });
+ *
+ * const membership = yield* GroupMembership("AdminsMembership", {
+ *   groupName: admins.groupName,
+ *   userNames: [alice.userName, bob.userName],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const GroupMembership = Resource<GroupMembership>("AWS.IAM.GroupMembership")
+
+export const GroupMembershipProvider = (): infer _ =>
+  Provider.succeed(GroupMembership, {
+    stables: ["groupName"],
+    diff: effect ({ olds, news }) => {
+      if (!isResolved(news)) return
+      if (olds.groupName !== news.groupName) {
+        return { action: "replace" } as const
+      }
+    },
+    read: effect ({ output }) => {
+      if (!output) {
+        return undefined
+      }
+      const response = iam
+        .getGroup({
+          GroupName: output.groupName,
+        }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (!response?.Group?.GroupName) {
+        return undefined
+      }
+      return {
+        groupName: response.Group.GroupName,
+        userNames: (response.Users ?? [])
+          .map((user) => user.UserName)
+          .filter((userName): userName is string => typeof userName === "string"),
+      }
+    },
+    reconcile: effect ({ news, session }) => {
+      const groupName = news.groupName as string
+      const desiredUsers = news.userNames as string[]
+
+      // Observe — read the actual membership of the group. `getGroup`
+      // both confirms the group exists and returns the current user list
+      // in a single call.
+      const response = iam
+        .getGroup({ GroupName: groupName }) catch effect (e) => match (e) {
+          when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+          default: throw e;
+        }
+      const observedUsers = (response?.Users ?? [])
+        .map((user) => user.UserName)
+        .filter((userName): userName is string => typeof userName === "string")
+
+      // Sync — diff observed against desired and apply only the delta.
+      const observedSet = new Set(observedUsers)
+      const desiredSet = new Set(desiredUsers)
+      for (const userName of desiredUsers) {
+        if (!observedSet.has(userName)) {
+          try iam.addUserToGroup({
+            GroupName: groupName,
+            UserName: userName,
+          })
+        }
+      }
+      for (const userName of observedUsers) {
+        if (!desiredSet.has(userName)) {
+          iam
+            .removeUserFromGroup({
+              GroupName: groupName,
+              UserName: userName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchEntityException" }: try Effect.void;
+              default: throw e;
+            }
+        }
+      }
+
+      try session.note(groupName)
+      return {
+        groupName,
+        userNames: desiredUsers,
+      }
+    },
+    list: effect () => {
+      // The membership resource is keyed by groupName and its Attributes are
+      // the full set of users in that group, so enumerate every IAM group
+      // and read each group's user list — one item per group, matching the
+      // shape `read` produces.
+      const groups = Array.from(
+        try (iam.listGroups.pages({})
+          |> Stream.runCollect(%)),
+      ).flatMap((page) => page.Groups ?? [])
+      const rows = try Effect.forEach(
+        groups,
+        effect (group) =>
+          ({
+            groupName: group.GroupName,
+            userNames: Array.from(
+              try (iam.getGroup.pages({ GroupName: group.GroupName })
+                |> Stream.runCollect(%)),
+            )
+              .flatMap((page) => page.Users ?? [])
+              .map((user) => user.UserName)
+              .filter((userName): userName is string => typeof userName === "string"),
+          }) catch effect (e) => match (e) {
+            when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+            default: throw e;
+          },
+        { concurrency: 10 },
+      )
+      return rows.filter(
+        (row): row is { mutable groupName: string; mutable userNames: string[] } => row !== undefined,
+      )
+    },
+    delete: effect ({ output }) => {
+      for (const userName of output.userNames) {
+        iam
+          .removeUserFromGroup({
+            GroupName: output.groupName,
+            UserName: userName,
+          }) catch effect (e) => match (e) { when { _tag: "NoSuchEntityException" }: try Effect.void; default: throw e; }
+      }
+    },
+  })

@@ -1,7 +1,7 @@
 export * from "./Group.ts";
 export * from "./IdentityPool.ts";
 export * from "./IdentityPoolAdmin.ts";
-export * from "./IdentityPoolAdminHttp.ts";
+export * from "./IdentityPoolAdminHttp.vibe";
 export * from "./IdentityPoolAuth.ts";
 export * from "./IdentityPoolAuthHttp.ts";
 export * from "./IdentityPoolRoleAttachment.ts";
@@ -13,7 +13,7 @@ export * from "./UserPool.ts";
 export * from "./UserPoolAdmin.ts";
 export * from "./UserPoolAdminHttp.ts";
 export * from "./UserPoolAuth.ts";
-export * from "./UserPoolAuthHttp.ts";
+export * from "./UserPoolAuthHttp.vibe";
 export * from "./UserPoolClient.ts";
 export * from "./UserPoolDomain.ts";
 export * from "./UserPoolTriggerEventSource.ts";

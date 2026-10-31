@@ -21,7 +21,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { ApiMapping } from "../ApiGatewayV2/ApiMapping.ts";
 import { DomainName } from "../ApiGatewayV2/DomainName.ts";
-import { HttpApi } from "../ApiGatewayV2/HttpApi.ts";
+import { HttpApi } from "../ApiGatewayV2/HttpApi.vibe";
 import { domainCertificate, resolveDomainDns } from "../CustomDomain.ts";
 import { qualifiedArnOf, qualifiedNameOf } from "./QualifiedArn.ts";
 

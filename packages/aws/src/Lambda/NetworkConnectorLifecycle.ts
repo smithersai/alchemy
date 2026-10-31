@@ -12,7 +12,7 @@ import { createInternalTags } from "alchemy/Tags";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import type { NetworkConnectorProps } from "./NetworkConnector.ts";
+import type { NetworkConnectorProps } from "./NetworkConnector.vibe";
 
 // === Helpers ===============================================================
 

@@ -1,0 +1,3 @@
+import * as Layer from "effect/Layer";
+import { DescribeSlackWorkspaces } from "./DescribeSlackWorkspaces.js";
+export declare const DescribeSlackWorkspacesHttp: Layer.Layer<DescribeSlackWorkspaces, never, never>;

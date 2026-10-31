@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import { connectEnvPrefix as makeConnectEnvPrefix } from "../Connection/internal.ts";
+import { connectEnvPrefix as makeConnectEnvPrefix } from "../Connection/internal.vibe";
 import type { ServerlessCluster } from "./ServerlessCluster.ts";
 
 /**

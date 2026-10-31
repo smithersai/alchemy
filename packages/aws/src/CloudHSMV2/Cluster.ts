@@ -12,7 +12,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { reapLogGroupsByPrefix } from "../Logs/reapLogGroups.ts";
 import type { Providers } from "../Providers.ts";
-import { findClusterById, sameStringSet, toTagRecord } from "./internal.ts";
+import { findClusterById, sameStringSet, toTagRecord } from "./internal.vibe";
 
 export class CloudHSMV2ClusterNotReady extends Data.TaggedError("CloudHSMV2ClusterNotReady")<{
   readonly message: string;

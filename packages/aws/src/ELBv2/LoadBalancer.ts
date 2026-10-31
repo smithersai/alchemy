@@ -17,8 +17,8 @@ import type { SubnetId } from "../EC2/Subnet.ts";
 import type { AccountID } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
-import { attributeDelta, observedAttributes } from "./common.ts";
-import { readElbTags } from "./internal.ts";
+import { attributeDelta, observedAttributes } from "./common.vibe";
+import { readElbTags } from "./internal.vibe";
 
 export type LoadBalancerName = string;
 export type LoadBalancerArn =

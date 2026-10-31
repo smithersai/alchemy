@@ -50,7 +50,7 @@ import {
   type DBSubnetGroupProps,
   type DBSubnetGroup as DBSubnetGroupResource,
 } from "./DBSubnetGroup.ts";
-import type { MigrationsTransport } from "./Migrations.ts";
+import type { MigrationsTransport } from "./Migrations.vibe";
 
 export interface AuroraSecretProps extends Omit<
   SecretProps,

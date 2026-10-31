@@ -12,7 +12,7 @@ import type * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
-import { durationToDays, unwrapRedactedString } from "../IAM/common.ts";
+import { durationToDays, unwrapRedactedString } from "../IAM/common.vibe";
 import type { Providers } from "../Providers.ts";
 import { applyRedshiftTagDelta, redshiftArn, sameStringSet, toTagRecord } from "./internal.ts";
 

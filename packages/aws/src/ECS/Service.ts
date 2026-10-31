@@ -42,8 +42,8 @@ import {
   type ImageSourceLike,
   type RegistryImageSource,
 } from "../ECR/ImageSource.ts";
-import type { ListenerAction, ListenerRuleCondition } from "../ELBv2/common.ts";
-import { Listener } from "../ELBv2/Listener.ts";
+import type { ListenerAction, ListenerRuleCondition } from "../ELBv2/common.vibe";
+import { Listener } from "../ELBv2/Listener.vibe";
 import { ListenerRule } from "../ELBv2/ListenerRule.ts";
 import { LoadBalancer } from "../ELBv2/LoadBalancer.ts";
 import { TargetGroup, type TargetGroupArn } from "../ELBv2/TargetGroup.ts";

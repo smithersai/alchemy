@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { readElastiCacheTags, sameStringSet, tagsToWire } from "./internal.ts";
+import { readElastiCacheTags, sameStringSet, tagsToWire } from "./internal.vibe";
 
 export class ElastiCacheSubnetGroupUnexpectedResponse extends Data.TaggedError(
   "ElastiCacheSubnetGroupUnexpectedResponse",

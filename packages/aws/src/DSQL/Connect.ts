@@ -2,8 +2,8 @@ import type { PresignError } from "@distilled.cloud/aws/Presign";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { SqlConnectionInfo } from "../Connection/internal.ts";
-import { connectEnvPrefix as makeConnectEnvPrefix } from "../Connection/internal.ts";
+import type { SqlConnectionInfo } from "../Connection/internal.vibe";
+import { connectEnvPrefix as makeConnectEnvPrefix } from "../Connection/internal.vibe";
 import type { Cluster } from "./Cluster.ts";
 
 export interface ConnectOptions {

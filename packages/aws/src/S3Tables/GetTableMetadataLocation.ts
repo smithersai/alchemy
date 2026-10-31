@@ -1,7 +1,7 @@
 import type * as s3tables from "@distilled.cloud/aws/s3tables";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.ts";
+import type { Table } from "./Table.vibe";
 
 /**
  * Runtime binding for the `GetTableMetadataLocation` operation (IAM action

@@ -13,7 +13,7 @@ import * as Stream from "effect/Stream";
 import type { AccountID } from "../Environment.ts";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { parsePolicyDocument, stringifyPolicyDocument, toTagRecord } from "./common.ts";
+import { parsePolicyDocument, stringifyPolicyDocument, toTagRecord } from "./common.vibe";
 import { normalizePolicyDocument, type PolicyDocument, type PolicyStatement } from "./Policy.ts";
 
 export type RoleName = string;

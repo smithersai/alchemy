@@ -8,7 +8,7 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as AWSBindings from "../AWSBindings.ts";
 import { generateDbAuthToken } from "../Connection/DbAuthToken.ts";
-import { formatSqlConnectionUrl } from "../Connection/internal.ts";
+import { formatSqlConnectionUrl } from "../Connection/internal.vibe";
 import { Connect, type ConnectOptions, type ConnectResource } from "./Connect.ts";
 
 /**

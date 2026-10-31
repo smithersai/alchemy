@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { readPersonalizeTags, syncPersonalizeTags } from "./internal.ts";
+import { readPersonalizeTags, syncPersonalizeTags } from "./internal.vibe";
 
 export class PersonalizeDatasetNotReady extends Data.TaggedError("PersonalizeDatasetNotReady")<{
   readonly message: string;

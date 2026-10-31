@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { PolicyStatement } from "../IAM/Policy.ts";
 import { regionFromArn } from "./BindingHttp.ts";
-import type { MicrovmImage } from "./MicrovmImage.ts";
+import type { MicrovmImage } from "./MicrovmImage.vibe";
 
 // Shared scaffolding for the MicroVM runtime bindings. Every `*Http` impl is
 // identical except for the distilled operation, the IAM action(s), the policy

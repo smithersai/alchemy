@@ -3,7 +3,7 @@ import type * as SigV4 from "@distilled.cloud/aws/SigV4";
 import * as Binding from "alchemy/Binding";
 import type { SourceError } from "effect/ConfigProvider";
 import type * as Effect from "effect/Effect";
-import type { OpenSearchApiError } from "./DataPlaneTypes.ts";
+import type { OpenSearchApiError } from "./DataPlaneTypes.vibe";
 import type { Domain } from "./Domain.ts";
 import type { ReadDomainClient } from "./DomainRead.ts";
 import type { WriteDomainClient } from "./DomainWrite.ts";

@@ -1,0 +1,9 @@
+import * as Layer from "effect/Layer";
+import { LanguageModel } from "./LanguageModel.js";
+/**
+ * HTTP implementation of {@link LanguageModel}. Composes the {@link Converse}
+ * and {@link ConverseStream} bindings, so binding a model registers both
+ * `bedrock:InvokeModel` and `bedrock:InvokeModelWithResponseStream` scoped to
+ * exactly that model.
+ */
+export declare const LanguageModelHttp: Layer.Layer<LanguageModel, never, never>;

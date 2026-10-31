@@ -1,0 +1,3 @@
+import * as Layer from "effect/Layer";
+import { ListResolverEndpointIpAddresses } from "./ListResolverEndpointIpAddresses.js";
+export declare const ListResolverEndpointIpAddressesHttp: Layer.Layer<ListResolverEndpointIpAddresses, never, never>;

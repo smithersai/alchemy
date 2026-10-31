@@ -7,7 +7,7 @@ import { createInternalTags, hasAlchemyTags } from "alchemy/Tags";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import { toRedactedString } from "../IAM/common.ts";
+import { toRedactedString } from "../IAM/common.vibe";
 import type { Providers } from "../Providers.ts";
 import { retryWhileThrottled, syncIvsTags, toTagRecord } from "./internal.ts";
 

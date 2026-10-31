@@ -12,7 +12,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { readMemoryDbTags, sameStringSet } from "./internal.ts";
+import { readMemoryDbTags, sameStringSet } from "./internal.vibe";
 
 export class MemoryDBClusterNotReady extends Data.TaggedError("MemoryDBClusterNotReady")<{
   readonly message: string;

@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { findClusterById } from "./internal.ts";
+import { findClusterById } from "./internal.vibe";
 
 export class HsmNotReady extends Data.TaggedError("HsmNotReady")<{
   readonly message: string;

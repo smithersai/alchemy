@@ -28,7 +28,7 @@ import {
 } from "../IAM/Policy.ts";
 import { reapLogGroupsByPrefix } from "../Logs/reapLogGroups.ts";
 import type { Providers } from "../Providers.ts";
-import { runDBInstanceMigrations, type MigrationsTransport } from "./Migrations.ts";
+import { runDBInstanceMigrations, type MigrationsTransport } from "./Migrations.vibe";
 
 export interface DBInstanceProps {
   /**

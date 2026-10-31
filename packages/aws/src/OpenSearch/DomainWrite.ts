@@ -9,7 +9,7 @@ import type {
   OpenSearchApiError,
   WriteDocumentOptions,
   WriteDocumentResponse,
-} from "./DataPlaneTypes.ts";
+} from "./DataPlaneTypes.vibe";
 import type { Domain } from "./Domain.ts";
 
 /** Runtime client for write access to a domain's REST data plane. */

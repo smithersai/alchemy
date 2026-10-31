@@ -1,7 +1,7 @@
 import type * as ga from "@distilled.cloud/aws/global-accelerator";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Accelerator } from "./Accelerator.ts";
+import type { Accelerator } from "./Accelerator.vibe";
 
 /**
  * Runtime binding for `globalaccelerator:DescribeAccelerator`.

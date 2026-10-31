@@ -8,7 +8,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as EffectStream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { toTagRecord, unredact } from "./internal.ts";
+import { toTagRecord, unredact } from "./internal.vibe";
 
 export class FrameworkUnexpectedResponse extends Data.TaggedError("FrameworkUnexpectedResponse")<{
   readonly message: string;

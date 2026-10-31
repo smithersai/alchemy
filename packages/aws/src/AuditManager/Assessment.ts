@@ -11,7 +11,7 @@ import * as Schedule from "effect/Schedule";
 import * as EffectStream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { toTagRecord, unredact } from "./internal.ts";
+import { toTagRecord, unredact } from "./internal.vibe";
 
 export class AssessmentUnexpectedResponse extends Data.TaggedError("AssessmentUnexpectedResponse")<{
   readonly message: string;

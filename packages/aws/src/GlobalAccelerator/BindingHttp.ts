@@ -1,9 +1,9 @@
 import * as Effect from "effect/Effect";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { PolicyStatement } from "../IAM/Policy.ts";
-import type { Accelerator } from "./Accelerator.ts";
+import type { Accelerator } from "./Accelerator.vibe";
 import { withGaRegion } from "./common.ts";
-import type { EndpointGroup } from "./EndpointGroup.ts";
+import type { EndpointGroup } from "./EndpointGroup.vibe";
 
 /**
  * Shared scaffolding for AWS Global Accelerator HTTP bindings.

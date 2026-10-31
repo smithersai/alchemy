@@ -6,7 +6,7 @@ import type * as Effect from "effect/Effect";
 import {
   connectEnvPrefix as makeConnectEnvPrefix,
   type SqlConnectionInfo,
-} from "../Connection/internal.ts";
+} from "../Connection/internal.vibe";
 import type { Workgroup } from "./Workgroup.ts";
 
 /**

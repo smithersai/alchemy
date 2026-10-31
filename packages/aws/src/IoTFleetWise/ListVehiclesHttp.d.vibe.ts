@@ -1,0 +1,3 @@
+import * as Layer from "effect/Layer";
+import { ListVehicles } from "./ListVehicles.js";
+export declare const ListVehiclesHttp: Layer.Layer<ListVehicles, never, never>;

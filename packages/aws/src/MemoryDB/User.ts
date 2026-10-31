@@ -11,7 +11,7 @@ import type * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { readMemoryDbTags } from "./internal.ts";
+import { readMemoryDbTags } from "./internal.vibe";
 
 export class MemoryDBUserNotReady extends Data.TaggedError("MemoryDBUserNotReady")<{
   readonly message: string;

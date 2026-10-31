@@ -10,7 +10,7 @@ import type {
   OpenSearchApiError,
   SearchRequest,
   SearchResponse,
-} from "./DataPlaneTypes.ts";
+} from "./DataPlaneTypes.vibe";
 import type { Domain } from "./Domain.ts";
 
 /** Runtime client for read-only access to a domain's REST data plane. */

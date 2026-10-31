@@ -4,7 +4,7 @@ import type { Input } from "alchemy/Input";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import { connectEnvPrefix as makeConnectEnvPrefix } from "../Connection/internal.ts";
+import { connectEnvPrefix as makeConnectEnvPrefix } from "../Connection/internal.vibe";
 import type { SecurityGroupId } from "../EC2/SecurityGroup.ts";
 import type { SubnetId } from "../EC2/Subnet.ts";
 import type { Secret } from "../SecretsManager/Secret.ts";

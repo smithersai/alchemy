@@ -4,7 +4,7 @@ export * from "./Authorizer.ts";
 export * from "./DomainName.ts";
 export * from "./ExportApi.ts";
 export * from "./ExportApiHttp.ts";
-export * from "./HttpApi.ts";
+export * from "./HttpApi.vibe";
 export * from "./Integration.ts";
 export * from "./ManageConnections.ts";
 export * from "./ManageConnectionsHttp.ts";

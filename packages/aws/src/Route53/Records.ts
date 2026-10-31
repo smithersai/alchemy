@@ -5,7 +5,7 @@ import { Resource, type ResourceBinding } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { durationToSeconds } from "../IAM/common.ts";
+import { durationToSeconds } from "../IAM/common.vibe";
 import type { Providers } from "../Providers.ts";
 import { resolveHostedZoneId } from "./HostedZoneLookup.ts";
 import {

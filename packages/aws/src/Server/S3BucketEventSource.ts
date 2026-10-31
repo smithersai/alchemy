@@ -4,7 +4,7 @@ import * as Stream from "effect/Stream";
 import type { Bucket } from "../S3/Bucket.ts";
 import type { BucketNotification, NotificationsProps } from "../S3/BucketNotifications.ts";
 import * as S3 from "../S3/index.ts";
-import { normalizeBucketNotification } from "../S3/normalizeBucketNotification.ts";
+import { normalizeBucketNotification } from "../S3/normalizeBucketNotification.vibe";
 import type { S3EventType } from "../S3/S3Event.ts";
 import * as SQS from "../SQS/index.ts";
 import { SQSQueueEventSource } from "./SQSQueueEventSource.ts";

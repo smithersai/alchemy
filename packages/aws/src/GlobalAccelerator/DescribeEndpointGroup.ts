@@ -1,7 +1,7 @@
 import type * as ga from "@distilled.cloud/aws/global-accelerator";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { EndpointGroup } from "./EndpointGroup.ts";
+import type { EndpointGroup } from "./EndpointGroup.vibe";
 
 /**
  * Runtime binding for `globalaccelerator:DescribeEndpointGroup`.
