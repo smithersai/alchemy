@@ -8,7 +8,7 @@ import type {
   IssuedCertificate,
   RevokeError,
   RevokeRequest,
-} from "./Client.ts";
+} from "./Client.vibe";
 
 /**
  * Issue (and revoke) certificates at runtime as an {@link Account} — for
