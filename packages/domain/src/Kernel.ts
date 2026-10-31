@@ -28,7 +28,7 @@ import type * as Policy from "./Policy.vibe";
 import type * as Projection from "./Projection.vibe";
 import * as RequestContext from "./RequestContext.ts";
 import type * as DomainStream from "./Stream.vibe";
-import * as Telemetry from "./Telemetry.ts";
+import * as Telemetry from "./Telemetry.vibe";
 import type * as View from "./View.vibe";
 
 /**

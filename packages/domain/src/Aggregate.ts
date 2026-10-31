@@ -14,7 +14,7 @@ import type * as Middleware from "./Middleware.ts";
 import type * as Read from "./Read.vibe";
 import type * as Rejection from "./Rejection.vibe";
 import * as RequestContext from "./RequestContext.ts";
-import type * as Telemetry from "./Telemetry.ts";
+import type * as Telemetry from "./Telemetry.vibe";
 
 /**
  * The instance type of a class: `InstanceOf<typeof NotOwner>` is `NotOwner`.

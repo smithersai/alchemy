@@ -252,4 +252,4 @@ export type * as Middleware from "./Middleware.ts";
 export { Platform } from "./Platform.ts";
 export * as Read from "./Read.vibe";
 /** Trace attributes, hosting options and the metrics a model records. */
-export * as Telemetry from "./Telemetry.ts";
+export * as Telemetry from "./Telemetry.vibe";

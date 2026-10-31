@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import type * as Telemetry from "./Telemetry.js";
+import type * as Telemetry from "./Telemetry.vibe";
 /**
  * Field map shared by every Domain message builder.
  */

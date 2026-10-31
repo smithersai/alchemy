@@ -8,7 +8,7 @@ import * as Aggregate from "./Aggregate.ts";
 import type * as Policy from "./Policy.vibe";
 import type * as Projection from "./Projection.vibe";
 import type * as DomainStream from "./Stream.vibe";
-import { TraceJson } from "./Telemetry.ts";
+import { TraceJson } from "./Telemetry.vibe";
 import type * as View from "./View.vibe";
 
 /**
