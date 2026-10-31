@@ -5,7 +5,7 @@ import { arrayEqualsUnordered } from "alchemy/Util/equal";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { Account } from "./Account.ts";
+import type { Account } from "./Account.vibe";
 import {
   accountLayer,
   issueCertificate,

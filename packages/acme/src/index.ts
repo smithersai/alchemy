@@ -1,4 +1,4 @@
-export * from "./Account.ts";
+export * from "./Account.vibe";
 export * from "./Certificate.ts";
 export * from "./CertificateAuthority.ts";
 export * from "./Client.ts";
@@ -6,6 +6,6 @@ export * from "./Dns.ts";
 export * from "./DnsSolver.vibe";
 export * from "./Errors.vibe";
 export * from "./IssueCertificate.ts";
-export * from "./IssueCertificateHttp.ts";
+export * from "./IssueCertificateHttp.vibe";
 export * from "./Pki.ts";
 export * from "./Providers.ts";

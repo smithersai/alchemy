@@ -1,0 +1,80 @@
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import type { Account } from "./Account.vibe"
+import { type AccountCredentials, accountLayer, issueCertificate, revokeCertificate } from "./Client.ts"
+import { IssueCertificate, type IssueCertificateClient } from "./IssueCertificate.ts"
+
+/**
+ * Implementation of {@link IssueCertificate}: the account's directory
+ * URL, account URL and private key are bound into the host at deploy time
+ * and read back at runtime; every call signs with them over HTTPS.
+ *
+ * Provide it on the Worker / Service / Action Effect.
+ *
+ * ### Provide the layer
+ * **Example:** On a Fly Service
+ * ```typescript
+ * Effect.gen(function* () {
+ *   const acme = yield* ACME.IssueCertificate(LetsEncrypt);
+ *   // ...
+ * }).pipe(Effect.provide(ACME.IssueCertificateHttp))
+ * ```
+ *
+ * @layer
+ * @product Certificate
+ * @provides ACME.IssueCertificate
+ */
+export const IssueCertificateHttp = Layer.succeed(
+  IssueCertificate,
+  effect (account: Account) => {
+    const directoryUrl = try account.directoryUrl.asEffect()
+    const accountUrl = try account.accountUrl.asEffect()
+    const trustedRoot = try account.trustedRoot.pipe(Output.map((root) => root ?? "")).asEffect()
+    const privateKey = try account.privateKey.asEffect()
+    const credentials = effect {
+      return try effect {
+        const bound = try Effect.all({
+          directoryUrl,
+          trustedRoot,
+          accountUrl,
+          privateKey,
+        })
+        return ({
+          ca: {
+            directoryUrl: bound.directoryUrl,
+            trustedRoot: bound.trustedRoot || undefined,
+          },
+          accountKey: bound.privateKey,
+          accountUrl: bound.accountUrl,
+        })
+      }
+    }
+    const client: IssueCertificateClient = {
+      issue: effect (request) =>
+        try withSpan(
+          effect {
+            const creds = try credentials
+            return try effect {
+              provide accountLayer(creds) {
+                return try issueCertificate(request)
+              }
+            }
+          },
+          "ACME.IssueCertificate.issue",
+        ),
+      revoke: effect (request) =>
+        try withSpan(
+          effect {
+            const creds = try credentials
+            return try effect {
+              provide accountLayer(creds) {
+                return try revokeCertificate(request)
+              }
+            }
+          },
+          "ACME.IssueCertificate.revoke",
+        ),
+    }
+    return client
+  },
+)
