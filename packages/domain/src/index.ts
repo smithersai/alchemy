@@ -22,7 +22,7 @@ import * as ApiModule from "./Api.vibe";
 import * as CommandModule from "./Command.vibe";
 import * as EventModule from "./Event.vibe";
 import * as ExternalSystemModule from "./ExternalSystem.ts";
-import type * as KeyModule from "./Key.ts";
+import type * as KeyModule from "./Key.vibe";
 import * as ModelModule from "./Model.ts";
 import * as PolicyModule from "./Policy.vibe";
 import * as ProjectionModule from "./Projection.vibe";
@@ -248,7 +248,7 @@ export const RequestContext = RequestContextModule.make;
 
 export type { Filter, OrderBy } from "./Filter.vibe";
 export { InMemory } from "./InMemory.ts";
-export type * as Middleware from "./Middleware.ts";
+export type * as Middleware from "./Middleware.vibe";
 export { Platform } from "./Platform.vibe";
 export * as Read from "./Read.vibe";
 /** Trace attributes, hosting options and the metrics a model records. */

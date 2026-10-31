@@ -5,7 +5,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as HttpApiClient from "effect/http-api/HttpApiClient";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
-import { MANIFEST_FILE, ManifestJson, type Manifest } from "../Manifest.ts";
+import { MANIFEST_FILE, ManifestJson, type Manifest } from "../Manifest.vibe";
 import { PkgApi, type TarballRef } from "../Protocol.ts";
 
 export class PublishError extends Data.TaggedError("PublishError")<{

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreateBillingPortalSession } from "./CreateBillingPortalSession.js";
+import { CreateBillingPortalSession } from "./CreateBillingPortalSession.vibe";
 /**
  * HTTP implementation of {@link CreateBillingPortalSession}. Provide it on
  * the Function or Worker Effect.

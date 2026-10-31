@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreatePullRequestReview } from "./CreatePullRequestReview.js";
+import { CreatePullRequestReview } from "./CreatePullRequestReview.vibe";
 /**
  * Implementation of {@link CreatePullRequestReview} with the provider's current credentials.
  * Provide it on an `Action` or another deploy-time Effect.

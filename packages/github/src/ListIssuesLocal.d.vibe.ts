@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListIssues } from "./ListIssues.js";
+import { ListIssues } from "./ListIssues.vibe";
 /**
  * Implementation of {@link ListIssues} with the provider's current credentials.
  * Provide it on an `Action` or another deploy-time Effect.

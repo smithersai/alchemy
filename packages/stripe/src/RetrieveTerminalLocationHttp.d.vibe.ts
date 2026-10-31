@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveTerminalLocation } from "./RetrieveTerminalLocation.js";
+import { RetrieveTerminalLocation } from "./RetrieveTerminalLocation.vibe";
 /**
  * HTTP implementation of {@link RetrieveTerminalLocation}. Provide it on
  * the Function or Worker Effect.

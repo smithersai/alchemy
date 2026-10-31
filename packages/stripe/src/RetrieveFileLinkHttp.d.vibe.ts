@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveFileLink } from "./RetrieveFileLink.js";
+import { RetrieveFileLink } from "./RetrieveFileLink.vibe";
 /**
  * HTTP implementation of {@link RetrieveFileLink}. Provide it on the
  * Function or Worker Effect.

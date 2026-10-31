@@ -21,7 +21,7 @@ import {
 } from "./bindings/index.ts";
 import * as Docker from "./Docker.ts";
 import { Globals, Internet, Loopback, LoopbackServer, Storage } from "./globals/index.ts";
-import * as Paths from "./internal/Paths.ts";
+import * as Paths from "./internal/Paths.vibe";
 import * as WorkerProxy from "./proxy/WorkerProxy.ts";
 import { Registry, RegistryProxy } from "./registry/index.ts";
 import { Access, RemoteBindings, RemoteWorker } from "./remote-bindings/index.ts";

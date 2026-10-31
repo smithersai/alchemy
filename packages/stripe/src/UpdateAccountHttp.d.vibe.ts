@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { UpdateAccount } from "./UpdateAccount.js";
+import { UpdateAccount } from "./UpdateAccount.vibe";
 /**
  * HTTP implementation of {@link UpdateAccount}. Provide it on the
  * Function or Worker Effect.

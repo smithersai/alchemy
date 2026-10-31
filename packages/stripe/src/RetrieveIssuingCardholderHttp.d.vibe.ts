@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveIssuingCardholder } from "./RetrieveIssuingCardholder.js";
+import { RetrieveIssuingCardholder } from "./RetrieveIssuingCardholder.vibe";
 /**
  * HTTP implementation of {@link RetrieveIssuingCardholder}. Provide it on
  * the Function or Worker Effect.

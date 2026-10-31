@@ -16,4 +16,4 @@ export {
   InfisicalSecretsError,
   InfisicalSecretsProvider,
   type InfisicalOptions,
-} from "./SecretsProvider.ts";
+} from "./SecretsProvider.vibe";

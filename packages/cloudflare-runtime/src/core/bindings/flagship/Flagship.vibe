@@ -1,0 +1,251 @@
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
+import * as Layer from "effect/Layer";
+import * as Path from "effect/Path";
+import { loadInternalWorker } from "../../internal/internal-worker.ts";
+const FlagshipWorker = {
+  worker: (): infer _ =>
+    loadInternalWorker("#cloudflare-runtime-core-worker/bindings/flagship/Flagship.worker"),
+};
+import * as Storage from "../../globals/Storage.vibe";
+import { DEFAULT_COMPATIBILITY_DATE } from "../../internal/constants.ts";
+import { formatInternalWorkerModules } from "../../internal/internal-modules.ts";
+import * as Plugin from "../../Plugin.vibe";
+import type { BindingHook } from "../../PluginContext.ts";
+import { makeRemoteBinding } from "../../remote-bindings/RemoteBindings.ts";
+import { ConfigError } from "../../RuntimeError.shared.ts";
+import type * as WorkerdConfig from "../../workerd/Config.ts";
+import {
+  evaluateFlag,
+  type FlagshipDetails,
+  type FlagshipValueType,
+} from "./FlagshipEvaluate.shared.ts";
+import type {
+  FlagshipFlagDefinition,
+  FlagshipProps,
+  FlagshipServiceProps,
+} from "./FlagshipOptions.shared.ts";
+import {
+  BINDING_FLAGSHIP_DISK,
+  encodeSegment,
+  FLAGSHIP_ENTRYPOINT,
+  FLAGSHIP_STORAGE_DIRECTORY,
+  flagFileSegments,
+  SERVICE_FLAGSHIP,
+  SERVICE_FLAGSHIP_STORAGE,
+} from "./FlagshipOptions.shared.ts";
+
+export class Flagship extends Plugin.Service<
+  Flagship,
+  {
+    /**
+     * Record that a local Flagship binding is in use (so the flagship
+     * services are only emitted when at least one binding exists) and
+     * resolve the designator targeting the `Flagship` evaluation
+     * entrypoint for an app.
+     */
+    readonly register: (
+      props: FlagshipServiceProps,
+    ) => WorkerdConfig.ServiceDesignator!!;
+  }
+>()("cloudflare-runtime/plugin/Flagship") {}
+
+export const FlagshipLive = Layer.effect(
+  Flagship,
+  effect {
+    const fs = try Effect.service(FileSystem.FileSystem);
+    const path = try Effect.service(Path.Path);
+    const storage = try Effect.service(Storage.Storage);
+
+    const makeStorageService = effect {
+      const storageDiskPath = "disk" in storage ? storage.disk?.path : undefined;
+      if (!storageDiskPath) {
+        throw ConfigError.make({
+          subtag: "Flagship",
+          message: "Cannot configure Flagship persistence: the Storage service has no disk path.",
+          hint: "Configure a disk-backed storage layer (`Storage.layerDisk` or `Storage.layerTemp`).",
+        });
+      }
+      const persistPath = path.join(storageDiskPath, FLAGSHIP_STORAGE_DIRECTORY);
+      fs.makeDirectory(persistPath, { recursive: true }) catch effect (cause) => { throw ConfigError.make({
+            subtag: "Flagship",
+            message: `Failed to create Flagship persistence directory "${persistPath}": ${cause.message}`,
+            hint: "Ensure the storage directory is writable.",
+            detail: { persistPath },
+            cause,
+          }) };
+      return {
+        name: SERVICE_FLAGSHIP_STORAGE,
+        disk: { path: persistPath, writable: false },
+      } satisfies WorkerdConfig.Service;
+    };
+
+    return Flagship.of(
+      Effect.sync(() => {
+        let used = false;
+
+        return {
+          api: {
+            register: effect (props: FlagshipServiceProps) => try Effect.sync(() => {
+                used = true;
+                return {
+                  name: SERVICE_FLAGSHIP,
+                  entrypoint: FLAGSHIP_ENTRYPOINT,
+                  props: { json: JSON.stringify(props) },
+                };
+              }),
+          },
+          defer: effect {
+            if (!used) return {};
+            const storageService = try makeStorageService;
+            const flagshipService: WorkerdConfig.Service = {
+              name: SERVICE_FLAGSHIP,
+              worker: {
+                compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
+                modules: formatInternalWorkerModules(try Effect.promise(FlagshipWorker.worker)),
+                bindings: [
+                  {
+                    name: BINDING_FLAGSHIP_DISK,
+                    service: { name: SERVICE_FLAGSHIP_STORAGE },
+                  },
+                ],
+              },
+            };
+            return { services: [storageService, flagshipService] };
+          },
+        };
+      }),
+    );
+  },
+);
+
+/**
+ * Bind a local Flagship app (`env.<binding>.getBooleanValue()` / ...).
+ *
+ * Flags are evaluated locally against the definitions written with
+ * {@link writeFlag} under `{storage}/flagship`, keyed by the app id, so
+ * bindings with the same `appId` share flags (including across workers,
+ * processes and restarts when disk-backed storage is configured). A flag
+ * without a definition evaluates to the default value with
+ * `errorCode: "FLAG_NOT_FOUND"`.
+ */
+export const local = effect (props: FlagshipProps): BindingHook<Flagship> =>
+  try Plugin.use(Flagship, effect (flagship) => try Effect.map(
+      flagship.api.register({ appId: props.appId }),
+      (service): WorkerdConfig.Worker_Binding => ({
+        name: props.binding,
+        service,
+      }),
+    ),
+  );
+
+/** Bind to a deployed Flagship app via the remote bindings proxy. */
+export const remote = effect (binding: string, appId: string) =>
+  try makeRemoteBinding(
+    {
+      name: binding,
+      type: "flagship",
+      appId,
+    },
+    (service) => ({
+      name: binding,
+      service,
+    }),
+  );
+
+// -----------------------------------------------------------------------------
+// Node-side store: flag definitions are plain JSON files, so deploy-time
+// tooling reads and writes them directly — no workerd instance needed — and
+// running local bindings see every change on their next evaluation.
+// -----------------------------------------------------------------------------
+
+/** Location of the local Flagship store under a runtime storage directory. */
+export interface FlagshipStore {
+  /** The runtime's storage directory (`RuntimeConfig.storage.directory`). */
+  readonly storageDirectory: string;
+  readonly appId: string;
+}
+
+const flagFile = effect (store: FlagshipStore, flagKey: string) => {
+  const path = try Effect.service(Path.Path);
+  return path.join(
+    store.storageDirectory,
+    FLAGSHIP_STORAGE_DIRECTORY,
+    ...flagFileSegments(store.appId, flagKey),
+  );
+};
+
+/**
+ * Write a flag definition into a local app (idempotent overwrite). The file
+ * is replaced atomically, so a concurrent evaluation reads either the old or
+ * the new definition.
+ */
+export const writeFlag = effect (
+  store: FlagshipStore,
+  flagKey: string,
+  definition: FlagshipFlagDefinition,
+) => try withSpan(effect {
+  const fs = try Effect.service(FileSystem.FileSystem);
+  const path = try Effect.service(Path.Path);
+  const file = try flagFile(store, flagKey);
+  try fs.makeDirectory(path.dirname(file), { recursive: true });
+  const temp = `${file}.${try Effect.sync(() => crypto.randomUUID())}.tmp`;
+  try fs.writeFileString(temp, JSON.stringify(definition));
+  try fs.rename(temp, file);
+}, "Flagship.writeFlag");
+
+/** Remove a flag from a local app (idempotent). */
+export const deleteFlag = effect (
+  store: FlagshipStore,
+  flagKey: string,
+) => try withSpan(effect {
+  const fs = try Effect.service(FileSystem.FileSystem);
+  try fs.remove(try flagFile(store, flagKey), { force: true });
+}, "Flagship.deleteFlag");
+
+/** Remove every flag of a local app (idempotent). */
+export const deleteApp = effect (store: FlagshipStore) => try withSpan(effect {
+  const fs = try Effect.service(FileSystem.FileSystem);
+  const path = try Effect.service(Path.Path);
+  try fs.remove(
+    path.join(store.storageDirectory, FLAGSHIP_STORAGE_DIRECTORY, encodeSegment(store.appId)),
+    { recursive: true, force: true },
+  );
+}, "Flagship.deleteApp");
+
+/**
+ * Evaluate a flag of a local app from Node, with the same rules a local
+ * binding applies (`expectedType` is the typed method's value type, or
+ * `undefined` for the untyped `get`).
+ */
+export const evaluate = effect (
+  store: FlagshipStore,
+  input: {
+    readonly flagKey: string;
+    readonly defaultValue: unknown;
+    readonly expectedType: FlagshipValueType | undefined;
+    readonly context: unknown;
+  },
+) => try withSpan(effect {
+  const fs = try Effect.service(FileSystem.FileSystem);
+  const file = try flagFile(store, input.flagKey);
+  const text = try (fs
+    .readFileString(file)
+  |> Effect.catchReason(%, "PlatformError", "NotFound", effect () => try Effect.undefined));
+  let flag: FlagshipFlagDefinition | undefined;
+  if (text !== undefined) {
+    const parsed = try (Effect.try(() => JSON.parse(text) as FlagshipFlagDefinition)
+  |> Effect.option(%));
+    if (parsed._tag === "None") {
+      return {
+        flagKey: input.flagKey,
+        value: input.defaultValue,
+        reason: "ERROR",
+        errorCode: "PARSE_ERROR",
+        errorMessage: `Flag "${input.flagKey}" has an invalid definition`,
+      } satisfies FlagshipDetails;
+    }
+    flag = parsed.value;
+  }
+  return evaluateFlag({ ...input, flag });
+}, "Flagship.evaluate");

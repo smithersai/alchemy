@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveBillingMeter } from "./RetrieveBillingMeter.js";
+import { RetrieveBillingMeter } from "./RetrieveBillingMeter.vibe";
 /**
  * HTTP implementation of {@link RetrieveBillingMeter}.
  *

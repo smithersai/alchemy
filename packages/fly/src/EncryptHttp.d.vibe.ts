@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Encrypt } from "./Encrypt.js";
+import { Encrypt } from "./Encrypt.vibe";
 /**
  * HTTP implementation of {@link Encrypt}. Provide it on the
  * {@link Service} or Action Effect.

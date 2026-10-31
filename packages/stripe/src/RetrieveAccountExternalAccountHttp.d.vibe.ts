@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveAccountExternalAccount } from "./RetrieveAccountExternalAccount.js";
+import { RetrieveAccountExternalAccount } from "./RetrieveAccountExternalAccount.vibe";
 /**
  * HTTP implementation of {@link RetrieveAccountExternalAccount}. The
  * nested retrieve takes both `account` and `id`.

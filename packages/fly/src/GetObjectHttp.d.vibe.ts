@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetObject } from "./GetObject.js";
+import { GetObject } from "./GetObject.vibe";
 /**
  * HTTP implementation of {@link GetObject}. Calls distilled S3
  * `getObject` against the Tigris endpoint with the bucket's credentials.

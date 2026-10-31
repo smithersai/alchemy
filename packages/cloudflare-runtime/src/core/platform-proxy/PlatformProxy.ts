@@ -50,7 +50,7 @@ const ProxyWorker = {
   worker: () =>
     loadInternalWorker("#cloudflare-runtime-core-worker/platform-proxy/PlatformProxy.worker"),
 };
-import * as Text from "../bindings/Text.ts";
+import * as Text from "../bindings/Text.vibe";
 import type { BindingHook } from "../PluginContext.ts";
 import * as Runtime from "../Runtime.ts";
 import { ConfigError, type RuntimeError, SystemError } from "../RuntimeError.shared.ts";

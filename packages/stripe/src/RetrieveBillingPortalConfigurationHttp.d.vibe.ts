@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveBillingPortalConfiguration } from "./RetrieveBillingPortalConfiguration.js";
+import { RetrieveBillingPortalConfiguration } from "./RetrieveBillingPortalConfiguration.vibe";
 /**
  * HTTP implementation of {@link RetrieveBillingPortalConfiguration}.
  *

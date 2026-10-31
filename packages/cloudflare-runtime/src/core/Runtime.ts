@@ -8,7 +8,7 @@ import * as Result from "effect/Result";
 import * as Scope from "effect/Scope";
 import * as Docker from "./Docker.ts";
 import type * as Globals from "./globals/Globals.ts";
-import * as Storage from "./globals/Storage.ts";
+import * as Storage from "./globals/Storage.vibe";
 import {
   defaultDurableObjectUniqueKey,
   SERVICE_USER_WORKER,

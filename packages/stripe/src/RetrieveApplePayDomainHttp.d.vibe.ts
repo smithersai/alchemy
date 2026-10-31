@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveApplePayDomain } from "./RetrieveApplePayDomain.js";
+import { RetrieveApplePayDomain } from "./RetrieveApplePayDomain.vibe";
 /**
  * HTTP implementation of {@link RetrieveApplePayDomain}. Provide it on
  * the Function or Worker Effect.

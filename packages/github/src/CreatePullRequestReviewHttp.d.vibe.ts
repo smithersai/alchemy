@@ -1,7 +1,7 @@
 import * as Pulls from "@distilled.cloud/github/pulls";
 import * as Layer from "effect/Layer";
 import * as BindingHttp from "./BindingHttp.js";
-import { CreatePullRequestReview, type CreatePullRequestReviewRequest } from "./CreatePullRequestReview.js";
+import { CreatePullRequestReview, type CreatePullRequestReviewRequest } from "./CreatePullRequestReview.vibe";
 export declare const createPullRequestReviewOperation: BindingHttp.Operation<[request: CreatePullRequestReviewRequest], Pulls.PullRequestReview, Pulls.CreateReviewError>;
 /**
  * Token-backed implementation of {@link CreatePullRequestReview}. Provide it on a Worker or

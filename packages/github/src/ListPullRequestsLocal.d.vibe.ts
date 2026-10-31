@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListPullRequests } from "./ListPullRequests.js";
+import { ListPullRequests } from "./ListPullRequests.vibe";
 /**
  * Implementation of {@link ListPullRequests} with the provider's current credentials.
  * Provide it on an `Action` or another deploy-time Effect.

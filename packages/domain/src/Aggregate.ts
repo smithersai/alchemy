@@ -10,7 +10,7 @@ import * as Schema from "effect/Schema";
 import type * as Command from "./Command.vibe";
 import type * as Event from "./Event.vibe";
 import { DefinitionError, judge, settle, targetId as internalTargetId } from "./internal.vibe";
-import type * as Middleware from "./Middleware.ts";
+import type * as Middleware from "./Middleware.vibe";
 import type * as Read from "./Read.vibe";
 import type * as Rejection from "./Rejection.vibe";
 import * as RequestContext from "./RequestContext.ts";

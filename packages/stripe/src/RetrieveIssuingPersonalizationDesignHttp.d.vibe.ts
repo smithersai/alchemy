@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveIssuingPersonalizationDesign } from "./RetrieveIssuingPersonalizationDesign.js";
+import { RetrieveIssuingPersonalizationDesign } from "./RetrieveIssuingPersonalizationDesign.vibe";
 /**
  * HTTP implementation of {@link RetrieveIssuingPersonalizationDesign}.
  * Provide it on the Function or Worker Effect.

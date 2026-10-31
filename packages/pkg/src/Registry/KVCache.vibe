@@ -1,0 +1,50 @@
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Schema from "effect/Schema";
+import { Cache } from "./Bindings.ts";
+
+/** KV's floor for both `expirationTtl` and `cacheTtl`. */
+const MIN_TTL = Duration.minutes(1);
+
+const seconds = (duration: Duration.Duration): infer _ => Math.floor(Duration.toSeconds(duration));
+
+/**
+ * A lookup-through cache on the registry's KV namespace, shared by every
+ * isolate of the Worker.
+ *
+ * Concurrent misses each run the lookup and each write; the last write wins.
+ * That is deliberate: a cache that shares an in-flight lookup, like Effect's
+ * `Cache`, has later callers join the first caller's fiber, and workerd drops
+ * a fiber resumed from another request's context once that request
+ * completes, which surfaces as the joining request hanging.
+ *
+ * Reads set `cacheTtl`, so a value can still be served from the colo's edge
+ * cache for up to a minute after it expired; a lookup's `ttl` must leave
+ * that margin. Values with less than a minute left are not stored. KV
+ * failures are logged and fall through to the lookup.
+ */
+export const make = <K, A, I, E, R>(
+  key: (input: K) => string,
+  value: Schema.Codec<A, I>,
+  lookup: (input: K) => { mutable value: A; mutable ttl: Duration.Duration }!E!R,
+): infer _ => {
+  const json = Schema.fromJsonString(value);
+  const decode = Schema.decodeUnknownEffect(json);
+  const encode = Schema.encodeEffect(json);
+  return effect (input: K) => {
+      const kv = try Cloudflare.KV.ReadWriteNamespace(Cache);
+      const id = key(input);
+      const hit = (try effect { const text = try kv.get(id, { cacheTtl: seconds(MIN_TTL) })
+return (text === null ? try Effect.undefined : try decode(text)) }) catch effect (e) => try (Effect.logWarning(`cache read of ${id} failed: ${e.message}`)
+  |> Effect.as(%, undefined));
+      if (hit !== undefined) {
+        return hit;
+      }
+      const fresh = try lookup(input);
+      if (Duration.isGreaterThanOrEqualTo(fresh.ttl, MIN_TTL)) {
+        (try kv.put(id, (try encode(fresh.value)), { expirationTtl: seconds(fresh.ttl) })) catch effect (e) => try Effect.logWarning(`cache write of ${id} failed: ${e.message}`);
+      }
+      return fresh.value;
+    };
+};

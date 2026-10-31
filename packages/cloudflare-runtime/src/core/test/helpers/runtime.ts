@@ -12,8 +12,8 @@ import * as Stream from "effect/Stream";
 import * as Docker from "../../Docker.ts";
 import * as Globals from "../../globals/Globals.ts";
 import * as Internet from "../../globals/Internet.ts";
-import * as Storage from "../../globals/Storage.ts";
-import * as Paths from "../../internal/Paths.ts";
+import * as Storage from "../../globals/Storage.vibe";
+import * as Paths from "../../internal/Paths.vibe";
 import * as Registry from "../../registry/Registry.ts";
 import * as RegistryProxy from "../../registry/RegistryProxy.ts";
 import {

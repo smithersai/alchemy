@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveAccountPerson } from "./RetrieveAccountPerson.js";
+import { RetrieveAccountPerson } from "./RetrieveAccountPerson.vibe";
 /**
  * HTTP implementation of {@link RetrieveAccountPerson}. Retrieve takes
  * both `account` and `person`.

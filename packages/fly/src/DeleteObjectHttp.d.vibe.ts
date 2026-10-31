@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { DeleteObject } from "./DeleteObject.js";
+import { DeleteObject } from "./DeleteObject.vibe";
 /**
  * HTTP implementation of {@link DeleteObject}. Calls distilled S3
  * `deleteObject` against the Tigris endpoint with the bucket's credentials.

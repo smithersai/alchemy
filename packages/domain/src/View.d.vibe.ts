@@ -8,8 +8,8 @@ import type * as Stream from "effect/Stream";
 import type * as Aggregate from "./Aggregate.js";
 import type * as Event from "./Event.vibe";
 import type { Filter } from "./Filter.vibe";
-import type * as Key from "./Key.js";
-import type * as Middleware from "./Middleware.js";
+import type * as Key from "./Key.vibe";
+import type * as Middleware from "./Middleware.vibe";
 import type * as Read from "./Read.vibe";
 import type * as Rejection from "./Rejection.vibe";
 declare const WaitTimeout_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {

@@ -18,7 +18,7 @@ import {
 import { Credential, validateCredential } from "./Credential.ts";
 import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.vibe";
 import { FunctionEnvironment } from "./FunctionEnvironment.ts";
-import { makeLanguageModelLayer, type LanguageModelOptions } from "./LanguageModel.ts";
+import { makeLanguageModelLayer, type LanguageModelOptions } from "./LanguageModel.vibe";
 
 export interface QueryAIGatewayClient {
   /** Bare gateway root for SDKs that handle their own routing. */

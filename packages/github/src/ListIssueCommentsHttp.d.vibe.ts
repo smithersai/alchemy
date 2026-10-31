@@ -1,7 +1,7 @@
 import * as Issues from "@distilled.cloud/github/issues";
 import * as Layer from "effect/Layer";
 import * as BindingHttp from "./BindingHttp.js";
-import { ListIssueComments, type ListIssueCommentsRequest } from "./ListIssueComments.js";
+import { ListIssueComments, type ListIssueCommentsRequest } from "./ListIssueComments.vibe";
 export declare const listIssueCommentsOperation: BindingHttp.Operation<[request: ListIssueCommentsRequest], Issues.ListCommentsResponseBodyList, Issues.ListCommentsError>;
 /**
  * Token-backed implementation of {@link ListIssueComments}. Provide it on a Worker or

@@ -6,12 +6,12 @@ import { loadInternalWorker } from "../../internal/internal-worker.ts";
 const StreamWorker = {
   worker: () => loadInternalWorker("#cloudflare-runtime-core-worker/bindings/stream/Stream.worker"),
 };
-import * as Loopback from "../../globals/Loopback.ts";
+import * as Loopback from "../../globals/Loopback.vibe";
 import type * as LoopbackServer from "../../globals/LoopbackServer.ts";
-import * as Storage from "../../globals/Storage.ts";
+import * as Storage from "../../globals/Storage.vibe";
 import { DEFAULT_COMPATIBILITY_DATE, SOCKET_USER_ENTRY } from "../../internal/constants.ts";
 import { formatInternalWorkerModules } from "../../internal/internal-modules.ts";
-import * as Plugin from "../../Plugin.ts";
+import * as Plugin from "../../Plugin.vibe";
 import { PluginContext, type BindingHook } from "../../PluginContext.ts";
 import { makeRemoteBinding } from "../../remote-bindings/RemoteBindings.ts";
 import { ConfigError } from "../../RuntimeError.shared.ts";

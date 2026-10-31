@@ -2,7 +2,7 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { SERVICE_USER_WORKER } from "../internal/constants.ts";
-import * as Plugin from "../Plugin.ts";
+import * as Plugin from "../Plugin.vibe";
 import * as PluginContext from "../PluginContext.ts";
 import type { RuntimeWorker } from "../RuntimeWorker.ts";
 

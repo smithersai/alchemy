@@ -31,8 +31,8 @@ import type {
 import { DEFAULT_COMPATIBILITY_DATE } from "../../internal/constants.ts";
 import { formatInternalWorkerModules } from "../../internal/internal-modules.ts";
 import { loadInternalWorker } from "../../internal/internal-worker.ts";
-import * as Paths from "../../internal/Paths.ts";
-import * as Plugin from "../../Plugin.ts";
+import * as Paths from "../../internal/Paths.vibe";
+import * as Plugin from "../../Plugin.vibe";
 import { PluginContext, type BindingHook } from "../../PluginContext.ts";
 import { ConfigError, SystemError } from "../../RuntimeError.shared.ts";
 import type { RuntimeWorker } from "../../RuntimeWorker.ts";

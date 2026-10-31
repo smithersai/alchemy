@@ -3,7 +3,7 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { vi } from "vitest";
-import { listenOnLoopback } from "../internal/listen-on-loopback.ts";
+import { listenOnLoopback } from "../internal/listen-on-loopback.vibe";
 
 describe("Docker proxy lifetime", () => {
   it.effect("closes its listener when the scope ends", () =>

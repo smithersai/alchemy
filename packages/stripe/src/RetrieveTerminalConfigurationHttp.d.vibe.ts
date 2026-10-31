@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveTerminalConfiguration } from "./RetrieveTerminalConfiguration.js";
+import { RetrieveTerminalConfiguration } from "./RetrieveTerminalConfiguration.vibe";
 /**
  * HTTP implementation of {@link RetrieveTerminalConfiguration}. Provide it
  * on the Function or Worker Effect.

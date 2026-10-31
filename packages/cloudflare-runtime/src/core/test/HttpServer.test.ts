@@ -5,8 +5,8 @@ import * as Exit from "effect/Exit";
 import * as Schedule from "effect/Schedule";
 import * as Scope from "effect/Scope";
 import { WebSocket, WebSocketServer } from "ws";
-import * as Service from "../bindings/Service.ts";
-import { registerHttpServer } from "../HttpServer.ts";
+import * as Service from "../bindings/Service.vibe";
+import { registerHttpServer } from "../HttpServer.vibe";
 import { localRuntimeLayer, startTestWorker } from "./helpers/runtime.ts";
 
 layer(localRuntimeLayer, { excludeTestServices: true })("HTTP dev server bindings", (it) => {

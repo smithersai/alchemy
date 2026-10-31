@@ -1,7 +1,7 @@
 import * as NodeHttp from "node:http";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import { getAddress, toConnectableHost } from "../../internal/get-address.ts";
+import { getAddress, toConnectableHost } from "../../internal/get-address.vibe";
 
 const listen = (host?: string) =>
   Effect.acquireRelease(

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveTaxRegistration } from "./RetrieveTaxRegistration.js";
+import { RetrieveTaxRegistration } from "./RetrieveTaxRegistration.vibe";
 /**
  * HTTP implementation of {@link RetrieveTaxRegistration}. Provide it on
  * the Function or Worker Effect.

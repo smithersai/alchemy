@@ -18,7 +18,7 @@ import {
   ManifestJson,
   type Manifest,
   type ManifestPackage,
-} from "../Manifest.ts";
+} from "../Manifest.vibe";
 import { manifestArtifactName, tarballUrl } from "../Protocol.ts";
 
 export class WorkspaceError extends Data.TaggedError("WorkspaceError")<{

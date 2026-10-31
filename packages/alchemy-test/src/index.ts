@@ -54,4 +54,4 @@ export type {
   Suite,
   TestBody,
   TestCase,
-} from "./Model.ts";
+} from "./Model.vibe";

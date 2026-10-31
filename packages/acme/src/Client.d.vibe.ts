@@ -14,7 +14,7 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import type { CertificateAuthority } from "./CertificateAuthority.js";
-import { type PropagationOptions } from "./Dns.js";
+import { type PropagationOptions } from "./Dns.vibe";
 import type { DnsSolver } from "./DnsSolver.vibe";
 import { ChallengeFailed, ChallengeUnsupported, OrderInvalid, OrderTimeout, PkiError, type DnsPropagationTimeout, type DnsSolverError } from "./Errors.vibe";
 import { type KeyAlgorithm } from "./Pki.js";

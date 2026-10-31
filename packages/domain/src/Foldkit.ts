@@ -11,7 +11,7 @@ import { defineMessageUnion, type MessageUnion } from "foldkit/message";
 import type * as Aggregate from "./Aggregate.ts";
 import type * as Api from "./Api.vibe";
 import type * as DomainCommand from "./Command.vibe";
-import * as Key from "./Key.ts";
+import * as Key from "./Key.vibe";
 import * as Read from "./Read.vibe";
 import { nameOf } from "./ReadRpcs.ts";
 import type * as DomainStream from "./Stream.vibe";

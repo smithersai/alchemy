@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as BindingHttp from "./BindingHttp.ts";
 import { IssueNotFound } from "./Errors.vibe";
-import { GetIssue, type GetIssueRequest } from "./GetIssue.ts";
+import { GetIssue, type GetIssueRequest } from "./GetIssue.vibe";
 
 export const getIssueOperation = BindingHttp.operation(
   "issues.get",

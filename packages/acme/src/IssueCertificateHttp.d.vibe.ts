@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { IssueCertificate } from "./IssueCertificate.js";
+import { IssueCertificate } from "./IssueCertificate.vibe";
 /**
  * Implementation of {@link IssueCertificate}: the account's directory
  * URL, account URL and private key are bound into the host at deploy time

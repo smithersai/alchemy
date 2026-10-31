@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrievePrice } from "./RetrievePrice.js";
+import { RetrievePrice } from "./RetrievePrice.vibe";
 /**
  * HTTP implementation of {@link RetrievePrice}. Provide it on the
  * Function or Worker Effect.

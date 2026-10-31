@@ -1,0 +1,705 @@
+#!/usr/bin/env bun
+
+// @ts-nocheck
+
+import { parseArgs } from "node:util"
+import * as Credentials from "@distilled.cloud/aws/Credentials"
+import * as ec2 from "@distilled.cloud/aws/ec2"
+import { Region } from "@distilled.cloud/aws/Region"
+import { NodeServices } from "@effect/platform-node"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as FetchHttpClient from "effect/http/FetchHttpClient"
+import * as Layer from "effect/Layer"
+
+export class CleanAwsNotReady extends Data.TaggedError("CleanAwsNotReady")<{
+  readonly message: string
+  readonly cause?: unknown
+}> {}
+
+const { values } = parseArgs({
+  args: Bun.argv.slice(2),
+  options: {
+    region: { type: "string", short: "r" },
+    profile: { type: "string", short: "p" },
+    execute: { type: "boolean" },
+    "include-default-vpcs": { type: "boolean" },
+    passes: { type: "string" },
+    help: { type: "boolean", short: "h" },
+  },
+  strict: true,
+})
+
+const usage = `
+Best-effort EC2 regional cleanup using @distilled.cloud/aws.
+
+Usage:
+  bun alchemy/scripts/clean-aws.ts --region us-east-1 [--profile dev]
+  bun alchemy/scripts/clean-aws.ts --region us-east-1 --execute
+
+Options:
+  --region, -r              AWS region to clean
+  --profile, -p             Optional AWS profile
+  --execute                 Perform deletions (default is dry-run)
+  --include-default-vpcs    Also attempt to delete default VPC resources
+  --passes                  Cleanup passes to run (default: 1 dry-run, 4 execute)
+  --help, -h                Show this help
+`
+
+if (values.help) {
+  console.log(usage.trim())
+  process.exit(0)
+}
+
+const region = values.region ?? process.env.AWS_REGION ?? process.env.AWS_DEFAULT_REGION
+if (!region) {
+  console.error("Missing --region. Set it explicitly or via AWS_REGION.")
+  console.error(usage.trim())
+  process.exit(1)
+}
+
+if (values.profile) {
+  process.env.AWS_PROFILE = values.profile
+}
+
+const execute = values.execute ?? false
+const includeDefaultVpcs = values["include-default-vpcs"] ?? false
+const maxPasses = Number(values.passes ?? (execute ? "4" : "1"))
+
+if (!Number.isFinite(maxPasses) || maxPasses < 1) {
+  console.error("--passes must be a positive integer.")
+  process.exit(1)
+}
+
+const credentialsLayer = values.profile
+  ? Layer.provideMerge(
+    Credentials.fromSSO(values.profile),
+    Layer.mergeAll(NodeServices.layer, FetchHttpClient.layer),
+  )
+  : Credentials.fromChain()
+
+const runtime = Layer.mergeAll(
+  NodeServices.layer,
+  FetchHttpClient.layer,
+  credentialsLayer,
+  Layer.succeed(Region, region),
+)
+
+const formatError = (error: unknown): infer _ => {
+  if (typeof error === "object" && error && "_tag" in error) {
+    const tagged = error as { mutable _tag: string; mutable message?: string }
+    return tagged.message ? `${tagged._tag}: ${tagged.message}` : tagged._tag
+  }
+  if (error instanceof Error) {
+    return error.message
+  }
+  try {
+    return JSON.stringify(error)
+  } catch {
+    return String(error)
+  }
+}
+
+const log = effect (message: string) => try Effect.sync(() => console.log(message))
+const warn = effect (message: string) => try Effect.sync(() => console.warn(message))
+
+const isNotFoundError = (error: unknown): infer _ =>
+  typeof error === "object"
+  && error !== null
+  && "_tag" in error
+  && String((error as { mutable _tag: string })._tag).includes("NotFound")
+
+const uniq = <T>(items: ReadonlyArray<T | null | undefined>): infer _ => [
+  ...new Set(items.filter((item): item is T => item !== null && item !== undefined)),
+]
+
+const chunk = <T>(items: ReadonlyArray<T>, size: number): infer _ => {
+  const groups: T[][] = []
+  for (let index = 0; index < items.length; index += size) {
+    groups.push(items.slice(index, index + size))
+  }
+  return groups
+}
+
+const preview = effect (
+  label: string,
+  ids: ReadonlyArray<string>,
+) => (ids.length === 0 ? try Effect.void : try log(`Found ${ids.length} ${label}: ${ids.join(", ")}`))
+
+const ignoreFailure = effect <A, E, R>(
+  label: string,
+  effect: Effect.Effect<A, E, R>,
+): Effect.Effect<void, E, R> =>
+  (try (effect
+    |> Effect.asVoid(%))) catch effect (error) =>
+      try (isNotFoundError(error)
+        ? warn(`Already gone ${label}: ${formatError(error)}`)
+        : Effect.fail(error as E))
+
+const deleteEach = effect <R>(
+  label: string,
+  ids: ReadonlyArray<string>,
+  remove: (id: string) => Effect.Effect<any, any, R>,
+) => {
+  if (ids.length === 0) {
+    return
+  }
+
+  try preview(label, ids)
+  if (!execute) {
+    return
+  }
+
+  try Effect.forEach(ids, (id) => ignoreFailure(`${label} ${id}`, remove(id)), {
+    concurrency: 1,
+    discard: true,
+  })
+}
+
+const repeatUntil = effect <A, E, R>(
+  label: string,
+  effect: Effect.Effect<A, E, R>,
+  done: (value: A) => boolean,
+  attempts: number,
+  delayMs: number,
+): Effect.Effect<void, E, R> => {
+  const value = try effect
+  if (done(value)) {
+    return
+  }
+  if (attempts <= 1) {
+    try warn(`Timed out waiting for ${label}.`)
+    return
+  }
+  try log(`Waiting for ${label}...`)
+  try Effect.sleep(delayMs)
+  try repeatUntil(label, effect, done, attempts - 1, delayMs)
+}
+
+const terminateInstances = effect {
+  const response = try ec2.describeInstances({} as any)
+  const ids = uniq(
+    (response.Reservations ?? []).flatMap((reservation: any) =>
+      (reservation.Instances ?? [])
+        .filter((instance: any) => {
+          const state = instance.State?.Name
+          return state !== "shutting-down" && state !== "terminated"
+        })
+        .map((instance: any) => instance.InstanceId)
+    ),
+  )
+
+  if (ids.length === 0) {
+    return
+  }
+
+  try preview("instance(s)", ids)
+  if (!execute) {
+    return
+  }
+
+  for (const group of chunk(ids, 100)) {
+    try ignoreFailure(
+      `instances ${group.join(", ")}`,
+      ec2.terminateInstances({ InstanceIds: group } as any),
+    )
+  }
+
+  try repeatUntil(
+    "instances to terminate",
+    effect {
+      return uniq(
+        ((try ec2
+          .describeInstances({} as any)).Reservations ?? []).flatMap((reservation: any) =>
+            (reservation.Instances ?? [])
+              .filter((instance: any) => ids.includes(instance.InstanceId))
+              .map((instance: any) => instance.State?.Name)
+          ),
+      )
+    },
+    (states) => states.every((state) => state === "terminated"),
+    40,
+    5_000,
+  )
+}
+
+const deleteVpcEndpoints = effect {
+  const ids = uniq(
+    (try ec2.describeVpcEndpoints({} as any)).VpcEndpoints?.map(
+      (endpoint: any) => endpoint.VpcEndpointId,
+    ),
+  )
+
+  if (ids.length === 0) {
+    return
+  }
+
+  try preview("VPC endpoint(s)", ids)
+  if (!execute) {
+    return
+  }
+
+  for (const group of chunk(ids, 25)) {
+    try ignoreFailure(
+      `VPC endpoints ${group.join(", ")}`,
+      ec2.deleteVpcEndpoints({ VpcEndpointIds: group } as any),
+    )
+  }
+
+  try repeatUntil(
+    "VPC endpoints to delete",
+    effect {
+      return (uniq(
+        ((try ec2.describeVpcEndpoints({ VpcEndpointIds: ids } as any)).VpcEndpoints ?? []).map((endpoint: any) =>
+          endpoint.VpcEndpointId
+        ),
+      )) catch effect (error) => try (isNotFoundError(error) ? Effect.succeed([] as string[]) : Effect.fail(error))
+    },
+    (remainingIds) => remainingIds.length === 0,
+    30,
+    5_000,
+  )
+}
+
+const deleteNatGateways = effect {
+  const ids = uniq(
+    (try ec2.describeNatGateways({} as any)).NatGateways?.filter(
+      (natGateway: any) => natGateway.State !== "deleted",
+    ).map((natGateway: any) => natGateway.NatGatewayId),
+  )
+
+  if (ids.length === 0) {
+    return
+  }
+
+  try preview("NAT gateway(s)", ids)
+  if (!execute) {
+    return
+  }
+
+  try Effect.forEach(
+    ids,
+    (id) => ignoreFailure(`NAT gateway ${String(id)}`, ec2.deleteNatGateway({ NatGatewayId: id } as any)),
+    { concurrency: 1, discard: true },
+  )
+
+  try repeatUntil(
+    "NAT gateways to delete",
+    effect {
+      return uniq(
+        ((try ec2
+          .describeNatGateways({} as any)).NatGateways ?? [])
+          .filter((natGateway: any) => ids.includes(natGateway.NatGatewayId))
+          .map((natGateway: any) => natGateway.State),
+      )
+    },
+    (states) => states.every((state) => state === "deleted"),
+    30,
+    10_000,
+  )
+}
+
+const deleteNetworkInterfaces = effect {
+  const interfaces = (try ec2.describeNetworkInterfaces({} as any)).NetworkInterfaces ?? []
+
+  const blocked = interfaces.filter(
+    (networkInterface: any) =>
+      networkInterface.Attachment
+      || networkInterface.RequesterManaged
+      || networkInterface.Status !== "available",
+  )
+
+  if (blocked.length > 0) {
+    throw new CleanAwsNotReady({
+      message: `Network interfaces still in use: ${
+        blocked
+          .map(
+            (networkInterface: any) =>
+              `${networkInterface.NetworkInterfaceId}(status=${
+                networkInterface.Status ?? "unknown"
+              }, requesterManaged=${networkInterface.RequesterManaged ?? false}, attachment=${
+                networkInterface.Attachment?.AttachmentId ?? "none"
+              })`,
+          )
+          .join(", ")
+      }`,
+    })
+  }
+
+  const ids = uniq(interfaces.map((networkInterface: any) => networkInterface.NetworkInterfaceId))
+
+  try deleteEach("network interface(s)", ids, (id) => ec2.deleteNetworkInterface({ NetworkInterfaceId: id } as any))
+}
+
+const releaseElasticIps = effect {
+  const addresses = (try ec2.describeAddresses({} as any)).Addresses ?? []
+  const ids = uniq(addresses.map((address: any) => address.AllocationId ?? address.PublicIp))
+
+  if (ids.length === 0) {
+    return
+  }
+
+  try preview("elastic IP(s)", ids)
+  if (!execute) {
+    return
+  }
+
+  try Effect.forEach(
+    addresses,
+    effect (address: any) => {
+      if (address.AssociationId) {
+        try ignoreFailure(
+          `elastic IP association ${address.AssociationId}`,
+          ec2.disassociateAddress({
+            AssociationId: address.AssociationId,
+          } as any),
+        )
+      }
+      try ignoreFailure(
+        `elastic IP ${address.AllocationId ?? address.PublicIp}`,
+        ec2.releaseAddress(
+          address.AllocationId
+            ? ({ AllocationId: address.AllocationId } as any)
+            : ({ PublicIp: address.PublicIp } as any),
+        ),
+      )
+    },
+    { concurrency: 1, discard: true },
+  )
+}
+
+const deleteVpcPeeringConnections = effect {
+  const ids = uniq(
+    (try ec2.describeVpcPeeringConnections({} as any)).VpcPeeringConnections?.filter(
+      (connection: any) => connection.Status?.Code !== "deleted",
+    ).map((connection: any) => connection.VpcPeeringConnectionId),
+  )
+
+  try deleteEach(
+    "VPC peering connection(s)",
+    ids,
+    (id) => ec2.deleteVpcPeeringConnection({ VpcPeeringConnectionId: id } as any),
+  )
+}
+
+const deleteVpnConnections = effect {
+  const ids = uniq(
+    (try ec2.describeVpnConnections({} as any)).VpnConnections?.filter(
+      (connection: any) => connection.State !== "deleted",
+    ).map((connection: any) => connection.VpnConnectionId),
+  )
+
+  try deleteEach("VPN connection(s)", ids, (id) => ec2.deleteVpnConnection({ VpnConnectionId: id } as any))
+}
+
+const deleteVpnGateways = effect {
+  const gateways = (try ec2.describeVpnGateways({} as any)).VpnGateways ?? []
+  const ids = uniq(
+    gateways
+      .filter((gateway: any) => gateway.State !== "deleted")
+      .map((gateway: any) => gateway.VpnGatewayId),
+  )
+
+  if (ids.length === 0) {
+    return
+  }
+
+  try preview("VPN gateway(s)", ids)
+  if (!execute) {
+    return
+  }
+
+  try Effect.forEach(
+    gateways,
+    effect (gateway: any) => {
+      for (const attachment of gateway.VpcAttachments ?? []) {
+        if (attachment.VpcId && attachment.State !== "detached") {
+          try ignoreFailure(
+            `VPN gateway attachment ${gateway.VpnGatewayId}`,
+            ec2.detachVpnGateway({
+              VpcId: attachment.VpcId,
+              VpnGatewayId: gateway.VpnGatewayId,
+            } as any),
+          )
+        }
+      }
+
+      try ignoreFailure(
+        `VPN gateway ${gateway.VpnGatewayId}`,
+        ec2.deleteVpnGateway({ VpnGatewayId: gateway.VpnGatewayId } as any),
+      )
+    },
+    { concurrency: 1, discard: true },
+  )
+}
+
+const deleteCustomerGateways = effect {
+  const ids = uniq(
+    (try ec2.describeCustomerGateways({} as any)).CustomerGateways?.map(
+      (gateway: any) => gateway.CustomerGatewayId,
+    ),
+  )
+
+  try deleteEach("customer gateway(s)", ids, (id) => ec2.deleteCustomerGateway({ CustomerGatewayId: id } as any))
+}
+
+const deleteInternetGateways = effect {
+  const gateways = (try ec2.describeInternetGateways({} as any)).InternetGateways ?? []
+  const ids = uniq(gateways.map((gateway: any) => gateway.InternetGatewayId))
+
+  if (ids.length === 0) {
+    return
+  }
+
+  try preview("internet gateway(s)", ids)
+  if (!execute) {
+    return
+  }
+
+  try Effect.forEach(
+    gateways,
+    effect (gateway: any) => {
+      for (const attachment of gateway.Attachments ?? []) {
+        if (attachment.VpcId) {
+          try ignoreFailure(
+            `internet gateway attachment ${gateway.InternetGatewayId}`,
+            ec2.detachInternetGateway({
+              InternetGatewayId: gateway.InternetGatewayId,
+              VpcId: attachment.VpcId,
+            } as any),
+          )
+        }
+      }
+
+      try ignoreFailure(
+        `internet gateway ${gateway.InternetGatewayId}`,
+        ec2.deleteInternetGateway({
+          InternetGatewayId: gateway.InternetGatewayId,
+        } as any),
+      )
+    },
+    { concurrency: 1, discard: true },
+  )
+}
+
+const deleteEgressOnlyInternetGateways = effect {
+  const gateways = (try ec2.describeEgressOnlyInternetGateways({} as any)).EgressOnlyInternetGateways ?? []
+  const ids = uniq(gateways.map((gateway: any) => gateway.EgressOnlyInternetGatewayId))
+
+  try deleteEach("egress-only internet gateway(s)", ids, (id) =>
+    ec2.deleteEgressOnlyInternetGateway({
+      EgressOnlyInternetGatewayId: id,
+    } as any))
+}
+
+const deleteRouteTables = effect {
+  const routeTables = (try ec2.describeRouteTables({} as any)).RouteTables?.filter(
+    (routeTable: any) => !(routeTable.Associations ?? []).some((association: any) => association.Main),
+  ) ?? []
+
+  const ids = uniq(routeTables.map((routeTable: any) => routeTable.RouteTableId))
+
+  if (ids.length === 0) {
+    return
+  }
+
+  try preview("non-main route table(s)", ids)
+  if (!execute) {
+    return
+  }
+
+  try Effect.forEach(
+    routeTables,
+    effect (routeTable: any) => {
+      for (const association of routeTable.Associations ?? []) {
+        if (!association.Main && association.RouteTableAssociationId) {
+          try ignoreFailure(
+            `route table association ${association.RouteTableAssociationId}`,
+            ec2.disassociateRouteTable({
+              AssociationId: association.RouteTableAssociationId,
+            } as any),
+          )
+        }
+      }
+
+      try ignoreFailure(
+        `route table ${routeTable.RouteTableId}`,
+        ec2.deleteRouteTable({
+          RouteTableId: routeTable.RouteTableId,
+        } as any),
+      )
+    },
+    { concurrency: 1, discard: true },
+  )
+}
+
+const deleteSubnets = effect {
+  const ids = uniq(
+    (try ec2.describeSubnets({} as any)).Subnets?.filter((subnet: any) =>
+      includeDefaultVpcs ? true : !subnet.DefaultForAz
+    ).map((subnet: any) => subnet.SubnetId),
+  )
+
+  try deleteEach("subnet(s)", ids, (id) => ec2.deleteSubnet({ SubnetId: id } as any))
+}
+
+const deleteSecurityGroups = effect {
+  const ids = uniq(
+    (try ec2.describeSecurityGroups({} as any)).SecurityGroups?.filter(
+      (group: any) => group.GroupName !== "default",
+    ).map((group: any) => group.GroupId),
+  )
+
+  try deleteEach("security group(s)", ids, (id) => ec2.deleteSecurityGroup({ GroupId: id } as any))
+}
+
+const deleteNetworkAcls = effect {
+  const ids = uniq(
+    (try ec2.describeNetworkAcls({} as any)).NetworkAcls?.filter(
+      (acl: any) => !acl.IsDefault,
+    ).map((acl: any) => acl.NetworkAclId),
+  )
+
+  try deleteEach("network ACL(s)", ids, (id) => ec2.deleteNetworkAcl({ NetworkAclId: id } as any))
+}
+
+const deleteAvailableVolumes = effect {
+  const ids = uniq(
+    (try ec2.describeVolumes({} as any)).Volumes?.filter(
+      (volume: any) => volume.State === "available",
+    ).map((volume: any) => volume.VolumeId),
+  )
+
+  try deleteEach("available volume(s)", ids, (id) => ec2.deleteVolume({ VolumeId: id } as any))
+}
+
+const deregisterImages = effect {
+  const ids = uniq(
+    (try ec2.describeImages({ Owners: ["self"] } as any)).Images?.map(
+      (image: any) => image.ImageId,
+    ),
+  )
+
+  try deleteEach("AMI(s)", ids, (id) => ec2.deregisterImage({ ImageId: id } as any))
+}
+
+const deleteSnapshots = effect {
+  const ids = uniq(
+    (try ec2.describeSnapshots({
+      OwnerIds: ["self"],
+    } as any)).Snapshots?.map((snapshot: any) => snapshot.SnapshotId),
+  )
+
+  try deleteEach("snapshot(s)", ids, (id) => ec2.deleteSnapshot({ SnapshotId: id } as any))
+}
+
+const deleteLaunchTemplates = effect {
+  const ids = uniq(
+    (try ec2.describeLaunchTemplates({} as any)).LaunchTemplates?.map(
+      (template: any) => template.LaunchTemplateId,
+    ),
+  )
+
+  try deleteEach("launch template(s)", ids, (id) => ec2.deleteLaunchTemplate({ LaunchTemplateId: id } as any))
+}
+
+const deletePlacementGroups = effect {
+  const ids = uniq(
+    (try ec2.describePlacementGroups({} as any)).PlacementGroups?.map(
+      (group: any) => group.GroupName,
+    ),
+  )
+
+  try deleteEach("placement group(s)", ids, (id) => ec2.deletePlacementGroup({ GroupName: id } as any))
+}
+
+const deleteKeyPairs = effect {
+  const ids = uniq(
+    (try ec2.describeKeyPairs({} as any)).KeyPairs?.map((keyPair: any) => keyPair.KeyPairId),
+  )
+
+  try deleteEach("key pair(s)", ids, (id) => ec2.deleteKeyPair({ KeyPairId: id } as any))
+}
+
+const deleteVpcs = effect {
+  const ids = uniq(
+    (try ec2.describeVpcs({} as any)).Vpcs?.filter((vpc: any) => includeDefaultVpcs ? true : !vpc.IsDefault).map((
+      vpc: any,
+    ) => vpc.VpcId),
+  )
+
+  try deleteEach("VPC(s)", ids, (id) => ec2.deleteVpc({ VpcId: id } as any))
+}
+
+const deleteDhcpOptions = effect {
+  const associatedDhcpOptionsIds = new Set(
+    uniq((try ec2.describeVpcs({} as any)).Vpcs?.map((vpc: any) => vpc.DhcpOptionsId)),
+  )
+
+  const ids = uniq(
+    (try ec2.describeDhcpOptions({} as any)).DhcpOptions?.map(
+      (dhcpOptions: any) => dhcpOptions.DhcpOptionsId,
+    ).filter((id: string) => id !== "default" && !associatedDhcpOptionsIds.has(id)),
+  )
+
+  try deleteEach("DHCP options set(s)", ids, (id) => ec2.deleteDhcpOptions({ DhcpOptionsId: id } as any))
+}
+
+const main = effect {
+  try log(
+    [
+      `Mode=${execute ? "execute" : "dry-run"}`,
+      `Region=${region}`,
+      values.profile ? `Profile=${values.profile}` : undefined,
+      includeDefaultVpcs ? "Including default VPCs" : "Skipping default VPCs",
+    ]
+      .filter((value): value is string => !!value)
+      .join(" | "),
+  )
+
+  for (let pass = 1; pass <= maxPasses; pass++) {
+    try log(`\n=== Cleanup pass ${pass}/${maxPasses} ===`)
+
+    try terminateInstances
+    try deleteVpcEndpoints
+    try deleteNatGateways
+    try deleteNetworkInterfaces
+    try releaseElasticIps
+    try deleteVpnConnections
+    try deleteVpnGateways
+    try deleteCustomerGateways
+    try deleteVpcPeeringConnections
+    try deleteInternetGateways
+    try deleteEgressOnlyInternetGateways
+    try deleteRouteTables
+    try deleteSubnets
+    try deleteSecurityGroups
+    try deleteNetworkAcls
+    try deleteAvailableVolumes
+    try deregisterImages
+    try deleteSnapshots
+    try deleteLaunchTemplates
+    try deletePlacementGroups
+    try deleteKeyPairs
+    try deleteVpcs
+    try deleteDhcpOptions
+
+    if (!execute) {
+      try log("\nDry-run complete. Re-run with --execute to perform deletions.")
+      return
+    }
+  }
+
+  try log("\nCleanup passes complete.")
+}
+
+Effect.runPromise(effect {
+  return try effect {
+    provide runtime {
+      return try main
+    }
+  }
+}).catch((error) => {
+  console.error(formatError(error))
+  process.exit(1)
+})

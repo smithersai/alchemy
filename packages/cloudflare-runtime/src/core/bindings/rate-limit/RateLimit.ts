@@ -8,9 +8,9 @@ const RateLimitBindingWorker = {
     ),
 };
 import { formatExtensionModule } from "../../internal/internal-modules.ts";
-import * as Plugin from "../../Plugin.ts";
+import * as Plugin from "../../Plugin.vibe";
 import type { BindingHook } from "../../PluginContext.ts";
-import type { RateLimitProps } from "./RateLimitProps.shared.ts";
+import type { RateLimitProps } from "./RateLimitProps.shared.vibe";
 
 export class RateLimit extends Plugin.Service<RateLimit>()("cloudflare-runtime/plugin/RateLimit") {}
 

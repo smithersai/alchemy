@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListPullRequestReviewComments } from "./ListPullRequestReviewComments.js";
+import { ListPullRequestReviewComments } from "./ListPullRequestReviewComments.vibe";
 /**
  * Implementation of {@link ListPullRequestReviewComments} with the provider's current credentials.
  * Provide it on an `Action` or another deploy-time Effect.

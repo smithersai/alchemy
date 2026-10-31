@@ -5,7 +5,7 @@ import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import { CredentialsFromAmbientOrEnv } from "./Credentials.ts";
-import { GetSecret } from "./GetSecret.ts";
+import { GetSecret } from "./GetSecret.vibe";
 import { makeHttpSecretBinding } from "./SecretHttp.vibe";
 
 /**

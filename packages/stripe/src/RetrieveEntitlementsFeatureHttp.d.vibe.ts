@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveEntitlementsFeature } from "./RetrieveEntitlementsFeature.js";
+import { RetrieveEntitlementsFeature } from "./RetrieveEntitlementsFeature.vibe";
 /**
  * HTTP implementation of {@link RetrieveEntitlementsFeature}.
  *

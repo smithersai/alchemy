@@ -1,1 +1,1 @@
-export * from "./Workflows.ts";
+export * from "./Workflows.vibe";

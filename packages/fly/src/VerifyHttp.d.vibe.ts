@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Verify } from "./Verify.js";
+import { Verify } from "./Verify.vibe";
 /**
  * HTTP implementation of {@link Verify}. Provide it on the
  * {@link Service} or Action Effect.

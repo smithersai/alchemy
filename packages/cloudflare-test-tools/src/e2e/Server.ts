@@ -12,7 +12,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import type * as Scope from "effect/Scope";
-import { makeCloudflareTarget } from "./CloudflareTarget.ts";
+import { makeCloudflareTarget } from "./CloudflareTarget.vibe";
 import { Cwd } from "./Cwd.ts";
 import * as Options from "./Options.ts";
 

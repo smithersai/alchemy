@@ -14,7 +14,7 @@ import {
   SERVICE_USER_WORKER,
 } from "../internal/constants.ts";
 import { formatInternalWorkerModules } from "../internal/internal-modules.ts";
-import * as Plugin from "../Plugin.ts";
+import * as Plugin from "../Plugin.vibe";
 import { PluginContext } from "../PluginContext.ts";
 import { SystemError } from "../RuntimeError.shared.ts";
 import * as WorkerdConfig from "../workerd/Config.ts";

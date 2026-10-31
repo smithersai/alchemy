@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Exec } from "./Exec.js";
+import { Exec } from "./Exec.vibe";
 /**
  * HTTP implementation of {@link Exec}. Provide it on the
  * {@link Sprite}, {@link Service}, or Action Effect.

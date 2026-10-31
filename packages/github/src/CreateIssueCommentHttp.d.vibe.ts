@@ -1,7 +1,7 @@
 import * as Issues from "@distilled.cloud/github/issues";
 import * as Layer from "effect/Layer";
 import * as BindingHttp from "./BindingHttp.js";
-import { CreateIssueComment, type CreateIssueCommentRequest } from "./CreateIssueComment.js";
+import { CreateIssueComment, type CreateIssueCommentRequest } from "./CreateIssueComment.vibe";
 export declare const createIssueCommentOperation: BindingHttp.Operation<[request: CreateIssueCommentRequest], Issues.IssueComment, Issues.CreateCommentError>;
 /**
  * Token-backed implementation of {@link CreateIssueComment}. Provide it on a Worker or

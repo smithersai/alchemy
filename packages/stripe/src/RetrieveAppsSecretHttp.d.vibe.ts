@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveAppsSecret } from "./RetrieveAppsSecret.js";
+import { RetrieveAppsSecret } from "./RetrieveAppsSecret.vibe";
 /**
  * HTTP implementation of {@link RetrieveAppsSecret}. Find is keyed by
  * `name` and `scope`.

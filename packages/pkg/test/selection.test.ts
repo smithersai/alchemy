@@ -10,7 +10,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
-import type { Manifest } from "../src/Manifest.ts";
+import type { Manifest } from "../src/Manifest.vibe";
 
 const cli = resolve(import.meta.dir, "../src/cli/bin.ts");
 

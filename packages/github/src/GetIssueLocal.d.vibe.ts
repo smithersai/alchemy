@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetIssue } from "./GetIssue.js";
+import { GetIssue } from "./GetIssue.vibe";
 /**
  * Implementation of {@link GetIssue} with the provider's current credentials.
  * Provide it on an `Action` or another deploy-time Effect.

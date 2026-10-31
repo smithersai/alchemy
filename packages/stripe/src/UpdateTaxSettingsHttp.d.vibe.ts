@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { UpdateTaxSettings } from "./UpdateTaxSettings.js";
+import { UpdateTaxSettings } from "./UpdateTaxSettings.vibe";
 /**
  * HTTP implementation of {@link UpdateTaxSettings}. Provide it on the
  * Function or Worker Effect. Tax Settings has no Stripe id — only the API

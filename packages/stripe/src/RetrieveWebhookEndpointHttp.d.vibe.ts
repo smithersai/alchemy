@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveWebhookEndpoint } from "./RetrieveWebhookEndpoint.js";
+import { RetrieveWebhookEndpoint } from "./RetrieveWebhookEndpoint.vibe";
 /**
  * HTTP implementation of {@link RetrieveWebhookEndpoint}. Provide it on the
  * Function or Worker Effect.

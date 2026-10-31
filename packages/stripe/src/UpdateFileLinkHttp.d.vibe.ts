@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { UpdateFileLink } from "./UpdateFileLink.js";
+import { UpdateFileLink } from "./UpdateFileLink.vibe";
 /**
  * HTTP implementation of {@link UpdateFileLink}. Provide it on the
  * Function or Worker Effect.

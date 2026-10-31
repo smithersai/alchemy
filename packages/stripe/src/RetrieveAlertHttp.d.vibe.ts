@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveAlert } from "./RetrieveAlert.js";
+import { RetrieveAlert } from "./RetrieveAlert.vibe";
 /**
  * HTTP implementation of {@link RetrieveAlert}.
  *

@@ -14,7 +14,7 @@ import { FlyAuth } from "./AuthProvider.vibe";
 import { Bucket, BucketProvider } from "./Bucket.ts";
 import { Certificate, CertificateProvider } from "./Certificate.vibe";
 import { CheckpointHttp } from "./CheckpointHttp.vibe";
-import { ConnectPostgresHttp } from "./ConnectPostgresHttp.ts";
+import { ConnectPostgresHttp } from "./ConnectPostgresHttp.vibe";
 import * as Credentials from "./Credentials.ts";
 import { DecryptHttp } from "./DecryptHttp.vibe";
 import { DeleteObjectHttp } from "./DeleteObjectHttp.vibe";

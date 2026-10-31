@@ -11,7 +11,7 @@ import { WorkflowEngine } from "effect/workflow";
 import * as Aggregate from "./Aggregate.ts";
 import { matches } from "./Filter.vibe";
 import * as Kernel from "./Kernel.ts";
-import type * as Key from "./Key.ts";
+import type * as Key from "./Key.vibe";
 import {
   type Accepted,
   type AggregateStore,

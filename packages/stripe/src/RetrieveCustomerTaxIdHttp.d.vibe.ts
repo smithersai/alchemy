@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveCustomerTaxId } from "./RetrieveCustomerTaxId.js";
+import { RetrieveCustomerTaxId } from "./RetrieveCustomerTaxId.vibe";
 /**
  * HTTP implementation of {@link RetrieveCustomerTaxId}. The nested
  * retrieve takes both `customer` and `id`.

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreateTerminalReader } from "./CreateTerminalReader.js";
+import { CreateTerminalReader } from "./CreateTerminalReader.vibe";
 /**
  * HTTP implementation of {@link CreateTerminalReader}. Provide it on the
  * Function or Worker Effect.

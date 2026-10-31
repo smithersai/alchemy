@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrievePlan } from "./RetrievePlan.js";
+import { RetrievePlan } from "./RetrievePlan.vibe";
 /**
  * HTTP implementation of {@link RetrievePlan}. Provide it on the
  * Function or Worker Effect.

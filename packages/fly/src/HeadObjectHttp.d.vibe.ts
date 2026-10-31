@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { HeadObject } from "./HeadObject.js";
+import { HeadObject } from "./HeadObject.vibe";
 /**
  * HTTP implementation of {@link HeadObject}. Calls distilled S3
  * `headObject` against the Tigris endpoint with the bucket's credentials.

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveAccount } from "./RetrieveAccount.js";
+import { RetrieveAccount } from "./RetrieveAccount.vibe";
 /**
  * HTTP implementation of {@link RetrieveAccount}. Provide it on the
  * Function or Worker Effect.

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { WriteRedis } from "./WriteRedis.js";
+import { WriteRedis } from "./WriteRedis.vibe";
 /**
  * HTTP implementation of {@link WriteRedis}.
  *

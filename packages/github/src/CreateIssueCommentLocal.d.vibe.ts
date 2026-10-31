@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreateIssueComment } from "./CreateIssueComment.js";
+import { CreateIssueComment } from "./CreateIssueComment.vibe";
 /**
  * Implementation of {@link CreateIssueComment} with the provider's current credentials.
  * Provide it on an `Action` or another deploy-time Effect.

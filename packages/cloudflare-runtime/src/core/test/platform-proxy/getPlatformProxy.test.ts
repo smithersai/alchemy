@@ -4,7 +4,7 @@ import * as path from "node:path";
 import { expect, it } from "@effect/vitest";
 import * as Assets from "../../bindings/assets/Assets.ts";
 import * as KvNamespace from "../../bindings/kv-namespace/index.ts";
-import * as Text from "../../bindings/Text.ts";
+import * as Text from "../../bindings/Text.vibe";
 import { getPlatformProxy } from "../../platform-proxy/getPlatformProxy.ts";
 
 interface TestEnv {

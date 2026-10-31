@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as Aggregate from "./Aggregate.js";
 import type * as Event from "./Event.vibe";
-import type * as Key from "./Key.js";
+import type * as Key from "./Key.vibe";
 import type * as DomainStream from "./Stream.vibe";
 import type * as View from "./View.vibe";
 /**

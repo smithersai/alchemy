@@ -2,7 +2,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import type * as Scope from "effect/Scope";
 import { SERVICE_USER_WORKER } from "./internal/constants.ts";
-import type * as Plugin from "./Plugin.ts";
+import type * as Plugin from "./Plugin.vibe";
 import type { RuntimeError } from "./RuntimeError.shared.ts";
 import { ConfigError } from "./RuntimeError.shared.ts";
 import type { RuntimeWorker } from "./RuntimeWorker.ts";

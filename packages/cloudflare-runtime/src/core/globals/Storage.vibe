@@ -1,0 +1,46 @@
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import * as Schedule from "effect/Schedule"
+import type { Service } from "../workerd/Config.ts"
+
+export class Storage extends Context.Service<Storage, Service>()("Storage") {}
+
+export const make = (filePath: string): Service => ({
+  name: "storage",
+  disk: {
+    path: filePath,
+    writable: true,
+    allowDotfiles: true,
+  },
+})
+
+export const layerDisk = (filePath: string): infer _ =>
+  Layer.effect(
+    Storage,
+    effect {
+      const fs = try Effect.service(FileSystem.FileSystem)
+      try fs.makeDirectory(filePath, { recursive: true })
+      return make(filePath)
+    },
+  )
+
+export const layerTemp = (options?: {
+  readonly directory?: string | undefined
+  readonly prefix?: string | undefined
+}): infer _ =>
+  Layer.effect(
+    Storage,
+    effect {
+      const fs = try Effect.service(FileSystem.FileSystem)
+      const path = try Effect.acquireRelease(fs.makeTempDirectory(options), effect (dir) =>
+        try (fs.remove(dir, { recursive: true })
+          |> Effect.retry(%, {
+            schedule: Schedule.spaced("100 millis"),
+            times: 20,
+          })
+          |> Effect.ignore(%)))
+      return make(path)
+    },
+  )

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveTaxSettings } from "./RetrieveTaxSettings.js";
+import { RetrieveTaxSettings } from "./RetrieveTaxSettings.vibe";
 /**
  * HTTP implementation of {@link RetrieveTaxSettings}. Provide it on the
  * Function or Worker Effect. Tax Settings has no Stripe id — only the API

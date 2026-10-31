@@ -10,7 +10,7 @@ import type { DurableDeferred, WorkflowEngine } from "effect/workflow";
 import * as Aggregate from "./Aggregate.js";
 import type * as Command from "./Command.vibe";
 import * as ExternalSystem from "./ExternalSystem.js";
-import type * as Key from "./Key.js";
+import type * as Key from "./Key.vibe";
 import * as Model from "./Model.js";
 import type * as Saga from "./Saga.vibe";
 import type * as DomainStream from "./Stream.vibe";

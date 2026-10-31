@@ -2,7 +2,7 @@ import * as Pulls from "@distilled.cloud/github/pulls";
 import type { Self } from "alchemy/Self";
 import * as Layer from "effect/Layer";
 import * as BindingHttp from "./BindingHttp.js";
-import { GetPullRequest, type GetPullRequestRequest } from "./GetPullRequest.js";
+import { GetPullRequest, type GetPullRequestRequest } from "./GetPullRequest.vibe";
 export declare const getPullRequestOperation: BindingHttp.Operation<[GetPullRequestRequest], string | Pulls.PullRequest, Pulls.GetError>;
 /**
  * Token-backed implementation of {@link GetPullRequest}. Provide it on a Worker or

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Sign } from "./Sign.js";
+import { Sign } from "./Sign.vibe";
 /**
  * HTTP implementation of {@link Sign}. Provide it on the
  * {@link Service} or Action Effect.

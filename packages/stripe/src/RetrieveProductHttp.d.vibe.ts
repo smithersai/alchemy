@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveProduct } from "./RetrieveProduct.js";
+import { RetrieveProduct } from "./RetrieveProduct.vibe";
 /**
  * HTTP implementation of {@link RetrieveProduct}. Provide it on the
  * Function or Worker Effect. Accepts a Product resource, a `prod_…` id

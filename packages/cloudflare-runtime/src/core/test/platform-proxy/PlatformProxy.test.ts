@@ -1,10 +1,10 @@
 import { expect, layer } from "@effect/vitest";
 import * as Effect from "effect/Effect";
-import * as DurableObjectNamespace from "../../bindings/DurableObjectNamespace.ts";
-import * as Json from "../../bindings/Json.ts";
+import * as DurableObjectNamespace from "../../bindings/DurableObjectNamespace.vibe";
+import * as Json from "../../bindings/Json.vibe";
 import * as KvNamespace from "../../bindings/kv-namespace/index.ts";
 import * as R2Bucket from "../../bindings/r2-bucket/index.ts";
-import * as Text from "../../bindings/Text.ts";
+import * as Text from "../../bindings/Text.vibe";
 import { ExecutionContext, open } from "../../platform-proxy/PlatformProxy.ts";
 import { localRuntimeLayer } from "../helpers/runtime.ts";
 

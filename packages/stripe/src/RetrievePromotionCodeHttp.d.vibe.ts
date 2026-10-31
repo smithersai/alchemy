@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrievePromotionCode } from "./RetrievePromotionCode.js";
+import { RetrievePromotionCode } from "./RetrievePromotionCode.vibe";
 /**
  * HTTP implementation of {@link RetrievePromotionCode}. Provide it on the
  * Function or Worker Effect.

@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { type SecretAuth } from "./SecretHttp.vibe";
-import { WriteCertificates, type WriteCertificatesClient } from "./WriteCertificates.js";
+import { WriteCertificates, type WriteCertificatesClient } from "./WriteCertificates.vibe";
 /**
  * HTTP implementation of {@link WriteCertificates}. Provide it on the
  * {@link Service} or Action Effect.

@@ -3,7 +3,7 @@ import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 import * as HttpApiSchema from "effect/http-api/HttpApiSchema";
 import * as Schema from "effect/Schema";
-import { PackageName } from "./Manifest.ts";
+import { PackageName } from "./Manifest.vibe";
 
 /**
  * The HTTP contract between the `pkg` CLI and the registry Worker, as an

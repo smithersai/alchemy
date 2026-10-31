@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveRadarValueList } from "./RetrieveRadarValueList.js";
+import { RetrieveRadarValueList } from "./RetrieveRadarValueList.vibe";
 /**
  * HTTP implementation of {@link RetrieveRadarValueList}.
  *

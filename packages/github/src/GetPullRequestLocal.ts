@@ -1,7 +1,7 @@
 import * as Layer from "effect/Layer";
 import * as BindingLocal from "./BindingLocal.ts";
 import type { Credentials } from "./Credentials.vibe";
-import { GetPullRequest } from "./GetPullRequest.ts";
+import { GetPullRequest } from "./GetPullRequest.vibe";
 import { getPullRequestOperation } from "./GetPullRequestHttp.vibe";
 
 /**

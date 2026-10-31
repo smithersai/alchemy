@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrievePaymentMethodConfiguration } from "./RetrievePaymentMethodConfiguration.js";
+import { RetrievePaymentMethodConfiguration } from "./RetrievePaymentMethodConfiguration.vibe";
 /**
  * HTTP implementation of {@link RetrievePaymentMethodConfiguration}.
  *

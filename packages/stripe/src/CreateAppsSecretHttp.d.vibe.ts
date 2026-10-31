@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreateAppsSecret } from "./CreateAppsSecret.js";
+import { CreateAppsSecret } from "./CreateAppsSecret.vibe";
 /**
  * HTTP implementation of {@link CreateAppsSecret}. Provide it on the
  * Function or Worker Effect.

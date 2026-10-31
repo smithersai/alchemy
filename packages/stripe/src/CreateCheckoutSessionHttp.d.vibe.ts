@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreateCheckoutSession } from "./CreateCheckoutSession.js";
+import { CreateCheckoutSession } from "./CreateCheckoutSession.vibe";
 /**
  * HTTP implementation of {@link CreateCheckoutSession}. Provide it on the
  * Function or Worker Effect.

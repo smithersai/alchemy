@@ -1,7 +1,7 @@
 import * as Issues from "@distilled.cloud/github/issues";
 import * as Layer from "effect/Layer";
 import * as BindingHttp from "./BindingHttp.js";
-import { ListIssues, type ListIssuesRequest } from "./ListIssues.js";
+import { ListIssues, type ListIssuesRequest } from "./ListIssues.vibe";
 export declare const listIssuesOperation: BindingHttp.Operation<[request?: ListIssuesRequest | undefined], Issues.ListForRepoResponseBodyList, Issues.ListForRepoError>;
 /**
  * Token-backed implementation of {@link ListIssues}. Provide it on a Worker or

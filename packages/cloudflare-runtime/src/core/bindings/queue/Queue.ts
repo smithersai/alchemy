@@ -13,7 +13,7 @@ const QueueShimForwardWorker = {
 };
 import { DEFAULT_COMPATIBILITY_DATE, SERVICE_USER_WORKER } from "../../internal/constants.ts";
 import { formatInternalWorkerModules } from "../../internal/internal-modules.ts";
-import * as Plugin from "../../Plugin.ts";
+import * as Plugin from "../../Plugin.vibe";
 import * as PluginContext from "../../PluginContext.ts";
 import { RegistryProxy } from "../../registry/RegistryProxy.ts";
 import { ConfigError } from "../../RuntimeError.shared.ts";

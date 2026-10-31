@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import type * as Schedule from "effect/Schedule";
 import type * as Aggregate from "./Aggregate.js";
 import type * as Event from "./Event.vibe";
-import type * as Key from "./Key.js";
+import type * as Key from "./Key.vibe";
 import type * as View from "./View.vibe";
 /** One source, or several. */
 export type From = View.Source | ReadonlyArray<View.Source>;

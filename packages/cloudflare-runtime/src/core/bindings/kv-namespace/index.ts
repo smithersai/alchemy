@@ -1,2 +1,2 @@
-export * from "./KvNamespace.ts";
+export * from "./KvNamespace.vibe";
 export * from "./KvNamespaceOptions.shared.ts";

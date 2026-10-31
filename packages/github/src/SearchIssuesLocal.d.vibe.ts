@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { SearchIssues } from "./SearchIssues.js";
+import { SearchIssues } from "./SearchIssues.vibe";
 /**
  * Implementation of {@link SearchIssues} with the provider's current credentials.
  * Provide it on an `Action` or another deploy-time Effect.

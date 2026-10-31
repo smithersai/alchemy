@@ -1,4 +1,4 @@
-export type { BetterAuthApi } from "./ApiProxy.ts";
+export type { BetterAuthApi } from "./ApiProxy.vibe";
 export {
   BetterAuth,
   type AuthOptions,
@@ -20,7 +20,7 @@ export {
   isAPIErrorLike,
   mergeAPIErrorHeaders,
 } from "./Errors.ts";
-export { Memory } from "./Memory.ts";
+export { Memory } from "./Memory.vibe";
 export { SecondaryStorage, type SecondaryStorageService } from "./SecondaryStorage.ts";
 // Driver-backed platform layers are deliberately NOT re-exported from the
 // barrel (they carry optional peer deps / runtime-specific imports).

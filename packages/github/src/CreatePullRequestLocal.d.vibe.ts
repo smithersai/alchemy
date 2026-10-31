@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreatePullRequest } from "./CreatePullRequest.js";
+import { CreatePullRequest } from "./CreatePullRequest.vibe";
 /**
  * Implementation of {@link CreatePullRequest} with the provider's current credentials.
  * Provide it on an `Action` or another deploy-time Effect.

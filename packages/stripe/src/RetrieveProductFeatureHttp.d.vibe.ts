@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RetrieveProductFeature } from "./RetrieveProductFeature.js";
+import { RetrieveProductFeature } from "./RetrieveProductFeature.vibe";
 /**
  * HTTP implementation of {@link RetrieveProductFeature}. The list-item
  * retrieve takes both `product` and `id`.

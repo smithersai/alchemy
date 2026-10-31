@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { MergePullRequest } from "./MergePullRequest.js";
+import { MergePullRequest } from "./MergePullRequest.vibe";
 /**
  * Implementation of {@link MergePullRequest} with the provider's current credentials.
  * Provide it on an `Action` or another deploy-time Effect.

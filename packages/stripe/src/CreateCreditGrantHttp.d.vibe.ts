@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreateCreditGrant } from "./CreateCreditGrant.js";
+import { CreateCreditGrant } from "./CreateCreditGrant.vibe";
 /**
  * HTTP implementation of {@link CreateCreditGrant}. Provide it on the
  * Function or Worker Effect.

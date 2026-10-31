@@ -1,0 +1,23 @@
+import type { GetTerminalReaderError, GetTerminalReaderRequest, GetTerminalReaderResponse } from "@distilled.cloud/stripe/stripe";
+import * as Binding from "alchemy/Binding";
+import type { RuntimeContext } from "alchemy/RuntimeContext";
+import type * as Effect from "effect/Effect";
+import type { TerminalReader } from "./TerminalReader.js";
+export interface RetrieveTerminalReaderRequest extends Omit<GetTerminalReaderRequest, "reader"> {
+}
+/**
+ * Retrieve a bound Stripe Terminal Reader over HTTP.
+ *
+ * ### Reading a Reader
+ * **Example:** Bind and retrieve
+ * ```typescript
+ * const retrieve = yield* Stripe.RetrieveTerminalReader(reader);
+ * const live = yield* retrieve();
+ * ```
+ *
+ * @binding
+ * @product Terminal
+ */
+export interface RetrieveTerminalReader extends Binding.Service<RetrieveTerminalReader, "Stripe.RetrieveTerminalReader", (reader: TerminalReader) => Effect.Effect<((request?: RetrieveTerminalReaderRequest) => Effect.Effect<GetTerminalReaderResponse, GetTerminalReaderError, RuntimeContext>)>> {
+}
+export declare const RetrieveTerminalReader: RetrieveTerminalReader;

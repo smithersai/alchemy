@@ -8,7 +8,7 @@ const AnalyticsEngineWorker = {
     ),
 };
 import { formatExtensionModule } from "../../internal/internal-modules.ts";
-import * as Plugin from "../../Plugin.ts";
+import * as Plugin from "../../Plugin.vibe";
 import type { BindingHook } from "../../PluginContext.ts";
 
 export class AnalyticsEngine extends Plugin.Service<AnalyticsEngine>()(

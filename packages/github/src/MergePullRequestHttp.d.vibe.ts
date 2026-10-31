@@ -1,7 +1,7 @@
 import * as Pulls from "@distilled.cloud/github/pulls";
 import * as Layer from "effect/Layer";
 import * as BindingHttp from "./BindingHttp.js";
-import { MergePullRequest, type MergePullRequestRequest } from "./MergePullRequest.js";
+import { MergePullRequest, type MergePullRequestRequest } from "./MergePullRequest.vibe";
 export declare const mergePullRequestOperation: BindingHttp.Operation<[request: MergePullRequestRequest], Pulls.PullRequestMergeResult, Pulls.MergeError>;
 /**
  * Token-backed implementation of {@link MergePullRequest}. Provide it on a Worker or

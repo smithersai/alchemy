@@ -1,7 +1,7 @@
 import * as Search from "@distilled.cloud/github/search";
 import * as Layer from "effect/Layer";
 import * as BindingHttp from "./BindingHttp.js";
-import { SearchIssues, type SearchIssuesRequest } from "./SearchIssues.js";
+import { SearchIssues, type SearchIssuesRequest } from "./SearchIssues.vibe";
 export declare const searchIssuesOperation: BindingHttp.Operation<[request: SearchIssuesRequest], Search.IssuesAndPullRequestsResponse, Search.IssuesAndPullRequestsError>;
 /**
  * Token-backed implementation of {@link SearchIssues}. Provide it on a Worker or

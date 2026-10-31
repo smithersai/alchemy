@@ -12,7 +12,7 @@ import {
   usesUnixSocketLoopback,
 } from "../DockerLoopback.ts";
 import { makeDockerLoopbackForwarders } from "../internal/docker-loopback-forwarders.ts";
-import { listenOnLoopback } from "../internal/listen-on-loopback.ts";
+import { listenOnLoopback } from "../internal/listen-on-loopback.vibe";
 
 const bin = process.env.DOCKER_BIN ?? "docker";
 const docker = Effect.fnUntraced(

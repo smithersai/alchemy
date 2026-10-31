@@ -22,8 +22,8 @@ import * as Schedule from "effect/Schedule";
 import * as Docker from "../Docker.ts";
 import * as Globals from "../globals/Globals.ts";
 import * as Internet from "../globals/Internet.ts";
-import * as Storage from "../globals/Storage.ts";
-import * as Paths from "../internal/Paths.ts";
+import * as Storage from "../globals/Storage.vibe";
+import * as Paths from "../internal/Paths.vibe";
 import * as Runtime from "../Runtime.ts";
 import * as Workerd from "../workerd/Workerd.ts";
 import {

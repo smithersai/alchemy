@@ -8,7 +8,7 @@ import * as Aggregate from "./Aggregate.ts";
 import * as Command from "./Command.vibe";
 import type * as Event from "./Event.vibe";
 import { DefinitionError, judge, rejectionTag, settle } from "./internal.vibe";
-import * as Key from "./Key.ts";
+import * as Key from "./Key.vibe";
 import type {
   Accepted,
   AggregateKit,

@@ -12,7 +12,7 @@ export * from "./AIGateway.vibe";
 export * from "./ConnectAuth.vibe";
 export * from "./QueryDataApi.vibe";
 export * from "./QueryAIGateway.ts";
-export * from "./LanguageModel.ts";
+export * from "./LanguageModel.vibe";
 export * from "./Branch.ts";
 export * from "./Connect.vibe";
 export * from "./BranchScope.ts";

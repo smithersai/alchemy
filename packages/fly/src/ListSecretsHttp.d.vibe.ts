@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListSecrets } from "./ListSecrets.js";
+import { ListSecrets } from "./ListSecrets.vibe";
 /**
  * HTTP implementation of {@link ListSecrets}. Provide it on the
  * {@link Service} or Action Effect.
