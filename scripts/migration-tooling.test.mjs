@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, copyFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  writeFileSync,
+  readFileSync,
+  copyFileSync,
+  rmSync,
+  symlinkSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
@@ -186,4 +194,120 @@ test("a .vibe file excluded by every project is an error", () => {
   } finally {
     rmSync(path, { recursive: true, force: true });
   }
+});
+
+const providerLint =
+  process.env.MIGRATION_PROVIDER_LINT_MODULE || join(scripts, "lint-providers.ts");
+const providerCorpus = JSON.parse(
+  readFileSync(join(scripts, "testdata/alchemy-vibe-provider-lint.json"), "utf8"),
+);
+
+function providerLintResult({
+  extension = ".vibe",
+  requirement = "unknown",
+  nested = false,
+  sidecar = true,
+  includeSidecars = true,
+}) {
+  const path = fixture();
+  try {
+    mkdirSync(join(path, "scripts"));
+    copyFileSync(providerLint, join(path, "scripts/lint-providers.ts"));
+    symlinkSync(join(scripts, "node_modules"), join(path, "node_modules"), "dir");
+    const pkg = join(path, "packages/probe");
+    const src = join(pkg, "src", ...(nested ? ["nested"] : []));
+    mkdirSync(src, { recursive: true });
+    const contract = "Layer.Layer<never, never, Input>";
+    const source =
+      'import type * as Layer from "effect/Layer";\n' +
+      "type Input = " +
+      requirement +
+      ";\n" +
+      "declare const value: " +
+      contract +
+      ";\n" +
+      "export const providers = (): " +
+      contract +
+      " => value;\n";
+    writeFileSync(join(src, "Providers" + extension), source);
+    writeFileSync(
+      join(pkg, "tsconfig.json"),
+      JSON.stringify({
+        compilerOptions: {
+          strict: true,
+          target: "ESNext",
+          module: "Preserve",
+          moduleResolution: "Bundler",
+          skipLibCheck: true,
+          types: [],
+          declaration: true,
+          emitDeclarationOnly: true,
+          outDir: "lib",
+          rootDir: "src",
+        },
+        include: includeSidecars ? ["src/**/*.ts", "src/**/*.vibe"] : ["src/**/*.vibe"],
+        vibelang: { declarationSidecars: true },
+      }),
+    );
+    if (extension === ".vibe" && sidecar) {
+      const emit = spawnSync(
+        process.env.VIBELANG_BINARY || join(root, "node_modules/.bin/vibelang"),
+        ["-p", join(pkg, "tsconfig.json")],
+        { encoding: "utf8", timeout: 30000 },
+      );
+      assert.equal(emit.status, 0, emit.stdout + emit.stderr);
+      assert.ok(readFileSync(join(src, "Providers.d.vibe.ts"), "utf8").includes("providers"));
+    }
+    return spawnSync(process.execPath, [join(path, "scripts/lint-providers.ts")], {
+      cwd: path,
+      encoding: "utf8",
+      timeout: 30000,
+      env: { ...process.env, GOMAXPROCS: "8" },
+    });
+  } finally {
+    rmSync(path, { recursive: true, force: true });
+  }
+}
+
+test("provider lint rejects an unknown requirement in a migrated provider factory", () => {
+  const result = providerLintResult(providerCorpus);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /Providers\.vibe/);
+  assert.match(result.stdout + result.stderr, /RIn includes/);
+});
+
+test("provider lint preserves its existing TypeScript checks", () => {
+  const result = providerLintResult({ extension: ".ts", requirement: "unknown" });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /RIn includes/);
+});
+
+test("provider lint refuses a migrated factory without a declaration sidecar", () => {
+  const result = providerLintResult({ sidecar: false });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /sidecar/i);
+  assert.match(result.stdout + result.stderr, /Providers\.vibe/);
+});
+
+test("provider lint covers nested factories and leaked or resolved requirements", () => {
+  fc.assert(
+    fc.property(
+      fc.constantFrom("unknown", "any", "never", "{ readonly service: unique symbol }"),
+      fc.boolean(),
+      (requirement, nested) => {
+        const result = providerLintResult({ requirement, nested });
+        const leaking = requirement === "unknown" || requirement === "any";
+        assert.equal(result.status, leaking ? 1 : 0, result.stdout + result.stderr);
+        assert.match(result.stdout + result.stderr, /Providers\.vibe/);
+        assert.equal((result.stdout + result.stderr).includes("RIn includes"), leaking);
+      },
+    ),
+    { seed: 309551, numRuns: 12 },
+  );
+});
+
+test("provider lint refuses a sidecar excluded by the owning project", () => {
+  const result = providerLintResult({ includeSidecars: false });
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout + result.stderr, /excluded by its tsconfig/);
 });
