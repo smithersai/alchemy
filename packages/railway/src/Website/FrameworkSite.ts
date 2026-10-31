@@ -24,7 +24,7 @@ import { Project, type Project as ProjectResource } from "../Project.ts";
 import type { Environment as EnvironmentResource } from "../ProjectEnvironment.ts";
 import type { Providers } from "../Providers.ts";
 import { Service, type Service as ServiceResource } from "../Service.vibe";
-import { Cdn } from "./Cdn.ts";
+import { Cdn } from "./Cdn.vibe";
 
 /** Port the generated Node serve entry and Railway Service listen on. */
 export const WEBSITE_PORT = 3000;

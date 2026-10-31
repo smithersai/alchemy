@@ -51,7 +51,7 @@ import { UsageLimit, UsageLimitProvider } from "./Usage.ts";
 import { Variable, VariableProvider } from "./Variable.ts";
 import { Volume, VolumeProvider } from "./Volume.ts";
 import { VolumeBackup, VolumeBackupProvider } from "./VolumeBackup.ts";
-import { Cdn, CdnProvider } from "./Website/Cdn.ts";
+import { Cdn, CdnProvider } from "./Website/Cdn.vibe";
 import { WriteRedisHttp } from "./WriteRedisHttp.vibe";
 
 export class Providers extends Provider.ProviderCollection<Providers>()("Railway") {}

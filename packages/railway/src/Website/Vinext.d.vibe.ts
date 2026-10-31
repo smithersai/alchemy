@@ -1,27 +1,21 @@
-import * as Namespace from "alchemy/Namespace";
 import * as Effect from "effect/Effect";
-import { REDIS_URL_ENV, type Redis } from "../Redis.ts";
-import { ref } from "../ref.ts";
-import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.ts";
-
+import { type Redis } from "../Redis.js";
+import { type FrameworkSiteProps } from "./FrameworkSite.js";
 /**
  * The vinext Node framework module (it is its own deploy target — not
  * the Cloudflare Worker source).
  */
-export const VINEXT_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/vinext/node";
-
+export declare const VINEXT_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/vinext/node";
 /** The Node container deploy target for the vinext build. */
-export const VINEXT_NODE_TARGET_SPECIFIER = "@alchemy.run/frontend-frameworks/vinext/node";
-
+export declare const VINEXT_NODE_TARGET_SPECIFIER = "@alchemy.run/frontend-frameworks/vinext/node";
 export interface VinextProps extends FrameworkSiteProps {
-  /**
-   * Optional Redis for ISR / `"use cache"`. Alchemy writes `REDIS_URL`
-   * onto the Service and injects the Redis data-cache adapter automatically.
-   * Missing `REDIS_URL` (`alchemy dev`) falls back to memory.
-   */
-  redis?: Redis;
+    /**
+     * Optional Redis for ISR / `"use cache"`. Alchemy writes `REDIS_URL`
+     * onto the Service and injects the Redis data-cache adapter automatically.
+     * Missing `REDIS_URL` (`alchemy dev`) falls back to memory.
+     */
+    redis?: Redis;
 }
-
 /**
  * Deploy a [vinext](https://vinext.dev) application to Railway as a
  * long-running Node process: vinext's Vite build, then vinext's production
@@ -67,26 +61,16 @@ export interface VinextProps extends FrameworkSiteProps {
  * @resource
  * @product Website
  */
-export const Vinext = (id: string, propsIn: VinextProps = {}) =>
-  Effect.gen(function* () {
-    const { redis, ...props } = propsIn;
-    return yield* makeFrameworkSite(
-      id,
-      {
-        ...props,
-        env:
-          redis === undefined
-            ? props.env
-            : {
-                [REDIS_URL_ENV]: ref(redis, REDIS_URL_ENV),
-                ...props.env,
-              },
-      },
-      {
-        name: "Vinext",
-        framework: VINEXT_FRAMEWORK_SPECIFIER,
-        target: VINEXT_NODE_TARGET_SPECIFIER,
-        install: ["vinext", "react", "react-dom", "react-server-dom-webpack"],
-      },
-    );
-  }).pipe(Namespace.push(id));
+export declare const Vinext: (id: string, propsIn?: VinextProps) => Effect.Effect<{
+    url: import("alchemy/Output").Output<string | undefined, never>;
+    service: undefined;
+    project: undefined;
+} | {
+    url: string;
+    service: import("../Service.vibe").Service;
+    project: import("../Project.js").Project;
+} | {
+    url: import("alchemy/Output").Output<string | undefined, never>;
+    service: import("../Service.vibe").Service;
+    project: import("../Project.js").Project;
+}, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Provider").Provider<import("alchemy/Website/Server").Server> | import("../Providers.js").Providers>;
