@@ -1,5 +1,5 @@
 export * from "./AssetDeployment.ts";
-export * from "./Astro.ts";
+export * from "./Astro.vibe";
 export * from "./Foldkit.ts";
 export * from "./FrameworkSite.ts";
 export * from "./Nextjs.ts";
@@ -10,7 +10,7 @@ export * from "./SolidStart.ts";
 export * from "./StaticSite.ts";
 export * from "./SvelteKit.ts";
 export * from "./TanStackStart.ts";
-export * from "./Vinext.ts";
+export * from "./Vinext.vibe";
 export * from "./Vite.ts";
 export * from "./Vocs.ts";
 export * from "./Waku.ts";

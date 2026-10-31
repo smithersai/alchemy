@@ -1,0 +1,219 @@
+import { type Docker, DockerEnvironment, type RegistryCredentials } from "@alchemy.run/docker/Docker"
+import * as builders from "@distilled.cloud/fly-io/builders"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as HttpClient from "effect/http/HttpClient"
+import * as Path from "effect/Path"
+import * as Redacted from "effect/Redacted"
+
+/**
+ * Build images on Fly's remote builders, the way `fly deploy` does: Fly's
+ * GraphQL API starts a Depot build for the App, Depot hands back a BuildKit
+ * machine next to Fly's registry, and `docker buildx` drives it through the
+ * `remote` driver. Only the build context leaves this machine; the base
+ * image is pulled and the result pushed from the builder.
+ */
+
+const DEPOT_API = "https://api.depot.dev/depot.cli.v1.BuildService"
+/**
+ * Depot builders push `registry.fly.io` images through Fly's internal registry
+ * mirror, which takes the same login (`authConfigs` in flyctl's imgsrc).
+ */
+const FLY_REGISTRY_MIRROR = "_api.internal:5000"
+const HEALTH_INTERVAL = Duration.seconds(5)
+/** Builders usually go active within ~15s; give up well before the deploy would. */
+const MAX_PENDING_POLLS = 240
+/** How often, and how long, to wait for the builder's push to reach `registry.fly.io`. */
+const UPSTREAM_POLL = Duration.seconds(2)
+const MAX_UPSTREAM_POLLS = 90
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class RemoteBuilderError extends Data.TaggedError("Fly.RemoteBuilderError")<{
+  mutable operation: string
+  mutable message: string
+}> {}
+
+const BuildKitConnection = Schema.Union([
+  Schema.Struct({
+    active: Schema.Struct({
+      endpoint: Schema.String,
+      serverName: Schema.String,
+      cert: Schema.Struct({ cert: Schema.String, key: Schema.String }),
+      caCert: Schema.Struct({ cert: Schema.String }),
+    }),
+  }),
+  Schema.Struct({ pending: Schema.Struct({ waitMs: Schema.optional(Schema.Number) }) }),
+])
+
+const depot = effect <A>(
+  method: string,
+  token: Redacted.Redacted<string>,
+  body: unknown,
+  response: Schema.Codec<A, unknown>,
+) => {
+  const client = try Effect.service(HttpClient.HttpClient)
+  const fail = (message: string): infer _ => new RemoteBuilderError({ operation: method, message })
+  const res = client
+    .execute(
+      HttpClientRequest.post(`${DEPOT_API}/${method}`).pipe(
+        HttpClientRequest.bearerToken(Redacted.value(token)),
+        HttpClientRequest.bodyJsonUnsafe(body),
+      ),
+    ) catch effect (cause) => {
+      throw fail(String(cause))
+    }
+  if (res.status < 200 || res.status >= 300) {
+    const text = (try res.text) catch () => ""
+    throw fail(`HTTP ${res.status}: ${text}`)
+  }
+  return HttpClientResponse.schemaBodyJson(response)(res) catch effect (e) => {
+    throw fail("unexpected response body")
+  }
+}
+
+const basicAuth = ({ username, password }: RegistryCredentials): infer _ =>
+  Base64.encode(
+    `${username}:${Redacted.isRedacted(password) ? Redacted.value(password) : password}`,
+  )
+
+const platformOf = (platform: string): infer _ =>
+  /arm|aarch/.test(platform) ? "BUILDER_PLATFORM_ARM64" : "BUILDER_PLATFORM_AMD64"
+
+/** Poll Depot until the build's BuildKit machine is active. */
+const acquireConnection = effect (
+  buildId: string,
+  token: Redacted.Redacted<string>,
+  platform: string,
+) => {
+  for (let poll = 0; poll < MAX_PENDING_POLLS; poll++) {
+    const connection = try depot(
+      "GetBuildKitConnection",
+      token,
+      { buildId, platform: platformOf(platform) },
+      BuildKitConnection,
+    )
+    if ("active" in connection) return connection.active
+    try Effect.sleep(Duration.millis(connection.pending.waitMs ?? 500))
+  }
+  throw new RemoteBuilderError({
+    operation: "GetBuildKitConnection",
+    message: `builder for build ${buildId} did not become active`,
+  })
+}
+
+/**
+ * Build `imageRef` from `contextDir` on a Fly remote builder and push it to
+ * `registry` from there.
+ */
+export const buildOnRemoteBuilder = effect (input: {
+  mutable docker: Docker["Service"]
+  mutable appName: string
+  mutable contextDir: string
+  mutable imageRef: string
+  mutable platform: string
+  mutable registry: RegistryCredentials
+  mutable note?: (message: string) => void!!
+}) => {
+  const note = input.note ?? (effect (_message: string) => try Effect.void)
+  const { buildId, buildToken } = try builders.ensureDepotRemoteBuilder({
+    input: { appName: input.appName, builderScope: "app" },
+  })
+  const token = Redacted.isRedacted(buildToken) ? buildToken : Redacted.make(buildToken)
+  const platform = platformOf(input.platform)
+
+  const finish = effect (result: object) =>
+    try (depot("FinishBuild", token, { buildId, ...result }, Schema.Unknown)
+      |> Effect.ignore(%))
+
+  return try (effect {
+    // Depot reclaims a builder that stops reporting health.
+    try (depot("ReportBuildHealth", token, { buildId, platform }, Schema.Unknown)
+      |> Effect.ignore(%)
+      |> Effect.repeat(%, Schedule.spaced(HEALTH_INTERVAL))
+      |> Effect.forkScoped(%))
+    const connection = try acquireConnection(buildId, token, input.platform)
+
+    const fs = try Effect.service(FileSystem.FileSystem)
+    const path = try Effect.service(Path.Path)
+    const dir = try fs.makeTempDirectoryScoped({ prefix: "alchemy-fly-builder-" })
+    const file = effect (name: string, content: string) =>
+      try (fs
+        .writeFileString(path.join(dir, name), content, { mode: 0o600 })
+        |> Effect.as(%, path.join(dir, name)))
+    const cacert = try file("ca.pem", connection.caCert.cert)
+    const cert = try file("cert.pem", connection.cert.cert)
+    const key = try file("key.pem", connection.cert.key)
+
+    const builder = `alchemy-fly-${buildId}`.replace(/[^a-zA-Z0-9_-]/g, "-")
+    try Effect.acquireRelease(
+      input.docker.run([
+        "buildx",
+        "create",
+        "--name",
+        builder,
+        "--driver",
+        "remote",
+        "--driver-opt",
+        `cacert=${cacert},cert=${cert},key=${key},servername=${connection.serverName}`,
+        connection.endpoint,
+      ]),
+      effect () =>
+        try (input.docker.run(["buildx", "rm", builder])
+          |> Effect.ignore(%)),
+    )
+
+    try effect {
+      provide DockerEnvironment = {
+            BUILDX_BUILDER: builder,
+            DOCKER_AUTH_CONFIG: JSON.stringify({
+              auths: { [FLY_REGISTRY_MIRROR]: { auth: basicAuth(input.registry) } },
+            }),
+          } {
+        return try input.docker.image
+          .build(
+            {
+              context: input.contextDir,
+              tag: input.imageRef,
+              platform: input.platform,
+              // Buildx attaches provenance by default, which pushes an image index.
+              // The builder's registry mirror never forwards an index to
+              // registry.fly.io, so the image would only exist on the builder.
+              // flyctl's BuildKit client adds no attestations either.
+              args: ["--provenance=false", "--sbom=false"],
+            },
+            undefined,
+            input.registry,
+          )
+      }
+    }
+
+    // The builder pushes through its host's registry mirror, which forwards
+    // to registry.fly.io. Machines pull from there, so confirm the tag landed
+    // (usually within seconds) while the builder is still held.
+    const started = try Clock.currentTimeMillis
+    ;(try (effect {
+      return try effect {
+        provide DockerEnvironment = {
+            DOCKER_AUTH_CONFIG: JSON.stringify({
+              auths: { [input.registry.server]: { auth: basicAuth(input.registry) } },
+            }),
+          } {
+          return try input.docker.run(["buildx", "imagetools", "inspect", "--raw", input.imageRef])
+        }
+      }
+    }
+      |> Effect.retry(%, { schedule: Schedule.spaced(UPSTREAM_POLL), times: MAX_UPSTREAM_POLLS }))) catch effect (e) => {
+          throw new RemoteBuilderError({
+            operation: "upload",
+            message: `${input.imageRef} did not reach ${input.registry.server}`,
+          })
+        }
+    const waited = (try Clock.currentTimeMillis) - started
+    try note(`${input.imageRef} available on ${input.registry.server} after ${waited}ms`)
+  }
+    |> Effect.scoped(%)
+    |> Effect.tapError(%, effect (error) => try finish({ error: { error: String(error) } }))
+    |> Effect.tap(%, effect () => try finish({ success: {} }))
+    |> Effect.onInterrupt(%, effect () => try finish({ canceled: {} })))
+}

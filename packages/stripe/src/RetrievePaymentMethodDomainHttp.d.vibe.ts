@@ -1,0 +1,10 @@
+import * as Layer from "effect/Layer";
+import { RetrievePaymentMethodDomain } from "./RetrievePaymentMethodDomain.js";
+/**
+ * HTTP implementation of {@link RetrievePaymentMethodDomain}.
+ *
+ * @layer
+ * @product Payment Methods
+ * @provides Stripe.RetrievePaymentMethodDomain
+ */
+export declare const RetrievePaymentMethodDomainHttp: Layer.Layer<RetrievePaymentMethodDomain, never, never>;

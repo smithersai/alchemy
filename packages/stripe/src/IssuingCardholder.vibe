@@ -1,0 +1,849 @@
+import { type StripeOpError, withRequestOptions } from "@distilled.cloud/stripe"
+import {
+  CreateIssuingCardholder,
+  type CreateIssuingCardholderRequestBilling,
+  type CreateIssuingCardholderRequestCompany,
+  type CreateIssuingCardholderRequestIndividual,
+  type CreateIssuingCardholderRequestSpendingControls,
+  GetIssuingCardholder,
+  GetIssuingCardholders,
+  type IssuingCardholder as StripeIssuingCardholder,
+  UpdateIssuingCardholder,
+} from "@distilled.cloud/stripe/stripe"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { arrayEquals } from "alchemy/Util/equal"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import {
+  alchemyMetadataKeys,
+  createInternalMetadata,
+  diffMetadata,
+  hasAlchemyMetadata,
+  stripInternalMetadata,
+  toMetadata,
+} from "./Metadata.vibe"
+import { isMissingStripeResource } from "./missing.ts"
+import type { Providers } from "./Providers.ts"
+
+const LIST_PAGE_SIZE = 100
+const LIST_MAX_PAGES = 100
+
+/** Specifies whether to permit authorizations on this cardholder's cards. */
+export type IssuingCardholderStatus = "active" | "blocked" | "inactive"
+
+/** One of `individual` or `company`. */
+export type IssuingCardholderType = "company" | "individual"
+
+/** Preferred locale for 3D Secure and one-time password messages. */
+export type IssuingCardholderPreferredLocale = "de" | "en" | "es" | "fr" | "it"
+
+/** Interval (or event) a spending limit applies to. */
+export type IssuingCardholderSpendingLimitInterval =
+  | "all_time"
+  | "daily"
+  | "monthly"
+  | "per_authorization"
+  | "weekly"
+  | "yearly"
+
+/** Card-present vs card-not-present authorization presence. */
+export type IssuingCardholderCardPresence = "not_present" | "present"
+
+export interface IssuingCardholderBillingAddress {
+  /**
+   * City, district, suburb, town, or village.
+   */
+  mutable city: string
+  /**
+   * Two-letter ISO 3166-1 alpha-2 country code.
+   */
+  mutable country: string
+  /**
+   * Address line 1 (street, PO Box, or company name).
+   */
+  mutable line1: string
+  /**
+   * Address line 2 (apartment, suite, unit, or building).
+   */
+  mutable line2?: string
+  /**
+   * ZIP or postal code.
+   */
+  mutable postalCode: string
+  /**
+   * State, county, province, or region (ISO 3166-2).
+   */
+  mutable state?: string
+}
+
+export interface IssuingCardholderBilling {
+  /**
+   * The cardholder's billing address. Required on create.
+   */
+  mutable address: IssuingCardholderBillingAddress
+}
+
+export interface IssuingCardholderCompany {
+  /**
+   * The entity's business ID number (tax id). Stripe does not return the
+   * value; only whether it was provided.
+   */
+  mutable taxId?: string
+}
+
+export interface IssuingCardholderDob {
+  /**
+   * Day of birth, 1–31. Cardholders must be older than 13.
+   */
+  mutable day: number
+  /**
+   * Month of birth, 1–12.
+   */
+  mutable month: number
+  /**
+   * Four-digit year of birth.
+   */
+  mutable year: number
+}
+
+export interface IssuingCardholderIndividual {
+  /**
+   * First name. Required before activating cards. Letters, spaces,
+   * periods, commas, hyphens, and apostrophes only.
+   */
+  mutable firstName?: string
+  /**
+   * Last name. Required before activating cards. Letters, spaces,
+   * periods, commas, hyphens, and apostrophes only.
+   */
+  mutable lastName?: string
+  /**
+   * Date of birth. Cardholders must be older than 13.
+   */
+  mutable dob?: IssuingCardholderDob
+}
+
+export interface IssuingCardholderSpendingLimit {
+  /**
+   * Maximum amount allowed to spend per interval, in the smallest
+   * currency unit.
+   */
+  mutable amount: number
+  /**
+   * Merchant categories this limit applies to. Omit to apply to all.
+   */
+  mutable categories?: string[]
+  /**
+   * Interval (or event) to which the amount applies.
+   */
+  mutable interval: IssuingCardholderSpendingLimitInterval
+}
+
+export interface IssuingCardholderSpendingControls {
+  /**
+   * Card-presence statuses to allow. Cannot be set with
+   * `blockedCardPresences`. Empty unsets.
+   */
+  mutable allowedCardPresences?: IssuingCardholderCardPresence[]
+  /**
+   * Merchant categories to allow. Cannot be set with `blockedCategories`.
+   */
+  mutable allowedCategories?: string[]
+  /**
+   * ISO 3166 alpha-2 countries to allow. Cannot be set with
+   * `blockedMerchantCountries`. Empty unsets.
+   */
+  mutable allowedMerchantCountries?: string[]
+  /**
+   * Card-presence statuses to decline. Cannot be set with
+   * `allowedCardPresences`. Empty unsets.
+   */
+  mutable blockedCardPresences?: IssuingCardholderCardPresence[]
+  /**
+   * Merchant categories to decline. Cannot be set with
+   * `allowedCategories`.
+   */
+  mutable blockedCategories?: string[]
+  /**
+   * ISO 3166 alpha-2 countries to decline. Cannot be set with
+   * `allowedMerchantCountries`. Empty unsets.
+   */
+  mutable blockedMerchantCountries?: string[]
+  /**
+   * Amount-based spending limits across this cardholder's cards.
+   */
+  mutable spendingLimits?: IssuingCardholderSpendingLimit[]
+  /**
+   * Currency of amounts within `spendingLimits`. Defaults to the
+   * merchant country's currency.
+   */
+  mutable spendingLimitsCurrency?: string
+}
+
+export interface IssuingCardholderProps {
+  /**
+   * The cardholder's name, printed on cards issued to them. Max 24
+   * characters; letters and spaces only (no numbers or special
+   * characters). Create-only — changing it replaces the cardholder.
+   */
+  mutable name: string
+  /**
+   * The cardholder's billing address. Mutable.
+   */
+  mutable billing: IssuingCardholderBilling
+  /**
+   * `individual` or `company`. Create-only — changing it replaces the
+   * cardholder.
+   * @default "individual"
+   */
+  mutable type?: IssuingCardholderType
+  /**
+   * The cardholder's email address.
+   */
+  mutable email?: string
+  /**
+   * The cardholder's phone number (E.164). Required for EU cardholders
+   * who will create cards (3D Secure).
+   */
+  mutable phoneNumber?: string
+  /**
+   * Preferred locales for 3D Secure and OTP messages, ordered by
+   * preference.
+   */
+  mutable preferredLocales?: IssuingCardholderPreferredLocale[]
+  /**
+   * Whether to permit authorizations on this cardholder's cards.
+   * `blocked` is Stripe-imposed and cannot be set. Destroy sets
+   * `inactive`.
+   * @default "active"
+   */
+  mutable status?: "active" | "inactive"
+  /**
+   * Additional information about a `company` cardholder.
+   */
+  mutable company?: IssuingCardholderCompany
+  /**
+   * Additional information about an `individual` cardholder.
+   */
+  mutable individual?: IssuingCardholderIndividual
+  /**
+   * Spending controls applied across this cardholder's cards.
+   */
+  mutable spendingControls?: IssuingCardholderSpendingControls
+  /**
+   * User-defined metadata. Alchemy ownership keys (`alchemy_stack` /
+   * `alchemy_stage` / `alchemy_id`) are merged in automatically. Keys may
+   * not contain `:`. Mutable.
+   */
+  mutable metadata?: Record<string, string>
+}
+
+export interface IssuingCardholderRequirements {
+  /**
+   * If set, cards decline authorizations with
+   * `cardholder_verification_required`.
+   */
+  mutable disabledReason: string | undefined
+  /**
+   * Fields that need to be collected to verify and re-enable the
+   * cardholder.
+   */
+  mutable pastDue: string[] | undefined
+}
+
+export type IssuingCardholder = Resource<
+  "Stripe.IssuingCardholder",
+  IssuingCardholderProps,
+  {
+    /** Stripe issuing cardholder id (`ich_…`). */
+    mutable id: string
+    /** The cardholder's name, printed on cards. */
+    mutable name: string
+    /** `individual` or `company`. */
+    mutable type: IssuingCardholderType
+    /** The cardholder's billing address. */
+    mutable billing: IssuingCardholderBilling
+    /** The cardholder's email address, if set. */
+    mutable email: string | undefined
+    /** The cardholder's phone number, if set. */
+    mutable phoneNumber: string | undefined
+    /** Preferred locales, if set. */
+    mutable preferredLocales: IssuingCardholderPreferredLocale[] | undefined
+    /** Whether authorizations are permitted. */
+    mutable status: IssuingCardholderStatus
+    /** Whether a company tax id was provided. */
+    mutable taxIdProvided: boolean | undefined
+    /** Individual first name, if set. */
+    mutable firstName: string | undefined
+    /** Individual last name, if set. */
+    mutable lastName: string | undefined
+    /** Individual date of birth, if set. */
+    mutable dob: IssuingCardholderDob | undefined
+    /** Spending controls, if set. */
+    mutable spendingControls: IssuingCardholderSpendingControls | undefined
+    /** Verification requirements Stripe reports on this cardholder. */
+    mutable requirements: IssuingCardholderRequirements
+    /** User-defined metadata (Alchemy ownership keys stripped). */
+    mutable metadata: Record<string, string>
+    /** Unix timestamp when the cardholder was created. */
+    mutable created: number
+    /** Whether the cardholder exists in live mode. */
+    mutable livemode: boolean
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Stripe Issuing Cardholder — an individual or company who can be
+ * issued cards. Billing address, email, phone, preferred locales,
+ * spending controls, status, and metadata update in place. Name and
+ * type are immutable; changing them replaces the cardholder.
+ *
+ * Stripe does not hard-delete cardholders; destroying this resource
+ * sets `status` to `inactive`. Inactive cardholders can be reactivated
+ * by a later reconcile.
+ *
+ * Requires the Stripe Issuing entitlement.
+ *
+ * @see https://docs.stripe.com/api/issuing/cardholders
+ *
+ * ### Creating a Cardholder
+ * **Example:** Individual with billing address
+ * ```typescript
+ * const alice = yield* Stripe.IssuingCardholder("alice", {
+ *   name: "Alice Example",
+ *   type: "individual",
+ *   email: "alice@example.com",
+ *   billing: {
+ *     address: {
+ *       line1: "123 Main Street",
+ *       city: "San Francisco",
+ *       state: "CA",
+ *       postalCode: "94111",
+ *       country: "US",
+ *     },
+ *   },
+ *   individual: { firstName: "Alice", lastName: "Example" },
+ * });
+ * ```
+ *
+ * **Example:** Company cardholder
+ * ```typescript
+ * const acme = yield* Stripe.IssuingCardholder("acme", {
+ *   name: "Acme Corp",
+ *   type: "company",
+ *   billing: {
+ *     address: {
+ *       line1: "1 Market Street",
+ *       city: "San Francisco",
+ *       state: "CA",
+ *       postalCode: "94105",
+ *       country: "US",
+ *     },
+ *   },
+ *   company: { taxId: "12-3456789" },
+ * });
+ * ```
+ *
+ * ### Spending controls
+ * **Example:** Monthly spending limit
+ * ```typescript
+ * const alice = yield* Stripe.IssuingCardholder("alice", {
+ *   name: "Alice Example",
+ *   billing: {
+ *     address: {
+ *       line1: "123 Main Street",
+ *       city: "San Francisco",
+ *       state: "CA",
+ *       postalCode: "94111",
+ *       country: "US",
+ *     },
+ *   },
+ *   spendingControls: {
+ *     spendingLimits: [{ amount: 10000, interval: "monthly" }],
+ *     spendingLimitsCurrency: "usd",
+ *   },
+ * });
+ * ```
+ *
+ * ### Updating a Cardholder
+ * **Example:** Email, phone, and metadata
+ * ```typescript
+ * const alice = yield* Stripe.IssuingCardholder("alice", {
+ *   name: "Alice Example",
+ *   email: "alice+updated@example.com",
+ *   phoneNumber: "+15555550100",
+ *   billing: {
+ *     address: {
+ *       line1: "123 Main Street",
+ *       city: "San Francisco",
+ *       state: "CA",
+ *       postalCode: "94111",
+ *       country: "US",
+ *     },
+ *   },
+ *   metadata: { team: "ops" },
+ * });
+ * ```
+ *
+ * ### Deactivating a Cardholder
+ * **Example:** Destroy deactivates rather than deleting
+ * ```typescript
+ * // stack.destroy() / resource removal sets status to inactive
+ * const alice = yield* Stripe.IssuingCardholder("alice", {
+ *   name: "Alice Example",
+ *   billing: {
+ *     address: {
+ *       line1: "123 Main Street",
+ *       city: "San Francisco",
+ *       state: "CA",
+ *       postalCode: "94111",
+ *       country: "US",
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @product Issuing
+ */
+export const IssuingCardholder = Resource<IssuingCardholder>("Stripe.IssuingCardholder")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class IssuingCardholderNotResolved extends Data.TaggedError(
+  "Stripe.IssuingCardholderNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+type IssuingCardholderAttributes = IssuingCardholder["Attributes"]
+
+const userMetadata = (
+  metadata: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalMetadata(tagRecord(metadata))
+
+const fromObservedBilling = (
+  billing: StripeIssuingCardholder["billing"],
+): IssuingCardholderBilling => ({
+  address: {
+    city: billing.address.city ?? "",
+    country: billing.address.country ?? "",
+    line1: billing.address.line1 ?? "",
+    ...(billing.address.line2 ? { line2: billing.address.line2 } : {}),
+    postalCode: billing.address.postal_code ?? "",
+    ...(billing.address.state ? { state: billing.address.state } : {}),
+  },
+})
+
+const toWireBilling = (
+  billing: IssuingCardholderBilling,
+): CreateIssuingCardholderRequestBilling => ({
+  address: {
+    city: billing.address.city,
+    country: billing.address.country,
+    line1: billing.address.line1,
+    ...(billing.address.line2 !== undefined ? { line2: billing.address.line2 } : {}),
+    postal_code: billing.address.postalCode,
+    ...(billing.address.state !== undefined ? { state: billing.address.state } : {}),
+  },
+})
+
+const fromObservedDob = (
+  dob: NonNullable<StripeIssuingCardholder["individual"]>["dob"] | undefined,
+): IssuingCardholderDob | undefined => {
+  if (dob === null || dob === undefined) return undefined
+  if (dob.day === null || dob.month === null || dob.year === null) {
+    return undefined
+  }
+  return { day: dob.day, month: dob.month, year: dob.year }
+}
+
+const fromObservedSpendingControls = (
+  controls: StripeIssuingCardholder["spending_controls"],
+): IssuingCardholderSpendingControls | undefined => {
+  if (controls === null || controls === undefined) return undefined
+  const spendingLimits = controls.spending_limits?.map((limit) => ({
+    amount: limit.amount,
+    ...(limit.categories !== null && limit.categories !== undefined
+      ? { categories: [...limit.categories] }
+      : {}),
+    interval: limit.interval,
+  }))
+  const mapped: IssuingCardholderSpendingControls = {
+    ...(controls.allowed_card_presences !== null && controls.allowed_card_presences !== undefined
+      ? { allowedCardPresences: [...controls.allowed_card_presences] }
+      : {}),
+    ...(controls.allowed_categories !== null && controls.allowed_categories !== undefined
+      ? { allowedCategories: [...controls.allowed_categories] }
+      : {}),
+    ...(controls.allowed_merchant_countries !== null
+        && controls.allowed_merchant_countries !== undefined
+      ? { allowedMerchantCountries: [...controls.allowed_merchant_countries] }
+      : {}),
+    ...(controls.blocked_card_presences !== null && controls.blocked_card_presences !== undefined
+      ? { blockedCardPresences: [...controls.blocked_card_presences] }
+      : {}),
+    ...(controls.blocked_categories !== null && controls.blocked_categories !== undefined
+      ? { blockedCategories: [...controls.blocked_categories] }
+      : {}),
+    ...(controls.blocked_merchant_countries !== null
+        && controls.blocked_merchant_countries !== undefined
+      ? { blockedMerchantCountries: [...controls.blocked_merchant_countries] }
+      : {}),
+    ...(spendingLimits !== undefined && spendingLimits !== null ? { spendingLimits } : {}),
+    ...(controls.spending_limits_currency
+      ? { spendingLimitsCurrency: controls.spending_limits_currency }
+      : {}),
+  }
+  return Object.keys(mapped).length > 0 ? mapped : undefined
+}
+
+const toWireSpendingControls = (
+  controls: IssuingCardholderSpendingControls,
+): CreateIssuingCardholderRequestSpendingControls => ({
+  ...(controls.allowedCardPresences !== undefined
+    ? { allowed_card_presences: controls.allowedCardPresences }
+    : {}),
+  ...(controls.allowedCategories !== undefined
+    ? { allowed_categories: controls.allowedCategories }
+    : {}),
+  ...(controls.allowedMerchantCountries !== undefined
+    ? { allowed_merchant_countries: controls.allowedMerchantCountries }
+    : {}),
+  ...(controls.blockedCardPresences !== undefined
+    ? { blocked_card_presences: controls.blockedCardPresences }
+    : {}),
+  ...(controls.blockedCategories !== undefined
+    ? { blocked_categories: controls.blockedCategories }
+    : {}),
+  ...(controls.blockedMerchantCountries !== undefined
+    ? { blocked_merchant_countries: controls.blockedMerchantCountries }
+    : {}),
+  ...(controls.spendingLimits !== undefined
+    ? {
+      spending_limits: controls.spendingLimits.map((limit) => ({
+        amount: limit.amount,
+        ...(limit.categories !== undefined ? { categories: limit.categories } : {}),
+        interval: limit.interval,
+      })),
+    }
+    : {}),
+  ...(controls.spendingLimitsCurrency !== undefined
+    ? { spending_limits_currency: controls.spendingLimitsCurrency }
+    : {}),
+})
+
+const toWireCompany = (company: IssuingCardholderCompany): CreateIssuingCardholderRequestCompany =>
+  company.taxId !== undefined ? { tax_id: company.taxId } : {}
+
+const toWireIndividual = (
+  individual: IssuingCardholderIndividual,
+): CreateIssuingCardholderRequestIndividual => ({
+  ...(individual.firstName !== undefined ? { first_name: individual.firstName } : {}),
+  ...(individual.lastName !== undefined ? { last_name: individual.lastName } : {}),
+  ...(individual.dob !== undefined
+    ? {
+      dob: {
+        day: individual.dob.day,
+        month: individual.dob.month,
+        year: individual.dob.year,
+      },
+    }
+    : {}),
+})
+
+const toAttrs = (cardholder: StripeIssuingCardholder): IssuingCardholderAttributes => ({
+  id: cardholder.id,
+  name: cardholder.name,
+  type: cardholder.type,
+  billing: fromObservedBilling(cardholder.billing),
+  email: cardholder.email ?? undefined,
+  phoneNumber: cardholder.phone_number ?? undefined,
+  preferredLocales: cardholder.preferred_locales === null || cardholder.preferred_locales === undefined
+    ? undefined
+    : [...cardholder.preferred_locales],
+  status: cardholder.status,
+  taxIdProvided: cardholder.company?.tax_id_provided,
+  firstName: cardholder.individual?.first_name ?? undefined,
+  lastName: cardholder.individual?.last_name ?? undefined,
+  dob: fromObservedDob(cardholder.individual?.dob),
+  spendingControls: fromObservedSpendingControls(cardholder.spending_controls),
+  requirements: {
+    disabledReason: cardholder.requirements.disabled_reason ?? undefined,
+    pastDue: cardholder.requirements.past_due === null || cardholder.requirements.past_due === undefined
+      ? undefined
+      : [...cardholder.requirements.past_due],
+  },
+  metadata: userMetadata(cardholder.metadata),
+  created: cardholder.created,
+  livemode: cardholder.livemode,
+})
+
+const isMissingCardholder = isMissingStripeResource
+
+const isIssuingNotEnabled = (error: StripeOpError): boolean =>
+  error._tag === "InvalidRequestError"
+  && typeof error.message === "string"
+  && error.message.includes("not set up to use Issuing")
+
+const getById = effect (cardholder: string) =>
+  try (GetIssuingCardholder({ cardholder })
+    |> Effect.catchIf(%, isMissingCardholder, effect () => try Effect.undefined)
+    |> Effect.catchIf(%, isIssuingNotEnabled, effect () => try Effect.undefined))
+
+const listByStatus = effect (status: IssuingCardholderStatus) => {
+  const cardholders: StripeIssuingCardholder[] = []
+  let startingAfter: string | undefined
+  for (let page = 0; page < LIST_MAX_PAGES; page++) {
+    const response = try (GetIssuingCardholders({
+      status,
+      limit: LIST_PAGE_SIZE,
+      ...(startingAfter !== undefined ? { starting_after: startingAfter } : {}),
+    })
+      |> Effect.catchIf(%, isIssuingNotEnabled, effect () => ({
+        data: [] as StripeIssuingCardholder[],
+        has_more: false,
+        object: "list" as const,
+        url: "/v1/issuing/cardholders",
+      })))
+    cardholders.push(...response.data)
+    if (!response.has_more || response.data.length === 0) {
+      break
+    }
+    startingAfter = response.data[response.data.length - 1]?.id
+    if (startingAfter === undefined) {
+      break
+    }
+  }
+  return cardholders
+}
+
+const listAllCardholders = effect () => {
+  const [active, inactive, blocked] = try Effect.all(
+    [listByStatus("active"), listByStatus("inactive"), listByStatus("blocked")],
+    { concurrency: 3 },
+  )
+  const seen = new Set<string>()
+  const cardholders: StripeIssuingCardholder[] = []
+  for (const cardholder of [...active, ...inactive, ...blocked]) {
+    if (seen.has(cardholder.id)) continue
+    seen.add(cardholder.id)
+    cardholders.push(cardholder)
+  }
+  return cardholders
+}
+
+const findByAlchemyId = effect (id: string) => {
+  const cardholders = try listAllCardholders()
+  const matches: StripeIssuingCardholder[] = []
+  for (const cardholder of cardholders) {
+    if (try hasAlchemyMetadata(id, tagRecord(cardholder.metadata))) {
+      matches.push(cardholder)
+    }
+  }
+  matches.sort((a, b) => b.created - a.created)
+  return matches[0]
+}
+
+const observe = effect (input: { mutable id?: string; mutable logicalId: string }) => {
+  if (input.id !== undefined) {
+    const byId = try getById(input.id)
+    if (byId !== undefined) return byId
+  }
+  return try findByAlchemyId(input.logicalId)
+}
+
+const desiredMetadata = effect (
+  id: string,
+  metadata: Record<string, string> | undefined,
+) => ({
+  ...toMetadata(metadata),
+  ...(try createInternalMetadata(id)),
+})
+
+const shouldReplace = (
+  news: IssuingCardholderProps,
+  output: IssuingCardholderAttributes | undefined,
+): boolean => {
+  if (output === undefined) return false
+  if (news.name !== output.name) return true
+  if ((news.type ?? "individual") !== output.type && news.type !== undefined) {
+    return true
+  }
+  return false
+}
+
+export const IssuingCardholderProvider = (): infer _ =>
+  Provider.succeed(IssuingCardholder, {
+    stables: ["id", "name", "type", "created", "livemode"],
+
+    diff: effect ({ news, output }) => {
+      if (!isResolved(news)) return undefined
+      if (shouldReplace(news, output)) {
+        return { action: "replace" } as const
+      }
+      return undefined
+    },
+
+    read: effect ({ id, output }) => {
+      const existing = try observe({
+        id: output?.id,
+        logicalId: id,
+      })
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing)
+      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      // Inactive (deactivated) rows stay in Stripe but must not re-enter
+      // nuke. Filter to alchemy_stack so account-wide teardown only
+      // touches our rows.
+      const [active, blocked] = try Effect.all(
+        [listByStatus("active"), listByStatus("blocked")],
+        { concurrency: 2 },
+      )
+      const seen = new Set<string>()
+      const cardholders: StripeIssuingCardholder[] = []
+      for (const cardholder of [...active, ...blocked]) {
+        if (seen.has(cardholder.id)) continue
+        seen.add(cardholder.id)
+        cardholders.push(cardholder)
+      }
+      return cardholders
+        .filter((cardholder) => {
+          const metadata = tagRecord(cardholder.metadata)
+          return metadata[alchemyMetadataKeys.stack] !== undefined
+        })
+        .map(toAttrs)
+    },
+
+    reconcile: effect ({ id, news, output, instanceId }) => {
+      const metadata = try desiredMetadata(id, news.metadata)
+      const desiredEmail = news.email ?? ""
+      const desiredPhone = news.phoneNumber ?? ""
+      const desiredStatus = news.status ?? "active"
+      const desiredType = news.type ?? "individual"
+      const desiredLocales = news.preferredLocales ?? []
+      const billing = toWireBilling(news.billing)
+
+      let current: StripeIssuingCardholder | undefined = try observe({
+        id: output?.id,
+        logicalId: id,
+      })
+      if (current !== undefined && shouldReplace(news, toAttrs(current))) {
+        current = undefined
+      }
+
+      if (current === undefined) {
+        current = try (CreateIssuingCardholder({
+          name: news.name,
+          billing,
+          type: desiredType,
+          status: desiredStatus,
+          metadata,
+          ...(desiredEmail.length > 0 ? { email: desiredEmail } : {}),
+          ...(desiredPhone.length > 0 ? { phone_number: desiredPhone } : {}),
+          ...(desiredLocales.length > 0 ? { preferred_locales: desiredLocales } : {}),
+          ...(news.company !== undefined ? { company: toWireCompany(news.company) } : {}),
+          ...(news.individual !== undefined
+            ? { individual: toWireIndividual(news.individual) }
+            : {}),
+          ...(news.spendingControls !== undefined
+            ? {
+              spending_controls: toWireSpendingControls(news.spendingControls),
+            }
+            : {}),
+        })
+          |> withRequestOptions({
+            idempotencyKey: `alchemy-issuing-cardholder-${instanceId}`,
+          })(%))
+      }
+
+      if (current === undefined) {
+        throw new IssuingCardholderNotResolved({ resourceName: news.name })
+      }
+
+      const observedMetadata = tagRecord(current.metadata)
+      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const metadataChanged = upsert.length > 0 || removed.length > 0
+      const billingChanged = !deepEqual(fromObservedBilling(current.billing), news.billing, {
+        stripNullish: true,
+      })
+      const emailChanged = (current.email ?? "") !== desiredEmail
+      const phoneChanged = (current.phone_number ?? "") !== desiredPhone
+      const statusChanged = current.status !== desiredStatus
+      const localesChanged = !arrayEquals(current.preferred_locales ?? [], desiredLocales)
+      const individualChanged = news.individual !== undefined
+        && !deepEqual(
+          {
+            firstName: current.individual?.first_name ?? undefined,
+            lastName: current.individual?.last_name ?? undefined,
+            dob: fromObservedDob(current.individual?.dob),
+          },
+          news.individual,
+          { stripNullish: true },
+        )
+      const companyChanged = news.company?.taxId !== undefined && current.company?.tax_id_provided !== true
+      const spendingControlsChanged = news.spendingControls !== undefined
+        && !deepEqual(fromObservedSpendingControls(current.spending_controls), news.spendingControls, {
+          stripNullish: true,
+        })
+
+      if (
+        !billingChanged
+        && !emailChanged
+        && !phoneChanged
+        && !statusChanged
+        && !localesChanged
+        && !individualChanged
+        && !companyChanged
+        && !spendingControlsChanged
+        && !metadataChanged
+      ) {
+        return toAttrs(current)
+      }
+
+      const updated = try UpdateIssuingCardholder({
+        cardholder: current.id,
+        ...(billingChanged ? { billing } : {}),
+        ...(emailChanged ? { email: desiredEmail } : {}),
+        ...(phoneChanged ? { phone_number: desiredPhone } : {}),
+        ...(statusChanged ? { status: desiredStatus } : {}),
+        ...(localesChanged ? { preferred_locales: desiredLocales } : {}),
+        ...(individualChanged && news.individual !== undefined
+          ? { individual: toWireIndividual(news.individual) }
+          : {}),
+        ...(companyChanged && news.company !== undefined
+          ? { company: toWireCompany(news.company) }
+          : {}),
+        ...(spendingControlsChanged && news.spendingControls !== undefined
+          ? { spending_controls: toWireSpendingControls(news.spendingControls) }
+          : {}),
+        ...(metadataChanged
+          ? {
+            metadata: {
+              ...Object.fromEntries(upsert.map((tag) => [tag.Key, tag.Value])),
+              ...Object.fromEntries(removed.map((key) => [key, ""])),
+            },
+          }
+          : {}),
+      })
+      return toAttrs(updated)
+    },
+
+    delete: effect ({ output }) => {
+      const existing = try getById(output.id)
+      if (existing === undefined || existing.status === "inactive") return
+      try (UpdateIssuingCardholder({
+        cardholder: existing.id,
+        status: "inactive",
+      })
+        |> Effect.catchIf(%, isMissingCardholder, effect () => try Effect.void))
+    },
+  })

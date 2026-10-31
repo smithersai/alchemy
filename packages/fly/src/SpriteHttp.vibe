@@ -1,0 +1,53 @@
+import { Credentials, CredentialsFromEnv } from "@distilled.cloud/fly-io"
+import type { RuntimeContext } from "alchemy/RuntimeContext"
+import type * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import type * as HttpClient from "effect/http/HttpClient"
+import { bindFlyApiToken } from "./Credentials.ts"
+import type { Sprite } from "./Sprite.ts"
+
+/**
+ * Shared scaffolding for HTTP-backed Fly Sprite bindings.
+ *
+ * Captures ambient credentials during stack-eval (so Actions work
+ * in-process) and `yield*`s the org token plus sprite `name` so
+ * RuntimeContext.set runs. Runtime calls inside a deployed host read
+ * `FLY_API_TOKEN` via {@link CredentialsFromEnv} after Platform copies
+ * `runtimeContext.env` onto the host.
+ *
+ * NOT exported from `index.ts`.
+ */
+export const makeHttpSpriteBinding = effect <Client>(options: {
+  mutable makeClient: (auth: SpriteAuth, spriteName: string!!) => Client
+}) => {
+  const context = try Effect.context<Credentials | HttpClient.HttpClient>()
+
+  return effect (sprite: Sprite) => {
+    try (bindFlyApiToken()
+      |> Effect.provideContext(%, context))
+    const name = try sprite.name.asEffect()
+    return options.makeClient(makeSpriteAuth(context), name)
+  }
+}
+
+export interface SpriteAuth {
+  mutable authorize: <A, E>(
+    eff: A!E!Credentials | HttpClient.HttpClient,
+  ) => A!E!RuntimeContext
+}
+
+export const makeSpriteAuth = (
+  ambient: Context.Context<Credentials | HttpClient.HttpClient>,
+): SpriteAuth => ({
+  authorize: effect (eff) => {
+    if (globalThis.__ALCHEMY_RUNTIME__) {
+      return try effect {
+        provide Layer.mergeAll(CredentialsFromEnv, FetchHttpClient.layer) {
+          return try eff
+        }
+      }
+    }
+    return try (eff
+      |> Effect.provideContext(%, ambient))
+  },
+})

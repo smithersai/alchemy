@@ -6,7 +6,7 @@ import type {
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { ApplePayDomain } from "./ApplePayDomain.ts";
+import type { ApplePayDomain } from "./ApplePayDomain.vibe";
 
 export interface RetrieveApplePayDomainRequest extends Omit<GetApplePayDomainRequest, "domain"> {}
 

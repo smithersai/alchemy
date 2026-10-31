@@ -180,6 +180,9 @@ const isSourceFile = (baseName: string) =>
   !baseName.endsWith(".d.ts") &&
   baseName !== "index.ts";
 
+// A .vibe module's declarations and docs live in its sidecar, x.d.vibe.ts; its source is x.vibe.
+const sourceName = (file: string) => normalizeSlashes(file).replace(/\.d\.vibe\.ts$/, ".vibe");
+
 const discoverFiles = Effect.fn(function* (repoRoot: string, root: SourceRoot) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -195,7 +198,7 @@ const discoverFiles = Effect.fn(function* (repoRoot: string, root: SourceRoot) {
       entries.push({
         relativePath: path.join(root.providerPrefix, file),
         absolutePath: path.join(srcRoot, file),
-        sourceDisplay: `${root.sourceDisplayPrefix}/${normalizeSlashes(file)}`,
+        sourceDisplay: `${root.sourceDisplayPrefix}/${sourceName(file)}`,
       });
     }
     entries.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
@@ -217,7 +220,7 @@ const discoverFiles = Effect.fn(function* (repoRoot: string, root: SourceRoot) {
       entries.push({
         relativePath,
         absolutePath: path.join(srcRoot, relativePath),
-        sourceDisplay: `${root.sourceDisplayPrefix}/${normalizeSlashes(relativePath)}`,
+        sourceDisplay: `${root.sourceDisplayPrefix}/${sourceName(relativePath)}`,
       });
     }
   }
@@ -593,7 +596,7 @@ export function findTaggedPrimary(
       ? normalizeSlashes(sourceFile.fileName)
           .split("/")
           .pop()!
-          .replace(/\.tsx?$/, "")
+          .replace(/(?:\.d\.vibe)?\.tsx?$/, "")
       : declName(node);
     if (!exportName) continue;
     const name = doc.title || exportName;

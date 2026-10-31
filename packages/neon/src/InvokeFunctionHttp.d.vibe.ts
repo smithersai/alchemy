@@ -1,0 +1,24 @@
+import * as Layer from "effect/Layer";
+import { InvokeFunction } from "./InvokeFunction.vibe";
+/**
+ * URL-only HTTP client. Does not provision an invocation credential or private route.
+ *
+ * ### Invoke a Function
+ * **Example:** Provide the HTTP implementation
+ * ```typescript
+ * const application = Effect.gen(function* () {
+ *   const api = yield* Neon.InvokeFunction(target);
+ *   return {
+ *     fetch: Effect.gen(function* () {
+ *       const response = yield* api.fetch("/health").pipe(Effect.orDie);
+ *       return HttpServerResponse.text(String(response.status));
+ *     }),
+ *   };
+ * }).pipe(Effect.provide(Neon.InvokeFunctionHttp));
+ * ```
+ *
+ * @layer
+ * @product Function
+ * @provides Neon.InvokeFunction
+ */
+export declare const InvokeFunctionHttp: Layer.Layer<InvokeFunction, never, never>;

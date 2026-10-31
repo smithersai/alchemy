@@ -6,7 +6,7 @@ import type {
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { IssuingPersonalizationDesign } from "./IssuingPersonalizationDesign.ts";
+import type { IssuingPersonalizationDesign } from "./IssuingPersonalizationDesign.vibe";
 
 export interface RetrieveIssuingPersonalizationDesignRequest extends Omit<
   GetIssuingPersonalizationDesignRequest,

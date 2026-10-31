@@ -1,0 +1,121 @@
+import * as Binding from "alchemy/Binding"
+import type { RuntimeContext } from "alchemy/RuntimeContext"
+import * as Effect from "effect/Effect"
+import * as HttpClient from "effect/http/HttpClient"
+import type * as HttpClientError from "effect/http/HttpClientError"
+import * as HttpClientRequest from "effect/http/HttpClientRequest"
+import type * as HttpClientResponse from "effect/http/HttpClientResponse"
+import * as Layer from "effect/Layer"
+import * as Redacted from "effect/Redacted"
+import type * as Scope from "effect/Scope"
+import { backendEnvKey, backendString, bindBackendEnvironment } from "./BackendConnection.ts"
+import type { DataApi } from "./DataApi.vibe"
+
+export error DataApiRequestError {
+  mutable message: string
+}
+
+export interface QueryDataApiClient {
+  /** Bound public PostgREST endpoint. */
+  mutable baseUrl: string!never!RuntimeContext
+  /** Execute a relative PostgREST request with this caller's token, never an admin key. */
+  mutable execute: (
+    request: HttpClientRequest.HttpClientRequest,
+    token: Redacted.Redacted<string>,
+  ) =>
+    HttpClientResponse.HttpClientResponse!HttpClientError.HttpClientError | DataApiRequestError!RuntimeContext | Scope.Scope
+}
+
+/**
+ * Query Neon Data API (PostgREST) over HTTP from a Function, Worker, or Lambda
+ * using an explicitly supplied caller token. Supports reads, writes and database
+ * function calls; this binding does not provision database grants or RLS policies.
+ *
+ * This is a low-level Effect HTTP client, not a SQL driver or a fluent query
+ * builder. Browser applications can use Neon's `@neondatabase/neon-js` or
+ * `@neondatabase/postgrest-js` SDK directly with the public Data API URL.
+ *
+ * Relative URLs cannot redirect the authorization header to another origin.
+ * Requests do not follow redirects, and response bodies remain request-scoped.
+ *
+ * ### Forward end-user authorization
+ * **Example:** Query rows under the caller's RLS identity
+ * ```typescript
+ * const data = yield* Neon.QueryDataApi(dataApi);
+ * // In the request handler, after obtaining the caller's token:
+ * const response = yield* data.execute(HttpClientRequest.get("todos?select=*"), token);
+ * ```
+ *
+ * @binding
+ * @product Data API
+ */
+export interface QueryDataApi extends
+  Binding.Service<
+    QueryDataApi,
+    "Neon.QueryDataApi",
+    (dataApi: DataApi) => QueryDataApiClient!!
+  >
+{}
+export const QueryDataApi = Binding.Service<QueryDataApi>("Neon.QueryDataApi")
+
+/** Data API transport, with the host and HTTP client encapsulated at initialization. */
+export const QueryDataApiHttp = Layer.effect(
+  QueryDataApi,
+  effect {
+    const http = try Effect.service(HttpClient.HttpClient)
+    return effect (dataApi: DataApi) => {
+      const key = backendEnvKey(dataApi.FQN, "DATA_API_URL")
+      try bindBackendEnvironment(`Neon.QueryDataApi:${dataApi.FQN}`, {
+        [key]: dataApi.url,
+      })
+      const baseUrl = effect {
+        return try backendString(key)
+      }
+      return {
+        baseUrl,
+        execute: effect (
+          request: HttpClientRequest.HttpClientRequest,
+          token: Redacted.Redacted<string>,
+        ) => {
+          if (!Redacted.value(token)) {
+            throw new DataApiRequestError({
+              message: "An end-user token is required",
+            })
+          }
+          const base = (try baseUrl).replace(/\/$/, "") + "/"
+          const target = try Effect.try({
+            try: () => new URL(request.url.replace(/^\/(?!\/)/, ""), base),
+            catch: () =>
+              new DataApiRequestError({
+                message: "Invalid relative Data API URL",
+              }),
+          })
+          const origin = try Effect.sync(() => new URL(base))
+          if (
+            target.origin !== origin.origin
+            || !target.pathname.startsWith(origin.pathname)
+            || target.username
+            || target.password
+          ) {
+            throw new DataApiRequestError({
+              message: "Data API request must stay within its bound endpoint",
+            })
+          }
+          return try effect {
+            provide FetchHttpClient.RequestInit = {
+                  redirect: "manual",
+                } {
+              return try http
+                .execute(
+                  request.pipe(
+                    HttpClientRequest.setUrl(target.href),
+                    HttpClientRequest.bearerToken(token),
+                  ),
+                )
+            }
+          }
+        },
+      } satisfies QueryDataApiClient
+    }
+  },
+)

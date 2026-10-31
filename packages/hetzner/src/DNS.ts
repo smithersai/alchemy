@@ -3,4 +3,4 @@
  * DNS zone (see [DNS Adapters](/infrastructure-as-code/dns-adapters)).
  */
 export * from "./DnsAdapter.ts";
-export * from "./DnsRecordList.ts";
+export * from "./DnsRecordList.vibe";

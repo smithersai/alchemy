@@ -1,0 +1,152 @@
+import * as Neon from "@distilled.cloud/neon"
+import { OwnedBySomeoneElse, Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import { authPlanScope, authRequest, InvalidManagedAuth } from "./Auth.ts"
+import type { Providers } from "./Providers.ts"
+
+export error AuthTrustedDomainUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface AuthTrustedDomainProps {
+  /** Managed Auth integration to trust the origin on. */
+  mutable auth: { mutable projectId: string; mutable branchId: string }
+  /** Exact trusted origin, including scheme and optional port. */
+  mutable domain: string
+}
+
+export interface AuthTrustedDomainAttributes {
+  /** Neon project identity. */
+  mutable projectId: string
+  /** Branch identity. */
+  mutable branchId: string
+  /** Trusted origin owned by this child. */
+  mutable domain: string
+}
+
+export interface AuthTrustedDomain extends
+  Resource<
+    "Neon.AuthTrustedDomain",
+    AuthTrustedDomainProps,
+    AuthTrustedDomainAttributes,
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Own one trusted origin without replacing the Auth integration or overwriting
+ * other origins. Existing entries require explicit adoption.
+ *
+ * ### Trust a deployed frontend
+ * **Example:** Resolve the site URL after creating Auth
+ * ```typescript
+ * yield* Neon.AuthTrustedDomain("SiteOrigin", { auth, domain: site.url });
+ * ```
+ *
+ * @resource
+ * @product Auth
+ */
+export const AuthTrustedDomain = Resource<AuthTrustedDomain>("Neon.AuthTrustedDomain")
+
+const observe = effect (scope: { mutable projectId: string; mutable branchId: string }, domain: string) =>
+  ((try Neon.listBranchNeonAuthTrustedDomains(authRequest(scope))).domains.some(
+    (item) => item.domain === domain && item.auth_provider === "better_auth",
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: false; default: throw e; }
+
+export const AuthTrustedDomainProvider = (): infer _ =>
+  Provider.succeed(AuthTrustedDomain, {
+    stables: ["projectId", "branchId", "domain"],
+    diff: effect ({ olds, news, output }) => {
+      const scope = "auth" in news ? try authPlanScope({ branch: news.auth }) : undefined
+      if (
+        output
+        && (!scope
+          || scope.projectId !== output.projectId
+          || scope.branchId !== output.branchId
+          || !("domain" in news)
+          || news.domain !== output.domain)
+      ) {
+        return { action: "replace" } as const
+      }
+      if (!isResolved(news)) return
+      if (
+        news.auth.projectId !== olds.auth.projectId
+        || news.auth.branchId !== olds.auth.branchId
+        || news.domain !== olds.domain
+      ) {
+        return { action: "replace" } as const
+      }
+      if (!(try observe(news.auth, news.domain))) return { action: "update" } as const
+    },
+    read: effect ({ olds, output }) => {
+      if (!output && (!olds?.auth?.projectId || !olds.auth.branchId || !olds.domain)) {
+        return undefined
+      }
+      const scope = output ?? olds.auth
+      const domain = output?.domain ?? olds.domain
+      if (!(try observe(scope, domain))) return undefined
+      const attrs = {
+        projectId: scope.projectId,
+        branchId: scope.branchId,
+        domain,
+      }
+      return output ? attrs : Unowned(attrs)
+    },
+    reconcile: effect ({ news, output }) => {
+      if (
+        output
+        && (news.auth.projectId !== output.projectId
+          || news.auth.branchId !== output.branchId
+          || news.domain !== output.domain)
+      ) {
+        throw new InvalidManagedAuth({
+          message: "Trusted origin identity changed without replacement; refusing to mutate either origin",
+        })
+      }
+      const request = authRequest(news.auth)
+      const current = try observe(news.auth, news.domain)
+      if (current && !output) {
+        throw new OwnedBySomeoneElse({
+          message: "Existing trusted origin requires explicit adoption",
+          resourceType: "Neon.AuthTrustedDomain",
+        })
+      }
+      if (!current) {
+        Neon.addBranchNeonAuthTrustedDomain({
+          ...request,
+          auth_provider: "better_auth",
+          domain: news.domain,
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: throw new OwnedBySomeoneElse({
+            message: "Trusted origin appeared during creation; explicit adoption is required",
+            resourceType: "Neon.AuthTrustedDomain",
+          });
+          default: throw e;
+        }
+      }
+      if (!(try observe(news.auth, news.domain))) {
+        throw new AuthTrustedDomainUnexpectedResponse({
+          message: "Trusted origin was not visible after reconciliation",
+        })
+      }
+      return {
+        projectId: news.auth.projectId,
+        branchId: news.auth.branchId,
+        domain: news.domain,
+      }
+    },
+    delete: effect ({ output }) => {
+      if (try observe(output, output.domain)) {
+        Neon.deleteBranchNeonAuthTrustedDomain({
+          ...authRequest(output),
+          auth_provider: "better_auth",
+          domains: [{ domain: output.domain }],
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+    },
+  })

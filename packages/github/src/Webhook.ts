@@ -8,7 +8,7 @@ import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
 import { withBaseUrl, gitHubBaseUrlChanged } from "./BaseUrl.ts";
 import type * as GitHub from "./Providers.ts";
-import type { WebhookEventName } from "./RepositoryEventSource.ts";
+import type { WebhookEventName } from "./RepositoryEventSource.vibe";
 
 export interface WebhookProps {
   /**
@@ -118,7 +118,7 @@ export interface Webhook extends Resource<
  * `repo` scope (admin access to the repository) to manage webhooks.
  *
  * Most users don't construct `Webhook` directly — prefer
- * {@link import("./RepositoryEventSource.ts").events | events(repository, handler)}
+ * {@link import("./RepositoryEventSource.vibe").events | events(repository, handler)}
  * inside a Cloudflare Worker, which provisions the webhook, wires the
  * delivery URL to the Worker, and forwards verified events to your handler.
  * ### Creating a Webhook

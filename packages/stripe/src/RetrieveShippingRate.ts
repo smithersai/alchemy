@@ -6,7 +6,7 @@ import type {
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { ShippingRate } from "./ShippingRate.ts";
+import type { ShippingRate } from "./ShippingRate.vibe";
 
 export interface RetrieveShippingRateRequest extends Omit<
   GetShippingRateRequest,

@@ -1,0 +1,272 @@
+import * as Hetzner from "@distilled.cloud/hetzner"
+import type { GetPlacementGroupResponsePlacementGroup } from "@distilled.cloud/hetzner/placement_groups"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import { waitForAction } from "./actions.vibe"
+import {
+  alchemyStackSelector,
+  createInternalLabels,
+  diffLabels,
+  hasAlchemyLabels,
+  labelSelector,
+  stripInternalLabels,
+  toLabels,
+} from "./Labels.vibe"
+import type { Providers } from "./Providers.ts"
+
+/**
+ * Placement Group type. Hetzner currently offers only `spread` — Servers
+ * in the group are placed on distinct physical hosts.
+ */
+export type PlacementGroupType = "spread"
+
+export interface PlacementGroupProps {
+  /**
+   * Name of the Placement Group. Must be unique per Hetzner project. If
+   * omitted, a unique name is generated from `${stack}-${id}-${stage}`.
+   */
+  mutable name?: string
+  /**
+   * Placement strategy. `spread` places each Server on a different
+   * physical host. Cannot be changed after creation — changing it
+   * replaces the group.
+   *
+   * @default "spread"
+   */
+  mutable type?: PlacementGroupType
+  /**
+   * User-defined labels (`key/value` pairs). Alchemy ownership labels
+   * (`alchemy.stack`, `alchemy.stage`, `alchemy.id`) are merged in
+   * automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type PlacementGroup = Resource<
+  "Hetzner.PlacementGroup",
+  PlacementGroupProps,
+  {
+    /**
+     * Numeric Hetzner Placement Group ID.
+     */
+    mutable id: number
+    /**
+     * Name of the Placement Group. Unique per project.
+     */
+    mutable name: string
+    /**
+     * Placement strategy. Currently always `spread`.
+     */
+    mutable type: PlacementGroupType
+    /**
+     * User-defined labels (Alchemy ownership labels stripped).
+     */
+    mutable labels: Record<string, string>
+    /**
+     * RFC3339 timestamp of when the Placement Group was created.
+     */
+    mutable created: string
+    /**
+     * IDs of Servers currently assigned to this group. Server
+     * attachment is configured on the Server resource.
+     */
+    mutable servers: number[]
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Hetzner Cloud Placement Group. Spread groups keep member Servers on
+ * distinct physical hosts so a single hardware failure cannot take them
+ * all down. Type is `spread` (the only type Hetzner currently offers)
+ * and is immutable — changing it replaces the group. Name and labels
+ * update in place.
+ *
+ * Servers are attached from the Server resource (not here).
+ *
+ * @see https://docs.hetzner.cloud/reference/cloud#placement-groups
+ *
+ * ### Creating a Placement Group
+ * **Example:** Basic spread group
+ * ```typescript
+ * const group = yield* Hetzner.PlacementGroup("web");
+ * ```
+ *
+ * **Example:** Named group with labels
+ * ```typescript
+ * const group = yield* Hetzner.PlacementGroup("web", {
+ *   name: "web-spread",
+ *   type: "spread",
+ *   labels: { role: "web" },
+ * });
+ * ```
+ *
+ * @resource
+ * @product Server
+ */
+export const PlacementGroup = Resource<PlacementGroup>("Hetzner.PlacementGroup")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class PlacementGroupNotResolved extends Data.TaggedError(
+  "Hetzner.PlacementGroupNotResolved",
+)<{ mutable resourceName: string }> {}
+
+const DEFAULT_TYPE: PlacementGroupType = "spread"
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const toName = effect (id: string, name: string | undefined, existing?: string) => {
+  return name ?? existing ?? (try createPhysicalName({ id, maxLength: 64 }))
+}
+
+const toAttrs = (group: GetPlacementGroupResponsePlacementGroup): infer _ => ({
+  id: group.id,
+  name: group.name,
+  type: group.type as PlacementGroupType,
+  labels: userLabels(group.labels),
+  created: group.created,
+  servers: group.servers,
+})
+
+const getById = effect (id: number) =>
+  (try effect {
+    const { placement_group } = try Hetzner.placementGroups.getPlacementGroup({ id })
+    return placement_group
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+const findByName = effect (name: string) =>
+  try effect {
+    const { placement_groups } = try Hetzner.placementGroups
+      .listPlacementGroups({ name, per_page: 50 })
+    return placement_groups.find((group) => group.name === name)
+  }
+
+const findByAlchemyLabels = effect (id: string) => {
+  const internal = try createInternalLabels(id)
+  const { placement_groups } = try Hetzner.placementGroups.listPlacementGroups({
+    label_selector: labelSelector(internal),
+    per_page: 50,
+  })
+  return placement_groups.find((group) => {
+    const labels = tagRecord(group.labels)
+    return Object.entries(internal).every(([key, value]) => labels[key] === value)
+  })
+}
+
+const observe = effect (input: { mutable id?: number; mutable name?: string; mutable logicalId: string }) => {
+  if (input.id !== undefined) {
+    const byId = try getById(input.id)
+    if (byId !== undefined) return byId
+  }
+  if (input.name !== undefined) {
+    const byName = try findByName(input.name)
+    if (byName !== undefined) return byName
+  }
+  return try findByAlchemyLabels(input.logicalId)
+}
+
+/**
+ * Poll `getPlacementGroup` until it returns the typed `NotFound` tag.
+ * Bounded to 10 attempts at 1s spacing.
+ */
+export const waitUntilPlacementGroupGone = effect (
+  id: number,
+): "found" | "gone"!Hetzner.BadRequest | Hetzner.ConfigError | Hetzner.Conflict | Hetzner.Forbidden | import("effect/http/HttpClientError").HttpClientError | import("@distilled.cloud/core/errors").InvalidInput | Hetzner.Locked | Hetzner.UnprocessableEntity | Hetzner.ClientErrors | import("@distilled.cloud/core/errors").DefaultErrors!Hetzner.HetznerOpContext =>
+  try (effect {
+    return (try (Hetzner.placementGroups.getPlacementGroup({ id })
+      |> Effect.as(%, "found" as const))) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: "gone" as const;
+        default: throw e;
+      }
+  }
+    |> Effect.repeat(%, {
+      schedule: Schedule.spaced("1 second"),
+      until: (status) => status === "gone",
+      times: 10,
+    }))
+
+export const PlacementGroupProvider = (): infer _ =>
+  Provider.succeed(PlacementGroup, {
+    stables: ["id", "type", "created"],
+
+    diff: effect ({ news, output }) => {
+      if (!isResolved(news)) return undefined
+      const nextType = news.type ?? DEFAULT_TYPE
+      if (output !== undefined && nextType !== output.type) {
+        return { action: "replace" } as const
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const name = try toName(id, olds?.name, output?.name)
+      const existing = try observe({ id: output?.id, name, logicalId: id })
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () =>
+      Array.from(
+        try (Hetzner.placementGroups.listPlacementGroups
+          .items({ label_selector: alchemyStackSelector, per_page: 50 })
+          |> Stream.runCollect(%)),
+        toAttrs,
+      ),
+
+    reconcile: effect ({ id, news, output }) => {
+      const type = news.type ?? DEFAULT_TYPE
+      const name = try toName(id, news.name, output?.name)
+      const desired = { ...toLabels(news.labels), ...(try createInternalLabels(id)) }
+
+      let current = try observe({ id: output?.id, name, logicalId: id })
+
+      if (current === undefined) {
+        const created = Hetzner.placementGroups
+          .createPlacementGroup({ name, type, labels: desired }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try Effect.undefined;
+            default: throw e;
+          }
+        if (created?.action != null) {
+          try waitForAction(created.action.id)
+        }
+        current = created?.placement_group ?? (try observe({ name, logicalId: id }))
+      }
+
+      if (current === undefined) {
+        throw new PlacementGroupNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desired)
+      const nameChanged = current.name !== name
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      if (nameChanged || labelsChanged) {
+        const updated = try Hetzner.placementGroups.updatePlacementGroup({
+          id: current.id,
+          name: nameChanged ? name : undefined,
+          labels: labelsChanged ? desired : undefined,
+        })
+        current = updated.placement_group
+      }
+
+      return toAttrs(current)
+    },
+
+    delete: effect ({ output }) => {
+      Hetzner.placementGroups
+        .deletePlacementGroup({ id: output.id }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

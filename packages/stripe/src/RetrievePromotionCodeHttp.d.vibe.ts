@@ -1,0 +1,11 @@
+import * as Layer from "effect/Layer";
+import { RetrievePromotionCode } from "./RetrievePromotionCode.js";
+/**
+ * HTTP implementation of {@link RetrievePromotionCode}. Provide it on the
+ * Function or Worker Effect.
+ *
+ * @layer
+ * @product Product
+ * @provides Stripe.RetrievePromotionCode
+ */
+export declare const RetrievePromotionCodeHttp: Layer.Layer<RetrievePromotionCode, never, never>;

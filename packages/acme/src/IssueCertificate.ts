@@ -1,14 +1,14 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Account } from "./Account.ts";
+import type { Account } from "./Account.vibe";
 import type {
   IssueError,
   IssueRequest,
   IssuedCertificate,
   RevokeError,
   RevokeRequest,
-} from "./Client.ts";
+} from "./Client.vibe";
 
 /**
  * Issue (and revoke) certificates at runtime as an {@link Account} — for

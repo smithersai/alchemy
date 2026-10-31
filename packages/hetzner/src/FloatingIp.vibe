@@ -1,0 +1,405 @@
+import * as Hetzner from "@distilled.cloud/hetzner"
+import type { GetFloatingIpResponseFloatingIp } from "@distilled.cloud/hetzner/floating_ips"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import { waitForAction } from "./actions.vibe"
+import { findLocation } from "./Catalog.vibe"
+import {
+  alchemyStackSelector,
+  createInternalLabels,
+  diffLabels,
+  hasAlchemyLabels,
+  labelSelector,
+  stripInternalLabels,
+  toLabels,
+} from "./Labels.vibe"
+import type { Providers } from "./Providers.ts"
+
+export type FloatingIpType = "ipv4" | "ipv6"
+
+export interface FloatingIpProps {
+  /**
+   * Address family of the Floating IP. Cannot be changed after creation —
+   * changing it triggers a replacement.
+   */
+  mutable type: FloatingIpType
+  /**
+   * Home Location for the Floating IP (`nbg1`, `fsn1`, `hel1`, …) or the
+   * Location's numeric id. Routing is optimized for this Location. Cannot
+   * be changed after creation — changing it triggers a replacement.
+   */
+  mutable homeLocation: string | number
+  /**
+   * Name of the Floating IP. Must be unique per Hetzner project. If
+   * omitted, a unique name is generated from the stack, stage, and
+   * logical ID.
+   */
+  mutable name?: string
+  /**
+   * Free-form description shown in the Hetzner Cloud Console.
+   */
+  mutable description?: string | null
+  /**
+   * User-defined labels (`key`/`value` pairs) applied to the Floating IP.
+   * Alchemy ownership labels are added automatically.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Prevent the Floating IP from being deleted via the API.
+   * @default false
+   */
+  mutable deleteProtection?: boolean
+}
+
+export type FloatingIp = Resource<
+  "Hetzner.FloatingIp",
+  FloatingIpProps,
+  {
+    /**
+     * Numeric Hetzner ID of the Floating IP.
+     */
+    mutable id: number
+    /**
+     * Name of the Floating IP.
+     */
+    mutable name: string
+    /**
+     * Address family of the Floating IP.
+     */
+    mutable type: FloatingIpType
+    /**
+     * Assigned address. For `ipv6` this is the `/64` network.
+     */
+    mutable ip: string
+    /**
+     * Home Location name (`nbg1`, `fsn1`, …).
+     */
+    mutable homeLocation: string
+    /**
+     * Numeric ID of the home Location.
+     */
+    mutable homeLocationId: number
+    /**
+     * Description of the Floating IP, or `null` if unset.
+     */
+    mutable description: string | null
+    /**
+     * Whether Hetzner has blocked the Floating IP.
+     */
+    mutable blocked: boolean
+    /**
+     * Whether delete protection is enabled.
+     */
+    mutable deleteProtection: boolean
+    /**
+     * User-defined labels (Alchemy ownership labels are stripped).
+     */
+    mutable labels: Record<string, string>
+    /**
+     * RFC3339 timestamp when the Floating IP was created.
+     */
+    mutable created: string
+    /**
+     * Numeric Server ID this Floating IP is assigned to, or `null` if
+     * unassigned. Assignment is managed by `FloatingIpAssignment`.
+     */
+    mutable serverId: number | null
+  },
+  never,
+  Providers
+>
+
+/**
+ * An unassigned Hetzner Cloud Floating IP. Provide `type` and a
+ * `homeLocation`; Alchemy generates a unique name unless you set `name`.
+ * Assignment to a Server is a separate `FloatingIpAssignment` resource.
+ *
+ * `type` and `homeLocation` are immutable — changing either replaces the
+ * Floating IP (new address). `name`, `description`, `labels`, and
+ * `deleteProtection` update in place.
+ *
+ * @see https://docs.hetzner.cloud/reference/cloud#floating-ips
+ *
+ * ### Creating a Floating IP
+ * **Example:** Unassigned IPv4 in nbg1
+ * ```typescript
+ * const ip = yield* Hetzner.FloatingIp("public-ip", {
+ *   type: "ipv4",
+ *   homeLocation: "nbg1",
+ * });
+ * ```
+ *
+ * **Example:** IPv6 with description and labels
+ * ```typescript
+ * const ip = yield* Hetzner.FloatingIp("v6", {
+ *   type: "ipv6",
+ *   homeLocation: "nbg1",
+ *   description: "edge anycast",
+ *   labels: { role: "edge" },
+ * });
+ * ```
+ *
+ * ### Updating a Floating IP
+ * **Example:** Rename and relabel
+ * ```typescript
+ * const ip = yield* Hetzner.FloatingIp("public-ip", {
+ *   type: "ipv4",
+ *   homeLocation: "nbg1",
+ *   name: "public-ip-prod",
+ *   description: "production frontend",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @product IP Address
+ */
+export const FloatingIp = Resource<FloatingIp>("Hetzner.FloatingIp")
+
+type CloudFloatingIp = GetFloatingIpResponseFloatingIp
+
+const asType = (type: string): FloatingIpType => (type === "ipv6" ? "ipv6" : "ipv4")
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const toAttrs = (ip: CloudFloatingIp): FloatingIp["Attributes"] => ({
+  id: ip.id,
+  name: ip.name,
+  type: asType(ip.type),
+  ip: ip.ip,
+  homeLocation: ip.home_location.name,
+  homeLocationId: ip.home_location.id,
+  description: ip.description,
+  blocked: ip.blocked,
+  deleteProtection: ip.protection.delete,
+  labels: userLabels(ip.labels),
+  created: ip.created,
+  serverId: ip.server,
+})
+
+const createFloatingIpName = effect (id: string, name: string | undefined, existing?: string) => {
+  return name ?? existing ?? (try createPhysicalName({ id, maxLength: 63 }))
+}
+
+const getById = effect (id: number) =>
+  (try effect {
+    const { floating_ip } = try Hetzner.floatingIps.getFloatingIp({ id })
+    return floating_ip
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+const getByName = effect (name: string) =>
+  try effect {
+    const { floating_ips } = try Hetzner.floatingIps
+      .listFloatingIps({ name, per_page: 50 })
+    return floating_ips[0]
+  }
+
+const getByLabels = effect (labels: Record<string, string>) =>
+  try effect {
+    const { floating_ips } = try Hetzner.floatingIps
+      .listFloatingIps({ label_selector: labelSelector(labels), per_page: 50 })
+    return floating_ips[0]
+  }
+
+const observe = effect ({
+  id,
+  name,
+  outputId,
+}: {
+  mutable id: string
+  mutable name?: string
+  mutable outputId?: number
+}) => {
+  if (outputId !== undefined) {
+    const byId = try getById(outputId)
+    if (byId !== undefined) return byId
+  }
+  if (name !== undefined) {
+    const byName = try getByName(name)
+    if (byName !== undefined) return byName
+  }
+  const internal = try createInternalLabels(id)
+  return try getByLabels(internal)
+}
+
+const refresh = effect (id: number) =>
+  try (effect {
+    return try effect {
+      const { floating_ip } = try Hetzner.floatingIps.getFloatingIp({ id })
+      return floating_ip
+    }
+  }
+    |> Effect.retry(%, {
+      while: (e) => e._tag === "NotFound",
+      times: 5,
+      schedule: Schedule.min([
+        Schedule.exponential(Duration.millis(200), 1.5),
+        Schedule.spaced(Duration.seconds(2)),
+      ]),
+    }))
+
+const sameHomeLocation = (
+  desired: string | number,
+  attrs: Pick<FloatingIp["Attributes"], "homeLocation" | "homeLocationId">,
+): boolean =>
+  desired === attrs.homeLocation
+  || desired === attrs.homeLocationId
+  || String(desired) === String(attrs.homeLocationId)
+
+const matchesDesired = (
+  ip: CloudFloatingIp,
+  type: FloatingIpType,
+  location: { mutable name: string; mutable id: number },
+): boolean =>
+  asType(ip.type) === type
+  && sameHomeLocation(location.name, {
+    homeLocation: ip.home_location.name,
+    homeLocationId: ip.home_location.id,
+  })
+
+const disableProtection = effect (id: number) =>
+  try effect {
+    const { action } = try Hetzner.floatingIpActions
+      .changeFloatingIpProtection({ id, delete: false })
+    return try waitForAction(action)
+  }
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class FloatingIpNotCreated extends Data.TaggedError("Hetzner.FloatingIpNotCreated")<{
+  mutable resourceName: string
+}> {}
+
+export const FloatingIpProvider = (): infer _ =>
+  Provider.succeed(FloatingIp, {
+    stables: ["id", "ip", "type", "homeLocation", "homeLocationId", "created"],
+    nuke: { dependsOn: ["Hetzner.Server"] },
+    list: effect () => {
+      const items = Array.from(
+        try (Hetzner.floatingIps.listFloatingIps
+          .items({ label_selector: alchemyStackSelector, per_page: 50 })
+          |> Stream.runCollect(%)),
+      )
+      return items.map(toAttrs)
+    },
+    diff: effect ({ news, output }) => {
+      if (!isResolved(news)) return undefined
+      if (output !== undefined) {
+        if (news.type !== output.type) {
+          return { action: "replace" } as const
+        }
+        if (!sameHomeLocation(news.homeLocation, output)) {
+          return { action: "replace" } as const
+        }
+      }
+      return undefined
+    },
+    read: effect ({ id, olds, output }) => {
+      const found = try observe({ id, name: olds?.name ?? output?.name, outputId: output?.id })
+      if (found === undefined) return undefined
+      const attrs = toAttrs(found)
+      const owned = try hasAlchemyLabels(id, tagRecord(found.labels))
+      return owned ? attrs : Unowned(attrs)
+    },
+    reconcile: effect ({ id, news, output }) => {
+      const location = try findLocation(news.homeLocation)
+      const name = try createFloatingIpName(id, news.name, output?.name)
+      const internalLabels = try createInternalLabels(id)
+      const desiredLabels = { ...toLabels(news.labels), ...internalLabels }
+      const desiredDescription = news.description ?? null
+      const desiredProtection = news.deleteProtection ?? false
+
+      // Observe — cloud state is authoritative. `output.id` is a cache
+      // for the stable identifier; if the IP is gone, we recreate.
+      let current: CloudFloatingIp | undefined = try observe({ id, name, outputId: output?.id })
+      // A previous generation found via ownership labels (same logical id,
+      // different type/location) is the resource being replaced — do not
+      // take it over; create a new Floating IP instead.
+      if (
+        current !== undefined
+        && current.id !== output?.id
+        && !matchesDesired(current, news.type, location)
+      ) {
+        current = undefined
+      }
+
+      // Ensure — create only when missing. A Conflict is a race with a
+      // peer reconciler or a name that just became visible; re-observe.
+      if (current === undefined) {
+        const created = Hetzner.floatingIps
+          .createFloatingIp({
+            type: news.type,
+            home_location: location.name,
+            name,
+            description: desiredDescription,
+            labels: desiredLabels,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          if (created.action) {
+            try waitForAction(created.action)
+          }
+          current = created.floating_ip
+        } else {
+          const hit = try observe({ id, name })
+          if (hit !== undefined && matchesDesired(hit, news.type, location)) {
+            current = hit
+          }
+        }
+      }
+
+      if (current === undefined) {
+        throw new FloatingIpNotCreated({ resourceName: name })
+      }
+
+      // Sync — name / description / labels via PUT (labels overwrite the
+      // full set). Protection is a separate Action.
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const needsUpdate = current.name !== name
+        || (current.description ?? null) !== desiredDescription
+        || upsert.length > 0
+        || removed.length > 0
+      if (needsUpdate) {
+        const updated = try Hetzner.floatingIps.updateFloatingIp({
+          id: current.id,
+          name,
+          description: desiredDescription,
+          labels: desiredLabels,
+        })
+        current = updated.floating_ip
+      }
+
+      if (current.protection.delete !== desiredProtection) {
+        const { action } = try Hetzner.floatingIpActions.changeFloatingIpProtection({
+          id: current.id,
+          delete: desiredProtection,
+        })
+        try waitForAction(action)
+      }
+
+      return toAttrs(try refresh(current.id))
+    },
+    delete: effect ({ output }) => {
+      const current = try getById(output.id)
+      if (current === undefined) return
+      if (current.protection.delete) {
+        try disableProtection(current.id)
+      }
+      if (current.server !== null) {
+        const { action } = try Hetzner.floatingIpActions.unassignFloatingIp({ id: current.id })
+        try waitForAction(action)
+      }
+      Hetzner.floatingIps
+        .deleteFloatingIp({ id: current.id }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

@@ -8,34 +8,34 @@ import {
 } from "alchemy/Website/Server";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
-import { HetznerAuth } from "./AuthProvider.ts";
+import { HetznerAuth } from "./AuthProvider.vibe";
 import { Certificate, CertificateProvider } from "./Certificate.ts";
-import * as Credentials from "./Credentials.ts";
+import * as Credentials from "./Credentials.vibe";
 import {
   AdapterLive as DnsAdapterLive,
   RecordList as DnsRecordList,
   RecordListProvider as DnsRecordListProvider,
 } from "./DNS.ts";
 import { fromCredentials } from "./Environment.ts";
-import { Firewall, FirewallProvider } from "./Firewall.ts";
-import { FloatingIp, FloatingIpProvider } from "./FloatingIp.ts";
-import { FloatingIpAssignment, FloatingIpAssignmentProvider } from "./FloatingIpAssignment.ts";
-import { Image, ImageProvider } from "./Image.ts";
-import { LoadBalancer, LoadBalancerProvider } from "./LoadBalancer.ts";
-import { MountVolumeLive } from "./MountVolume.ts";
-import { Network, NetworkProvider } from "./Network.ts";
-import { PlacementGroup, PlacementGroupProvider } from "./PlacementGroup.ts";
-import { PrimaryIp, PrimaryIpProvider } from "./PrimaryIp.ts";
-import { ReadDnsHttp } from "./ReadDnsHttp.ts";
-import { ReadWriteDnsHttp } from "./ReadWriteDnsHttp.ts";
+import { Firewall, FirewallProvider } from "./Firewall.vibe";
+import { FloatingIp, FloatingIpProvider } from "./FloatingIp.vibe";
+import { FloatingIpAssignment, FloatingIpAssignmentProvider } from "./FloatingIpAssignment.vibe";
+import { Image, ImageProvider } from "./Image.vibe";
+import { LoadBalancer, LoadBalancerProvider } from "./LoadBalancer.vibe";
+import { MountVolumeLive } from "./MountVolume.vibe";
+import { Network, NetworkProvider } from "./Network.vibe";
+import { PlacementGroup, PlacementGroupProvider } from "./PlacementGroup.vibe";
+import { PrimaryIp, PrimaryIpProvider } from "./PrimaryIp.vibe";
+import { ReadDnsHttp } from "./ReadDnsHttp.vibe";
+import { ReadWriteDnsHttp } from "./ReadWriteDnsHttp.vibe";
 import { RecordSet, RecordSetProvider } from "./RecordSet.ts";
 import { Server, ServerProvider } from "./Server.ts";
 import { Service, ServiceProvider } from "./Service.ts";
 import { SshLive } from "./Ssh.ts";
 import { SshKey, SshKeyProvider } from "./SshKey.ts";
 import { Volume, VolumeProvider } from "./Volume.ts";
-import { VolumeAttachment, VolumeAttachmentProvider } from "./VolumeAttachment.ts";
-import { WriteDnsHttp } from "./WriteDnsHttp.ts";
+import { VolumeAttachment, VolumeAttachmentProvider } from "./VolumeAttachment.vibe";
+import { WriteDnsHttp } from "./WriteDnsHttp.vibe";
 import { Zone, ZoneProvider } from "./Zone.ts";
 
 export class Providers extends Provider.ProviderCollection<Providers>()("Hetzner") {}

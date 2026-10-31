@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import { CredentialsFromAmbientOrEnv } from "./Credentials.ts";
 import { GetSecret } from "./GetSecret.ts";
-import { makeHttpSecretBinding } from "./SecretHttp.ts";
+import { makeHttpSecretBinding } from "./SecretHttp.vibe";
 
 /**
  * HTTP implementation of {@link GetSecret}. Provide it on the

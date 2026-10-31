@@ -1,5 +1,6 @@
 import path from "node:path";
 import { cloudflareTest } from "@cloudflare/vitest-plugin";
+import vibelang from "vibelang-vite";
 import { loadEnv } from "vite";
 import { configDefaults, defineConfig } from "vitest/config";
 
@@ -26,6 +27,7 @@ const linuxContainerSuites = [
 ];
 
 export default defineConfig({
+  plugins: [vibelang()],
   test: {
     maxWorkers: process.platform === "win32" ? 2 : undefined,
     projects: [

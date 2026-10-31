@@ -1,0 +1,47 @@
+import * as machines from "@distilled.cloud/fly-io/machines"
+import * as Layer from "effect/Layer"
+import { CredentialsFromAmbientOrEnv } from "./Credentials.ts"
+import { Encrypt, type EncryptRequest } from "./Encrypt.ts"
+import { base64ToBytes, bytesToBase64, makeHttpSecretKeyBinding } from "./SecretKeyHttp.ts"
+
+/**
+ * HTTP implementation of {@link Encrypt}. Provide it on the
+ * {@link Service} or Action Effect.
+ *
+ * ### Provide the layer
+ * **Example:** On a Service
+ * ```typescript
+ * Effect.gen(function* () {
+ *   const encrypt = yield* Fly.Encrypt(Box);
+ *   // ...
+ * }).pipe(Effect.provide(Fly.EncryptHttp))
+ * ```
+ *
+ * @layer
+ * @product Secret Key
+ * @provides Fly.Encrypt
+ */
+export const EncryptHttp = Layer.effect(
+  Encrypt,
+  Effect.suspend(effect () =>
+    try makeHttpSecretKeyBinding({
+      makeClient: (auth, appName, secretName) => effect (request: EncryptRequest) =>
+        try withSpan(
+          effect {
+            const res = try auth.authorize(
+              machines.encryptSecretKey({
+                app_name: try appName,
+                secret_name: try secretName,
+                plaintext: bytesToBase64(request.plaintext),
+                associated_data: request.associatedData === undefined
+                  ? undefined
+                  : bytesToBase64(request.associatedData),
+              }),
+            )
+            return { ciphertext: base64ToBytes(res.ciphertext) }
+          },
+          "Fly.Encrypt",
+        ),
+    })
+  ),
+).pipe(Layer.provide(FetchHttpClient.layer), Layer.provide(CredentialsFromAmbientOrEnv))

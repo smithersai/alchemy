@@ -1,6 +1,7 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import rsc from "@vitejs/plugin-rsc";
+import vibelang from "vibelang-vite";
 import { defineConfig } from "vite";
 
 // React Router RSC wired directly on @vitejs/plugin-rsc. Alchemy injects
@@ -8,6 +9,7 @@ import { defineConfig } from "vite";
 // so there is nothing Cloudflare-specific to add here.
 export default defineConfig({
   plugins: [
+    vibelang(),
     tailwindcss(),
     react(),
     rsc({

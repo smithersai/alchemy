@@ -30,8 +30,8 @@ import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import type * as rolldown from "rolldown";
-import { buildOnRemoteBuilder } from "./internal/RemoteBuilder.ts";
-import type { BoundTarget, DiskSpec, ServiceBinding } from "./MountVolume.ts";
+import { buildOnRemoteBuilder } from "./internal/RemoteBuilder.vibe";
+import type { BoundTarget, DiskSpec, ServiceBinding } from "./MountVolume.vibe";
 import { rpcMethodsOf, serveFlyRpc } from "./rpc.ts";
 
 export type FlyHostRuntimeContext = HostRuntimeContext;

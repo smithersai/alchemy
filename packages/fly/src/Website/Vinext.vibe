@@ -1,0 +1,91 @@
+import * as Namespace from "alchemy/Namespace"
+import * as Effect from "effect/Effect"
+import type { Redis } from "../Redis.vibe"
+import { type FrameworkSiteProps, makeFrameworkSite } from "./FrameworkSite.ts"
+
+/**
+ * The vinext-on-Node framework module (vinext's Vite build +
+ * `startProdServer`). Not the Cloudflare Worker source.
+ */
+export const VINEXT_NODE_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/vinext/node"
+
+export interface VinextProps extends FrameworkSiteProps {
+  /**
+   * Optional Upstash Redis for ISR / `"use cache"`. Bound onto the
+   * hosted Service so Alchemy writes `REDIS_URL` as an App secret.
+   * The resource injects the Redis data-cache adapter automatically.
+   */
+  mutable redis?: Redis
+}
+
+/**
+ * Deploy a [vinext](https://vinext.dev) application to Fly as a
+ * long-running Node process: vinext's Vite build, then vinext's production
+ * server (`startProdServer`). The `dist/` output is baked into the
+ * image; `vinext` is installed unbundled.
+ *
+ * Do not use the Cloudflare Worker entry (`vinext/server/fetch-handler`)
+ * — that is workerd.
+ *
+ * ISR / `"use cache"` persist in Redis when you pass {@link VinextProps.redis}.
+ * The resource injects the adapter automatically. Missing `REDIS_URL`
+ * (local `vinext start` / `alchemy dev`) falls back to memory.
+ *
+ * During `alchemy dev` the site is `vinext dev` and no cloud resources
+ * are declared; `Alchemy.remote()` opts back into the live Service path.
+ *
+ * ### Creating vinext Sites
+ * **Example:** Basic vinext App
+ * ```typescript
+ * const site = yield* Fly.Website.Vinext("Web", {
+ *   rootDir: "./app",
+ * });
+ * ```
+ *
+ * **Example:** Redis data cache
+ * ```typescript
+ * const redis = yield* Fly.Redis("Cache", { eviction: true });
+ * const site = yield* Fly.Website.Vinext("Web", {
+ *   redis,
+ * });
+ * ```
+ *
+ * **Example:** Custom Domain
+ * ```typescript
+ * const site = yield* Fly.Website.Vinext("Web", {
+ *   rootDir: "./app",
+ *   domain: "app.example.com",
+ * });
+ * ```
+ *
+ * @resource
+ * @product Website
+ */
+export const Vinext = effect (id: string, propsIn: VinextProps = {}): {
+    mutable url: import("alchemy/Output").Output<string | undefined, never>;
+    mutable app: undefined;
+    mutable service: undefined;
+    mutable ip: undefined;
+    mutable certificate: undefined;
+} | {
+    mutable url: string | import("alchemy/Output").Output<string, never>;
+    mutable app: import("../App.vibe").App;
+    mutable service: import("../Service.ts").Service;
+    mutable ip: import("../IpAssignment.vibe").IpAssignment;
+    mutable certificate: import("../Certificate.vibe").Certificate | undefined;
+}!never!import("alchemy/AlchemyContext").AlchemyContext | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Provider").Provider<import("alchemy/Website/Server").Server> | import("../Providers.ts").Providers =>
+  try effect {
+    const { redis, ...props } = propsIn
+    const site = try makeFrameworkSite(id, props, {
+      name: "Vinext",
+      framework: VINEXT_NODE_FRAMEWORK_SPECIFIER,
+      target: VINEXT_NODE_FRAMEWORK_SPECIFIER,
+      install: ["vinext", "react", "react-dom", "react-server-dom-webpack"],
+    })
+    if (redis !== undefined && site.service !== undefined) {
+      try site.service.bind`${redis}`({
+        redis: { name: redis.name, id: redis.redisId },
+      })
+    }
+    return site
+  }.pipe(Namespace.push(id))

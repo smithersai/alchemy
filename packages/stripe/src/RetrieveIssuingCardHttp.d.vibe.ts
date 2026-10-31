@@ -1,0 +1,11 @@
+import * as Layer from "effect/Layer";
+import { RetrieveIssuingCard } from "./RetrieveIssuingCard.js";
+/**
+ * HTTP implementation of {@link RetrieveIssuingCard}. Provide it on the
+ * Function or Worker Effect.
+ *
+ * @layer
+ * @product Issuing
+ * @provides Stripe.RetrieveIssuingCard
+ */
+export declare const RetrieveIssuingCardHttp: Layer.Layer<RetrieveIssuingCard, never, never>;

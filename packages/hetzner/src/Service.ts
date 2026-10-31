@@ -17,7 +17,7 @@ import {
   type HetznerBuildOptions,
   type HetznerHostRuntimeContext,
 } from "./hosted.ts";
-import type { ServiceBinding } from "./MountVolume.ts";
+import type { ServiceBinding } from "./MountVolume.vibe";
 import type { Providers } from "./Providers.ts";
 import type { Server } from "./Server.ts";
 import { sshClientForServer } from "./Ssh.ts";

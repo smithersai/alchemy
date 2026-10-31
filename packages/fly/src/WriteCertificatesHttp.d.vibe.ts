@@ -1,0 +1,24 @@
+import * as Effect from "effect/Effect";
+import * as Layer from "effect/Layer";
+import { type SecretAuth } from "./SecretHttp.vibe";
+import { WriteCertificates, type WriteCertificatesClient } from "./WriteCertificates.js";
+/**
+ * HTTP implementation of {@link WriteCertificates}. Provide it on the
+ * {@link Service} or Action Effect.
+ *
+ * ### Provide the layer
+ * **Example:** On a Service
+ * ```typescript
+ * Effect.gen(function* () {
+ *   const certs = yield* Fly.WriteCertificates(Site);
+ *   // ...
+ * }).pipe(Effect.provide(Fly.WriteCertificatesHttp))
+ * ```
+ *
+ * @layer
+ * @product Certificate
+ * @provides Fly.WriteCertificates
+ */
+export declare const WriteCertificatesHttp: Layer.Layer<WriteCertificates, never, never>;
+/** Build the client over an injectable auth and App name. */
+export declare const certificatesWriteClient: (auth: SecretAuth, appName: Effect.Effect<string>) => WriteCertificatesClient;

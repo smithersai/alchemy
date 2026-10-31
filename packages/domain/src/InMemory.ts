@@ -6,7 +6,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import { WorkflowEngine } from "effect/workflow";
 import type * as Aggregate from "./Aggregate.ts";
 import { AlreadyCancelled, AlreadyExecuted, NotScheduled } from "./Aggregate.ts";
-import * as InMemoryWorkflows from "./InMemoryWorkflows.ts";
+import * as InMemoryWorkflows from "./InMemoryWorkflows.vibe";
 import {
   type Accepted,
   type Delivery,
@@ -20,7 +20,7 @@ import {
   type StreamMeta,
   type ViewEntry,
   type ViewSnapshot,
-} from "./Platform.ts";
+} from "./Platform.vibe";
 
 /**
  * Options for {@link make}.

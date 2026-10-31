@@ -7,8 +7,8 @@ import {
   ConnectPostgres,
   PostgresUrlMissing,
   type ConnectPostgresClient,
-} from "./ConnectPostgres.ts";
-import type { ServiceBinding } from "./MountVolume.ts";
+} from "./ConnectPostgres.vibe";
+import type { ServiceBinding } from "./MountVolume.vibe";
 import { type Postgres } from "./Postgres.ts";
 
 const isFlyHost = (value: unknown): value is Resource<string, any, any, ServiceBinding> =>

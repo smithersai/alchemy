@@ -9,7 +9,7 @@ import * as ts from "tsrs/unstable/ast";
 import { API, TypeFlags, type Type, type Project } from "tsrs/unstable/async";
 
 /**
- * Lints every `Providers.ts` under a workspace package's `src` (alchemy's
+ * Lints every `Providers.ts` or `Providers.vibe` under a workspace package's `src` (alchemy's
  * `src/{Cloud}/Providers.ts` and each provider package's `src/Providers.ts`)
  * and fails if any
  * `providers()` factory ends up with `unknown` or `any` in its Layer requirements
@@ -21,35 +21,61 @@ import { API, TypeFlags, type Type, type Project } from "tsrs/unstable/async";
  * call(s) whose requirements include `unknown`.
  */
 
-/** Workspace packages with a `Providers.ts` anywhere under `src`. */
+/** Workspace packages with a `Providers.ts` or `Providers.vibe` anywhere under `src`. */
 const providerPackages = Effect.fn(function* (packagesRoot: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const found: Array<string> = [];
+  const found: Array<{ dir: string; sidecars: Array<string> }> = [];
   for (const name of yield* fs.readDirectory(packagesRoot)) {
     const src = path.join(packagesRoot, name, "src");
     if (!(yield* fs.exists(src))) continue;
     const files = yield* fs.readDirectory(src, { recursive: true });
-    if (files.some((file) => path.basename(file) === "Providers.ts")) {
-      found.push(path.join(packagesRoot, name));
+    const providers = files.filter((file) =>
+      ["Providers.ts", "Providers.vibe"].includes(path.basename(file)),
+    );
+    const sidecars: Array<string> = [];
+    for (const file of providers.filter((file) => file.endsWith(".vibe"))) {
+      const sidecar = path.join(src, file.replace(/\.vibe$/, ".d.vibe.ts"));
+      sidecars.push(sidecar);
+      if (!(yield* fs.exists(sidecar))) {
+        return yield* Effect.fail(
+          new Error(
+            `Missing declaration sidecar for ${path.join(src, file)}; run typecheck first.`,
+          ),
+        );
+      }
     }
+    if (providers.length > 0) found.push({ dir: path.join(packagesRoot, name), sidecars });
   }
-  return found.sort((a, b) => a.localeCompare(b));
+  return found.sort((a, b) => a.dir.localeCompare(b.dir));
 });
 
 /**
- * Lints one project's `Providers.ts` files, calling `log` per line of output.
+ * Lints one project's `Providers.ts` or `Providers.vibe` files, calling `log` per line of output.
  * Resolves to `false` if any `providers()` factory leaks `unknown`/`any`.
  */
 async function lintProviders(
   project: Project,
   srcRoot: string,
+  requiredSidecars: ReadonlyArray<string>,
   relative: (file: string) => string,
   log: (message: string) => void,
 ): Promise<boolean> {
   const { checker, program } = project;
-  const providerPaths = (await program.getSourceFileNames())
-    .filter((file) => file.startsWith(`${srcRoot}/`) && file.endsWith("/Providers.ts"))
+  const sourceFiles = await program.getSourceFileNames();
+  for (const file of requiredSidecars) {
+    if (!sourceFiles.includes(file)) {
+      throw new Error(
+        `Provider declaration sidecar ${relative(file)} is excluded by its tsconfig; include it before linting.`,
+      );
+    }
+  }
+  const providerPaths = sourceFiles
+    .filter(
+      (file) =>
+        file.startsWith(`${srcRoot}/`) &&
+        (file.endsWith("/Providers.ts") || file.endsWith("/Providers.d.vibe.ts")),
+    )
     .sort((a, b) => a.localeCompare(b));
 
   // A Layer's requirements are its 3rd type argument: Layer<ROut, E, RIn>.
@@ -76,7 +102,7 @@ async function lintProviders(
   for (const file of providerPaths) {
     const sourceFile = await program.getSourceFile(file);
     if (!sourceFile) throw new Error(`Missing source file ${file}`);
-    const rel = relative(sourceFile.fileName);
+    const rel = relative(sourceFile.fileName.replace(/\.d\.vibe\.ts$/, ".vibe"));
     const providersVar = sourceFile.statements
       .filter(ts.isVariableStatement)
       .flatMap((statement) => statement.declarationList.declarations)
@@ -163,10 +189,10 @@ const command = Command.make(
       Effect.sync(() => new API()),
       (api) => Effect.promise(() => api.close()),
     );
-    const tsConfigs = packages.map((dir) => path.join(dir, "tsconfig.json"));
+    const tsConfigs = packages.map(({ dir }) => path.join(dir, "tsconfig.json"));
     const snapshot = yield* Effect.promise(() => api.createSnapshot({ openProjects: tsConfigs }));
     let ok = true;
-    for (const dir of packages) {
+    for (const { dir, sidecars } of packages) {
       const tsConfig = path.join(dir, "tsconfig.json");
       const project = snapshot.getConfiguredProject(tsConfig);
       if (!project) return yield* Effect.die(new Error(`Failed to open ${tsConfig}`));
@@ -175,6 +201,7 @@ const command = Command.make(
         lintProviders(
           project,
           path.join(dir, "src"),
+          sidecars,
           (file) => path.relative(cwd, file),
           (line) => lines.push(line),
         ),

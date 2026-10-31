@@ -1,0 +1,321 @@
+import { withRequestOptions } from "@distilled.cloud/stripe"
+import {
+  CreateCustomerTaxIds,
+  type Customer as StripeCustomer,
+  DeleteCustomerTaxIds,
+  GetCustomers,
+  GetCustomerTaxIds,
+  GetCustomerTaxIdsById,
+  GetTaxIdsById,
+  type TaxId as StripeTaxId,
+  type TaxIdCustomer,
+  type TaxIdType,
+  type TaxIdVerificationStatus,
+} from "@distilled.cloud/stripe/stripe"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import { alchemyMetadataKeys } from "./Metadata.vibe"
+import { isMissingStripeResource } from "./missing.ts"
+import type { Providers } from "./Providers.ts"
+
+const LIST_PAGE_SIZE = 100
+const LIST_MAX_PAGES = 100
+const LIST_CONCURRENCY = 10
+
+/** Stripe tax ID type used when creating a customer tax ID (e.g. `eu_vat`). */
+export type CustomerTaxIdType = Exclude<TaxIdType, "unknown">
+
+export interface CustomerTaxIdProps {
+  /**
+   * Id of the Stripe Customer to attach the tax ID to (`cus_…`).
+   * Changing it replaces the tax ID.
+   */
+  mutable customer: string
+  /**
+   * Type of the tax ID, such as `eu_vat`, `us_ein`, or `gb_vat`.
+   * Changing it replaces the tax ID.
+   */
+  mutable type: CustomerTaxIdType
+  /**
+   * Value of the tax ID (the VAT number, EIN, etc.). Changing it
+   * replaces the tax ID.
+   */
+  mutable value: string
+}
+
+export type CustomerTaxId = Resource<
+  "Stripe.CustomerTaxId",
+  CustomerTaxIdProps,
+  {
+    /** Stripe tax ID object id (`txi_…`). */
+    mutable id: string
+    /** Id of the customer this tax ID is attached to (`cus_…`). */
+    mutable customer: string
+    /** Type of the tax ID (e.g. `eu_vat`). */
+    mutable type: TaxIdType
+    /** Value of the tax ID. */
+    mutable value: string
+    /** Two-letter ISO country code inferred from the tax ID, if known. */
+    mutable country: string | undefined
+    /** Verification status, if Stripe has attempted verification. */
+    mutable verificationStatus: TaxIdVerificationStatus | undefined
+    /** Unix timestamp when the tax ID was created. */
+    mutable created: number
+    /** Whether the tax ID exists in live mode. */
+    mutable livemode: boolean
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Stripe Customer Tax ID — a tax identifier (VAT, EIN, GST, …) attached
+ * to a Customer and printed on invoices. Existence-only: type and value
+ * cannot be updated in place; changing `customer`, `type`, or `value`
+ * replaces the tax ID. Destroy deletes it.
+ *
+ * Customer tax IDs have no metadata of their own. Ownership for
+ * account-wide `list()` (nuke) is inferred from the parent Customer's
+ * Alchemy metadata.
+ *
+ * @see https://docs.stripe.com/api/customer_tax_ids
+ *
+ * ### Creating a Customer Tax ID
+ * **Example:** Attach an EU VAT number
+ * ```typescript
+ * const customer = yield* Stripe.Customer("alice", {
+ *   email: "alice@example.com",
+ * });
+ * const vat = yield* Stripe.CustomerTaxId("alice-vat", {
+ *   customer: customer.id,
+ *   type: "eu_vat",
+ *   value: "DE123456789",
+ * });
+ * ```
+ *
+ * ### Replacing a Tax ID
+ * **Example:** Point at a different VAT number
+ * ```typescript
+ * const vat = yield* Stripe.CustomerTaxId("alice-vat", {
+ *   customer: customer.id,
+ *   type: "eu_vat",
+ *   value: "DE000000000",
+ * });
+ * ```
+ *
+ * @resource
+ * @product Customer
+ */
+export const CustomerTaxId = Resource<CustomerTaxId>("Stripe.CustomerTaxId")
+
+type CustomerTaxIdAttributes = CustomerTaxId["Attributes"]
+
+const customerIdOf = (customer: TaxIdCustomer | null): string | undefined => {
+  if (customer == null) return undefined
+  if (typeof customer === "string") return customer
+  return customer.id
+}
+
+const toAttrs = (customer: string, taxId: StripeTaxId): CustomerTaxIdAttributes => ({
+  id: taxId.id,
+  customer: customerIdOf(taxId.customer) ?? customer,
+  type: taxId.type,
+  value: taxId.value,
+  country: taxId.country ?? undefined,
+  verificationStatus: taxId.verification?.status,
+  created: taxId.created,
+  livemode: taxId.livemode,
+})
+
+const isMissing = isMissingStripeResource
+
+const getById = effect (id: string, customer?: string) => {
+  if (customer !== undefined) {
+    return try (GetCustomerTaxIdsById({ customer, id })
+      |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+  }
+  return try (GetTaxIdsById({ id })
+    |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+}
+
+const listTaxIds = effect (customer: string) => {
+  const taxIds: StripeTaxId[] = []
+  let startingAfter: string | undefined
+  for (let page = 0; page < LIST_MAX_PAGES; page++) {
+    const response = try (GetCustomerTaxIds({
+      customer,
+      limit: LIST_PAGE_SIZE,
+      ...(startingAfter !== undefined ? { starting_after: startingAfter } : {}),
+    })
+      |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+    if (response === undefined) {
+      break
+    }
+    taxIds.push(...response.data)
+    if (!response.has_more || response.data.length === 0) {
+      break
+    }
+    startingAfter = response.data[response.data.length - 1]?.id
+    if (startingAfter === undefined) {
+      break
+    }
+  }
+  return taxIds
+}
+
+const findByTypeValue = effect (customer: string, type: string, value: string) => {
+  const taxIds = try listTaxIds(customer)
+  const matches = taxIds.filter((taxId) => taxId.type === type && taxId.value === value)
+  matches.sort((a, b) => b.created - a.created)
+  return matches[0]
+}
+
+const listAllCustomers = effect () => {
+  const customers: StripeCustomer[] = []
+  let startingAfter: string | undefined
+  for (let page = 0; page < LIST_MAX_PAGES; page++) {
+    const response = try GetCustomers({
+      limit: LIST_PAGE_SIZE,
+      ...(startingAfter !== undefined ? { starting_after: startingAfter } : {}),
+    })
+    customers.push(...response.data)
+    if (!response.has_more || response.data.length === 0) {
+      break
+    }
+    startingAfter = response.data[response.data.length - 1]?.id
+    if (startingAfter === undefined) {
+      break
+    }
+  }
+  return customers
+}
+
+const listAlchemyCustomers = effect () => {
+  const customers = try listAllCustomers()
+  return customers.filter(
+    (customer) => tagRecord(customer.metadata)[alchemyMetadataKeys.stack] !== undefined,
+  )
+}
+
+const observe = effect (input: {
+  mutable id?: string
+  mutable customer?: string
+  mutable type?: string
+  mutable value?: string
+}) => {
+  if (input.id !== undefined) {
+    const byId = try getById(input.id, input.customer)
+    if (byId !== undefined) return byId
+  }
+  if (input.customer !== undefined && input.type !== undefined && input.value !== undefined) {
+    return try findByTypeValue(input.customer, input.type, input.value)
+  }
+  return undefined
+}
+
+const shouldReplace = (
+  news: CustomerTaxIdProps,
+  output: CustomerTaxIdAttributes | undefined,
+): boolean => {
+  if (output === undefined) return false
+  if (news.customer !== output.customer) return true
+  if (news.type !== output.type) return true
+  if (news.value !== output.value) return true
+  return false
+}
+
+export const CustomerTaxIdProvider = (): infer _ =>
+  Provider.succeed(CustomerTaxId, {
+    stables: [
+      "id",
+      "customer",
+      "type",
+      "value",
+      "country",
+      "verificationStatus",
+      "created",
+      "livemode",
+    ],
+    nuke: { dependsOn: ["Stripe.Customer"] },
+
+    diff: effect ({ news, output }) => {
+      if (!isResolved(news)) return undefined
+      if (shouldReplace(news, output)) {
+        return { action: "replace" } as const
+      }
+      return undefined
+    },
+
+    read: effect ({ output, olds }) => {
+      const customer = output?.customer ?? (typeof olds?.customer === "string" ? olds.customer : undefined)
+      const type = output?.type ?? (typeof olds?.type === "string" ? olds.type : undefined)
+      const value = output?.value ?? (typeof olds?.value === "string" ? olds.value : undefined)
+      const existing = try observe({
+        id: output?.id,
+        customer,
+        type,
+        value,
+      })
+      if (existing === undefined || customer === undefined) return undefined
+      return toAttrs(customer, existing)
+    },
+
+    list: effect () => {
+      // Customer tax IDs have no metadata. Fan out from alchemy-owned
+      // customers so nuke only tears down tax IDs we created.
+      const customers = try listAlchemyCustomers()
+      const rows = try Effect.forEach(
+        customers,
+        effect (customer) => (try listTaxIds(customer.id)).map((taxId) => toAttrs(customer.id, taxId)),
+        { concurrency: LIST_CONCURRENCY },
+      )
+      return rows.flat()
+    },
+
+    reconcile: effect ({ news, output, instanceId }) => {
+      let current = try observe({
+        id: output?.id,
+        customer: news.customer,
+        type: news.type,
+        value: news.value,
+      })
+      if (current !== undefined && shouldReplace(news, toAttrs(news.customer, current))) {
+        current = undefined
+      }
+
+      if (current === undefined) {
+        current = try (CreateCustomerTaxIds({
+          customer: news.customer,
+          type: news.type,
+          value: news.value,
+        })
+          |> withRequestOptions({
+            idempotencyKey: `alchemy-customer-tax-id-${instanceId}`,
+          })(%)
+          |> Effect.catchIf(%, (e) =>
+            e._tag === "InvalidRequestError" || e._tag === "Conflict", effect (e) =>
+            try effect {
+              const found = try observe({
+                customer: news.customer,
+                type: news.type,
+                value: news.value,
+              })
+              return (found !== undefined ? found : throw e)
+            }))
+      }
+
+      return toAttrs(news.customer, current)
+    },
+
+    delete: effect ({ output }) => {
+      try (DeleteCustomerTaxIds({
+        customer: output.customer,
+        id: output.id,
+      })
+        |> Effect.catchIf(%, isMissing, effect () =>
+          try Effect.void))
+    },
+  })

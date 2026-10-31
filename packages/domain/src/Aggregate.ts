@@ -7,14 +7,14 @@ import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import type * as Command from "./Command.ts";
-import type * as Event from "./Event.ts";
-import { DefinitionError, judge, settle, targetId as internalTargetId } from "./internal.ts";
+import type * as Command from "./Command.vibe";
+import type * as Event from "./Event.vibe";
+import { DefinitionError, judge, settle, targetId as internalTargetId } from "./internal.vibe";
 import type * as Middleware from "./Middleware.ts";
-import type * as Read from "./Read.ts";
-import type * as Rejection from "./Rejection.ts";
+import type * as Read from "./Read.vibe";
+import type * as Rejection from "./Rejection.vibe";
 import * as RequestContext from "./RequestContext.ts";
-import type * as Telemetry from "./Telemetry.ts";
+import type * as Telemetry from "./Telemetry.vibe";
 
 /**
  * The instance type of a class: `InstanceOf<typeof NotOwner>` is `NotOwner`.

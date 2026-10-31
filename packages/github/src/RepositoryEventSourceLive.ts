@@ -12,7 +12,7 @@ import {
   type RepositoryEventSourceProps,
   type RepositoryEventSourceService,
   type WebhookEvent,
-} from "./RepositoryEventSource.ts";
+} from "./RepositoryEventSource.vibe";
 import { Webhook } from "./Webhook.ts";
 
 /**

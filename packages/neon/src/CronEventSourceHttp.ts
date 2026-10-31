@@ -8,11 +8,11 @@ import {
   CronEventSource,
   type CronEventSourceProps,
   type CronEventSourceService,
-} from "./CronEventSource.ts";
-import { Function } from "./Function.ts";
+} from "./CronEventSource.vibe";
+import { Function } from "./Function.vibe";
 import { FunctionRequest } from "./FunctionEnvironment.ts";
-import { FunctionTrigger } from "./FunctionTrigger.ts";
-import { decodeFunctionTriggerEvent, type CronEvent } from "./FunctionTriggerEvent.ts";
+import { FunctionTrigger } from "./FunctionTrigger.vibe";
+import { decodeFunctionTriggerEvent, type CronEvent } from "./FunctionTriggerEvent.vibe";
 
 /**
  * Neon Function HTTP schedule dispatch and deployment wiring.

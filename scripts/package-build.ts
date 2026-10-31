@@ -18,6 +18,9 @@
 // Every phase is timed. Each timing is printed as it finishes, prefixed with
 // the package name, and the build's timings are appended to the package's
 // `.cache/build-timings.jsonl`.
+import { spawnSync } from "node:child_process";
+import { existsSync, realpathSync } from "node:fs";
+import * as NodePath from "node:path";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Console from "effect/Console";
@@ -107,17 +110,67 @@ export const exec = (bin: string, ...args: Array<string>): Step => ({
   }),
 });
 
-/**
- * Run the TypeScript compiler: tsrs where it ships a native binary, `tsc`
- * elsewhere (Windows, Intel macOS).
- */
-export const typescript = (...args: Array<string>): Step =>
-  exec(
-    ["darwin-arm64", "linux-x64", "linux-arm64"].includes(`${process.platform}-${process.arch}`)
-      ? "tsrs"
-      : "tsc",
-    ...args,
+/** Whether a recursive build reaches a project containing VibeLang source. */
+const buildReachesVibe = (project: string, seen = new Set<string>()): boolean => {
+  if (!existsSync(project)) return false;
+  const file = realpathSync(project);
+  if (seen.has(file)) return false;
+  seen.add(file);
+  const result = spawnSync(
+    process.env.VIBELANG_BINARY || "vibelang",
+    ["--showConfig", "--project", file, "--pretty", "false"],
+    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      `Cannot inspect build project ${file}: ${result.error?.message || result.stdout + result.stderr}`,
+    );
+  }
+  const config = JSON.parse(result.stdout) as {
+    files?: Array<string>;
+    references?: Array<{ path: string }>;
+  };
+  if (config.files?.some((source) => source.endsWith(".vibe"))) return true;
+  return (config.references || []).some(({ path }) => {
+    const target = NodePath.resolve(NodePath.dirname(file), path);
+    return buildReachesVibe(
+      target.endsWith(".json") ? target : NodePath.join(target, "tsconfig.json"),
+      seen,
+    );
+  });
+};
+
+/**
+ * Compile a package and its VibeLang project references with `vibelang`.
+ * A wholly TypeScript build uses `tsrs` where it ships a native binary and
+ * `tsc` elsewhere. A stock recursive build must never overwrite Vibe outputs.
+ */
+export const typescript = (...args: Array<string>): Step => ({
+  name: `typescript ${args.join(" ")}`,
+  run: Effect.fn(function* (packageDirectory) {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const sources = yield* fs.readDirectory(path.join(packageDirectory, "src"), {
+      recursive: true,
+    });
+    const native =
+      sources.some((file) => file.endsWith(".vibe")) ||
+      (yield* Effect.sync(() => {
+        const projects = ["tsconfig.json", ...args.filter((arg) => arg.endsWith(".json"))];
+        const seen = new Set<string>();
+        return projects.some((project) =>
+          buildReachesVibe(NodePath.resolve(packageDirectory, project), seen),
+        );
+      }));
+    const binary = native
+      ? "vibelang"
+      : ["darwin-arm64", "linux-x64", "linux-arm64"].includes(`${process.platform}-${process.arch}`)
+        ? "tsrs"
+        : "tsc";
+    yield* Console.log(`[typescript] compiler=${binary}`);
+    yield* exec(binary, ...args).run(packageDirectory);
+  }),
+});
 
 /** Copy a file, paths relative to the package directory. */
 export const copy = (from: string, to: string): Step => ({
@@ -152,6 +205,12 @@ const generateExports = Effect.fn(function* (
   const path = yield* Path.Path;
   const sourceDirectory = path.join(packageDirectory, "src");
   const directories = yield* sourceDirectories(sourceDirectory);
+  const vibeModules = (yield* fs.readDirectory(sourceDirectory, { recursive: true }))
+    .map((file) => file.split(path.sep).join("/"))
+    .filter((file) => file.endsWith(".vibe") && !isInternal(file) && !file.endsWith("/index.vibe"))
+    .map((file) => file.slice(0, -".vibe".length))
+    .filter((module) => module !== "index")
+    .sort((a, b) => a.localeCompare(b));
 
   const indexes: Array<string> = [];
   for (const directory of directories) {
@@ -173,6 +232,7 @@ const generateExports = Effect.fn(function* (
         .sort((a, b) => a.localeCompare(b))
         .map((directory) => [`./${directory}`, `./src/${directory}/index.ts`]),
     ),
+    ...Object.fromEntries(vibeModules.map((module) => [`./${module}`, `./src/${module}.vibe`])),
     "./*": "./src/*.ts",
     "./package.json": "./package.json",
   } as Record<string, string | null>;
@@ -199,9 +259,13 @@ const internalBlocks = Effect.fn(function* (packageDirectory: string) {
         .filter((directory) => !isInternal(directory.split("/").slice(0, -1).join("/")))
         .map((directory) => [`./${directory}/*`, null]),
     ),
-    ...(files.includes("internal.ts") ? { "./internal": null } : {}),
+    ...(files.includes("internal.ts") || files.includes("internal.vibe")
+      ? { "./internal": null }
+      : {}),
     ...(files.some(
-      (file) => file.endsWith("/internal.ts") && !isInternal(file.slice(0, file.lastIndexOf("/"))),
+      (file) =>
+        (file.endsWith("/internal.ts") || file.endsWith("/internal.vibe")) &&
+        !isInternal(file.slice(0, file.lastIndexOf("/"))),
     )
       ? { "./*/internal": null }
       : {}),
@@ -242,10 +306,12 @@ const syncPublishExports = Effect.fn(function* (
       return [
         subpath,
         {
-          types: output.replace(/\.tsx?$/, ".d.ts"),
-          bun: source,
-          ...(options.worker ? { worker: source } : {}),
-          default: output.replace(/\.tsx?$/, ".js"),
+          types: output.replace(/\.(?:tsx?|vibe)$/, ".d.ts"),
+          // A published .vibe source would need VibeLang's loader, so its consumers read the build.
+          ...(source.endsWith(".vibe")
+            ? {}
+            : { bun: source, ...(options.worker ? { worker: source } : {}) }),
+          default: output.replace(/\.(?:tsx?|vibe)$/, ".js"),
         },
       ];
     }),

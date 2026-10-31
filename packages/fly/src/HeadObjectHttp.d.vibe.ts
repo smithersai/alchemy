@@ -1,0 +1,11 @@
+import * as Layer from "effect/Layer";
+import { HeadObject } from "./HeadObject.js";
+/**
+ * HTTP implementation of {@link HeadObject}. Calls distilled S3
+ * `headObject` against the Tigris endpoint with the bucket's credentials.
+ *
+ * @layer
+ * @product Bucket
+ * @provides Fly.HeadObject
+ */
+export declare const HeadObjectHttp: Layer.Layer<HeadObject, never, never>;

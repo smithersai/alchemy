@@ -1,9 +1,9 @@
 import * as Provider from "alchemy/Provider";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
-import { Account, AccountProvider } from "./Account.ts";
-import { Certificate, CertificateProvider } from "./Certificate.ts";
-import { IssueCertificateHttp } from "./IssueCertificateHttp.ts";
+import { Account, AccountProvider } from "./Account.vibe";
+import { Certificate, CertificateProvider } from "./Certificate.vibe";
+import { IssueCertificateHttp } from "./IssueCertificateHttp.vibe";
 
 export class Providers extends Provider.ProviderCollection<Providers>()("ACME") {}
 

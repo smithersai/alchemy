@@ -12,7 +12,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { App } from "./App.ts";
+import type { App } from "./App.vibe";
 
 /**
  * Manage an App's TLS certificates at runtime — the companion to the

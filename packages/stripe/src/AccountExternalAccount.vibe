@@ -1,0 +1,516 @@
+import { withRequestOptions } from "@distilled.cloud/stripe"
+import {
+  type Account as StripeAccount,
+  type BankAccount as StripeBankAccount,
+  type Card as StripeCard,
+  CreateAccountExternalAccount,
+  DeleteAccountExternalAccount,
+  type ExternalAccount as StripeExternalAccount,
+  GetAccountExternalAccount,
+  GetAccountExternalAccounts,
+  GetAccounts,
+  UpdateAccountExternalAccount,
+} from "@distilled.cloud/stripe/stripe"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import {
+  alchemyMetadataKeys,
+  createInternalMetadata,
+  diffMetadata,
+  hasAlchemyMetadata,
+  stripInternalMetadata,
+  toMetadata,
+} from "./Metadata.vibe"
+import { isMissingStripeResource } from "./missing.ts"
+import type { Providers } from "./Providers.ts"
+
+const LIST_PAGE_SIZE = 100
+const LIST_MAX_PAGES = 100
+const LIST_CONCURRENCY = 10
+
+/** Entity that holds a bank external account. */
+export type AccountExternalAccountHolderType = "individual" | "company"
+
+/** Bank account type. `futsu` / `toza` are Japan-only. */
+export type AccountExternalAccountBankType = "checking" | "savings" | "futsu" | "toza"
+
+/** Discriminator for a bank vs card external account. */
+export type AccountExternalAccountObject = "bank_account" | "card"
+
+export interface AccountExternalAccountProps {
+  /**
+   * Id of the Connect account this external account is attached to
+   * (`acct_…`). Changing it replaces the external account.
+   */
+  mutable account: string
+  /**
+   * Single-use Stripe token (`btok_…` or `tok_…`) representing a bank
+   * account or debit card. Used on create; changing it replaces the
+   * external account. Tokens cannot be reused.
+   */
+  mutable externalAccount: string
+  /**
+   * When true, this becomes the default payout destination for its
+   * currency. The first external account in a currency is default
+   * automatically.
+   */
+  mutable defaultForCurrency?: boolean
+  /**
+   * Name of the person or business that owns the bank account (bank
+   * accounts only).
+   */
+  mutable accountHolderName?: string
+  /**
+   * Type of entity that holds the bank account (`individual` or
+   * `company`). Bank accounts only.
+   */
+  mutable accountHolderType?: AccountExternalAccountHolderType
+  /**
+   * Bank account type (`checking`, `savings`, `futsu`, or `toza`). Bank
+   * accounts only.
+   */
+  mutable accountType?: AccountExternalAccountBankType
+  /**
+   * Cardholder name (cards only).
+   */
+  mutable name?: string
+  /**
+   * User-defined metadata. Alchemy ownership keys (`alchemy_stack` /
+   * `alchemy_stage` / `alchemy_id`) are merged in automatically. Keys may
+   * not contain `:`.
+   */
+  mutable metadata?: Record<string, string>
+}
+
+export type AccountExternalAccount = Resource<
+  "Stripe.AccountExternalAccount",
+  AccountExternalAccountProps,
+  {
+    /** Stripe external account id (`ba_…` or `card_…`). */
+    mutable id: string
+    /** Id of the Connect account (`acct_…`). */
+    mutable account: string
+    /** Whether this is a bank account or a card. */
+    mutable object: AccountExternalAccountObject
+    /** Last four digits of the account or card number. */
+    mutable last4: string
+    /** Two-letter ISO country code of the bank or card. */
+    mutable country: string
+    /** Three-letter ISO currency code, if set. */
+    mutable currency: string | undefined
+    /** Bank name associated with the routing number (bank accounts only). */
+    mutable bankName: string | undefined
+    /** Routing transit number (bank accounts only). */
+    mutable routingNumber: string | undefined
+    /** Name of the person or business that owns the bank account. */
+    mutable accountHolderName: string | undefined
+    /** Type of entity that holds the bank account. */
+    mutable accountHolderType: string | undefined
+    /** Bank account type (`checking`, `savings`, …). */
+    mutable accountType: string | undefined
+    /** Whether this is the default external account for its currency. */
+    mutable defaultForCurrency: boolean
+    /** Status (`new`, `validated`, `errored`, …). */
+    mutable status: string | undefined
+    /** Card brand (cards only). */
+    mutable brand: string | undefined
+    /** Card funding type (`debit`, `credit`, …) (cards only). */
+    mutable funding: string | undefined
+    /** Cardholder name (cards only). */
+    mutable name: string | undefined
+    /** Fingerprint uniquely identifying the underlying number. */
+    mutable fingerprint: string | undefined
+    /** User-defined metadata (Alchemy ownership keys stripped). */
+    mutable metadata: Record<string, string>
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Stripe Account External Account — a bank account or debit card
+ * attached to a Connect account as a payout destination. Metadata,
+ * account-holder details, and `defaultForCurrency` update in place.
+ * Changing `account` or the `externalAccount` token replaces it.
+ * Destroy deletes it.
+ *
+ * @see https://docs.stripe.com/api/external_accounts
+ *
+ * ### Creating an External Account
+ * **Example:** Bank account token on a Connect account
+ * ```typescript
+ * const payout = yield* Stripe.AccountExternalAccount("payout-bank", {
+ *   account: connected.id,
+ *   externalAccount: bankToken.id,
+ *   accountHolderName: "Jenny Rosen",
+ *   accountHolderType: "individual",
+ *   metadata: { purpose: "payouts" },
+ * });
+ * ```
+ *
+ * **Example:** Debit card token
+ * ```typescript
+ * const payout = yield* Stripe.AccountExternalAccount("payout-card", {
+ *   account: connected.id,
+ *   externalAccount: debitToken.id,
+ *   defaultForCurrency: true,
+ * });
+ * ```
+ *
+ * ### Updating an External Account
+ * **Example:** Holder name, default, and metadata
+ * ```typescript
+ * const payout = yield* Stripe.AccountExternalAccount("payout-bank", {
+ *   account: connected.id,
+ *   externalAccount: bankToken.id,
+ *   accountHolderName: "Alchemy Tester",
+ *   accountHolderType: "company",
+ *   defaultForCurrency: true,
+ *   metadata: { purpose: "payroll" },
+ * });
+ * ```
+ *
+ * @resource
+ * @product Account
+ */
+export const AccountExternalAccount = Resource<AccountExternalAccount>(
+  "Stripe.AccountExternalAccount",
+)
+
+type AccountExternalAccountAttributes = AccountExternalAccount["Attributes"]
+
+const userMetadata = (
+  metadata: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalMetadata(tagRecord(metadata))
+
+const isBankAccount = (value: StripeExternalAccount): value is StripeBankAccount => value.object === "bank_account"
+
+const parentAccountId = (ea: StripeExternalAccount, fallback: string): string => {
+  const raw = ea.account
+  if (typeof raw === "string" && raw.length > 0) return raw
+  if (raw !== null && raw !== undefined && typeof raw === "object") {
+    const id = (raw as { mutable id?: unknown }).id
+    if (typeof id === "string" && id.length > 0) return id
+  }
+  return fallback
+}
+
+const toAttrs = (
+  fallbackAccount: string,
+  ea: StripeExternalAccount,
+): AccountExternalAccountAttributes => {
+  const account = parentAccountId(ea, fallbackAccount)
+  const metadata = userMetadata(ea.metadata)
+  if (!isBankAccount(ea)) {
+    const card: StripeCard = ea
+    return {
+      id: card.id,
+      account,
+      object: "card",
+      last4: card.last4,
+      country: card.country ?? "",
+      currency: card.currency ?? undefined,
+      bankName: undefined,
+      routingNumber: undefined,
+      accountHolderName: undefined,
+      accountHolderType: undefined,
+      accountType: undefined,
+      defaultForCurrency: card.default_for_currency ?? false,
+      status: card.status ?? undefined,
+      brand: card.brand,
+      funding: card.funding,
+      name: card.name ?? undefined,
+      fingerprint: card.fingerprint ?? undefined,
+      metadata,
+    }
+  }
+  return {
+    id: ea.id,
+    account,
+    object: "bank_account",
+    last4: ea.last4,
+    country: ea.country,
+    currency: ea.currency,
+    bankName: ea.bank_name ?? undefined,
+    routingNumber: ea.routing_number ?? undefined,
+    accountHolderName: ea.account_holder_name ?? undefined,
+    accountHolderType: ea.account_holder_type ?? undefined,
+    accountType: ea.account_type ?? undefined,
+    defaultForCurrency: ea.default_for_currency ?? false,
+    status: ea.status,
+    brand: undefined,
+    funding: undefined,
+    name: undefined,
+    fingerprint: ea.fingerprint ?? undefined,
+    metadata,
+  }
+}
+
+const isMissing = isMissingStripeResource
+
+const getById = effect (account: string, id: string) =>
+  try (GetAccountExternalAccount({ account, id })
+    |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+
+const listExternalAccounts = effect (account: string) => {
+  const accounts: StripeExternalAccount[] = []
+  let startingAfter: string | undefined
+  for (let page = 0; page < LIST_MAX_PAGES; page++) {
+    const response = try (GetAccountExternalAccounts({
+      account,
+      limit: LIST_PAGE_SIZE,
+      ...(startingAfter !== undefined ? { starting_after: startingAfter } : {}),
+    })
+      |> Effect.catchIf(%, isMissing, effect () => try Effect.undefined))
+    if (response === undefined) {
+      break
+    }
+    accounts.push(...response.data)
+    if (!response.has_more || response.data.length === 0) {
+      break
+    }
+    startingAfter = response.data[response.data.length - 1]?.id
+    if (startingAfter === undefined) {
+      break
+    }
+  }
+  return accounts
+}
+
+const listAllConnectAccounts = effect () => {
+  const accounts: StripeAccount[] = []
+  let startingAfter: string | undefined
+  for (let page = 0; page < LIST_MAX_PAGES; page++) {
+    const response = try (GetAccounts({
+      limit: LIST_PAGE_SIZE,
+      ...(startingAfter !== undefined ? { starting_after: startingAfter } : {}),
+    })
+      |> Effect.catchIf(
+        %,
+        (e) => e._tag === "InvalidRequestError" || e._tag === "Forbidden" || e._tag === "Unauthorized",
+        effect () => try Effect.undefined,
+      ))
+    if (response === undefined) {
+      break
+    }
+    accounts.push(...response.data)
+    if (!response.has_more || response.data.length === 0) {
+      break
+    }
+    startingAfter = response.data[response.data.length - 1]?.id
+    if (startingAfter === undefined) {
+      break
+    }
+  }
+  return accounts
+}
+
+const findByAlchemyId = effect (logicalId: string, account?: string | undefined) => {
+  const search = effect (accountId: string) => {
+    const eas = try listExternalAccounts(accountId)
+    const matches: StripeExternalAccount[] = []
+    for (const ea of eas) {
+      if (try hasAlchemyMetadata(logicalId, tagRecord(ea.metadata))) {
+        matches.push(ea)
+      }
+    }
+    return matches[0]
+  }
+  if (account !== undefined) {
+    return try search(account)
+  }
+  const accounts = try listAllConnectAccounts()
+  for (const acct of accounts) {
+    const found = try search(acct.id)
+    if (found !== undefined) return found
+  }
+  return undefined
+}
+
+const observe = effect (input: { mutable account?: string; mutable id?: string; mutable logicalId: string }) => {
+  if (input.account !== undefined && input.id !== undefined) {
+    const byId = try getById(input.account, input.id)
+    if (byId !== undefined) return byId
+  }
+  return try findByAlchemyId(input.logicalId, input.account)
+}
+
+const desiredMetadata = effect (
+  id: string,
+  metadata: Record<string, string> | undefined,
+) => ({
+  ...toMetadata(metadata),
+  ...(try createInternalMetadata(id)),
+})
+
+const shouldReplace = (
+  news: AccountExternalAccountProps,
+  olds: AccountExternalAccountProps | undefined,
+  output: AccountExternalAccountAttributes | undefined,
+): boolean => {
+  if (output === undefined) return false
+  if (news.account !== output.account) return true
+  if (
+    olds !== undefined
+    && olds.externalAccount !== undefined
+    && news.externalAccount !== olds.externalAccount
+  ) {
+    return true
+  }
+  return false
+}
+
+export const AccountExternalAccountProvider = (): infer _ =>
+  Provider.succeed(AccountExternalAccount, {
+    stables: [
+      "id",
+      "account",
+      "object",
+      "last4",
+      "country",
+      "currency",
+      "bankName",
+      "routingNumber",
+      "fingerprint",
+      "brand",
+      "funding",
+    ],
+    nuke: { dependsOn: ["Stripe.Account"] },
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      if (shouldReplace(news, olds, output)) {
+        return { action: "replace" } as const
+      }
+      return undefined
+    },
+
+    read: effect ({ id, output, olds }) => {
+      const account = output?.account ?? (typeof olds?.account === "string" ? olds.account : undefined)
+      const existing = try observe({
+        account,
+        id: output?.id,
+        logicalId: id,
+      })
+      if (existing === undefined || account === undefined) return undefined
+      const attrs = toAttrs(account, existing)
+      return (try hasAlchemyMetadata(id, tagRecord(existing.metadata))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const accounts = try listAllConnectAccounts()
+      const rows = try Effect.forEach(
+        accounts,
+        effect (account) =>
+          (try listExternalAccounts(account.id))
+            .filter((ea) => tagRecord(ea.metadata)[alchemyMetadataKeys.stack] !== undefined)
+            .map((ea) => toAttrs(account.id, ea)),
+        { concurrency: LIST_CONCURRENCY },
+      )
+      return rows.flat()
+    },
+
+    reconcile: effect ({ id, news, olds, output, instanceId }) => {
+      const metadata = try desiredMetadata(id, news.metadata)
+      const desiredHolderName = news.accountHolderName ?? ""
+      const desiredHolderType = news.accountHolderType ?? ""
+      const desiredAccountType = news.accountType
+      const desiredName = news.name ?? ""
+      const desiredDefault = news.defaultForCurrency
+
+      let current = try observe({
+        account: news.account,
+        id: output?.id,
+        logicalId: id,
+      })
+      if (current !== undefined && shouldReplace(news, olds, toAttrs(news.account, current))) {
+        current = undefined
+      }
+
+      if (current === undefined) {
+        current = try (CreateAccountExternalAccount({
+          account: news.account,
+          external_account: news.externalAccount,
+          metadata,
+          ...(desiredDefault !== undefined ? { default_for_currency: desiredDefault } : {}),
+        })
+          |> withRequestOptions({
+            idempotencyKey: `alchemy-account-external-account-${instanceId}`,
+          })(%)
+          |> Effect.catchIf(%, (e) =>
+            e._tag === "InvalidRequestError" || e._tag === "Conflict", effect (e) =>
+            try effect {
+              const found = try observe({
+                account: news.account,
+                logicalId: id,
+              })
+              return (found !== undefined ? found : throw e)
+            }))
+      }
+
+      const attrs = toAttrs(news.account, current)
+      const observedMetadata = tagRecord(current.metadata)
+      const { upsert, removed } = diffMetadata(observedMetadata, metadata)
+      const metadataChanged = upsert.length > 0 || removed.length > 0
+      const defaultChanged = desiredDefault !== undefined && attrs.defaultForCurrency !== desiredDefault
+      const holderNameChanged = attrs.object === "bank_account" && (attrs.accountHolderName ?? "") !== desiredHolderName
+      const holderTypeChanged = attrs.object === "bank_account" && (attrs.accountHolderType ?? "") !== desiredHolderType
+      const accountTypeChanged = attrs.object === "bank_account"
+        && desiredAccountType !== undefined
+        && (attrs.accountType ?? "") !== desiredAccountType
+      const nameChanged = attrs.object === "card" && (attrs.name ?? "") !== desiredName
+
+      if (
+        !metadataChanged
+        && !defaultChanged
+        && !holderNameChanged
+        && !holderTypeChanged
+        && !accountTypeChanged
+        && !nameChanged
+      ) {
+        return attrs
+      }
+
+      const updated = try UpdateAccountExternalAccount({
+        account: news.account,
+        id: current.id,
+        ...(holderNameChanged ? { account_holder_name: desiredHolderName } : {}),
+        ...(holderTypeChanged
+          ? {
+            account_holder_type: desiredHolderType === ""
+              ? ""
+              : (desiredHolderType as AccountExternalAccountHolderType),
+          }
+          : {}),
+        ...(accountTypeChanged && desiredAccountType !== undefined
+          ? { account_type: desiredAccountType }
+          : {}),
+        ...(nameChanged ? { name: desiredName } : {}),
+        ...(defaultChanged && desiredDefault !== undefined
+          ? { default_for_currency: desiredDefault }
+          : {}),
+        ...(metadataChanged
+          ? {
+            metadata: {
+              ...Object.fromEntries(upsert.map((tag) => [tag.Key, tag.Value])),
+              ...Object.fromEntries(removed.map((key) => [key, ""])),
+            },
+          }
+          : {}),
+      })
+      return toAttrs(news.account, updated)
+    },
+
+    delete: effect ({ output }) => {
+      try (DeleteAccountExternalAccount({
+        account: output.account,
+        id: output.id,
+      })
+        |> Effect.catchIf(%, isMissing, effect () =>
+          try Effect.void))
+    },
+  })

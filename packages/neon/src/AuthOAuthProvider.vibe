@@ -1,0 +1,215 @@
+import * as Neon from "@distilled.cloud/neon"
+import { OwnedBySomeoneElse, Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import type { Input } from "alchemy/Input"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Redacted from "effect/Redacted"
+import { authPlanScope, authRequest, InvalidManagedAuth, removedAuthSettings } from "./Auth.ts"
+import type { Providers } from "./Providers.ts"
+
+export error AuthOAuthProviderUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface AuthOAuthProviderProps {
+  /** Managed Auth integration; its scope is inherited without owning the parent. */
+  mutable auth: { mutable projectId: string; mutable branchId: string }
+  /** Supported OAuth provider identity. Changing it replaces this child. */
+  mutable provider: Neon.NeonAuthOauthProviderId
+  /** OAuth client ID. Omit for Neon-managed development credentials. */
+  mutable clientId?: string
+  /** OAuth secret, never included in resource outputs. */
+  mutable clientSecret?: Redacted.Redacted<string>
+  /** Microsoft tenant ID; write-only in the current read schema. */
+  mutable microsoftTenantId?: string
+}
+
+export interface AuthOAuthProviderAttributes {
+  /** Neon project identity. */
+  mutable projectId: string
+  /** Owning branch identity. */
+  mutable branchId: string
+  /** OAuth provider identity. */
+  mutable provider: Neon.NeonAuthOauthProviderId
+  /** Whether Neon-managed development or application credentials are active. */
+  mutable type: Neon.NeonAuthOauthProviderType
+  /** Public OAuth client identifier, when configured. */
+  mutable clientId: string | undefined
+}
+
+export interface AuthOAuthProvider extends
+  Resource<
+    "Neon.AuthOAuthProvider",
+    AuthOAuthProviderProps,
+    AuthOAuthProviderAttributes,
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Independently own one managed Auth OAuth provider. Shared credentials are for
+ * development only. Existing providers, including inherited providers, require
+ * explicit adoption. Removing managed credential fields is rejected; replace the
+ * child explicitly to switch back to development credentials.
+ *
+ * ### Configure an OAuth application
+ * **Example:** GitHub sign-in
+ * ```typescript
+ * yield* Neon.AuthOAuthProvider("GitHub", {
+ *   auth, provider: "github", clientId: "application-id",
+ *   clientSecret: yield* Config.Redacted("GITHUB_CLIENT_SECRET"),
+ * });
+ * ```
+ *
+ * @resource
+ * @product Auth
+ */
+export const AuthOAuthProvider = Resource<AuthOAuthProvider>("Neon.AuthOAuthProvider")
+
+const observe = effect (
+  scope: { mutable projectId: string; mutable branchId: string },
+  provider: Neon.NeonAuthOauthProviderId,
+) =>
+  ((try Neon.listBranchNeonAuthOauthProviders(authRequest(scope))).providers.find((item) => item.id === provider))
+    catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+const attributes = (
+  scope: { mutable projectId: string; mutable branchId: string },
+  value: Neon.NeonAuthOauthProvider,
+): AuthOAuthProviderAttributes => ({
+  projectId: scope.projectId,
+  branchId: scope.branchId,
+  provider: value.id,
+  type: value.type,
+  clientId: value.client_id,
+})
+
+const validateOAuthRemoval = effect (
+  olds: AuthOAuthProviderProps | undefined,
+  news: Input<AuthOAuthProviderProps>,
+) => {
+  const removed = removedAuthSettings(olds, news, [
+    "clientId",
+    "clientSecret",
+    "microsoftTenantId",
+  ])
+  return (removed.length === 0 ? try Effect.void : throw new InvalidManagedAuth({
+    message: `Cannot remove managed OAuth settings: ${removed.join(", ")}; replace the OAuth child explicitly`,
+  }))
+}
+
+export const AuthOAuthProviderProvider = (): infer _ =>
+  Provider.succeed(AuthOAuthProvider, {
+    stables: ["projectId", "branchId", "provider"],
+    diff: effect ({ olds, news, output }) => {
+      try validateOAuthRemoval(olds, news)
+      const scope = "auth" in news ? try authPlanScope({ branch: news.auth }) : undefined
+      if (
+        output
+        && (!scope
+          || scope.projectId !== output.projectId
+          || scope.branchId !== output.branchId
+          || !("provider" in news)
+          || news.provider !== output.provider)
+      ) {
+        return { action: "replace" } as const
+      }
+      if (!isResolved(news)) return
+      if (
+        news.auth.projectId !== olds.auth.projectId
+        || news.auth.branchId !== olds.auth.branchId
+        || news.provider !== olds.provider
+      ) {
+        return { action: "replace" } as const
+      }
+      if (output) {
+        const current = try observe(news.auth, news.provider)
+        if (!current || (news.clientId !== undefined && current.client_id !== news.clientId)) {
+          return { action: "update" } as const
+        }
+      }
+    },
+    read: effect ({ olds, output }) => {
+      const scope = output ?? olds.auth
+      const current = try observe(scope, output?.provider ?? olds.provider)
+      if (!current) return undefined
+      const attrs = attributes(scope, current)
+      return output ? attrs : Unowned(attrs)
+    },
+    reconcile: effect ({ news, output, olds }) => {
+      try validateOAuthRemoval(olds, news)
+      if (
+        output
+        && (news.auth.projectId !== output.projectId
+          || news.auth.branchId !== output.branchId
+          || news.provider !== output.provider)
+      ) {
+        throw new InvalidManagedAuth({
+          message: "OAuth identity changed without replacement; refusing to mutate either provider",
+        })
+      }
+      const request = authRequest(news.auth)
+      let current = try observe(news.auth, news.provider)
+      if (current && !output) {
+        throw new OwnedBySomeoneElse({
+          message: "Existing OAuth provider requires explicit adoption",
+          resourceType: "Neon.AuthOAuthProvider",
+        })
+      }
+      if (!current) {
+        Neon.addBranchNeonAuthOauthProvider({
+          ...request,
+          id: news.provider,
+          client_id: news.clientId,
+          client_secret: news.clientSecret,
+          microsoft_tenant_id: news.microsoftTenantId,
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: throw new OwnedBySomeoneElse({
+            message: "OAuth provider appeared during creation; explicit adoption is required",
+            resourceType: "Neon.AuthOAuthProvider",
+          });
+          default: throw e;
+        }
+        current = try observe(news.auth, news.provider)
+      }
+      const secretMatches = news.clientSecret === undefined
+        || (current?.client_secret !== undefined
+          && (Redacted.isRedacted(current.client_secret)
+              ? Redacted.value(current.client_secret)
+              : current.client_secret) === Redacted.value(news.clientSecret))
+      // The API may mask secrets and does not expose the Microsoft tenant on GET.
+      if (
+        (news.clientId !== undefined && news.clientId !== current?.client_id)
+        || !secretMatches
+        || news.microsoftTenantId !== undefined
+      ) {
+        try Neon.updateBranchNeonAuthOauthProvider({
+          ...request,
+          oauth_provider_id: news.provider,
+          client_id: news.clientId,
+          client_secret: news.clientSecret,
+          microsoft_tenant_id: news.microsoftTenantId,
+        })
+      }
+      const result = try Neon.listBranchNeonAuthOauthProviders(request)
+      const provider = result.providers.find((item) => item.id === news.provider)
+      if (!provider) {
+        throw new AuthOAuthProviderUnexpectedResponse({
+          message: "OAuth provider was not visible after reconciliation",
+        })
+      }
+      return attributes(news.auth, provider)
+    },
+    delete: effect ({ output }) => {
+      if (try observe(output, output.provider)) {
+        Neon.deleteBranchNeonAuthOauthProvider({
+          ...authRequest(output),
+          oauth_provider_id: output.provider,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+    },
+  })

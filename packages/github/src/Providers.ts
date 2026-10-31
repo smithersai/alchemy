@@ -7,7 +7,7 @@ import { type GitHubAuthOptions, makeGitHubAuth } from "./AuthProvider.ts";
 import { BranchProtection, BranchProtectionProvider } from "./BranchProtection.ts";
 import { Collaborator, CollaboratorProvider } from "./Collaborator.ts";
 import { Comment, CommentProvider } from "./Comment.ts";
-import * as Credentials from "./Credentials.ts";
+import * as Credentials from "./Credentials.vibe";
 import { Environment, EnvironmentProvider } from "./Environment.ts";
 import { Issue, IssueProvider } from "./Issue.ts";
 import { Label, LabelProvider } from "./Label.ts";
@@ -23,7 +23,7 @@ import { Variable, VariableProvider } from "./Variable.ts";
 import { Webhook, WebhookProvider } from "./Webhook.ts";
 import { WikiPage, WikiPageProvider } from "./WikiPage.ts";
 
-export { Credentials } from "./Credentials.ts";
+export { Credentials } from "./Credentials.vibe";
 
 export class Providers extends Provider.ProviderCollection<Providers>()("GitHub") {}
 

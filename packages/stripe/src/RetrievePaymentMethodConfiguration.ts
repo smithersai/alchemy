@@ -6,7 +6,7 @@ import type {
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { PaymentMethodConfiguration } from "./PaymentMethodConfiguration.ts";
+import type { PaymentMethodConfiguration } from "./PaymentMethodConfiguration.vibe";
 
 export interface RetrievePaymentMethodConfigurationRequest extends Omit<
   GetPaymentMethodConfigurationRequest,

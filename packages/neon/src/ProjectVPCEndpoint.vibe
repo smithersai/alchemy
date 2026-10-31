@@ -1,0 +1,289 @@
+import * as Neon from "@distilled.cloud/neon"
+import { OwnedBySomeoneElse, Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import { validateOrganizationVPCEndpoint } from "./OrganizationVPCEndpoint.ts"
+import type { Providers } from "./Providers.ts"
+
+export interface ProjectVPCEndpointProps {
+  /** Project to restrict. Changing the project replaces the association, cleaning up the old scope first. */
+  mutable project: {
+    /** Neon project identity. */
+    mutable projectId: string
+  }
+  /** Already configured organization VPC endpoint in the project's organization and AWS region. */
+  mutable endpoint: {
+    /** Existing Neon organization identity. */
+    mutable orgId: string
+    /** Neon AWS region identity. */
+    mutable regionId: string
+    /** Existing registered AWS VPC endpoint identity. */
+    mutable vpcEndpointId: string
+  }
+  /** Descriptive label for this project restriction. */
+  mutable label: string
+}
+
+export interface ProjectVPCEndpointAttributes {
+  /** Restricted project identity. */
+  mutable projectId: string
+  /** Organization containing the project and registered endpoint. */
+  mutable orgId: string
+  /** AWS Neon region shared by the project and registered endpoint. */
+  mutable regionId: string
+  /** Registered AWS VPC endpoint identity. */
+  mutable vpcEndpointId: string
+  /** Observed restriction label, or null when absent. */
+  mutable label: string | null
+  /** Original adopted restriction label; null means Alchemy created the restriction. */
+  mutable initialLabel: string | null
+  /** Last managed label, retained across refreshes for drift-safe cleanup. */
+  mutable managedLabel: string
+}
+
+export interface ProjectVPCEndpoint extends
+  Resource<
+    "Neon.ProjectVPCEndpoint",
+    ProjectVPCEndpointProps,
+    ProjectVPCEndpointAttributes,
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Manage one project's restriction to an already registered organization VPC
+ * endpoint. Requires an organization admin entitled to AWS Private Networking.
+ * The project, endpoint, and client must share an AWS region and the endpoint
+ * must belong to the project's organization. Azure is unsupported.
+ * This does not change the AWS endpoint, its organization registration, or
+ * the project's separate block_public_connections setting. Other restrictions
+ * are left untouched. Removing the last restriction can broaden connectivity.
+ *
+ * Existing associations require explicit resource-scoped adoption. Their
+ * original label is durably captured before mutation and restored on destroy;
+ * an adopted restriction is never silently removed. New restrictions are
+ * removed on destroy only when their label still matches the managed value.
+ * Scope changes replace with old-scope cleanup first, avoiding stale managed
+ * grants. Preserve state and serialize writers; Neon has no conditional writes.
+ *
+ * ### Restrict a project
+ * **Example:** Reference an organization registration
+ * ```typescript
+ * const restriction = yield* Neon.ProjectVPCEndpoint("PrivateAccess", {
+ *   project,
+ *   endpoint: network,
+ *   label: "Application access",
+ * });
+ * ```
+ *
+ * @resource
+ * @product Project
+ */
+export const ProjectVPCEndpoint = Resource<ProjectVPCEndpoint>("Neon.ProjectVPCEndpoint")
+
+export error InvalidProjectVPCEndpoint {
+  /** Invalid scope or unsafe mutation condition. */
+  mutable message: string
+}
+
+/** @internal */
+export const validateProjectVPCEndpoint = effect (
+  props: ProjectVPCEndpointProps,
+): undefined!import("./OrganizationVPCEndpoint.ts").InvalidOrganizationVPCEndpoint | InvalidProjectVPCEndpoint!never => {
+  if (!props.project.projectId.trim()) {
+    throw new InvalidProjectVPCEndpoint({
+      message: "A project ID is required",
+    })
+  }
+  try validateOrganizationVPCEndpoint({
+    ...props.endpoint,
+    label: props.label,
+  })
+}
+
+const scopeOf = (props: ProjectVPCEndpointProps): infer _ => ({
+  projectId: props.project.projectId,
+  orgId: props.endpoint.orgId,
+  regionId: props.endpoint.regionId,
+  vpcEndpointId: props.endpoint.vpcEndpointId,
+})
+
+const request = (scope: { mutable projectId: string; mutable vpcEndpointId: string }): infer _ => ({
+  project_id: scope.projectId,
+  vpc_endpoint_id: scope.vpcEndpointId,
+})
+
+const observe = effect (scope: { mutable projectId: string; mutable vpcEndpointId: string }) =>
+  ((try Neon.listProjectVPCEndpoints({ project_id: scope.projectId })).endpoints.find((endpoint) =>
+    endpoint.vpc_endpoint_id === scope.vpcEndpointId
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+const validateCloudScope = effect (scope: {
+  mutable projectId: string
+  mutable orgId: string
+  mutable regionId: string
+  mutable vpcEndpointId: string
+}) => {
+  const { project } = try Neon.getProject({ project_id: scope.projectId })
+  if (project.org_id !== scope.orgId || project.region_id !== scope.regionId) {
+    throw new InvalidProjectVPCEndpoint({
+      message: "Project and registered endpoint must share an organization and AWS region",
+    })
+  }
+  try Neon.getOrganizationVPCEndpointDetails({
+    org_id: scope.orgId,
+    region_id: scope.regionId,
+    vpc_endpoint_id: scope.vpcEndpointId,
+  })
+}
+
+export const ProjectVPCEndpointProvider = (): infer _ =>
+  Provider.succeed(ProjectVPCEndpoint, {
+    stables: ["projectId", "orgId", "regionId", "vpcEndpointId", "initialLabel"],
+    diff: effect ({ olds, news, output }) => {
+      const previous = output ?? scopeOf(olds)
+      if (
+        !("project" in news)
+        || !("endpoint" in news)
+        || !isResolved(news.project)
+        || !isResolved(news.endpoint)
+        || news.project.projectId !== previous.projectId
+        || news.endpoint.orgId !== previous.orgId
+        || news.endpoint.regionId !== previous.regionId
+        || news.endpoint.vpcEndpointId !== previous.vpcEndpointId
+      ) {
+        return { action: "replace", deleteFirst: true } as const
+      }
+      if (!isResolved<ProjectVPCEndpointProps>(news)) return
+      try validateProjectVPCEndpoint(news)
+      const scope = scopeOf(news)
+      try validateCloudScope(scope)
+      if ((try observe(scope))?.label !== news.label) {
+        return { action: "update" } as const
+      }
+    },
+    read: effect ({ olds, output }) => {
+      if (
+        !output
+        && (!olds?.project?.projectId
+          || !olds.endpoint?.orgId
+          || !olds.endpoint.regionId
+          || !olds.endpoint.vpcEndpointId)
+      ) {
+        return
+      }
+      const scope = output ?? scopeOf(olds)
+      const observed = try observe(scope)
+      if (output) return { ...output, label: observed?.label ?? null }
+      if (!observed) return
+      try validateCloudScope(scope)
+      return Unowned({
+        ...scope,
+        label: observed.label,
+        initialLabel: observed.label,
+        managedLabel: observed.label,
+      })
+    },
+    reconcile: effect ({ news, output, olds }) => {
+      try validateProjectVPCEndpoint(news)
+      const scope = scopeOf(news)
+      if (
+        output
+        && (output.projectId !== scope.projectId
+          || output.orgId !== scope.orgId
+          || output.regionId !== scope.regionId
+          || output.vpcEndpointId !== scope.vpcEndpointId)
+      ) {
+        throw new InvalidProjectVPCEndpoint({
+          message: "Restriction identity changed without replacement",
+        })
+      }
+      try validateCloudScope(scope)
+      const observed = try observe(scope)
+      if (observed && !output) {
+        throw new OwnedBySomeoneElse({
+          message: "Existing project VPC restriction requires scoped adoption; an equal endpoint ID is not ownership",
+          resourceType: "Neon.ProjectVPCEndpoint",
+        })
+      }
+      if (
+        output
+        && !olds
+        && observed?.label !== output.managedLabel
+        && observed?.label !== news.label
+      ) {
+        throw new InvalidProjectVPCEndpoint({
+          message: "Project restriction changed since its adoption baseline was captured",
+        })
+      }
+      if (observed?.label !== news.label) {
+        Neon.assignProjectVPCEndpoint({
+          ...request(scope),
+          label: news.label,
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try (effect (error) => {
+            const raced = try observe(scope)
+            if (!raced || raced.label !== news.label) throw error
+            if (!output) {
+              throw new OwnedBySomeoneElse({
+                message: "A project restriction appeared during creation; explicit adoption is required",
+                resourceType: "Neon.ProjectVPCEndpoint",
+              })
+            }
+          })(e);
+          default: throw e;
+        }
+      }
+      const current = try observe(scope)
+      if (!current || current.label !== news.label) {
+        throw new InvalidProjectVPCEndpoint({
+          message: "Project restriction changed during reconciliation",
+        })
+      }
+      return {
+        ...scope,
+        label: current.label,
+        initialLabel: output?.initialLabel ?? null,
+        managedLabel: news.label,
+      }
+    },
+    delete: effect ({ output, olds }) => {
+      const observed = try observe(output)
+      if (!observed) return
+      if (output.initialLabel !== null && observed.label === output.initialLabel) return
+      if (observed.label !== output.managedLabel && observed.label !== olds.label) {
+        throw new InvalidProjectVPCEndpoint({
+          message: "Refusing cleanup of an externally relabeled project restriction",
+        })
+      }
+      // A transferred project must not be mutated under its previous organization.
+      const exists = (try (validateCloudScope(output)
+        |> Effect.as(%, true))) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try (effect (error) => {
+            if (try observe(output)) throw error
+            return false
+          })(e);
+          default: throw e;
+        }
+      if (!exists) return
+      if (output.initialLabel !== null) {
+        Neon.assignProjectVPCEndpoint({
+          ...request(output),
+          label: output.initialLabel,
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try (effect (error) => {
+            if (try observe(output)) throw error
+          })(e);
+          default: throw e;
+        }
+      } else {
+        Neon.deleteProjectVPCEndpoint(request(output)) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+      }
+    },
+  })

@@ -29,8 +29,8 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
-import { runImports, runPgMigrations } from "./Migrations.ts";
-import { parsePostgresOrigin, type PostgresOrigin } from "./PostgresOrigin.ts";
+import { runImports, runPgMigrations } from "./Migrations.vibe";
+import { parsePostgresOrigin, type PostgresOrigin } from "./PostgresOrigin.vibe";
 import type { Providers } from "./Providers.ts";
 
 const DEFAULT_REGION: NeonRegion = "aws-us-east-1";

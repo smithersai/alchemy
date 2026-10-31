@@ -26,8 +26,8 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schedule from "effect/Schedule";
 import type * as rolldown from "rolldown";
-import { waitForAction } from "./actions.ts";
-import type { ServiceBinding } from "./MountVolume.ts";
+import { waitForAction } from "./actions.vibe";
+import type { ServiceBinding } from "./MountVolume.vibe";
 import { openSshClient, type SshClient } from "./Ssh.ts";
 
 export type HetznerHostRuntimeContext = HostRuntimeContext;

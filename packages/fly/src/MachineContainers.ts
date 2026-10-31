@@ -2,7 +2,7 @@ import type { FlyContainerConfig, FlyMachineConfig } from "@distilled.cloud/fly-
 import { deepEqual } from "alchemy/Diff";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import type { MachineContainer, MachineProps } from "./Machine.ts";
+import type { MachineContainer, MachineProps } from "./Machine.vibe";
 
 export class InvalidMachineContainers extends Data.TaggedError("Fly.InvalidMachineContainers")<{
   message: string;

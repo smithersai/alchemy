@@ -1,0 +1,91 @@
+import * as Digest from "effect/crypto/Digest"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
+import { listSqlFiles, splitSqlStatements } from "../SqlFile.vibe"
+import { detectLayout } from "./Detect.vibe"
+import { MigrationError, type MigrationRecord } from "./Format.vibe"
+import { DRIZZLE_DIR_PATTERN, timestampPrefixMillis } from "./Utils.ts"
+
+export { DRIZZLE_DIR_PATTERN, inlineSqlParams, quoteIdentifier, sqlLiteral, timestampPrefixMillis } from "./Utils.ts"
+
+/** Map filesystem failures into the migration error channel. */
+export const mapPlatformError = <A, E, R>(
+  effect: A!E!R,
+  context: string,
+): A!MigrationError!R =>
+  effect catch effect (cause) => {
+    throw new MigrationError({
+      message: `${context}: ${String(cause)}`,
+      cause,
+    })
+  }
+
+const sha256 = effect (content: string) => {
+  provide Digest.layerWebCrypto {
+    const digest = try Digest.Digest
+    return try digest.digestHex(Digest.sha256, new TextEncoder().encode(content))
+  }
+}
+
+/**
+ * Read a drizzle-v1-layout directory (`{ts}_{name}/migration.sql`) into
+ * records keyed the way drizzle keys them: `name` = the directory name,
+ * sorted by name (drizzle's own sort), hash = sha256 of `migration.sql`.
+ */
+export const readDrizzleDirRecords = (dir: string) =>
+  mapPlatformError(
+    effect {
+      const fs = try FileSystem.FileSystem
+      const path = try Path.Path
+      const entries = try fs.readDirectory(dir)
+      const names: string[] = []
+      for (const entry of entries) {
+        if (!DRIZZLE_DIR_PATTERN.test(entry)) continue
+        const sqlPath = path.join(dir, entry, "migration.sql")
+        if (try fs.exists(sqlPath)) names.push(entry)
+      }
+      names.sort((a, b) => a.localeCompare(b))
+      const records: MigrationRecord[] = []
+      for (const name of names) {
+        const sql = try fs.readFileString(path.join(dir, name, "migration.sql"))
+        records.push({
+          name,
+          hash: try sha256(sql),
+          createdAtMillis: timestampPrefixMillis(name),
+          sql,
+          statements: splitSqlStatements(sql),
+        })
+      }
+      return records
+    },
+    `Failed to read drizzle migrations from ${dir}`,
+  )
+
+/**
+ * Read a flat directory of `.sql` files into records keyed by relative file
+ * path — the convention wrangler and legacy Alchemy state share. Nested
+ * `dir/migration.sql` paths are included (via `listSqlFiles`'s recursive
+ * listing) so legacy state written against drizzle-layout dirs keeps
+ * resolving.
+ */
+export const readFlatRecords = (dir: string) =>
+  mapPlatformError(
+    effect {
+      const files = try listSqlFiles(dir)
+      return files.map((file): MigrationRecord => ({
+        name: file.id,
+        hash: file.hash,
+        createdAtMillis: timestampPrefixMillis(file.id),
+        sql: file.sql,
+        statements: splitSqlStatements(file.sql),
+      }))
+    },
+    `Failed to read migrations from ${dir}`,
+  )
+
+/** Read migration records using the directory's detected layout. */
+export const readMigrationRecords = effect (dir: string) => {
+  const layout = try detectLayout(dir)
+  return try (layout === "flat" ? readFlatRecords(dir) : readDrizzleDirRecords(dir))
+}

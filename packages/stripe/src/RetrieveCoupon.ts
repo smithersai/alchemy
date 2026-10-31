@@ -6,7 +6,7 @@ import type {
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Coupon } from "./Coupon.ts";
+import type { Coupon } from "./Coupon.vibe";
 
 export interface RetrieveCouponRequest extends Omit<GetCouponRequest, "coupon"> {}
 

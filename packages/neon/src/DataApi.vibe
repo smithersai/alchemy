@@ -1,0 +1,276 @@
+import * as Neon from "@distilled.cloud/neon"
+import { OwnedBySomeoneElse, Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import type { Input } from "alchemy/Input"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import { authPlanScope, authRequest, authSettingsMatch, removedAuthSettings } from "./Auth.ts"
+import { resolveBranchScope, type ResolvedBranchScope } from "./BranchScope.ts"
+import type { Providers } from "./Providers.ts"
+
+export type DataApiProps =
+  & (
+    | {
+      /** Branch resource or explicit identity, optionally carrying its selected database. */
+      mutable branch: { mutable projectId: string; mutable branchId: string; mutable databaseName?: string }
+      mutable project?: never
+    }
+    | {
+      /** Project resource or explicit identity; selects the observed default branch. */
+      mutable project: { mutable projectId: string; mutable databaseName?: string }
+      mutable branch?: never
+    }
+  )
+  & {
+    /** Database served by PostgREST. Infers the referenced resource's selected database, or the branch's only database; required when ambiguous. */
+    mutable database?: string
+    /** Authentication mechanism. Changes replace the Data API. */
+    mutable authProvider?: "neon_auth" | "external"
+    /** HTTPS JWKS endpoint required for external authentication. */
+    mutable jwksUrl?: string
+    /** Display name for an external authentication provider. */
+    mutable providerName?: string
+    /** Expected JWT audience. Neon still accepts tokens without an audience. */
+    mutable jwtAudience?: string
+    /** Opt in to public-schema table grants. Defaults to false. */
+    mutable addDefaultGrants?: boolean
+    /** Skip creating the auth schema and RLS helpers. */
+    mutable skipAuthSchema?: boolean
+    /** Explicitly owned PostgREST settings. Removing previously managed fields requires an explicit reset value. */
+    mutable settings?: Neon.DataAPISettings
+  }
+
+export interface DataApiAttributes {
+  /** Neon project identity. */
+  mutable projectId: string
+  /** Branch identity. */
+  mutable branchId: string
+  /** Database served by this endpoint. */
+  mutable database: string
+  /** Public PostgREST base URL. Requests must carry end-user authorization. */
+  mutable url: string
+  /** Observed deployment status. */
+  mutable status: string
+  /** Observed PostgREST settings, if exposed by the backend. */
+  mutable settings: Neon.DataAPISettings | undefined
+}
+
+export interface DataApi extends
+  Resource<
+    "Neon.DataApi",
+    DataApiProps,
+    DataApiAttributes,
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Own a branch/database Data API singleton. This resource never grants an
+ * application the account deployment key. Configure RLS and forward the user's
+ * token through QueryDataApi. Authentication inputs are creation-only because
+ * the API only supports updating PostgREST settings.
+ *
+ * ### Expose a database through managed authentication
+ * **Example:** Managed Auth and PostgREST
+ * ```typescript
+ * const dataApi = yield* Neon.DataApi("Data", {
+ *   branch, authProvider: "neon_auth", settings: { db_max_rows: 100 },
+ * });
+ * ```
+ *
+ * @resource
+ * @product Data API
+ */
+export const DataApi = Resource<DataApi>("Neon.DataApi")
+
+export error InvalidDataApiConfiguration {
+  mutable message: string
+}
+
+const observe = effect (scope: { mutable projectId: string; mutable branchId: string; mutable database: string }) =>
+  Neon.getProjectBranchDataAPI({
+    ...authRequest(scope),
+    database_name: scope.database,
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+const attributes = (
+  scope: { mutable projectId: string; mutable branchId: string; mutable database: string },
+  observed: Neon.DataAPIReponse,
+): DataApiAttributes => ({
+  projectId: scope.projectId,
+  branchId: scope.branchId,
+  database: scope.database,
+  url: observed.url,
+  status: observed.status,
+  settings: observed.settings ?? undefined,
+})
+
+const immutable = [
+  "authProvider",
+  "jwksUrl",
+  "providerName",
+  "jwtAudience",
+  "addDefaultGrants",
+  "skipAuthSchema",
+] as const
+
+const validateDataApi = effect (
+  news: DataApiProps,
+) => (news.authProvider === "external" && !news.jwksUrl
+  ? throw new InvalidDataApiConfiguration({
+    message: "External authentication requires jwksUrl",
+  })
+  : try Effect.void)
+
+const validateDataApiRemoval = effect (olds: DataApiProps | undefined, news: Input<DataApiProps>) => {
+  const removed = removedAuthSettings(olds, news, [...immutable, "settings"])
+  return (removed.length === 0 ? try Effect.void : throw new InvalidDataApiConfiguration({
+    message: `Cannot remove managed Data API settings: ${removed.join(", ")}; set explicit reset values instead`,
+  }))
+}
+
+const resolveDatabase = effect (news: DataApiProps, scope: ResolvedBranchScope) => {
+  const database = news.database ?? (news.branch ?? news.project)?.databaseName
+  if (database !== undefined) {
+    if (!database) {
+      throw new InvalidDataApiConfiguration({
+        message: "database must not be empty",
+      })
+    }
+    return database
+  }
+  const { databases } = try Neon.listProjectBranchDatabases(authRequest(scope))
+  if (databases.length !== 1) {
+    throw new InvalidDataApiConfiguration({
+      message: "Set database explicitly when the branch has no unambiguous selected database",
+    })
+  }
+  return databases[0]!.name
+}
+
+export const DataApiProvider = (): infer _ =>
+  Provider.succeed(DataApi, {
+    stables: ["projectId", "branchId", "database"],
+    diff: effect ({ olds, news, output }) => {
+      try validateDataApiRemoval(olds, news)
+      if (isResolved(news)) try validateDataApi(news)
+      const scope = try authPlanScope(news)
+      if (
+        output
+        && (!scope || scope.projectId !== output.projectId || scope.branchId !== output.branchId)
+      ) {
+        return { action: "replace", deleteFirst: true } as const
+      }
+      if (!isResolved(news)) return
+      const resolved = scope ?? (try resolveBranchScope(news))
+      const database = try resolveDatabase(news, resolved)
+      const previous = output ?? (try resolveBranchScope(olds))
+      if (
+        resolved.projectId !== previous.projectId
+        || resolved.branchId !== previous.branchId
+        || database !== (output?.database ?? (try resolveDatabase(olds, previous)))
+        || immutable.some((key) => news[key] !== olds[key])
+      ) {
+        return { action: "replace", deleteFirst: true } as const
+      }
+      if (output) {
+        const current = try observe({ ...resolved, database })
+        if (
+          !current
+          || (news.settings !== undefined && !authSettingsMatch(current.settings ?? {}, news.settings))
+        ) {
+          return { action: "update" } as const
+        }
+      }
+    },
+    read: effect ({ olds, output }) => {
+      if (
+        !output
+        && !(olds?.branch?.projectId && olds.branch.branchId)
+        && !olds?.project?.projectId
+      ) {
+        return undefined
+      }
+      const branch = output ?? (try resolveBranchScope(olds))
+      const scope = output ?? {
+        ...branch,
+        database: try resolveDatabase(olds, branch),
+      }
+      const current = try observe(scope)
+      if (!current) return undefined
+      const attrs = attributes(scope, current)
+      return output ? attrs : Unowned(attrs)
+    },
+    reconcile: effect ({ news, output, olds }) => {
+      try validateDataApiRemoval(olds, news)
+      try validateDataApi(news)
+      const branch = try resolveBranchScope(news)
+      const scope = {
+        ...branch,
+        database: try resolveDatabase(news, branch),
+      }
+      if (
+        output
+        && (scope.projectId !== output.projectId
+          || scope.branchId !== output.branchId
+          || scope.database !== output.database)
+      ) {
+        throw new InvalidDataApiConfiguration({
+          message: "Data API identity changed without replacement; refusing to mutate either endpoint",
+        })
+      }
+      const request = { ...authRequest(scope), database_name: scope.database }
+      let current = try observe(scope)
+      if (current && !output) {
+        throw new OwnedBySomeoneElse({
+          message: "Existing Data API requires explicit adoption",
+          resourceType: "Neon.DataApi",
+        })
+      }
+      if (current && olds === undefined && immutable.some((key) => news[key] !== undefined)) {
+        throw new InvalidDataApiConfiguration({
+          message:
+            "Neon does not expose existing Data API authentication settings; adopt without creation-only settings, then replace to configure authentication",
+        })
+      }
+      if (!current) {
+        Neon.createProjectBranchDataAPI({
+          ...request,
+          auth_provider: news.authProvider,
+          jwks_url: news.jwksUrl,
+          provider_name: news.providerName,
+          jwt_audience: news.jwtAudience,
+          add_default_grants: news.addDefaultGrants ?? false,
+          skip_auth_schema: news.skipAuthSchema,
+          settings: news.settings,
+        }) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: throw new OwnedBySomeoneElse({
+            message: "Data API appeared during creation; explicit adoption is required",
+            resourceType: "Neon.DataApi",
+          });
+          default: throw e;
+        }
+        current = try Neon.getProjectBranchDataAPI(request)
+      }
+      if (
+        news.settings !== undefined
+        && !authSettingsMatch(current.settings ?? {}, news.settings)
+      ) {
+        try Neon.updateProjectBranchDataAPI({
+          ...request,
+          settings: news.settings,
+        })
+      }
+      return attributes(scope, try Neon.getProjectBranchDataAPI(request))
+    },
+    delete: effect ({ output }) => {
+      if (try observe(output)) {
+        Neon.deleteProjectBranchDataAPI({
+          ...authRequest(output),
+          database_name: output.database,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+    },
+  })

@@ -1241,7 +1241,7 @@ When many agents work concurrently (see **The Resource Factory Process**), do NO
 
 | Command           | Description                                                                                  |
 | ----------------- | -------------------------------------------------------------------------------------------- |
-| `pnpm exec tsrs -b`      | Type check all projects (always run before committing)                                       |
+| `pnpm typecheck`      | Check VibeLang sources and downstream TypeScript consumers (always run before committing)                                       |
 | `pnpm build`   | Clean, type check, and build the alchemy package                                             |
 | `pnpm build:clean` | Full clean rebuild: cleans all artifacts, reinstalls dependencies, builds, and downloads env |
 
@@ -1430,3 +1430,13 @@ Writing style (match the existing beta posts, e.g.
   contributors by name.
 - End with a `## Where to go next` list of doc links plus the
   CHANGELOG and compare links.
+
+<!-- vibelang agents: start. `npx vibelang agents init` writes this section; rerun it to update. -->
+## VibeLang
+
+`.vibe` files are VibeLang: Effect programs in TypeScript syntax. Load the `vibelang` skill (`.agents/skills/vibelang/SKILL.md`) before you write or review one.
+
+- After you edit `.vibe` files, run `npx vibelang agents check <file>...`. It applies `vibelang --fix` and prints each diagnostic left; fix every error before you finish. Claude Code, Codex and opencode run it for you after each edit and show you the result.
+- `npx vibelang --noEmit` checks the whole project. Each `EKxxxx` diagnostic says how to fix it.
+- `npx vibelang lint` runs the built-in Effect type-aware rules on `.vibe` files using the repository’s Oxlint configuration; pass `-c <config>` for a non-default config. Run it before finishing a change.
+<!-- vibelang agents: end -->

@@ -8,7 +8,7 @@
  */
 import * as Effect from "effect/Effect";
 import { type Operation, makeOperationClient } from "./BindingHttp.ts";
-import { Credentials } from "./Credentials.ts";
+import { Credentials } from "./Credentials.vibe";
 
 export const make = <Request extends ReadonlyArray<any>, Out, E>(op: Operation<Request, Out, E>) =>
   Effect.gen(function* () {

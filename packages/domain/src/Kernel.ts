@@ -5,9 +5,9 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Schema from "effect/Schema";
 import * as Aggregate from "./Aggregate.ts";
-import * as Command from "./Command.ts";
-import type * as Event from "./Event.ts";
-import { DefinitionError, judge, rejectionTag, settle } from "./internal.ts";
+import * as Command from "./Command.vibe";
+import type * as Event from "./Event.vibe";
+import { DefinitionError, judge, rejectionTag, settle } from "./internal.vibe";
 import * as Key from "./Key.ts";
 import type {
   Accepted,
@@ -23,13 +23,13 @@ import type {
   ViewEntry,
   ViewKit,
   ViewSnapshot,
-} from "./Platform.ts";
-import type * as Policy from "./Policy.ts";
-import type * as Projection from "./Projection.ts";
+} from "./Platform.vibe";
+import type * as Policy from "./Policy.vibe";
+import type * as Projection from "./Projection.vibe";
 import * as RequestContext from "./RequestContext.ts";
-import type * as DomainStream from "./Stream.ts";
-import * as Telemetry from "./Telemetry.ts";
-import type * as View from "./View.ts";
+import type * as DomainStream from "./Stream.vibe";
+import * as Telemetry from "./Telemetry.vibe";
+import type * as View from "./View.vibe";
 
 /**
  * The entities of a Domain.

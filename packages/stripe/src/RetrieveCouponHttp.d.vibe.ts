@@ -1,0 +1,11 @@
+import * as Layer from "effect/Layer";
+import { RetrieveCoupon } from "./RetrieveCoupon.js";
+/**
+ * HTTP implementation of {@link RetrieveCoupon}. Provide it on the
+ * Function or Worker Effect.
+ *
+ * @layer
+ * @product Product
+ * @provides Stripe.RetrieveCoupon
+ */
+export declare const RetrieveCouponHttp: Layer.Layer<RetrieveCoupon, never, never>;

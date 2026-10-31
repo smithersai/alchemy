@@ -1,0 +1,915 @@
+import { withRequestOptions } from "@distilled.cloud/stripe"
+import {
+  CreateTerminalConfiguration,
+  type CreateTerminalConfigurationRequest,
+  type CreateTerminalConfigurationRequestTippingCase0,
+  type CreateTerminalConfigurationRequestWifiCase0,
+  type DeletedTerminalConfiguration,
+  DeleteTerminalConfiguration,
+  GetTerminalConfiguration,
+  GetTerminalConfigurations,
+  type TerminalConfiguration as StripeTerminalConfiguration,
+  type TerminalConfigurationConfigurationResourceCurrencySpecificConfig,
+  type TerminalConfigurationConfigurationResourceDeviceTypeSpecificConfig,
+  type TerminalConfigurationConfigurationResourceTipping,
+  type TerminalConfigurationConfigurationResourceWifiConfig,
+  UpdateTerminalConfiguration,
+} from "@distilled.cloud/stripe/stripe"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import { isMissingStripeResource } from "./missing.ts"
+import type { Providers } from "./Providers.ts"
+
+const NAME_MAX_LENGTH = 250
+const LIST_PAGE_SIZE = 100
+const LIST_MAX_PAGES = 100
+
+/** Fixed amounts / percentages shown when collecting an on-reader tip. */
+export interface TerminalTippingCurrency {
+  /**
+   * Fixed amounts (in the currency's minor units) displayed when
+   * collecting a tip.
+   */
+  mutable fixedAmounts?: number[]
+  /**
+   * Percentages displayed when collecting a tip.
+   */
+  mutable percentages?: number[]
+  /**
+   * Below this amount (minor units), fixed amounts are shown; above it,
+   * percentages are shown. Requires both `fixedAmounts` and `percentages`.
+   */
+  mutable smartTipThreshold?: number
+}
+
+/** Per-currency on-reader tipping. Keys are lowercase ISO 4217 codes. */
+export interface TerminalTipping {
+  /** Tipping configuration for AED. */
+  mutable aed?: TerminalTippingCurrency
+  /** Tipping configuration for AUD. */
+  mutable aud?: TerminalTippingCurrency
+  /** Tipping configuration for CAD. */
+  mutable cad?: TerminalTippingCurrency
+  /** Tipping configuration for CHF. */
+  mutable chf?: TerminalTippingCurrency
+  /** Tipping configuration for CZK. */
+  mutable czk?: TerminalTippingCurrency
+  /** Tipping configuration for DKK. */
+  mutable dkk?: TerminalTippingCurrency
+  /** Tipping configuration for EUR. */
+  mutable eur?: TerminalTippingCurrency
+  /** Tipping configuration for GBP. */
+  mutable gbp?: TerminalTippingCurrency
+  /** Tipping configuration for GIP. */
+  mutable gip?: TerminalTippingCurrency
+  /** Tipping configuration for HKD. */
+  mutable hkd?: TerminalTippingCurrency
+  /** Tipping configuration for HUF. */
+  mutable huf?: TerminalTippingCurrency
+  /** Tipping configuration for JPY. */
+  mutable jpy?: TerminalTippingCurrency
+  /** Tipping configuration for MXN. */
+  mutable mxn?: TerminalTippingCurrency
+  /** Tipping configuration for MYR. */
+  mutable myr?: TerminalTippingCurrency
+  /** Tipping configuration for NOK. */
+  mutable nok?: TerminalTippingCurrency
+  /** Tipping configuration for NZD. */
+  mutable nzd?: TerminalTippingCurrency
+  /** Tipping configuration for PLN. */
+  mutable pln?: TerminalTippingCurrency
+  /** Tipping configuration for RON. */
+  mutable ron?: TerminalTippingCurrency
+  /** Tipping configuration for SEK. */
+  mutable sek?: TerminalTippingCurrency
+  /** Tipping configuration for SGD. */
+  mutable sgd?: TerminalTippingCurrency
+  /** Tipping configuration for USD. */
+  mutable usd?: TerminalTippingCurrency
+}
+
+/** Device-specific splash screen. */
+export interface TerminalDeviceConfig {
+  /**
+   * Stripe File id of an image to display on the reader. Empty string
+   * clears it on update.
+   */
+  mutable splashscreen?: string
+}
+
+/** Offline-mode collection. */
+export interface TerminalOffline {
+  /**
+   * Whether the reader may collect transactions while offline.
+   */
+  mutable enabled: boolean
+}
+
+/** Cellular connectivity. */
+export interface TerminalCellular {
+  /**
+   * Whether a cellular-capable reader may connect over cellular.
+   */
+  mutable enabled: boolean
+}
+
+/** Daily reboot window (hours in 0–23). */
+export interface TerminalRebootWindow {
+  /**
+   * Start hour of the reboot window (0–23).
+   */
+  mutable startHour: number
+  /**
+   * End hour of the reboot window (0–23). Must differ from `startHour`.
+   */
+  mutable endHour: number
+}
+
+/** Wi-Fi security type. */
+export type TerminalWifiType = "enterprise_eap_peap" | "enterprise_eap_tls" | "personal_psk"
+
+/** WPA-Enterprise EAP-PEAP credentials. */
+export interface TerminalWifiEnterprisePeap {
+  /**
+   * Wi-Fi network name.
+   */
+  mutable ssid: string
+  /**
+   * Username for the network.
+   */
+  mutable username: string
+  /**
+   * Password for the network. Never returned on read.
+   */
+  mutable password: string
+  /**
+   * Stripe File id of a PEM containing the server certificate.
+   */
+  mutable caCertificateFile?: string
+}
+
+/** WPA-Enterprise EAP-TLS credentials. */
+export interface TerminalWifiEnterpriseTls {
+  /**
+   * Wi-Fi network name.
+   */
+  mutable ssid: string
+  /**
+   * Stripe File id of a PEM containing the client certificate.
+   */
+  mutable clientCertificateFile: string
+  /**
+   * Stripe File id of a PEM containing the client RSA private key.
+   */
+  mutable privateKeyFile: string
+  /**
+   * Stripe File id of a PEM containing the server certificate.
+   */
+  mutable caCertificateFile?: string
+  /**
+   * Password for the private key file. Never returned on read.
+   */
+  mutable privateKeyFilePassword?: string
+}
+
+/** WPA-Personal PSK credentials. */
+export interface TerminalWifiPersonalPsk {
+  /**
+   * Wi-Fi network name.
+   */
+  mutable ssid: string
+  /**
+   * Password for the network. Never returned on read.
+   */
+  mutable password: string
+}
+
+/** Reader Wi-Fi configuration. */
+export interface TerminalWifi {
+  /**
+   * Security type. The matching nested object holds the credentials.
+   */
+  mutable type: TerminalWifiType
+  /**
+   * EAP-PEAP credentials. Required when `type` is `enterprise_eap_peap`.
+   */
+  mutable enterpriseEapPeap?: TerminalWifiEnterprisePeap
+  /**
+   * EAP-TLS credentials. Required when `type` is `enterprise_eap_tls`.
+   */
+  mutable enterpriseEapTls?: TerminalWifiEnterpriseTls
+  /**
+   * Personal PSK credentials. Required when `type` is `personal_psk`.
+   */
+  mutable personalPsk?: TerminalWifiPersonalPsk
+}
+
+/** Observed Wi-Fi state with secrets stripped. */
+export interface TerminalWifiState {
+  /**
+   * Security type currently configured.
+   */
+  mutable type: TerminalWifiType
+  /**
+   * Observed EAP-PEAP settings (password omitted).
+   */
+  mutable enterpriseEapPeap?: {
+    mutable ssid: string
+    mutable username: string
+    mutable caCertificateFile: string | undefined
+  }
+  /**
+   * Observed EAP-TLS settings (private-key password omitted).
+   */
+  mutable enterpriseEapTls?: {
+    mutable ssid: string
+    mutable clientCertificateFile: string
+    mutable privateKeyFile: string
+    mutable caCertificateFile: string | undefined
+  }
+  /**
+   * Observed personal PSK settings (password omitted).
+   */
+  mutable personalPsk?: {
+    mutable ssid: string
+  }
+}
+
+export interface TerminalConfigurationProps {
+  /**
+   * Display name of the configuration. If omitted, a unique name is
+   * generated from the stack, stage, and logical id. Mutable. Used as the
+   * lookup key when the Stripe id is missing — this object has no
+   * metadata.
+   */
+  mutable name?: string
+  /**
+   * Offline transaction collection. `null` clears it on update.
+   */
+  mutable offline?: TerminalOffline | null
+  /**
+   * On-reader tipping by currency. `null` clears it on update.
+   */
+  mutable tipping?: TerminalTipping | null
+  /**
+   * Daily reboot window. `null` clears it on update.
+   */
+  mutable rebootWindow?: TerminalRebootWindow | null
+  /**
+   * Cellular connectivity. `null` clears it on update.
+   */
+  mutable cellular?: TerminalCellular | null
+  /**
+   * Reader Wi-Fi. `null` clears it on update. Passwords are write-only.
+   */
+  mutable wifi?: TerminalWifi | null
+  /**
+   * BBPOS WisePad 3 splash screen. `null` clears it on update.
+   */
+  mutable bbposWisepad3?: TerminalDeviceConfig | null
+  /**
+   * BBPOS WisePOS E splash screen. `null` clears it on update.
+   */
+  mutable bbposWiseposE?: TerminalDeviceConfig | null
+  /**
+   * Stripe S700 splash screen. `null` clears it on update.
+   */
+  mutable stripeS700?: TerminalDeviceConfig | null
+  /**
+   * Stripe S710 splash screen. `null` clears it on update.
+   */
+  mutable stripeS710?: TerminalDeviceConfig | null
+  /**
+   * Verifone M425 splash screen. `null` clears it on update.
+   */
+  mutable verifoneM425?: TerminalDeviceConfig | null
+  /**
+   * Verifone P400 splash screen. `null` clears it on update.
+   */
+  mutable verifoneP400?: TerminalDeviceConfig | null
+  /**
+   * Verifone P630 splash screen. `null` clears it on update.
+   */
+  mutable verifoneP630?: TerminalDeviceConfig | null
+  /**
+   * Verifone UX700 splash screen. `null` clears it on update.
+   */
+  mutable verifoneUx700?: TerminalDeviceConfig | null
+  /**
+   * Verifone V660p splash screen. `null` clears it on update.
+   */
+  mutable verifoneV660p?: TerminalDeviceConfig | null
+}
+
+type DeviceKey = (typeof DEVICE_MAP)[number][0]
+type SnakeDeviceKey = (typeof DEVICE_MAP)[number][1]
+
+const DEVICE_MAP = [
+  ["bbposWisepad3", "bbpos_wisepad3"],
+  ["bbposWiseposE", "bbpos_wisepos_e"],
+  ["stripeS700", "stripe_s700"],
+  ["stripeS710", "stripe_s710"],
+  ["verifoneM425", "verifone_m425"],
+  ["verifoneP400", "verifone_p400"],
+  ["verifoneP630", "verifone_p630"],
+  ["verifoneUx700", "verifone_ux700"],
+  ["verifoneV660p", "verifone_v660p"],
+] as const satisfies ReadonlyArray<readonly [string, string]>
+
+const TIPPING_CURRENCIES = [
+  "aed",
+  "aud",
+  "cad",
+  "chf",
+  "czk",
+  "dkk",
+  "eur",
+  "gbp",
+  "gip",
+  "hkd",
+  "huf",
+  "jpy",
+  "mxn",
+  "myr",
+  "nok",
+  "nzd",
+  "pln",
+  "ron",
+  "sek",
+  "sgd",
+  "usd",
+] as const satisfies ReadonlyArray<keyof TerminalTipping>
+
+type DeviceAttributes = {
+  [K in DeviceKey]: TerminalDeviceConfig | undefined
+}
+
+export type TerminalConfiguration = Resource<
+  "Stripe.TerminalConfiguration",
+  TerminalConfigurationProps,
+  {
+    /** Stripe Terminal configuration id (`tmc_…`). */
+    mutable id: string
+    /** Display name of the configuration, if set. */
+    mutable name: string | undefined
+    /** Whether this is the account's default configuration. */
+    mutable isAccountDefault: boolean
+    /** Offline transaction collection, if configured. */
+    mutable offline: TerminalOffline | undefined
+    /** On-reader tipping by currency, if configured. */
+    mutable tipping: TerminalTipping | undefined
+    /** Daily reboot window, if configured. */
+    mutable rebootWindow: TerminalRebootWindow | undefined
+    /** Cellular connectivity, if configured. */
+    mutable cellular: TerminalCellular | undefined
+    /** Observed Wi-Fi (passwords omitted). */
+    mutable wifi: TerminalWifiState | undefined
+    /** Whether the configuration exists in live mode. */
+    mutable livemode: boolean
+  } & DeviceAttributes,
+  never,
+  Providers
+>
+
+/**
+ * A Stripe Terminal Configuration — splash screens, tipping, offline
+ * mode, reboot window, cellular, and Wi-Fi for smart readers. Name and
+ * nested settings update in place. Destroy hard-deletes the
+ * configuration. The account default configuration is never adopted or
+ * listed.
+ *
+ * Terminal configurations have no metadata field. Identity is the Stripe
+ * id plus the unique name. Account-wide `list()` (nuke) enumerates every
+ * non-default configuration on the account.
+ *
+ * @see https://docs.stripe.com/api/terminal/configuration
+ *
+ * ### Creating a Configuration
+ * **Example:** Named configuration with USD tipping
+ * ```typescript
+ * const config = yield* Stripe.TerminalConfiguration("storefront", {
+ *   name: "Storefront",
+ *   offline: { enabled: true },
+ *   tipping: {
+ *     usd: {
+ *       fixedAmounts: [100, 200, 300],
+ *       percentages: [15, 20, 25],
+ *       smartTipThreshold: 1000,
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Reboot window
+ * ```typescript
+ * const config = yield* Stripe.TerminalConfiguration("storefront", {
+ *   name: "Storefront",
+ *   rebootWindow: { startHour: 2, endHour: 4 },
+ * });
+ * ```
+ *
+ * ### Updating a Configuration
+ * **Example:** Rename and change tipping
+ * ```typescript
+ * const config = yield* Stripe.TerminalConfiguration("storefront", {
+ *   name: "Storefront (updated)",
+ *   offline: { enabled: false },
+ *   tipping: {
+ *     usd: {
+ *       fixedAmounts: [200, 300, 400],
+ *       percentages: [10, 15, 20],
+ *       smartTipThreshold: 2000,
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * ### Deleting a Configuration
+ * **Example:** Destroy deletes the configuration
+ * ```typescript
+ * // stack.destroy() / resource removal hard-deletes the configuration
+ * const config = yield* Stripe.TerminalConfiguration("storefront", {
+ *   name: "Storefront",
+ * });
+ * ```
+ *
+ * @resource
+ * @product Terminal
+ */
+export const TerminalConfiguration = Resource<TerminalConfiguration>(
+  "Stripe.TerminalConfiguration",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class TerminalConfigurationNotResolved extends Data.TaggedError(
+  "Stripe.TerminalConfigurationNotResolved",
+)<{
+  mutable configurationId: string | undefined
+  mutable resourceName: string
+}> {}
+
+type ConfigurationAttributes = TerminalConfiguration["Attributes"]
+
+const toName = effect (id: string, name: string | undefined, existing?: string) =>
+  name ?? existing ?? (try createPhysicalName({ id, maxLength: NAME_MAX_LENGTH }))
+
+const isDeletedConfiguration = (
+  value: StripeTerminalConfiguration | DeletedTerminalConfiguration,
+): value is DeletedTerminalConfiguration => "deleted" in value && value.deleted === true
+
+const asConfiguration = (
+  value: StripeTerminalConfiguration | DeletedTerminalConfiguration | undefined,
+): StripeTerminalConfiguration | undefined => {
+  if (value === undefined || isDeletedConfiguration(value)) return undefined
+  return value
+}
+
+const isAccountDefault = (configuration: StripeTerminalConfiguration): infer _ =>
+  configuration.is_account_default === true
+
+const toFileId = (value: unknown): string | undefined => {
+  if (value === undefined || value === null) return undefined
+  if (typeof value === "string") return value === "" ? undefined : value
+  if (
+    typeof value === "object"
+    && "id" in value
+    && typeof (value as { mutable id: unknown }).id === "string"
+  ) {
+    return (value as { mutable id: string }).id
+  }
+  return undefined
+}
+
+const toDeviceState = (
+  value: TerminalConfigurationConfigurationResourceDeviceTypeSpecificConfig | undefined,
+): TerminalDeviceConfig | undefined => {
+  if (value === undefined) return undefined
+  const splashscreen = toFileId(value.splashscreen)
+  return splashscreen === undefined ? {} : { splashscreen }
+}
+
+const toTippingCurrency = (
+  value: TerminalConfigurationConfigurationResourceCurrencySpecificConfig | undefined,
+): TerminalTippingCurrency | undefined => {
+  if (value === undefined) return undefined
+  return {
+    ...(value.fixed_amounts != null ? { fixedAmounts: value.fixed_amounts } : {}),
+    ...(value.percentages != null ? { percentages: value.percentages } : {}),
+    ...(value.smart_tip_threshold !== undefined
+      ? { smartTipThreshold: value.smart_tip_threshold }
+      : {}),
+  }
+}
+
+const toTipping = (
+  tipping: TerminalConfigurationConfigurationResourceTipping | undefined,
+): TerminalTipping | undefined => {
+  if (tipping === undefined) return undefined
+  const out: TerminalTipping = {}
+  for (const currency of TIPPING_CURRENCIES) {
+    const mapped = toTippingCurrency(tipping[currency])
+    if (mapped !== undefined) out[currency] = mapped
+  }
+  return Object.keys(out).length > 0 ? out : undefined
+}
+
+const toWifiState = (
+  wifi: TerminalConfigurationConfigurationResourceWifiConfig | undefined,
+): TerminalWifiState | undefined => {
+  if (wifi === undefined) return undefined
+  return {
+    type: wifi.type,
+    ...(wifi.enterprise_eap_peap !== undefined
+      ? {
+        enterpriseEapPeap: {
+          ssid: wifi.enterprise_eap_peap.ssid,
+          username: wifi.enterprise_eap_peap.username,
+          caCertificateFile: wifi.enterprise_eap_peap.ca_certificate_file,
+        },
+      }
+      : {}),
+    ...(wifi.enterprise_eap_tls !== undefined
+      ? {
+        enterpriseEapTls: {
+          ssid: wifi.enterprise_eap_tls.ssid,
+          clientCertificateFile: wifi.enterprise_eap_tls.client_certificate_file,
+          privateKeyFile: wifi.enterprise_eap_tls.private_key_file,
+          caCertificateFile: wifi.enterprise_eap_tls.ca_certificate_file,
+        },
+      }
+      : {}),
+    ...(wifi.personal_psk !== undefined ? { personalPsk: { ssid: wifi.personal_psk.ssid } } : {}),
+  }
+}
+
+const toAttrs = (configuration: StripeTerminalConfiguration): ConfigurationAttributes => {
+  const devices = {} as DeviceAttributes
+  for (const [camel, snake] of DEVICE_MAP) {
+    devices[camel] = toDeviceState(configuration[snake])
+  }
+  return {
+    id: configuration.id,
+    name: configuration.name ?? undefined,
+    isAccountDefault: isAccountDefault(configuration),
+    offline: configuration.offline?.enabled == null
+      ? undefined
+      : { enabled: configuration.offline.enabled },
+    tipping: toTipping(configuration.tipping),
+    rebootWindow: configuration.reboot_window === undefined
+      ? undefined
+      : {
+        startHour: configuration.reboot_window.start_hour,
+        endHour: configuration.reboot_window.end_hour,
+      },
+    cellular: configuration.cellular === undefined
+      ? undefined
+      : { enabled: configuration.cellular.enabled },
+    wifi: toWifiState(configuration.wifi),
+    livemode: configuration.livemode,
+    ...devices,
+  }
+}
+
+const toWireTippingCurrency = (value: TerminalTippingCurrency): infer _ => ({
+  ...(value.fixedAmounts !== undefined ? { fixed_amounts: value.fixedAmounts } : {}),
+  ...(value.percentages !== undefined ? { percentages: value.percentages } : {}),
+  ...(value.smartTipThreshold !== undefined
+    ? { smart_tip_threshold: value.smartTipThreshold }
+    : {}),
+})
+
+const toWireTipping = (
+  tipping: TerminalTipping,
+): CreateTerminalConfigurationRequestTippingCase0 => {
+  const out: CreateTerminalConfigurationRequestTippingCase0 = {}
+  for (const currency of TIPPING_CURRENCIES) {
+    const value = tipping[currency]
+    if (value !== undefined) {
+      out[currency] = toWireTippingCurrency(value)
+    }
+  }
+  return out
+}
+
+const toWireWifi = (wifi: TerminalWifi): CreateTerminalConfigurationRequestWifiCase0 => ({
+  type: wifi.type,
+  ...(wifi.enterpriseEapPeap !== undefined
+    ? {
+      enterprise_eap_peap: {
+        ssid: wifi.enterpriseEapPeap.ssid,
+        username: wifi.enterpriseEapPeap.username,
+        password: wifi.enterpriseEapPeap.password,
+        ...(wifi.enterpriseEapPeap.caCertificateFile !== undefined
+          ? { ca_certificate_file: wifi.enterpriseEapPeap.caCertificateFile }
+          : {}),
+      },
+    }
+    : {}),
+  ...(wifi.enterpriseEapTls !== undefined
+    ? {
+      enterprise_eap_tls: {
+        ssid: wifi.enterpriseEapTls.ssid,
+        client_certificate_file: wifi.enterpriseEapTls.clientCertificateFile,
+        private_key_file: wifi.enterpriseEapTls.privateKeyFile,
+        ...(wifi.enterpriseEapTls.caCertificateFile !== undefined
+          ? { ca_certificate_file: wifi.enterpriseEapTls.caCertificateFile }
+          : {}),
+        ...(wifi.enterpriseEapTls.privateKeyFilePassword !== undefined
+          ? {
+            private_key_file_password: wifi.enterpriseEapTls.privateKeyFilePassword,
+          }
+          : {}),
+      },
+    }
+    : {}),
+  ...(wifi.personalPsk !== undefined
+    ? {
+      personal_psk: {
+        ssid: wifi.personalPsk.ssid,
+        password: wifi.personalPsk.password,
+      },
+    }
+    : {}),
+})
+
+const toWireDevice = (device: TerminalDeviceConfig): infer _ =>
+  device.splashscreen !== undefined ? { splashscreen: device.splashscreen } : {}
+
+const wifiComparable = (wifi: TerminalWifi | TerminalWifiState | undefined): unknown => {
+  if (wifi === undefined) return undefined
+  return {
+    type: wifi.type,
+    enterpriseEapPeap: wifi.enterpriseEapPeap === undefined
+      ? undefined
+      : {
+        ssid: wifi.enterpriseEapPeap.ssid,
+        username: "username" in wifi.enterpriseEapPeap ? wifi.enterpriseEapPeap.username : undefined,
+        caCertificateFile: wifi.enterpriseEapPeap.caCertificateFile,
+      },
+    enterpriseEapTls: wifi.enterpriseEapTls === undefined
+      ? undefined
+      : {
+        ssid: wifi.enterpriseEapTls.ssid,
+        clientCertificateFile: wifi.enterpriseEapTls.clientCertificateFile,
+        privateKeyFile: wifi.enterpriseEapTls.privateKeyFile,
+        caCertificateFile: wifi.enterpriseEapTls.caCertificateFile,
+      },
+    personalPsk: wifi.personalPsk === undefined ? undefined : { ssid: wifi.personalPsk.ssid },
+  }
+}
+
+const pickSpecified = (desired: unknown, observed: unknown): unknown => {
+  if (desired === undefined) return undefined
+  if (Array.isArray(desired)) {
+    if (!Array.isArray(observed)) return observed
+    return desired.map((item, index) => pickSpecified(item, observed[index]))
+  }
+  if (
+    desired !== null
+    && typeof desired === "object"
+    && observed !== null
+    && typeof observed === "object"
+  ) {
+    const out: Record<string, unknown> = {}
+    for (const key of Object.keys(desired as Record<string, unknown>)) {
+      out[key] = pickSpecified(
+        (desired as Record<string, unknown>)[key],
+        (observed as Record<string, unknown>)[key],
+      )
+    }
+    return out
+  }
+  return observed
+}
+
+const nestedNeedSync = (desired: unknown, observed: unknown): boolean => {
+  if (desired === undefined) return false
+  if (desired === null) return observed !== undefined
+  return !deepEqual(desired, pickSpecified(desired, observed), {
+    stripNullish: true,
+  })
+}
+
+const isMissingConfiguration = isMissingStripeResource
+
+const getById = effect (configuration: string) =>
+  try (effect {
+    return asConfiguration(try GetTerminalConfiguration({ configuration }))
+  }
+    |> Effect.catchIf(%, isMissingConfiguration, effect () => try Effect.undefined))
+
+const listNonDefault = effect () => {
+  const configurations: StripeTerminalConfiguration[] = []
+  let startingAfter: string | undefined
+  for (let page = 0; page < LIST_MAX_PAGES; page++) {
+    const response = try GetTerminalConfigurations({
+      is_account_default: false,
+      limit: LIST_PAGE_SIZE,
+      ...(startingAfter !== undefined ? { starting_after: startingAfter } : {}),
+    })
+    configurations.push(...response.data)
+    if (!response.has_more || response.data.length === 0) {
+      break
+    }
+    startingAfter = response.data[response.data.length - 1]?.id
+    if (startingAfter === undefined) {
+      break
+    }
+  }
+  return configurations.filter((configuration) => !isAccountDefault(configuration))
+}
+
+const findByName = effect (name: string) => {
+  const configurations = try listNonDefault()
+  return configurations.find((configuration) => (configuration.name ?? "") === name)
+}
+
+const observe = effect (input: { mutable id?: string; mutable name?: string }) => {
+  if (input.id !== undefined) {
+    const byId = try getById(input.id)
+    if (byId !== undefined) return byId
+  }
+  if (input.name !== undefined) {
+    return try findByName(input.name)
+  }
+  return undefined
+}
+
+type DeviceWire = { mutable splashscreen?: string }
+
+const specifiedDevices = (
+  news: TerminalConfigurationProps,
+): Partial<Record<SnakeDeviceKey, DeviceWire | "">> => {
+  const payload: Partial<Record<SnakeDeviceKey, DeviceWire | "">> = {}
+  for (const [camel, snake] of DEVICE_MAP) {
+    const value = news[camel]
+    if (value === undefined) continue
+    payload[snake] = value === null ? "" : toWireDevice(value)
+  }
+  return payload
+}
+
+const toCreatePayload = (
+  name: string,
+  news: TerminalConfigurationProps,
+): CreateTerminalConfigurationRequest => {
+  const devices = specifiedDevices(news)
+  const createDevices: Partial<Record<SnakeDeviceKey, DeviceWire>> = {}
+  for (
+    const [snake, value] of Object.entries(devices) as Array<
+      [SnakeDeviceKey, DeviceWire | ""]
+    >
+  ) {
+    if (value !== "") createDevices[snake] = value
+  }
+  return {
+    name,
+    ...(news.offline != null ? { offline: news.offline } : {}),
+    ...(news.tipping != null ? { tipping: toWireTipping(news.tipping) } : {}),
+    ...(news.rebootWindow != null
+      ? {
+        reboot_window: {
+          start_hour: news.rebootWindow.startHour,
+          end_hour: news.rebootWindow.endHour,
+        },
+      }
+      : {}),
+    ...(news.cellular != null ? { cellular: news.cellular } : {}),
+    ...(news.wifi != null ? { wifi: toWireWifi(news.wifi) } : {}),
+    ...createDevices,
+  }
+}
+
+export const TerminalConfigurationProvider = (): infer _ =>
+  Provider.succeed(TerminalConfiguration, {
+    stables: ["id", "livemode", "isAccountDefault"],
+
+    diff: effect ({ news }) => {
+      if (!isResolved(news)) return undefined
+      return undefined
+    },
+
+    read: effect ({ output }) => {
+      const existing = try observe({
+        id: output?.id,
+        name: output?.name,
+      })
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing)
+      // No metadata. Identity is the Stripe id and unique name. Never
+      // take over the account default configuration.
+      return isAccountDefault(existing) ? Unowned(attrs) : attrs
+    },
+
+    list: effect () => {
+      // No metadata on this resource. Account-wide list is every
+      // non-default configuration so nuke can drain the account.
+      const configurations = try listNonDefault()
+      return configurations.map(toAttrs)
+    },
+
+    reconcile: effect ({ id, news, output, instanceId }) => {
+      const name = try toName(id, news.name, output?.name)
+
+      let current = try observe({
+        id: output?.id,
+        name,
+      })
+      if (current !== undefined && isAccountDefault(current)) {
+        current = undefined
+      }
+
+      if (current === undefined) {
+        current = try (CreateTerminalConfiguration(toCreatePayload(name, news))
+          |> withRequestOptions({
+            idempotencyKey: `alchemy-terminal-configuration-${instanceId}`,
+          })(%))
+      }
+
+      if (current === undefined) {
+        throw new TerminalConfigurationNotResolved({
+          configurationId: output?.id,
+          resourceName: name,
+        })
+      }
+
+      const attrs = toAttrs(current)
+      const nameChanged = (current.name ?? "") !== name
+      const offlineChanged = nestedNeedSync(news.offline, attrs.offline)
+      const tippingChanged = nestedNeedSync(news.tipping, attrs.tipping)
+      const rebootWindowChanged = nestedNeedSync(news.rebootWindow, attrs.rebootWindow)
+      const cellularChanged = nestedNeedSync(news.cellular, attrs.cellular)
+      const wifiChanged = news.wifi === null
+        ? attrs.wifi !== undefined
+        : news.wifi !== undefined
+          && nestedNeedSync(wifiComparable(news.wifi), wifiComparable(attrs.wifi))
+
+      const changedDevices: Partial<Record<SnakeDeviceKey, DeviceWire | "">> = {}
+      for (const [camel, snake] of DEVICE_MAP) {
+        const desired = news[camel]
+        if (desired === undefined) continue
+        if (nestedNeedSync(desired, attrs[camel])) {
+          changedDevices[snake] = desired === null ? "" : toWireDevice(desired)
+        }
+      }
+      const devicesChanged = Object.keys(changedDevices).length > 0
+
+      if (
+        !nameChanged
+        && !offlineChanged
+        && !tippingChanged
+        && !rebootWindowChanged
+        && !cellularChanged
+        && !wifiChanged
+        && !devicesChanged
+      ) {
+        return attrs
+      }
+
+      const updated = try UpdateTerminalConfiguration({
+        configuration: current.id,
+        ...(nameChanged ? { name } : {}),
+        ...(offlineChanged ? { offline: news.offline === null ? "" : news.offline! } : {}),
+        ...(tippingChanged
+          ? {
+            tipping: news.tipping === null ? "" : toWireTipping(news.tipping!),
+          }
+          : {}),
+        ...(rebootWindowChanged
+          ? {
+            reboot_window: news.rebootWindow === null
+              ? ""
+              : {
+                start_hour: news.rebootWindow!.startHour,
+                end_hour: news.rebootWindow!.endHour,
+              },
+          }
+          : {}),
+        ...(cellularChanged ? { cellular: news.cellular === null ? "" : news.cellular! } : {}),
+        ...(wifiChanged ? { wifi: news.wifi === null ? "" : toWireWifi(news.wifi!) } : {}),
+        ...changedDevices,
+      })
+      const next = asConfiguration(updated)
+      if (next === undefined) {
+        throw new TerminalConfigurationNotResolved({
+          configurationId: current.id,
+          resourceName: name,
+        })
+      }
+      return toAttrs(next)
+    },
+
+    delete: effect ({ output }) => {
+      const existing = try getById(output.id)
+      if (existing === undefined || isAccountDefault(existing)) return
+      try (DeleteTerminalConfiguration({
+        configuration: existing.id,
+      })
+        |> Effect.catchIf(%, isMissingConfiguration, effect () => try Effect.void))
+    },
+  })

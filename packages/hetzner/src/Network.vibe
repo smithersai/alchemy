@@ -1,0 +1,599 @@
+import * as Hetzner from "@distilled.cloud/hetzner"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import { waitForAction } from "./actions.vibe"
+import {
+  alchemyStackSelector,
+  createInternalLabels,
+  diffLabels,
+  hasAlchemyLabels,
+  labelSelector,
+  stripInternalLabels,
+  toLabels,
+} from "./Labels.vibe"
+import type { Providers } from "./Providers.ts"
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class NetworkNotCreated extends Data.TaggedError("Hetzner.NetworkNotCreated")<{
+  mutable resourceName: string
+}> {}
+
+export type NetworkSubnetType = "cloud" | "server" | "vswitch"
+
+export interface NetworkSubnet {
+  /**
+   * Subnet type. `cloud` is the usual choice for Cloud Servers and Load
+   * Balancers. `vswitch` attaches a Robot vSwitch and requires `vswitchId`.
+   */
+  mutable type: NetworkSubnetType
+  /**
+   * IPv4 range of the subnet in CIDR notation. Must be a subnet of the
+   * parent network `ipRange` and must not overlap other subnets or route
+   * destinations. Minimum size is `/30`. If omitted on create, Hetzner
+   * allocates the first free `/24`.
+   */
+  mutable ipRange?: string
+  /**
+   * Network zone this subnet lives in (`eu-central`, `us-east`, `us-west`,
+   * `ap-southeast`). `nbg1` / `fsn1` / `hel1` are in `eu-central`.
+   */
+  mutable networkZone: string
+  /**
+   * Robot vSwitch id. Required when `type` is `vswitch`.
+   */
+  mutable vswitchId?: number
+}
+
+export interface NetworkRoute {
+  /**
+   * Destination prefix. Must be an RFC1918 IPv4 range or `0.0.0.0/0`, and
+   * must not overlap any subnet or other route destination.
+   */
+  mutable destination: string
+  /**
+   * Next-hop IP inside the network. Cannot be the first IP of the
+   * network's `ipRange` or `172.31.1.1`.
+   */
+  mutable gateway: string
+}
+
+export interface NetworkProps {
+  /**
+   * Name of the Network. Must be unique per project. If omitted, a unique
+   * name is generated from the app, stage, and logical ID.
+   */
+  mutable name?: string
+  /**
+   * IPv4 range of the whole Network in CIDR notation. Must be RFC1918 and
+   * at least `/24`. Can only be **extended** later (`change_ip_range`);
+   * shrinking or moving to a non-superset range replaces the Network.
+   */
+  mutable ipRange: string
+  /**
+   * Subnets allocated in this Network. Synced via `add_subnet` /
+   * `delete_subnet` — they are not their own resources.
+   */
+  mutable subnets?: NetworkSubnet[]
+  /**
+   * Static routes in this Network. Synced via `add_route` / `delete_route`.
+   */
+  mutable routes?: NetworkRoute[]
+  /**
+   * Expose this Network's routes to a connected Robot vSwitch.
+   * @default false
+   */
+  mutable exposeRoutesToVswitch?: boolean
+  /**
+   * Prevent the Network from being deleted in the Cloud Console / API
+   * until this is cleared. The provider disables protection before delete.
+   * @default false
+   */
+  mutable deleteProtection?: boolean
+  /**
+   * User-defined labels. Alchemy ownership labels (`alchemy.stack` /
+   * `alchemy.stage` / `alchemy.id`) are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export interface NetworkSubnetAttr extends NetworkSubnet {
+  /** Gateway Hetzner assigned to this subnet. */
+  mutable gateway: string
+}
+
+export type Network = Resource<
+  "Hetzner.Network",
+  NetworkProps,
+  {
+    /** Numeric Hetzner Network id. */
+    mutable networkId: number
+    /** Observed Network name. */
+    mutable name: string
+    /** Observed IPv4 range (CIDR). */
+    mutable ipRange: string
+    /** Observed subnets, including the assigned gateway. */
+    mutable subnets: NetworkSubnetAttr[]
+    /** Observed static routes. */
+    mutable routes: NetworkRoute[]
+    /** Server ids currently attached to this Network. */
+    mutable servers: number[]
+    /** Load Balancer ids currently attached to this Network. */
+    mutable loadBalancers: number[]
+    /** Whether delete protection is enabled. */
+    mutable deleteProtection: boolean
+    /** Whether routes are exposed to a connected vSwitch. */
+    mutable exposeRoutesToVswitch: boolean
+    /** User-facing labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    mutable created: string
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Hetzner Cloud private Network — an isolated IPv4 range that Cloud
+ * Servers and Load Balancers attach to. Subnets, routes, delete protection,
+ * and labels are synced on the Network itself; `network_actions` are not
+ * modeled as their own resources.
+ *
+ * @see https://docs.hetzner.cloud/reference/cloud#networks
+ *
+ * ### Creating a Network
+ * **Example:** Basic Network
+ * ```typescript
+ * const network = yield* Hetzner.Network("vpc", {
+ *   ipRange: "10.0.0.0/16",
+ * });
+ * ```
+ *
+ * **Example:** Network with a cloud subnet
+ * ```typescript
+ * const network = yield* Hetzner.Network("vpc", {
+ *   ipRange: "10.0.0.0/16",
+ *   subnets: [
+ *     { type: "cloud", ipRange: "10.0.1.0/24", networkZone: "eu-central" },
+ *   ],
+ * });
+ * ```
+ *
+ * ### Routes and protection
+ * **Example:** Static route and delete protection
+ * ```typescript
+ * const network = yield* Hetzner.Network("vpc", {
+ *   ipRange: "10.0.0.0/16",
+ *   subnets: [
+ *     { type: "cloud", ipRange: "10.0.1.0/24", networkZone: "eu-central" },
+ *   ],
+ *   routes: [{ destination: "10.10.0.0/24", gateway: "10.0.1.2" }],
+ *   deleteProtection: true,
+ * });
+ * ```
+ *
+ * ### Labels
+ * **Example:** User labels
+ * ```typescript
+ * const network = yield* Hetzner.Network("vpc", {
+ *   ipRange: "10.0.0.0/16",
+ *   labels: { env: "prod", role: "vpc" },
+ * });
+ * ```
+ *
+ * @resource
+ * @product Network
+ */
+export const Network = Resource<Network>("Hetzner.Network")
+
+type ObservedNetwork = {
+  mutable id: number
+  mutable name: string
+  mutable ip_range: string
+  mutable subnets: ReadonlyArray<{
+    mutable type: string
+    mutable ip_range?: string
+    mutable network_zone: string
+    mutable gateway: string
+    mutable vswitch_id?: number | null
+  }>
+  mutable routes: ReadonlyArray<{ mutable destination: string; mutable gateway: string }>
+  mutable servers: ReadonlyArray<number>
+  mutable load_balancers?: ReadonlyArray<number>
+  mutable protection: { mutable delete: boolean }
+  mutable labels: Record<string, string | undefined>
+  mutable created: string
+  mutable expose_routes_to_vswitch: boolean
+}
+
+const busy = (e: { readonly _tag: string }): boolean => e._tag === "Locked" || e._tag === "Conflict"
+
+const busyRetry = {
+  while: busy,
+  times: 8,
+  schedule: Schedule.min([
+    Schedule.exponential(Duration.millis(500), 1.5),
+    Schedule.spaced(Duration.seconds(5)),
+  ]),
+} as const
+
+const alreadyThere = (e: { readonly _tag: string }): boolean =>
+  e._tag === "Conflict" || e._tag === "UnprocessableEntity"
+
+const alreadyGone = (e: { readonly _tag: string }): boolean => e._tag === "NotFound" || e._tag === "UnprocessableEntity"
+
+const createNetworkName = effect (id: string, name: string | undefined) => {
+  return (
+    name
+      ?? (try createPhysicalName({
+        id,
+        maxLength: 63,
+        lowercase: true,
+      }))
+  )
+}
+
+const desiredLabelsOf = effect (
+  id: string,
+  labels: Record<string, string> | undefined,
+) => {
+  return {
+    ...toLabels(labels),
+    ...(try createInternalLabels(id)),
+  }
+}
+
+const subnetKey = (subnet: {
+  mutable type: string
+  mutable ipRange?: string
+  mutable networkZone: string
+  mutable vswitchId?: number | null
+}): string => `${subnet.type}|${subnet.ipRange ?? ""}|${subnet.networkZone}|${subnet.vswitchId ?? ""}`
+
+const routeKey = (route: { mutable destination: string; mutable gateway: string }): string =>
+  `${route.destination}|${route.gateway}`
+
+const toSubnetAttr = (subnet: ObservedNetwork["subnets"][number]): NetworkSubnetAttr => ({
+  type: subnet.type as NetworkSubnetType,
+  ipRange: subnet.ip_range,
+  networkZone: subnet.network_zone,
+  gateway: subnet.gateway,
+  vswitchId: subnet.vswitch_id ?? undefined,
+})
+
+const toAttrs = (network: ObservedNetwork): Network["Attributes"] => ({
+  networkId: network.id,
+  name: network.name,
+  ipRange: network.ip_range,
+  subnets: network.subnets.map(toSubnetAttr),
+  routes: network.routes.map((route) => ({
+    destination: route.destination,
+    gateway: route.gateway,
+  })),
+  servers: [...network.servers],
+  loadBalancers: [...(network.load_balancers ?? [])],
+  deleteProtection: network.protection.delete,
+  exposeRoutesToVswitch: network.expose_routes_to_vswitch,
+  labels: stripInternalLabels(tagRecord(network.labels)),
+  created: network.created,
+})
+
+const parseCidr = (cidr: string): { mutable ip: number; mutable prefix: number } | undefined => {
+  const [addr, prefixRaw] = cidr.split("/")
+  if (addr === undefined || prefixRaw === undefined) return undefined
+  const parts = addr.split(".").map(Number)
+  if (
+    parts.length !== 4
+    || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)
+  ) {
+    return undefined
+  }
+  const prefix = Number(prefixRaw)
+  if (!Number.isInteger(prefix) || prefix < 0 || prefix > 32) return undefined
+  const ip = ((parts[0]! << 24) | (parts[1]! << 16) | (parts[2]! << 8) | parts[3]!) >>> 0
+  return { ip, prefix }
+}
+
+/** True when `outer` is equal to or a supernet of `inner`. */
+const cidrContains = (outer: string, inner: string): boolean => {
+  const a = parseCidr(outer)
+  const b = parseCidr(inner)
+  if (a === undefined || b === undefined) return false
+  if (a.prefix > b.prefix) return false
+  const mask = a.prefix === 0 ? 0 : (0xffffffff << (32 - a.prefix)) >>> 0
+  return (a.ip & mask) === (b.ip & mask)
+}
+
+const getById = effect (id: number) =>
+  (try effect {
+    const { network } = try Hetzner.networks.getNetwork({ id })
+    return network
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+const findByName = effect (name: string) =>
+  try effect {
+    const { networks } = try Hetzner.networks
+      .listNetworks({ name, per_page: 50 })
+    return networks.find((item) => item.name === name)
+  }
+
+const findByLabels = effect (labels: Record<string, string>) =>
+  try effect {
+    const { networks } = try Hetzner.networks
+      .listNetworks({
+        label_selector: labelSelector(labels),
+        per_page: 50,
+      })
+    return networks[0]
+  }
+
+const observe = effect (networkId: number | undefined, name: string, id: string) => {
+  if (networkId !== undefined) {
+    const byId = try getById(networkId)
+    if (byId) return byId
+  }
+  const byLabels = try findByLabels(try createInternalLabels(id))
+  if (byLabels) return byLabels
+  return try findByName(name)
+}
+
+const runAction = effect <E extends { readonly _tag: string }, R>(
+  effect: { mutable action: { mutable id: number } }!E!R,
+) =>
+  try effect {
+    const { action } = try (effect
+      |> Effect.retry(%, busyRetry))
+    return try waitForAction(action)
+  }
+
+const syncIpRange = effect (networkId: number, observed: string, desired: string) => {
+  if (observed === desired) return
+  try runAction(
+    Hetzner.networkActions.changeNetworkIpRange({
+      id: networkId,
+      ip_range: desired,
+    }),
+  )
+}
+
+const syncMetadata = effect (args: {
+  mutable networkId: number
+  mutable observed: ObservedNetwork
+  mutable name: string
+  mutable exposeRoutesToVswitch: boolean
+  mutable labels: Record<string, string>
+}) => {
+  const observedLabels = tagRecord(args.observed.labels)
+  const { removed, upsert } = diffLabels(observedLabels, args.labels)
+  const labelsChanged = removed.length > 0 || upsert.length > 0
+  const nameChanged = args.observed.name !== args.name
+  const exposeChanged = args.observed.expose_routes_to_vswitch !== args.exposeRoutesToVswitch
+  if (!labelsChanged && !nameChanged && !exposeChanged) return
+  try (Hetzner.networks
+    .updateNetwork({
+      id: args.networkId,
+      name: nameChanged ? args.name : undefined,
+      expose_routes_to_vswitch: exposeChanged ? args.exposeRoutesToVswitch : undefined,
+      labels: labelsChanged ? args.labels : undefined,
+    })
+    |> Effect.retry(%, busyRetry))
+}
+
+const syncSubnets = effect (
+  networkId: number,
+  observed: ObservedNetwork["subnets"],
+  desired: readonly NetworkSubnet[],
+) => {
+  const observedMapped = observed.map((subnet) => ({
+    type: subnet.type,
+    ipRange: subnet.ip_range,
+    networkZone: subnet.network_zone,
+    vswitchId: subnet.vswitch_id ?? undefined,
+  }))
+  const observedKeys = new Set(observedMapped.map(subnetKey))
+  const desiredKeys = new Set(desired.map(subnetKey))
+
+  for (const subnet of observedMapped) {
+    if (desiredKeys.has(subnetKey(subnet))) continue
+    if (subnet.ipRange === undefined) continue
+    try (runAction(
+      Hetzner.networkActions.deleteNetworkSubnet({
+        id: networkId,
+        ip_range: subnet.ipRange,
+      }),
+    )
+      |> Effect.catchIf(%, alreadyGone, effect () => try Effect.void))
+  }
+
+  for (const subnet of desired) {
+    if (observedKeys.has(subnetKey(subnet))) continue
+    try (runAction(
+      Hetzner.networkActions.addNetworkSubnet({
+        id: networkId,
+        type: subnet.type,
+        ip_range: subnet.ipRange,
+        network_zone: subnet.networkZone,
+        vswitch_id: subnet.vswitchId,
+      }),
+    )
+      |> Effect.catchIf(%, alreadyThere, effect () => try Effect.void))
+  }
+}
+
+const syncRoutes = effect (
+  networkId: number,
+  observed: ObservedNetwork["routes"],
+  desired: readonly NetworkRoute[],
+) => {
+  const observedKeys = new Set(observed.map(routeKey))
+  const desiredKeys = new Set(desired.map(routeKey))
+
+  for (const route of observed) {
+    if (desiredKeys.has(routeKey(route))) continue
+    try (runAction(
+      Hetzner.networkActions.deleteNetworkRoute({
+        id: networkId,
+        destination: route.destination,
+        gateway: route.gateway,
+      }),
+    )
+      |> Effect.catchIf(%, alreadyGone, effect () => try Effect.void))
+  }
+
+  for (const route of desired) {
+    if (observedKeys.has(routeKey(route))) continue
+    try (runAction(
+      Hetzner.networkActions.addNetworkRoute({
+        id: networkId,
+        destination: route.destination,
+        gateway: route.gateway,
+      }),
+    )
+      |> Effect.catchIf(%, alreadyThere, effect () => try Effect.void))
+  }
+}
+
+const syncProtection = effect (networkId: number, observed: boolean, desired: boolean) => {
+  if (observed === desired) return
+  try runAction(
+    Hetzner.networkActions.changeNetworkProtection({
+      id: networkId,
+      delete: desired,
+    }),
+  )
+}
+
+export const NetworkProvider = (): infer _ =>
+  Provider.succeed(Network, {
+    stables: ["networkId", "created"],
+
+    list: effect () => {
+      return Array.from(
+        try (Hetzner.networks.listNetworks
+          .items({ label_selector: alchemyStackSelector, per_page: 50 })
+          |> Stream.runCollect(%)),
+        toAttrs,
+      )
+    },
+
+    diff: effect ({ news, output }) => {
+      if (!isResolved(news)) return undefined
+      if (
+        output !== undefined
+        && news.ipRange !== output.ipRange
+        && !cidrContains(news.ipRange, output.ipRange)
+      ) {
+        return { action: "replace" } as const
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const name = try createNetworkName(id, olds?.name ?? output?.name)
+      const observed = try observe(output?.networkId, name, id)
+      if (observed === undefined) return undefined
+      const attrs = toAttrs(observed)
+      return (try hasAlchemyLabels(id, tagRecord(observed.labels))) ? attrs : Unowned(attrs)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const name = try createNetworkName(
+        id,
+        news.name ?? (output === undefined ? undefined : output.name),
+      )
+      const desiredLabels = try desiredLabelsOf(id, news.labels)
+      const desiredSubnets = news.subnets ?? []
+      const desiredRoutes = news.routes ?? []
+      const exposeRoutesToVswitch = news.exposeRoutesToVswitch ?? false
+      const deleteProtection = news.deleteProtection ?? false
+
+      // Observe — cached `output.networkId` is a hint. Fall back to
+      // ownership labels, then the deterministic name.
+      let current = try observe(output?.networkId, name, id)
+
+      // A replacement create shares the logical id (and thus ownership
+      // labels) with the outgoing generation. If the observed row cannot
+      // accept the desired `ipRange` (Hetzner can only extend a range),
+      // do not reuse it — create a new Network and let the engine delete
+      // the old generation.
+      if (
+        current !== undefined
+        && current.ip_range !== news.ipRange
+        && !cidrContains(news.ipRange, current.ip_range)
+      ) {
+        current = undefined
+      }
+
+      // Ensure — create when missing. A name-collision race is treated as
+      // the peer winning; we pick that row up and continue into sync.
+      if (current === undefined) {
+        const created = try (effect {
+          return (try (Hetzner.networks
+            .createNetwork({
+              name,
+              ip_range: news.ipRange,
+              labels: desiredLabels,
+              subnets: desiredSubnets.map((subnet) => ({
+                type: subnet.type,
+                ip_range: subnet.ipRange,
+                network_zone: subnet.networkZone,
+                vswitch_id: subnet.vswitchId,
+              })),
+              routes: desiredRoutes.map((route) => ({
+                destination: route.destination,
+                gateway: route.gateway,
+              })),
+              expose_routes_to_vswitch: exposeRoutesToVswitch,
+            })
+            |> Effect.retry(%, busyRetry))).network
+        }
+          |> Effect.catchIf(%, alreadyThere, effect () => try findByName(name)))
+        current = created
+      }
+
+      if (current === undefined) {
+        throw new NetworkNotCreated({ resourceName: name })
+      }
+
+      // Sync each mutable aspect from observed cloud state, not `olds`.
+      try syncIpRange(current.id, current.ip_range, news.ipRange)
+      try syncMetadata({
+        networkId: current.id,
+        observed: current,
+        name,
+        exposeRoutesToVswitch,
+        labels: desiredLabels,
+      })
+      const afterMeta = (try getById(current.id)) ?? current
+      try syncSubnets(current.id, afterMeta.subnets, desiredSubnets)
+      const afterSubnets = (try getById(current.id)) ?? afterMeta
+      try syncRoutes(current.id, afterSubnets.routes, desiredRoutes)
+      const afterRoutes = (try getById(current.id)) ?? afterSubnets
+      try syncProtection(current.id, afterRoutes.protection.delete, deleteProtection)
+
+      const fresh = try getById(current.id)
+      return toAttrs(fresh ?? afterRoutes)
+    },
+
+    delete: effect ({ output }) => {
+      if (output.deleteProtection) {
+        try (runAction(
+          Hetzner.networkActions.changeNetworkProtection({
+            id: output.networkId,
+            delete: false,
+          }),
+        )
+          |> Effect.catchIf(%, alreadyGone, effect () => try Effect.void))
+      }
+      ;(try (Hetzner.networks.deleteNetwork({ id: output.networkId })
+        |> Effect.retry(%, busyRetry))) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

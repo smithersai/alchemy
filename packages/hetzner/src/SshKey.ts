@@ -17,7 +17,7 @@ import {
   hasAlchemyLabels,
   stripInternalLabels,
   toLabels,
-} from "./Labels.ts";
+} from "./Labels.vibe";
 import type { Providers } from "./Providers.ts";
 
 export type SshKeyProps = {

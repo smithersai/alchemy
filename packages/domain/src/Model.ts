@@ -9,7 +9,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { WorkflowEngine } from "effect/workflow";
 import * as Aggregate from "./Aggregate.ts";
-import { matches } from "./Filter.ts";
+import { matches } from "./Filter.vibe";
 import * as Kernel from "./Kernel.ts";
 import type * as Key from "./Key.ts";
 import {
@@ -24,15 +24,15 @@ import {
   type StreamStore,
   type ViewSnapshot,
   type ViewStore,
-} from "./Platform.ts";
-import type * as Policy from "./Policy.ts";
-import * as Projection from "./Projection.ts";
+} from "./Platform.vibe";
+import type * as Policy from "./Policy.vibe";
+import * as Projection from "./Projection.vibe";
 import * as RequestContext from "./RequestContext.ts";
-import * as Saga from "./Saga.ts";
-import type * as DomainStream from "./Stream.ts";
-import * as Telemetry from "./Telemetry.ts";
-import * as View from "./View.ts";
-import * as Watch from "./Watch.ts";
+import * as Saga from "./Saga.vibe";
+import type * as DomainStream from "./Stream.vibe";
+import * as Telemetry from "./Telemetry.vibe";
+import * as View from "./View.vibe";
+import * as Watch from "./Watch.vibe";
 
 type Identifier<T> = T extends Context.Key<infer I, unknown> ? I : never;
 

@@ -6,7 +6,7 @@ import type {
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { CreditGrant } from "./CreditGrant.ts";
+import type { CreditGrant } from "./CreditGrant.vibe";
 
 export interface RetrieveCreditGrantRequest extends Omit<GetBillingCreditGrantRequest, "id"> {}
 

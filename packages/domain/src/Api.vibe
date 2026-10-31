@@ -1,0 +1,1272 @@
+import type { HttpEffect } from "alchemy/Http"
+import * as Cause from "effect/Cause"
+import * as Context from "effect/Context"
+import * as Deferred from "effect/Deferred"
+import * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import * as Effectable from "effect/Effectable"
+import * as Exit from "effect/Exit"
+import type * as Headers from "effect/http/Headers"
+import * as HttpClient from "effect/http/HttpClient"
+import * as HttpClientRequest from "effect/http/HttpClientRequest"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as Layer from "effect/Layer"
+import * as Option from "effect/Option"
+import * as Queue from "effect/Queue"
+import * as Rpc from "effect/rpc/Rpc"
+import * as RpcClient from "effect/rpc/RpcClient"
+import * as RpcClientError from "effect/rpc/RpcClientError"
+import * as RpcGroup from "effect/rpc/RpcGroup"
+import * as RpcMessage from "effect/rpc/RpcMessage"
+import type * as RpcMiddleware from "effect/rpc/RpcMiddleware"
+import * as RpcSerialization from "effect/rpc/RpcSerialization"
+import * as RpcServer from "effect/rpc/RpcServer"
+import * as Schema from "effect/Schema"
+import type * as Scope from "effect/Scope"
+import * as Socket from "effect/socket/Socket"
+import * as Stream from "effect/Stream"
+import * as Tracer from "effect/Tracer"
+import type * as Aggregate from "./Aggregate.ts"
+import * as Command from "./Command.vibe"
+import { type Filter, matches } from "./Filter.vibe"
+import { decodeEnvelope } from "./Kernel.ts"
+import * as Key from "./Key.ts"
+import * as Middleware from "./Middleware.ts"
+import * as Model from "./Model.ts"
+import {
+  type AggregateStore,
+  captureContext,
+  type StreamStore,
+  type Subscription,
+  type ViewStore,
+} from "./Platform.vibe"
+import type * as Read from "./Read.vibe"
+import { contractOf, nameOf, readRpcs } from "./ReadRpcs.ts"
+import * as RequestContext from "./RequestContext.ts"
+import type * as DomainStream from "./Stream.vibe"
+import type * as View from "./View.vibe"
+import * as Watch from "./Watch.vibe"
+import { trusted } from "vibelang-runtime"
+
+/**
+ * What an Api exposes: commands (writes); views, streams, and aggregates that
+ * declare a `read` contract (reads).
+ */
+export type Entry = Command.Any | View.Any | Aggregate.Any | DomainStream.Any
+
+type Commands<E extends Entry> = Extract<E, Command.Any>
+type Views<E extends Entry> = Extract<E, View.Any>
+type Streams<E extends Entry> = Extract<E, DomainStream.Any>
+type Aggregates<E extends Entry> = Exclude<E, Command.Any | View.Any | DomainStream.Any>
+
+// ---------------------------------------------------------------- client types
+
+type ContractOf<D> = D extends Read.AnyContract ? D : never
+type RejectionOf<D> = Aggregate.InstanceOf<NonNullable<ContractOf<D>["rejects"]>[number]>
+type MiddlewareOf<D> = NonNullable<ContractOf<D>["middleware"]>
+
+/** Everything a read can fail with: the declared rejections, the middleware's errors, transport. */
+export type ReadError<D> =
+  | RejectionOf<D>
+  | Middleware.Errors<MiddlewareOf<D>>
+  | RpcClientError.RpcClientError
+
+interface CallOptions {
+  readonly headers?: Headers.Input
+}
+
+/** The typed client of a view exposed in an Api. */
+export interface ViewClient<V extends View.Any> {
+  /** The key's current state (`null` if it does not exist or the filter excludes it). */
+  readonly get: (
+    key: Key.IdOf<View.KeyOf<V>>,
+    options?: CallOptions & {
+      /** Wait until the view has applied this write (a command's `stream` and `version`). */
+      readonly atLeast?: { readonly stream: string; readonly version: number }
+      readonly where?: Filter<View.StateOf<V>>
+    },
+  ) => View.StateOf<V> | null!ReadError<V["definition"]> | View.ConsistencyTimeout
+  /**
+   * The key's state with its cursor, then every change. Ends with a rejection
+   * when `validate` stops allowing it.
+   */
+  readonly watch: (
+    key: Key.IdOf<View.KeyOf<V>>,
+    options?: CallOptions & { readonly where?: Filter<View.StateOf<V>> },
+  ) => Stream.Stream<Read.Snapshot<View.StateOf<V> | null>, ReadError<V["definition"]>>
+  /**
+   * The events the key emitted, each with the state after it: history from
+   * `after` (a cursor), a {@link Read.CaughtUp} frame, then live events.
+   */
+  readonly events: (
+    key: Key.IdOf<View.KeyOf<V>>,
+    options?: CallOptions & {
+      readonly after?: number
+      readonly where?: Filter<View.EventOf<V>>
+    },
+  ) => Stream.Stream<
+    View.Entry<View.StateOf<V>, View.EventOf<V>, Key.IdOf<View.KeyOf<V>>> | Read.CaughtUp,
+    ReadError<V["definition"]>
+  >
+  /** A page of the key's emitted events. */
+  readonly list: (
+    key: Key.IdOf<View.KeyOf<V>>,
+    options?: CallOptions & {
+      /** Wait until the view has applied this write (a command's `stream` and `version`). */
+      readonly atLeast?: { readonly stream: string; readonly version: number }
+      readonly where?: Filter<View.EventOf<V>>
+      readonly order?: "asc" | "desc"
+      readonly take?: number
+      readonly after?: number
+    },
+  ) =>
+    View.Page<View.Entry<View.StateOf<V>, View.EventOf<V>, Key.IdOf<View.KeyOf<V>>>>!ReadError<V["definition"]> | View.ConsistencyTimeout
+  /**
+   * The key's state and the cursor it is valid at, read together. Render the
+   * state, then follow `events(key, { after: cursor })`: every later change
+   * arrives once, and none is missed.
+   */
+  readonly snapshot: (
+    key: Key.IdOf<View.KeyOf<V>>,
+    options?: CallOptions & {
+      /** Wait until the view has applied this write (a command's `stream` and `version`). */
+      readonly atLeast?: { readonly stream: string; readonly version: number }
+      readonly where?: Filter<View.StateOf<V>>
+    },
+  ) => Read.Snapshot<View.StateOf<V> | null>!ReadError<V["definition"]> | View.ConsistencyTimeout
+}
+
+/** The typed client of a stream exposed in an Api. */
+export interface StreamClient<S extends DomainStream.Any> {
+  /** The key's latest entry, or `null` if nothing was appended. */
+  readonly peek: (
+    key: Key.IdOf<DomainStream.KeyOf<S>>,
+    options?: CallOptions & {
+      /** Wait until the stream's writer has handled this write (a command's `stream` and `version`). */
+      readonly atLeast?: { readonly stream: string; readonly version: number }
+    },
+  ) =>
+    DomainStream.Entry<DomainStream.EventOf<S>, Key.IdOf<DomainStream.KeyOf<S>>> | null!ReadError<S["definition"]> | View.ConsistencyTimeout
+  /**
+   * The key's latest entry (`null` before any) with its cursor, then each new
+   * one. Ends with a rejection when `validate` stops allowing it.
+   */
+  readonly watch: (
+    key: Key.IdOf<DomainStream.KeyOf<S>>,
+    options?: CallOptions,
+  ) => Stream.Stream<
+    Read.Snapshot<
+      DomainStream.Entry<
+        DomainStream.EventOf<S>,
+        Key.IdOf<DomainStream.KeyOf<S>>
+      > | null
+    >,
+    ReadError<S["definition"]>
+  >
+  /** The key's entries from `after` (a cursor), a {@link Read.CaughtUp} frame, then live ones. */
+  readonly events: (
+    key: Key.IdOf<DomainStream.KeyOf<S>>,
+    options?: CallOptions & {
+      readonly after?: number
+      readonly where?: Filter<DomainStream.EventOf<S>>
+    },
+  ) => Stream.Stream<
+    DomainStream.Entry<DomainStream.EventOf<S>, Key.IdOf<DomainStream.KeyOf<S>>> | Read.CaughtUp,
+    ReadError<S["definition"]>
+  >
+  /** A page of the key's entries. */
+  readonly list: (
+    key: Key.IdOf<DomainStream.KeyOf<S>>,
+    options?: CallOptions & {
+      readonly where?: Filter<DomainStream.EventOf<S>>
+      readonly order?: "asc" | "desc"
+      readonly take?: number
+      readonly after?: number
+    },
+  ) =>
+    View.Page<DomainStream.Entry<DomainStream.EventOf<S>, Key.IdOf<DomainStream.KeyOf<S>>>>!ReadError<S["definition"]>
+}
+
+/** A committed event of an aggregate, as a client receives it. */
+export interface Recorded<E, Id> {
+  readonly event: E
+  readonly envelope: Aggregate.Envelope<Id>
+}
+
+/** The typed client of an aggregate exposed in an Api (through its `read` contract). */
+export interface AggregateClient<A extends Aggregate.Any> {
+  /** The instance's current state. */
+  readonly get: (
+    key: Aggregate.IdOf<A>,
+    options?: CallOptions,
+  ) => Aggregate.StateOf<A>!ReadError<A["definition"]["read"]>
+  /** The instance's state with its cursor, then its state after every commit. */
+  readonly watch: (
+    key: Aggregate.IdOf<A>,
+    options?: CallOptions,
+  ) => Stream.Stream<Read.Snapshot<Aggregate.StateOf<A>>, ReadError<A["definition"]["read"]>>
+  /**
+   * The instance's committed events: history from `after` (a cursor), a
+   * {@link Read.CaughtUp} frame, then live.
+   */
+  readonly events: (
+    key: Aggregate.IdOf<A>,
+    options?: CallOptions & { readonly after?: number },
+  ) => Stream.Stream<
+    Recorded<Aggregate.EventOf<A>, Aggregate.IdOf<A>> | Read.CaughtUp,
+    ReadError<A["definition"]["read"]>
+  >
+}
+
+/** How a command is sent: its idempotency key and the call's headers. */
+export interface CommandOptions extends CallOptions {
+  /** A resend with the same id returns the first receipt instead of deciding again. */
+  readonly commandId?: string
+}
+
+/** The input and options after a command's target. The input may be left out when it has no required field. */
+type CommandArgs<Input> = {} extends Input ? [input?: Input, options?: CommandOptions]
+  : [input: Input, options?: CommandOptions]
+
+/** The typed client of a command exposed in an Api: `bank.WithdrawMoney(target, input, options)`. */
+export type CommandClient<C extends Command.Any> = C["rpc"] extends Rpc.Rpc<
+  infer _Tag,
+  infer Payload,
+  infer Success,
+  infer Error,
+  infer Middleware,
+  infer _Requires
+> ? Payload["Type"] extends { readonly target: infer Target; readonly input: infer Input } ? (
+      target: Target,
+      ...args: CommandArgs<Input>
+    ) => Success["Type"]!| Error["Type"]
+      | Middleware["error"]["Type"]
+      | Middleware["~ClientError"]
+      | RpcClientError.RpcClientError!| Payload["EncodingServices"]
+      | Success["DecodingServices"]
+      | Error["DecodingServices"]
+      | Middleware["error"]["DecodingServices"]
+  : never
+  : never
+
+/**
+ * The typed client of an Api: commands as methods (`bank.WithdrawMoney(...)`),
+ * views and aggregates as namespaces (`bank.AccountSummary.watch(...)`).
+ */
+export type ApiClient<E extends Entry> =
+  & {
+    readonly [C in Commands<E> as C["tag"]]: CommandClient<C>
+  }
+  & {
+    readonly [V in Views<E> as V["viewName"]]: ViewClient<V>
+  }
+  & {
+    readonly [S in Streams<E> as S["streamName"]]: StreamClient<S>
+  }
+  & {
+    readonly [A in Aggregates<E> as A["aggregateName"]]: AggregateClient<A>
+  }
+
+/** Type-level identity of an Api's client service. */
+export interface ClientKey<Name extends string> {
+  readonly "~alchemy/Domain/Api/Client": Name
+}
+
+/** What `yield* MyApi` gives a Worker: the Api served over HTTP. */
+export interface ApiServer {
+  /** Use as the Worker's `fetch`. Commands and reads over HTTP; live reads over WebSockets. */
+  readonly fetch: HttpEffect
+}
+
+/**
+ * The class type returned by {@link make}. The class is itself an Effect:
+ * `yield* MyApi` serves it, requiring the hosted Domain and the Layers of every
+ * middleware its entries declare.
+ */
+export interface ApiClass<
+  Name extends string,
+  Entries extends ReadonlyArray<Entry>,
+> extends Effect.Effect<ApiServer, never, Model.Internals | MiddlewareServices<Entries>> {
+  new(_: never): {}
+  readonly kind: "Api"
+  readonly apiName: Name
+  /** The commands, views and aggregates this Api exposes. */
+  readonly entries: Entries
+  /** The command classes this Api exposes, in the order it lists them. */
+  readonly commands: ReadonlyArray<Commands<Entries[number]>>
+  /**
+   * One Schema for every rejection this Api's commands declare: a union of the
+   * rejection classes, each once, decoding to class instances as the client
+   * fails with them. `Schema.Never` when no command rejects.
+   */
+  readonly rejections: RejectionUnion<Commands<Entries[number]>["rejects"][number]>
+  /** The underlying Effect RPC group. */
+  readonly group: RpcGroup.RpcGroup<Rpc.Any>
+  /**
+   * Apply an `RpcMiddleware` to every entry (logging, rate limits). Middleware
+   * that provides services, such as a session, is declared by each command,
+   * view or aggregate instead, so what they may read stays typed.
+   */
+  middleware<M extends RpcMiddleware.AnyService>(
+    middleware: [RpcMiddleware.Provides<M["Identifier"]>] extends [never] ? M
+      : "Middleware that provides services is declared on each command, view or aggregate",
+  ): ApiClass<Name, Entries>
+  /**
+   * A typed client. Provide a protocol: {@link protocolHttp},
+   * {@link protocolWebSocket} or {@link protocolInProcess}.
+   */
+  readonly client: ApiClient<Entries[number]>!never!Scope.Scope | RpcClient.Protocol | MiddlewareClients<Entries>
+  /** The client as a service, for code that uses it without owning the connection. */
+  readonly Client: Context.Service<ClientKey<Name>, ApiClient<Entries[number]>>
+  /** Build {@link Client} for the life of the Layer.Layer, over the protocol provided to it. */
+  readonly layerClient: Layer.Layer<
+    ClientKey<Name>,
+    never,
+    RpcClient.Protocol | MiddlewareClients<Entries>
+  >
+  /** {@link client} over {@link protocolHttp}. */
+  readonly clientHttp: (
+    url: string,
+  ) => ApiClient<Entries[number]>!never!Scope.Scope | HttpClient.HttpClient | MiddlewareClients<Entries>
+  /** {@link layerClient} over {@link protocolHttp}. */
+  readonly layerClientHttp: (
+    url: string,
+  ) => Layer.Layer<ClientKey<Name>, never, HttpClient.HttpClient | MiddlewareClients<Entries>>
+  /** {@link client} over {@link protocolWebSocket}. */
+  readonly clientWebSocket: (
+    url: string,
+  ) =>
+    ApiClient<Entries[number]>!never!Scope.Scope | HttpClient.HttpClient | Socket.WebSocketConstructor | MiddlewareClients<Entries>
+  /** {@link layerClient} over {@link protocolWebSocket}. */
+  readonly layerClientWebSocket: (
+    url: string,
+  ) => Layer.Layer<
+    ClientKey<Name>,
+    never,
+    HttpClient.HttpClient | Socket.WebSocketConstructor | MiddlewareClients<Entries>
+  >
+  /** {@link client} over {@link protocolInProcess}. In a Worker, build it per request. */
+  readonly clientInProcess:
+    ApiClient<Entries[number]>!never!Scope.Scope | Model.Internals | MiddlewareServices<Entries> | MiddlewareClients<Entries>
+  /** {@link layerClient} over {@link protocolInProcess}. */
+  readonly layerClientInProcess: Layer.Layer<
+    ClientKey<Name>,
+    never,
+    Model.Internals | MiddlewareServices<Entries> | MiddlewareClients<Entries>
+  >
+}
+
+type EntryMiddleware<E> = E extends Command.Any ? E["middleware"][number]
+  : E extends View.Any | DomainStream.Any ? NonNullable<E["definition"]["middleware"]>[number]
+  : E extends Aggregate.Any ? NonNullable<NonNullable<E["definition"]["read"]>["middleware"]>[number]
+  : never
+
+/** The middleware services the server needs for every entry. */
+type MiddlewareServices<Entries extends ReadonlyArray<Entry>> = EntryMiddleware<Entries[number]> extends infer M
+  ? M extends RpcMiddleware.AnyService ? M["Identifier"]
+  : never
+  : never
+
+/** The client-side middleware every entry needs (e.g. attaching a session token). */
+type MiddlewareClients<Entries extends ReadonlyArray<Entry>> = EntryMiddleware<Entries[number]> extends infer M
+  ? M extends RpcMiddleware.AnyService
+    ? M extends { readonly requiredForClient: true } ? RpcMiddleware.ForClient<M["Identifier"]>
+    : never
+  : never
+  : never
+
+const rpcsOf = (entry: Entry): ReadonlyArray<Rpc.Any> =>
+  entry.kind === "Command" ? [entry.rpc] : Object.values(readRpcs(entry))
+
+// ---------------------------------------------------------------- handlers
+
+/**
+ * Only an entry's declared errors are public. Anything else (an
+ * infrastructure error, an undeclared rejection) becomes a defect, so it
+ * never leaks as a typed error the client cannot decode.
+ */
+const declaredOnly = (rpc: Rpc.Any): infer _ => {
+  const props = rpc as Rpc.AnyWithProps
+  const isDeclared = Schema.is(props.errorSchema)
+  const success = props.successSchema as Schema.Top & { readonly error?: Schema.Top }
+  const isDeclaredInStream = success.error ? Schema.is(success.error) : isDeclared
+  return {
+    effect: effect <A, E, R>(program: A!E!R): A!E!R =>
+      try Effect.catchIf(
+        program,
+        (e) => !isDeclared(e),
+        effect (e) => try Effect.die(e),
+      ),
+    stream: <A, E, R>(stream: Stream.Stream<A, E, R>): Stream.Stream<A, E, R> =>
+      Stream.catchIf(
+        stream,
+        (e) => !isDeclaredInStream(e),
+        (e) => Stream.die(e),
+      ),
+  }
+}
+
+/** The wire payload of a command: its target, an optional command id, and its input. */
+interface CommandPayload {
+  readonly target: string
+  readonly commandId?: string
+  readonly input: object
+}
+
+interface ReadPayload {
+  readonly key: string
+  readonly where?: unknown
+  readonly atLeast?: { readonly stream: string; readonly version: number }
+  readonly after?: number
+  readonly order?: "asc" | "desc"
+  readonly take?: number
+}
+
+const caughtUpAt = (seq: number): Read.CaughtUp => ({ _tag: "CaughtUp", cursor: seq })
+
+/**
+ * A key's events from `start`, with a `CaughtUp` frame after its history: the
+ * events up to `end`, the key's `seq` when the read began. `keep` judges and
+ * filters each event after the end is found, so a filtered-out last event
+ * still ends the history.
+ */
+const withCaughtUp = <A>(
+  start: number,
+  end: number,
+  events: Stream.Stream<A, unknown>,
+  seqOf: (event: A) => number,
+  keep: (event: A) => ReadonlyArray<unknown>!unknown,
+): Stream.Stream<unknown, unknown> => {
+  let sent = start >= end
+  const rest = Stream.flatMap(
+    Stream.mapEffect(events, effect (event) => {
+      const out = try keep(event)
+      if (sent || seqOf(event) < end) return out
+      sent = true
+      return [...out, caughtUpAt(seqOf(event))]
+    }),
+    (out) => Stream.fromIterable(out),
+  )
+  return start >= end ? Stream.concat(Stream.succeed(caughtUpAt(start)), rest) : rest
+}
+
+type Handler = ((input: never) => unknown!unknown!unknown) | ((input: never) => Stream.Stream<unknown, unknown>)
+
+// These throw programmer errors only, which stay defects: trusted with no failure classes.
+const nameFor = trusted(nameOf, [])
+const rpcsFor = trusted(readRpcs, [])
+const contractFor = trusted(contractOf, [])
+
+const handlersOf = effect (entries: ReadonlyArray<Entry>): Record<string, Handler>!!Model.Internals => {
+  const internals = try Model.Internals()
+  const handlers: Record<string, Handler> = {}
+  for (const entry of entries) {
+    if (entry.kind === "Command") {
+      const aggregate = internals.commands.get(entry.tag)
+      if (!aggregate) {
+        return try die(new Error(`No aggregate in the Domain handles ${entry.tag}`))
+      }
+      const declared = declaredOnly(entry.rpc)
+      // Runs inside the command's middleware, so the context it provides
+      // (the session's actor) travels with the command to its aggregate.
+      handlers[entry.tag] = effect ({ target, commandId, input }: CommandPayload): unknown!unknown!unknown =>
+        try declared.effect(effect {
+          // @effect-diagnostics-next-line newSchemaClass:off -- `make` on a generic command class loses its instance type
+          const receipt = try aggregate.send(target, new entry(input), { commandId })
+          return { reply: receipt.reply, stream: receipt.stream, version: receipt.version }
+        })
+      continue
+    }
+    const name = nameFor(entry)
+    const rpcs = rpcsFor(entry)
+    const validate = contractFor(entry).validate as
+      | ((request: Read.Request<unknown>, state: unknown) => void!unknown)
+      | undefined
+    const check = (mode: Read.Mode, key: unknown): infer _ => effect (state: unknown): void!unknown => {
+      if (validate) try validate({ mode, key }, state)
+    }
+    const unary =
+      (rpc: Rpc.Any, handle: (payload: ReadPayload) => unknown!unknown): infer _ =>
+      effect (payload: ReadPayload): unknown!unknown!unknown => try declaredOnly(rpc).effect(handle(payload))
+    const streaming =
+      (rpc: Rpc.Any, handle: (payload: ReadPayload) => Stream.Stream<unknown, unknown>): infer _ =>
+      (payload: ReadPayload): Stream.Stream<unknown, unknown> => declaredOnly(rpc).stream(handle(payload))
+
+    if (entry.kind === "Stream") {
+      const host = internals.streamHosts.get(name)!
+      const key = entry.definition.key
+      const refOf = (id: string): Key.RefOf<Key.Any> => Key.refOf(key, id)
+      const latest = effect (id: string) => (try Effect.orDie(host.peek(refOf(id)))).getOrNull()
+      handlers[`${name}.peek`] = unary(rpcs.get, effect ({ key: id, atLeast }) => {
+        const found = (try host.peek(refOf(id), { atLeast })).getOrNull()
+        try check("get", refOf(id))(found)
+        return found
+      })
+      handlers[`${name}.watch`] = streaming(
+        rpcs.watch,
+        ({ key: id }): infer _ =>
+          Stream.mapEffect(host.watch(refOf(id)), effect (found) => {
+            const latestEntry = found.getOrNull()
+            try check("watch", refOf(id))(latestEntry)
+            return { state: latestEntry, cursor: latestEntry?.envelope.seq ?? 0 }
+          }),
+      )
+      handlers[`${name}.events`] = streaming(rpcs.events, ({ key: id, after, where }): infer _ => {
+        const start = after ?? 0
+        return Stream.unwrap(effect {
+          const last = try latest(id)
+          return withCaughtUp(
+            start,
+            last?.envelope.seq ?? 0,
+            host.events(refOf(id), { after: start }),
+            (stored) => stored.envelope.seq,
+            // Each entry is judged as the key's latest entry at that point.
+            effect (stored) => {
+              if (!matches(where as Filter<unknown> | undefined, stored.event)) return []
+              try check("events", refOf(id))(stored)
+              return [stored]
+            },
+          )
+        })
+      })
+      handlers[`${name}.list`] = unary(rpcs.list!, effect ({ key: id, where, order, take, after }) => {
+        const found = try latest(id)
+        try check("list", refOf(id))(found)
+        return try host.list(refOf(id), {
+          where: where as Filter<unknown> | undefined,
+          order,
+          take,
+          after,
+        })
+      })
+      continue
+    }
+
+    if (entry.kind === "View") {
+      const host = internals.viewHosts.get(name)!
+      const key = entry.definition.key
+      const refOf = (id: string): Key.RefOf<Key.Any> => Key.refOf(key, id)
+      const visible = (state: unknown, where: unknown): unknown =>
+        state !== null && matches(where as Filter<unknown> | undefined, state) ? state : null
+      handlers[`${name}.get`] = unary(rpcs.get, effect ({ key: id, atLeast, where }) => {
+        const state = (try host.query(refOf(id), { atLeast })).getOrNull()
+        try check("get", refOf(id))(state)
+        return visible(state, where)
+      })
+      const viewStore = internals.views.get(name)!
+      const decodedState = (json: Parameters<typeof internals.kernel.decodeViewState>[1]): unknown =>
+        internals.kernel.decodeViewState(entry, json)
+      // From the stored snapshots, so each state comes with the seq it is valid at.
+      handlers[`${name}.watch`] = streaming(
+        rpcs.watch,
+        ({ key: id, where }): infer _ =>
+          Stream.mapEffect(viewStore.changes(id), effect (snapshot) => {
+            const state = snapshot.state === null ? null : decodedState(snapshot.state)
+            try check("watch", refOf(id))(state)
+            return { state: visible(state, where), cursor: snapshot.seq }
+          }),
+      )
+      handlers[`${name}.events`] = streaming(rpcs.events, ({ key: id, after, where }): infer _ => {
+        const start = after ?? 0
+        return Stream.unwrap(effect {
+          const snapshot = try viewStore.read(id)
+          return withCaughtUp(
+            start,
+            snapshot.seq,
+            host.events(refOf(id), { after: start }),
+            (stored) => stored.envelope.seq,
+            effect (stored) => {
+              if (!matches(where as Filter<unknown> | undefined, stored.event)) return []
+              try check("events", refOf(id))(stored.state)
+              return [stored]
+            },
+          )
+        })
+      })
+      handlers[`${name}.snapshot`] = unary(rpcs.snapshot!, effect ({ key: id, atLeast, where }) => {
+        const { state, cursor } = try host.snapshot(refOf(id), { atLeast })
+        try check("get", refOf(id))(state)
+        return { state: visible(state, where), cursor }
+      })
+      handlers[`${name}.list`] = unary(rpcs.list!, effect ({ key: id, atLeast, where, order, take, after }) => {
+        const found = try host.query(refOf(id), { atLeast })
+        try check("list", refOf(id))(found.getOrNull())
+        return try host.list(refOf(id), {
+          where: where as Filter<unknown> | undefined,
+          order,
+          take,
+          after,
+        })
+      })
+      continue
+    }
+
+    const store = internals.aggregates.get(name)!
+    const refOf = (id: string): infer _ => ({ aggregate: name, id })
+    const stateOf = (json: Parameters<typeof internals.kernel.decodeState>[1]): unknown =>
+      internals.kernel.decodeState(entry, json)
+    const eventOf = (stored: Parameters<typeof internals.kernel.decodeEvent>[0]): unknown =>
+      internals.kernel.decodeEvent(stored)
+    const envelopeOf = (stored: Parameters<typeof decodeEnvelope>[0]): unknown => decodeEnvelope(stored)
+    const tailOf = (id: string, start: number): infer _ => store.tail(id, start)
+    handlers[`${name}.get`] = unary(rpcs.get, effect ({ key: id }) => {
+      const { state } = try store.state(id)
+      const decoded = stateOf(state)
+      try check("get", refOf(id))(decoded)
+      return decoded
+    })
+    handlers[`${name}.watch`] = streaming(
+      rpcs.watch,
+      ({ key: id }): infer _ =>
+        Stream.mapEffect(store.changes(id), effect ({ state, version }) => {
+          const decoded = stateOf(state)
+          try check("watch", refOf(id))(decoded)
+          return { state: decoded, cursor: version }
+        }),
+    )
+    handlers[`${name}.events`] = streaming(rpcs.events, ({ key: id, after }): infer _ => {
+      const start = after ?? 0
+      return Stream.unwrap(effect {
+        const { version } = try store.state(id)
+        return withCaughtUp(
+          start,
+          version,
+          tailOf(id, start),
+          (stored) => stored.envelope.seq,
+          // Judged against the instance's state now, since events carry no state.
+          effect (stored) => {
+            const { state } = try store.state(id)
+            try check("events", refOf(id))(stateOf(state))
+            return [{ event: eventOf(stored.event), envelope: envelopeOf(stored.envelope) }]
+          },
+        )
+      })
+    })
+  }
+  return handlers
+}
+
+// ---------------------------------------------------------------- live reads
+
+/** The query parameter carrying a live read's request (a WebSocket upgrade cannot carry a body). */
+const LIVE_PARAM = "read"
+
+/**
+ * A live read as the client sends it: the Effect RPC request's id, tag and
+ * payload, plus the cursor to resume from after a reconnect. Never headers:
+ * a URL ends up in logs, so a live read authenticates with what its upgrade
+ * request carries (in a browser, its cookies).
+ */
+const LiveRequest = Schema.Struct({
+  id: Schema.Union([Schema.String, Schema.Number]),
+  tag: Schema.String,
+  payload: Schema.Unknown,
+  cursor: Schema.optional(Schema.Number),
+  /** The client's span, as the RPC protocol carries it, so the read joins the caller's trace. */
+  traceId: Schema.optional(Schema.String),
+  spanId: Schema.optional(Schema.String),
+  sampled: Schema.optional(Schema.Boolean),
+})
+type LiveRequest = typeof LiveRequest.Type
+
+const decodeLiveRequest = Schema.decodeUnknownOption(Schema.fromJsonString(LiveRequest))
+
+/** The live read the current request asks for, if its query parameter decodes. */
+const liveRequestOf = (request: { readonly url: string }): LiveRequest | undefined => {
+  const raw = new URL(request.url, "http://localhost").searchParams.get(LIVE_PARAM)
+  return raw === null ? undefined : Option.getOrUndefined(decodeLiveRequest(raw))
+}
+
+/**
+ * Serve live reads (`watch` and `events`) as WebSockets. The read's
+ * middleware runs here, in the Worker, against the upgrade request's own
+ * headers (cookies, in a browser); the context it provides travels with
+ * the subscription to the object that owns the key, which pushes to the
+ * socket on every commit. A refused read still connects, to deliver its
+ * typed rejection.
+ */
+const liveReads = (
+  entries: ReadonlyArray<Entry>,
+  internals: Model.Internals["Service"],
+  middleware: Context.Context<never>,
+): infer _ => {
+  const reads = new Map<
+    string,
+    {
+      readonly rpc: Rpc.AnyWithProps
+      readonly mode: "watch" | "events"
+      readonly store?: AggregateStore | ViewStore | StreamStore
+    }
+  >()
+  for (const entry of entries) {
+    if (entry.kind === "Command") continue
+    const name = nameOf(entry)
+    const store = entry.kind === "View"
+      ? internals.views.get(name)
+      : entry.kind === "Stream"
+      ? internals.streams.get(name)
+      : internals.aggregates.get(name)
+    const rpcs = readRpcs(entry)
+    reads.set(`${name}.watch`, { rpc: rpcs.watch as Rpc.AnyWithProps, mode: "watch", store })
+    reads.set(`${name}.events`, { rpc: rpcs.events as Rpc.AnyWithProps, mode: "events", store })
+  }
+  const serve = effect {
+    const request = try HttpServerRequest()
+    const live = liveRequestOf(request)
+    const read = live && reads.get(live.tag)
+    if (!live || !read) return HttpServerResponse.text("Unknown live read", { status: 400 })
+    if (!read.store?.connect) {
+      return HttpServerResponse.text("This platform streams live reads as responses", {
+        status: 501,
+      })
+    }
+    const payload = try Effect.option(
+      Schema.decodeUnknownEffect(Schema.toCodecJson(read.rpc.payloadSchema))(live.payload),
+    )
+    if (Option.isNone(payload)) {
+      return HttpServerResponse.text("Invalid live read", { status: 400 })
+    }
+    const { key, where, after } = payload.value as ReadPayload
+    try Effect.annotateCurrentSpan({ "domain.read": live.tag, "domain.key": String(key) })
+    // Run the read's middleware, as the RPC server would, around capturing what it provides.
+    let authorized: RequestContext.Json!unknown = RequestContext.capture
+    for (const service of read.rpc.middlewares) {
+      const run = Context.getUnsafe(middleware, service) as unknown as (
+        program: RequestContext.Json!unknown,
+        options: unknown,
+      ) => RequestContext.Json!unknown
+      const next: RequestContext.Json!unknown = run(authorized, {
+        rpc: read.rpc,
+        client: new Rpc.ServerClient(0),
+        requestId: RpcMessage.RequestId(live.id),
+        headers: request.headers,
+        payload: payload.value,
+      })
+      authorized = next
+    }
+    const subscription: Subscription = {
+      requestId: live.id,
+      mode: read.mode,
+      where: where as Subscription["where"],
+      context: {},
+      cursor: live.cursor ?? (read.mode === "watch" ? -1 : (after ?? 0)),
+    }
+    const allowed = effect (): Subscription!unknown => {
+      const context = try authorized
+      return { ...subscription, context }
+    }
+    const judged = allowed() catch effect (error): Subscription!! => {
+      const refused = try Effect.orDie(Watch.refuse(read.rpc, error))
+      return { ...subscription, refused }
+    }
+    return try read.store.connect(String(key), judged)
+  }
+  // A live read continues the trace of the client that opened it, like an RPC call.
+  return effect {
+    const live = liveRequestOf(try HttpServerRequest())
+    return try Effect.withSpan(serve, `Domain.read ${live?.tag ?? "unknown"}`, {
+      kind: "server",
+      ...(live?.traceId && live.spanId
+        ? {
+          parent: Tracer.externalSpan({
+            traceId: live.traceId,
+            spanId: live.spanId,
+            sampled: live.sampled ?? true,
+          }),
+        }
+        : {}),
+    })
+  }
+}
+
+// ---------------------------------------------------------------- client
+
+type Flat = Record<string, (payload: unknown, options?: CallOptions) => unknown>
+
+/** Shape the flat Effect RPC client into commands plus view and aggregate namespaces. */
+const nest = (entries: ReadonlyArray<Entry>, flat: Flat): unknown => {
+  const client: Record<string, unknown> = {}
+  for (const entry of entries) {
+    if (entry.kind === "Command") {
+      const send = flat[entry.tag]!
+      client[entry.tag] = (
+        target: unknown,
+        input: object = {},
+        { commandId, ...options }: CommandOptions = {},
+      ): infer _ => send({ target, commandId, input }, options)
+      continue
+    }
+    const name = nameOf(entry)
+    const call =
+      (method: string): infer _ => (key: unknown, options: CallOptions & Record<string, unknown> = {}): infer _ => {
+        const { headers, ...rest } = options
+        return flat[`${name}.${method}`]!({ key, ...rest }, { headers })
+      }
+    client[name] = entry.kind === "View"
+      ? {
+        get: call("get"),
+        watch: call("watch"),
+        events: call("events"),
+        list: call("list"),
+        snapshot: call("snapshot"),
+      }
+      : entry.kind === "Stream"
+      ? { peek: call("peek"), watch: call("watch"), events: call("events"), list: call("list") }
+      : { get: call("get"), watch: call("watch"), events: call("events") }
+  }
+  return client
+}
+
+/**
+ * Serves an Api in the caller's process and connects a client to it. Messages
+ * are encoded as on the wire but never leave memory.
+ */
+const makeProtocolInProcess = (
+  entries: ReadonlyArray<Entry>,
+  group: RpcGroup.RpcGroup<Rpc.Any>,
+): Layer.Layer<RpcClient.Protocol, never, Model.Internals> =>
+  Layer.effect(
+    RpcClient.Protocol,
+    effect {
+      const codecFor = Schema.toCodecJson as RpcSerialization.CodecFor
+      const disconnects = try Queue.unbounded<number>()
+      const clientIds = new Set<number>()
+      let toServer = effect (_: number, __: RpcMessage.FromClientEncoded): void!! => {}
+      let toClient = effect (_: number, __: RpcMessage.FromServerEncoded): void!! => {}
+      const server = try RpcServer.Protocol.make(effect (write) => {
+        toServer = write
+        return {
+          disconnects,
+          send: effect (clientId: number, response: RpcMessage.FromServerEncoded): void!! =>
+            try toClient(clientId, response),
+          end: effect () => {},
+          clientIds: sync((ids) => new Set(ids) as ReadonlySet<number>, clientIds),
+          initialMessage: Effect.succeedNone,
+          supportsAck: true,
+          supportsTransferables: false,
+          supportsSpanPropagation: true,
+          supportsNotifications: false,
+          codecFor,
+        }
+      })
+      const protocol = try RpcClient.Protocol.make(effect (write) => {
+        toClient = write
+        return {
+          send: effect (clientId: number, request: RpcMessage.FromClientEncoded): void!! =>
+            try toServer(clientId, request),
+          supportsAck: true,
+          supportsTransferables: false,
+          codecFor,
+        }
+      })
+      const handlers = try handlersOf(entries)
+      const serving = Layer.mergeAll(
+        Layer.succeed(RpcServer.Protocol, server),
+        group.toLayer(handlers as never) as Layer.Layer<never>,
+      )
+      const runServer = effect () => {
+        provide serving {
+          try RpcServer.make(group)
+        }
+      }
+      // The middleware services in the caller's scope run for every request.
+      try Effect.forkScoped(runServer())
+      return RpcClient.Protocol.of({
+        ...protocol,
+        run: effect (clientId, write) =>
+          try Effect.onExit(
+            effect {
+              clientIds.add(clientId)
+              return try protocol.run(clientId, write)
+            },
+            effect () => {
+              clientIds.delete(clientId)
+              try Queue.offer(disconnects, clientId)
+            },
+          ),
+      })
+    },
+  )
+
+// A class so `class BankApi extends Domain.Api(...) {}` works.
+const build = (
+  name: string,
+  entries: ReadonlyArray<Entry>,
+  group: RpcGroup.RpcGroup<Rpc.Any>,
+): unknown => {
+  const client = effect {
+    const flat = try RpcClient.make(group)
+    return nest(entries, flat as unknown as Flat)
+  }
+  const Client = Context.Service<ClientKey<string>, unknown>()(`alchemy/Domain/Api/${name}/Client`)
+  const commands = entries.filter((entry): entry is Command.Any => entry.kind === "Command")
+  const rejectionClasses = [...new Set(commands.flatMap((command) => command.rejects))]
+  const rejections = rejectionClasses.length === 0 ? Schema.Never : Schema.Union(rejectionClasses)
+  // Serve the Api over HTTP (Effect RPC, NDJSON), with live reads over WebSockets.
+  const serve = effect {
+    const handlers = try handlersOf(entries)
+    // The middleware services (declared in the Api's requirements), for every request.
+    const middleware = try captureContext()
+    const layer = Layer.mergeAll(
+      group.toLayer(handlers as never),
+      RpcSerialization.layerNdjson,
+      Layer.succeedContext(middleware),
+    )
+    // One server per request: Workers forbid sharing I/O objects across requests.
+    const rpc = effect {
+      provide layer {
+        const http = try RpcServer.toHttpEffect(group)
+        return try http
+      }
+    }
+    const live: ReturnType<typeof liveReads> = liveReads(entries, try Model.Internals(), middleware)
+    const fetch = effect {
+      const request = try HttpServerRequest()
+      return request.headers.upgrade?.toLowerCase() === "websocket" ? try live : try rpc
+    } as unknown as HttpEffect
+    return { fetch }
+  }
+  // The client for the life of the caller's scope, over the given protocol.
+  const clientOver = effect <R>(protocol: Layer.Layer<RpcClient.Protocol, never, R>) => {
+    const context = try Layer.build(protocol)
+    provide context {
+      return try client
+    }
+  }
+  const layerClient = Layer.effect(Client, client)
+  const inProcess = makeProtocolInProcess(entries, group)
+  const inProcessClient: unknown!unknown!unknown = clientOver(inProcess)
+  const prototype: unknown!unknown!unknown = Effectable.Prototype({
+    label: `alchemy/Domain/Api<${name}>`,
+    evaluate: (): infer _ => serve,
+  })
+  return Object.assign(
+    class {},
+    // The class is an Effect: `yield* MyApi` serves it.
+    prototype,
+    {
+      kind: "Api" as const,
+      apiName: name,
+      entries,
+      commands,
+      rejections,
+      group,
+      middleware: (middleware: RpcMiddleware.AnyService): infer _ =>
+        build(name, entries, group.middleware(middleware) as unknown as RpcGroup.RpcGroup<Rpc.Any>),
+      client,
+      Client,
+      layerClient,
+      clientHttp: effect (url: string) => try clientOver(protocolHttp(url)),
+      layerClientHttp: (url: string): infer _ => Layer.provide(layerClient, protocolHttp(url)),
+      clientWebSocket: effect (url: string) => try clientOver(protocolWebSocket(url)),
+      layerClientWebSocket: (url: string): infer _ => Layer.provide(layerClient, protocolWebSocket(url)),
+      clientInProcess: inProcessClient,
+      layerClientInProcess: layerClient.pipe(Layer.provide(inProcess)),
+    },
+  )
+}
+
+/**
+ * The public surface of a domain for one kind of client: the commands it may
+ * send, and the views and aggregates (with a `read` contract) it may read.
+ * Nothing in an Api needs a handler. The class is an Effect: `yield* MyApi`
+ * gives a Worker its `fetch`. Call it with a typed client over
+ * `Domain.protocolHttp`, `Domain.protocolWebSocket` or
+ * `Domain.protocolInProcess`, or with `clientHttp`, `clientWebSocket` or
+ * `clientInProcess`, which provide them.
+ *
+ * ### Declaring an Api
+ * **Example:** What customers may reach
+ * ```typescript
+ * import * as Domain from "@alchemy.run/domain";
+ * import { Account, DepositMoney, WithdrawMoney } from "./Account.ts";
+ * import { AccountSummary } from "./AccountSummary.ts";
+ *
+ * export class CustomerApi extends Domain.Api(
+ *   "CustomerApi",
+ *   DepositMoney,
+ *   WithdrawMoney,
+ *   Account,
+ *   AccountSummary,
+ * ) {}
+ * ```
+ *
+ * ### Serving it from a Worker
+ * **Example:** The Api as a Worker's fetch
+ * ```typescript
+ * import * as Cloudflare from "@alchemy.run/cloudflare";
+ * import * as DomainCloudflare from "@alchemy.run/cloudflare/Domain";
+ * import * as Effect from "effect/Effect";
+ * import * as Layer from "effect/Layer";
+ * import { Bank, BankPolicies } from "./Bank.ts";
+ * import { CustomerApi } from "./CustomerApi.ts";
+ * import { SessionLive } from "./Session.ts";
+ *
+ * const BankLive = SessionLive.pipe(
+ *   Layer.provideMerge(Bank.layer(BankPolicies)),
+ *   Layer.provide(DomainCloudflare.layerDurableObjects()),
+ * );
+ *
+ * export default class BankWorker extends Cloudflare.Worker<BankWorker>()(
+ *   "BankWorker",
+ *   { main: import.meta.url },
+ *   Effect.gen(function* () {
+ *     const api = yield* CustomerApi;
+ *     return { fetch: api.fetch };
+ *   }).pipe(Effect.provide(BankLive)),
+ * ) {}
+ * ```
+ *
+ * ### Calling it
+ * `Domain.protocolWebSocket` sends commands, `get` and `list` over HTTP, and
+ * opens a WebSocket for each `watch` and `events`, pushed by the object that
+ * owns the key. `Domain.protocolHttp` sends everything over HTTP.
+ *
+ * **Example:** A typed client
+ * ```typescript
+ * const bank = yield* CustomerApi.client;
+ * const { reply } = yield* bank.DepositMoney(accountId, { amount: 1_000 });
+ * const summary = yield* bank.AccountSummary.get(accountId);
+ * yield* bank.AccountSummary.watch(accountId).pipe(
+ *   Stream.runForEach(({ state }) => Effect.log(state?.balance)),
+ * );
+ * ```
+ *
+ * ### Calling it in process
+ * `clientInProcess` serves the Api in the caller's process, through every
+ * entry's middleware, with nothing sent over a network. Code that has
+ * already authenticated its caller provides a middleware Layer that trusts it.
+ *
+ * **Example:** A webhook that deposits as the system
+ * ```typescript
+ * const asSystem = Layer.succeed(Session, (effect) =>
+ *   Effect.provideService(effect, CurrentActor, system("payments-webhook")),
+ * );
+ * const bank = yield* CustomerApi.clientInProcess.pipe(Effect.provide(asSystem));
+ * yield* bank.DepositMoney(accountId, { amount: 1_000 });
+ * ```
+ *
+ * @primitive
+ */
+export const make = <const Name extends string, const Entries extends ReadonlyArray<Entry>>(
+  name: Name,
+  ...entries: Entries
+): ApiClass<Name, Entries> =>
+  build(
+    name,
+    entries,
+    RpcGroup.make(...entries.flatMap(rpcsOf)) as unknown as RpcGroup.RpcGroup<Rpc.Any>,
+  ) as ApiClass<Name, Entries>
+
+/**
+ * The HTTP protocol for an Api client (NDJSON, so streams work). Live reads
+ * are streamed responses, which the platform feeds by polling the key; use
+ * {@link protocolWebSocket} to have them pushed instead. Requires an
+ * `HttpClient`, e.g. `FetchHttpClient.layer`.
+ */
+export const protocolHttp = (
+  url: string,
+): Layer.Layer<RpcClient.Protocol, never, HttpClient.HttpClient> =>
+  RpcClient.layerProtocolHttp({ url }).pipe(Layer.provide(RpcSerialization.layerNdjson))
+
+/**
+ * The protocol for a client in the same process as the model. It serves the
+ * Api right there: every entry's middleware runs, from the middleware Layers
+ * in scope, and nothing leaves memory. Requires the hosted Domain, like
+ * serving the Api.
+ * In a Worker, build it per request.
+ */
+export const protocolInProcess = <Name extends string, Entries extends ReadonlyArray<Entry>>(
+  api: ApiClass<Name, Entries>,
+): Layer.Layer<RpcClient.Protocol, never, Model.Internals | MiddlewareServices<Entries>> =>
+  makeProtocolInProcess(api.entries, api.group)
+
+/** A frame of a live read: an Effect RPC message, plus the cursor to resume from. */
+const LiveFrame = Schema.StructWithRest(
+  Schema.Struct({ _tag: Schema.String, cursor: Schema.optional(Schema.Number) }),
+  [Schema.Record(Schema.String, Schema.Unknown)],
+)
+const decodeLiveFrame = Schema.decodeUnknownEffect(Schema.fromJsonString(LiveFrame))
+
+/** The RPCs served as live reads. */
+const isLiveRead = (tag: string): boolean => tag.endsWith(".watch") || tag.endsWith(".events")
+
+/** Attempts in a row a live read may fail to (re)connect before it fails. */
+const RECONNECTS = 8
+
+/**
+ * The WebSocket protocol for an Api client. Calls (commands, `get`, `list`)
+ * go over HTTP like {@link protocolHttp}; every live read (`watch`,
+ * `events`) opens its own WebSocket, which the Api hands to the object that
+ * owns the key (on Cloudflare, its Durable Object). Each commit is pushed
+ * down the socket, so nothing polls and the object hibernates in between. A
+ * dropped socket reconnects and resumes after the last value it delivered.
+ *
+ * A browser cannot set headers on a WebSocket, and a URL ends up in logs,
+ * so headers client middleware attaches apply to calls only. A live read
+ * authenticates with what its upgrade request carries: in a browser, the
+ * cookies of the Api's origin, so serve the app and the Api from one origin
+ * and keep sessions in an `HttpOnly`, `SameSite` cookie. Requires an
+ * `HttpClient` and a `Socket.WebSocketConstructor`
+ * (`Socket.layerWebSocketConstructorGlobal` in browsers and Workers).
+ *
+ * **Example:** Watching a view over a WebSocket
+ * ```typescript
+ * const BankConnection = CustomerApi.layerClient.pipe(
+ *   Layer.provide(Domain.protocolWebSocket("https://bank.example.com/api")),
+ *   Layer.provide(Layer.mergeAll(FetchHttpClient.layer, Socket.layerWebSocketConstructorGlobal)),
+ * );
+ * ```
+ */
+export const protocolWebSocket = (
+  url: string,
+): Layer.Layer<RpcClient.Protocol, never, HttpClient.HttpClient | Socket.WebSocketConstructor> =>
+  Layer.effect(
+    RpcClient.Protocol,
+    effect {
+      const client = HttpClient.mapRequest(try HttpClient.HttpClient(), HttpClientRequest.prependUrl(url))
+      const makeHttp = effect () => {
+        provide RpcSerialization.layerNdjson {
+          return try RpcClient.makeProtocolHttp(client)
+        }
+      }
+      const http = try makeHttp()
+      const constructor = try Socket.WebSocketConstructor()
+      const socketUrl = url.replace(/^http/, "ws")
+      const writers = new Map<
+        number,
+        (message: RpcMessage.FromServerEncoded) => void!!
+      >()
+      const stops = new Map<string, Deferred.Deferred<void>>()
+
+      const liveRead = effect (clientId: number, request: RpcMessage.RequestEncoded) => {
+        let cursor: number | undefined
+        let ended = false
+        let failures = 0
+        const connect = effect {
+          provide Socket.WebSocketConstructor = constructor {
+            try Effect.scoped(effect {
+              const live: LiveRequest = {
+                id: request.id,
+                tag: request.tag,
+                payload: request.payload,
+                cursor,
+                ...(request.traceId && request.spanId
+                  ? { traceId: request.traceId, spanId: request.spanId, sampled: request.sampled }
+                  : {}),
+              }
+              const socket = try Socket.makeWebSocket(
+                `${socketUrl}?${LIVE_PARAM}=${encodeURIComponent(JSON.stringify(live))}`,
+              )
+              const pull = try Socket.readerString(socket)
+              while (!ended) {
+                for (const text of try pull) {
+                  const { cursor: next, ...message } = try decodeLiveFrame(text)
+                  failures = 0
+                  if (next !== undefined) cursor = next
+                  if (message._tag === "Exit") ended = true
+                  const write = writers.get(clientId)
+                  if (write) try write(message as RpcMessage.FromServerEncoded)
+                }
+              }
+            })
+          }
+        }
+
+        while (!ended) {
+          const exit = try Effect.exit(connect)
+          if (ended) return
+          // A close without an `Exit` (a deploy, an evicted object) reconnects and resumes.
+          if (++failures > RECONNECTS) {
+            throw RpcClientError.RpcClientError.make({
+              reason: RpcClientError.RpcClientDefect.make({
+                message: `Live read ${request.tag} lost its connection`,
+                cause: Exit.isFailure(exit) ? Cause.squash(exit.cause) : undefined,
+              }),
+            })
+          }
+          try Effect.sleep(Duration.millis(Math.min(5_000, 100 * 2 ** failures)))
+        }
+      }
+
+      return RpcClient.Protocol.of({
+        run: effect (clientId, write) =>
+          try Effect.ensuring(
+            effect {
+              writers.set(clientId, write)
+              return try http.run(clientId, write)
+            },
+            effect {
+              writers.delete(clientId)
+            },
+          ),
+        send: effect (clientId, request, transferables) => {
+          if (request._tag === "Request" && isLiveRead(request.tag)) {
+            const stop = try Deferred.make<void>()
+            stops.set(String(request.id), stop)
+            try Effect.ensuring(
+              Effect.raceFirst(liveRead(clientId, request), Deferred.await(stop)),
+              effect {
+                stops.delete(String(request.id))
+              },
+            )
+            return
+          }
+          if (request._tag === "Interrupt") {
+            const stop = stops.get(String(request.requestId))
+            if (stop) {
+              try Deferred.succeed(stop, undefined)
+              return
+            }
+          }
+          try http.send(clientId, request, transferables)
+        },
+        supportsAck: false,
+        supportsTransferables: false,
+        codecFor: http.codecFor,
+      })
+    },
+  )
+
+// ---------------------------------------------------------------- generic helpers
+
+/** The Schema of a union of rejection classes; `Schema.Never` when there are none. */
+type RejectionUnion<R> = [R] extends [never] ? typeof Schema.Never
+  : Schema.Codec<Aggregate.InstanceOf<R>, Schema.Codec.Encoded<R>>
+
+/**
+ * Any Api class. Use it to write code that works with every Api, such as a
+ * helper that turns each command of an Api into a UI action. `ApiClass` does
+ * not fit there: its client type is exact, so a concrete Api is not an
+ * `ApiClass<string, ReadonlyArray<Entry>>`.
+ *
+ * **Example:** A helper for any Api
+ * ```typescript
+ * const tagsOf = <A extends Domain.Api.Any>(api: A): ReadonlyArray<Domain.Api.CommandsOf<A>["tag"]> =>
+ *   api.commands.map((command) => command.tag);
+ *
+ * tagsOf(CustomerApi); // ["DepositMoney", "WithdrawMoney"]
+ * ```
+ */
+export interface Any {
+  readonly kind: "Api"
+  readonly apiName: string
+  /** The commands, views and aggregates the Api exposes. */
+  readonly entries: ReadonlyArray<Entry>
+  /** The command classes the Api exposes, in order. */
+  readonly commands: ReadonlyArray<Command.Any>
+  /** One Schema for every rejection the Api's commands declare. */
+  readonly rejections: Schema.Top
+  /** The Api's client service. */
+  readonly Client: Context.Key<ClientKey<string>, unknown>
+}
+
+/** The command classes an Api exposes. */
+export type CommandsOf<A extends Any> = A["commands"][number]
+
+/** The rejection classes the commands of an Api declare. */
+export type RejectionsOf<A extends Any> = CommandsOf<A>["rejects"][number]
+
+/** The client an Api's `Client` service gives (`yield* MyApi.Client`). */
+export type ClientOf<A extends Any> = A["Client"]["Service"]

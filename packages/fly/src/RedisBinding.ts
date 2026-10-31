@@ -4,8 +4,8 @@ import type { Resource } from "alchemy/Resource";
 import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import type { ServiceBinding } from "./MountVolume.ts";
-import { REDIS_URL_ENV, RedisUrlMissing, type Redis } from "./Redis.ts";
+import type { ServiceBinding } from "./MountVolume.vibe";
+import { REDIS_URL_ENV, RedisUrlMissing, type Redis } from "./Redis.vibe";
 
 /**
  * Shared scaffolding for Upstash Redis bindings.

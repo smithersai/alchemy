@@ -6,20 +6,20 @@ import { Server, ServerProvider } from "alchemy/Website/Server";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
 import { Auth, AuthProvider } from "./Auth.ts";
-import { AuthOAuthProvider, AuthOAuthProviderProvider } from "./AuthOAuthProvider.ts";
-import { NeonAuth } from "./AuthProvider.ts";
-import { AuthTrustedDomain, AuthTrustedDomainProvider } from "./AuthTrustedDomain.ts";
+import { AuthOAuthProvider, AuthOAuthProviderProvider } from "./AuthOAuthProvider.vibe";
+import { NeonAuth } from "./AuthProvider.vibe";
+import { AuthTrustedDomain, AuthTrustedDomainProvider } from "./AuthTrustedDomain.vibe";
 import { Branch, BranchProvider } from "./Branch.ts";
 import { Bucket, BucketProvider } from "./Bucket.ts";
 import { Credential, CredentialProvider } from "./Credential.ts";
-import * as Credentials from "./Credentials.ts";
-import { CustomDomain, CustomDomainProvider } from "./CustomDomain.ts";
-import { DataApi, DataApiProvider } from "./DataApi.ts";
-import { Function } from "./Function.ts";
+import * as Credentials from "./Credentials.vibe";
+import { CustomDomain, CustomDomainProvider } from "./CustomDomain.vibe";
+import { DataApi, DataApiProvider } from "./DataApi.vibe";
+import { Function } from "./Function.vibe";
 import { FunctionProvider } from "./FunctionProvider.ts";
-import { FunctionTrigger, FunctionTriggerProvider } from "./FunctionTrigger.ts";
+import { FunctionTrigger, FunctionTriggerProvider } from "./FunctionTrigger.vibe";
 import { Object, ObjectProvider } from "./Object.ts";
-import { OrganizationApiKey, OrganizationApiKeyProvider } from "./OrganizationApiKey.ts";
+import { OrganizationApiKey, OrganizationApiKeyProvider } from "./OrganizationApiKey.vibe";
 import {
   OrganizationMemberRole,
   OrganizationMemberRoleProvider,
@@ -34,8 +34,8 @@ import {
 } from "./OrganizationVPCEndpoint.ts";
 import { Project, ProjectProvider } from "./Project.ts";
 import { ProjectMemberRole, ProjectMemberRoleProvider } from "./ProjectMemberRole.ts";
-import { ProjectVPCEndpoint, ProjectVPCEndpointProvider } from "./ProjectVPCEndpoint.ts";
-import { Role, RoleProvider } from "./Role.ts";
+import { ProjectVPCEndpoint, ProjectVPCEndpointProvider } from "./ProjectVPCEndpoint.vibe";
+import { Role, RoleProvider } from "./Role.vibe";
 import { WebsiteArtifact, WebsiteArtifactProvider } from "./Website/Artifact.ts";
 
 export class Providers extends Provider.ProviderCollection<Providers>()("Neon") {}
