@@ -1,7 +1,7 @@
 import type { WriteClient } from "@alchemy.run/redis";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Redis } from "./Redis.ts";
+import type { Redis } from "./Redis.vibe";
 
 /**
  * Bind a {@link Redis} database with write access (`set`, `del`).

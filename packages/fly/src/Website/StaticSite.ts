@@ -9,9 +9,9 @@ import { loadFrontendCore } from "alchemy/Website/FrontendCore";
 import * as Effect from "effect/Effect";
 import * as Path from "effect/Path";
 import type * as Redacted from "effect/Redacted";
-import { App } from "../App.ts";
-import { Certificate } from "../Certificate.ts";
-import { IpAssignment } from "../IpAssignment.ts";
+import { App } from "../App.vibe";
+import { Certificate } from "../Certificate.vibe";
+import { IpAssignment } from "../IpAssignment.vibe";
 import { Service, type ServiceProps } from "../Service.ts";
 import {
   type FrameworkSite,

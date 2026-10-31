@@ -23,7 +23,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
-import { App, deleteApp, ensureApp } from "./App.ts";
+import { App, deleteApp, ensureApp } from "./App.vibe";
 import { boundTargetEnvKeys } from "./BindService.ts";
 import { attachBucketSecrets } from "./Bucket.ts";
 import {
@@ -45,7 +45,7 @@ import {
   type FlyHostRuntimeContext,
   type HostedProgramProps,
 } from "./hosted.ts";
-import { ensureFlycastAddress, hasPublicAddress, syncOwnedAppAddresses } from "./IpAssignment.ts";
+import { ensureFlycastAddress, hasPublicAddress, syncOwnedAppAddresses } from "./IpAssignment.vibe";
 import type { MachineGuest, MachineImageRef, MachineService } from "./Machine.ts";
 import {
   alchemyMetadataKeys,
@@ -55,10 +55,10 @@ import {
   sanitizeFlyAppName,
 } from "./Metadata.ts";
 import type { BoundTarget, MountedDisk, ServiceBinding } from "./MountVolume.vibe";
-import { bindingPortOf, findPortConflict, portsOfFly } from "./ports.ts";
+import { bindingPortOf, findPortConflict, portsOfFly } from "./ports.vibe";
 import { attachPostgresSecrets } from "./Postgres.ts";
 import type { Providers } from "./Providers.ts";
-import { attachRedisSecrets } from "./Redis.ts";
+import { attachRedisSecrets } from "./Redis.vibe";
 import { type Region, regionList } from "./Region.ts";
 import {
   deleteReplicaSet,

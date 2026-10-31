@@ -13,7 +13,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource, type ResourceBinding } from "alchemy/Resource";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import { App } from "./App.ts";
+import { App } from "./App.vibe";
 import {
   deploymentPolicy,
   validateDeployment,

@@ -4,7 +4,7 @@ import * as Data from "effect/Data";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { listOwnedApps } from "./App.ts";
+import { listOwnedApps } from "./App.vibe";
 import {
   createFlyVolumeName,
   matchesAlchemyPhysicalName,

@@ -2,7 +2,7 @@ import type { AppSecrets, ListSecretsError } from "@distilled.cloud/fly-io/machi
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { App } from "./App.ts";
+import type { App } from "./App.vibe";
 
 /**
  * List Fly.io App secrets. Scoped to an {@link App}. Fly's list API

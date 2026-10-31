@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { ReadRedisClient } from "./ReadRedis.ts";
-import type { Redis } from "./Redis.ts";
+import type { Redis } from "./Redis.vibe";
 import type { WriteRedisClient } from "./WriteRedis.ts";
 
 /**

@@ -1,6 +1,6 @@
 import * as Namespace from "alchemy/Namespace";
 import * as Effect from "effect/Effect";
-import type { Redis } from "../Redis.ts";
+import type { Redis } from "../Redis.vibe";
 import { makeFrameworkSite, type FrameworkSiteProps } from "./FrameworkSite.ts";
 
 /**

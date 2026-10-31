@@ -1,0 +1,521 @@
+import type { App as FlyApp } from "@distilled.cloud/fly-io/machines"
+import * as machines from "@distilled.cloud/fly-io/machines"
+import * as Retry from "@distilled.cloud/fly-io/Retry"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource, type ResourceBinding } from "alchemy/Resource"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as HttpClient from "effect/http/HttpClient"
+import { resolveOrgSlug } from "./Environment.ts"
+import type { MachineService } from "./Machine.ts"
+import { createFlyAppName, isAlchemyOwnedMetadata, matchesAlchemyPhysicalName, sanitizeFlyAppName } from "./Metadata.ts"
+import { findPortConflict, portsOfProps, withBindingPort } from "./ports.vibe"
+import type { Providers } from "./Providers.ts"
+import { DEFAULT_BINDING_PORT } from "./rpc.ts"
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AppDeletionAmbiguous extends Data.TaggedError("Fly.AppDeletionAmbiguous")<{
+  mutable appName: string
+  mutable evidence: string
+}> {
+  get message() {
+    return `Deletion of ${this.appName} is uncertain (${this.evidence}); reconcile the App before retrying or recreating its name. Machine leases cannot fence App deletion.`
+  }
+}
+
+export interface AppProps {
+  /**
+   * Fly App name. Globally unique, DNS-compatible (lowercase letters,
+   * digits, hyphens), must start with a letter, max 30 characters. If
+   * omitted, a unique name is generated from the stack, stage and logical
+   * ID. Changing it replaces the App.
+   */
+  mutable name?: string
+  /**
+   * Organization slug. Defaults to the current token's org
+   * (`getCurrentToken`). Changing it replaces the App.
+   */
+  mutable orgSlug?: string
+  /**
+   * Isolated network name. Immutable after create — changing it replaces
+   * the App.
+   */
+  mutable network?: string
+  /**
+   * Enable `*.{name}.fly.dev` subdomains. Create-only; ignored on update
+   * (Fly has no App update API).
+   */
+  mutable enableSubdomains?: boolean
+}
+
+export type App = Resource<
+  "Fly.App",
+  AppProps,
+  {
+    /** Fly App id. */
+    mutable appId: string
+    /** Physical Fly App name. */
+    mutable appName: string
+    /** Fly internal numeric id, if the API returned one. */
+    mutable internalNumericId: number | undefined
+    /** Isolated network name, if set. */
+    mutable network: string | undefined
+    /** Observed status (e.g. `deployed`, `pending`). */
+    mutable status: string | undefined
+    /** Organization slug. */
+    mutable orgSlug: string | undefined
+    /** Observed machine count. */
+    mutable machineCount: number | undefined
+    /** Observed volume count. */
+    mutable volumeCount: number | undefined
+    /** Public `https://{appName}.fly.dev` URL. */
+    mutable url: string
+  },
+  AppBinding,
+  Providers
+>
+
+/**
+ * Binding contract accepted by {@link App}. Each {@link Service} placed in
+ * the App (`app` prop) reports the ports it publishes, so the App can
+ * reject two Services on the same port before either one is deployed.
+ */
+export interface AppBinding {
+  /** Logical id of the Service. */
+  mutable service: string
+  /** The Service's `services` prop; `undefined` for the default ports. */
+  mutable services: MachineService[] | undefined
+  /** The Service's `bindingPort` prop. */
+  mutable bindingPort: number | undefined
+}
+
+/**
+ * A Fly.App is a global namespace in your account. It contains Machines,
+ * Secrets, IPs, and certificates. A {@link Service} creates its own App,
+ * so declare an App yourself for {@link Machine}s, or to group Services
+ * that share Secrets or a custom domain (the Service `app` prop).
+ *
+ * @see https://fly.io/docs/machines/api/apps-resource/
+ *
+ * ### Create an App
+ * Alchemy generates a unique name unless you pass one. `url` is
+ * `https://{appName}.fly.dev`. Nothing answers there until a
+ * {@link Machine} (or a Service with `app`) publishes a proxy service and
+ * the App has an {@link IpAssignment}.
+ *
+ * **Example:** Generated name
+ * ```typescript
+ * const site = yield* Fly.App("Site");
+ * ```
+ *
+ * :::note
+ * Prefer omitting `name` in tests and CI so names stay unique and
+ * reclaimable.
+ * :::
+ *
+ * ### A stable hostname
+ * Pass `name` when you need a stable `fly.dev` hostname.
+ *
+ * **Example:** Explicit name
+ * ```typescript
+ * const site = yield* Fly.App("Site", {
+ *   name: "my-site",
+ * });
+ * ```
+ *
+ * :::caution[Changing `name` replaces the App]
+ * Fly cannot have two Apps with the same name. Alchemy deletes the
+ * old App first, then creates the new one.
+ * :::
+ *
+ * ### Organization
+ * Org defaults to the current token. Pass `orgSlug` to pin it.
+ *
+ * **Example:** Pin an org
+ * ```typescript
+ * const site = yield* Fly.App("Site", {
+ *   name: "my-site",
+ *   orgSlug: "my-org",
+ * });
+ * ```
+ *
+ * :::caution[Changing `orgSlug` replaces the App]
+ * The App is created in the new org. The old App is deleted.
+ * :::
+ *
+ * ### Subdomains
+ * `enableSubdomains: true` turns on `*.{appName}.fly.dev`.
+ *
+ * **Example:** Enable subdomains
+ * ```typescript
+ * const site = yield* Fly.App("Site", {
+ *   name: "my-site",
+ *   enableSubdomains: true,
+ * });
+ * ```
+ *
+ * :::note[Create-only]
+ * Flipping `enableSubdomains` later is ignored.
+ * :::
+ *
+ * ### Isolated network
+ * `network` is an optional 6PN name.
+ *
+ * **Example:** Custom network
+ * ```typescript
+ * const site = yield* Fly.App("Site", {
+ *   name: "my-site",
+ *   network: "private",
+ * });
+ * ```
+ *
+ * :::caution[Changing `network` replaces the App]
+ * The App is recreated on the new network.
+ * :::
+ *
+ * ### Module-scope declarations
+ * Declare the App once. Pass it into every child. Resource-valued props
+ * accept the resource or an Effect producing it. Do not unwrap it just
+ * to pass it along.
+ *
+ * **Example:** Module-scope App
+ * ```typescript
+ * // src/app.ts
+ * import * as Fly from "@alchemy.run/fly";
+ *
+ * export const Site = Fly.App("Site");
+ * ```
+ *
+ * @resource
+ * @product App
+ */
+export const App = Resource<App>("Fly.App")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AppNotCreated extends Data.TaggedError("Fly.AppNotCreated")<{
+  mutable resourceName: string
+  /** Fly's rejection of the create request, when there was one. */
+  mutable reason?: string
+}> {
+  get message() {
+    return `Fly App ${this.resourceName} was not created${this.reason ? `: ${this.reason}` : ""}`
+  }
+}
+
+const toAttrs = (app: FlyApp, fallbackName?: string): App["Attributes"] => {
+  const appName = app.name ?? fallbackName ?? ""
+  return {
+    appId: app.id ?? appName,
+    appName,
+    internalNumericId: app.internal_numeric_id,
+    network: app.network,
+    status: app.status,
+    orgSlug: app.organization?.slug,
+    machineCount: app.machine_count,
+    volumeCount: app.volume_count,
+    url: `https://${appName}.fly.dev`,
+  }
+}
+
+const resolveAppName = effect (id: string, name: string | undefined, existing?: string) => {
+  if (name !== undefined) return sanitizeFlyAppName(name)
+  if (existing !== undefined) return existing
+  return try createFlyAppName(id)
+}
+
+const getByName = effect (appName: string) =>
+  machines.getApp({ app_name: appName }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const hasAlchemyMachines = effect (appName: string) =>
+  ((try machines.listMachines({ app_name: appName })).some((machine) =>
+    isAlchemyOwnedMetadata(machine.config?.metadata)
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" } or { _tag: "Forbidden" }: false; default: throw e; }
+
+const hasAlchemyNamed = (names: Array<string | undefined>): infer _ =>
+  names.some((name) => matchesAlchemyPhysicalName(name))
+
+const hasAlchemyVolumes = effect (appName: string) =>
+  (hasAlchemyNamed((try machines.listVolumes({ app_name: appName })).map((volume) => volume.name))) catch effect (
+    e,
+  ) => match (e) { when { _tag: "NotFound" } or { _tag: "Forbidden" }: false; default: throw e; }
+
+const hasAlchemySecrets = effect (appName: string) =>
+  (hasAlchemyNamed(((try machines.listSecrets({ app_name: appName })).secrets ?? []).map((secret) => secret.name)))
+    catch effect (e) => match (e) { when { _tag: "NotFound" } or { _tag: "Forbidden" }: false; default: throw e; }
+
+const hasAlchemySecretKeys = effect (appName: string) =>
+  (hasAlchemyNamed(((try machines.listSecretKeys({ app_name: appName })).secret_keys ?? []).map((key) => key.name)))
+    catch effect (e) => match (e) { when { _tag: "NotFound" } or { _tag: "Forbidden" }: false; default: throw e; }
+
+const isOwnedApp = effect (app: FlyApp) => {
+  if (matchesAlchemyPhysicalName(app.name)) return true
+  const appName = app.name
+  if (appName === undefined || appName.length === 0) return false
+  const flags = try Effect.all(
+    [
+      hasAlchemyMachines(appName),
+      hasAlchemyVolumes(appName),
+      hasAlchemySecrets(appName),
+      hasAlchemySecretKeys(appName),
+    ],
+    { concurrency: 4 },
+  )
+  return flags.some(Boolean)
+}
+
+/**
+ * Apps in the current token's org that Alchemy owns. Used by {@link App}
+ * `list()` and by child resources (Machine / Volume / Secret) so nuke
+ * never enumerates the whole org unfiltered.
+ */
+export const listOwnedApps = effect (): {
+    /** Fly App id. */
+    mutable appId: string;
+    /** Physical Fly App name. */
+    mutable appName: string;
+    /** Fly internal numeric id, if the API returned one. */
+    mutable internalNumericId: number | undefined;
+    /** Isolated network name, if set. */
+    mutable network: string | undefined;
+    /** Observed status (e.g. `deployed`, `pending`). */
+    mutable status: string | undefined;
+    /** Organization slug. */
+    mutable orgSlug: string | undefined;
+    /** Observed machine count. */
+    mutable machineCount: number | undefined;
+    /** Observed volume count. */
+    mutable volumeCount: number | undefined;
+    /** Public `https://{appName}.fly.dev` URL. */
+    mutable url: string;
+}[]!import("@distilled.cloud/fly-io").BadGateway | import("@distilled.cloud/fly-io").ConfigError | import("@distilled.cloud/fly-io").CreateExtensionTosAgreementNotAuthorized | import("@distilled.cloud/fly-io").FlyIoParseError | import("./Environment.ts").FlyOrgNotFound | import("@distilled.cloud/fly-io").Forbidden | import("@distilled.cloud/fly-io").GatewayTimeout | import("effect/http/HttpClientError").HttpClientError | import("@distilled.cloud/fly-io").InternalServerError | import("@distilled.cloud/core/errors").InvalidInput | import("@distilled.cloud/fly-io").ServiceUnavailable | import("@distilled.cloud/fly-io").TooManyRequests | import("@distilled.cloud/fly-io").Unauthorized | import("@distilled.cloud/fly-io").UnknownFlyIoError!machines.FlyIoOpContext => {
+  const orgSlug = try resolveOrgSlug()
+  const { apps } = try machines.listApps({ org_slug: orgSlug })
+  const flagged = try Effect.forEach(
+    apps ?? [],
+    effect (app) => ((try isOwnedApp(app)) ? toAttrs(app) : undefined),
+    { concurrency: 8 },
+  )
+  return flagged.filter((attrs) => attrs !== undefined)
+}
+
+/**
+ * Observe an App by name and create it when missing. Shared by
+ * {@link App} and by Services that own their App.
+ */
+export const ensureApp = effect (input: {
+  mutable name: string
+  mutable orgSlug?: string
+  mutable network?: string
+  mutable enableSubdomains?: boolean
+  /** Physical name from a previous reconcile, observed first. */
+  mutable previousName?: string
+}): FlyApp!AppNotCreated | import("@distilled.cloud/fly-io").BadGateway | import("@distilled.cloud/fly-io").BadRequest | import("@distilled.cloud/fly-io").ConfigError | import("@distilled.cloud/fly-io").CreateExtensionTosAgreementNotAuthorized | import("@distilled.cloud/fly-io").FlyIoParseError | import("./Environment.ts").FlyOrgNotFound | import("@distilled.cloud/fly-io").Forbidden | import("@distilled.cloud/fly-io").GatewayTimeout | import("effect/http/HttpClientError").HttpClientError | import("@distilled.cloud/fly-io").InternalServerError | import("@distilled.cloud/core/errors").InvalidInput | import("@distilled.cloud/fly-io").NotFound | import("@distilled.cloud/fly-io").ServiceUnavailable | import("@distilled.cloud/fly-io").TooManyRequests | import("@distilled.cloud/fly-io").Unauthorized | import("@distilled.cloud/fly-io").UnknownFlyIoError!machines.FlyIoOpContext => {
+  let current = input.previousName !== undefined ? try getByName(input.previousName) : undefined
+  if (current === undefined && input.previousName !== input.name) {
+    current = try getByName(input.name)
+  }
+  if (current === undefined) {
+    const orgSlug = input.orgSlug ?? (try resolveOrgSlug())
+    // A name race surfaces as Conflict or UnprocessableEntity; the lookup
+    // decides whether the App now exists. Apps created at the same time on
+    // a network that does not exist yet race to create it, and the losers
+    // are rejected with "uniqueness constraint violated", so retry them.
+    const create = effect {
+      return (try (machines
+        .createApp({
+          name: input.name,
+          org_slug: orgSlug,
+          network: input.network,
+          enable_subdomains: input.enableSubdomains,
+        })
+        |> Effect.as(%, undefined))) catch effect (error) => match (error) {
+          when { _tag: "Conflict" } or { _tag: "UnprocessableEntity" }: error;
+          default: throw error;
+        }
+    }
+    // A new App can take a moment to become readable.
+    const observe = effect {
+      return try (getByName(input.name)
+        |> Effect.repeat(%, {
+          schedule: Schedule.spaced("1 second"),
+          until: (app) => app !== undefined,
+          times: 5,
+        }))
+    }
+    let rejection: string | undefined
+    for (let attempt = 0; attempt < 5 && current === undefined; attempt++) {
+      if (attempt > 0) try Effect.sleep(`${attempt * 2} seconds`)
+      rejection = (try create)?.message
+      current = try observe
+    }
+    if (current === undefined) {
+      throw new AppNotCreated({ resourceName: input.name, reason: rejection })
+    }
+  }
+  if (current === undefined) {
+    throw new AppNotCreated({ resourceName: input.name })
+  }
+  return current
+}
+
+/**
+ * Delete an App and the Alchemy-owned Volumes in it. Idempotent: a missing
+ * App is not an error. Fly deletes the App's Machines, addresses, secrets,
+ * and certificates with it.
+ */
+export const deleteApp = effect (
+  appName: string,
+): undefined!AppDeletionAmbiguous | import("@distilled.cloud/fly-io").BadGateway | import("@distilled.cloud/fly-io").ConfigError | import("@distilled.cloud/fly-io").CreateExtensionTosAgreementNotAuthorized | import("@distilled.cloud/fly-io").FlyIoParseError | import("@distilled.cloud/fly-io").Forbidden | import("@distilled.cloud/fly-io").GatewayTimeout | import("effect/http/HttpClientError").HttpClientError | import("@distilled.cloud/fly-io").InternalServerError | import("@distilled.cloud/core/errors").InvalidInput | import("@distilled.cloud/fly-io").ServiceUnavailable | import("@distilled.cloud/fly-io").TooManyRequests | import("@distilled.cloud/fly-io").Unauthorized | import("@distilled.cloud/fly-io").UnknownFlyIoError | machines.VolumeAttached!machines.FlyIoOpContext => {
+  if (appName.length === 0) return
+  const volumes = machines
+    .listVolumes({ app_name: appName }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "Forbidden" }: [];
+      default: throw e;
+    }
+  try Effect.forEach(
+    volumes,
+    effect (volume) => {
+      const volumeId = volume.id
+      if (
+        volumeId === undefined
+        || volumeId.length === 0
+        || !matchesAlchemyPhysicalName(volume.name)
+      ) {
+        return
+      }
+      return (try (machines.deleteVolume({ app_name: appName, volume_id: volumeId })
+        |> Effect.asVoid(%))) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "Conflict" }: try Effect.void;
+          default: throw e;
+        }
+    },
+    { concurrency: 4 },
+  )
+  const http = try Effect.service(HttpClient.HttpClient)
+  const fetchOptions = try Effect.serviceOption(FetchHttpClient.RequestInit)
+  ;(try (effect {
+    return try effect {
+      provide FetchHttpClient.RequestInit = {
+          ...Option.getOrUndefined(fetchOptions),
+          keepalive: false,
+          redirect: "error",
+        } {
+        return try effect {
+          provide HttpClient.HttpClient = HttpClient.mapRequest(http, HttpClientRequest.setHeader("connection", "close")) {
+            return try (machines.deleteApp({ app_name: appName })
+              |> Retry.none(%))
+          }
+        }
+      }
+    }
+  }
+    |> Effect.timeout(%, "30 seconds"))) catch effect (e) =>
+      match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; } catch effect (error) => match (error) {
+        when { _tag: "HttpClientError" } or { _tag: "TimeoutError" } or { _tag: "InternalServerError" } or { _tag: "BadGateway" } or { _tag: "ServiceUnavailable" } or { _tag: "GatewayTimeout" }:
+          throw new AppDeletionAmbiguous({ appName, evidence: error._tag });
+        default: throw error;
+      }
+  const gone = (try (effect {
+    return (try getByName(appName)) === undefined
+  }
+    |> Effect.repeat(%, { schedule: Schedule.spaced("1 second"), until: (gone) => gone, times: 8 })
+    |> Effect.timeout(%, "30 seconds"))) catch effect (error) => {
+      throw new AppDeletionAmbiguous({
+        appName,
+        evidence: `delete accepted but absence verification failed: ${error._tag}`,
+      })
+    }
+  if (!gone) {
+    throw new AppDeletionAmbiguous({
+      appName,
+      evidence: "delete accepted but absence not observed",
+    })
+  }
+}
+
+/** Fail when two Services placed in the App publish the same port. */
+const validateServicePorts = effect (
+  appName: string,
+  bindings: ReadonlyArray<ResourceBinding<AppBinding> & { mutable action?: string }>,
+) => {
+  const conflict = findPortConflict(
+    appName,
+    bindings
+      .filter((binding) => binding.action !== "delete")
+      .map((binding) => ({
+        id: binding.data.service,
+        // A Service in a shared App is public: default ports are 80 and 443.
+        ports: withBindingPort(
+          portsOfProps(binding.data.services, true),
+          binding.data.bindingPort ?? DEFAULT_BINDING_PORT,
+        ),
+      })),
+  )
+  return (conflict === undefined ? try Effect.void : throw conflict)
+}
+
+export const AppProvider = (): infer _ =>
+  Provider.succeed(App, {
+    stables: ["appId", "appName", "orgSlug", "network", "internalNumericId"],
+
+    diff: effect ({ id, news, output, newBindings }) => {
+      // At plan time, including for an App created in the same deploy.
+      if (isResolved(newBindings)) {
+        try validateServicePorts(
+          output?.appName ?? (isResolved(news) ? news?.name : undefined) ?? id,
+          newBindings,
+        )
+      }
+      if (news === undefined || !isResolved(news)) return undefined
+      if (output === undefined) return undefined
+      const desiredName = news.name !== undefined ? sanitizeFlyAppName(news.name) : output.appName
+      const nameChanged = desiredName !== output.appName
+      const orgChanged = news.orgSlug !== undefined && news.orgSlug !== output.orgSlug
+      const networkChanged = news.network !== undefined && news.network !== output.network
+      if (nameChanged || orgChanged || networkChanged) {
+        return {
+          action: "replace" as const,
+          // Same physical name cannot exist twice — delete the old App first.
+          deleteFirst: !nameChanged,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const name = try resolveAppName(id, olds?.name, output?.appName)
+      const found = (output?.appName !== undefined ? try getByName(output.appName) : undefined)
+        ?? (try getByName(name))
+      if (found === undefined) return undefined
+      const attrs = toAttrs(found, name)
+      if (output !== undefined) return attrs
+      return (try isOwnedApp(found)) ? attrs : Unowned(attrs)
+    },
+
+    list: listOwnedApps,
+
+    reconcile: effect ({ id, news, output, bindings }) => {
+      const props = news ?? {}
+      const name = try resolveAppName(id, props.name, output?.appName)
+      // Before creating anything, so a conflict leaves the App untouched.
+      try validateServicePorts(name, bindings)
+      const current = try ensureApp({
+        name,
+        orgSlug: props.orgSlug,
+        network: props.network,
+        enableSubdomains: props.enableSubdomains,
+        previousName: output?.appName,
+      })
+      // No update API. enableSubdomains is create-only.
+      return toAttrs(current, name)
+    },
+
+    delete: effect ({ output }) => {
+      try deleteApp(output.appName)
+    },
+  })

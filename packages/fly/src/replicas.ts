@@ -15,7 +15,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
-import { listOwnedApps } from "./App.ts";
+import { listOwnedApps } from "./App.vibe";
 import { reconcileBlueGreen, setRouting } from "./bluegreen.ts";
 import { validateDeployment, type DeploymentPolicy, type MachineCheck } from "./Deployment.ts";
 import { classifyDeploymentState, validProtocol2Generation } from "./DeploymentState.ts";

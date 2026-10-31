@@ -4,7 +4,7 @@ import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Redacted from "effect/Redacted";
-import type { App } from "./App.js";
+import type { App } from "./App.vibe";
 import type { Secret } from "./Secret.js";
 import type { SecretKey } from "./SecretKey.js";
 /**
