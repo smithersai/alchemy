@@ -18,6 +18,9 @@
 // Every phase is timed. Each timing is printed as it finishes, prefixed with
 // the package name, and the build's timings are appended to the package's
 // `.cache/build-timings.jsonl`.
+import { spawnSync } from "node:child_process";
+import { existsSync, realpathSync } from "node:fs";
+import * as NodePath from "node:path";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Console from "effect/Console";
@@ -107,9 +110,40 @@ export const exec = (bin: string, ...args: Array<string>): Step => ({
   }),
 });
 
+/** Whether a recursive build reaches a project containing VibeLang source. */
+const buildReachesVibe = (project: string, seen = new Set<string>()): boolean => {
+  if (!existsSync(project)) return false;
+  const file = realpathSync(project);
+  if (seen.has(file)) return false;
+  seen.add(file);
+  const result = spawnSync(
+    process.env.VIBELANG_BINARY || "vibelang",
+    ["--showConfig", "--project", file, "--pretty", "false"],
+    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+  );
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      `Cannot inspect build project ${file}: ${result.error?.message || result.stdout + result.stderr}`,
+    );
+  }
+  const config = JSON.parse(result.stdout) as {
+    files?: Array<string>;
+    references?: Array<{ path: string }>;
+  };
+  if (config.files?.some((source) => source.endsWith(".vibe"))) return true;
+  return (config.references || []).some(({ path }) => {
+    const target = NodePath.resolve(NodePath.dirname(file), path);
+    return buildReachesVibe(
+      target.endsWith(".json") ? target : NodePath.join(target, "tsconfig.json"),
+      seen,
+    );
+  });
+};
+
 /**
- * Compile packages containing `.vibe` sources with `vibelang`. TypeScript-only
- * packages use `tsrs` where it ships a native binary and `tsc` elsewhere.
+ * Compile a package and its VibeLang project references with `vibelang`.
+ * A wholly TypeScript build uses `tsrs` where it ships a native binary and
+ * `tsc` elsewhere. A stock recursive build must never overwrite Vibe outputs.
  */
 export const typescript = (...args: Array<string>): Step => ({
   name: `typescript ${args.join(" ")}`,
@@ -119,7 +153,16 @@ export const typescript = (...args: Array<string>): Step => ({
     const sources = yield* fs.readDirectory(path.join(packageDirectory, "src"), {
       recursive: true,
     });
-    const binary = sources.some((file) => file.endsWith(".vibe"))
+    const native =
+      sources.some((file) => file.endsWith(".vibe")) ||
+      (yield* Effect.sync(() => {
+        const projects = ["tsconfig.json", ...args.filter((arg) => arg.endsWith(".json"))];
+        const seen = new Set<string>();
+        return projects.some((project) =>
+          buildReachesVibe(NodePath.resolve(packageDirectory, project), seen),
+        );
+      }));
+    const binary = native
       ? "vibelang"
       : ["darwin-arm64", "linux-x64", "linux-arm64"].includes(`${process.platform}-${process.arch}`)
         ? "tsrs"
