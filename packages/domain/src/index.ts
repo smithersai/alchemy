@@ -249,7 +249,7 @@ export const RequestContext = RequestContextModule.make;
 export type { Filter, OrderBy } from "./Filter.vibe";
 export { InMemory } from "./InMemory.ts";
 export type * as Middleware from "./Middleware.ts";
-export { Platform } from "./Platform.ts";
+export { Platform } from "./Platform.vibe";
 export * as Read from "./Read.vibe";
 /** Trace attributes, hosting options and the metrics a model records. */
 export * as Telemetry from "./Telemetry.vibe";

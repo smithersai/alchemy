@@ -20,7 +20,7 @@ import {
   type StreamMeta,
   type ViewEntry,
   type ViewSnapshot,
-} from "./Platform.ts";
+} from "./Platform.vibe";
 
 /**
  * Options for {@link make}.

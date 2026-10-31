@@ -24,7 +24,7 @@ import {
   type StreamStore,
   type ViewSnapshot,
   type ViewStore,
-} from "./Platform.ts";
+} from "./Platform.vibe";
 import type * as Policy from "./Policy.vibe";
 import * as Projection from "./Projection.vibe";
 import * as RequestContext from "./RequestContext.ts";

@@ -3,7 +3,7 @@ import * as Rpc from "effect/rpc/Rpc";
 import * as Schema from "effect/Schema";
 import type * as Aggregate from "./Aggregate.js";
 import { type Kernel } from "./Kernel.js";
-import type { Json, Push, StoredEvent, StreamEntry, StreamMeta, Subscription, ViewEntry, ViewSnapshot } from "./Platform.js";
+import type { Json, Push, StoredEvent, StreamEntry, StreamMeta, Subscription, ViewEntry, ViewSnapshot } from "./Platform.vibe";
 import type * as DomainStream from "./Stream.vibe";
 import type * as View from "./View.vibe";
 /** Encode a read's refusal (a middleware error) as the `Exit` that ends it. */

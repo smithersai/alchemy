@@ -23,7 +23,7 @@ import type {
   ViewEntry,
   ViewKit,
   ViewSnapshot,
-} from "./Platform.ts";
+} from "./Platform.vibe";
 import type * as Policy from "./Policy.vibe";
 import type * as Projection from "./Projection.vibe";
 import * as RequestContext from "./RequestContext.ts";
