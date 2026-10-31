@@ -1,0 +1,11 @@
+import * as Layer from "effect/Layer";
+import { RetrieveAccountExternalAccount } from "./RetrieveAccountExternalAccount.js";
+/**
+ * HTTP implementation of {@link RetrieveAccountExternalAccount}. The
+ * nested retrieve takes both `account` and `id`.
+ *
+ * @layer
+ * @product Account
+ * @provides Stripe.RetrieveAccountExternalAccount
+ */
+export declare const RetrieveAccountExternalAccountHttp: Layer.Layer<RetrieveAccountExternalAccount, never, never>;

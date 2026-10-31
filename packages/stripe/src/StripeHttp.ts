@@ -14,7 +14,7 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
-import { RestrictedApiKey, type StripePermission } from "./RestrictedApiKey.ts";
+import { RestrictedApiKey, type StripePermission } from "./RestrictedApiKey.vibe";
 
 /**
  * Shared scaffolding for HTTP Stripe bindings.

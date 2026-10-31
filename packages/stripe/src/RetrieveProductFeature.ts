@@ -6,7 +6,7 @@ import type {
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { ProductFeature } from "./ProductFeature.ts";
+import type { ProductFeature } from "./ProductFeature.vibe";
 
 export interface RetrieveProductFeatureRequest extends Omit<
   GetProductFeatureRequest,

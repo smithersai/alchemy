@@ -6,7 +6,7 @@ import type {
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { CustomerTaxId } from "./CustomerTaxId.ts";
+import type { CustomerTaxId } from "./CustomerTaxId.vibe";
 
 export interface RetrieveCustomerTaxIdRequest extends Omit<
   GetCustomerTaxIdsByIdRequest,
