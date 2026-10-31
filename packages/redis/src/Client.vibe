@@ -1,0 +1,300 @@
+import * as Effect from "effect/Effect"
+import type { CommandError, UrlMissing } from "./Errors.vibe"
+import { command, commandPipeline } from "./Protocol.ts"
+import type { Arg, Reply } from "./Resp.ts"
+import type { RuntimeContext } from "./RuntimeContext.ts"
+
+/**
+ * A Redis URL that resolves from the Function/Service environment at
+ * runtime (`REDIS_URL`).
+ */
+export type Url = string!UrlMissing!RuntimeContext
+
+export type RuntimeError = CommandError | UrlMissing
+
+export interface SetOptions {
+  readonly ex?: number
+  readonly px?: number
+  readonly exAt?: number
+  readonly pxAt?: number
+  readonly nx?: boolean
+  readonly xx?: boolean
+  readonly keepTtl?: boolean
+}
+
+/**
+ * Read-only Redis client. Any Redis command is available via {@link Client.send}
+ * on the read/write client.
+ */
+export interface ReadClient {
+  get(key: string): string | null!RuntimeError!RuntimeContext
+  mget(...keys: string[]): Array<string | null>!RuntimeError!RuntimeContext
+  ping(message?: string): string!RuntimeError!RuntimeContext
+  echo(message: string): string!RuntimeError!RuntimeContext
+  exists(...keys: string[]): number!RuntimeError!RuntimeContext
+  ttl(key: string): number!RuntimeError!RuntimeContext
+  pttl(key: string): number!RuntimeError!RuntimeContext
+  type(key: string): string!RuntimeError!RuntimeContext
+  hget(key: string, field: string): string | null!RuntimeError!RuntimeContext
+  hmget(
+    key: string,
+    ...fields: string[]
+  ): Array<string | null>!RuntimeError!RuntimeContext
+  hgetall(key: string): Record<string, string>!RuntimeError!RuntimeContext
+  hexists(key: string, field: string): boolean!RuntimeError!RuntimeContext
+  hkeys(key: string): string[]!RuntimeError!RuntimeContext
+  hvals(key: string): string[]!RuntimeError!RuntimeContext
+  hlen(key: string): number!RuntimeError!RuntimeContext
+  llen(key: string): number!RuntimeError!RuntimeContext
+  lrange(
+    key: string,
+    start: number,
+    stop: number,
+  ): string[]!RuntimeError!RuntimeContext
+  lindex(key: string, index: number): string | null!RuntimeError!RuntimeContext
+  scard(key: string): number!RuntimeError!RuntimeContext
+  sismember(key: string, member: string): boolean!RuntimeError!RuntimeContext
+  smembers(key: string): string[]!RuntimeError!RuntimeContext
+  zscore(key: string, member: string): string | null!RuntimeError!RuntimeContext
+  zcard(key: string): number!RuntimeError!RuntimeContext
+  zrange(
+    key: string,
+    start: number,
+    stop: number,
+  ): string[]!RuntimeError!RuntimeContext
+}
+
+/**
+ * Write Redis client.
+ */
+export interface WriteClient {
+  set(
+    key: string,
+    value: string | Uint8Array,
+    options?: SetOptions,
+  ): void!RuntimeError!RuntimeContext
+  mset(
+    values: Record<string, string | Uint8Array>,
+  ): void!RuntimeError!RuntimeContext
+  del(...keys: string[]): number!RuntimeError!RuntimeContext
+  unlink(...keys: string[]): number!RuntimeError!RuntimeContext
+  expire(key: string, seconds: number): boolean!RuntimeError!RuntimeContext
+  persist(key: string): boolean!RuntimeError!RuntimeContext
+  incr(key: string): number!RuntimeError!RuntimeContext
+  incrBy(key: string, amount: number): number!RuntimeError!RuntimeContext
+  decr(key: string): number!RuntimeError!RuntimeContext
+  hset(
+    key: string,
+    field: string | Record<string, string | Uint8Array>,
+    value?: string | Uint8Array,
+  ): number!RuntimeError!RuntimeContext
+  hdel(key: string, ...fields: string[]): number!RuntimeError!RuntimeContext
+  hincrBy(
+    key: string,
+    field: string,
+    amount: number,
+  ): number!RuntimeError!RuntimeContext
+  lpush(
+    key: string,
+    ...values: Array<string | Uint8Array>
+  ): number!RuntimeError!RuntimeContext
+  rpush(
+    key: string,
+    ...values: Array<string | Uint8Array>
+  ): number!RuntimeError!RuntimeContext
+  lpop(key: string): string | null!RuntimeError!RuntimeContext
+  rpop(key: string): string | null!RuntimeError!RuntimeContext
+  sadd(
+    key: string,
+    ...members: Array<string | Uint8Array>
+  ): number!RuntimeError!RuntimeContext
+  srem(
+    key: string,
+    ...members: Array<string | Uint8Array>
+  ): number!RuntimeError!RuntimeContext
+  zadd(
+    key: string,
+    score: number,
+    member: string | Uint8Array,
+  ): number!RuntimeError!RuntimeContext
+  zrem(
+    key: string,
+    ...members: Array<string | Uint8Array>
+  ): number!RuntimeError!RuntimeContext
+}
+
+/**
+ * Read + write Redis client. {@link send} is the total command surface —
+ * every Redis command is an array of bulk strings on the wire.
+ */
+export interface Client extends ReadClient, WriteClient {
+  send(name: string, args?: readonly Arg[]): Reply!RuntimeError!RuntimeContext
+  pipeline(
+    commands: ReadonlyArray<readonly [string, ...Arg[]]>,
+  ): readonly Reply[]!RuntimeError!RuntimeContext
+}
+
+export interface ReadWriteClient extends Client {}
+
+const asString = (value: unknown): string => {
+  if (typeof value === "string") return value
+  if (value == null) return ""
+  // RESP scalars (integers, bigints, booleans) coerce to their text form.
+  return String(value as number | bigint | boolean)
+}
+
+const asNullableString = (value: unknown): string | null => {
+  if (value == null) return null
+  return asString(value)
+}
+
+const asNumber = (value: unknown): number => {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  if (typeof value === "bigint") return Number(value)
+  const parsed = Number(asString(value))
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const asBoolean = (value: unknown): boolean => asNumber(value) !== 0
+
+const asStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return []
+  return value.map(asString)
+}
+
+const asNullableStringArray = (value: unknown): Array<string | null> => {
+  if (!Array.isArray(value)) return []
+  return value.map(asNullableString)
+}
+
+const asHash = (value: unknown): Record<string, string> => {
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    const out: Record<string, string> = {}
+    for (const [key, item] of Object.entries(value)) {
+      out[key] = asString(item)
+    }
+    return out
+  }
+  if (!Array.isArray(value)) return {}
+  const out: Record<string, string> = {}
+  for (let i = 0; i + 1 < value.length; i += 2) {
+    out[asString(value[i])] = asString(value[i + 1])
+  }
+  return out
+}
+
+const setArgs = (key: string, value: string | Uint8Array, options?: SetOptions): Arg[] => {
+  const args: Arg[] = [key, value]
+  if (options?.nx) args.push("NX")
+  if (options?.xx) args.push("XX")
+  if (options?.ex !== undefined) args.push("EX", options.ex)
+  if (options?.px !== undefined) args.push("PX", options.px)
+  if (options?.exAt !== undefined) args.push("EXAT", options.exAt)
+  if (options?.pxAt !== undefined) args.push("PXAT", options.pxAt)
+  if (options?.keepTtl) args.push("KEEPTTL")
+  return args
+}
+
+/**
+ * Read-only client over a runtime Redis URL.
+ */
+export const makeRead = (url: Url): ReadClient => ({
+  get: effect (key) => asNullableString(try command(url, "GET", [key])),
+  mget: effect (...keys) => asNullableStringArray(try command(url, "MGET", keys)),
+  ping: effect (message) => asString(try command(url, "PING", message === undefined ? [] : [message])),
+  echo: effect (message) => asString(try command(url, "ECHO", [message])),
+  exists: effect (...keys) => asNumber(try command(url, "EXISTS", keys)),
+  ttl: effect (key) => asNumber(try command(url, "TTL", [key])),
+  pttl: effect (key) => asNumber(try command(url, "PTTL", [key])),
+  type: effect (key) => asString(try command(url, "TYPE", [key])),
+  hget: effect (key, field) => asNullableString(try command(url, "HGET", [key, field])),
+  hmget: effect (key, ...fields) => asNullableStringArray(try command(url, "HMGET", [key, ...fields])),
+  hgetall: effect (key) => asHash(try command(url, "HGETALL", [key])),
+  hexists: effect (key, field) => asBoolean(try command(url, "HEXISTS", [key, field])),
+  hkeys: effect (key) => asStringArray(try command(url, "HKEYS", [key])),
+  hvals: effect (key) => asStringArray(try command(url, "HVALS", [key])),
+  hlen: effect (key) => asNumber(try command(url, "HLEN", [key])),
+  llen: effect (key) => asNumber(try command(url, "LLEN", [key])),
+  lrange: effect (key, start, stop) => asStringArray(try command(url, "LRANGE", [key, start, stop])),
+  lindex: effect (key, index) => asNullableString(try command(url, "LINDEX", [key, index])),
+  scard: effect (key) => asNumber(try command(url, "SCARD", [key])),
+  sismember: effect (key, member) => asBoolean(try command(url, "SISMEMBER", [key, member])),
+  smembers: effect (key) => asStringArray(try command(url, "SMEMBERS", [key])),
+  zscore: effect (key, member) => asNullableString(try command(url, "ZSCORE", [key, member])),
+  zcard: effect (key) => asNumber(try command(url, "ZCARD", [key])),
+  zrange: effect (key, start, stop) => asStringArray(try command(url, "ZRANGE", [key, start, stop])),
+})
+
+/**
+ * Write client over a runtime Redis URL.
+ */
+export const makeWrite = (url: Url): WriteClient => ({
+  set: effect (key, value, options) =>
+    try (command(url, "SET", setArgs(key, value, options))
+      |> Effect.asVoid(%)),
+  mset: effect (values) => {
+    const args: Arg[] = []
+    for (const [key, value] of Object.entries(values)) {
+      args.push(key, value)
+    }
+    return command(url, "MSET", args)
+      |> try Effect.asVoid(%)
+  },
+  del: effect (...keys) => asNumber(try command(url, "DEL", keys)),
+  unlink: effect (...keys) => asNumber(try command(url, "UNLINK", keys)),
+  expire: effect (key, seconds) => asBoolean(try command(url, "EXPIRE", [key, seconds])),
+  persist: effect (key) => asBoolean(try command(url, "PERSIST", [key])),
+  incr: effect (key) => asNumber(try command(url, "INCR", [key])),
+  incrBy: effect (key, amount) => asNumber(try command(url, "INCRBY", [key, amount])),
+  decr: effect (key) => asNumber(try command(url, "DECR", [key])),
+  hset: effect (key, field, value) => {
+    const args: Arg[] = [key]
+    if (typeof field === "string") {
+      args.push(field, value ?? "")
+    } else {
+      for (const [name, item] of Object.entries(field)) {
+        args.push(name, item)
+      }
+    }
+    return command(url, "HSET", args)
+      |> try Effect.map(%, asNumber)
+  },
+  hdel: effect (key, ...fields) => asNumber(try command(url, "HDEL", [key, ...fields])),
+  hincrBy: effect (key, field, amount) => asNumber(try command(url, "HINCRBY", [key, field, amount])),
+  lpush: effect (key, ...values) => asNumber(try command(url, "LPUSH", [key, ...values])),
+  rpush: effect (key, ...values) => asNumber(try command(url, "RPUSH", [key, ...values])),
+  lpop: effect (key) => asNullableString(try command(url, "LPOP", [key])),
+  rpop: effect (key) => asNullableString(try command(url, "RPOP", [key])),
+  sadd: effect (key, ...members) => asNumber(try command(url, "SADD", [key, ...members])),
+  srem: effect (key, ...members) => asNumber(try command(url, "SREM", [key, ...members])),
+  zadd: effect (key, score, member) => asNumber(try command(url, "ZADD", [key, score, member])),
+  zrem: effect (key, ...members) => asNumber(try command(url, "ZREM", [key, ...members])),
+})
+
+/**
+ * Full Redis client over a runtime Redis URL.
+ *
+ * Fly and Railway `*RedisHttp` layers pass this (or {@link makeRead} /
+ * {@link makeWrite}) as `makeClient`. Tests can also drive RESP
+ * directly via `command` / `run` / `connect`.
+ *
+ * ```typescript
+ * import * as Redis from "@alchemy.run/redis";
+ *
+ * const cache = Redis.make(url);
+ * yield* cache.set("marker", "hello");
+ * const value = yield* cache.get("marker");
+ * const echoed = yield* cache.send("ECHO", ["hi"]);
+ * ```
+ */
+export const make = (url: Url): Client => ({
+  ...makeRead(url),
+  ...makeWrite(url),
+  send: effect (name, args = []) => try command(url, name, args),
+  pipeline: effect (commands) => try commandPipeline(url, commands),
+})
+
+/**
+ * Read + write client over a runtime Redis URL. Alias of {@link make}.
+ */
+export const makeReadWrite = (url: Url): ReadWriteClient => make(url)
