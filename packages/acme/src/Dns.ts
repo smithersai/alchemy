@@ -16,7 +16,7 @@ import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Schedule from "effect/Schedule";
-import { DnsPropagationTimeout } from "./Errors.ts";
+import { DnsPropagationTimeout } from "./Errors.vibe";
 
 export interface PropagationOptions {
   /**

@@ -13,7 +13,7 @@ import {
   type AccountCredentials,
 } from "./Client.ts";
 import type { PropagationOptions } from "./Dns.ts";
-import { resolveDnsSolver, type DnsSolverDescriptor } from "./DnsSolver.ts";
+import { resolveDnsSolver, type DnsSolverDescriptor } from "./DnsSolver.vibe";
 import type { KeyAlgorithm } from "./Pki.ts";
 import type { Providers } from "./Providers.ts";
 

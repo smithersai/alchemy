@@ -17,7 +17,7 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import type { CertificateAuthority } from "./CertificateAuthority.ts";
 import { waitForTxt, type PropagationOptions } from "./Dns.ts";
-import type { DnsChallengeRecord, DnsSolver } from "./DnsSolver.ts";
+import type { DnsChallengeRecord, DnsSolver } from "./DnsSolver.vibe";
 import {
   ChallengeFailed,
   ChallengeUnsupported,
@@ -26,7 +26,7 @@ import {
   PkiError,
   type DnsPropagationTimeout,
   type DnsSolverError,
-} from "./Errors.ts";
+} from "./Errors.vibe";
 import {
   createCsr,
   csrToBase64Url,

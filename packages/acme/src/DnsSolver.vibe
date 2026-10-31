@@ -14,40 +14,35 @@
  *   Worker or Service hands to `IssueCertificate.issue`, built from a
  *   runtime DNS write client (`Cloudflare.ACME.zoneSolver(dns)`).
  */
-import * as Context from "effect/Context";
-import * as Effect from "effect/Effect";
-import type * as HttpClient from "effect/http/HttpClient";
-import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
-import type { PropagationOptions } from "./Dns.ts";
-import {
-  DnsSolverNotRegistered,
-  type DnsPropagationTimeout,
-  type DnsSolverError,
-} from "./Errors.ts";
+import * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import type * as HttpClient from "effect/http/HttpClient"
+import * as Layer from "effect/Layer"
+import type { PropagationOptions } from "./Dns.ts"
+import { type DnsPropagationTimeout, type DnsSolverError, DnsSolverNotRegistered } from "./Errors.vibe"
 
 /** A challenge record to publish: the `_acme-challenge.<name>` FQDN and its TXT value. */
 export interface DnsChallengeRecord {
-  readonly fqdn: string;
-  readonly value: string;
+  readonly fqdn: string
+  readonly value: string
 }
 
 /** Runtime DNS-01 solver. `R` is whatever context the underlying client needs. */
 export interface DnsSolver<R = never> {
   /** Publish `value` as a TXT record at `fqdn`. Idempotent. */
-  readonly present: (record: DnsChallengeRecord) => Effect.Effect<void, DnsSolverError, R>;
+  readonly present: (record: DnsChallengeRecord) => void!DnsSolverError!R
   /** Remove the record published by `present`. Idempotent; runs in a finalizer. */
-  readonly cleanup: (record: DnsChallengeRecord) => Effect.Effect<void, DnsSolverError, R>;
+  readonly cleanup: (record: DnsChallengeRecord) => void!DnsSolverError!R
   /**
    * Wait until the record is visible. Defaults to polling public DNS over
    * HTTPS; a solver for a private DNS (tests, split-horizon zones) overrides it.
    */
   readonly propagated?:
     | ((
-        record: DnsChallengeRecord,
-        options: PropagationOptions,
-      ) => Effect.Effect<void, DnsSolverError | DnsPropagationTimeout, R | HttpClient.HttpClient>)
-    | undefined;
+      record: DnsChallengeRecord,
+      options: PropagationOptions,
+    ) => void!DnsSolverError | DnsPropagationTimeout!R | HttpClient.HttpClient)
+    | undefined
 }
 
 /**
@@ -55,40 +50,42 @@ export interface DnsSolver<R = never> {
  * `type` selects the registered implementation; the rest is provider data.
  */
 export interface DnsSolverDescriptor {
-  readonly type: string;
-  readonly [key: string]: unknown;
+  readonly type: string
+  readonly [key: string]: unknown
 }
 
 /** Builds a runtime solver from a descriptor at reconcile time. */
 export type DnsSolverFactory = (
   descriptor: DnsSolverDescriptor,
-) => Effect.Effect<DnsSolver, DnsSolverError>;
+) => DnsSolver!DnsSolverError
 
-const solverService = (type: string) =>
-  Context.Service<DnsSolverFactory>(`alchemy/ACME/DnsSolver/${type}`);
+const solverService = (type: string): infer _ => Context.Service<DnsSolverFactory>(`alchemy/ACME/DnsSolver/${type}`)
 
 /** Resolve the registered implementation for a descriptor. */
-export const resolveDnsSolver = (
+export const resolveDnsSolver = effect (
   descriptor: DnsSolverDescriptor,
-): Effect.Effect<DnsSolver, DnsSolverNotRegistered | DnsSolverError> =>
-  Effect.gen(function* () {
-    const factory = yield* Effect.serviceOption(solverService(descriptor.type));
-    if (Option.isNone(factory)) {
-      return yield* new DnsSolverNotRegistered({ type: descriptor.type });
-    }
-    return yield* factory.value(descriptor);
-  });
+): DnsSolver!DnsSolverNotRegistered | DnsSolverError => {
+  const factory = try Effect.serviceOption(solverService(descriptor.type))
+  if (Option.isNone(factory)) {
+    throw new DnsSolverNotRegistered({ type: descriptor.type })
+  }
+  return try factory.value(descriptor)
+}
 
 /** A solver whose methods run with `context` provided (drops `R`). */
 export const provideSolver = <R>(solver: DnsSolver<R>, context: Context.Context<R>): DnsSolver => ({
-  present: (record) => solver.present(record).pipe(Effect.provideContext(context)),
-  cleanup: (record) => solver.cleanup(record).pipe(Effect.provideContext(context)),
-  propagated:
-    solver.propagated === undefined
-      ? undefined
-      : (record, options) =>
-          solver.propagated!(record, options).pipe(Effect.provideContext(context)),
-});
+  present: effect (record) =>
+    try (solver.present(record)
+      |> Effect.provideContext(%, context)),
+  cleanup: effect (record) =>
+    try (solver.cleanup(record)
+      |> Effect.provideContext(%, context)),
+  propagated: solver.propagated === undefined
+    ? undefined
+    : effect (record, options) =>
+      try (solver.propagated!(record, options)
+        |> Effect.provideContext(%, context)),
+})
 
 /**
  * Register a solver implementation from a `providers()` layer, capturing
@@ -97,13 +94,12 @@ export const provideSolver = <R>(solver: DnsSolver<R>, context: Context.Context<
  */
 export const dnsSolverLayer = <R>(
   type: string,
-  make: (descriptor: DnsSolverDescriptor) => Effect.Effect<DnsSolver<R>, DnsSolverError>,
+  make: (descriptor: DnsSolverDescriptor) => DnsSolver<R>!DnsSolverError,
 ): Layer.Layer<DnsSolverFactory, never, R> =>
   Layer.effect(
     solverService(type),
-    Effect.gen(function* () {
-      const context = yield* Effect.context<R>();
-      return (descriptor: DnsSolverDescriptor) =>
-        make(descriptor).pipe(Effect.map((solver) => provideSolver(solver, context)));
-    }),
-  );
+    effect {
+      const context = try Effect.context<R>()
+      return effect (descriptor: DnsSolverDescriptor) => provideSolver(try make(descriptor), context)
+    },
+  )
