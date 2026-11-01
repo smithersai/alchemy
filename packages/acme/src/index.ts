@@ -8,4 +8,4 @@ export * from "./Errors.ts";
 export * from "./IssueCertificate.vibe";
 export * from "./IssueCertificateHttp.vibe";
 export * from "./Pki.ts";
-export * from "./Providers.ts";
+export * from "./Providers.vibe";

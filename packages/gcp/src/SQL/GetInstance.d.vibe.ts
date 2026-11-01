@@ -24,6 +24,6 @@ export interface GetInstanceRequest extends Omit<sqladmin.GetInstancesRequest, "
  * @binding
  * @category SQL
  */
-export interface GetInstance extends Binding.Service<GetInstance, "GCP.SQL.GetInstance", (instance: Instance) => Effect.Effect<((request?: GetInstanceRequest) => Effect.Effect<sqladmin.DatabaseInstance, sqladmin.GetInstancesError, RuntimeContext>)>> {
+export interface GetInstance extends Binding.Service<GetInstance, "GCP.SQL.GetInstance", (instance: Instance) => Effect.Effect<(request?: GetInstanceRequest) => Effect.Effect<sqladmin.DatabaseInstance, sqladmin.GetInstancesError, RuntimeContext>>> {
 }
 export declare const GetInstance: GetInstance;

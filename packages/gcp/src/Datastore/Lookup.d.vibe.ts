@@ -32,6 +32,6 @@ export type LookupRequest = DatastoreDatabaseRequest<datastore.LookupProjectsReq
  * @binding
  * @category Datastore
  */
-export interface Lookup extends Binding.Service<Lookup, "GCP.Datastore.Lookup", (database: Database) => Effect.Effect<((request: LookupRequest) => Effect.Effect<datastore.LookupResponse, datastore.LookupProjectsError, RuntimeContext>)>> {
+export interface Lookup extends Binding.Service<Lookup, "GCP.Datastore.Lookup", (database: Database) => Effect.Effect<(request: LookupRequest) => Effect.Effect<datastore.LookupResponse, datastore.LookupProjectsError, RuntimeContext>>> {
 }
 export declare const Lookup: Lookup;

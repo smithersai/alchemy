@@ -29,6 +29,6 @@ export interface GetObjectRequest {
  * @binding
  * @category Storage
  */
-export interface GetObject extends Binding.Service<GetObject, "GCP.Storage.GetObject", (bucket: Bucket) => Effect.Effect<((request: GetObjectRequest) => Effect.Effect<ObjectContent, ObjectNotFound | ObjectRequestFailed, RuntimeContext>)>> {
+export interface GetObject extends Binding.Service<GetObject, "GCP.Storage.GetObject", (bucket: Bucket) => Effect.Effect<(request: GetObjectRequest) => Effect.Effect<ObjectContent, ObjectNotFound | ObjectRequestFailed, RuntimeContext>>> {
 }
 export declare const GetObject: GetObject;

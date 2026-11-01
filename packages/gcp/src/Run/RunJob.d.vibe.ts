@@ -29,6 +29,6 @@ export interface RunJobRequest extends Omit<cloudrun.RunProjectsLocationsJobsReq
  * @binding
  * @category Run
  */
-export interface RunJob extends Binding.Service<RunJob, "GCP.Run.RunJob", (job: Job) => Effect.Effect<((request?: RunJobRequest) => Effect.Effect<cloudrun.GoogleLongrunningOperation, cloudrun.RunProjectsLocationsJobsError, RuntimeContext>)>> {
+export interface RunJob extends Binding.Service<RunJob, "GCP.Run.RunJob", (job: Job) => Effect.Effect<(request?: RunJobRequest) => Effect.Effect<cloudrun.GoogleLongrunningOperation, cloudrun.RunProjectsLocationsJobsError, RuntimeContext>>> {
 }
 export declare const RunJob: RunJob;

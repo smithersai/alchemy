@@ -21,7 +21,7 @@ import {
   stripInternalLabels,
   toLabels,
 } from "./Labels.vibe";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 export type ZoneMode = "primary" | "secondary";
 export type ZoneStatus = "ok" | "updating" | "error";

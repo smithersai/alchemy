@@ -7,7 +7,7 @@ import type * as Redacted from "effect/Redacted";
 import type { BranchScope } from "./BranchScope.js";
 import type { FunctionEnvironment, FunctionRequest } from "./FunctionEnvironment.js";
 import { type FunctionRuntimeContext } from "./FunctionRuntimeContext.js";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /**
  * Prebuilt Node 24 Fetch application. The directory or ZIP must contain
  * `index.mjs` at its root, exporting a Fetch handler or an object with `fetch`.

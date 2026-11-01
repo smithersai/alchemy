@@ -2,7 +2,7 @@ import { Credentials } from "@distilled.cloud/stripe";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /**
  * Stripe restricted-key permission. Names match the Dashboard RAK catalog
  * (`resource_read` / `resource_write`). Write implies read.

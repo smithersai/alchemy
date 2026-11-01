@@ -45,4 +45,4 @@ export interface VariablesProps {
  * @resource
  * @product Actions
  */
-export declare const Variables: ({ owner, repository, environment, variables }: VariablesProps) => Effect.Effect<Variable[], never, import("./Providers.js").Providers>;
+export declare const Variables: ({ owner, repository, environment, variables }: VariablesProps) => Effect.Effect<Variable[], never, import("./Providers.vibe").Providers>;

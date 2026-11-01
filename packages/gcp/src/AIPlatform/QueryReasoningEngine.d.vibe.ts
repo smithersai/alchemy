@@ -23,6 +23,6 @@ export interface QueryReasoningEngineRequest extends Omit<aiplatform.QueryReason
  * @binding
  * @category AIPlatform
  */
-export interface QueryReasoningEngine extends Binding.Service<QueryReasoningEngine, "GCP.AIPlatform.QueryReasoningEngine", (engine: ReasoningEngine) => Effect.Effect<((request?: QueryReasoningEngineRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1QueryReasoningEngineResponse, aiplatform.QueryReasoningEnginesError, RuntimeContext>)>> {
+export interface QueryReasoningEngine extends Binding.Service<QueryReasoningEngine, "GCP.AIPlatform.QueryReasoningEngine", (engine: ReasoningEngine) => Effect.Effect<(request?: QueryReasoningEngineRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1QueryReasoningEngineResponse, aiplatform.QueryReasoningEnginesError, RuntimeContext>>> {
 }
 export declare const QueryReasoningEngine: QueryReasoningEngine;

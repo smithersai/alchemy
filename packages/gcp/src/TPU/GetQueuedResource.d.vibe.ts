@@ -24,6 +24,6 @@ export interface GetQueuedResourceRequest extends Omit<tpu.GetProjectsLocationsQ
  * @binding
  * @category TPU
  */
-export interface GetQueuedResource extends Binding.Service<GetQueuedResource, "GCP.TPU.GetQueuedResource", (resource: QueuedResource) => Effect.Effect<((request?: GetQueuedResourceRequest) => Effect.Effect<tpu.QueuedResource, tpu.GetProjectsLocationsQueuedResourcesError, RuntimeContext>)>> {
+export interface GetQueuedResource extends Binding.Service<GetQueuedResource, "GCP.TPU.GetQueuedResource", (resource: QueuedResource) => Effect.Effect<(request?: GetQueuedResourceRequest) => Effect.Effect<tpu.QueuedResource, tpu.GetProjectsLocationsQueuedResourcesError, RuntimeContext>>> {
 }
 export declare const GetQueuedResource: GetQueuedResource;

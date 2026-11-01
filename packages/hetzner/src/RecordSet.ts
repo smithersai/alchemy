@@ -25,7 +25,7 @@ import {
   stripInternalLabels,
   toLabels,
 } from "./Labels.vibe";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces

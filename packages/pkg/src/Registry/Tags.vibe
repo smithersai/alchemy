@@ -1,0 +1,132 @@
+import * as Effect from "effect/Effect"
+import * as Schema from "effect/Schema"
+import * as SqlClient from "effect/sql/SqlClient"
+
+/**
+ * The `tags` table: one row per `(package, tag)` pointing at a tarball hash.
+ * A tarball lives in R2 for as long as any row points at it. Every query
+ * runs against the ambient `SqlClient`, which the Worker provides from its
+ * D1 binding.
+ */
+
+const LinkedPrs = Schema.String.pipe(Schema.Array, Schema.fromJsonString)
+
+export const TagRow = Schema.Struct({
+  package: Schema.String,
+  tag: Schema.String,
+  sha256: Schema.String,
+  expires_at: Schema.Number,
+  /** Pull requests whose runs produced this tag, as `owner/repo#N`. */
+  linked_prs: LinkedPrs,
+})
+export type TagRow = typeof TagRow.Type
+
+schema TarballRow {
+  package: string
+  sha256: string
+}
+
+const decodeTags = Schema.decodeUnknownEffect(Schema.Array(TagRow))
+const decodeTarballs = Schema.decodeUnknownEffect(Schema.Array(TarballRow))
+
+export const get = effect (pkg: string, tag: string) =>
+  try withSpan(
+    effect {
+      const sql = try Effect.service(SqlClient.SqlClient)
+      const rows = try decodeTags(
+        try sql`SELECT * FROM tags WHERE package = ${pkg} AND tag = ${tag}`,
+      )
+      return rows[0]
+    },
+    "Tags.get",
+  )
+
+/**
+ * Point `tag` at `sha256`, keeping the row alive for at least `expiresAt`
+ * and remembering every pull request that produced it. One statement, so
+ * concurrent publications of a shared tag merge rather than overwrite.
+ */
+export const upsert = effect (input: {
+  readonly package: string
+  readonly tag: string
+  readonly sha256: string
+  readonly expiresAt: number
+  readonly prs: ReadonlyArray<string>
+}) =>
+  try withSpan(
+    effect {
+      const sql = try Effect.service(SqlClient.SqlClient)
+      const prs = try Schema.encodeEffect(LinkedPrs)(input.prs)
+      try sql`
+    INSERT INTO tags (package, tag, sha256, expires_at, linked_prs)
+    VALUES (${input.package}, ${input.tag}, ${input.sha256}, ${input.expiresAt}, ${prs})
+    ON CONFLICT (package, tag) DO UPDATE SET
+      sha256 = excluded.sha256,
+      expires_at = max(tags.expires_at, excluded.expires_at),
+      linked_prs = (
+        SELECT json_group_array(value) FROM (
+          SELECT value FROM json_each(tags.linked_prs)
+          UNION
+          SELECT value FROM json_each(excluded.linked_prs)
+        )
+      )
+  `
+    },
+    "Tags.upsert",
+  )
+
+export const resolve = effect (pkg: string, tag: string) => try Effect.map(get(pkg, tag), (row) => row?.sha256)
+
+/** Rows tied to pull requests whose expiry falls before `before`. */
+export const dueLinked = effect (before: number) =>
+  try withSpan(
+    effect {
+      const sql = try Effect.service(SqlClient.SqlClient)
+      return try decodeTags(
+        try sql`
+      SELECT * FROM tags WHERE linked_prs != '[]' AND expires_at < ${before}
+    `,
+      )
+    },
+    "Tags.dueLinked",
+  )
+
+export const setExpiry = effect (
+  pkg: string,
+  tag: string,
+  expiresAt: number,
+) =>
+  try withSpan(
+    effect {
+      const sql = try Effect.service(SqlClient.SqlClient)
+      try sql`
+    UPDATE tags SET expires_at = ${expiresAt} WHERE package = ${pkg} AND tag = ${tag}
+  `
+    },
+    "Tags.setExpiry",
+  )
+
+/** Delete every expired row and return the tarballs those rows pointed at. */
+export const deleteExpired = effect (now: number) =>
+  try withSpan(
+    effect {
+      const sql = try Effect.service(SqlClient.SqlClient)
+      return try decodeTarballs(
+        try sql`
+      DELETE FROM tags WHERE expires_at < ${now} RETURNING package, sha256
+    `,
+      )
+    },
+    "Tags.deleteExpired",
+  )
+
+/** Every tarball some tag still points at, as `<package>/<sha256>`. */
+export const referencedTarballs = effect () =>
+  try withSpan(
+    effect {
+      const sql = try Effect.service(SqlClient.SqlClient)
+      const rows = try decodeTarballs(try sql`SELECT DISTINCT package, sha256 FROM tags`)
+      return new Set(rows.map((row) => `${row.package}/${row.sha256}`))
+    },
+    "Tags.referencedTarballs",
+  )

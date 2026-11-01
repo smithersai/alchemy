@@ -5,7 +5,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 /** Organization roles supported by Neon; availability depends on the organization. */
 export type OrganizationRole = "admin" | "member" | "editor" | "viewer" | "collaborator";

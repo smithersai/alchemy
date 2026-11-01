@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export type PaymentLinkBillingAddressCollection = "auto" | "required";
 export type PaymentLinkCustomerCreation = "always" | "if_required";
 export type PaymentLinkPaymentMethodCollection = "always" | "if_required";

@@ -20,7 +20,7 @@ import {
   LocalRuntimeState,
   localRuntimeServices,
 } from "../LocalRuntime.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export type ConsumerProps = {
   /**

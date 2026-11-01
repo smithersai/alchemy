@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export interface OrganizationApiKeyProps {
     /** Organization that owns the key. Changes replace the key. */
     orgId: string;

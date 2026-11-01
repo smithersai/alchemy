@@ -24,6 +24,6 @@ export interface CreateExecutionRequest extends Omit<workflowexecutions.CreatePr
  * @binding
  * @category Workflows
  */
-export interface CreateExecution extends Binding.Service<CreateExecution, "GCP.Workflows.CreateExecution", (workflow: Workflow) => Effect.Effect<((request?: CreateExecutionRequest) => Effect.Effect<workflowexecutions.Execution, workflowexecutions.CreateProjectsLocationsWorkflowsExecutionsError, RuntimeContext>)>> {
+export interface CreateExecution extends Binding.Service<CreateExecution, "GCP.Workflows.CreateExecution", (workflow: Workflow) => Effect.Effect<(request?: CreateExecutionRequest) => Effect.Effect<workflowexecutions.Execution, workflowexecutions.CreateProjectsLocationsWorkflowsExecutionsError, RuntimeContext>>> {
 }
 export declare const CreateExecution: CreateExecution;

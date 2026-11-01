@@ -11,7 +11,7 @@ import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import { localAccountId } from "../LocalAccount.ts";
 import { generateLocalId } from "../LocalRuntime.ts";
-import type * as Cloudflare from "../Providers.ts";
+import type * as Cloudflare from "../Providers.vibe";
 import * as Zone from "../Zone/index.ts";
 import { abortMultipartUploads } from "./internal/MultipartUploads.ts";
 

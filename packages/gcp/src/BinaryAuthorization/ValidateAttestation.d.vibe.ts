@@ -31,6 +31,6 @@ export interface ValidateAttestationRequest extends Omit<binaryauthorization.Val
  * @binding
  * @category BinaryAuthorization
  */
-export interface ValidateAttestation extends Binding.Service<ValidateAttestation, "GCP.BinaryAuthorization.ValidateAttestation", (attestor: Attestor) => Effect.Effect<((request: ValidateAttestationRequest) => Effect.Effect<binaryauthorization.ValidateAttestationOccurrenceResponse, binaryauthorization.ValidateAttestationOccurrenceProjectsAttestorsError, RuntimeContext>)>> {
+export interface ValidateAttestation extends Binding.Service<ValidateAttestation, "GCP.BinaryAuthorization.ValidateAttestation", (attestor: Attestor) => Effect.Effect<(request: ValidateAttestationRequest) => Effect.Effect<binaryauthorization.ValidateAttestationOccurrenceResponse, binaryauthorization.ValidateAttestationOccurrenceProjectsAttestorsError, RuntimeContext>>> {
 }
 export declare const ValidateAttestation: ValidateAttestation;

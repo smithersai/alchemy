@@ -25,6 +25,6 @@ export interface GenerateDownloadUrlRequest extends Omit<cloudfunctions.Generate
  * @binding
  * @category CloudFunctions
  */
-export interface GenerateDownloadUrl extends Binding.Service<GenerateDownloadUrl, "GCP.CloudFunctions.GenerateDownloadUrl", (fn: CloudFunction) => Effect.Effect<((request?: GenerateDownloadUrlRequest) => Effect.Effect<cloudfunctions.GenerateDownloadUrlResponse, cloudfunctions.GenerateDownloadUrlProjectsLocationsFunctionsError, RuntimeContext>)>> {
+export interface GenerateDownloadUrl extends Binding.Service<GenerateDownloadUrl, "GCP.CloudFunctions.GenerateDownloadUrl", (fn: CloudFunction) => Effect.Effect<(request?: GenerateDownloadUrlRequest) => Effect.Effect<cloudfunctions.GenerateDownloadUrlResponse, cloudfunctions.GenerateDownloadUrlProjectsLocationsFunctionsError, RuntimeContext>>> {
 }
 export declare const GenerateDownloadUrl: GenerateDownloadUrl;

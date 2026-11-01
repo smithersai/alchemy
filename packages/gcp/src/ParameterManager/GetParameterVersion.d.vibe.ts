@@ -37,6 +37,6 @@ export interface GetParameterVersionRequest {
  * @binding
  * @category ParameterManager
  */
-export interface GetParameterVersion extends Binding.Service<GetParameterVersion, "GCP.ParameterManager.GetParameterVersion", (version: ParametersVersion) => Effect.Effect<((request?: GetParameterVersionRequest) => Effect.Effect<parametermanager.ParameterVersion, parametermanager.GetProjectsLocationsParametersVersionsError, RuntimeContext>)>> {
+export interface GetParameterVersion extends Binding.Service<GetParameterVersion, "GCP.ParameterManager.GetParameterVersion", (version: ParametersVersion) => Effect.Effect<(request?: GetParameterVersionRequest) => Effect.Effect<parametermanager.ParameterVersion, parametermanager.GetProjectsLocationsParametersVersionsError, RuntimeContext>>> {
 }
 export declare const GetParameterVersion: GetParameterVersion;

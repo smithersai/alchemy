@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** High-level Stripe tax type, such as `vat` or `sales_tax`. */
 export type TaxRateTaxType = "amusement_tax" | "communications_tax" | "gst" | "hst" | "igst" | "jct" | "lease_tax" | "pst" | "qst" | "retail_delivery_fee" | "rst" | "sales_tax" | "service_tax" | "vat";
 export interface TaxRateProps {

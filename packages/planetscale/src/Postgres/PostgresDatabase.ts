@@ -15,7 +15,7 @@ import { recordsEqual } from "alchemy/Util/equal";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { BaseDatabaseAttributes, BaseDatabaseProps } from "../Database.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import {
   deleteUnprotectedDatabase,
   PlanetscaleConflict,

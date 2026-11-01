@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import { withBaseUrl, gitHubBaseUrlChanged } from "./BaseUrl.ts";
 import { type Environment, resolveEnvironmentName } from "./Environment.ts";
-import type * as GitHub from "./Providers.ts";
+import type * as GitHub from "./Providers.vibe";
 
 export interface SecretProps {
   /**

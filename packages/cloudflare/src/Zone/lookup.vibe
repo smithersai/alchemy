@@ -1,0 +1,95 @@
+import { Credentials } from "@distilled.cloud/cloudflare/Credentials"
+import * as zones from "@distilled.cloud/cloudflare/zones"
+import * as Effect from "effect/Effect"
+import type * as HttpClient from "effect/http/HttpClient"
+
+export error ZoneLookupInvalidProps {
+  message: string;
+  cause?: unknown;
+}
+
+/**
+ * Reference to an existing Cloudflare Zone. Accepts:
+ *   - a zone id (32 hex characters),
+ *   - a zone name (`example.com`), or
+ *   - a `{ zoneId, name? }` object (e.g. the output of a `Zone` resource or
+ *     {@link importZone}).
+ */
+export type Reference = string | { mutable zoneId: string; mutable name?: string };
+
+export const isId = (zone: string): boolean => /^[a-f0-9]{32}$/i.test(zone);
+
+export const matchesZoneHostname = (zoneName: string, hostname: string): boolean =>
+  hostname === zoneName || hostname.endsWith(`.${zoneName}`);
+
+export const resolveZoneId = effect ({
+  accountId,
+  zone,
+  hostname,
+}: {
+  mutable accountId: string;
+  mutable zone: Reference | undefined;
+  mutable hostname: string;
+}) => {
+    if (typeof zone === "object") return zone.zoneId;
+    if (typeof zone === "string" && isId(zone)) return zone;
+
+    const lookup = zone ?? hostname;
+    for (const candidate of zoneNameCandidates(lookup)) {
+      const match = try findZoneByName({ accountId, name: candidate });
+      if (match) return match.id;
+    }
+    throw new ZoneLookupInvalidProps({
+      message: `Cloudflare zone not found for ${lookup}`,
+    });
+  };
+
+type ZoneListItem = {
+  mutable id: string;
+  mutable name: string;
+  mutable account: { mutable id?: string | null };
+};
+
+export const findZoneByName = effect ({
+  accountId,
+  name,
+}: {
+  mutable accountId: string;
+  mutable name: string;
+}): ZoneListItem | undefined!zones.ListZonesError!Credentials | HttpClient.HttpClient => {
+    // Distilled `listZones` rides `Retry.makeDefault` (5xx / throttling).
+    // The previous raw `fetch` failed the first time Cloudflare answered
+    // `{ success: false, errors: [{ message: "unhandled server error" }] }`.
+    const page = try zones.listZones({
+      account: { id: accountId },
+      name,
+      perPage: 1,
+    });
+    const match = (page.result ?? []).find(
+      (candidate) => candidate.name === name && candidate.account.id === accountId,
+    );
+    if (match === undefined) return undefined;
+    return {
+      id: match.id,
+      name: match.name,
+      account: { id: match.account.id },
+    };
+  };
+
+/**
+ * Exhaustively enumerate every zone in an account. Used by `list()` lifecycle
+ * operations on zone-scoped resources to fan out across all zones. Returns only
+ * the stable `{ id, name }` pair each caller needs to drive a per-zone list.
+ */
+export const listAllZones = effect (
+  accountId: string,
+): { mutable id: string; mutable name: string }[]!zones.ListZonesError!Credentials | HttpClient.HttpClient => Array.from((try (zones.listZones.pages({ account: { id: accountId } })
+  |> Stream.runCollect(%)))).flatMap((page) =>
+        (page.result ?? []).map((zone) => ({ id: zone.id, name: zone.name })),
+      );
+
+/** Hostname plus each parent label, longest first — used to infer a zone. */
+export const zoneNameCandidates = (hostname: string): string[] => {
+  const parts = hostname.split(".");
+  return parts.slice(0, -1).map((_, index) => parts.slice(index).join("."));
+};

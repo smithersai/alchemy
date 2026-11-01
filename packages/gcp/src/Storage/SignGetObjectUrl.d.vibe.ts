@@ -59,7 +59,7 @@ export type SignGetObjectUrlError = SignedUrlFailed | iamcredentials.SignBlobPro
  * @binding
  * @category Storage
  */
-export interface SignGetObjectUrl extends Binding.Service<SignGetObjectUrl, "GCP.Storage.SignGetObjectUrl", (bucket: Bucket) => Effect.Effect<((request: SignGetObjectUrlRequest) => Effect.Effect<string, SignGetObjectUrlError, RuntimeContext>)>> {
+export interface SignGetObjectUrl extends Binding.Service<SignGetObjectUrl, "GCP.Storage.SignGetObjectUrl", (bucket: Bucket) => Effect.Effect<(request: SignGetObjectUrlRequest) => Effect.Effect<string, SignGetObjectUrlError, RuntimeContext>>> {
 }
 export declare const SignGetObjectUrl: SignGetObjectUrl;
 export {};

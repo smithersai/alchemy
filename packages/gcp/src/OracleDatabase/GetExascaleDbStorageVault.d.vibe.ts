@@ -18,6 +18,6 @@ export interface GetExascaleDbStorageVaultRequest extends Omit<oracle.GetProject
  * @binding
  * @category OracleDatabase
  */
-export interface GetExascaleDbStorageVault extends Binding.Service<GetExascaleDbStorageVault, "GCP.OracleDatabase.GetExascaleDbStorageVault", (vault: ExascaleDbStorageVault) => Effect.Effect<((request?: GetExascaleDbStorageVaultRequest) => Effect.Effect<oracle.ExascaleDbStorageVault, oracle.GetProjectsLocationsExascaleDbStorageVaultsError, RuntimeContext>)>> {
+export interface GetExascaleDbStorageVault extends Binding.Service<GetExascaleDbStorageVault, "GCP.OracleDatabase.GetExascaleDbStorageVault", (vault: ExascaleDbStorageVault) => Effect.Effect<(request?: GetExascaleDbStorageVaultRequest) => Effect.Effect<oracle.ExascaleDbStorageVault, oracle.GetProjectsLocationsExascaleDbStorageVaultsError, RuntimeContext>>> {
 }
 export declare const GetExascaleDbStorageVault: GetExascaleDbStorageVault;

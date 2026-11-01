@@ -12,7 +12,7 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import { effectiveGitHubBaseUrl, gitHubBaseUrlChanged } from "./BaseUrl.ts";
 import { Credentials } from "./Credentials.vibe";
-import type * as GitHub from "./Providers.ts";
+import type * as GitHub from "./Providers.vibe";
 
 export interface WikiPageProps {
   /**

@@ -18,6 +18,6 @@ export interface RetrieveWebhookEndpointRequest extends Omit<GetWebhookEndpointR
  * @binding
  * @product Webhook
  */
-export interface RetrieveWebhookEndpoint extends Binding.Service<RetrieveWebhookEndpoint, "Stripe.RetrieveWebhookEndpoint", (webhookEndpoint: WebhookEndpoint) => Effect.Effect<((request?: RetrieveWebhookEndpointRequest) => Effect.Effect<StripeWebhookEndpoint, GetWebhookEndpointError, RuntimeContext>)>> {
+export interface RetrieveWebhookEndpoint extends Binding.Service<RetrieveWebhookEndpoint, "Stripe.RetrieveWebhookEndpoint", (webhookEndpoint: WebhookEndpoint) => Effect.Effect<(request?: RetrieveWebhookEndpointRequest) => Effect.Effect<StripeWebhookEndpoint, GetWebhookEndpointError, RuntimeContext>>> {
 }
 export declare const RetrieveWebhookEndpoint: RetrieveWebhookEndpoint;

@@ -6,7 +6,7 @@ import type { Account } from "./Account.vibe";
 import type { PropagationOptions } from "./Dns.js";
 import { type DnsSolverDescriptor } from "./DnsSolver.js";
 import type { KeyAlgorithm } from "./Pki.js";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export interface CertificateProps {
     /** The {@link Account} that orders the certificate. Changing it replaces. */
     account: Account;

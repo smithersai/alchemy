@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import { dedent } from "alchemy/Util/dedent";
 import * as Effect from "effect/Effect";
 import { gitHubBaseUrlChanged, withBaseUrl } from "./BaseUrl.ts";
-import * as GitHub from "./Providers.ts";
+import * as GitHub from "./Providers.vibe";
 
 export interface CommentProps {
   /**

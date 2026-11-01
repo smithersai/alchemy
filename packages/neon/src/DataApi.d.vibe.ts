@@ -1,7 +1,7 @@
 import * as Neon from "@distilled.cloud/neon";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export type DataApiProps = ({
     /** Branch resource or explicit identity, optionally carrying its selected database. */
     branch: {

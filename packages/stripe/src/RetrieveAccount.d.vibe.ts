@@ -18,6 +18,6 @@ export interface RetrieveAccountRequest extends Omit<GetAccountByAccountRequest,
  * @binding
  * @product Account
  */
-export interface RetrieveAccount extends Binding.Service<RetrieveAccount, "Stripe.RetrieveAccount", (account: Account) => Effect.Effect<((request?: RetrieveAccountRequest) => Effect.Effect<StripeAccount, GetAccountByAccountError, RuntimeContext>)>> {
+export interface RetrieveAccount extends Binding.Service<RetrieveAccount, "Stripe.RetrieveAccount", (account: Account) => Effect.Effect<(request?: RetrieveAccountRequest) => Effect.Effect<StripeAccount, GetAccountByAccountError, RuntimeContext>>> {
 }
 export declare const RetrieveAccount: RetrieveAccount;

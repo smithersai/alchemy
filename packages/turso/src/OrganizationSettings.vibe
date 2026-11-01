@@ -1,0 +1,140 @@
+import * as turso from "@distilled.cloud/turso/turso"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { organization } from "./Credentials.ts"
+import type { Providers } from "./Providers.vibe"
+
+export interface OrganizationSettingsProps {
+  /** Allow usage beyond the plan's quota to be billed as overages. */
+  mutable overages?: boolean;
+  /**
+   * Require every member to enable multi-factor authentication. The
+   * deploying user must have MFA enabled first.
+   */
+  mutable requireMfa?: boolean;
+  /**
+   * Keep deleted databases and groups recoverable. Requires an admin or
+   * owner.
+   */
+  mutable restoreEnabled?: boolean;
+}
+
+interface Settings {
+  mutable overages: boolean;
+  mutable requireMfa: boolean;
+  mutable restoreEnabled: boolean;
+}
+
+export interface OrganizationSettingsAttributes extends Settings {
+  /** The organization slug. */
+  mutable organization: string;
+  /** Settings observed before Alchemy first changed them; restored on destroy. */
+  mutable original: Settings;
+}
+
+export type OrganizationSettings = Resource<
+  "Turso.OrganizationSettings",
+  OrganizationSettingsProps,
+  OrganizationSettingsAttributes,
+  never,
+  Providers
+>;
+
+/**
+ * Settings of the Turso organization your credentials act on. Only the
+ * settings you set are managed; destroying the resource restores the values
+ * observed before Alchemy first changed them.
+ * @see https://docs.turso.tech/api-reference/organizations/update
+ *
+ * ### Configuring the Organization
+ * **Example:** Enable overages and require MFA
+ * ```typescript
+ * yield* Turso.OrganizationSettings("Org", {
+ *   overages: true,
+ *   requireMfa: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @product Organization
+ */
+export const OrganizationSettings = Resource<OrganizationSettings>("Turso.OrganizationSettings");
+
+const toSettings = (org: turso.Organization | undefined): Settings => ({
+  overages: org?.overages ?? false,
+  requireMfa: org?.require_mfa ?? false,
+  restoreEnabled: org?.restore_enabled ?? false,
+});
+
+export const OrganizationSettingsProvider = (): infer _ =>
+  Provider.effect(
+    OrganizationSettings,
+    effect {
+      const observe = effect (slug: string) => try effect { const { organization } = try turso
+          .getOrganization({ organizationSlug: slug })
+return toSettings(organization) };
+
+      // `restore_enabled` must be updated on its own (per the API).
+      const apply = effect (slug: string, observed: Settings, desired: Partial<Settings>) => {
+          const patch: { mutable overages?: boolean; mutable require_mfa?: boolean } = {};
+          if (desired.overages !== undefined && desired.overages !== observed.overages) {
+            patch.overages = desired.overages;
+          }
+          if (desired.requireMfa !== undefined && desired.requireMfa !== observed.requireMfa) {
+            patch.require_mfa = desired.requireMfa;
+          }
+          if (Object.keys(patch).length > 0) {
+            try turso.updateOrganization({ organizationSlug: slug, ...patch });
+          }
+          if (
+            desired.restoreEnabled !== undefined &&
+            desired.restoreEnabled !== observed.restoreEnabled
+          ) {
+            try turso.updateOrganization({
+              organizationSlug: slug,
+              restore_enabled: desired.restoreEnabled,
+            });
+          }
+        };
+
+      return {
+        stables: ["organization", "original"],
+        read: effect ({ output }) => {
+          if (!output) return undefined;
+          return { ...output, ...(try observe(output.organization)) };
+        },
+        reconcile: effect ({ news, output }) => {
+          const slug = output?.organization ?? (try organization);
+          const observed = try observe(slug);
+          try apply(slug, observed, news);
+          // Organization reads can briefly lag a PATCH; wait until the
+          // settings we set are visible.
+          const settled = try (observe(slug)
+  |> Effect.repeat(%, {
+              schedule: Schedule.spaced("1 second"),
+              until: (current) =>
+                (news.overages === undefined || current.overages === news.overages) &&
+                (news.requireMfa === undefined || current.requireMfa === news.requireMfa) &&
+                (news.restoreEnabled === undefined ||
+                  current.restoreEnabled === news.restoreEnabled),
+              times: 10,
+            }));
+          return {
+            organization: slug,
+            original: output?.original ?? observed,
+            ...settled,
+          };
+        },
+        delete: effect ({ olds, output }) => {
+          const observed = try observe(output.organization);
+          // Restore only the settings this resource managed.
+          try apply(output.organization, observed, {
+            overages: olds.overages !== undefined ? output.original.overages : undefined,
+            requireMfa: olds.requireMfa !== undefined ? output.original.requireMfa : undefined,
+            restoreEnabled:
+              olds.restoreEnabled !== undefined ? output.original.restoreEnabled : undefined,
+          });
+        },
+      };
+    },
+  );

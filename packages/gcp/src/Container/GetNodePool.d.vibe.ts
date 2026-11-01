@@ -21,6 +21,6 @@ export interface GetNodePoolRequest extends Omit<container.GetProjectsLocationsC
  * @binding
  * @category Container
  */
-export interface GetNodePool extends Binding.Service<GetNodePool, "GCP.Container.GetNodePool", (nodePool: NodePool) => Effect.Effect<((request?: GetNodePoolRequest) => Effect.Effect<container.NodePool, container.GetProjectsLocationsClustersNodePoolsError, RuntimeContext>)>> {
+export interface GetNodePool extends Binding.Service<GetNodePool, "GCP.Container.GetNodePool", (nodePool: NodePool) => Effect.Effect<(request?: GetNodePoolRequest) => Effect.Effect<container.NodePool, container.GetProjectsLocationsClustersNodePoolsError, RuntimeContext>>> {
 }
 export declare const GetNodePool: GetNodePool;

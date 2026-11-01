@@ -77,7 +77,7 @@ export {
   type ProjectVPCEndpointProps,
   type ProjectVPCEndpointAttributes,
 } from "./ProjectVPCEndpoint.vibe";
-export * from "./Providers.ts";
+export * from "./Providers.vibe";
 export * as Website from "./Website/index.ts";
 export * from "./Function.vibe";
 export * from "./FunctionEnvironment.ts";

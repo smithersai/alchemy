@@ -25,6 +25,6 @@ export interface GenerateAccessTokenRequest extends Omit<workstations.GenerateAc
  * @binding
  * @category Workstations
  */
-export interface GenerateAccessToken extends Binding.Service<GenerateAccessToken, "GCP.Workstations.GenerateAccessToken", (workstation: WorkstationClustersWorkstationConfigsWorkstation) => Effect.Effect<((request?: GenerateAccessTokenRequest) => Effect.Effect<workstations.GenerateAccessTokenResponse, workstations.GenerateAccessTokenProjectsLocationsWorkstationClustersWorkstationConfigsWorkstationsError, RuntimeContext>)>> {
+export interface GenerateAccessToken extends Binding.Service<GenerateAccessToken, "GCP.Workstations.GenerateAccessToken", (workstation: WorkstationClustersWorkstationConfigsWorkstation) => Effect.Effect<(request?: GenerateAccessTokenRequest) => Effect.Effect<workstations.GenerateAccessTokenResponse, workstations.GenerateAccessTokenProjectsLocationsWorkstationClustersWorkstationConfigsWorkstationsError, RuntimeContext>>> {
 }
 export declare const GenerateAccessToken: GenerateAccessToken;

@@ -22,7 +22,7 @@ import type {
   WorkloadImageSource,
 } from "../ClusterAdapter.ts";
 import type { ClusterLike, Connection, ConnectionAuth } from "../Connection.ts";
-import type { ConnectionRegistry } from "./registry.ts";
+import type { ConnectionRegistry } from "./registry.vibe";
 
 /**
  * Structural deep merge: objects merge recursively; arrays and primitives

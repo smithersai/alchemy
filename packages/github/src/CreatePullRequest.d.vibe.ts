@@ -28,6 +28,6 @@ export type CreatePullRequestResponse = Pulls.PullRequest;
  * @binding
  * @product Pull Request
  */
-export interface CreatePullRequest extends Binding.Service<CreatePullRequest, "GitHub.CreatePullRequest", (repo: Repository) => Effect.Effect<((request: CreatePullRequestRequest) => Effect.Effect<CreatePullRequestResponse, Pulls.CreateError, RuntimeContext>)>> {
+export interface CreatePullRequest extends Binding.Service<CreatePullRequest, "GitHub.CreatePullRequest", (repo: Repository) => Effect.Effect<(request: CreatePullRequestRequest) => Effect.Effect<CreatePullRequestResponse, Pulls.CreateError, RuntimeContext>>> {
 }
 export declare const CreatePullRequest: CreatePullRequest;

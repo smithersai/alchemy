@@ -8,7 +8,7 @@ import * as Predicate from "effect/Predicate";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { Bucket } from "./Bucket.ts";
 
 const TypeId = "Cloudflare.R2.DataCatalog" as const;

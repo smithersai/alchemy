@@ -1,0 +1,10 @@
+import * as translate from "@distilled.cloud/gcp/translate_v3";
+import * as Layer from "effect/Layer";
+import { GetAdaptiveMtDataset } from "./GetAdaptiveMtDataset.vibe";
+/**
+ * HTTP implementation of {@link GetAdaptiveMtDataset}.
+ *
+ * @layer
+ * @provides GCP.Translate.GetAdaptiveMtDataset
+ */
+export declare const GetAdaptiveMtDatasetHttp: Layer.Layer<GetAdaptiveMtDataset, never, translate.GcpOpContext>;

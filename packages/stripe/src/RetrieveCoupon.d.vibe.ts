@@ -18,6 +18,6 @@ export interface RetrieveCouponRequest extends Omit<GetCouponRequest, "coupon"> 
  * @binding
  * @product Product
  */
-export interface RetrieveCoupon extends Binding.Service<RetrieveCoupon, "Stripe.RetrieveCoupon", (coupon: Coupon) => Effect.Effect<((request?: RetrieveCouponRequest) => Effect.Effect<StripeCoupon, GetCouponError, RuntimeContext>)>> {
+export interface RetrieveCoupon extends Binding.Service<RetrieveCoupon, "Stripe.RetrieveCoupon", (coupon: Coupon) => Effect.Effect<(request?: RetrieveCouponRequest) => Effect.Effect<StripeCoupon, GetCouponError, RuntimeContext>>> {
 }
 export declare const RetrieveCoupon: RetrieveCoupon;

@@ -22,6 +22,6 @@ export interface GetUserWorkloadsSecretRequest extends Omit<composer.GetProjects
  * @binding
  * @category Composer
  */
-export interface GetUserWorkloadsSecret extends Binding.Service<GetUserWorkloadsSecret, "GCP.Composer.GetUserWorkloadsSecret", (secret: EnvironmentsUserWorkloadsSecret) => Effect.Effect<((request?: GetUserWorkloadsSecretRequest) => Effect.Effect<composer.UserWorkloadsSecret, composer.GetProjectsLocationsEnvironmentsUserWorkloadsSecretsError, RuntimeContext>)>> {
+export interface GetUserWorkloadsSecret extends Binding.Service<GetUserWorkloadsSecret, "GCP.Composer.GetUserWorkloadsSecret", (secret: EnvironmentsUserWorkloadsSecret) => Effect.Effect<(request?: GetUserWorkloadsSecretRequest) => Effect.Effect<composer.UserWorkloadsSecret, composer.GetProjectsLocationsEnvironmentsUserWorkloadsSecretsError, RuntimeContext>>> {
 }
 export declare const GetUserWorkloadsSecret: GetUserWorkloadsSecret;

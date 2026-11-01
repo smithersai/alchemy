@@ -11,7 +11,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { withBaseUrl, gitHubBaseUrlChanged } from "./BaseUrl.ts";
-import type * as GitHub from "./Providers.ts";
+import type * as GitHub from "./Providers.vibe";
 
 export class PullRequestUnexpectedResponse extends Data.TaggedError(
   "PullRequestUnexpectedResponse",

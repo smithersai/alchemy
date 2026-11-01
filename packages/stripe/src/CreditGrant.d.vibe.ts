@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** The type of this amount. Stripe currently only supports monetary credits. */
 export type CreditGrantAmountType = "monetary";
 /** The category of this credit grant. Tracking only — not shown to customers. */

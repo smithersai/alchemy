@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export interface ProductFeatureProps {
     /**
      * Id of the Stripe Product to attach the feature to (`prod_…`).

@@ -1,8 +1,8 @@
 import type { Input } from "alchemy/Input";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { ApiToken } from "./ApiToken.js";
-import type { Dataset } from "./Dataset.js";
+import type { ApiToken } from "./ApiToken.vibe";
+import type { Dataset } from "./Dataset.vibe";
 /**
  * A resource passed to the layer: either the module-scope declaration (an
  * Effect that resolves to the instance, same as what capability bindings

@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** How meter events are aggregated over a billing period. */
 export type BillingMeterAggregationFormula = "count" | "last" | "sum";
 /** The meter's status. Inactive meters reject events and cannot attach to a price. */

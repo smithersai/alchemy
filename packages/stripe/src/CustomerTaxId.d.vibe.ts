@@ -1,7 +1,7 @@
 import { type TaxIdType, type TaxIdVerificationStatus } from "@distilled.cloud/stripe/stripe";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** Stripe tax ID type used when creating a customer tax ID (e.g. `eu_vat`). */
 export type CustomerTaxIdType = Exclude<TaxIdType, "unknown">;
 export interface CustomerTaxIdProps {

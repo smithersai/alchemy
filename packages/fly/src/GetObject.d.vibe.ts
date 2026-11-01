@@ -27,6 +27,6 @@ export interface GetObjectRequest extends Omit<S3.GetObjectRequest, "Bucket"> {
  * @binding
  * @product Bucket
  */
-export interface GetObject extends Binding.Service<GetObject, "Fly.GetObject", (bucket: Bucket) => Effect.Effect<((request: GetObjectRequest) => Effect.Effect<S3.GetObjectOutput, S3.GetObjectError | TigrisCredentialsMissing, RuntimeContext>)>> {
+export interface GetObject extends Binding.Service<GetObject, "Fly.GetObject", (bucket: Bucket) => Effect.Effect<(request: GetObjectRequest) => Effect.Effect<S3.GetObjectOutput, S3.GetObjectError | TigrisCredentialsMissing, RuntimeContext>>> {
 }
 export declare const GetObject: GetObject;

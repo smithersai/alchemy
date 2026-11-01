@@ -2,7 +2,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { Cache } from "./Bindings.ts";
+import { Cache } from "./Bindings.vibe";
 
 /** KV's floor for both `expirationTtl` and `cacheTtl`. */
 const MIN_TTL = Duration.minutes(1);

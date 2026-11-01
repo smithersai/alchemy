@@ -1,0 +1,46 @@
+import * as turso from "@distilled.cloud/turso/turso";
+import * as Provider from "alchemy/Provider";
+import { Resource } from "alchemy/Resource";
+import type { MemberRole } from "./OrganizationInvite.vibe";
+import type { Providers } from "./Providers.vibe";
+export interface OrganizationMemberProps {
+    /** Username of an existing Turso user. Changing it replaces the member. */
+    username: string;
+    /**
+     * Role of the member in the organization.
+     * @default "member"
+     */
+    role?: MemberRole;
+}
+export interface OrganizationMemberAttributes {
+    /** Username of the member. */
+    username: string;
+    /** The organization slug. */
+    organization: string;
+    /** Role of the member. */
+    role: string;
+    /** Email of the member. */
+    email: string | undefined;
+}
+export type OrganizationMember = Resource<"Turso.OrganizationMember", OrganizationMemberProps, OrganizationMemberAttributes, never, Providers>;
+/**
+ * Adds an existing Turso user to your organization with a role, and keeps
+ * that role in sync. Destroying the resource removes the member. Use
+ * {@link OrganizationInvite} for people who don't have a Turso account
+ * yet. Requires a team organization on a paid plan.
+ * @see https://docs.turso.tech/api-reference/organizations/members/add
+ *
+ * ### Managing Members
+ * **Example:** Add a user as a viewer
+ * ```typescript
+ * yield* Turso.OrganizationMember("Bob", {
+ *   username: "bob",
+ *   role: "viewer",
+ * });
+ * ```
+ *
+ * @resource
+ * @product Organization
+ */
+export declare const OrganizationMember: import("alchemy/Resource").ResourceClass<OrganizationMember>;
+export declare const OrganizationMemberProvider: () => import("effect/Layer").Layer<Provider.Provider<OrganizationMember>, never, import("./Credentials.js").Organization | turso.TursoOpContext>;

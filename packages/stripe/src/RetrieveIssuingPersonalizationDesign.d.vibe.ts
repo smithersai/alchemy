@@ -18,6 +18,6 @@ export interface RetrieveIssuingPersonalizationDesignRequest extends Omit<GetIss
  * @binding
  * @product Issuing
  */
-export interface RetrieveIssuingPersonalizationDesign extends Binding.Service<RetrieveIssuingPersonalizationDesign, "Stripe.RetrieveIssuingPersonalizationDesign", (design: IssuingPersonalizationDesign) => Effect.Effect<((request?: RetrieveIssuingPersonalizationDesignRequest) => Effect.Effect<StripeIssuingPersonalizationDesign, GetIssuingPersonalizationDesignError, RuntimeContext>)>> {
+export interface RetrieveIssuingPersonalizationDesign extends Binding.Service<RetrieveIssuingPersonalizationDesign, "Stripe.RetrieveIssuingPersonalizationDesign", (design: IssuingPersonalizationDesign) => Effect.Effect<(request?: RetrieveIssuingPersonalizationDesignRequest) => Effect.Effect<StripeIssuingPersonalizationDesign, GetIssuingPersonalizationDesignError, RuntimeContext>>> {
 }
 export declare const RetrieveIssuingPersonalizationDesign: RetrieveIssuingPersonalizationDesign;

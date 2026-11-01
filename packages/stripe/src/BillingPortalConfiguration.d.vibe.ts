@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export type CustomerUpdateAllowedUpdate = "address" | "email" | "name" | "phone" | "shipping" | "tax_id";
 export type SubscriptionCancelMode = "at_period_end" | "immediately";
 export type SubscriptionCancelProrationBehavior = "always_invoice" | "create_prorations" | "none";

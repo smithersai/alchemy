@@ -21,6 +21,6 @@ export interface GetBackupRequest extends Omit<alloydb.GetProjectsLocationsBacku
  * @binding
  * @category AlloyDB
  */
-export interface GetBackup extends Binding.Service<GetBackup, "GCP.AlloyDB.GetBackup", (backup: Backup) => Effect.Effect<((request?: GetBackupRequest) => Effect.Effect<alloydb.Backup, alloydb.GetProjectsLocationsBackupsError, RuntimeContext>)>> {
+export interface GetBackup extends Binding.Service<GetBackup, "GCP.AlloyDB.GetBackup", (backup: Backup) => Effect.Effect<(request?: GetBackupRequest) => Effect.Effect<alloydb.Backup, alloydb.GetProjectsLocationsBackupsError, RuntimeContext>>> {
 }
 export declare const GetBackup: GetBackup;

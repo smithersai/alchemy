@@ -21,6 +21,6 @@ export interface GetInstanceRequest extends Omit<memcache.GetProjectsLocationsIn
  * @binding
  * @category Memcache
  */
-export interface GetInstance extends Binding.Service<GetInstance, "GCP.Memcache.GetInstance", (instance: Instance) => Effect.Effect<((request?: GetInstanceRequest) => Effect.Effect<memcache.Instance, memcache.GetProjectsLocationsInstancesError, RuntimeContext>)>> {
+export interface GetInstance extends Binding.Service<GetInstance, "GCP.Memcache.GetInstance", (instance: Instance) => Effect.Effect<(request?: GetInstanceRequest) => Effect.Effect<memcache.Instance, memcache.GetProjectsLocationsInstancesError, RuntimeContext>>> {
 }
 export declare const GetInstance: GetInstance;

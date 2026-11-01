@@ -2,7 +2,7 @@ import type { WebhookEvents } from "@distilled.cloud/github/webhooks";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /**
  * A reference to the GitHub repository whose events you want to receive.
  */

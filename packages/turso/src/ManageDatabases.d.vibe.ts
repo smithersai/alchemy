@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { ConnectClient } from "./Connect.js";
 import type { DatabaseSeed } from "./Database.js";
-import type { Group } from "./Group.js";
+import type { Group } from "./Group.vibe";
 /** A database in the managed group. */
 export interface ManagedDatabase {
     /** Database name. */

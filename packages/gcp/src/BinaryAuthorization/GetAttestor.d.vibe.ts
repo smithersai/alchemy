@@ -21,6 +21,6 @@ export interface GetAttestorRequest extends Omit<binaryauthorization.GetProjects
  * @binding
  * @category BinaryAuthorization
  */
-export interface GetAttestor extends Binding.Service<GetAttestor, "GCP.BinaryAuthorization.GetAttestor", (attestor: Attestor) => Effect.Effect<((request?: GetAttestorRequest) => Effect.Effect<binaryauthorization.Attestor, binaryauthorization.GetProjectsAttestorsError, RuntimeContext>)>> {
+export interface GetAttestor extends Binding.Service<GetAttestor, "GCP.BinaryAuthorization.GetAttestor", (attestor: Attestor) => Effect.Effect<(request?: GetAttestorRequest) => Effect.Effect<binaryauthorization.Attestor, binaryauthorization.GetProjectsAttestorsError, RuntimeContext>>> {
 }
 export declare const GetAttestor: GetAttestor;

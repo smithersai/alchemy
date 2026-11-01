@@ -37,7 +37,7 @@ export { ServicePortConflict } from "./ports.vibe";
 export * from "./Postgres.ts";
 export * from "./ConnectPostgres.vibe";
 export * from "./ConnectPostgresHttp.vibe";
-export * from "./Providers.ts";
+export * from "./Providers.vibe";
 export * from "./PutObject.vibe";
 export * from "./PutObjectHttp.vibe";
 export * from "./ReadRedis.vibe";

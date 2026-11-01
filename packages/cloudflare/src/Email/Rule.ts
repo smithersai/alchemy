@@ -8,9 +8,9 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { resolveZoneId, type Reference } from "../Zone/index.ts";
-import { listAllZones } from "../Zone/lookup.ts";
+import { listAllZones } from "../Zone/lookup.vibe";
 import { retryWorkerScriptNotFound } from "./retry.vibe";
 
 export type Matcher = { type: "all" } | { type: "literal"; field: "to"; value: string };

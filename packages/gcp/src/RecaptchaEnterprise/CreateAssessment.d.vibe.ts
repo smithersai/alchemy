@@ -31,6 +31,6 @@ export interface CreateAssessmentRequest extends Omit<recaptchaenterprise.Create
  * @binding
  * @category RecaptchaEnterprise
  */
-export interface CreateAssessment extends Binding.Service<CreateAssessment, "GCP.RecaptchaEnterprise.CreateAssessment", (key: Key) => Effect.Effect<((request?: CreateAssessmentRequest) => Effect.Effect<recaptchaenterprise.GoogleCloudRecaptchaenterpriseV1Assessment, recaptchaenterprise.CreateProjectsAssessmentsError, RuntimeContext>)>> {
+export interface CreateAssessment extends Binding.Service<CreateAssessment, "GCP.RecaptchaEnterprise.CreateAssessment", (key: Key) => Effect.Effect<(request?: CreateAssessmentRequest) => Effect.Effect<recaptchaenterprise.GoogleCloudRecaptchaenterpriseV1Assessment, recaptchaenterprise.CreateProjectsAssessmentsError, RuntimeContext>>> {
 }
 export declare const CreateAssessment: CreateAssessment;

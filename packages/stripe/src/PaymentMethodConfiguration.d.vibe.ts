@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** Account preference for whether a payment method is displayed. */
 export type PaymentMethodPreference = "none" | "off" | "on";
 /** Effective display value after parent/override resolution. */

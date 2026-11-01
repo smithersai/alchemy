@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import { App } from "./App.vibe";
 import { type MachineCheck, type MachineDeploy, type MachineShutdown } from "./Deployment.js";
 import type { DiskSpec, MountedDisk, ServiceBinding } from "./MountVolume.vibe";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 import { type Replica } from "./replicas.js";
 export type { Replica };
 /**

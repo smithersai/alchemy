@@ -2,7 +2,7 @@ import * as Neon from "@distilled.cloud/neon";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export interface ProjectVPCEndpointProps {
     /** Project to restrict. Changing the project replaces the association, cleaning up the old scope first. */
     project: {

@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
 import * as Result from "effect/Result";
 import { Credentials, config } from "./Credentials.vibe";
-import type * as GitHub from "./Providers.ts";
+import type * as GitHub from "./Providers.vibe";
 
 export interface PersonalAccessTokenProps {
   /**

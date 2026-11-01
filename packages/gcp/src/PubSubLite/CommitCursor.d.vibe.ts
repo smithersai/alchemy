@@ -26,6 +26,6 @@ export interface CommitCursorRequest extends Omit<pubsublite.CommitCursorCursorP
  * @binding
  * @category PubSubLite
  */
-export interface CommitCursor extends Binding.Service<CommitCursor, "GCP.PubSubLite.CommitCursor", (subscription: AdminSubscription) => Effect.Effect<((request?: CommitCursorRequest) => Effect.Effect<pubsublite.CommitCursorResponse, pubsublite.CommitCursorCursorProjectsLocationsSubscriptionsError, RuntimeContext>)>> {
+export interface CommitCursor extends Binding.Service<CommitCursor, "GCP.PubSubLite.CommitCursor", (subscription: AdminSubscription) => Effect.Effect<(request?: CommitCursorRequest) => Effect.Effect<pubsublite.CommitCursorResponse, pubsublite.CommitCursorCursorProjectsLocationsSubscriptionsError, RuntimeContext>>> {
 }
 export declare const CommitCursor: CommitCursor;

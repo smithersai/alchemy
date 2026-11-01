@@ -21,6 +21,6 @@ export interface GetInstanceRequest extends Omit<spanner.GetProjectsInstancesReq
  * @binding
  * @category Spanner
  */
-export interface GetInstance extends Binding.Service<GetInstance, "GCP.Spanner.GetInstance", (instance: Instance) => Effect.Effect<((request?: GetInstanceRequest) => Effect.Effect<spanner.Instance, spanner.GetProjectsInstancesError, RuntimeContext>)>> {
+export interface GetInstance extends Binding.Service<GetInstance, "GCP.Spanner.GetInstance", (instance: Instance) => Effect.Effect<(request?: GetInstanceRequest) => Effect.Effect<spanner.Instance, spanner.GetProjectsInstancesError, RuntimeContext>>> {
 }
 export declare const GetInstance: GetInstance;

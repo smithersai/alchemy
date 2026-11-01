@@ -8,8 +8,8 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
-import { listAllZones } from "../Zone/lookup.ts";
+import type { Providers } from "../Providers.vibe";
+import { listAllZones } from "../Zone/lookup.vibe";
 
 export class RecordUnexpectedResponse extends Data.TaggedError("RecordUnexpectedResponse")<{
   readonly message: string;

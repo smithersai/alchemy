@@ -31,6 +31,6 @@ export interface CreateJobRequest extends Omit<transcoder.CreateProjectsLocation
  * @binding
  * @category Transcoder
  */
-export interface CreateJob extends Binding.Service<CreateJob, "GCP.Transcoder.CreateJob", (template: JobTemplate) => Effect.Effect<((request?: CreateJobRequest) => Effect.Effect<transcoder.Job, transcoder.CreateProjectsLocationsJobsError, RuntimeContext>)>> {
+export interface CreateJob extends Binding.Service<CreateJob, "GCP.Transcoder.CreateJob", (template: JobTemplate) => Effect.Effect<(request?: CreateJobRequest) => Effect.Effect<transcoder.Job, transcoder.CreateProjectsLocationsJobsError, RuntimeContext>>> {
 }
 export declare const CreateJob: CreateJob;

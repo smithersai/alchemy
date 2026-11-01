@@ -2,7 +2,7 @@ import * as Hetzner from "@distilled.cloud/hetzner";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /**
  * Resource-valued prop. The engine resolves `Effect`s (including other
  * Resources) before lifecycle operations see the value.

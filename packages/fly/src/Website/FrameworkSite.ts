@@ -22,7 +22,7 @@ import { App } from "../App.vibe";
 import { Bucket } from "../Bucket.ts";
 import { Certificate, type CertificateDnsRequirements } from "../Certificate.vibe";
 import { IpAssignment } from "../IpAssignment.vibe";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { Service, type ServiceProps } from "../Service.vibe";
 import { AssetDeployment } from "./AssetDeployment.ts";
 

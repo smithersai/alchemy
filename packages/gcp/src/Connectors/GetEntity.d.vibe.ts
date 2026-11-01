@@ -21,6 +21,6 @@ export interface GetEntityRequest extends Omit<connectors.GetProjectsLocationsCo
  * @binding
  * @category Connectors
  */
-export interface GetEntity extends Binding.Service<GetEntity, "GCP.Connectors.GetEntity", (entity: ConnectionsEntityTypesEntity) => Effect.Effect<((request?: GetEntityRequest) => Effect.Effect<connectors.Entity, connectors.GetProjectsLocationsConnectionsEntityTypesEntitiesError, RuntimeContext>)>> {
+export interface GetEntity extends Binding.Service<GetEntity, "GCP.Connectors.GetEntity", (entity: ConnectionsEntityTypesEntity) => Effect.Effect<(request?: GetEntityRequest) => Effect.Effect<connectors.Entity, connectors.GetProjectsLocationsConnectionsEntityTypesEntitiesError, RuntimeContext>>> {
 }
 export declare const GetEntity: GetEntity;

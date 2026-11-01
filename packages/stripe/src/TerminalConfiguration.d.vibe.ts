@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** Fixed amounts / percentages shown when collecting an on-reader tip. */
 export interface TerminalTippingCurrency {
     /**

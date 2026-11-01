@@ -13,7 +13,7 @@ import { type MachineDeploy, type MachineShutdown, type MachineCheck } from "./D
 import { type FlyBuildOptions, type FlyHostRuntimeContext } from "./hosted.js";
 import type { MachineGuest, MachineImageRef, MachineService } from "./Machine.vibe";
 import type { MountedDisk, ServiceBinding } from "./MountVolume.vibe";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 import { type Region } from "./Region.js";
 import { type Replica } from "./replicas.js";
 /**

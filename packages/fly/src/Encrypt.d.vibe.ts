@@ -43,6 +43,6 @@ export interface EncryptResult {
  * @binding
  * @product Secret Key
  */
-export interface Encrypt extends Binding.Service<Encrypt, "Fly.Encrypt", (key: SecretKey) => Effect.Effect<((request: EncryptRequest) => Effect.Effect<EncryptResult, EncryptSecretKeyError, RuntimeContext>)>> {
+export interface Encrypt extends Binding.Service<Encrypt, "Fly.Encrypt", (key: SecretKey) => Effect.Effect<(request: EncryptRequest) => Effect.Effect<EncryptResult, EncryptSecretKeyError, RuntimeContext>>> {
 }
 export declare const Encrypt: Encrypt;

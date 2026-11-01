@@ -2093,7 +2093,7 @@ import {
 import { RestartAutonomousDatabaseHttp } from "./OracleDatabase/RestartAutonomousDatabaseHttp.vibe";
 import { StartAutonomousDatabaseHttp } from "./OracleDatabase/StartAutonomousDatabaseHttp.vibe";
 import { StopAutonomousDatabaseHttp } from "./OracleDatabase/StopAutonomousDatabaseHttp.vibe";
-import { CustomConstraint, CustomConstraintProvider } from "./OrgPolicy/CustomConstraint.ts";
+import { CustomConstraint, CustomConstraintProvider } from "./OrgPolicy/CustomConstraint.vibe";
 import { Policy, PolicyProvider } from "./OrgPolicy/Policy.ts";
 import {
   FoldersLocationsGlobalPolicyOrchestrator,
@@ -2515,10 +2515,10 @@ import {
 import { CreateJobHttp } from "./Transcoder/CreateJobHttp.vibe";
 import { JobTemplate, JobTemplateProvider } from "./Transcoder/JobTemplate.vibe";
 import { AdaptiveMtDataset, AdaptiveMtDatasetProvider } from "./Translate/AdaptiveMtDataset.vibe";
-import { AdaptiveMtTranslateHttp } from "./Translate/AdaptiveMtTranslateHttp.ts";
-import { GetAdaptiveMtDatasetHttp } from "./Translate/GetAdaptiveMtDatasetHttp.ts";
-import { GetGlossariesGlossaryEntryHttp } from "./Translate/GetGlossariesGlossaryEntryHttp.ts";
-import { GetModelHttp as TranslateGetModelHttp } from "./Translate/GetModelHttp.ts";
+import { AdaptiveMtTranslateHttp } from "./Translate/AdaptiveMtTranslateHttp.vibe";
+import { GetAdaptiveMtDatasetHttp } from "./Translate/GetAdaptiveMtDatasetHttp.vibe";
+import { GetGlossariesGlossaryEntryHttp } from "./Translate/GetGlossariesGlossaryEntryHttp.vibe";
+import { GetModelHttp as TranslateGetModelHttp } from "./Translate/GetModelHttp.vibe";
 import {
   GlossariesGlossaryEntry,
   GlossariesGlossaryEntryProvider,
@@ -2527,7 +2527,7 @@ import {
   Model as TranslateModel,
   ModelProvider as TranslateModelProvider,
 } from "./Translate/Model.vibe";
-import { TranslateTextHttp } from "./Translate/TranslateTextHttp.ts";
+import { TranslateTextHttp } from "./Translate/TranslateTextHttp.vibe";
 import { Matter, MatterProvider } from "./Vault/Matter.vibe";
 import { MattersExport, MattersExportProvider } from "./Vault/MattersExport.vibe";
 import { MattersHold, MattersHoldProvider } from "./Vault/MattersHold.vibe";

@@ -5,7 +5,7 @@ import { type BindingIam } from "../HttpBinding.js";
 import type { Environment } from "./Environment.js";
 import type { EnvironmentsUserWorkloadsConfigMap } from "./EnvironmentsUserWorkloadsConfigMap.js";
 import type { EnvironmentsUserWorkloadsSecret } from "./EnvironmentsUserWorkloadsSecret.js";
-type GcpHttpOp<I, A, E> = Effect.Effect<((input: I) => Effect.Effect<A, E>), never, GcpOpContext> & ((input: I) => Effect.Effect<A, E, GcpOpContext>);
+type GcpHttpOp<I, A, E> = Effect.Effect<(input: I) => Effect.Effect<A, E>, never, GcpOpContext> & ((input: I) => Effect.Effect<A, E, GcpOpContext>);
 type NamedResource = {
     readonly name: Output<string, never>;
     readonly LogicalId: string;

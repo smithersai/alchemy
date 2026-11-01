@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export interface ApplePayDomainProps {
     /**
      * Fully-qualified hostname to register with Apple Pay (e.g.

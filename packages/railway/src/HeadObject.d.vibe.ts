@@ -23,6 +23,6 @@ export interface HeadObjectRequest extends Omit<S3.HeadObjectRequest, "Bucket"> 
  * @binding
  * @product Bucket
  */
-export interface HeadObject extends Binding.Service<HeadObject, "Railway.HeadObject", (bucket: Bucket) => Effect.Effect<((request?: HeadObjectRequest) => Effect.Effect<S3.HeadObjectOutput, S3.HeadObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>)>> {
+export interface HeadObject extends Binding.Service<HeadObject, "Railway.HeadObject", (bucket: Bucket) => Effect.Effect<(request?: HeadObjectRequest) => Effect.Effect<S3.HeadObjectOutput, S3.HeadObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>>> {
 }
 export declare const HeadObject: HeadObject;

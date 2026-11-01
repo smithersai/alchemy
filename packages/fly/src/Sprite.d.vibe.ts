@@ -5,7 +5,7 @@ import type { Resource } from "alchemy/Resource";
 import type { ServerHost } from "alchemy/Runtime/Process";
 import { Stack } from "alchemy/Stack";
 import { type FlyHostRuntimeContext } from "./hosted.js";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export type UrlAuth = "public" | "sprite";
 export type SpriteStatus = "cold" | "warm" | "running";
 export interface SpriteProps extends PlatformProps {

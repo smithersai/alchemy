@@ -1,7 +1,7 @@
 import * as Hetzner from "@distilled.cloud/hetzner";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export type PrimaryIpType = "ipv4" | "ipv6";
 export interface PrimaryIpProps {
     /**

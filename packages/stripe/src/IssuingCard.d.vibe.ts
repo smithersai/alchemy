@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** Whether authorizations can be approved on this card. */
 export type IssuingCardStatus = "active" | "canceled" | "inactive";
 /** The type of Issuing card. Create-only — changing it replaces the card. */

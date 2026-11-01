@@ -10,8 +10,8 @@ import * as Effect from "effect/Effect";
 import * as Equivalence from "effect/Equivalence";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
-import { findZoneByName } from "./lookup.ts";
+import type { Providers } from "../Providers.vibe";
+import { findZoneByName } from "./lookup.vibe";
 
 export class ZoneUnexpectedResponse extends Data.TaggedError("ZoneUnexpectedResponse")<{
   readonly message: string;

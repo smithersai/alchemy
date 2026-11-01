@@ -26,6 +26,6 @@ export interface FetchGitRefsRequest extends Omit<cloudbuild.FetchGitRefsProject
  * @binding
  * @category CloudBuild
  */
-export interface FetchGitRefs extends Binding.Service<FetchGitRefs, "GCP.CloudBuild.FetchGitRefs", (repository: Repository) => Effect.Effect<((request?: FetchGitRefsRequest) => Effect.Effect<cloudbuild.FetchGitRefsResponse, cloudbuild.FetchGitRefsProjectsLocationsConnectionsRepositoriesError, RuntimeContext>)>> {
+export interface FetchGitRefs extends Binding.Service<FetchGitRefs, "GCP.CloudBuild.FetchGitRefs", (repository: Repository) => Effect.Effect<(request?: FetchGitRefsRequest) => Effect.Effect<cloudbuild.FetchGitRefsResponse, cloudbuild.FetchGitRefsProjectsLocationsConnectionsRepositoriesError, RuntimeContext>>> {
 }
 export declare const FetchGitRefs: FetchGitRefs;

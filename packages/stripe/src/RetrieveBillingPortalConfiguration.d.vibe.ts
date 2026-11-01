@@ -18,6 +18,6 @@ export interface RetrieveBillingPortalConfigurationRequest extends Omit<GetBilli
  * @binding
  * @product Billing
  */
-export interface RetrieveBillingPortalConfiguration extends Binding.Service<RetrieveBillingPortalConfiguration, "Stripe.RetrieveBillingPortalConfiguration", (configuration: BillingPortalConfiguration) => Effect.Effect<((request?: RetrieveBillingPortalConfigurationRequest) => Effect.Effect<StripeBillingPortalConfiguration, GetBillingPortalConfigurationError, RuntimeContext>)>> {
+export interface RetrieveBillingPortalConfiguration extends Binding.Service<RetrieveBillingPortalConfiguration, "Stripe.RetrieveBillingPortalConfiguration", (configuration: BillingPortalConfiguration) => Effect.Effect<(request?: RetrieveBillingPortalConfigurationRequest) => Effect.Effect<StripeBillingPortalConfiguration, GetBillingPortalConfigurationError, RuntimeContext>>> {
 }
 export declare const RetrieveBillingPortalConfiguration: RetrieveBillingPortalConfiguration;

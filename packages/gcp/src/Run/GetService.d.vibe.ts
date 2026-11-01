@@ -21,6 +21,6 @@ export interface GetServiceRequest extends Omit<cloudrun.GetProjectsLocationsSer
  * @binding
  * @category Run
  */
-export interface GetService extends Binding.Service<GetService, "GCP.Run.GetService", (service: Service) => Effect.Effect<((request?: GetServiceRequest) => Effect.Effect<cloudrun.GoogleCloudRunV2Service, cloudrun.GetProjectsLocationsServicesError, RuntimeContext>)>> {
+export interface GetService extends Binding.Service<GetService, "GCP.Run.GetService", (service: Service) => Effect.Effect<(request?: GetServiceRequest) => Effect.Effect<cloudrun.GoogleCloudRunV2Service, cloudrun.GetProjectsLocationsServicesError, RuntimeContext>>> {
 }
 export declare const GetService: GetService;

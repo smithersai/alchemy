@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
 import { InvalidBranchScope, type BranchScope } from "./BranchScope.js";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** Unspecified settings are preserved. Removing previously managed settings requires an explicit reset value. */
 export type AuthProps = BranchScope & {
     /** Database containing neon_auth. Omission preserves the existing database; changing its identity replaces the integration. */

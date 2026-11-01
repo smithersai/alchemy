@@ -4,8 +4,8 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
-import { listAllZones } from "./lookup.ts";
+import type { Providers } from "../Providers.vibe";
+import { listAllZones } from "./lookup.vibe";
 
 const TypeId = "Cloudflare.Zone.Setting" as const;
 type TypeId = typeof TypeId;

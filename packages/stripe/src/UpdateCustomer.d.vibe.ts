@@ -18,6 +18,6 @@ export interface UpdateCustomerRequest extends Omit<DistilledUpdateCustomerReque
  * @binding
  * @product Customer
  */
-export interface UpdateCustomer extends Binding.Service<UpdateCustomer, "Stripe.UpdateCustomer", (customer: Customer) => Effect.Effect<((request?: UpdateCustomerRequest) => Effect.Effect<StripeCustomer, UpdateCustomerError, RuntimeContext>)>> {
+export interface UpdateCustomer extends Binding.Service<UpdateCustomer, "Stripe.UpdateCustomer", (customer: Customer) => Effect.Effect<(request?: UpdateCustomerRequest) => Effect.Effect<StripeCustomer, UpdateCustomerError, RuntimeContext>>> {
 }
 export declare const UpdateCustomer: UpdateCustomer;

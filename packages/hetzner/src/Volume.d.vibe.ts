@@ -2,7 +2,7 @@ import * as Hetzner from "@distilled.cloud/hetzner";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export type VolumeFormat = "ext4" | "xfs";
 export type VolumeStatus = "available" | "creating";
 /**

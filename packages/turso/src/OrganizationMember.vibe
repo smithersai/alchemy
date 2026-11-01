@@ -1,0 +1,116 @@
+import * as turso from "@distilled.cloud/turso/turso"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { organization } from "./Credentials.ts"
+import type { MemberRole } from "./OrganizationInvite.vibe"
+import type { Providers } from "./Providers.vibe"
+
+export interface OrganizationMemberProps {
+  /** Username of an existing Turso user. Changing it replaces the member. */
+  mutable username: string;
+  /**
+   * Role of the member in the organization.
+   * @default "member"
+   */
+  mutable role?: MemberRole;
+}
+
+export interface OrganizationMemberAttributes {
+  /** Username of the member. */
+  mutable username: string;
+  /** The organization slug. */
+  mutable organization: string;
+  /** Role of the member. */
+  mutable role: string;
+  /** Email of the member. */
+  mutable email: string | undefined;
+}
+
+export type OrganizationMember = Resource<
+  "Turso.OrganizationMember",
+  OrganizationMemberProps,
+  OrganizationMemberAttributes,
+  never,
+  Providers
+>;
+
+/**
+ * Adds an existing Turso user to your organization with a role, and keeps
+ * that role in sync. Destroying the resource removes the member. Use
+ * {@link OrganizationInvite} for people who don't have a Turso account
+ * yet. Requires a team organization on a paid plan.
+ * @see https://docs.turso.tech/api-reference/organizations/members/add
+ *
+ * ### Managing Members
+ * **Example:** Add a user as a viewer
+ * ```typescript
+ * yield* Turso.OrganizationMember("Bob", {
+ *   username: "bob",
+ *   role: "viewer",
+ * });
+ * ```
+ *
+ * @resource
+ * @product Organization
+ */
+export const OrganizationMember = Resource<OrganizationMember>("Turso.OrganizationMember");
+
+export const OrganizationMemberProvider = (): infer _ =>
+  Provider.effect(
+    OrganizationMember,
+    effect {
+      const observe = effect (org: string, username: string) => (try effect { const { member } = try turso.getOrganizationMember({ organizationSlug: org, username })
+return member }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; };
+
+      return {
+        stables: ["username", "organization"],
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return undefined;
+          if (news.username !== olds?.username) return { action: "replace" } as const;
+        },
+        read: effect ({ olds, output }) => {
+          const org = output?.organization ?? (try organization);
+          const member = try observe(org, output?.username ?? olds.username);
+          if (!member?.username) return undefined;
+          return {
+            username: member.username,
+            organization: org,
+            role: member.role ?? "member",
+            email: member.email,
+          };
+        },
+        reconcile: effect ({ news, output }) => {
+          const org = output?.organization ?? (try organization);
+          const role = news.role ?? "member";
+
+          // Observe
+          let member = try observe(org, news.username);
+
+          // Ensure
+          if (!member) {
+            turso
+              .addOrganizationMember({ organizationSlug: org, username: news.username, role }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.void; default: throw e; };
+            member = try observe(org, news.username);
+          }
+
+          // Sync role
+          if (member?.role !== role) {
+            try turso.updateMemberRole({
+              organizationSlug: org,
+              username: news.username,
+              role,
+            });
+          }
+          return { username: news.username, organization: org, role, email: member?.email };
+        },
+        delete: effect ({ output }) => {
+          turso
+            .removeOrganizationMember({
+              organizationSlug: output.organization,
+              username: output.username,
+            }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; };
+        },
+      };
+    },
+  );

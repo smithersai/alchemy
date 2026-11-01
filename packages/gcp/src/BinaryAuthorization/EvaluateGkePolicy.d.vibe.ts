@@ -29,6 +29,6 @@ export interface EvaluateGkePolicyRequest extends Omit<binaryauthorization.Evalu
  * @binding
  * @category BinaryAuthorization
  */
-export interface EvaluateGkePolicy extends Binding.Service<EvaluateGkePolicy, "GCP.BinaryAuthorization.EvaluateGkePolicy", (policy: PlatformsPolicy) => Effect.Effect<((request: EvaluateGkePolicyRequest) => Effect.Effect<binaryauthorization.EvaluateGkePolicyResponse, binaryauthorization.EvaluateProjectsPlatformsGkePoliciesError, RuntimeContext>)>> {
+export interface EvaluateGkePolicy extends Binding.Service<EvaluateGkePolicy, "GCP.BinaryAuthorization.EvaluateGkePolicy", (policy: PlatformsPolicy) => Effect.Effect<(request: EvaluateGkePolicyRequest) => Effect.Effect<binaryauthorization.EvaluateGkePolicyResponse, binaryauthorization.EvaluateProjectsPlatformsGkePoliciesError, RuntimeContext>>> {
 }
 export declare const EvaluateGkePolicy: EvaluateGkePolicy;

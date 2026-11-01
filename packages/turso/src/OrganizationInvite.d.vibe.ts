@@ -1,0 +1,45 @@
+import * as turso from "@distilled.cloud/turso/turso";
+import * as Provider from "alchemy/Provider";
+import { Resource } from "alchemy/Resource";
+import type { Providers } from "./Providers.vibe";
+/** Role granted to an invited or added organization member. */
+export type MemberRole = "admin" | "member" | "viewer";
+export interface OrganizationInviteProps {
+    /** Email address to invite. Changing it replaces the invite. */
+    email: string;
+    /**
+     * Role the invitee receives on accepting.
+     * @default "member"
+     */
+    role?: MemberRole;
+}
+export interface OrganizationInviteAttributes {
+    /** The invited email address. */
+    email: string;
+    /** The organization slug the invite is for. */
+    organization: string;
+    /** Role the invitee receives on accepting. */
+    role: string;
+}
+export type OrganizationInvite = Resource<"Turso.OrganizationInvite", OrganizationInviteProps, OrganizationInviteAttributes, never, Providers>;
+/**
+ * An invitation for someone to join your Turso organization by email.
+ * Changing `role` re-sends the invite with the new role; destroying the
+ * resource withdraws a pending invite. Requires a team organization on a
+ * paid plan — the Starter plan rejects invites with `BadRequest`.
+ * @see https://docs.turso.tech/api-reference/organizations/invites/create
+ *
+ * ### Inviting Members
+ * **Example:** Invite a teammate as an admin
+ * ```typescript
+ * yield* Turso.OrganizationInvite("Alice", {
+ *   email: "alice@example.com",
+ *   role: "admin",
+ * });
+ * ```
+ *
+ * @resource
+ * @product Organization
+ */
+export declare const OrganizationInvite: import("alchemy/Resource").ResourceClass<OrganizationInvite>;
+export declare const OrganizationInviteProvider: () => import("effect/Layer").Layer<Provider.Provider<OrganizationInvite>, never, import("./Credentials.js").Organization | turso.TursoOpContext>;

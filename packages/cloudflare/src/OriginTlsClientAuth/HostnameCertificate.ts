@@ -8,8 +8,8 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
-import { listAllZones } from "../Zone/lookup.ts";
+import type { Providers } from "../Providers.vibe";
+import { listAllZones } from "../Zone/lookup.vibe";
 
 const TypeId = "Cloudflare.OriginTlsClientAuth.HostnameCertificate" as const;
 type TypeId = typeof TypeId;

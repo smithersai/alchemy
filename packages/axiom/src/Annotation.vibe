@@ -1,0 +1,123 @@
+import * as Axiom from "@distilled.cloud/axiom"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "./Providers.vibe"
+
+export type AnnotationProps = Axiom.CreateAnnotationRequest
+
+export type Annotation = Resource<
+  "Axiom.Annotation",
+  AnnotationProps,
+  Axiom.Annotation,
+  never,
+  Providers
+>
+
+/**
+ * An Axiom annotation — a vertical marker overlaid on charts to flag a
+ * deploy, incident, feature flag flip, or any other point/range event you
+ * want correlated with telemetry.
+ *
+ * Annotations are scoped to one or more `datasets`. Use a single `time` for
+ * a point marker or `time` + `endTime` for a range. The `type` (e.g.
+ * `"deploy"`, `"incident"`) groups markers visually in the UI.
+ *
+ * Although typically created at deploy/release time (out-of-band of
+ * regular IaC), modelling them as resources makes per-environment
+ * annotation history reproducible.
+ * @see https://axiom.co/docs/query-data/annotate-charts
+ *
+ * ### Creating an Annotation
+ * **Example:** Point-in-time deploy marker
+ * ```typescript
+ * yield* Axiom.Annotation("deploy-1.2.3", {
+ *   type: "deploy",
+ *   title: "Release 1.2.3",
+ *   description: "https://github.com/acme/app/releases/tag/v1.2.3",
+ *   datasets: ["my-app-traces", "my-app-logs"],
+ *   time: new Date().toISOString(),
+ *   url: "https://github.com/acme/app/releases/tag/v1.2.3",
+ * });
+ * ```
+ *
+ * **Example:** Incident time-range
+ * ```typescript
+ * yield* Axiom.Annotation("inc-2026-04-27", {
+ *   type: "incident",
+ *   title: "Database failover",
+ *   datasets: ["my-app-traces"],
+ *   time:    "2026-04-27T18:05:00Z",
+ *   endTime: "2026-04-27T18:32:00Z",
+ *   url: "https://incident.io/incidents/abc123",
+ * });
+ * ```
+ *
+ * @resource
+ * @product Dataset
+ */
+export const Annotation = Resource<Annotation>("Axiom.Annotation")
+
+export const AnnotationProvider = (): infer _ =>
+  Provider.effect(
+    Annotation,
+    effect {
+      const create = try Axiom.createAnnotation
+      const update = try Axiom.updateAnnotation
+      const get = try Axiom.getAnnotation
+      const del = try Axiom.deleteAnnotation
+      const listAnnotations = try Axiom.getAnnotations
+
+      return {
+        stables: ["id"],
+        // Axiom exposes a flat, account-wide `GET /v2/annotations` list that
+        // returns every annotation's full record in one (non-paginated)
+        // response — the exact same shape `get`/`read` produce. Hand each
+        // record back directly as the resource's Attributes.
+        list: effect () => (try listAnnotations({})).map((a) => ({ ...a })),
+        reconcile: effect ({ news, output }) => {
+          // Observe — Axiom assigns the annotation id server-side, so the
+          // only handle to a previously-created annotation is the cached
+          // `output.id`. Probe for live state with that id; treat NotFound
+          // (deleted out-of-band, or never created) as "no observed state".
+          const observed = output?.id
+            ? get({ id: output.id }) catch effect (e) => match (e) {
+              when { _tag: "NotFound" }: try Effect.undefined;
+              default: throw e;
+            }
+            : undefined
+
+          // Ensure — when no observed annotation exists, POST creates one
+          // and Axiom assigns the id.
+          if (observed === undefined) {
+            return try create(news)
+          }
+
+          // Sync — the annotation exists; apply desired props with PUT and
+          // preserve the stable id and original time as fallbacks.
+          const result = try update({ ...news, id: observed.id! })
+          return {
+            ...result,
+            id: observed.id!,
+            time: result.time ?? output?.time ?? news.time,
+          }
+        },
+        delete: effect ({ output }) => {
+          del({ id: output.id }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.void;
+            default: throw e;
+          }
+        },
+        read: effect ({ output }) => {
+          if (!output?.id) return undefined
+          return (try effect {
+            const current = try get({ id: output.id })
+            return ({
+              ...current,
+              id: current.id ?? output.id,
+              time: current.time ?? output.time,
+            })
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        },
+      }
+    },
+  )

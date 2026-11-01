@@ -26,7 +26,7 @@ import {
   type ValidationRecord,
 } from "../CustomHostname/CustomHostname.ts";
 import { CLOUDFLARE_DNS } from "../DNS/Adapter.ts";
-import { findZoneByName, isId, type Reference as ZoneReference } from "../Zone/lookup.ts";
+import { findZoneByName, isId, type Reference as ZoneReference } from "../Zone/lookup.vibe";
 import type { WorkerDomainConfig, WorkerProps, WorkerRouteConfig } from "./Worker.ts";
 
 /**

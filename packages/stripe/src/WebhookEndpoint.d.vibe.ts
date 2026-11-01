@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export type WebhookEndpointStatus = "enabled" | "disabled";
 /**
  * A Stripe event type string (`"customer.created"`) or an event class

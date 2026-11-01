@@ -21,6 +21,6 @@ export interface GetDocumentRequest extends Omit<cw.GetProjectsLocationsDocument
  * @binding
  * @category ContentWarehouse
  */
-export interface GetDocument extends Binding.Service<GetDocument, "GCP.ContentWarehouse.GetDocument", (document: Document) => Effect.Effect<((request?: GetDocumentRequest) => Effect.Effect<cw.GoogleCloudContentwarehouseV1Document, cw.GetProjectsLocationsDocumentsError, RuntimeContext>)>> {
+export interface GetDocument extends Binding.Service<GetDocument, "GCP.ContentWarehouse.GetDocument", (document: Document) => Effect.Effect<(request?: GetDocumentRequest) => Effect.Effect<cw.GoogleCloudContentwarehouseV1Document, cw.GetProjectsLocationsDocumentsError, RuntimeContext>>> {
 }
 export declare const GetDocument: GetDocument;

@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export interface PromotionCodeCurrencyOption {
     /**
      * Minimum amount (in the currency's minor units) required to redeem this

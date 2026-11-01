@@ -30,6 +30,6 @@ export type RunQueryRequest = DatastoreDatabaseRequest<datastore.RunQueryProject
  * @binding
  * @category Datastore
  */
-export interface RunQuery extends Binding.Service<RunQuery, "GCP.Datastore.RunQuery", (database: Database) => Effect.Effect<((request: RunQueryRequest) => Effect.Effect<datastore.RunQueryResponse, datastore.RunQueryProjectsError, RuntimeContext>)>> {
+export interface RunQuery extends Binding.Service<RunQuery, "GCP.Datastore.RunQuery", (database: Database) => Effect.Effect<(request: RunQueryRequest) => Effect.Effect<datastore.RunQueryResponse, datastore.RunQueryProjectsError, RuntimeContext>>> {
 }
 export declare const RunQuery: RunQuery;

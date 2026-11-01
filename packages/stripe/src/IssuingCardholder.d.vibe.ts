@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** Specifies whether to permit authorizations on this cardholder's cards. */
 export type IssuingCardholderStatus = "active" | "blocked" | "inactive";
 /** One of `individual` or `company`. */

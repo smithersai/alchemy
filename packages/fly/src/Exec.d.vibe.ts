@@ -34,6 +34,6 @@ export interface ExecRequest {
  * @binding
  * @product Sprite
  */
-export interface Exec extends Binding.Service<Exec, "Fly.Exec", (sprite: Sprite) => Effect.Effect<((request: ExecRequest) => Effect.Effect<ExecResult, ExecCommandError, RuntimeContext>)>> {
+export interface Exec extends Binding.Service<Exec, "Fly.Exec", (sprite: Sprite) => Effect.Effect<(request: ExecRequest) => Effect.Effect<ExecResult, ExecCommandError, RuntimeContext>>> {
 }
 export declare const Exec: Exec;

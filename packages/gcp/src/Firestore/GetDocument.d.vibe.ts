@@ -25,6 +25,6 @@ export interface GetDocumentRequest extends Omit<firestore.GetProjectsDatabasesD
  * @binding
  * @category Firestore
  */
-export interface GetDocument extends Binding.Service<GetDocument, "GCP.Firestore.GetDocument", (database: Database) => Effect.Effect<((request: GetDocumentRequest) => Effect.Effect<firestore.Document, firestore.GetProjectsDatabasesDocumentsError, RuntimeContext>)>> {
+export interface GetDocument extends Binding.Service<GetDocument, "GCP.Firestore.GetDocument", (database: Database) => Effect.Effect<(request: GetDocumentRequest) => Effect.Effect<firestore.Document, firestore.GetProjectsDatabasesDocumentsError, RuntimeContext>>> {
 }
 export declare const GetDocument: GetDocument;

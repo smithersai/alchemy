@@ -6,7 +6,7 @@ export { Credentials, fromEnv, fromToken } from "./Credentials.vibe";
 export * from "./Env.vibe";
 export * from "./Environment.ts";
 export * from "./Label.ts";
-export * from "./Providers.ts";
+export * from "./Providers.vibe";
 export * from "./PullRequest.ts";
 export * from "./Release.ts";
 export * from "./Repository.ts";

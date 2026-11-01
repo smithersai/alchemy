@@ -1,7 +1,7 @@
 import * as Neon from "@distilled.cloud/neon";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export interface CustomDomainProps {
     /** Target Function. Domain ownership remains independent of Function configuration. */ function: {
         projectId: string;

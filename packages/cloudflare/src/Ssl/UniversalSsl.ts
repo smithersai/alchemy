@@ -6,8 +6,8 @@ import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import * as Schedule from "effect/Schedule";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
-import { listAllZones } from "../Zone/lookup.ts";
+import type { Providers } from "../Providers.vibe";
+import { listAllZones } from "../Zone/lookup.vibe";
 
 const TypeId = "Cloudflare.Ssl.UniversalSsl" as const;
 type TypeId = typeof TypeId;

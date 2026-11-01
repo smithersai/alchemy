@@ -2,7 +2,7 @@ import type { CreateTaxSettingsError, CreateTaxSettingsRequest, TaxSettings as S
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { TaxSettings } from "./TaxSettings.js";
+import type { TaxSettings } from "./TaxSettings.vibe";
 export interface UpdateTaxSettingsRequest extends CreateTaxSettingsRequest {
 }
 /**
@@ -23,6 +23,6 @@ export interface UpdateTaxSettingsRequest extends CreateTaxSettingsRequest {
  * @binding
  * @product Tax
  */
-export interface UpdateTaxSettings extends Binding.Service<UpdateTaxSettings, "Stripe.UpdateTaxSettings", (settings: TaxSettings) => Effect.Effect<((request?: UpdateTaxSettingsRequest) => Effect.Effect<StripeTaxSettings, CreateTaxSettingsError, RuntimeContext>)>> {
+export interface UpdateTaxSettings extends Binding.Service<UpdateTaxSettings, "Stripe.UpdateTaxSettings", (settings: TaxSettings) => Effect.Effect<(request?: UpdateTaxSettingsRequest) => Effect.Effect<StripeTaxSettings, CreateTaxSettingsError, RuntimeContext>>> {
 }
 export declare const UpdateTaxSettings: UpdateTaxSettings;

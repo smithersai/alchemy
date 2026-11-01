@@ -9,7 +9,7 @@ import { asEffect } from "alchemy/Util/types";
 import * as Effect from "effect/Effect";
 import { cast } from "effect/Function";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { AssetsConfig } from "../Workers/Assets.ts";
 import {
   Worker,

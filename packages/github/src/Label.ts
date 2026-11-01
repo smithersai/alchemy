@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { withBaseUrl, gitHubBaseUrlChanged } from "./BaseUrl.ts";
-import type * as GitHub from "./Providers.ts";
+import type * as GitHub from "./Providers.vibe";
 
 export interface LabelProps {
   /**

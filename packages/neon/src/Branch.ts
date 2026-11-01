@@ -36,7 +36,7 @@ import * as Schedule from "effect/Schedule";
 import { runImports, runPgMigrations } from "./Migrations.vibe";
 import { parsePostgresOrigin, type PostgresOrigin } from "./PostgresOrigin.vibe";
 import { DeletionPending, type Project, waitForOperations } from "./Project.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 export type BranchSource = Project | { projectId: string };
 

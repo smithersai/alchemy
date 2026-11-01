@@ -2,7 +2,7 @@ import type { AppsSecret as StripeAppsSecret, GetAppsSecretsFindError, GetAppsSe
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { AppsSecret } from "./AppsSecret.js";
+import type { AppsSecret } from "./AppsSecret.vibe";
 export interface RetrieveAppsSecretRequest extends Omit<GetAppsSecretsFindRequest, "name" | "scope"> {
 }
 /**
@@ -19,6 +19,6 @@ export interface RetrieveAppsSecretRequest extends Omit<GetAppsSecretsFindReques
  * @binding
  * @product Secrets
  */
-export interface RetrieveAppsSecret extends Binding.Service<RetrieveAppsSecret, "Stripe.RetrieveAppsSecret", (secret: AppsSecret) => Effect.Effect<((request?: RetrieveAppsSecretRequest) => Effect.Effect<StripeAppsSecret, GetAppsSecretsFindError, RuntimeContext>)>> {
+export interface RetrieveAppsSecret extends Binding.Service<RetrieveAppsSecret, "Stripe.RetrieveAppsSecret", (secret: AppsSecret) => Effect.Effect<(request?: RetrieveAppsSecretRequest) => Effect.Effect<StripeAppsSecret, GetAppsSecretsFindError, RuntimeContext>>> {
 }
 export declare const RetrieveAppsSecret: RetrieveAppsSecret;

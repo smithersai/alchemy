@@ -229,4 +229,4 @@ export const collectPages = <Page, Item, E extends { readonly _tag: string }, R>
     ),
   );
 
-export { waitForOperation } from "./operations.ts";
+export { waitForOperation } from "./operations.vibe";

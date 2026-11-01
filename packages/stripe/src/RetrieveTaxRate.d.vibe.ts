@@ -18,6 +18,6 @@ export interface RetrieveTaxRateRequest extends Omit<GetTaxRateRequest, "tax_rat
  * @binding
  * @product Tax
  */
-export interface RetrieveTaxRate extends Binding.Service<RetrieveTaxRate, "Stripe.RetrieveTaxRate", (taxRate: TaxRate) => Effect.Effect<((request?: RetrieveTaxRateRequest) => Effect.Effect<StripeTaxRate, GetTaxRateError, RuntimeContext>)>> {
+export interface RetrieveTaxRate extends Binding.Service<RetrieveTaxRate, "Stripe.RetrieveTaxRate", (taxRate: TaxRate) => Effect.Effect<(request?: RetrieveTaxRateRequest) => Effect.Effect<StripeTaxRate, GetTaxRateError, RuntimeContext>>> {
 }
 export declare const RetrieveTaxRate: RetrieveTaxRate;

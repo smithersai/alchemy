@@ -1,7 +1,7 @@
 import { type AccountBusinessType as StripeAccountBusinessType, type AccountType as StripeAccountType, type CreateAccountRequestCapabilities, type CreateAccountRequestCompany, type CreateAccountRequestIndividual, type CreateAccountRequestSettings } from "@distilled.cloud/stripe/stripe";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** Connected-account kinds accepted by `POST /v1/accounts`. */
 export type AccountKind = "custom" | "express" | "standard";
 /** Legal structure of the account holder. */

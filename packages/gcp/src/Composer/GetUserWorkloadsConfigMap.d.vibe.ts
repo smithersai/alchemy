@@ -24,6 +24,6 @@ export interface GetUserWorkloadsConfigMapRequest extends Omit<composer.GetProje
  * @binding
  * @category Composer
  */
-export interface GetUserWorkloadsConfigMap extends Binding.Service<GetUserWorkloadsConfigMap, "GCP.Composer.GetUserWorkloadsConfigMap", (configMap: EnvironmentsUserWorkloadsConfigMap) => Effect.Effect<((request?: GetUserWorkloadsConfigMapRequest) => Effect.Effect<composer.UserWorkloadsConfigMap, composer.GetProjectsLocationsEnvironmentsUserWorkloadsConfigMapsError, RuntimeContext>)>> {
+export interface GetUserWorkloadsConfigMap extends Binding.Service<GetUserWorkloadsConfigMap, "GCP.Composer.GetUserWorkloadsConfigMap", (configMap: EnvironmentsUserWorkloadsConfigMap) => Effect.Effect<(request?: GetUserWorkloadsConfigMapRequest) => Effect.Effect<composer.UserWorkloadsConfigMap, composer.GetProjectsLocationsEnvironmentsUserWorkloadsConfigMapsError, RuntimeContext>>> {
 }
 export declare const GetUserWorkloadsConfigMap: GetUserWorkloadsConfigMap;

@@ -21,6 +21,6 @@ export interface GetUserRequest extends Omit<alloydb.GetProjectsLocationsCluster
  * @binding
  * @category AlloyDB
  */
-export interface GetUser extends Binding.Service<GetUser, "GCP.AlloyDB.GetUser", (user: ClustersUser) => Effect.Effect<((request?: GetUserRequest) => Effect.Effect<alloydb.User, alloydb.GetProjectsLocationsClustersUsersError, RuntimeContext>)>> {
+export interface GetUser extends Binding.Service<GetUser, "GCP.AlloyDB.GetUser", (user: ClustersUser) => Effect.Effect<(request?: GetUserRequest) => Effect.Effect<alloydb.User, alloydb.GetProjectsLocationsClustersUsersError, RuntimeContext>>> {
 }
 export declare const GetUser: GetUser;

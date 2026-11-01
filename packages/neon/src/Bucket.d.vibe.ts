@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import { type BranchScope, type ResolvedBranchScope } from "./BranchScope.js";
 import { type CredentialAttributes } from "./Credential.js";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export type BucketProps = BranchScope & {
     /** Bucket name, unique within this branch. Generated when omitted. */
     name?: string;

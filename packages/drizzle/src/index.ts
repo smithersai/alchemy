@@ -10,7 +10,7 @@ export {
   EffectTransactionRollbackError,
   MigratorInitError,
 } from "drizzle-orm/effect-core";
-export * from "./Providers.ts";
+export * from "./Providers.vibe";
 export * from "./Schema.ts";
 // MySQL and Postgres are deliberately NOT re-exported here: their drivers
 // (`@effect/sql-mysql2`/`mysql2`, `@effect/sql-pg`/`pg`) are optional peer

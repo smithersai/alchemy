@@ -23,6 +23,6 @@ export interface InsertAllRequest extends Omit<bigquery.InsertAllTabledataReques
  * @binding
  * @category BigQuery
  */
-export interface InsertAll extends Binding.Service<InsertAll, "GCP.BigQuery.InsertAll", (table: Table) => Effect.Effect<((request: InsertAllRequest) => Effect.Effect<bigquery.TableDataInsertAllResponse, bigquery.InsertAllTabledataError, RuntimeContext>)>> {
+export interface InsertAll extends Binding.Service<InsertAll, "GCP.BigQuery.InsertAll", (table: Table) => Effect.Effect<(request: InsertAllRequest) => Effect.Effect<bigquery.TableDataInsertAllResponse, bigquery.InsertAllTabledataError, RuntimeContext>>> {
 }
 export declare const InsertAll: InsertAll;

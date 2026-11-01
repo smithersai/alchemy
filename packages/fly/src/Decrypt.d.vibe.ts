@@ -45,6 +45,6 @@ export interface DecryptResult {
  * @binding
  * @product Secret Key
  */
-export interface Decrypt extends Binding.Service<Decrypt, "Fly.Decrypt", (key: SecretKey) => Effect.Effect<((request: DecryptRequest) => Effect.Effect<DecryptResult, DecryptSecretKeyError, RuntimeContext>)>> {
+export interface Decrypt extends Binding.Service<Decrypt, "Fly.Decrypt", (key: SecretKey) => Effect.Effect<(request: DecryptRequest) => Effect.Effect<DecryptResult, DecryptSecretKeyError, RuntimeContext>>> {
 }
 export declare const Decrypt: Decrypt;

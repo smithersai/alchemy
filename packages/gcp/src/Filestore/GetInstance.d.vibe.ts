@@ -21,6 +21,6 @@ export interface GetInstanceRequest extends Omit<file.GetProjectsLocationsInstan
  * @binding
  * @category Filestore
  */
-export interface GetInstance extends Binding.Service<GetInstance, "GCP.Filestore.GetInstance", (instance: Instance) => Effect.Effect<((request?: GetInstanceRequest) => Effect.Effect<file.Instance, file.GetProjectsLocationsInstancesError, RuntimeContext>)>> {
+export interface GetInstance extends Binding.Service<GetInstance, "GCP.Filestore.GetInstance", (instance: Instance) => Effect.Effect<(request?: GetInstanceRequest) => Effect.Effect<file.Instance, file.GetProjectsLocationsInstancesError, RuntimeContext>>> {
 }
 export declare const GetInstance: GetInstance;

@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** How long a customer who applies this coupon keeps the discount. */
 export type CouponDuration = "forever" | "once" | "repeating";
 export interface CouponAppliesTo {

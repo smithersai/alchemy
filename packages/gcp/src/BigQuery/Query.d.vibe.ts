@@ -22,6 +22,6 @@ export interface QueryRequest extends bigquery.QueryRequest {
  * @binding
  * @category BigQuery
  */
-export interface Query extends Binding.Service<Query, "GCP.BigQuery.Query", (dataset: Dataset) => Effect.Effect<((request: QueryRequest) => Effect.Effect<bigquery.QueryResponse, bigquery.QueryJobsError, RuntimeContext>)>> {
+export interface Query extends Binding.Service<Query, "GCP.BigQuery.Query", (dataset: Dataset) => Effect.Effect<(request: QueryRequest) => Effect.Effect<bigquery.QueryResponse, bigquery.QueryJobsError, RuntimeContext>>> {
 }
 export declare const Query: Query;

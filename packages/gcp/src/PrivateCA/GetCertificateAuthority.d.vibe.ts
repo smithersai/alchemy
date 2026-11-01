@@ -22,6 +22,6 @@ export interface GetCertificateAuthorityRequest extends Omit<privateca.GetProjec
  * @binding
  * @category PrivateCA
  */
-export interface GetCertificateAuthority extends Binding.Service<GetCertificateAuthority, "GCP.PrivateCA.GetCertificateAuthority", (ca: CertificateAuthority) => Effect.Effect<((request?: GetCertificateAuthorityRequest) => Effect.Effect<privateca.CertificateAuthority, privateca.GetProjectsLocationsCaPoolsCertificateAuthoritiesError, RuntimeContext>)>> {
+export interface GetCertificateAuthority extends Binding.Service<GetCertificateAuthority, "GCP.PrivateCA.GetCertificateAuthority", (ca: CertificateAuthority) => Effect.Effect<(request?: GetCertificateAuthorityRequest) => Effect.Effect<privateca.CertificateAuthority, privateca.GetProjectsLocationsCaPoolsCertificateAuthoritiesError, RuntimeContext>>> {
 }
 export declare const GetCertificateAuthority: GetCertificateAuthority;

@@ -28,6 +28,6 @@ export interface ExecuteMutationRequest extends Omit<firebasedataconnect.Execute
  * @binding
  * @category FirebaseDataConnect
  */
-export interface ExecuteMutation extends Binding.Service<ExecuteMutation, "GCP.FirebaseDataConnect.ExecuteMutation", (connector: ServicesConnector) => Effect.Effect<((request: ExecuteMutationRequest) => Effect.Effect<firebasedataconnect.ExecuteMutationResponse, firebasedataconnect.ExecuteMutationProjectsLocationsServicesConnectorsError, RuntimeContext>)>> {
+export interface ExecuteMutation extends Binding.Service<ExecuteMutation, "GCP.FirebaseDataConnect.ExecuteMutation", (connector: ServicesConnector) => Effect.Effect<(request: ExecuteMutationRequest) => Effect.Effect<firebasedataconnect.ExecuteMutationResponse, firebasedataconnect.ExecuteMutationProjectsLocationsServicesConnectorsError, RuntimeContext>>> {
 }
 export declare const ExecuteMutation: ExecuteMutation;

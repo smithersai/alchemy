@@ -21,6 +21,6 @@ export interface GetConnectionInfoRequest extends Omit<alloydb.GetConnectionInfo
  * @binding
  * @category AlloyDB
  */
-export interface GetConnectionInfo extends Binding.Service<GetConnectionInfo, "GCP.AlloyDB.GetConnectionInfo", (instance: Instance) => Effect.Effect<((request?: GetConnectionInfoRequest) => Effect.Effect<alloydb.ConnectionInfo, alloydb.GetConnectionInfoProjectsLocationsClustersInstancesError, RuntimeContext>)>> {
+export interface GetConnectionInfo extends Binding.Service<GetConnectionInfo, "GCP.AlloyDB.GetConnectionInfo", (instance: Instance) => Effect.Effect<(request?: GetConnectionInfoRequest) => Effect.Effect<alloydb.ConnectionInfo, alloydb.GetConnectionInfoProjectsLocationsClustersInstancesError, RuntimeContext>>> {
 }
 export declare const GetConnectionInfo: GetConnectionInfo;

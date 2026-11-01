@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 const TypeId = "Cloudflare.DNS.ZoneTransferPeer" as const;
 type TypeId = typeof TypeId;

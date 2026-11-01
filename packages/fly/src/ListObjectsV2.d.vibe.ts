@@ -22,6 +22,6 @@ export interface ListObjectsV2Request extends Omit<S3.ListObjectsV2Request, "Buc
  * @binding
  * @product Bucket
  */
-export interface ListObjectsV2 extends Binding.Service<ListObjectsV2, "Fly.ListObjectsV2", (bucket: Bucket) => Effect.Effect<((request?: ListObjectsV2Request) => Effect.Effect<S3.ListObjectsV2Output, S3.ListObjectsV2Error | TigrisCredentialsMissing, RuntimeContext>)>> {
+export interface ListObjectsV2 extends Binding.Service<ListObjectsV2, "Fly.ListObjectsV2", (bucket: Bucket) => Effect.Effect<(request?: ListObjectsV2Request) => Effect.Effect<S3.ListObjectsV2Output, S3.ListObjectsV2Error | TigrisCredentialsMissing, RuntimeContext>>> {
 }
 export declare const ListObjectsV2: ListObjectsV2;

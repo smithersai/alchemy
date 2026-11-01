@@ -24,6 +24,6 @@ export interface GetPartitionsRequest extends Omit<pubsublite.GetPartitionsAdmin
  * @binding
  * @category PubSubLite
  */
-export interface GetPartitions extends Binding.Service<GetPartitions, "GCP.PubSubLite.GetPartitions", (topic: AdminTopic) => Effect.Effect<((request?: GetPartitionsRequest) => Effect.Effect<pubsublite.TopicPartitions, pubsublite.GetPartitionsAdminProjectsLocationsTopicsError, RuntimeContext>)>> {
+export interface GetPartitions extends Binding.Service<GetPartitions, "GCP.PubSubLite.GetPartitions", (topic: AdminTopic) => Effect.Effect<(request?: GetPartitionsRequest) => Effect.Effect<pubsublite.TopicPartitions, pubsublite.GetPartitionsAdminProjectsLocationsTopicsError, RuntimeContext>>> {
 }
 export declare const GetPartitions: GetPartitions;

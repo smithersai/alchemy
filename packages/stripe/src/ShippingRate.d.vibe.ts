@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** The type of calculation used on the shipping rate. */
 export type ShippingRateType = "fixed_amount";
 /** Whether the rate is considered inclusive or exclusive of taxes. */

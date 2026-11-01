@@ -19,7 +19,7 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as Redacted from "effect/Redacted";
 import { organization } from "./Credentials.ts";
 import * as Hrana from "./Hrana.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 export class DatabaseUnexpectedResponse extends Data.TaggedError("DatabaseUnexpectedResponse")<{
   readonly message: string;

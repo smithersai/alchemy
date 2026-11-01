@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export interface TerminalLocationAddress {
     /**
      * City, district, suburb, town, or village. Required in most countries.

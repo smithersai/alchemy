@@ -28,6 +28,6 @@ export interface GetObjectRequest extends Omit<S3.GetObjectRequest, "Bucket"> {
  * @binding
  * @product Bucket
  */
-export interface GetObject extends Binding.Service<GetObject, "Railway.GetObject", (bucket: Bucket) => Effect.Effect<((request?: GetObjectRequest) => Effect.Effect<S3.GetObjectOutput, S3.GetObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>)>> {
+export interface GetObject extends Binding.Service<GetObject, "Railway.GetObject", (bucket: Bucket) => Effect.Effect<(request?: GetObjectRequest) => Effect.Effect<S3.GetObjectOutput, S3.GetObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>>> {
 }
 export declare const GetObject: GetObject;

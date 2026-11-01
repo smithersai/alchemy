@@ -25,6 +25,6 @@ export interface GetSchemaRegistryRequest extends Omit<kafka.GetProjectsLocation
  * @binding
  * @category ManagedKafka
  */
-export interface GetSchemaRegistry extends Binding.Service<GetSchemaRegistry, "GCP.ManagedKafka.GetSchemaRegistry", (registry: SchemaRegistry) => Effect.Effect<((request?: GetSchemaRegistryRequest) => Effect.Effect<kafka.SchemaRegistry, kafka.GetProjectsLocationsSchemaRegistriesError, RuntimeContext>)>> {
+export interface GetSchemaRegistry extends Binding.Service<GetSchemaRegistry, "GCP.ManagedKafka.GetSchemaRegistry", (registry: SchemaRegistry) => Effect.Effect<(request?: GetSchemaRegistryRequest) => Effect.Effect<kafka.SchemaRegistry, kafka.GetProjectsLocationsSchemaRegistriesError, RuntimeContext>>> {
 }
 export declare const GetSchemaRegistry: GetSchemaRegistry;

@@ -29,6 +29,6 @@ export interface SignResult {
  * @binding
  * @product Secret Key
  */
-export interface Sign extends Binding.Service<Sign, "Fly.Sign", (key: SecretKey) => Effect.Effect<((request: SignRequest) => Effect.Effect<SignResult, SignSecretKeyError, RuntimeContext>)>> {
+export interface Sign extends Binding.Service<Sign, "Fly.Sign", (key: SecretKey) => Effect.Effect<(request: SignRequest) => Effect.Effect<SignResult, SignSecretKeyError, RuntimeContext>>> {
 }
 export declare const Sign: Sign;

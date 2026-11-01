@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** Whether this personalization design can be used to create cards. */
 export type IssuingPersonalizationDesignStatus = "active" | "inactive" | "rejected" | "review";
 /** Reason a card logo was rejected. */

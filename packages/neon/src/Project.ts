@@ -31,7 +31,7 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import { runImports, runPgMigrations } from "./Migrations.vibe";
 import { parsePostgresOrigin, type PostgresOrigin } from "./PostgresOrigin.vibe";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 const DEFAULT_REGION: NeonRegion = "aws-us-east-1";
 const DEFAULT_PG_VERSION: NeonPgVersion = 17;

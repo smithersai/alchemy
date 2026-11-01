@@ -26,6 +26,6 @@ export interface StopPipelineRequest extends Omit<datapipelines.StopProjectsLoca
  * @binding
  * @category DataPipelines
  */
-export interface StopPipeline extends Binding.Service<StopPipeline, "GCP.DataPipelines.StopPipeline", (pipeline: Pipeline) => Effect.Effect<((request?: StopPipelineRequest) => Effect.Effect<datapipelines.GoogleCloudDatapipelinesV1Pipeline, datapipelines.StopProjectsLocationsPipelinesError, RuntimeContext>)>> {
+export interface StopPipeline extends Binding.Service<StopPipeline, "GCP.DataPipelines.StopPipeline", (pipeline: Pipeline) => Effect.Effect<(request?: StopPipelineRequest) => Effect.Effect<datapipelines.GoogleCloudDatapipelinesV1Pipeline, datapipelines.StopProjectsLocationsPipelinesError, RuntimeContext>>> {
 }
 export declare const StopPipeline: StopPipeline;

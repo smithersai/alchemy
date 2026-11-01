@@ -25,7 +25,7 @@ import {
   stripInternalLabels,
   toLabels,
 } from "./Labels.vibe";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 const DEFAULT_LOCATION = "nbg1";
 const MAX_NAME_LENGTH = 63;

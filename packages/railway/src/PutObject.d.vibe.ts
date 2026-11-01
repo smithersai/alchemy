@@ -29,6 +29,6 @@ export interface PutObjectRequest extends Omit<S3.PutObjectRequest, "Bucket"> {
  * @binding
  * @product Bucket
  */
-export interface PutObject extends Binding.Service<PutObject, "Railway.PutObject", (bucket: Bucket) => Effect.Effect<((request?: PutObjectRequest) => Effect.Effect<S3.PutObjectOutput, S3.PutObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>)>> {
+export interface PutObject extends Binding.Service<PutObject, "Railway.PutObject", (bucket: Bucket) => Effect.Effect<(request?: PutObjectRequest) => Effect.Effect<S3.PutObjectOutput, S3.PutObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>>> {
 }
 export declare const PutObject: PutObject;

@@ -21,7 +21,7 @@ import {
   toResourcePath,
   userLabels,
 } from "./names.vibe";
-import { waitForOperation } from "./operations.ts";
+import { waitForOperation } from "./operations.vibe";
 
 const COLLECTION = "securityProfileGroups";
 

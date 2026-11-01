@@ -24,6 +24,6 @@ export interface GetCatalogItemRequest extends Omit<recommendationengine.GetProj
  * @binding
  * @category RecommendationEngine
  */
-export interface GetCatalogItem extends Binding.Service<GetCatalogItem, "GCP.RecommendationEngine.GetCatalogItem", (item: CatalogsCatalogItem) => Effect.Effect<((request?: GetCatalogItemRequest) => Effect.Effect<recommendationengine.GoogleCloudRecommendationengineV1beta1CatalogItem, recommendationengine.GetProjectsLocationsCatalogsCatalogItemsError, RuntimeContext>)>> {
+export interface GetCatalogItem extends Binding.Service<GetCatalogItem, "GCP.RecommendationEngine.GetCatalogItem", (item: CatalogsCatalogItem) => Effect.Effect<(request?: GetCatalogItemRequest) => Effect.Effect<recommendationengine.GoogleCloudRecommendationengineV1beta1CatalogItem, recommendationengine.GetProjectsLocationsCatalogsCatalogItemsError, RuntimeContext>>> {
 }
 export declare const GetCatalogItem: GetCatalogItem;

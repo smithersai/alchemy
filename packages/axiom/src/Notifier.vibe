@@ -1,0 +1,138 @@
+import * as Axiom from "@distilled.cloud/axiom"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "./Providers.vibe"
+
+export type NotifierProps = Axiom.CreateNotifierRequest
+
+export type Notifier = Resource<
+  "Axiom.Notifier",
+  NotifierProps,
+  Axiom.CreateNotifierResponse & { mutable id: string },
+  never,
+  Providers
+>
+
+/**
+ * An Axiom notifier — an alert destination (Slack, email, PagerDuty,
+ * Opsgenie, Discord, Microsoft Teams, generic webhook, or a fully custom
+ * webhook with templated body/headers) that {@link Monitor monitors} target
+ * via `notifierIds`. Exactly one channel under `properties` should be set.
+ * @see https://axiom.co/docs/monitor-data/notifiers
+ *
+ * ### Creating a Notifier
+ * **Example:** Slack incoming webhook
+ * ```typescript
+ * const slack = yield* Axiom.Notifier("ops-slack", {
+ *   name: "ops-channel",
+ *   properties: {
+ *     slack: { slackUrl: process.env.SLACK_WEBHOOK_URL! },
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Email distribution list
+ * ```typescript
+ * yield* Axiom.Notifier("ops-email", {
+ *   name: "ops-team",
+ *   properties: { email: { emails: ["sre@example.com", "oncall@example.com"] } },
+ * });
+ * ```
+ *
+ * **Example:** PagerDuty integration
+ * ```typescript
+ * yield* Axiom.Notifier("pagerduty", {
+ *   name: "primary-oncall",
+ *   properties: {
+ *     pagerduty: { routingKey: process.env.PAGERDUTY_ROUTING_KEY!, token: "" },
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Custom webhook with templated body
+ * ```typescript
+ * yield* Axiom.Notifier("incident-webhook", {
+ *   name: "incident.io",
+ *   properties: {
+ *     customWebhook: {
+ *       url: "https://api.incident.io/v2/alert_events",
+ *       headers: { "Content-Type": "application/json" },
+ *       secretHeaders: { Authorization: `Bearer ${process.env.INCIDENT_TOKEN}` },
+ *       body: '{"title": "{{.Monitor.Name}}", "status": "firing"}',
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @product Monitor
+ */
+export const Notifier = Resource<Notifier>("Axiom.Notifier")
+
+export const NotifierProvider = (): infer _ =>
+  Provider.effect(
+    Notifier,
+    effect {
+      const create = try Axiom.createNotifier
+      const update = try Axiom.updateNotifier
+      const get = try Axiom.getNotifier
+      const listNotifiers = try Axiom.getNotifiers
+      const del = try Axiom.deleteNotifier
+
+      return {
+        stables: ["id"],
+        // Enumerate every notifier in the org. Axiom exposes a single
+        // account-wide `GET /v2/notifiers` collection op (no pagination), so we
+        // fetch it once and hydrate each row into the exact `read` Attributes
+        // shape (`CreateNotifierOutput & { id: string }`) — directly usable by
+        // `delete` with no follow-up get.
+        list: effect () => {
+          const notifiers = try listNotifiers({})
+          return notifiers.map((n) => ({ ...n, id: n.id ?? "" }))
+        },
+        reconcile: effect ({ news, output }) => {
+          // Observe — Axiom assigns the notifier id server-side, so the
+          // only handle to a previously-created notifier is the cached
+          // `output.id`. Probe for live state with that id; treat NotFound
+          // (deleted out-of-band) as "no observed state" so we converge
+          // by re-creating.
+          const observed = output?.id
+            ? get({ id: output.id }) catch effect (e) => match (e) {
+              when { _tag: "NotFound" }: try Effect.undefined;
+              default: throw e;
+            }
+            : undefined
+
+          // Ensure — POST mints a new notifier. The Axiom create response
+          // sometimes omits `id` on the body; default to "" to keep the
+          // attribute shape stable until the next read populates it.
+          if (observed === undefined) {
+            const result = try create(news)
+            return { ...result, id: result.id ?? "" }
+          }
+
+          // Sync — the notifier exists; PATCH against its id with the
+          // desired props. Preserve the cached id if the API response
+          // omits it.
+          const result = try update({ ...news, id: observed.id! })
+          return { ...result, id: result.id ?? observed.id! }
+        },
+        delete: effect ({ output }) => {
+          del({ id: output.id }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.void;
+            default: throw e;
+          }
+        },
+        read: effect ({ output }) => {
+          if (!output?.id) return undefined
+          return (try effect {
+            const current = try get({ id: output.id })
+            return ({
+              ...current,
+              id: current.id ?? output.id,
+            })
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        },
+      }
+    },
+  )

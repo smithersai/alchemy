@@ -21,6 +21,6 @@ export interface GetEndpointRequest extends Omit<servicedirectory.GetProjectsLoc
  * @binding
  * @category ServiceDirectory
  */
-export interface GetEndpoint extends Binding.Service<GetEndpoint, "GCP.ServiceDirectory.GetEndpoint", (endpoint: Endpoint) => Effect.Effect<((request?: GetEndpointRequest) => Effect.Effect<servicedirectory.Endpoint, servicedirectory.GetProjectsLocationsNamespacesServicesEndpointsError, RuntimeContext>)>> {
+export interface GetEndpoint extends Binding.Service<GetEndpoint, "GCP.ServiceDirectory.GetEndpoint", (endpoint: Endpoint) => Effect.Effect<(request?: GetEndpointRequest) => Effect.Effect<servicedirectory.Endpoint, servicedirectory.GetProjectsLocationsNamespacesServicesEndpointsError, RuntimeContext>>> {
 }
 export declare const GetEndpoint: GetEndpoint;

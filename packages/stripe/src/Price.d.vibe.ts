@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type { Product } from "./Product.vibe";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export type PriceInterval = "day" | "month" | "week" | "year";
 export type PriceUsageType = "licensed" | "metered";
 export type PriceType = "one_time" | "recurring";

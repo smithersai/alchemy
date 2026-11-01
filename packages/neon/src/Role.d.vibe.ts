@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
 import { type BranchScope, type ResolvedBranchScope } from "./BranchScope.js";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export type RoleProps = BranchScope & {
     /**
      * Postgres role name, at most 63 bytes. Omit to generate a unique,

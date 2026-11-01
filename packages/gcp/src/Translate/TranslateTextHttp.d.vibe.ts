@@ -1,0 +1,10 @@
+import * as translate from "@distilled.cloud/gcp/translate_v3";
+import * as Layer from "effect/Layer";
+import { TranslateText } from "./TranslateText.vibe";
+/**
+ * HTTP implementation of {@link TranslateText}.
+ *
+ * @layer
+ * @provides GCP.Translate.TranslateText
+ */
+export declare const TranslateTextHttp: Layer.Layer<TranslateText, never, translate.GcpOpContext>;

@@ -12,7 +12,7 @@ import type { BranchScope } from "../BranchScope.ts";
 import { CustomDomain } from "../CustomDomain.vibe";
 import { Function, type FunctionCommonProps } from "../Function.vibe";
 import { Project } from "../Project.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { WebsiteArtifact } from "./Artifact.ts";
 
 /** Deployment controls; the composition owns code, environment, and runtime wiring. */

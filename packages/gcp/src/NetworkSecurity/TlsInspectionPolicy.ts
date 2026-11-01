@@ -17,7 +17,7 @@ import {
   toId,
   toResourcePath,
 } from "./names.vibe";
-import { waitForOperation } from "./operations.ts";
+import { waitForOperation } from "./operations.vibe";
 import {
   createInternalLabels,
   encodeDescription,

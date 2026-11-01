@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** The type of billing alert. Currently only usage-threshold alerts. */
 export type AlertType = "usage_threshold";
 /** Status of a billing alert. Archived alerts cannot be reactivated. */

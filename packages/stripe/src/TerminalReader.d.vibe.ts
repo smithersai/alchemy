@@ -1,7 +1,7 @@
 import { type TerminalReaderDeviceType, type TerminalReaderStatus } from "@distilled.cloud/stripe/stripe";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 export type { TerminalReaderDeviceType, TerminalReaderStatus };
 export interface TerminalReaderProps {
     /**

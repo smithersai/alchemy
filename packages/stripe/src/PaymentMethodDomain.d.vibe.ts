@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** The status of a payment method on a registered domain. */
 export type PaymentMethodDomainStatus = "active" | "inactive";
 export interface PaymentMethodDomainPaymentMethodStatus {

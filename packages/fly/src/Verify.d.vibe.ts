@@ -30,6 +30,6 @@ export interface VerifyResult {
  * @binding
  * @product Secret Key
  */
-export interface Verify extends Binding.Service<Verify, "Fly.Verify", (key: SecretKey) => Effect.Effect<((request: VerifyRequest) => Effect.Effect<VerifyResult, VerifySecretKeyError, RuntimeContext>)>> {
+export interface Verify extends Binding.Service<Verify, "Fly.Verify", (key: SecretKey) => Effect.Effect<(request: VerifyRequest) => Effect.Effect<VerifyResult, VerifySecretKeyError, RuntimeContext>>> {
 }
 export declare const Verify: Verify;

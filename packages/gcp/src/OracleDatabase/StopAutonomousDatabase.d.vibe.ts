@@ -22,6 +22,6 @@ export interface StopAutonomousDatabaseRequest extends Omit<oracle.StopProjectsL
  * @binding
  * @category OracleDatabase
  */
-export interface StopAutonomousDatabase extends Binding.Service<StopAutonomousDatabase, "GCP.OracleDatabase.StopAutonomousDatabase", (database: AutonomousDatabase) => Effect.Effect<((request?: StopAutonomousDatabaseRequest) => Effect.Effect<oracle.Operation, oracle.StopProjectsLocationsAutonomousDatabasesError, RuntimeContext>)>> {
+export interface StopAutonomousDatabase extends Binding.Service<StopAutonomousDatabase, "GCP.OracleDatabase.StopAutonomousDatabase", (database: AutonomousDatabase) => Effect.Effect<(request?: StopAutonomousDatabaseRequest) => Effect.Effect<oracle.Operation, oracle.StopProjectsLocationsAutonomousDatabasesError, RuntimeContext>>> {
 }
 export declare const StopAutonomousDatabase: StopAutonomousDatabase;

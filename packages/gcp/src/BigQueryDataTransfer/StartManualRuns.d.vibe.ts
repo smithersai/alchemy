@@ -30,6 +30,6 @@ export interface StartManualRunsRequest extends Omit<bqdt.StartManualRunsProject
  * @binding
  * @category BigQueryDataTransfer
  */
-export interface StartManualRuns extends Binding.Service<StartManualRuns, "GCP.BigQueryDataTransfer.StartManualRuns", (config: TransferConfig) => Effect.Effect<((request?: StartManualRunsRequest) => Effect.Effect<bqdt.StartManualTransferRunsResponse, bqdt.StartManualRunsProjectsLocationsTransferConfigsError, RuntimeContext>)>> {
+export interface StartManualRuns extends Binding.Service<StartManualRuns, "GCP.BigQueryDataTransfer.StartManualRuns", (config: TransferConfig) => Effect.Effect<(request?: StartManualRunsRequest) => Effect.Effect<bqdt.StartManualTransferRunsResponse, bqdt.StartManualRunsProjectsLocationsTransferConfigsError, RuntimeContext>>> {
 }
 export declare const StartManualRuns: StartManualRuns;

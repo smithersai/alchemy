@@ -18,6 +18,6 @@ export interface RetrieveAlertRequest extends Omit<GetBillingAlertRequest, "id">
  * @binding
  * @product Billing
  */
-export interface RetrieveAlert extends Binding.Service<RetrieveAlert, "Stripe.RetrieveAlert", (alert: Alert) => Effect.Effect<((request?: RetrieveAlertRequest) => Effect.Effect<StripeBillingAlert, GetBillingAlertError, RuntimeContext>)>> {
+export interface RetrieveAlert extends Binding.Service<RetrieveAlert, "Stripe.RetrieveAlert", (alert: Alert) => Effect.Effect<(request?: RetrieveAlertRequest) => Effect.Effect<StripeBillingAlert, GetBillingAlertError, RuntimeContext>>> {
 }
 export declare const RetrieveAlert: RetrieveAlert;

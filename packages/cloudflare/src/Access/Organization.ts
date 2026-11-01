@@ -5,7 +5,7 @@ import { stripNullFields, stripUndefinedFields } from "alchemy/Util/data";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export type OrganizationProps = {
   /**

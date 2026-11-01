@@ -21,6 +21,6 @@ export interface GetConnectClusterRequest extends Omit<kafka.GetProjectsLocation
  * @binding
  * @category ManagedKafka
  */
-export interface GetConnectCluster extends Binding.Service<GetConnectCluster, "GCP.ManagedKafka.GetConnectCluster", (cluster: ConnectCluster) => Effect.Effect<((request?: GetConnectClusterRequest) => Effect.Effect<kafka.ConnectCluster, kafka.GetProjectsLocationsConnectClustersError, RuntimeContext>)>> {
+export interface GetConnectCluster extends Binding.Service<GetConnectCluster, "GCP.ManagedKafka.GetConnectCluster", (cluster: ConnectCluster) => Effect.Effect<(request?: GetConnectClusterRequest) => Effect.Effect<kafka.ConnectCluster, kafka.GetProjectsLocationsConnectClustersError, RuntimeContext>>> {
 }
 export declare const GetConnectCluster: GetConnectCluster;

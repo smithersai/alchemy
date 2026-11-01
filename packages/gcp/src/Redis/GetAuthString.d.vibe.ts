@@ -24,6 +24,6 @@ export interface GetAuthStringRequest extends Omit<redis.GetAuthStringProjectsLo
  * @binding
  * @category Redis
  */
-export interface GetAuthString extends Binding.Service<GetAuthString, "GCP.Redis.GetAuthString", (instance: Instance) => Effect.Effect<((request?: GetAuthStringRequest) => Effect.Effect<redis.InstanceAuthString, redis.GetAuthStringProjectsLocationsInstancesError, RuntimeContext>)>> {
+export interface GetAuthString extends Binding.Service<GetAuthString, "GCP.Redis.GetAuthString", (instance: Instance) => Effect.Effect<(request?: GetAuthStringRequest) => Effect.Effect<redis.InstanceAuthString, redis.GetAuthStringProjectsLocationsInstancesError, RuntimeContext>>> {
 }
 export declare const GetAuthString: GetAuthString;

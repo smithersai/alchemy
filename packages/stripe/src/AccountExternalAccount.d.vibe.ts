@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** Entity that holds a bank external account. */
 export type AccountExternalAccountHolderType = "individual" | "company";
 /** Bank account type. `futsu` / `toza` are Japan-only. */

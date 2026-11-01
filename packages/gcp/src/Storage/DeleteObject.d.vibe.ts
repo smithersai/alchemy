@@ -21,6 +21,6 @@ export interface DeleteObjectRequest extends Omit<storage.DeleteObjectsRequest, 
  * @binding
  * @category Storage
  */
-export interface DeleteObject extends Binding.Service<DeleteObject, "GCP.Storage.DeleteObject", (bucket: Bucket) => Effect.Effect<((request: DeleteObjectRequest) => Effect.Effect<storage.DeleteObjectsResponse, storage.DeleteObjectsError, RuntimeContext>)>> {
+export interface DeleteObject extends Binding.Service<DeleteObject, "GCP.Storage.DeleteObject", (bucket: Bucket) => Effect.Effect<(request: DeleteObjectRequest) => Effect.Effect<storage.DeleteObjectsResponse, storage.DeleteObjectsError, RuntimeContext>>> {
 }
 export declare const DeleteObject: DeleteObject;

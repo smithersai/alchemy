@@ -26,7 +26,7 @@ import * as Schedule from "effect/Schedule";
 import { resolveOrgSlug } from "./Environment.ts";
 import { createFlyAppName, matchesAlchemyPhysicalName, sanitizeFlyAppName } from "./Metadata.ts";
 import { runImports, runPgMigrations } from "./PostgresMigrations.vibe";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 export { stripSslQueryParams } from "./PostgresMigrations.vibe";
 

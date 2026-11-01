@@ -18,6 +18,6 @@ export interface RetrieveTerminalLocationRequest extends Omit<GetTerminalLocatio
  * @binding
  * @product Terminal
  */
-export interface RetrieveTerminalLocation extends Binding.Service<RetrieveTerminalLocation, "Stripe.RetrieveTerminalLocation", (location: TerminalLocation) => Effect.Effect<((request?: RetrieveTerminalLocationRequest) => Effect.Effect<GetTerminalLocationResponse, GetTerminalLocationError, RuntimeContext>)>> {
+export interface RetrieveTerminalLocation extends Binding.Service<RetrieveTerminalLocation, "Stripe.RetrieveTerminalLocation", (location: TerminalLocation) => Effect.Effect<(request?: RetrieveTerminalLocationRequest) => Effect.Effect<GetTerminalLocationResponse, GetTerminalLocationError, RuntimeContext>>> {
 }
 export declare const RetrieveTerminalLocation: RetrieveTerminalLocation;

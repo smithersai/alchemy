@@ -28,6 +28,6 @@ export interface AddSecretVersionRequest {
  * @binding
  * @category SecretManager
  */
-export interface AddSecretVersion extends Binding.Service<AddSecretVersion, "GCP.SecretManager.AddSecretVersion", (secret: Secret | LocationsSecret) => Effect.Effect<((request: AddSecretVersionRequest) => Effect.Effect<secretmanager.SecretVersion, secretmanager.AddVersionProjectsSecretsError, RuntimeContext>)>> {
+export interface AddSecretVersion extends Binding.Service<AddSecretVersion, "GCP.SecretManager.AddSecretVersion", (secret: Secret | LocationsSecret) => Effect.Effect<(request: AddSecretVersionRequest) => Effect.Effect<secretmanager.SecretVersion, secretmanager.AddVersionProjectsSecretsError, RuntimeContext>>> {
 }
 export declare const AddSecretVersion: AddSecretVersion;

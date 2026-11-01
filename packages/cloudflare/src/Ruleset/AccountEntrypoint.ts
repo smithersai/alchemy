@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { OutputRule, Phase } from "./Ruleset.ts";
 
 const TypeId = "Cloudflare.Rulesets.AccountEntrypoint" as const;

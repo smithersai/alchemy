@@ -10,7 +10,7 @@ import * as Schedule from "effect/Schedule";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import { localAccountId } from "../LocalAccount.ts";
 import { generateLocalId, isLiveId } from "../LocalRuntime.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { DurableObjectApplicationSettings } from "./ContainerApplication.ts";
 import { createContainerApplicationName } from "./ContainerBundle.ts";
 import {

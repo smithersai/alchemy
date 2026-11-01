@@ -8,6 +8,6 @@ export * from "./StreamSinkBinding.vibe";
 export * from "./StreamSinkHttp.vibe";
 export * from "./StreamSinkLocal.vibe";
 export * from "./WriteStream.ts";
-export * from "./WriteStreamBinding.ts";
+export * from "./WriteStreamBinding.vibe";
 export * from "./WriteStreamHttp.ts";
 export * from "./WriteStreamLocal.vibe";

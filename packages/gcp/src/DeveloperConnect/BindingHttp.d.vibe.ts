@@ -16,5 +16,5 @@ export declare const makeGitRepositoryLinkHttpBinding: <I extends {
 }, A, E>(options: {
     tag: string;
     iam: BindingIam;
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, Credentials | HttpClient.HttpClient>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, Credentials | HttpClient.HttpClient>;
 }) => Effect.Effect<<T extends ConnectionsGitRepositoryLink>(link: T) => Effect.Effect<(request?: Omit<I, "gitRepositoryLink"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

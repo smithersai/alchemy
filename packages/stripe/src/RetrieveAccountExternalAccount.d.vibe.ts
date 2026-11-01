@@ -18,6 +18,6 @@ export interface RetrieveAccountExternalAccountRequest extends Omit<GetAccountEx
  * @binding
  * @product Account
  */
-export interface RetrieveAccountExternalAccount extends Binding.Service<RetrieveAccountExternalAccount, "Stripe.RetrieveAccountExternalAccount", (externalAccount: AccountExternalAccount) => Effect.Effect<((request?: RetrieveAccountExternalAccountRequest) => Effect.Effect<StripeExternalAccount, GetAccountExternalAccountError, RuntimeContext>)>> {
+export interface RetrieveAccountExternalAccount extends Binding.Service<RetrieveAccountExternalAccount, "Stripe.RetrieveAccountExternalAccount", (externalAccount: AccountExternalAccount) => Effect.Effect<(request?: RetrieveAccountExternalAccountRequest) => Effect.Effect<StripeExternalAccount, GetAccountExternalAccountError, RuntimeContext>>> {
 }
 export declare const RetrieveAccountExternalAccount: RetrieveAccountExternalAccount;

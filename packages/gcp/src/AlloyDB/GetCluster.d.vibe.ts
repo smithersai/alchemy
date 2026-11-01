@@ -21,6 +21,6 @@ export interface GetClusterRequest extends Omit<alloydb.GetProjectsLocationsClus
  * @binding
  * @category AlloyDB
  */
-export interface GetCluster extends Binding.Service<GetCluster, "GCP.AlloyDB.GetCluster", (cluster: Cluster) => Effect.Effect<((request?: GetClusterRequest) => Effect.Effect<alloydb.Cluster, alloydb.GetProjectsLocationsClustersError, RuntimeContext>)>> {
+export interface GetCluster extends Binding.Service<GetCluster, "GCP.AlloyDB.GetCluster", (cluster: Cluster) => Effect.Effect<(request?: GetClusterRequest) => Effect.Effect<alloydb.Cluster, alloydb.GetProjectsLocationsClustersError, RuntimeContext>>> {
 }
 export declare const GetCluster: GetCluster;

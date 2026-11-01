@@ -31,6 +31,6 @@ export interface CreateTaskRequest extends Omit<cloudtasks.CreateProjectsLocatio
  * @binding
  * @category CloudTasks
  */
-export interface CreateTask extends Binding.Service<CreateTask, "GCP.CloudTasks.CreateTask", (queue: Queue) => Effect.Effect<((request: CreateTaskRequest) => Effect.Effect<cloudtasks.Task, cloudtasks.CreateProjectsLocationsQueuesTasksError, RuntimeContext>)>> {
+export interface CreateTask extends Binding.Service<CreateTask, "GCP.CloudTasks.CreateTask", (queue: Queue) => Effect.Effect<(request: CreateTaskRequest) => Effect.Effect<cloudtasks.Task, cloudtasks.CreateProjectsLocationsQueuesTasksError, RuntimeContext>>> {
 }
 export declare const CreateTask: CreateTask;

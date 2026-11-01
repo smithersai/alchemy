@@ -1,4 +1,4 @@
-import type { KindClusterConfig, LocalClusterProps } from "../LocalCluster.ts";
+import type { KindClusterConfig, LocalClusterProps } from "../LocalCluster.vibe";
 
 /**
  * containerd patch enabling the per-registry `hosts.toml` directory that

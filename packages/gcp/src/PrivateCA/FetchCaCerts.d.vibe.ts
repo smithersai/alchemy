@@ -27,6 +27,6 @@ export interface FetchCaCertsRequest {
  * @binding
  * @category PrivateCA
  */
-export interface FetchCaCerts extends Binding.Service<FetchCaCerts, "GCP.PrivateCA.FetchCaCerts", (pool: CaPool) => Effect.Effect<((request?: FetchCaCertsRequest) => Effect.Effect<privateca.FetchCaCertsResponse, privateca.FetchCaCertsProjectsLocationsCaPoolsError, RuntimeContext>)>> {
+export interface FetchCaCerts extends Binding.Service<FetchCaCerts, "GCP.PrivateCA.FetchCaCerts", (pool: CaPool) => Effect.Effect<(request?: FetchCaCertsRequest) => Effect.Effect<privateca.FetchCaCertsResponse, privateca.FetchCaCertsProjectsLocationsCaPoolsError, RuntimeContext>>> {
 }
 export declare const FetchCaCerts: FetchCaCerts;

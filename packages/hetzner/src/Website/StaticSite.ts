@@ -9,7 +9,7 @@ import { loadFrontendCore } from "alchemy/Website/FrontendCore";
 import * as Effect from "effect/Effect";
 import * as Path from "effect/Path";
 import type * as Redacted from "effect/Redacted";
-import { Service } from "../Service.ts";
+import { Service } from "../Service.vibe";
 import {
   DEFAULT_WEBSITE_PORT,
   publishWebsiteDomain,

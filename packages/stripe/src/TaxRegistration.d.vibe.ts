@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** The status of the registration, derived from `activeFrom` and `expiresAt`. */
 export type TaxRegistrationStatus = "active" | "expired" | "scheduled";
 /** When the registration becomes active. `"now"` means the current time. */

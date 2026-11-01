@@ -84,4 +84,4 @@ export declare const Astro: (id: string, props?: AstroProps) => Effect.Effect<{
     service: import("../Service.vibe").Service;
     ip: import("../IpAssignment.vibe").IpAssignment;
     certificate: import("../Certificate.vibe").Certificate | undefined;
-}, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Provider").Provider<import("alchemy/Website/Server").Server> | import("../Providers.js").Providers>;
+}, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Provider").Provider<import("alchemy/Website/Server").Server> | import("../Providers.vibe").Providers>;

@@ -2,7 +2,7 @@ import type { GetTaxSettingsError, GetTaxSettingsRequest, TaxSettings as StripeT
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { TaxSettings } from "./TaxSettings.js";
+import type { TaxSettings } from "./TaxSettings.vibe";
 export interface RetrieveTaxSettingsRequest extends GetTaxSettingsRequest {
 }
 /**
@@ -20,6 +20,6 @@ export interface RetrieveTaxSettingsRequest extends GetTaxSettingsRequest {
  * @binding
  * @product Tax
  */
-export interface RetrieveTaxSettings extends Binding.Service<RetrieveTaxSettings, "Stripe.RetrieveTaxSettings", (settings: TaxSettings) => Effect.Effect<((request?: RetrieveTaxSettingsRequest) => Effect.Effect<StripeTaxSettings, GetTaxSettingsError, RuntimeContext>)>> {
+export interface RetrieveTaxSettings extends Binding.Service<RetrieveTaxSettings, "Stripe.RetrieveTaxSettings", (settings: TaxSettings) => Effect.Effect<(request?: RetrieveTaxSettingsRequest) => Effect.Effect<StripeTaxSettings, GetTaxSettingsError, RuntimeContext>>> {
 }
 export declare const RetrieveTaxSettings: RetrieveTaxSettings;

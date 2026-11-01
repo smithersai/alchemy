@@ -6,8 +6,8 @@ import { Resource, type ResourceBinding } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
-import { resolveZoneId, type Reference as ZoneReference } from "../Zone/lookup.ts";
+import type { Providers } from "../Providers.vibe";
+import { resolveZoneId, type Reference as ZoneReference } from "../Zone/lookup.vibe";
 
 /** Record types a {@link Records} set can manage. */
 export type RecordsType = "A" | "AAAA" | "CNAME";

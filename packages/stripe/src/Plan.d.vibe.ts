@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.vibe";
 /** Billing frequency for a legacy Stripe Plan. */
 export type PlanInterval = "day" | "month" | "week" | "year";
 /** How quantity per period is determined. */

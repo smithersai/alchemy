@@ -26,6 +26,6 @@ import type { ParametersVersion } from "./ParametersVersion.js";
  * @binding
  * @category ParameterManager
  */
-export interface RenderParameterVersion extends Binding.Service<RenderParameterVersion, "GCP.ParameterManager.RenderParameterVersion", (version: ParametersVersion) => Effect.Effect<(() => Effect.Effect<parametermanager.RenderParameterVersionResponse, parametermanager.RenderProjectsLocationsParametersVersionsError, RuntimeContext>)>> {
+export interface RenderParameterVersion extends Binding.Service<RenderParameterVersion, "GCP.ParameterManager.RenderParameterVersion", (version: ParametersVersion) => Effect.Effect<() => Effect.Effect<parametermanager.RenderParameterVersionResponse, parametermanager.RenderProjectsLocationsParametersVersionsError, RuntimeContext>>> {
 }
 export declare const RenderParameterVersion: RenderParameterVersion;
