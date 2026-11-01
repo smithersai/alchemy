@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { DBCluster } from "./DBCluster.vibe";
+import type { DBCluster } from "./DBCluster.js";
 import type { DBInstance } from "./DBInstance.vibe";
 /**
  * Shared scaffolding for Amazon RDS HTTP bindings.

@@ -1,7 +1,7 @@
 /** `AWS.Lambda.MicrovmImage` bootstrap on the bun runtime. */
 import { BunServices } from "@effect/platform-bun";
 import { BunHttpServer } from "alchemy/Http";
-import { bootstrapMicrovm, type MicrovmBootstrapOptions } from "./Microvm.ts";
+import { bootstrapMicrovm, type MicrovmBootstrapOptions } from "./Microvm.vibe";
 
 export const bootstrap = (entrypoint: unknown, options: MicrovmBootstrapOptions): Promise<void> =>
   bootstrapMicrovm(

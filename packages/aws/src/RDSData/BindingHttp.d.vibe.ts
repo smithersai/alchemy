@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { DBCluster } from "../RDS/DBCluster.vibe";
+import type { DBCluster } from "../RDS/DBCluster.js";
 import type { Secret } from "../SecretsManager/Secret.js";
 /**
  * The common bind-time options every RDS Data API capability accepts: the

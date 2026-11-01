@@ -1,3 +1,5 @@
+// The platform code of Lambda.vibe, which a .vibe file does not import as a value (EK4402).
+
 /**
  * Bootstrap for `AWS.Lambda.Function` (zip, Node runtime). The generated
  * entry imports this module and the user's `main`, and re-exports the

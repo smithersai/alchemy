@@ -8,7 +8,7 @@ import {
   type ScheduleDescriptor,
   type ScheduleEvent,
   type ScheduleEventSourceService,
-} from "../Scheduler/ScheduleEventSource.ts";
+} from "../Scheduler/ScheduleEventSource.vibe";
 import * as Lambda from "./Function.ts";
 
 /**

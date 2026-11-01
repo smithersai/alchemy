@@ -18,7 +18,7 @@ import {
   DBCluster,
   type DBClusterProps,
   type DBCluster as DBClusterResource,
-} from "./DBCluster.vibe";
+} from "./DBCluster.ts";
 import {
   DBClusterParameterGroup,
   type DBClusterParameterGroupProps,

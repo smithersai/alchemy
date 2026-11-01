@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import type * as scheduler from "@distilled.cloud/aws/scheduler";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
@@ -8,6 +7,7 @@ import { qualifiedArnOf } from "../Lambda/QualifiedArn.ts";
 import type { ScheduleBuilder, ScheduleBuilderState } from "./builders.vibe";
 import { Schedule } from "./Schedule.vibe";
 import type { ScheduleGroup } from "./ScheduleGroup.vibe";
+import * as $platform from "./ScheduleEventSource.platform.ts"
 
 /**
  * The typed event a consumed schedule delivers to its handler. EventBridge
@@ -40,14 +40,12 @@ export interface ScheduleEvent {
    */
   attemptNumber: string;
 }
-
 /**
  * Narrow an arbitrary Lambda invocation payload to a schedule event produced
  * by `consumeSchedule`.
  */
 export const isScheduleEvent = (event: any): event is ScheduleEvent =>
   event?.source === "alchemy.scheduler" && typeof event?.scheduleId === "string";
-
 export interface ScheduleRouteProps {
   /**
    * Optional schedule group the backing schedule is created in.
@@ -96,7 +94,6 @@ export interface ScheduleRouteProps {
    */
   deadLetterConfig?: scheduler.DeadLetterConfig;
 }
-
 export interface ScheduleDescriptor {
   /**
    * Stable route id. Defaults to a hash of the schedule expression and the
@@ -109,7 +106,6 @@ export interface ScheduleDescriptor {
   expression: string;
   props?: ScheduleRouteProps;
 }
-
 /**
  * The cron-handler DX for EventBridge Scheduler: a Lambda consumes its own
  * scheduled invocations. `consumeSchedule(every("5 minutes"), handler)`
@@ -127,12 +123,10 @@ export interface ScheduleEventSource extends Binding.Service<
 export const ScheduleEventSource = Binding.Service<ScheduleEventSource>(
   "AWS.Scheduler.ScheduleEventSource",
 );
-
 export type ScheduleEventSourceService = <Req = never>(
   descriptor: ScheduleDescriptor,
-  process: (event: ScheduleEvent) => Effect.Effect<void, never, Req>,
-) => Effect.Effect<void, never, never>;
-
+  process: (event: ScheduleEvent) => void!never!Req,
+) => void!never!never;
 /**
  * Consume a schedule's invocations on the host Lambda Function — the "cron
  * handler" DX. Build the cadence with `every`/`cron`/`at` and pass the handler
@@ -158,17 +152,17 @@ export type ScheduleEventSourceService = <Req = never>(
  */
 export function consumeSchedule<Req = never>(
   builder: ScheduleBuilder,
-  process: (event: ScheduleEvent) => Effect.Effect<void, never, Req>,
-): Effect.Effect<void, never, ScheduleEventSource | Req>;
+  process: (event: ScheduleEvent) => void!never!Req,
+): void!never!ScheduleEventSource | Req;
 export function consumeSchedule<Req = never>(
   id: string,
   builder: ScheduleBuilder,
-  process: (event: ScheduleEvent) => Effect.Effect<void, never, Req>,
-): Effect.Effect<void, never, ScheduleEventSource | Req>;
+  process: (event: ScheduleEvent) => void!never!Req,
+): void!never!ScheduleEventSource | Req;
 export function consumeSchedule(...args: any[]) {
   const process = args[args.length - 1] as (
     event: ScheduleEvent,
-  ) => Effect.Effect<void, never, never>;
+  ) => void!never!never;
   const head = args.slice(0, -1);
   const id = typeof head[0] === "string" ? (head[0] as string) : undefined;
   const builder = (id === undefined ? head[0] : head[1]) as ScheduleBuilder;
@@ -176,7 +170,6 @@ export function consumeSchedule(...args: any[]) {
     source(toScheduleDescriptor(id, builder.state), process),
   );
 }
-
 const toScheduleDescriptor = (
   id: string | undefined,
   state: ScheduleBuilderState,
@@ -195,25 +188,13 @@ const toScheduleDescriptor = (
     actionAfterCompletion: state.actionAfterCompletion,
   },
 });
-
 /**
  * Derive the stable route id for a schedule descriptor: the explicit id when
  * given, otherwise a hash of the expression and the host Function's logical
  * id. Computed identically at deploy time (to name the backing resources) and
  * at runtime (to match incoming events to the handler).
  */
-export const createScheduleRouteId = (descriptor: ScheduleDescriptor, fn: LambdaFunction): string =>
-  descriptor.id ??
-  `Scheduler${createHash("sha1")
-    .update(
-      JSON.stringify({
-        expression: descriptor.expression,
-        host: fn.LogicalId,
-      }),
-    )
-    .digest("hex")
-    .slice(0, 10)}`;
-
+export const createScheduleRouteId = (descriptor: ScheduleDescriptor, fn: LambdaFunction): string => $platform.createScheduleRouteId(descriptor, fn)
 /**
  * Deploy-time half of `consumeSchedule`: synthesize the execution role that
  * lets EventBridge Scheduler invoke the host Function and create the backing
@@ -221,15 +202,14 @@ export const createScheduleRouteId = (descriptor: ScheduleDescriptor, fn: Lambda
  *
  * @binding
  */
-export const createScheduleRoute = (
+export const createScheduleRoute = effect (
   routeId: string,
   descriptor: ScheduleDescriptor,
   fn: LambdaFunction,
-) =>
-  Effect.gen(function* () {
+) => {
     const props = descriptor.props ?? {};
 
-    const role = yield* IAM.Role(`${routeId}Role`, {
+    const role = try IAM.Role(`${routeId}Role`, {
       assumeRolePolicyDocument: {
         Version: "2012-10-17",
         Statement: [
@@ -254,7 +234,7 @@ export const createScheduleRoute = (
       },
     });
 
-    return yield* Schedule(routeId, {
+    return try Schedule(routeId, {
       groupName: props.group?.scheduleGroupName,
       scheduleExpression: descriptor.expression,
       description: props.description,
@@ -283,4 +263,4 @@ export const createScheduleRoute = (
         DeadLetterConfig: props.deadLetterConfig,
       },
     });
-  });
+  };

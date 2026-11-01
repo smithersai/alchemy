@@ -1,3 +1,5 @@
+// The platform code of LambdaWeb.vibe, which a .vibe file does not import as a value (EK4402).
+
 /**
  * Bootstrap for an Effect `AWS.Lambda.WebFunction` (zip, Node runtime). The
  * generated entry imports this module and the user's `main` — see
@@ -46,14 +48,12 @@ const lambdaHttpEndpoint = () => {
     port: Number(value.slice(separator + 1)),
   };
 };
-
 /**
  * Lambda sends `SIGTERM` and terminates the environment 1 second later.
  * Managed shutdown stops accepting, drains in-flight responses, closes the
  * instance scope, and exits inside that window.
  */
 const SHUTDOWN_BUDGET_MS = 1000;
-
 /**
  * Resolve the bundled program (the `fetch` handler registered via `serve`)
  * and run it with a Node HTTP server bound to `AWS_LAMBDA_HTTP_ENDPOINT`.

@@ -6,7 +6,7 @@ export * from "./IdentityPoolAuth.vibe";
 export * from "./IdentityPoolAuthHttp.vibe";
 export * from "./IdentityPoolRoleAttachment.vibe";
 export * from "./IdentityProvider.vibe";
-export * from "./ManagedLoginBranding.ts";
+export * from "./ManagedLoginBranding.vibe";
 export * from "./ResourceServer.vibe";
 export * from "./User.vibe";
 export * from "./UserPool.vibe";

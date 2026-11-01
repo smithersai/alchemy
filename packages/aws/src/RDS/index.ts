@@ -11,7 +11,7 @@ export * from "./CreateDBClusterSnapshot.vibe";
 export * from "./CreateDBClusterSnapshotHttp.vibe";
 export * from "./CreateDBSnapshot.vibe";
 export * from "./CreateDBSnapshotHttp.vibe";
-export * from "./DBCluster.vibe";
+export * from "./DBCluster.ts";
 export * from "./DBClusterEndpoint.vibe";
 export * from "./DBClusterParameterGroup.vibe";
 export * from "./DBInstance.vibe";

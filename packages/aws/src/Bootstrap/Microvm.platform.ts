@@ -1,3 +1,5 @@
+// The platform code of Microvm.vibe, which a .vibe file does not import as a value (EK4402).
+
 import {
   entrypointLayer,
   resolveProgram,
@@ -17,20 +19,7 @@ import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
 import * as Logger from "effect/Logger";
 import { MinimumLogLevel } from "effect/References";
-
-export interface MicrovmBootstrapOptions {
-  /** Port to serve on when the VM does not inject `PORT`. */
-  readonly port: number;
-  /** Stack identity baked in at deploy time. */
-  readonly stack: { readonly name: string; readonly stage: string };
-}
-
-export interface MicrovmRuntime {
-  /** `BunServices.layer` / `NodeServices.layer`. */
-  readonly services: Layer.Layer<any>;
-  /** `BunHttpServer()` / `NodeHttpServer()`; both listen on `PORT`. */
-  readonly httpServer: Layer.Layer<any, any, any>;
-}
+import type { MicrovmBootstrapOptions, MicrovmRuntime } from "./Microvm.vibe";
 
 /** Serve the bundled in-VM program on the runtime's HTTP server. */
 export const bootstrapMicrovm = (
