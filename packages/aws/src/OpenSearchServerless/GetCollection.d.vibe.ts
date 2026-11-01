@@ -1,7 +1,7 @@
 import type * as aoss from "@distilled.cloud/aws/opensearchserverless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Collection } from "./Collection.js";
+import type { Collection } from "./Collection.vibe";
 /**
  * Runtime binding for the `BatchGetCollection` operation scoped to one
  * collection (IAM action `aoss:BatchGetCollection` on the collection ARN).

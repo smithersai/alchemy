@@ -7,7 +7,7 @@ import { Resource } from "alchemy/Resource";
 import { createInternalTags, hasAlchemyTags } from "alchemy/Tags";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { syncMqTags, toTagRecord } from "./internal.ts";
 
 export class ConfigurationUnexpectedResponse extends Data.TaggedError(

@@ -1,0 +1,227 @@
+import * as location from "@distilled.cloud/aws/location"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+import { toTagRecord } from "./internal.ts"
+
+export error TrackerUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type PositionFiltering = "TimeBased" | "DistanceBased" | "AccuracyBased"
+
+export interface TrackerProps {
+  /**
+   * Name of the tracker. Immutable — changing it replaces the tracker.
+   * @default ${app}-${stage}-${id}
+   */
+  mutable trackerName?: string
+  /**
+   * KMS key ID used to encrypt the tracker's position data. Immutable —
+   * changing it replaces the tracker.
+   */
+  mutable kmsKeyId?: string
+  /**
+   * The position filtering method applied to device updates.
+   * @default "TimeBased"
+   */
+  mutable positionFiltering?: PositionFiltering
+  /**
+   * Whether to publish device position updates to EventBridge.
+   * @default false
+   */
+  mutable eventBridgeEnabled?: boolean
+  /**
+   * Optional description of the tracker resource.
+   */
+  mutable description?: string
+  /**
+   * Tags to associate with the tracker.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Tracker extends
+  Resource<
+    "AWS.Location.Tracker",
+    TrackerProps,
+    {
+      /** Physical name of the tracker. */
+      mutable trackerName: string
+      /** ARN of the tracker. */
+      mutable trackerArn: string
+      /** KMS key ID backing the tracker, if configured. */
+      mutable kmsKeyId: string | undefined
+      /** Position filtering method applied to updates. */
+      mutable positionFiltering: string | undefined
+      /** Whether device updates are published to EventBridge. */
+      mutable eventBridgeEnabled: boolean | undefined
+      /** Description of the tracker. */
+      mutable description: string | undefined
+      /** Tags currently associated with the tracker. */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Location Service tracker. A tracker records device positions and
+ * evaluates them against linked geofence collections. The KMS key is
+ * immutable; position filtering, EventBridge publishing, and the description
+ * can be updated in place.
+ *
+ * ### Creating Trackers
+ * **Example:** Basic Tracker
+ * ```typescript
+ * import * as Location from "@alchemy.run/aws/Location";
+ *
+ * const tracker = yield* Location.Tracker("Devices", {});
+ * ```
+ *
+ * **Example:** Distance-Filtered Tracker with EventBridge
+ * ```typescript
+ * const tracker = yield* Location.Tracker("Fleet", {
+ *   positionFiltering: "DistanceBased",
+ *   eventBridgeEnabled: true,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Tracker = Resource<Tracker>("AWS.Location.Tracker")
+
+const createTrackerName = effect (id: string, props: { mutable trackerName?: string | undefined }) => {
+  if (props.trackerName) return props.trackerName
+  return try createPhysicalName({ id, maxLength: 100 })
+}
+
+const readTracker = effect (trackerName: string) => {
+  const found = location
+    .describeTracker({ TrackerName: trackerName }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!found) return undefined
+  return {
+    trackerName: found.TrackerName,
+    trackerArn: found.TrackerArn,
+    kmsKeyId: found.KmsKeyId,
+    positionFiltering: found.PositionFiltering,
+    eventBridgeEnabled: found.EventBridgeEnabled,
+    description: found.Description ? found.Description : undefined,
+    tags: toTagRecord(found.Tags),
+  } satisfies Tracker["Attributes"]
+}
+
+export const TrackerProvider = (): infer _ =>
+  Provider.effect(
+    Tracker,
+    effect {
+      return {
+        stables: ["trackerName", "trackerArn"],
+        list: effect () => {
+          const names = Array.from(
+            try (location.listTrackers.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => (page.Entries ?? []).map((entry) => entry.TrackerName))
+          const hydrated = try Effect.forEach(names, (name) => readTracker(name), {
+            concurrency: 10,
+          })
+          return hydrated.filter((attrs): attrs is Tracker["Attributes"] => attrs !== undefined)
+        },
+        read: effect ({ id, olds, output }) => {
+          const trackerName = output?.trackerName ?? (try createTrackerName(id, olds ?? {}))
+          const state = try readTracker(trackerName)
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+        },
+        diff: effect ({ id, news = {}, olds = {} }) => {
+          if (!isResolved(news)) return
+          const oldName = try createTrackerName(id, olds)
+          const newName = try createTrackerName(id, news)
+          if (oldName !== newName || olds.kmsKeyId !== news.kmsKeyId) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news = {}, output, session }) => {
+          const trackerName = output?.trackerName ?? (try createTrackerName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          let state = try readTracker(trackerName)
+
+          if (state === undefined) {
+            location
+              .createTracker({
+                TrackerName: trackerName,
+                KmsKeyId: news.kmsKeyId,
+                PositionFiltering: news.positionFiltering,
+                EventBridgeEnabled: news.eventBridgeEnabled,
+                Description: news.description,
+                Tags: desiredTags,
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            state = try readTracker(trackerName)
+            if (state === undefined) {
+              throw new TrackerUnexpectedResponse({
+                message: `failed to read created tracker ${trackerName}`,
+              })
+            }
+          }
+
+          const desiredFiltering = news.positionFiltering ?? "TimeBased"
+          const desiredEventBridge = news.eventBridgeEnabled ?? false
+          if (
+            state.description !== (news.description ?? undefined)
+            || state.positionFiltering !== desiredFiltering
+            || (state.eventBridgeEnabled ?? false) !== desiredEventBridge
+          ) {
+            try location.updateTracker({
+              TrackerName: trackerName,
+              Description: news.description,
+              PositionFiltering: news.positionFiltering,
+              EventBridgeEnabled: news.eventBridgeEnabled,
+            })
+          }
+
+          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          if (removed.length > 0) {
+            try location.untagResource({
+              ResourceArn: state.trackerArn,
+              TagKeys: removed,
+            })
+          }
+          if (upsert.length > 0) {
+            try location.tagResource({
+              ResourceArn: state.trackerArn,
+              Tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+            })
+          }
+
+          try session.note(state.trackerArn)
+
+          const final = try readTracker(trackerName)
+          if (!final) {
+            throw new TrackerUnexpectedResponse({
+              message: `failed to read reconciled tracker ${trackerName}`,
+            })
+          }
+          return final
+        },
+        delete: effect ({ output }) => {
+          location
+            .deleteTracker({ TrackerName: output.trackerName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

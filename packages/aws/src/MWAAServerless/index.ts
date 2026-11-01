@@ -12,5 +12,5 @@ export * from "./StartWorkflowRun.vibe";
 export * from "./StartWorkflowRunHttp.vibe";
 export * from "./StopWorkflowRun.vibe";
 export * from "./StopWorkflowRunHttp.vibe";
-export * from "./Workflow.ts";
+export * from "./Workflow.vibe";
 export * from "./WorkflowRunEventSource.vibe";

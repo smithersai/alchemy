@@ -1,7 +1,7 @@
 import type * as repostspace from "@distilled.cloud/aws/repostspace";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Space } from "./Space.js";
+import type { Space } from "./Space.vibe";
 export interface BatchAddRoleRequest extends Omit<repostspace.BatchAddRoleInput, "spaceId"> {
 }
 /**

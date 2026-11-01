@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/finspace";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { KxEnvironment } from "./KxEnvironment.js";
+import type { KxEnvironment } from "./KxEnvironment.vibe";
 /**
  * Runtime binding for `finspace:DeleteKxScalingGroup` — deletes a scaling group from the bound environment. The group must have no clusters placed on it.
  * Provide the implementation with

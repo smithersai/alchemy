@@ -33,8 +33,8 @@ import { roleHostBundle } from "../AWSBindings.ts";
 import type { Credentials } from "../Credentials.ts";
 import { buildAndPushEcrImage } from "../ECR/Image.ts";
 import { AWSEnvironment } from "../Environment.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
-import type { Providers } from "../Providers.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
+import type { Providers } from "../Providers.vibe";
 import { readAppRunnerTags, syncAppRunnerTags, toWireTags } from "./internal.ts";
 
 export class ServiceOperationFailed extends Data.TaggedError("ServiceOperationFailed")<{

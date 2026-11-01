@@ -1,7 +1,7 @@
 import type * as docdb from "@distilled.cloud/aws/docdb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DBInstance } from "./DBInstance.js";
+import type { DBInstance } from "./DBInstance.vibe";
 /**
  * Runtime binding for the `RebootDBInstance` operation (IAM action
  * `rds:RebootDBInstance`).

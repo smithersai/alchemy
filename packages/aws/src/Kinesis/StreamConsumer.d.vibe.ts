@@ -1,8 +1,8 @@
 import type { Input } from "alchemy/Input";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
-import type { StreamArn } from "./Stream.js";
+import type { Providers } from "../Providers.vibe";
+import type { StreamArn } from "./Stream.vibe";
 declare const StreamConsumerUnexpectedResponse_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "StreamConsumerUnexpectedResponse";
 } & Readonly<A>;

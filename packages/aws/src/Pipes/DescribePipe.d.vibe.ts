@@ -1,7 +1,7 @@
 import type * as pipes from "@distilled.cloud/aws/pipes";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Pipe } from "./Pipe.js";
+import type { Pipe } from "./Pipe.vibe";
 /**
  * Runtime binding for `pipes:DescribePipe`.
  *

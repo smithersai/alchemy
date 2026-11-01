@@ -1,0 +1,301 @@
+import * as deadline from "@distilled.cloud/aws/deadline"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+import { deadlineArnOf, fetchDeadlineTags, retryThroughIamPropagation, syncDeadlineTags } from "./internal.ts"
+
+export error DeadlineMonitorInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error DeadlineMonitorUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface MonitorProps {
+  /**
+   * Display name of the monitor, shown on its web page.
+   * @default ${app}-${stage}-${id}
+   */
+  mutable displayName?: string
+  /**
+   * Subdomain the monitor URL is served under
+   * (`https://{subdomain}.{region}.deadlinecloud.amazonaws.com`).
+   */
+  mutable subdomain: string
+  /**
+   * ARN of the IAM Identity Center instance responsible for authenticating
+   * monitor users. Changing it replaces the monitor.
+   */
+  mutable identityCenterInstanceArn: string
+  /**
+   * Region of the IAM Identity Center instance, when it differs from the
+   * monitor's region.
+   */
+  mutable identityCenterRegion?: string
+  /**
+   * ARN of the IAM role the monitor assumes on behalf of signed-in users.
+   */
+  mutable roleArn: string
+  /**
+   * Tags to associate with the monitor.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Monitor extends
+  Resource<
+    "AWS.Deadline.Monitor",
+    MonitorProps,
+    {
+      /**
+       * Service-assigned unique identifier of the monitor (`monitor-...`).
+       */
+      mutable monitorId: string
+      /**
+       * ARN of the monitor.
+       */
+      mutable monitorArn: string
+      /**
+       * The monitor's display name.
+       */
+      mutable displayName: string
+      /**
+       * The configured subdomain.
+       */
+      mutable subdomain: string
+      /**
+       * Full URL of the monitor's web page.
+       */
+      mutable url: string
+      /**
+       * ARN of the monitor's user role.
+       */
+      mutable roleArn: string
+      /**
+       * ARN of the IAM Identity Center instance backing sign-in.
+       */
+      mutable identityCenterInstanceArn: string
+      /**
+       * ARN of the Identity Center application the monitor registered.
+       */
+      mutable identityCenterApplicationArn: string
+      /**
+       * Current tags reported for the monitor.
+       */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Deadline Cloud monitor — the hosted web console where artists and
+ * administrators view farms, queues, and jobs, authenticated through IAM
+ * Identity Center.
+ *
+ * ### Creating Monitors
+ * **Example:** Basic Monitor
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const monitor = yield* AWS.Deadline.Monitor("StudioMonitor", {
+ *   subdomain: "studio-renders",
+ *   identityCenterInstanceArn: "arn:aws:sso:::instance/ssoins-1234567890abcdef",
+ *   roleArn: monitorRole.roleArn,
+ * });
+ * ```
+ *
+ * **Example:** Export the Monitor URL
+ * ```typescript
+ * // The monitor's web console URL is available as an output attribute —
+ * // return it from the stack so users know where to sign in.
+ * const monitor = yield* AWS.Deadline.Monitor("StudioMonitor", {
+ *   subdomain: "studio-renders",
+ *   identityCenterInstanceArn: identityCenterArn,
+ *   roleArn: monitorRole.roleArn,
+ * });
+ * return { monitorUrl: monitor.url };
+ * ```
+ *
+ * @resource
+ */
+export const Monitor = Resource<Monitor>("AWS.Deadline.Monitor")
+
+const createMonitorName = effect (
+  id: string,
+  props: { mutable displayName?: string | undefined },
+) => (props.displayName ? props.displayName : try createPhysicalName({ id, maxLength: 100 }))
+
+interface MonitorState {
+  mutable attrs: Monitor["Attributes"]
+  mutable described: deadline.GetMonitorResponse
+}
+
+const readMonitorById = effect (monitorId: string, arnOf: (path: string) => string) => {
+  const described = deadline
+    .getMonitor({ monitorId }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!described) return undefined
+  const monitorArn = arnOf(`monitor/${described.monitorId}`)
+  const state: MonitorState = {
+    described,
+    attrs: {
+      monitorId: described.monitorId,
+      monitorArn,
+      displayName: described.displayName,
+      subdomain: described.subdomain,
+      url: described.url,
+      roleArn: described.roleArn,
+      identityCenterInstanceArn: described.identityCenterInstanceArn,
+      identityCenterApplicationArn: described.identityCenterApplicationArn,
+      tags: try fetchDeadlineTags(monitorArn),
+    },
+  }
+  return state
+}
+
+const findMonitorBySubdomain = effect (
+  subdomain: string,
+  arnOf: (path: string) => string,
+) => {
+  const summaries = Array.from(
+    try (deadline.listMonitors.items({})
+      |> EffectStream.runCollect(%)),
+  )
+  const match = summaries.find((summary) => summary.subdomain === subdomain)
+  if (!match) return undefined
+  return try readMonitorById(match.monitorId, arnOf)
+}
+
+export const MonitorProvider = (): infer _ =>
+  Provider.effect(
+    Monitor,
+    effect {
+      return {
+        stables: [
+          "monitorId",
+          "monitorArn",
+          "identityCenterInstanceArn",
+          "identityCenterApplicationArn",
+        ],
+        list: effect () => {
+          const arnOf = try deadlineArnOf
+          const summaries = Array.from(
+            try (deadline.listMonitors.items({})
+              |> EffectStream.runCollect(%)),
+          )
+          const states = try Effect.forEach(
+            summaries,
+            (summary) => readMonitorById(summary.monitorId, arnOf),
+            { concurrency: 4 },
+          )
+          return states
+            .filter((state): state is MonitorState => state !== undefined)
+            .map((state) => state.attrs)
+        },
+        read: effect ({ id, olds, output }) => {
+          const arnOf = try deadlineArnOf
+          const subdomain = output?.subdomain ?? olds?.subdomain
+          const state = output?.monitorId
+            ? try readMonitorById(output.monitorId, arnOf)
+            : subdomain !== undefined
+            ? try findMonitorBySubdomain(subdomain, arnOf)
+            : undefined
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.attrs.tags as Tags))
+            ? state.attrs
+            : Unowned(state.attrs)
+        },
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          if (olds === undefined) return
+          // The Identity Center instance is fixed at creation.
+          if (olds.identityCenterInstanceArn !== news.identityCenterInstanceArn) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (news === undefined) {
+            throw new DeadlineMonitorInvalidProps({
+              message: "AWS.Deadline.Monitor requires props",
+            })
+          }
+          const arnOf = try deadlineArnOf
+          const displayName = try createMonitorName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe.
+          let state = output?.monitorId
+            ? try readMonitorById(output.monitorId, arnOf)
+            : try findMonitorBySubdomain(news.subdomain, arnOf)
+
+          // Ensure.
+          if (state === undefined) {
+            const created = try retryThroughIamPropagation(
+              deadline.createMonitor({
+                displayName,
+                subdomain: news.subdomain,
+                identityCenterInstanceArn: news.identityCenterInstanceArn,
+                identityCenterRegion: news.identityCenterRegion,
+                roleArn: news.roleArn,
+                tags: desiredTags,
+              }),
+            )
+            try session.note(`Created monitor ${displayName} (${created.monitorId})`)
+            state = try readMonitorById(created.monitorId, arnOf)
+            if (state === undefined) {
+              throw new DeadlineMonitorUnexpectedResponse({
+                message: `failed to read created monitor ${displayName}`,
+              })
+            }
+          }
+
+          // Sync mutable settings — only when drifted from OBSERVED state.
+          const described = state.described
+          const needsUpdate = displayName !== described.displayName
+            || news.subdomain !== described.subdomain
+            || news.roleArn !== described.roleArn
+          if (needsUpdate) {
+            try deadline.updateMonitor({
+              monitorId: state.attrs.monitorId,
+              displayName,
+              subdomain: news.subdomain,
+              roleArn: news.roleArn,
+            })
+            try session.note(`Updated monitor ${displayName}`)
+          }
+
+          // Sync tags — diff against observed cloud tags.
+          try syncDeadlineTags(state.attrs.monitorArn, desiredTags)
+
+          try session.note(state.attrs.monitorArn)
+          const final = try readMonitorById(state.attrs.monitorId, arnOf)
+          if (!final) {
+            throw new DeadlineMonitorUnexpectedResponse({
+              message: `failed to read reconciled monitor ${displayName}`,
+            })
+          }
+          return final.attrs
+        },
+        delete: effect ({ output }) => {
+          deadline
+            .deleteMonitor({ monitorId: output.monitorId }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

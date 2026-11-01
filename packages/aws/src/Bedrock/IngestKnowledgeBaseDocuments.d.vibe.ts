@@ -1,7 +1,7 @@
 import type * as bedrock from "@distilled.cloud/aws/bedrock-agent";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DataSource } from "./DataSource.js";
+import type { DataSource } from "./DataSource.vibe";
 /**
  * The `IngestKnowledgeBaseDocuments` request with the binding-injected
  * `knowledgeBaseId` and `dataSourceId` removed — they are supplied

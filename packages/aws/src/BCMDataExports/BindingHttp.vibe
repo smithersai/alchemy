@@ -1,0 +1,113 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Export } from "./Export.vibe"
+
+/**
+ * Shared HTTP scaffolding for the BCM Data Exports runtime bindings.
+ *
+ * Every capability follows the same shape — resolve the distilled operation,
+ * register an IAM policy statement on the binding host, and return a runtime
+ * callable. The only variation is the operation, the IAM action(s), and
+ * whether the binding is scoped to one {@link Export} (injecting its
+ * `ExportArn`) or to the whole account (table-dictionary and list
+ * operations, which are not resource-scoped).
+ *
+ * BCM Data Exports is a global service — its endpoint resolver routes every
+ * standard-partition region to the implicit global endpoint, so no region
+ * pinning is needed.
+ *
+ * @internal — not exported from `index.ts`.
+ */
+
+/**
+ * Build the implementation effect for an export-scoped capability: the
+ * runtime callable injects the bound {@link Export}'s ARN as `ExportArn` and
+ * the deploy-time half grants `iamActions` on the export ARN.
+ */
+export const makeExportHttpBinding = effect <I extends { mutable ExportArn: string }, A, E, R>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"GetExecution"`.
+   */
+  mutable capability: string
+  /**
+   * IAM actions granted on the export ARN, e.g.
+   * `["bcm-data-exports:GetExecution"]`.
+   */
+  mutable iamActions: readonly string[]
+  /**
+   * The distilled operation; `ExportArn` is injected from the resource.
+   */
+  mutable operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (dataExport: Export) => {
+    const ExportArn = try dataExport.exportArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.BCMDataExports.${options.capability}(${dataExport})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: [dataExport.exportArn],
+          },
+        ],
+      })
+    }
+    return effect (request?: Omit<I, "ExportArn"> | undefined) =>
+      try withSpan(
+        effect {
+          return try op({ ...request, ExportArn: try ExportArn } as I)
+        },
+        `AWS.BCMDataExports.${options.capability}(${dataExport.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the implementation effect for an account-level capability (no
+ * export argument — the table dictionary and list operations). The
+ * deploy-time half grants `iamActions` on `*` because these operations are
+ * not resource-scoped.
+ */
+export const makeDataExportsAccountHttpBinding = effect <I extends object, A, E, R>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"ListTables"`.
+   */
+  mutable capability: string
+  /**
+   * IAM actions granted on `Resource: ["*"]`.
+   */
+  mutable iamActions: readonly string[]
+  /**
+   * The distilled operation implementing the capability.
+   */
+  mutable operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.BCMDataExports.${options.capability}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        `AWS.BCMDataExports.${options.capability}`,
+      )
+  }
+}

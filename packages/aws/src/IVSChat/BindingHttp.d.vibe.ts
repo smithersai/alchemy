@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Room } from "./Room.js";
+import type { Room } from "./Room.vibe";
 /**
  * Shared scaffolding for Amazon IVS Chat HTTP bindings.
  *

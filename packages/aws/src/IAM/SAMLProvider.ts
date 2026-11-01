@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import { AWSEnvironment } from "../Environment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { toTagRecord, unwrapRedactedString } from "./common.ts";
 
 export class SAMLProviderConflict extends Data.TaggedError("SAMLProviderConflict")<{

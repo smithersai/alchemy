@@ -47,4 +47,4 @@ export interface DirectoryStatusEvent {
  * );
  * ```
  */
-export declare const consumeDirectoryStatus: <StreamReq = never, Req = never>(directory: Directory, topic: Topic, process: (events: Stream.Stream<DirectoryStatusEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../Providers.js").Providers | import("../SNS/TopicEventSource.js").TopicEventSource>;
+export declare const consumeDirectoryStatus: <StreamReq = never, Req = never>(directory: Directory, topic: Topic, process: (events: Stream.Stream<DirectoryStatusEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../Providers.vibe").Providers | import("../SNS/TopicEventSource.js").TopicEventSource>;

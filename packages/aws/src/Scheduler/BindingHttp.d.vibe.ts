@@ -1,7 +1,7 @@
 import type * as scheduler from "@distilled.cloud/aws/scheduler";
 import * as Effect from "effect/Effect";
 import type { Role } from "../IAM/Role.js";
-import type { ScheduleGroup } from "./ScheduleGroup.js";
+import type { ScheduleGroup } from "./ScheduleGroup.vibe";
 /**
  * Build the impl Effect for a group-scoped Scheduler operation: the
  * deploy-time half grants `actions` on the group's schedule ARN pattern, and

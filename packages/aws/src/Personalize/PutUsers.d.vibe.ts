@@ -1,7 +1,7 @@
 import type * as personalizeevents from "@distilled.cloud/aws/personalize-events";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Dataset } from "./Dataset.js";
+import type { Dataset } from "./Dataset.vibe";
 /**
  * `PutUsers` request with `datasetArn` injected from the bound dataset.
  */

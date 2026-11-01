@@ -20,7 +20,7 @@ export * from "./DescribeJobTemplateHttp.vibe";
 export * from "./DescribeManagedEndpoint.vibe";
 export * from "./DescribeManagedEndpointHttp.vibe";
 export * from "./DescribeVirtualCluster.vibe";
-export * from "./DescribeVirtualClusterHttp.ts";
+export * from "./DescribeVirtualClusterHttp.vibe";
 export * from "./GetManagedEndpointSessionCredentials.vibe";
 export * from "./GetManagedEndpointSessionCredentialsHttp.ts";
 export * from "./JobRunEventSource.vibe";

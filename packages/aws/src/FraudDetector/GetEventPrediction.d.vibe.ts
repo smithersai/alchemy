@@ -1,7 +1,7 @@
 import type * as frauddetector from "@distilled.cloud/aws/frauddetector";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Detector } from "./Detector.js";
+import type { Detector } from "./Detector.vibe";
 /**
  * The `detectorId` is injected by the binding from the bound detector;
  * everything else (the event id, timestamp, entities, and variable values) is

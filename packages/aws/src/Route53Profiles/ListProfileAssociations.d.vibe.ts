@@ -1,7 +1,7 @@
 import type * as profiles from "@distilled.cloud/aws/route53profiles";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Profile } from "./Profile.js";
+import type { Profile } from "./Profile.vibe";
 /**
  * Request for {@link ListProfileAssociations} — the bound profile's id is
  * injected as `ProfileId`, so only the optional VPC filter and pagination

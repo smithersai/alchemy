@@ -1,7 +1,7 @@
 import type * as ecr from "@distilled.cloud/aws/ecr";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.vibe";
 /**
  * Request for {@link DescribeImages} — `repositoryName` is injected from the
  * bound {@link Repository} (the registry defaults to the caller's account).

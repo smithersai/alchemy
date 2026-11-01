@@ -1,7 +1,7 @@
 import type * as sitewise from "@distilled.cloud/aws/iotsitewise";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Asset } from "./Asset.js";
+import type { Asset } from "./Asset.vibe";
 /**
  * Request for {@link GetAssetPropertyValueHistory}. The bound asset's id is
  * injected automatically.

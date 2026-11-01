@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { ServerlessCluster } from "./ServerlessCluster.js";
+import type { ServerlessCluster } from "./ServerlessCluster.vibe";
 /**
  * Shared scaffolding for the MSK connect bindings.
  *

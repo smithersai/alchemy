@@ -2,7 +2,7 @@ import type * as grafana from "@distilled.cloud/aws/grafana";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
-import type { Workspace } from "./Workspace.js";
+import type { Workspace } from "./Workspace.vibe";
 /**
  * Request for {@link CreateWorkspaceServiceAccountToken}. The wire field
  * `secondsToLive` is surfaced as a {@link Duration.Input} `timeToLive`.

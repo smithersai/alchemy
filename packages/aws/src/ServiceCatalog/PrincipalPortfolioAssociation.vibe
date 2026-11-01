@@ -1,0 +1,199 @@
+import * as servicecatalog from "@distilled.cloud/aws/service-catalog"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+import { awaitVisible } from "./internal.vibe"
+
+export type PrincipalType = "IAM" | "IAM_PATTERN"
+
+export interface PrincipalPortfolioAssociationProps {
+  /**
+   * ID of the portfolio to grant access to. Changing it replaces the
+   * association.
+   */
+  mutable portfolioId: string
+  /**
+   * ARN of the IAM principal (user, group, or role) — or an ARN pattern
+   * with wildcards when `principalType` is `IAM_PATTERN`. Changing it
+   * replaces the association.
+   */
+  mutable principalArn: string
+  /**
+   * Whether `principalArn` is a concrete IAM ARN (`IAM`) or a wildcard
+   * pattern (`IAM_PATTERN`). Changing it replaces the association.
+   * @default "IAM"
+   */
+  mutable principalType?: PrincipalType
+}
+
+export interface PrincipalPortfolioAssociation extends
+  Resource<
+    "AWS.ServiceCatalog.PrincipalPortfolioAssociation",
+    PrincipalPortfolioAssociationProps,
+    {
+      /** ID of the portfolio. */
+      mutable portfolioId: string
+      /** ARN (or pattern) of the associated principal. */
+      mutable principalArn: string
+      /** The principal type of the association. */
+      mutable principalType: PrincipalType
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Grants an IAM principal (user, group, or role) access to a Service
+ * Catalog portfolio, allowing it to browse and launch the portfolio's
+ * products.
+ *
+ * ### Granting Access
+ * **Example:** Associate an IAM role
+ * ```typescript
+ * import * as ServiceCatalog from "@alchemy.run/aws/ServiceCatalog";
+ *
+ * yield* ServiceCatalog.PrincipalPortfolioAssociation("DevAccess", {
+ *   portfolioId: portfolio.portfolioId,
+ *   principalArn: role.roleArn,
+ * });
+ * ```
+ *
+ * **Example:** Associate a wildcard principal pattern
+ * ```typescript
+ * yield* ServiceCatalog.PrincipalPortfolioAssociation("AllDevRoles", {
+ *   portfolioId: portfolio.portfolioId,
+ *   principalArn: "arn:aws:iam:::role/dev-*",
+ *   principalType: "IAM_PATTERN",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const PrincipalPortfolioAssociation = Resource<PrincipalPortfolioAssociation>(
+  "AWS.ServiceCatalog.PrincipalPortfolioAssociation",
+)
+
+export const PrincipalPortfolioAssociationProvider = (): infer _ =>
+  Provider.effect(
+    PrincipalPortfolioAssociation,
+    effect {
+      // Enumerate the portfolio's principals and check for ours. A missing
+      // portfolio means the association is gone too.
+      const isAssociated = effect (portfolioId: string, principalArn: string) =>
+        (Array.from(
+          try (servicecatalog.listPrincipalsForPortfolio
+            .pages({ PortfolioId: portfolioId })
+            |> Stream.runCollect(%)),
+        )
+          .flatMap((page) => page.Principals ?? [])
+          .some((p) => p.PrincipalARN === principalArn)) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: false;
+            default: throw e;
+          }
+
+      return PrincipalPortfolioAssociation.Provider.of({
+        stables: ["portfolioId", "principalArn", "principalType"],
+        // Service Catalog has no account-wide principal-association API. Walk
+        // every portfolio so unsafe nuke can remove principals before their
+        // parent portfolios. AWS may replace the ARN of a deleted IAM role
+        // with its stable principal ID (ARO...); preserve that value because
+        // the disassociate API accepts it.
+        list: effect () => {
+          const portfolioIds = Array.from(
+            try (servicecatalog.listPortfolios.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.PortfolioDetails ?? [])
+            .flatMap((portfolio) => (portfolio.Id === undefined ? [] : [portfolio.Id]))
+
+          const associations = try Effect.forEach(
+            portfolioIds,
+            effect (portfolioId) =>
+              (Array.from(
+                try (servicecatalog.listPrincipalsForPortfolio.pages({ PortfolioId: portfolioId })
+                  |> Stream.runCollect(%)),
+              )
+                .flatMap((page) => page.Principals ?? [])
+                .flatMap((principal) => {
+                  if (principal.PrincipalARN === undefined) return []
+                  const principalType = principal.PrincipalType === "IAM"
+                    ? ("IAM" as const)
+                    : principal.PrincipalType === "IAM_PATTERN"
+                    ? ("IAM_PATTERN" as const)
+                    : undefined
+                  if (principalType === undefined) return []
+                  return [
+                    {
+                      portfolioId,
+                      principalArn: principal.PrincipalARN,
+                      principalType,
+                    },
+                  ]
+                })) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
+            { concurrency: 5 },
+          )
+          return associations.flat()
+        },
+        // Existence-only resource — every property is part of its identity.
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if (
+            olds.portfolioId !== news.portfolioId
+            || olds.principalArn !== news.principalArn
+            || (olds.principalType ?? "IAM") !== (news.principalType ?? "IAM")
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          const portfolioId = output?.portfolioId ?? olds?.portfolioId
+          const principalArn = output?.principalArn ?? olds?.principalArn
+          if (portfolioId === undefined || principalArn === undefined) {
+            return undefined
+          }
+          return (try isAssociated(portfolioId, principalArn))
+            ? {
+              portfolioId,
+              principalArn,
+              principalType: output?.principalType ?? olds?.principalType ?? "IAM",
+            }
+            : undefined
+        },
+        // Existence-only: observe → if missing, associate. No sync step.
+        reconcile: effect ({ news, session }) => {
+          const principalType = news.principalType ?? "IAM"
+          if (!(try isAssociated(news.portfolioId, news.principalArn))) {
+            try servicecatalog.associatePrincipalWithPortfolio({
+              PortfolioId: news.portfolioId,
+              PrincipalARN: news.principalArn,
+              PrincipalType: principalType,
+            })
+            // The principal list is eventually consistent — wait (bounded)
+            // until the association is visible so a subsequent read converges.
+            try awaitVisible(isAssociated(news.portfolioId, news.principalArn))
+          }
+          try session.note(`${news.portfolioId}/${news.principalArn}`)
+          return {
+            portfolioId: news.portfolioId,
+            principalArn: news.principalArn,
+            principalType,
+          }
+        },
+        delete: effect ({ output }) => {
+          if (try isAssociated(output.portfolioId, output.principalArn)) {
+            servicecatalog
+              .disassociatePrincipalFromPortfolio({
+                PortfolioId: output.portfolioId,
+                PrincipalARN: output.principalArn,
+                PrincipalType: output.principalType,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                default: throw e;
+              }
+          }
+        },
+      })
+    },
+  )

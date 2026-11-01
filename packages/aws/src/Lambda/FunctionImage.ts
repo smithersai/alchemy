@@ -10,7 +10,7 @@ import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import { buildAndPushEcrImage } from "../ECR/Image.ts";
 import { AWSEnvironment } from "../Environment.ts";
-import { normalizePolicyDocument } from "../IAM/Policy.ts";
+import { normalizePolicyDocument } from "../IAM/Policy.vibe";
 import type { FunctionImageConfig } from "./Function.ts";
 
 export class FunctionImageInvalidProps extends Data.TaggedError("FunctionImageInvalidProps")<{

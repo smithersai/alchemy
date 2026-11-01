@@ -1,7 +1,7 @@
 import type * as NFW from "@distilled.cloud/aws/network-firewall";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { RuleGroup } from "./RuleGroup.js";
+import type { RuleGroup } from "./RuleGroup.vibe";
 export interface DescribeRuleGroupRequest extends Omit<NFW.DescribeRuleGroupRequest, "RuleGroupArn" | "RuleGroupName" | "Type"> {
 }
 /**

@@ -5,7 +5,7 @@ import type { SourceError } from "effect/ConfigProvider";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
 import type { PrometheusApiError, PrometheusInstantResult, PrometheusRangeResult, PrometheusTime } from "./PrometheusTypes.vibe";
-import type { Workspace } from "./Workspace.js";
+import type { Workspace } from "./Workspace.vibe";
 export interface QueryMetricsRequest {
     /** PromQL expression to evaluate, e.g. `up` or `rate(http_requests_total[5m])`. */
     query: string;

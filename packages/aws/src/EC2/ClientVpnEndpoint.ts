@@ -16,7 +16,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { retryClientVpn } from "./ClientVpnWait.ts";
 
 export type ClientVpnEndpointId = `cvpn-endpoint-${string}`;

@@ -1,7 +1,7 @@
 import type * as appsync from "@distilled.cloud/aws/appsync";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { GraphqlApi } from "./GraphqlApi.js";
+import type { GraphqlApi } from "./GraphqlApi.vibe";
 /**
  * Runtime binding for `appsync:GetIntrospectionSchema` — read a
  * {@link GraphqlApi}'s live schema (SDL or introspection JSON) from a Lambda

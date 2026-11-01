@@ -10,7 +10,7 @@ import {
   type KafkaEventSourceService,
   type MSKRecord,
 } from "../Kafka/ClusterEventSource.ts";
-import type { ServerlessCluster } from "../Kafka/ServerlessCluster.ts";
+import type { ServerlessCluster } from "../Kafka/ServerlessCluster.vibe";
 import { EventSourceMapping } from "./EventSourceMapping.ts";
 import * as Lambda from "./Function.ts";
 

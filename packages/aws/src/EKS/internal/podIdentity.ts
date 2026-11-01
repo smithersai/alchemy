@@ -12,7 +12,7 @@ import { createInternalTags, hasTags } from "alchemy/Tags";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { PolicyStatement } from "../../IAM/Policy.ts";
+import type { PolicyStatement } from "../../IAM/Policy.vibe";
 
 export class EKSPodIdentityUnexpectedResponse extends Data.TaggedError(
   "EKSPodIdentityUnexpectedResponse",

@@ -1,7 +1,7 @@
 import type * as bedrock from "@distilled.cloud/aws/bedrock-agent-runtime";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AgentAlias } from "./AgentAlias.js";
+import type { AgentAlias } from "./AgentAlias.vibe";
 /**
  * The `DeleteAgentMemory` request with the binding-injected `agentId` and
  * `agentAliasId` removed — they are supplied automatically from the bound

@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/codebuild";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Project } from "./Project.js";
+import type { Project } from "./Project.vibe";
 /**
  * Runtime binding for `codebuild:StopBuildBatch` — stops an in-progress
  * batch build of the bound project by batch id.

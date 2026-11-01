@@ -8,7 +8,7 @@ import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { fromChatbotTags, inChatbotRegion, toChatbotTags } from "./internal.vibe";
 
 /**

@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/finspace";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { KxEnvironment } from "./KxEnvironment.js";
+import type { KxEnvironment } from "./KxEnvironment.vibe";
 /**
  * Runtime binding for `finspace:CreateKxUser` — creates a kdb user in the bound environment, mapping an IAM role to a kdb identity.
  * Provide the implementation with

@@ -1,0 +1,351 @@
+import * as sitewise from "@distilled.cloud/aws/iotsitewise"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+import { fetchSiteWiseTags, syncSiteWiseTags } from "./internal.ts"
+
+export error AssetInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error AssetUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type AssetState = sitewise.AssetState
+
+export interface AssetProps {
+  /**
+   * A unique name for the asset.
+   * @default ${app}-${stage}-${id}
+   */
+  mutable assetName?: string
+  /**
+   * The ID of the asset model from which to create the asset.
+   * Changing the model replaces the asset.
+   */
+  mutable assetModelId: string
+  /**
+   * A description for the asset.
+   */
+  mutable assetDescription?: string
+  /**
+   * Tags to associate with the asset.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Asset extends
+  Resource<
+    "AWS.IoTSiteWise.Asset",
+    AssetProps,
+    {
+      /**
+       * Service-assigned UUID of the asset.
+       */
+      mutable assetId: string
+      /**
+       * ARN of the asset.
+       */
+      mutable assetArn: string
+      /**
+       * The asset's name.
+       */
+      mutable assetName: string
+      /**
+       * The ID of the asset model the asset was created from.
+       */
+      mutable assetModelId: string
+      /**
+       * Current lifecycle state of the asset.
+       */
+      mutable state: AssetState
+      /**
+       * Current tags reported for the asset.
+       */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS IoT SiteWise asset — an instance of an asset model representing
+ * a physical piece of industrial equipment or a logical grouping.
+ *
+ * Asset creation and updates are asynchronous (`CREATING`/`UPDATING` →
+ * `ACTIVE`); the provider waits for the asset to converge to `ACTIVE`
+ * before returning.
+ *
+ * ### Creating Assets
+ * **Example:** Asset from an Asset Model
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const model = yield* AWS.IoTSiteWise.AssetModel("PumpModel", {
+ *   assetModelProperties: [
+ *     { name: "Temperature", dataType: "DOUBLE", type: { measurement: {} } },
+ *   ],
+ * });
+ *
+ * const asset = yield* AWS.IoTSiteWise.Asset("Pump1", {
+ *   assetModelId: model.assetModelId,
+ *   assetDescription: "Pump #1 on the west line",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Asset = Resource<Asset>("AWS.IoTSiteWise.Asset")
+
+const createAssetName = effect (
+  id: string,
+  props: { mutable assetName?: string | undefined },
+) => (props.assetName ? props.assetName : try createPhysicalName({ id, maxLength: 256 }))
+
+interface AssetState_ {
+  mutable attrs: Asset["Attributes"]
+  mutable described: sitewise.DescribeAssetResponse
+}
+
+const readAssetById = effect (assetId: string) => {
+  const described = sitewise
+    .describeAsset({ assetId, excludeProperties: true }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!described || described.assetStatus.state === "DELETING") {
+    return undefined
+  }
+  const state: AssetState_ = {
+    described,
+    attrs: {
+      assetId: described.assetId,
+      assetArn: described.assetArn,
+      assetName: described.assetName,
+      assetModelId: described.assetModelId,
+      state: described.assetStatus.state,
+      tags: try fetchSiteWiseTags(described.assetArn),
+    },
+  }
+  return state
+}
+
+const findAssetByName = effect (name: string, assetModelId: string) => {
+  const summaries = (Array.from(
+    try (sitewise.listAssets.pages({ assetModelId })
+      |> EffectStream.runCollect(%)),
+  ).flatMap((page) => page.assetSummaries)) catch effect (e) => match (e) {
+    when { _tag: "ResourceNotFoundException" }: [];
+    default: throw e;
+  }
+  const match = summaries.find(
+    (summary) => summary.name === name && summary.status.state !== "DELETING",
+  )
+  if (!match) return undefined
+  return try readAssetById(match.id)
+}
+
+/**
+ * An asset still transitioning toward the awaited state — retried by
+ * {@link waitForAssetState}'s bounded schedule.
+ */
+error AssetNotReady {
+  assetId: string
+  state: string | undefined
+}
+
+/**
+ * An asset whose asynchronous provisioning converged to the terminal
+ * `FAILED` state.
+ */
+export error AssetProvisioningFailed {
+  assetId: string
+  message: string | undefined
+}
+
+// Explicitly-typed retry wrapper — see AssetModel.ts for why inline
+// Effect.retry is forbidden in provider lifecycle code.
+const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "AssetNotReady",
+    schedule: Schedule.max([Schedule.spaced("3 seconds"), Schedule.recurs(30)]),
+  })
+
+const retryThroughConflictingOperation = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "ConflictingOperationException",
+    schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(10)]),
+  })
+
+const waitForAssetState = (assetId: string, target: "ACTIVE" | "DELETED") =>
+  retryWhileNotReady(
+    effect {
+      const described = sitewise
+        .describeAsset({ assetId, excludeProperties: true }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (target === "DELETED") {
+        if (described === undefined) return
+        throw new AssetNotReady({ assetId, state: described.assetStatus.state })
+      }
+      if (described?.assetStatus.state === "ACTIVE") return
+      if (described?.assetStatus.state === "FAILED") {
+        throw new AssetProvisioningFailed({
+          assetId,
+          message: described.assetStatus.error?.message,
+        })
+      }
+      throw new AssetNotReady({ assetId, state: described?.assetStatus.state })
+    },
+  )
+
+export const AssetProvider = (): infer _ =>
+  Provider.effect(
+    Asset,
+    effect {
+      return {
+        stables: ["assetId", "assetArn"],
+        list: effect () => {
+          // ListAssets requires an assetModelId filter — enumerate models
+          // first, then each model's assets.
+          const models = Array.from(
+            try (sitewise.listAssetModels.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => page.assetModelSummaries)
+          const summaries = try Effect.forEach(
+            models.map((model) => model.id),
+            effect (assetModelId) =>
+              (Array.from(
+                try (sitewise.listAssets.pages({ assetModelId })
+                  |> EffectStream.runCollect(%)),
+              ).flatMap((page) => page.assetSummaries)) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: [];
+                default: throw e;
+              },
+            { concurrency: 3 },
+          )
+          const hydrated = try Effect.forEach(
+            summaries.flat().map((summary) => summary.id),
+            (assetId) => readAssetById(assetId),
+            { concurrency: 5 },
+          )
+          return hydrated.flatMap((state) => (state === undefined ? [] : [state.attrs]))
+        },
+        read: effect ({ id, olds, output }) => {
+          const state = output?.assetId
+            ? try readAssetById(output.assetId)
+            : olds?.assetModelId
+            ? try findAssetByName(try createAssetName(id, olds), olds.assetModelId)
+            : undefined
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.attrs.tags as Tags))
+            ? state.attrs
+            : Unowned(state.attrs)
+        },
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          if (olds === undefined) return
+          // An asset cannot move to a different model.
+          if (olds.assetModelId !== news.assetModelId) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (!news) {
+            throw new AssetInvalidProps({ message: "IoT SiteWise Asset requires props" })
+          }
+          const name = try createAssetName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — prefer the cached id; fall back to a name lookup so
+          // a create whose state failed to persist is adopted.
+          let state = output?.assetId
+            ? try readAssetById(output.assetId)
+            : try findAssetByName(name, news.assetModelId)
+
+          // Ensure — create if missing, then wait for ACTIVE. A model that
+          // just reached ACTIVE can still briefly reject creates with
+          // ConflictingOperationException.
+          if (state === undefined) {
+            const created = try retryThroughConflictingOperation(
+              sitewise.createAsset({
+                assetName: name,
+                assetModelId: news.assetModelId,
+                assetDescription: news.assetDescription,
+                tags: desiredTags,
+              }),
+            )
+            try session.note(`Creating asset ${name} (${created.assetId})...`)
+            try waitForAssetState(created.assetId, "ACTIVE")
+            state = try readAssetById(created.assetId)
+            if (state === undefined) {
+              throw new AssetUnexpectedResponse({
+                message: `failed to read created asset ${name}`,
+              })
+            }
+          }
+
+          // Sync — name/description drift via UpdateAsset.
+          const described = state.described
+          if (
+            name !== described.assetName
+            || (news.assetDescription ?? "") !== (described.assetDescription ?? "")
+          ) {
+            try retryThroughConflictingOperation(
+              sitewise.updateAsset({
+                assetId: state.attrs.assetId,
+                assetName: name,
+                assetDescription: news.assetDescription,
+              }),
+            )
+            try waitForAssetState(state.attrs.assetId, "ACTIVE")
+            try session.note(`Updated asset ${name}`)
+          }
+
+          // Sync tags — diff against observed cloud tags.
+          try syncSiteWiseTags(state.attrs.assetArn, state.attrs.tags, desiredTags)
+
+          try session.note(state.attrs.assetArn)
+
+          const final = try readAssetById(state.attrs.assetId)
+          if (!final) {
+            throw new AssetUnexpectedResponse({
+              message: `failed to read reconciled asset ${name}`,
+            })
+          }
+          return final.attrs
+        },
+        delete: effect ({ output }) => {
+          // Deleting an asset that is still associated to a parent (or mid
+          // transition) raises ConflictingOperationException — retry
+          // through the window, then wait until fully gone so the asset
+          // model can be deleted after it.
+          try retryThroughConflictingOperation(
+            effect {
+              return sitewise
+                .deleteAsset({ assetId: output.assetId }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            },
+          )
+          try waitForAssetState(output.assetId, "DELETED")
+        },
+      }
+    },
+  )

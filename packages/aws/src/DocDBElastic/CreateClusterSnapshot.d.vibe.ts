@@ -1,7 +1,7 @@
 import type * as docdbelastic from "@distilled.cloud/aws/docdb-elastic";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 /**
  * Runtime binding for the `CreateClusterSnapshot` operation (IAM actions
  * `docdb-elastic:CreateClusterSnapshot` + `docdb-elastic:TagResource`),

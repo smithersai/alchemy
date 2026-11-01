@@ -11,7 +11,7 @@ export * from "./ListHealthEvents.vibe";
 export * from "./ListHealthEventsHttp.vibe";
 export * from "./ListInternetEvents.vibe";
 export * from "./ListInternetEventsHttp.vibe";
-export * from "./Monitor.ts";
+export * from "./Monitor.vibe";
 export * from "./StartQuery.vibe";
 export * from "./StartQueryHttp.vibe";
 export * from "./StopQuery.vibe";

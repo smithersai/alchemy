@@ -24,5 +24,5 @@ export * from "./UploadArchive.vibe";
 export * from "./UploadArchiveHttp.vibe";
 export * from "./UploadMultipartPart.vibe";
 export * from "./UploadMultipartPartHttp.vibe";
-export * from "./Vault.ts";
+export * from "./Vault.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding and intentionally NOT exported.

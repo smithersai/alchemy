@@ -1,7 +1,7 @@
 import type * as codeconnections from "@distilled.cloud/aws/codeconnections";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { RepositoryLink } from "./RepositoryLink.js";
+import type { RepositoryLink } from "./RepositoryLink.vibe";
 /**
  * Request for {@link GetRepositorySyncStatus} — the branch and sync type to
  * read; the repository link ID is injected from the bound resource.

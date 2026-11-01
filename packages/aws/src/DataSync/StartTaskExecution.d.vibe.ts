@@ -1,7 +1,7 @@
 import type * as datasync from "@distilled.cloud/aws/datasync";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Task } from "./Task.js";
+import type { Task } from "./Task.vibe";
 /**
  * Runtime binding for `datasync:StartTaskExecution`.
  *

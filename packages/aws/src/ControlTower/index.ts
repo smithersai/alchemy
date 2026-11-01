@@ -1,5 +1,5 @@
-export * from "./EnabledBaseline.ts";
-export * from "./EnabledControl.ts";
+export * from "./EnabledBaseline.vibe";
+export * from "./EnabledControl.vibe";
 export * from "./GetBaseline.vibe";
 export * from "./GetBaselineHttp.vibe";
 export * from "./GetBaselineOperation.vibe";

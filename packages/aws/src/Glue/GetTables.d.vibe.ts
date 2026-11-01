@@ -1,7 +1,7 @@
 import type * as glue from "@distilled.cloud/aws/glue";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Database } from "./Database.js";
+import type { Database } from "./Database.vibe";
 export interface GetTablesRequest extends Omit<glue.GetTablesRequest, "DatabaseName" | "CatalogId"> {
 }
 /**

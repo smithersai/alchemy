@@ -2,7 +2,7 @@ import type * as scheduler from "@distilled.cloud/aws/scheduler";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { Role } from "../IAM/Role.js";
-import type { ScheduleGroup } from "./ScheduleGroup.js";
+import type { ScheduleGroup } from "./ScheduleGroup.vibe";
 /**
  * The schedule target passed at runtime. `RoleArn` defaults to the execution
  * role the binding was constructed with, so callers normally omit it.

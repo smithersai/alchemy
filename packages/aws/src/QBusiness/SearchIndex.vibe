@@ -1,0 +1,385 @@
+import * as qbusiness from "@distilled.cloud/aws/qbusiness"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+
+export error QBusinessSearchIndexInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error QBusinessSearchIndexUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type IndexStatus = qbusiness.IndexStatus
+export type IndexType = qbusiness.IndexType
+
+export interface IndexProps {
+  /**
+   * The identifier of the Amazon Q Business application the index attaches
+   * to. Changing it replaces the index.
+   */
+  mutable applicationId: string
+  /**
+   * Display name of the index.
+   * @default ${app}-${stage}-${id}
+   */
+  mutable displayName?: string
+  /**
+   * A description of the index.
+   */
+  mutable description?: string
+  /**
+   * The index tier — `STARTER` (single AZ) or `ENTERPRISE` (multi AZ).
+   * Changing it replaces the index.
+   * @default "STARTER"
+   */
+  mutable type?: IndexType
+  /**
+   * Provisioned storage capacity units. Each unit stores 20,000 documents.
+   * @default 1 unit
+   */
+  mutable capacityConfiguration?: qbusiness.IndexCapacityConfiguration
+  /**
+   * Configuration for document metadata attributes (search/display
+   * behavior).
+   */
+  mutable documentAttributeConfigurations?: qbusiness.DocumentAttributeConfiguration[]
+  /**
+   * Tags to associate with the index.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Index extends
+  Resource<
+    "AWS.QBusiness.Index",
+    IndexProps,
+    {
+      /**
+       * Service-assigned unique identifier of the index (unique within its
+       * application).
+       */
+      mutable indexId: string
+      /**
+       * The identifier of the application the index belongs to.
+       */
+      mutable applicationId: string
+      /**
+       * ARN of the index.
+       */
+      mutable indexArn: string
+      /**
+       * The index's display name.
+       */
+      mutable displayName: string
+      /**
+       * The provisioned index tier.
+       */
+      mutable type: IndexType | undefined
+      /**
+       * Current lifecycle status of the index.
+       */
+      mutable status: IndexStatus | undefined
+      /**
+       * Current tags reported for the index.
+       */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Q Business index — the document store that data sources sync
+ * content into and retrievers query.
+ *
+ * :::caution
+ * An index bills hourly per provisioned capacity unit from the moment it
+ * becomes `ACTIVE`. Destroy test indexes promptly.
+ * :::
+ * ### Creating Indexes
+ * **Example:** Starter Index
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const index = yield* AWS.QBusiness.Index("Docs", {
+ *   applicationId: app.applicationId,
+ * });
+ * ```
+ *
+ * **Example:** Enterprise Index with Extra Capacity
+ * ```typescript
+ * const index = yield* AWS.QBusiness.Index("Docs", {
+ *   applicationId: app.applicationId,
+ *   type: "ENTERPRISE",
+ *   capacityConfiguration: { units: 2 },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Index = Resource<Index>("AWS.QBusiness.Index")
+
+const createDisplayName = effect (
+  id: string,
+  props: { mutable displayName?: string | undefined },
+) => (props.displayName ? props.displayName : try createPhysicalName({ id, maxLength: 100 }))
+
+const fetchTags = effect (arn: string) => {
+  const response = qbusiness
+    .listTagsForResource({ resourceARN: arn }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  return Object.fromEntries((response?.tags ?? []).map((tag) => [tag.key, tag.value]))
+}
+
+interface IndexState {
+  mutable attrs: Index["Attributes"]
+  mutable described: qbusiness.GetIndexResponse
+}
+
+const readIndexById = effect (applicationId: string, indexId: string) => {
+  const described = qbusiness
+    .getIndex({ applicationId, indexId }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!described || described.status === "DELETING") return undefined
+  const arn = described.indexArn
+  if (arn === undefined) return undefined
+  const state: IndexState = {
+    described,
+    attrs: {
+      indexId: described.indexId ?? indexId,
+      applicationId: described.applicationId ?? applicationId,
+      indexArn: arn,
+      displayName: described.displayName ?? "",
+      type: described.type,
+      status: described.status,
+      tags: try fetchTags(arn),
+    },
+  }
+  return state
+}
+
+const findIndexByName = effect (applicationId: string, displayName: string) => {
+  const summaries = (Array.from(
+    try (qbusiness.listIndices.pages({ applicationId })
+      |> EffectStream.runCollect(%)),
+  ).flatMap((page) => page.indices ?? [])) catch effect (e) => match (e) {
+    when { _tag: "ResourceNotFoundException" }: [] as qbusiness.Index[];
+    default: throw e;
+  }
+  const match = summaries.find(
+    (summary) => summary.displayName === displayName && summary.status !== "DELETING",
+  )
+  if (!match?.indexId) return undefined
+  return try readIndexById(applicationId, match.indexId)
+}
+
+/**
+ * An index still transitioning toward the awaited status — retried by
+ * {@link waitForIndexStatus}'s bounded schedule.
+ */
+// @vibelang-diagnostics-next-line EK4830:off
+class IndexNotReady extends Data.TaggedError("QBusinessIndexNotReady")<{
+  readonly indexId: string
+  readonly status: string | undefined
+}> {}
+
+/**
+ * An index whose asynchronous provisioning converged to the terminal
+ * `FAILED` status.
+ */
+// @vibelang-diagnostics-next-line EK4830:off
+export class IndexProvisioningFailed extends Data.TaggedError("QBusinessIndexProvisioningFailed")<{
+  readonly indexId: string
+  readonly message: string | undefined
+}> {}
+
+// Explicitly-typed retry wrapper — an inline `Effect.retry` in provider
+// lifecycle code leaks `Retry.Return`'s conditional type into declaration
+// emit and widens the provider layer to `unknown` for every consumer of
+// `AWS.providers()`.
+const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "QBusinessIndexNotReady",
+    // Index provisioning takes several minutes; poll every 15s up to ~30 min.
+    schedule: Schedule.max([Schedule.spaced("15 seconds"), Schedule.recurs(120)]),
+  })
+
+const waitForIndexStatus = (applicationId: string, indexId: string, target: "ACTIVE" | "DELETED") =>
+  retryWhileNotReady(
+    effect {
+      const described = qbusiness
+        .getIndex({ applicationId, indexId }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (target === "DELETED") {
+        if (described === undefined) return
+        throw new IndexNotReady({ indexId, status: described.status })
+      }
+      if (described?.status === "ACTIVE") return
+      if (described?.status === "FAILED") {
+        throw new IndexProvisioningFailed({
+          indexId,
+          message: described.error?.errorMessage,
+        })
+      }
+      throw new IndexNotReady({ indexId, status: described?.status })
+    },
+  )
+
+export const IndexProvider = (): infer _ =>
+  Provider.effect(
+    Index,
+    effect {
+      return {
+        stables: ["indexId", "applicationId", "indexArn"],
+        // Keyed by a parent application; cannot be enumerated account-wide
+        // without iterating every application — treated as a sub-resource per
+        // the factory list() convention.
+        list: effect () => [],
+        read: effect ({ id, olds, output }) => {
+          const applicationId = output?.applicationId ?? olds?.applicationId
+          if (applicationId === undefined) return undefined
+          const state = output?.indexId
+            ? try readIndexById(applicationId, output.indexId)
+            : try findIndexByName(applicationId, try createDisplayName(id, olds ?? {}))
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.attrs.tags as Tags))
+            ? state.attrs
+            : Unowned(state.attrs)
+        },
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          if (olds === undefined) return
+          // The parent application and index tier are fixed at creation.
+          if (
+            olds.applicationId !== news.applicationId
+            || (olds.type ?? "STARTER") !== (news.type ?? "STARTER")
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (!news) {
+            throw new QBusinessSearchIndexInvalidProps({
+              message: "QBusiness Index requires props",
+            })
+          }
+          const applicationId = news.applicationId
+          const displayName = try createDisplayName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — prefer the cached id; fall back to a name lookup so a
+          // create whose state failed to persist is adopted, not duplicated.
+          let state = output?.indexId
+            ? try readIndexById(applicationId, output.indexId)
+            : try findIndexByName(applicationId, displayName)
+
+          // Ensure — create if missing, then wait for ACTIVE.
+          if (state === undefined) {
+            const created = try qbusiness.createIndex({
+              applicationId,
+              displayName,
+              description: news.description,
+              type: news.type,
+              capacityConfiguration: news.capacityConfiguration,
+              tags: Object.entries(desiredTags).map(([key, value]) => ({
+                key,
+                value,
+              })),
+            })
+            if (!created.indexId) {
+              throw new QBusinessSearchIndexUnexpectedResponse({
+                message: `CreateIndex for '${displayName}' returned no indexId`,
+              })
+            }
+            try session.note(`Creating index ${displayName} (${created.indexId})...`)
+            try waitForIndexStatus(applicationId, created.indexId, "ACTIVE")
+            state = try readIndexById(applicationId, created.indexId)
+            if (state === undefined) {
+              throw new QBusinessSearchIndexUnexpectedResponse({
+                message: `failed to read created index ${displayName}`,
+              })
+            }
+          }
+
+          // Sync mutable settings via UpdateIndex — only when drifted.
+          const described = state.described
+          const desiredUnits = news.capacityConfiguration?.units
+          const needsUpdate = displayName !== described.displayName
+            || (news.description ?? "") !== (described.description ?? "")
+            || (desiredUnits !== undefined
+              && desiredUnits !== described.capacityConfiguration?.units)
+            || news.documentAttributeConfigurations !== undefined
+          if (needsUpdate) {
+            try qbusiness.updateIndex({
+              applicationId,
+              indexId: state.attrs.indexId,
+              displayName,
+              description: news.description,
+              capacityConfiguration: news.capacityConfiguration,
+              documentAttributeConfigurations: news.documentAttributeConfigurations,
+            })
+            try waitForIndexStatus(applicationId, state.attrs.indexId, "ACTIVE")
+            try session.note(`Updated index ${displayName}`)
+          }
+
+          // Sync tags — diff against observed cloud tags.
+          const { removed, upsert } = diffTags(state.attrs.tags, desiredTags)
+          if (removed.length > 0) {
+            try qbusiness.untagResource({
+              resourceARN: state.attrs.indexArn,
+              tagKeys: removed,
+            })
+          }
+          if (upsert.length > 0) {
+            try qbusiness.tagResource({
+              resourceARN: state.attrs.indexArn,
+              tags: upsert.map(({ Key, Value }) => ({
+                key: Key,
+                value: Value,
+              })),
+            })
+          }
+
+          try session.note(state.attrs.indexArn)
+
+          const final = try readIndexById(applicationId, state.attrs.indexId)
+          if (!final) {
+            throw new QBusinessSearchIndexUnexpectedResponse({
+              message: `failed to read reconciled index ${displayName}`,
+            })
+          }
+          return final.attrs
+        },
+        delete: effect ({ output }) => {
+          qbusiness
+            .deleteIndex({
+              applicationId: output.applicationId,
+              indexId: output.indexId,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          try waitForIndexStatus(output.applicationId, output.indexId, "DELETED")
+        },
+      }
+    },
+  )

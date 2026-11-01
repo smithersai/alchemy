@@ -2,7 +2,7 @@ export * from "./Application.ts";
 export * from "./CreateDataIntegrationAssociation.vibe";
 export * from "./CreateDataIntegrationAssociationHttp.vibe";
 export * from "./DataIntegration.ts";
-export * from "./EventIntegration.ts";
+export * from "./EventIntegration.vibe";
 export * from "./EventIntegrationEventSource.vibe";
 export * from "./ListApplicationAssociations.vibe";
 export * from "./ListApplicationAssociationsHttp.vibe";

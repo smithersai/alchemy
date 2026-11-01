@@ -1,7 +1,7 @@
 import type * as ci from "@distilled.cloud/aws/cognito-identity";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { IdentityPool } from "./IdentityPool.js";
+import type { IdentityPool } from "./IdentityPool.vibe";
 export interface ListIdentitiesRequest extends Omit<ci.ListIdentitiesInput, "IdentityPoolId"> {
 }
 export interface LookupDeveloperIdentityRequest extends Omit<ci.LookupDeveloperIdentityInput, "IdentityPoolId"> {

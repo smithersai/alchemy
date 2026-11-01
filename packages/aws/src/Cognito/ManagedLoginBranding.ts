@@ -4,7 +4,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 /**
  * An image asset (logo, favicon, background, …) attached to a managed login

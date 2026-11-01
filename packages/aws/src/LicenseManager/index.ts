@@ -36,7 +36,7 @@ export * from "./GetLicenseUsage.vibe";
 export * from "./GetLicenseUsageHttp.vibe";
 export * from "./GetServiceSettings.vibe";
 export * from "./GetServiceSettingsHttp.vibe";
-export * from "./LicenseConfiguration.ts";
+export * from "./LicenseConfiguration.vibe";
 export * from "./ListAssociationsForLicenseConfiguration.vibe";
 export * from "./ListAssociationsForLicenseConfigurationHttp.vibe";
 export * from "./ListDistributedGrants.vibe";

@@ -1,0 +1,227 @@
+import * as devopsguru from "@distilled.cloud/aws/devops-guru"
+import { Unowned } from "alchemy/AdoptPolicy"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface ServiceIntegrationProps {
+  /**
+   * Create an AWS Systems Manager OpsItem for each new insight so incidents
+   * flow into OpsCenter.
+   * @default false
+   */
+  mutable opsCenter?: boolean
+  /**
+   * Analyze CloudWatch log groups in the resource collection for log
+   * anomalies and surface them on insights.
+   * @default false
+   */
+  mutable logsAnomalyDetection?: boolean
+  /**
+   * Encrypt DevOps Guru data with this customer-managed KMS key instead of
+   * the AWS-owned default key. Omit to use the AWS-owned key.
+   */
+  mutable kmsKeyId?: string
+}
+
+export interface ServiceIntegration extends
+  Resource<
+    "AWS.DevOpsGuru.ServiceIntegration",
+    ServiceIntegrationProps,
+    {
+      /** Whether an OpsItem is created for each new insight. */
+      mutable opsCenter: boolean
+      /** Whether CloudWatch log groups are analyzed for anomalies. */
+      mutable logsAnomalyDetection: boolean
+      /** Server-side encryption key type (`AWS_OWNED_KMS_KEY` or `CUSTOMER_MANAGED_KEY`). */
+      mutable encryptionType: devopsguru.ServerSideEncryptionType
+      /** Customer-managed KMS key id, when `encryptionType` is `CUSTOMER_MANAGED_KEY`. */
+      mutable kmsKeyId: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * The DevOps Guru service integration — the account/region singleton that
+ * controls how DevOps Guru integrates with other AWS services: creating a
+ * Systems Manager OpsItem for each insight, analyzing CloudWatch log groups
+ * for anomalies, and encrypting DevOps Guru data with a customer-managed
+ * KMS key.
+ *
+ * An account has exactly one integration configuration, so this resource is
+ * a capture-and-restore singleton: adopting a non-default configuration that
+ * Alchemy did not create requires `--adopt`. Destroying the resource
+ * restores the account defaults (everything disabled, AWS-owned key).
+ *
+ * ### Configuring the Integration
+ * **Example:** Enable Log Anomaly Detection
+ * ```typescript
+ * const integration = yield* DevOpsGuru.ServiceIntegration("Integration", {
+ *   logsAnomalyDetection: true,
+ * });
+ * ```
+ *
+ * **Example:** File an OpsItem for Every Insight
+ * ```typescript
+ * const integration = yield* DevOpsGuru.ServiceIntegration("Integration", {
+ *   opsCenter: true,
+ *   logsAnomalyDetection: true,
+ * });
+ * ```
+ *
+ * **Example:** Encrypt with a Customer-Managed Key
+ * ```typescript
+ * const integration = yield* DevOpsGuru.ServiceIntegration("Integration", {
+ *   kmsKeyId: key.keyId,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ServiceIntegration = Resource<ServiceIntegration>("AWS.DevOpsGuru.ServiceIntegration")
+
+interface ObservedIntegration {
+  mutable opsCenter: boolean
+  mutable logsAnomalyDetection: boolean
+  mutable encryptionType: devopsguru.ServerSideEncryptionType
+  mutable kmsKeyId: string | undefined
+}
+
+const isDefault = (observed: ObservedIntegration): infer _ =>
+  !observed.opsCenter
+  && !observed.logsAnomalyDetection
+  && observed.encryptionType === "AWS_OWNED_KMS_KEY"
+
+/**
+ * Concurrent `UpdateServiceIntegration` calls conflict server-side — retry
+ * the typed conflict tag on a short bounded schedule.
+ *
+ * Explicitly typed: inlining `Effect.retry` with options in provider
+ * lifecycle code can widen the provider layer to `unknown` in declaration
+ * emit.
+ *
+ * @internal
+ */
+const retryUpdateConflict = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "ConflictException",
+    schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(8)]),
+  })
+
+export const ServiceIntegrationProvider = (): infer _ =>
+  Provider.effect(
+    ServiceIntegration,
+    effect {
+      // Observe the live account configuration. Absent sections and absent
+      // opt-in statuses mean "account default" (disabled / AWS-owned key).
+      const observe = effect {
+        const { ServiceIntegration: config } = try devopsguru.describeServiceIntegration({})
+        const kms = config?.KMSServerSideEncryption
+        const encryptionType: devopsguru.ServerSideEncryptionType = kms?.Type ?? "AWS_OWNED_KMS_KEY"
+        return {
+          opsCenter: config?.OpsCenter?.OptInStatus === "ENABLED",
+          logsAnomalyDetection: config?.LogsAnomalyDetection?.OptInStatus === "ENABLED",
+          encryptionType,
+          kmsKeyId: encryptionType === "CUSTOMER_MANAGED_KEY" ? kms?.KMSKeyId : undefined,
+        } satisfies ObservedIntegration
+      }
+
+      const update = effect (config: devopsguru.UpdateServiceIntegrationConfig) => {
+        try retryUpdateConflict(
+          devopsguru.updateServiceIntegration({ ServiceIntegration: config }),
+        )
+      }
+
+      // Converge the live configuration to the desired shape, one section
+      // per update call so a partial failure leaves the others converged.
+      const converge = effect (
+        observed: ObservedIntegration,
+        desired: ServiceIntegrationProps,
+      ) => {
+        const wantOpsCenter = desired.opsCenter ?? false
+        if (observed.opsCenter !== wantOpsCenter) {
+          try update({
+            OpsCenter: {
+              OptInStatus: wantOpsCenter ? "ENABLED" : "DISABLED",
+            },
+          })
+        }
+
+        const wantLogs = desired.logsAnomalyDetection ?? false
+        if (observed.logsAnomalyDetection !== wantLogs) {
+          try update({
+            LogsAnomalyDetection: {
+              OptInStatus: wantLogs ? "ENABLED" : "DISABLED",
+            },
+          })
+        }
+
+        if (desired.kmsKeyId !== undefined) {
+          if (
+            observed.encryptionType !== "CUSTOMER_MANAGED_KEY"
+            || observed.kmsKeyId !== desired.kmsKeyId
+          ) {
+            try update({
+              KMSServerSideEncryption: {
+                Type: "CUSTOMER_MANAGED_KEY",
+                KMSKeyId: desired.kmsKeyId,
+                OptInStatus: "ENABLED",
+              },
+            })
+          }
+        } else if (observed.encryptionType === "CUSTOMER_MANAGED_KEY") {
+          try update({
+            KMSServerSideEncryption: {
+              Type: "AWS_OWNED_KMS_KEY",
+              OptInStatus: "ENABLED",
+            },
+          })
+        }
+      }
+
+      return {
+        // Account/region singleton — surfaced only when non-default.
+        list: effect () =>
+          try effect {
+            const observed = try observe
+            return (isDefault(observed) ? [] : [observed])
+          },
+
+        read: effect ({ output }) => {
+          const observed = try observe
+          if (isDefault(observed)) {
+            return undefined
+          }
+          // The integration can't carry ownership tags — a non-default
+          // configuration we have no record of belongs to someone else
+          // until explicitly adopted.
+          return output !== undefined ? observed : Unowned(observed)
+        },
+
+        reconcile: effect ({ news, session }) => {
+          // 1. OBSERVE — the live account configuration is authoritative.
+          const observed = try observe
+
+          // 2. SYNC — apply only the changed sections.
+          try converge(observed, news)
+
+          // 3. RETURN fresh attributes.
+          const final = try observe
+          try session.note(
+            `opsCenter: ${final.opsCenter}, logsAnomalyDetection: ${final.logsAnomalyDetection}, encryption: ${final.encryptionType}`,
+          )
+          return final
+        },
+
+        // "Deleting" the singleton restores the account defaults.
+        delete: effect () => {
+          const observed = try observe
+          try converge(observed, {})
+        },
+      }
+    },
+  )

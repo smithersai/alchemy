@@ -1,7 +1,7 @@
 import type * as glue from "@distilled.cloud/aws/glue";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.vibe";
 export interface DeletePartitionRequest extends Omit<glue.DeletePartitionRequest, "DatabaseName" | "TableName" | "CatalogId"> {
 }
 /**

@@ -20,7 +20,7 @@ export * from "./GetInvestigation.vibe";
 export * from "./GetInvestigationHttp.vibe";
 export * from "./GetMembers.vibe";
 export * from "./GetMembersHttp.vibe";
-export * from "./Graph.ts";
+export * from "./Graph.vibe";
 export * from "./ListDatasourcePackages.vibe";
 export * from "./ListDatasourcePackagesHttp.vibe";
 export * from "./ListIndicators.vibe";

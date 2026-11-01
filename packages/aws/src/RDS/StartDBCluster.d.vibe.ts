@@ -1,7 +1,7 @@
 import type * as rds from "@distilled.cloud/aws/rds";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DBCluster } from "./DBCluster.js";
+import type { DBCluster } from "./DBCluster.vibe";
 /**
  * Runtime binding for the `StartDBCluster` operation (IAM action
  * `rds:StartDBCluster`).

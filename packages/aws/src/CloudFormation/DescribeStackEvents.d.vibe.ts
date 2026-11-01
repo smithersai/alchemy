@@ -1,7 +1,7 @@
 import type * as cloudformation from "@distilled.cloud/aws/cloudformation";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Stack } from "./Stack.js";
+import type { Stack } from "./Stack.vibe";
 /**
  * Runtime binding for the `DescribeStackEvents` operation (IAM action
  * `cloudformation:DescribeStackEvents`).

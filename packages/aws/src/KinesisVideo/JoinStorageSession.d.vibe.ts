@@ -2,8 +2,8 @@ import type * as kv from "@distilled.cloud/aws/kinesis-video";
 import type * as kvws from "@distilled.cloud/aws/kinesis-video-webrtc-storage";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { SignalingEndpointUnavailable } from "./internal.js";
-import type { SignalingChannel } from "./SignalingChannel.js";
+import type { SignalingEndpointUnavailable } from "./internal.vibe";
+import type { SignalingChannel } from "./SignalingChannel.vibe";
 /**
  * Runtime binding for `kinesisvideo:JoinStorageSession` (WebRTC storage
  * data plane).

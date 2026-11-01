@@ -1,7 +1,7 @@
 import type * as TSW from "@distilled.cloud/aws/timestream-write";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.vibe";
 export interface WriteRecordsRequest extends Omit<TSW.WriteRecordsRequest, "DatabaseName" | "TableName"> {
 }
 /**

@@ -9,7 +9,7 @@ import { toWireMinutes } from "alchemy/Util/Duration";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { fetchOmicsTags, syncOmicsTags } from "./internal.ts";
 
 export interface RunGroupProps {

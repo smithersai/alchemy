@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import type { Dashboard } from "./Dashboard.js";
-import type { DataSet } from "./DataSet.js";
+import type { Dashboard } from "./Dashboard.vibe";
+import type { DataSet } from "./DataSet.vibe";
 /**
  * Shared scaffolding for Amazon QuickSight HTTP bindings.
  *

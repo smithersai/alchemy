@@ -1,7 +1,7 @@
 import type * as codeconnections from "@distilled.cloud/aws/codeconnections";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { SyncConfiguration } from "./SyncConfiguration.js";
+import type { SyncConfiguration } from "./SyncConfiguration.vibe";
 /**
  * Request for {@link UpdateSyncBlocker} — the blocker ID and resolution
  * reason; the sync configuration's identity is injected from the bound

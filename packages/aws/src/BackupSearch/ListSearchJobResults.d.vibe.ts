@@ -1,7 +1,7 @@
 import type * as backupsearch from "@distilled.cloud/aws/backupsearch";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { SearchJob } from "./SearchJob.js";
+import type { SearchJob } from "./SearchJob.vibe";
 /** `ListSearchJobResults` request with `SearchJobIdentifier` injected from the bound {@link SearchJob}. */
 export interface ListSearchJobResultsRequest extends Omit<backupsearch.ListSearchJobResultsInput, "SearchJobIdentifier"> {
 }

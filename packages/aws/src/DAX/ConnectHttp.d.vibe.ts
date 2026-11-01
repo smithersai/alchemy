@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 /**
  * Shared scaffolding for the DAX connect bindings.
  *

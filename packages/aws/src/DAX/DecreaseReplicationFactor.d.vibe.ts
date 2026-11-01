@@ -1,7 +1,7 @@
 import type * as dax from "@distilled.cloud/aws/dax";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 /**
  * Runtime binding for the `DecreaseReplicationFactor` operation (IAM action
  * `dax:DecreaseReplicationFactor`), scoped to one {@link Cluster}.

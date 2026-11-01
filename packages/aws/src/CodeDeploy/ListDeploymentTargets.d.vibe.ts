@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/codedeploy";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DeploymentGroup } from "./DeploymentGroup.js";
+import type { DeploymentGroup } from "./DeploymentGroup.vibe";
 /**
  * Runtime binding for `codedeploy:ListDeploymentTargets` — lists the target
  * ids of a deployment (optionally filtered by target status).

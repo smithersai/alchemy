@@ -2,7 +2,7 @@ import type * as Credentials from "@distilled.cloud/aws/Credentials";
 import type * as SigV4 from "@distilled.cloud/aws/SigV4";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { GraphqlApi } from "./GraphqlApi.js";
+import type { GraphqlApi } from "./GraphqlApi.vibe";
 declare const GraphQLApiError_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "GraphQLApiError";
 } & Readonly<A>;

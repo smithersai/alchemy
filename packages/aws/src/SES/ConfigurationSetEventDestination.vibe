@@ -1,0 +1,324 @@
+import type * as sesv2Types from "@distilled.cloud/aws/sesv2"
+import * as sesv2 from "@distilled.cloud/aws/sesv2"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { plainJson } from "../internal/Observe.ts"
+import type { Providers } from "../Providers.vibe"
+
+/**
+ * The email-sending events an event destination can match, e.g. `SEND`,
+ * `DELIVERY`, `BOUNCE`, `COMPLAINT`, `OPEN`, `CLICK`.
+ */
+export type EventType = sesv2Types.EventType
+
+export interface CloudWatchDimensionConfiguration {
+  /**
+   * The name of the CloudWatch dimension, e.g. `ses:configuration-set`.
+   */
+  mutable dimensionName: string
+  /**
+   * Where SES reads the dimension value from: a message tag
+   * (`MESSAGE_TAG`), an email header (`EMAIL_HEADER`), or a link tag
+   * (`LINK_TAG`).
+   */
+  mutable dimensionValueSource: sesv2Types.DimensionValueSource
+  /**
+   * The value SES publishes when the message doesn't carry the tag/header.
+   */
+  mutable defaultDimensionValue: string
+}
+
+export interface ConfigurationSetEventDestinationProps {
+  /**
+   * The name of the configuration set that owns this event destination.
+   * Changing it replaces the destination.
+   */
+  mutable configurationSetName: string
+  /**
+   * The name of the event destination. If omitted, a deterministic physical
+   * name is generated from the app, stage, and logical ID. Changing the
+   * name replaces the destination.
+   */
+  mutable eventDestinationName?: string
+  /**
+   * Whether the event destination is active.
+   * @default true
+   */
+  mutable enabled?: boolean
+  /**
+   * The event types to publish to the destination, e.g.
+   * `["SEND", "DELIVERY", "BOUNCE", "COMPLAINT"]`.
+   */
+  mutable matchingEventTypes: EventType[]
+  /**
+   * Publish events to an SNS topic.
+   */
+  mutable snsDestination?: {
+    /** The ARN of the SNS topic to publish events to. */
+    mutable topicArn: string
+  }
+  /**
+   * Publish events to an EventBridge event bus (the default bus only).
+   */
+  mutable eventBridgeDestination?: {
+    /** The ARN of the EventBridge event bus (must be the default bus). */
+    mutable eventBusArn: string
+  }
+  /**
+   * Publish event metrics to CloudWatch.
+   */
+  mutable cloudWatchDestination?: {
+    /** How SES maps message tags/headers to CloudWatch dimensions. */
+    mutable dimensionConfigurations: CloudWatchDimensionConfiguration[]
+  }
+}
+
+export interface ConfigurationSetEventDestination extends
+  Resource<
+    "AWS.SES.ConfigurationSetEventDestination",
+    ConfigurationSetEventDestinationProps,
+    {
+      mutable configurationSetName: string
+      mutable eventDestinationName: string
+      /**
+       * Enabled state, matching event types and destination, as observed.
+       * Lets `alchemy drift` detect out-of-band changes.
+       */
+      mutable configuration?: {
+        mutable enabled: boolean
+        mutable matchingEventTypes: string[]
+        mutable snsTopicArn?: string
+        mutable eventBusArn?: string
+        mutable cloudWatchDimensionConfigurations?: unknown
+      }
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An event destination on an SES v2 configuration set — streams
+ * send/delivery/bounce/complaint (and open/click) events to SNS,
+ * EventBridge, or CloudWatch.
+ * ### Creating Event Destinations
+ * **Example:** Publish Bounce and Complaint Events to SNS
+ * ```typescript
+ * import * as SES from "@alchemy.run/aws/SES";
+ * import * as SNS from "@alchemy.run/aws/SNS";
+ *
+ * const topic = yield* SNS.Topic("EmailEvents", {});
+ * const configSet = yield* SES.ConfigurationSet("Default", {});
+ *
+ * const destination = yield* SES.ConfigurationSetEventDestination("ToSns", {
+ *   configurationSetName: configSet.configurationSetName,
+ *   matchingEventTypes: ["BOUNCE", "COMPLAINT"],
+ *   snsDestination: { topicArn: topic.topicArn },
+ * });
+ * ```
+ *
+ * **Example:** Publish Metrics to CloudWatch
+ * ```typescript
+ * const metrics = yield* SES.ConfigurationSetEventDestination("Metrics", {
+ *   configurationSetName: configSet.configurationSetName,
+ *   matchingEventTypes: ["SEND", "DELIVERY"],
+ *   cloudWatchDestination: {
+ *     dimensionConfigurations: [
+ *       {
+ *         dimensionName: "campaign",
+ *         dimensionValueSource: "MESSAGE_TAG",
+ *         defaultDimensionValue: "none",
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ConfigurationSetEventDestination = Resource<ConfigurationSetEventDestination>(
+  "AWS.SES.ConfigurationSetEventDestination",
+)
+
+const toDefinition = (
+  props: ConfigurationSetEventDestinationProps,
+): sesv2Types.EventDestinationDefinition => ({
+  Enabled: props.enabled ?? true,
+  MatchingEventTypes: props.matchingEventTypes,
+  SnsDestination: props.snsDestination ? { TopicArn: props.snsDestination.topicArn } : undefined,
+  EventBridgeDestination: props.eventBridgeDestination
+    ? { EventBusArn: props.eventBridgeDestination.eventBusArn }
+    : undefined,
+  CloudWatchDestination: props.cloudWatchDestination
+    ? {
+      DimensionConfigurations: props.cloudWatchDestination.dimensionConfigurations.map((d) => ({
+        DimensionName: d.dimensionName,
+        DimensionValueSource: d.dimensionValueSource,
+        DefaultDimensionValue: d.defaultDimensionValue,
+      })),
+    }
+    : undefined,
+})
+
+const isInSync = (
+  observed: sesv2Types.EventDestination,
+  desired: sesv2Types.EventDestinationDefinition,
+): infer _ => {
+  const sortedTypes = (types: ReadonlyArray<string> | undefined): infer _ => [...(types ?? [])].sort()
+  const observedTypes = sortedTypes(observed.MatchingEventTypes)
+  const desiredTypes = sortedTypes(desired.MatchingEventTypes)
+  return (
+    (observed.Enabled ?? false) === (desired.Enabled ?? true)
+    && observedTypes.length === desiredTypes.length
+    && observedTypes.every((t, i) => t === desiredTypes[i])
+    && observed.SnsDestination?.TopicArn === desired.SnsDestination?.TopicArn
+    && observed.EventBridgeDestination?.EventBusArn === desired.EventBridgeDestination?.EventBusArn
+    && JSON.stringify(observed.CloudWatchDestination?.DimensionConfigurations ?? null)
+      === JSON.stringify(desired.CloudWatchDestination?.DimensionConfigurations ?? null)
+  )
+}
+
+/**
+ * The destination settings `read` and `reconcile` both report, so a
+ * converged destination reads unchanged.
+ */
+const observeDestination = (destination: sesv2Types.EventDestination): infer _ =>
+  plainJson({
+    enabled: destination.Enabled ?? false,
+    matchingEventTypes: [...(destination.MatchingEventTypes ?? [])].sort(),
+    snsTopicArn: destination.SnsDestination?.TopicArn,
+    eventBusArn: destination.EventBridgeDestination?.EventBusArn,
+    cloudWatchDimensionConfigurations: destination.CloudWatchDestination?.DimensionConfigurations,
+  })
+
+export const ConfigurationSetEventDestinationProvider = (): infer _ =>
+  Provider.effect(
+    ConfigurationSetEventDestination,
+    effect {
+      const createName = effect (
+        id: string,
+        props: Pick<ConfigurationSetEventDestinationProps, "eventDestinationName">,
+      ) => props.eventDestinationName ?? (try createPhysicalName({ id, maxLength: 64 }))
+
+      const findDestination = effect (
+        configurationSetName: string,
+        eventDestinationName: string,
+      ) => {
+        const destinations = ((try sesv2
+          .getConfigurationSetEventDestinations({
+            ConfigurationSetName: configurationSetName,
+          })).EventDestinations ?? []) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: [] as sesv2Types.EventDestination[];
+            default: throw e;
+          }
+        return destinations.find((d) => d.Name === eventDestinationName)
+      }
+
+      return ConfigurationSetEventDestination.Provider.of({
+        stables: ["configurationSetName", "eventDestinationName"],
+
+        list: effect () => {
+          const pages = try sesv2.listConfigurationSets.pages({}).pipe(Stream.runCollect)
+          const configSets = Array.from(pages).flatMap((page) => page.ConfigurationSets ?? [])
+          const nested = try Effect.forEach(
+            configSets,
+            effect (configurationSetName) =>
+              (((try sesv2
+                .getConfigurationSetEventDestinations({
+                  ConfigurationSetName: configurationSetName,
+                })).EventDestinations ?? []).map((d) => ({
+                  configurationSetName,
+                  eventDestinationName: d.Name,
+                }))) catch effect (e) => match (e) {
+                  when { _tag: "NotFoundException" }: [] as {
+                    mutable configurationSetName: string
+                    mutable eventDestinationName: string
+                  }[];
+                  default: throw e;
+                },
+            { concurrency: 2 },
+          )
+          return nested.flat()
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const configurationSetName = output?.configurationSetName ?? olds?.configurationSetName
+          if (configurationSetName === undefined) return undefined
+          const name = output?.eventDestinationName ?? (try createName(id, olds ?? {}))
+          const found = try findDestination(configurationSetName, name)
+          if (!found) return undefined
+          return {
+            configurationSetName,
+            eventDestinationName: name,
+            configuration: observeDestination(found),
+          }
+        },
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds ?? {})
+          const newName = try createName(id, news ?? {})
+          if (
+            oldName !== newName
+            || (olds?.configurationSetName !== undefined
+              && news?.configurationSetName !== undefined
+              && olds.configurationSetName !== news.configurationSetName)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const configurationSetName = news.configurationSetName
+          const name = output?.eventDestinationName ?? (try createName(id, news))
+          const desired = toDefinition(news)
+
+          // 1. OBSERVE — look the destination up on the owning set.
+          const observed = try findDestination(configurationSetName, name)
+
+          if (observed === undefined) {
+            // 2. ENSURE — create; AlreadyExists is a race → converge with
+            //    an update instead.
+            sesv2
+              .createConfigurationSetEventDestination({
+                ConfigurationSetName: configurationSetName,
+                EventDestinationName: name,
+                EventDestination: desired,
+              }) catch effect (e) => match (e) {
+                when { _tag: "AlreadyExistsException" }: try sesv2.updateConfigurationSetEventDestination({
+                  ConfigurationSetName: configurationSetName,
+                  EventDestinationName: name,
+                  EventDestination: desired,
+                });
+                default: throw e;
+              }
+          } else if (!isInSync(observed, desired)) {
+            // 3. SYNC — apply the delta only when observed drifted.
+            try sesv2.updateConfigurationSetEventDestination({
+              ConfigurationSetName: configurationSetName,
+              EventDestinationName: name,
+              EventDestination: desired,
+            })
+          }
+
+          try session.note(`${configurationSetName}/${name}`)
+          const final = try findDestination(configurationSetName, name)
+          return {
+            configurationSetName,
+            eventDestinationName: name,
+            configuration: final && observeDestination(final),
+          }
+        },
+
+        delete: effect ({ output }) => {
+          sesv2
+            .deleteConfigurationSetEventDestination({
+              ConfigurationSetName: output.configurationSetName,
+              EventDestinationName: output.eventDestinationName,
+            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+        },
+      })
+    },
+  )

@@ -1,7 +1,7 @@
 import type * as location from "@distilled.cloud/aws/location";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { RouteCalculator } from "./RouteCalculator.js";
+import type { RouteCalculator } from "./RouteCalculator.vibe";
 /**
  * `CalculateRoute` request with `CalculatorName` injected from the bound
  * resource.

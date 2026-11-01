@@ -1,0 +1,120 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { ServerlessCache } from "./ServerlessCache.vibe"
+
+/**
+ * Shared scaffolding for AWS ElastiCache HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation and the IAM action list is
+ * boilerplate. The env-only `ConnectHttp` binding stays bespoke — it attaches
+ * environment variables instead of IAM policy.
+ */
+
+/**
+ * Serverless cache snapshot ARNs embed the snapshot name, which is runtime
+ * data for every snapshot-addressed operation, so snapshot-scoped grants use
+ * this wildcard.
+ */
+export const SERVERLESS_SNAPSHOT_ARN_WILDCARD = "arn:aws:elasticache:*:*:serverlesscachesnapshot:*"
+
+/**
+ * Build the impl Effect for an account-level operation (snapshot management,
+ * cache/event monitoring). The deploy-time half grants `actions` on
+ * `resources` (default `*`) — these operations address caches and snapshots
+ * by names that are runtime data.
+ */
+export const makeElastiCacheAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.ElastiCache.DescribeEvents`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted. */
+  mutable actions: readonly string[]
+  /**
+   * IAM resources the actions are granted on.
+   * @default ["*"]
+   */
+  mutable resources?: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [...(options.resources ?? ["*"])],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a cache-scoped operation: the runtime callable
+ * injects the bound {@link ServerlessCache}'s name as `ServerlessCacheName`
+ * and the deploy-time half grants `actions` on the cache ARN (plus any
+ * `extraResources`).
+ */
+export const makeElastiCacheCacheHttpBinding = effect <
+  I extends { mutable ServerlessCacheName: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.ElastiCache.CreateServerlessCacheSnapshot`. */
+  mutable tag: string
+  /** The distilled operation; `ServerlessCacheName` is injected from the cache. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the cache ARN. */
+  mutable actions: readonly string[]
+  /** Static IAM resources granted in addition to the cache ARN. */
+  mutable extraResources?: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (cache: ServerlessCache) => {
+    const ServerlessCacheName = try cache.serverlessCacheName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${cache})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [
+              Output.interpolate`${cache.serverlessCacheArn}`,
+              ...(options.extraResources ?? []),
+            ],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "ServerlessCacheName"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ServerlessCacheName: try ServerlessCacheName,
+          } as I)
+        },
+        `${options.tag}(${cache.LogicalId})`,
+      )
+  }
+}

@@ -17,7 +17,7 @@ export * from "./StartTextTranslationJob.vibe";
 export * from "./StartTextTranslationJobHttp.vibe";
 export * from "./StopTextTranslationJob.vibe";
 export * from "./StopTextTranslationJobHttp.vibe";
-export * from "./Terminology.ts";
+export * from "./Terminology.vibe";
 export * from "./TranslateDocument.vibe";
 export * from "./TranslateDocumentHttp.vibe";
 export * from "./TranslateText.vibe";

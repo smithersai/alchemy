@@ -1,7 +1,7 @@
 import type * as auditmanager from "@distilled.cloud/aws/auditmanager";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Assessment } from "./Assessment.js";
+import type { Assessment } from "./Assessment.vibe";
 /** `UpdateAssessmentStatus` request with `assessmentId` injected from the bound {@link Assessment}. */
 export interface UpdateAssessmentStatusRequest extends Omit<auditmanager.UpdateAssessmentStatusRequest, "assessmentId"> {
 }

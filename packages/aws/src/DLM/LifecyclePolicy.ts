@@ -8,7 +8,7 @@ import { Resource } from "alchemy/Resource";
 import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 /**
  * The activation state of a lifecycle policy. `ERROR` is only ever observed

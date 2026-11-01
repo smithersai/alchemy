@@ -1,0 +1,252 @@
+import * as ce from "@distilled.cloud/aws/cost-explorer"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { fetchCeTags, pinCe, syncCeTags, toResourceTags } from "./common.ts"
+
+export interface AnomalyMonitorProps {
+  /**
+   * Name of the anomaly monitor. If omitted, a unique name is generated from
+   * the app, stage, and logical ID. Renaming updates the monitor in place.
+   */
+  mutable monitorName?: string
+  /**
+   * The type of monitor.
+   *
+   * - `DIMENSIONAL` — monitors spend grouped by a built-in dimension
+   *   (`monitorDimension`). AWS allows only one `SERVICE`-dimension monitor
+   *   per account.
+   * - `CUSTOM` — monitors spend matching a custom `monitorSpecification`
+   *   expression (linked accounts, cost allocation tags, or cost categories).
+   *
+   * Changing the type replaces the monitor.
+   */
+  mutable monitorType: "DIMENSIONAL" | "CUSTOM" | (string & {})
+  /**
+   * The dimension to group spend by for `DIMENSIONAL` monitors. Required when
+   * `monitorType` is `DIMENSIONAL`. Changing it replaces the monitor.
+   */
+  mutable monitorDimension?: "SERVICE" | (string & {})
+  /**
+   * The expression selecting the spend a `CUSTOM` monitor evaluates —
+   * linked accounts, cost allocation tags, or cost categories (raw
+   * Cost Explorer `Expression` shape). Required when `monitorType` is
+   * `CUSTOM`. Changing it replaces the monitor.
+   */
+  mutable monitorSpecification?: ce.Expression
+  /**
+   * User-defined tags to apply to the monitor.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface AnomalyMonitor extends
+  Resource<
+    "AWS.CostExplorer.AnomalyMonitor",
+    AnomalyMonitorProps,
+    {
+      /** ARN of the anomaly monitor. */
+      mutable monitorArn: string
+      /** Name of the anomaly monitor. */
+      mutable monitorName: string
+      /** Type of the monitor (`DIMENSIONAL` or `CUSTOM`). */
+      mutable monitorType: string
+      /** Current tags on the monitor. */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A Cost Explorer anomaly detection monitor. Monitors evaluate your spend for
+ * unusual patterns; pair with an
+ * {@link ../AnomalySubscription | AnomalySubscription} to receive alerts.
+ *
+ * Cost Explorer is a global service — all calls are pinned to `us-east-1`
+ * regardless of the stack region. Monitors are free and take effect
+ * immediately.
+ *
+ * ### Creating Anomaly Monitors
+ * **Example:** Custom monitor scoped by a cost allocation tag
+ * ```typescript
+ * import * as CostExplorer from "@alchemy.run/aws/CostExplorer";
+ *
+ * const monitor = yield* CostExplorer.AnomalyMonitor("TeamSpend", {
+ *   monitorType: "CUSTOM",
+ *   monitorSpecification: {
+ *     Tags: { Key: "CostCenter", Values: ["10000"] },
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Dimensional monitor across all AWS services
+ * ```typescript
+ * const monitor = yield* CostExplorer.AnomalyMonitor("ServiceSpend", {
+ *   monitorType: "DIMENSIONAL",
+ *   monitorDimension: "SERVICE",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const AnomalyMonitor = Resource<AnomalyMonitor>("AWS.CostExplorer.AnomalyMonitor")
+
+export const AnomalyMonitorProvider = (): infer _ =>
+  Provider.effect(
+    AnomalyMonitor,
+    effect {
+      const createName = effect (
+        id: string,
+        props: { mutable monitorName?: string | undefined },
+      ) => props.monitorName ?? (try createPhysicalName({ id, maxLength: 100 }))
+
+      // Observe by ARN — the typed miss tag is UnknownMonitorException.
+      const getByArn = effect (monitorArn: string) =>
+        (try pinCe(ce.getAnomalyMonitors({ MonitorArnList: [monitorArn] }))).AnomalyMonitors[0] catch effect (e) => match (e) {
+          when { _tag: "UnknownMonitorException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      // Fallback observation when no ARN is cached: scan all monitors for the
+      // deterministic physical name.
+      const findByName = effect (monitorName: string) =>
+        Array.from(
+          try pinCe(
+            ce.getAnomalyMonitors.items({}).pipe(
+              Stream.filter((m) => m.MonitorName === monitorName),
+              Stream.take(1),
+              Stream.runCollect,
+            ),
+          ),
+        )[0]
+
+      const toAttrs = effect (live: ce.AnomalyMonitor) => {
+        const monitorArn = live.MonitorArn!
+        return {
+          monitorArn,
+          monitorName: live.MonitorName,
+          monitorType: live.MonitorType,
+          tags: try fetchCeTags(monitorArn),
+        }
+      }
+
+      return AnomalyMonitor.Provider.of({
+        stables: ["monitorArn"],
+        list: effect () => {
+          const monitors = Array.from(
+            try pinCe(
+              ce.getAnomalyMonitors.items({}).pipe(Stream.runCollect),
+            ),
+          )
+          return try Effect.forEach(
+            monitors.filter((m) => m.MonitorArn !== undefined),
+            toAttrs,
+            { concurrency: 10 },
+          )
+        },
+        read: effect ({ id, olds, output }) => {
+          const live = output?.monitorArn
+            ? try getByArn(output.monitorArn)
+            : try findByName(try createName(id, olds ?? {}))
+          if (live?.MonitorArn === undefined) return undefined
+          const attrs = try toAttrs(live)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+        },
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return
+          const prior: Partial<AnomalyMonitorProps> = olds ?? {}
+          if (prior.monitorType === undefined) return
+          // Only the name is mutable via UpdateAnomalyMonitor — the type,
+          // dimension, and specification are create-only.
+          if (
+            prior.monitorType !== news.monitorType
+            || prior.monitorDimension !== news.monitorDimension
+            || JSON.stringify(prior.monitorSpecification) !== JSON.stringify(news.monitorSpecification)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try createName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // OBSERVE — cloud state is authoritative; output is only an ARN
+          // cache. Monitor names are not unique identity (the ARN is), so the
+          // find-by-name fallback only adopts a monitor whose create-only
+          // props already match the desired state. This keeps replacement
+          // correct: while the engine replaces a monitor (spec change), the
+          // old same-name monitor is still live and must NOT be adopted.
+          const matchesDesired = (m: ce.AnomalyMonitor): infer _ =>
+            m.MonitorType === news.monitorType
+            && m.MonitorDimension === news.monitorDimension
+            && JSON.stringify(m.MonitorSpecification ?? null)
+              === JSON.stringify(news.monitorSpecification ?? null)
+          const live = output?.monitorArn
+            ? try getByArn(output.monitorArn)
+            : try effect {
+              const m = try findByName(name)
+              return (m !== undefined && matchesDesired(m) ? m : undefined)
+            }
+
+          let monitorArn = live?.MonitorArn
+          if (monitorArn === undefined) {
+            // ENSURE — create if missing. Monitor names are unique per
+            // account; tolerate the AlreadyExists race by adopting the
+            // same-name monitor only when its create-only props match the
+            // desired state (a mismatch means a genuine conflict — e.g. a
+            // replacement targeting an explicit name — and must surface).
+            const created = pinCe(
+              ce.createAnomalyMonitor({
+                AnomalyMonitor: {
+                  MonitorName: name,
+                  MonitorType: news.monitorType,
+                  MonitorDimension: news.monitorDimension,
+                  MonitorSpecification: news.monitorSpecification,
+                },
+                ResourceTags: toResourceTags(desiredTags),
+              }),
+            ) catch effect (error) => match (error) {
+              when { _tag: "AnomalyMonitorAlreadyExists" }: try effect {
+                const m = try findByName(name)
+                return (m?.MonitorArn !== undefined && matchesDesired(m) ? { MonitorArn: m.MonitorArn } : throw error)
+              };
+              default: throw error;
+            }
+            monitorArn = created.MonitorArn
+          } else if (live!.MonitorName !== name) {
+            // SYNC — the name is the only mutable aspect of a monitor.
+            try pinCe(
+              ce.updateAnomalyMonitor({
+                MonitorArn: monitorArn,
+                MonitorName: name,
+              }),
+            )
+          }
+
+          // SYNC TAGS — diff against observed cloud tags.
+          try syncCeTags(monitorArn, desiredTags)
+
+          try session.note(monitorArn)
+          return {
+            monitorArn,
+            monitorName: name,
+            monitorType: news.monitorType,
+            tags: desiredTags,
+          }
+        },
+        delete: effect ({ output }) => {
+          pinCe(ce.deleteAnomalyMonitor({ MonitorArn: output.monitorArn })) catch effect (e) => match (e) {
+            when { _tag: "UnknownMonitorException" }: try Effect.void;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

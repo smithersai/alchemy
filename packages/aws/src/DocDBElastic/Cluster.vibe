@@ -1,0 +1,520 @@
+import * as docdbelastic from "@distilled.cloud/aws/docdb-elastic"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { toWireDays } from "alchemy/Util/Duration"
+import type * as Duration from "effect/Duration"
+import * as Redacted from "effect/Redacted"
+import type { Providers } from "../Providers.vibe"
+
+export error DocDBElasticClusterNotReady {
+  message: string
+  cause?: unknown
+}
+
+export error DocDBElasticClusterUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface ClusterProps {
+  /**
+   * Name of the elastic cluster. If omitted, a deterministic physical name
+   * is generated. Changing the name replaces the cluster.
+   */
+  mutable clusterName?: string
+  /**
+   * Name of the administrator account for the elastic cluster. Changing the
+   * admin user name replaces the cluster.
+   */
+  mutable adminUserName: string
+  /**
+   * Password for the administrator account. Must be 8-100 printable ASCII
+   * characters (no `/`, `"` or `@`). The cloud never reports the current
+   * password, so password rotation is detected by comparing against the
+   * previously deployed value.
+   */
+  mutable adminUserPassword: Redacted.Redacted<string>
+  /**
+   * Authentication type — `"PLAIN_TEXT"` (the password is the literal
+   * credential) or `"SECRET_ARN"` (the password is a Secrets Manager ARN).
+   * @default "PLAIN_TEXT"
+   */
+  mutable authType?: string
+  /**
+   * Capacity of each shard in vCPUs. Valid values: 2, 4, 8, 16, 32, 64.
+   * Updated in place.
+   * @default 2
+   */
+  mutable shardCapacity?: number
+  /**
+   * Number of shards in the cluster (1-32). Updated in place.
+   * @default 1
+   */
+  mutable shardCount?: number
+  /**
+   * Number of replica instances per shard (1-16).
+   * @default 1
+   */
+  mutable shardInstanceCount?: number
+  /**
+   * VPC security groups that control network access to the cluster
+   * endpoint.
+   * @default the VPC's default security group
+   */
+  mutable vpcSecurityGroupIds?: string[]
+  /**
+   * VPC subnet IDs the cluster spans. Must cover at least two Availability
+   * Zones (three for production workloads).
+   * @default the default VPC's subnets
+   */
+  mutable subnetIds?: string[]
+  /**
+   * Customer-managed KMS key for encryption at rest. Changing the key
+   * replaces the cluster.
+   * @default AWS-owned key
+   */
+  mutable kmsKeyId?: string
+  /**
+   * Weekly maintenance window, e.g. `"sun:23:00-mon:01:30"` (UTC).
+   */
+  mutable preferredMaintenanceWindow?: string
+  /**
+   * How long automatic snapshots are retained, e.g. `"7 days"` or
+   * `Duration.days(7)`. Rounded to whole days (1-35) on the wire.
+   */
+  mutable backupRetentionPeriod?: Duration.Input
+  /**
+   * Daily window (UTC, `HH:MM-HH:MM`) when automatic snapshots are taken.
+   */
+  mutable preferredBackupWindow?: string
+  /**
+   * User-defined tags for the cluster.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Cluster extends
+  Resource<
+    "AWS.DocDBElastic.Cluster",
+    ClusterProps,
+    {
+      /** The name of the elastic cluster. */
+      mutable clusterName: string
+      /** The ARN of the elastic cluster. */
+      mutable clusterArn: string
+      /** The current status of the cluster, e.g. `ACTIVE`. */
+      mutable status: string
+      /** The MongoDB-compatible connection endpoint. */
+      mutable clusterEndpoint: string | undefined
+      /** The administrator username. */
+      mutable adminUserName: string
+      /** The authentication type (`PLAIN_TEXT` or `SECRET_ARN`). */
+      mutable authType: string
+      /** vCPU capacity of each shard (2, 4, 8, 16, 32, or 64). */
+      mutable shardCapacity: number
+      /** Number of shards in the cluster. */
+      mutable shardCount: number
+      /** Number of replica instances per shard. */
+      mutable shardInstanceCount: number | undefined
+      /** The VPC security groups attached to the cluster. */
+      mutable vpcSecurityGroupIds: string[]
+      /** The subnets the cluster is deployed into. */
+      mutable subnetIds: string[]
+      /** The KMS key used for encryption at rest. */
+      mutable kmsKeyId: string
+      /** The weekly window during which maintenance can occur. */
+      mutable preferredMaintenanceWindow: string
+      /** Number of days automated backups are retained. */
+      mutable backupRetentionPeriod: number | undefined
+      /** The daily window during which automated backups run. */
+      mutable preferredBackupWindow: string | undefined
+      /** The tags attached to the cluster. */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon DocumentDB elastic cluster — a MongoDB-compatible, sharded
+ * document database that scales workloads to millions of reads/writes per
+ * second without managing instances.
+ *
+ * Elastic clusters take roughly 8-10 minutes to provision and bill per
+ * shard-vCPU-hour while they exist. They are reachable only from inside a
+ * VPC. Destroy clusters you are not using.
+ * ### Creating a Cluster
+ * **Example:** Minimal Elastic Cluster
+ * ```typescript
+ * const cluster = yield* Cluster("Documents", {
+ *   adminUserName: "admin",
+ *   adminUserPassword: Redacted.make("super-secret-password"),
+ *   shardCapacity: 2,
+ *   shardCount: 1,
+ * });
+ * ```
+ *
+ * **Example:** Cluster Pinned to Specific Subnets
+ * ```typescript
+ * const cluster = yield* Cluster("Documents", {
+ *   adminUserName: "admin",
+ *   adminUserPassword: Redacted.make("super-secret-password"),
+ *   shardCapacity: 2,
+ *   shardCount: 1,
+ *   subnetIds: [subnetA.subnetId, subnetB.subnetId],
+ *   vpcSecurityGroupIds: [securityGroup.securityGroupId],
+ *   backupRetentionPeriod: "1 day",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Cluster = Resource<Cluster>("AWS.DocDBElastic.Cluster")
+
+const DEFAULT_AUTH_TYPE = "PLAIN_TEXT"
+const DEFAULT_SHARD_CAPACITY = 2
+const DEFAULT_SHARD_COUNT = 1
+
+/** True when two string sets are equal ignoring order and duplicates. */
+const sameStringSet = (
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined,
+): boolean => {
+  const left = [...new Set(a ?? [])].sort()
+  const right = [...new Set(b ?? [])].sort()
+  return left.length === right.length && left.every((v, i) => v === right[i])
+}
+
+const toTagRecord = (
+  tags: { mutable [key: string]: string | undefined } | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(tags ?? {}).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+
+export const ClusterProvider = (): infer _ =>
+  Provider.effect(
+    Cluster,
+    effect {
+      const toName = effect (
+        id: string,
+        props: Partial<ClusterProps>,
+      ) => (props.clusterName ? props.clusterName : try createPhysicalName({ id, maxLength: 50, lowercase: true }))
+
+      const getByArn = effect (arn: string) => {
+        const response = docdbelastic
+          .getCluster({ clusterArn: arn }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.cluster
+      }
+
+      // Elastic clusters are addressed by ARN (which embeds a server-side
+      // UUID), so a name-based lookup scans the paginated list.
+      const findByName = effect (name: string) => {
+        const matches = try docdbelastic.listClusters.items({}).pipe(
+          Stream.filter((cluster) => cluster.clusterName === name),
+          Stream.take(1),
+          Stream.runCollect,
+        )
+        const summary = Array.from(matches)[0]
+        if (summary === undefined) return undefined
+        return try getByArn(summary.clusterArn)
+      }
+
+      const readCluster = effect (name: string, arn: string | undefined) => {
+        if (arn !== undefined) {
+          const cluster = try getByArn(arn)
+          if (cluster !== undefined) return cluster
+        }
+        return try findByName(name)
+      }
+
+      const readTags = effect (arn: string) => {
+        const response = docdbelastic
+          .listTagsForResource({ resourceArn: arn }) catch () => undefined
+        return toTagRecord(response?.tags)
+      }
+
+      // Bounded readiness wait. Elastic cluster provisioning/modification
+      // typically completes in 8-10 minutes; budget ~20 min (80 * 15s).
+      const waitForActive = effect (name: string, arn: string | undefined) => {
+        const policy = Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(80)])
+        return try (effect {
+          return try effect {
+            const cluster = try readCluster(name, arn)
+
+            if (cluster === undefined) {
+              throw new DocDBElasticClusterNotReady({ message: `Elastic cluster '${name}' not found` })
+            }
+            if (cluster.status !== "ACTIVE") {
+              throw new DocDBElasticClusterNotReady({
+                message: `Elastic cluster '${name}' not active (status: ${cluster.status})`,
+              })
+            }
+            return cluster
+          }
+        }
+          |> Effect.retry(%, { schedule: policy }))
+      }
+
+      const toAttrs = effect (cluster: docdbelastic.Cluster) => ({
+        clusterName: cluster.clusterName,
+        clusterArn: cluster.clusterArn,
+        status: cluster.status,
+        clusterEndpoint: cluster.clusterEndpoint,
+        adminUserName: cluster.adminUserName,
+        authType: cluster.authType,
+        shardCapacity: cluster.shardCapacity,
+        shardCount: cluster.shardCount,
+        shardInstanceCount: cluster.shardInstanceCount,
+        vpcSecurityGroupIds: [...cluster.vpcSecurityGroupIds],
+        subnetIds: [...cluster.subnetIds],
+        kmsKeyId: cluster.kmsKeyId,
+        preferredMaintenanceWindow: cluster.preferredMaintenanceWindow,
+        backupRetentionPeriod: cluster.backupRetentionPeriod,
+        preferredBackupWindow: cluster.preferredBackupWindow,
+        tags: try readTags(cluster.clusterArn),
+      })
+
+      return {
+        stables: ["clusterName", "clusterArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          const n = news
+          const o = olds
+          if (n === undefined || o === undefined) return undefined
+          if ((try toName(id, o)) !== (try toName(id, n))) {
+            return { action: "replace" } as const
+          }
+          // Create-only properties force a replacement.
+          if (n.adminUserName !== o.adminUserName) {
+            return { action: "replace" } as const
+          }
+          if ((n.kmsKeyId ?? undefined) !== (o.kmsKeyId ?? undefined)) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.clusterName
+            ?? (try toName(
+              id,
+              olds ?? {
+                adminUserName: "",
+                adminUserPassword: Redacted.make(""),
+              },
+            ))
+          const cluster = try readCluster(name, output?.clusterArn)
+          if (cluster === undefined) return undefined
+          const attrs = try toAttrs(cluster)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, olds, output, session }) => {
+          const props = news!
+          const name = output?.clusterName ?? (try toName(id, props))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...props.tags }
+
+          // 1. Observe — cloud state is authoritative; output is only an
+          // ARN cache.
+          let observed = try readCluster(name, output?.clusterArn)
+          let created = false
+
+          // 2. Ensure — create if missing; tolerate a create race
+          // (ConflictException) by re-reading.
+          if (observed === undefined) {
+            const response = docdbelastic
+              .createCluster({
+                clusterName: name,
+                adminUserName: props.adminUserName,
+                adminUserPassword: props.adminUserPassword,
+                authType: props.authType ?? DEFAULT_AUTH_TYPE,
+                shardCapacity: props.shardCapacity ?? DEFAULT_SHARD_CAPACITY,
+                shardCount: props.shardCount ?? DEFAULT_SHARD_COUNT,
+                shardInstanceCount: props.shardInstanceCount,
+                vpcSecurityGroupIds: props.vpcSecurityGroupIds,
+                subnetIds: props.subnetIds,
+                kmsKeyId: props.kmsKeyId,
+                preferredMaintenanceWindow: props.preferredMaintenanceWindow,
+                backupRetentionPeriod: toWireDays(props.backupRetentionPeriod),
+                preferredBackupWindow: props.preferredBackupWindow,
+                tags: desiredTags,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try Effect.undefined;
+                default: throw e;
+              }
+            observed = response?.cluster ?? (try findByName(name))
+            created = true
+          }
+          if (observed === undefined) {
+            throw new DocDBElasticClusterUnexpectedResponse({
+              message: `Elastic cluster '${name}' not found after create`,
+            })
+          }
+          const arn = observed.clusterArn
+
+          // Provisioning and in-flight modifications both surface as a
+          // non-ACTIVE status; wait (bounded) so update calls do not hit
+          // ConflictException.
+          observed = try waitForActive(name, arn)
+
+          // 3. Sync — compute the update delta from OBSERVED state.
+          const update: docdbelastic.UpdateClusterInput = { clusterArn: arn }
+          let mutated = false
+          if (props.shardCapacity !== undefined && props.shardCapacity !== observed.shardCapacity) {
+            update.shardCapacity = props.shardCapacity
+            mutated = true
+          }
+          if (props.shardCount !== undefined && props.shardCount !== observed.shardCount) {
+            update.shardCount = props.shardCount
+            mutated = true
+          }
+          if (
+            props.shardInstanceCount !== undefined
+            && props.shardInstanceCount !== observed.shardInstanceCount
+          ) {
+            update.shardInstanceCount = props.shardInstanceCount
+            mutated = true
+          }
+          if (
+            props.vpcSecurityGroupIds !== undefined
+            && !sameStringSet(props.vpcSecurityGroupIds, observed.vpcSecurityGroupIds)
+          ) {
+            update.vpcSecurityGroupIds = props.vpcSecurityGroupIds
+            mutated = true
+          }
+          if (
+            props.subnetIds !== undefined
+            && !sameStringSet(props.subnetIds, observed.subnetIds)
+          ) {
+            update.subnetIds = props.subnetIds
+            mutated = true
+          }
+          if (
+            props.preferredMaintenanceWindow !== undefined
+            && props.preferredMaintenanceWindow !== observed.preferredMaintenanceWindow
+          ) {
+            update.preferredMaintenanceWindow = props.preferredMaintenanceWindow
+            mutated = true
+          }
+          const desiredRetentionDays = toWireDays(props.backupRetentionPeriod)
+          if (
+            desiredRetentionDays !== undefined
+            && desiredRetentionDays !== observed.backupRetentionPeriod
+          ) {
+            update.backupRetentionPeriod = desiredRetentionDays
+            mutated = true
+          }
+          if (
+            props.preferredBackupWindow !== undefined
+            && props.preferredBackupWindow !== observed.preferredBackupWindow
+          ) {
+            update.preferredBackupWindow = props.preferredBackupWindow
+            mutated = true
+          }
+          if ((props.authType ?? DEFAULT_AUTH_TYPE) !== observed.authType) {
+            update.authType = props.authType ?? DEFAULT_AUTH_TYPE
+            update.adminUserPassword = props.adminUserPassword
+            mutated = true
+          } else if (
+            // The cloud never reports the password; the previously deployed
+            // value is the only diff baseline (skipped right after create —
+            // the password was just applied).
+            !created
+            && olds !== undefined
+            && Redacted.value(props.adminUserPassword) !== Redacted.value(olds.adminUserPassword)
+          ) {
+            update.adminUserPassword = props.adminUserPassword
+            mutated = true
+          }
+          if (mutated) {
+            try docdbelastic.updateCluster(update)
+            observed = try waitForActive(name, arn)
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags.
+          const observedTags = try readTags(arn)
+          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0) {
+            try docdbelastic.tagResource({
+              resourceArn: arn,
+              tags: Object.fromEntries(upsert.map((tag) => [tag.Key, tag.Value])),
+            })
+          }
+          if (removed.length > 0) {
+            try docdbelastic.untagResource({
+              resourceArn: arn,
+              tagKeys: removed,
+            })
+          }
+
+          try session.note(name)
+          return try toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          // A cluster mid-create/modify rejects deletion with
+          // ConflictException — retry (bounded) while it settles. A cluster
+          // already deleting (or gone) is success.
+          //
+          // Only an ACTIVE cluster is deletable: STOPPING, STOPPED and
+          // STARTING all reject DeleteCluster with a ValidationException
+          // ("Can't delete the cluster because it is in STOPPED state"). Wait
+          // (bounded) for a stop/start to settle, then start a STOPPED
+          // cluster and wait for ACTIVE before deleting it.
+          const settled = try (getByArn(output.clusterArn)
+            |> Effect.repeat(%, {
+              schedule: Schedule.spaced("15 seconds"),
+              until: (cluster) =>
+                cluster === undefined
+                || (cluster.status !== "STOPPING" && cluster.status !== "STARTING"),
+              times: 60,
+            }))
+          if (settled === undefined || settled.status === "DELETING") {
+            return
+          }
+          if (settled.status === "STOPPED") {
+            docdbelastic
+              .startCluster({ clusterArn: output.clusterArn }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                default: throw e;
+              }
+            try waitForActive(settled.clusterName, output.clusterArn)
+          }
+          try (effect {
+            return docdbelastic.deleteCluster({ clusterArn: output.clusterArn }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          }
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "ConflictException",
+              schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(60)]),
+            }))
+        },
+
+        list: effect () =>
+          (try Effect.forEach(
+            Array.from(
+              try (docdbelastic.listClusters.items({})
+                |> Stream.runCollect(%)),
+            ),
+            effect (summary) =>
+              try effect {
+                const cluster = try getByArn(summary.clusterArn)
+                return (cluster === undefined ? try Effect.undefined : try toAttrs(cluster))
+              },
+            { concurrency: 4 },
+          )).filter((a): a is NonNullable<typeof a> => a !== undefined),
+      }
+    },
+  )

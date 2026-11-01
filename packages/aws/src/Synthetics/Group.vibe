@@ -1,0 +1,250 @@
+import * as synthetics from "@distilled.cloud/aws/synthetics"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+
+export interface GroupProps {
+  /**
+   * Name of the group. Must match `^[0-9a-zA-Z_-]+$` and be at most 64
+   * characters. Group names must be unique in the account (groups are
+   * global resources visible from every Region).
+   * @default ${app}-${id}-${stage}-${suffix}
+   */
+  mutable groupName?: string
+  /**
+   * ARNs of the canaries associated with this group (as many as 10). The
+   * canaries must exist in the Region the group is managed from; membership
+   * is converged on every deploy (canaries added here are associated,
+   * canaries removed are disassociated).
+   */
+  mutable members?: string[]
+  /**
+   * Tags to apply to the group. Merged with internal Alchemy tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Group extends
+  Resource<
+    "AWS.Synthetics.Group",
+    GroupProps,
+    {
+      /**
+       * Physical name of the group.
+       */
+      mutable groupName: string
+      /**
+       * ARN of the group. The ARN reflects the home Region the group was
+       * created in, but the group itself is a global resource.
+       */
+      mutable groupArn: string
+      /**
+       * Service-assigned unique ID of the group.
+       */
+      mutable groupId: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A CloudWatch Synthetics group — associates canaries (including
+ * cross-Region canaries) so you can view aggregated run results and manage
+ * them as a unit. A group can hold as many as 10 canaries, and an account
+ * can have as many as 20 groups.
+ * ### Creating Groups
+ * **Example:** Group of Canaries
+ * ```typescript
+ * import * as Synthetics from "@alchemy.run/aws/Synthetics";
+ *
+ * const group = yield* Synthetics.Group("ApiCanaries", {
+ *   members: [checkoutCanary.canaryArn, searchCanary.canaryArn],
+ * });
+ * ```
+ *
+ * **Example:** Empty Group with Tags
+ * ```typescript
+ * const group = yield* Synthetics.Group("Fleet", {
+ *   tags: { team: "platform" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Group = Resource<Group>("AWS.Synthetics.Group")
+
+export const GroupProvider = (): infer _ =>
+  Provider.effect(
+    Group,
+    effect {
+      const createGroupName = effect (
+        id: string,
+        props: { mutable groupName?: string | undefined },
+      ) => {
+        if (props.groupName) return props.groupName
+        return try createPhysicalName({ id, maxLength: 64 })
+      }
+
+      const getGroupOrUndefined = effect (identifier: string) =>
+        (try synthetics.getGroup({ GroupIdentifier: identifier })).Group catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      const listMembers = effect (identifier: string) => {
+        const pages = try synthetics.listGroupResources
+          .pages({ GroupIdentifier: identifier })
+          .pipe(Stream.runCollect)
+        return Array.from(pages).flatMap((page) => page.Resources ?? [])
+      }
+
+      const filterTags = (
+        tags: { mutable [key: string]: string | undefined } | undefined,
+      ): Record<string, string> =>
+        Object.fromEntries(
+          Object.entries(tags ?? {}).filter(
+            (entry): entry is [string, string] => entry[1] !== undefined,
+          ),
+        )
+
+      const toAttributes = (groupName: string, group: synthetics.Group): Group["Attributes"] => ({
+        groupName,
+        groupArn: group.Arn ?? "",
+        groupId: group.Id ?? "",
+      })
+
+      return Group.Provider.of({
+        stables: ["groupName", "groupArn", "groupId"],
+
+        list: effect () => {
+          const pages = try synthetics.listGroups.pages({}).pipe(Stream.runCollect)
+          return Array.from(pages)
+            .flatMap((page) => page.Groups ?? [])
+            .filter((group) => group.Name !== undefined)
+            .map((group) => ({
+              groupName: group.Name!,
+              groupArn: group.Arn ?? "",
+              groupId: group.Id ?? "",
+            }))
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const groupName = output?.groupName ?? (try createGroupName(id, olds ?? {}))
+          const group = try getGroupOrUndefined(groupName)
+          if (group === undefined) return undefined
+          const attrs = toAttributes(groupName, group)
+          const tags = filterTags(group.Tags)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createGroupName(id, olds)
+          const newName = try createGroupName(id, news)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+          // members and tags converge through reconcile
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const groupName = output?.groupName ?? (try createGroupName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative.
+          let observed = try getGroupOrUndefined(groupName)
+
+          // 2. ENSURE — create if missing; tolerate a concurrent-create race.
+          if (observed === undefined) {
+            synthetics
+              .createGroup({ Name: groupName, Tags: desiredTags }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try Effect.void;
+                default: throw e;
+              }
+            observed = try getGroupOrUndefined(groupName)
+            try session.note(`created group ${groupName}`)
+          }
+          const groupArn = observed?.Arn ?? ""
+
+          // 3. SYNC members — diff observed canary associations against the
+          // desired members and apply only the delta. Association calls are
+          // idempotent per (group, canary) pair.
+          const observedMembers = try listMembers(groupName)
+          const desiredMembers = news.members ?? []
+          const toAssociate = desiredMembers.filter((arn) => !observedMembers.includes(arn))
+          const toDisassociate = observedMembers.filter((arn) => !desiredMembers.includes(arn))
+          for (const ResourceArn of toAssociate) {
+            try (synthetics.associateResource({ GroupIdentifier: groupName, ResourceArn })
+              |> Effect.retry(%, {
+                while: (e): boolean => e._tag === "ConflictException",
+                schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(8)]),
+              }))
+          }
+          for (const ResourceArn of toDisassociate) {
+            try (effect {
+              return synthetics
+                .disassociateResource({
+                  GroupIdentifier: groupName,
+                  ResourceArn,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            }
+              |> Effect.retry(%, {
+                while: (e): boolean => e._tag === "ConflictException",
+                schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(8)]),
+              }))
+          }
+          if (toAssociate.length > 0 || toDisassociate.length > 0) {
+            try session.note(
+              `synced group ${groupName} members (+${toAssociate.length}/-${toDisassociate.length})`,
+            )
+          }
+
+          // 4. SYNC tags — diff against OBSERVED cloud tags so adoption
+          // converges (create already applied them).
+          const currentTags = filterTags(observed?.Tags)
+          const { upsert, removed } = diffTags(currentTags, desiredTags)
+          if (upsert.length > 0) {
+            try synthetics.tagResource({
+              ResourceArn: groupArn,
+              Tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+            })
+          }
+          if (removed.length > 0) {
+            try synthetics.untagResource({
+              ResourceArn: groupArn,
+              TagKeys: removed,
+            })
+          }
+
+          try session.note(groupName)
+          return {
+            groupName,
+            groupArn,
+            groupId: observed?.Id ?? "",
+          }
+        },
+
+        delete: effect ({ output }) => {
+          // The group does not need to be emptied first — deleting a group
+          // never deletes its canaries.
+          ;(try (synthetics.deleteGroup({ GroupIdentifier: output.groupName })
+            |> Effect.retry(%, {
+              while: (e): boolean => e._tag === "ConflictException",
+              schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(8)]),
+            }))) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

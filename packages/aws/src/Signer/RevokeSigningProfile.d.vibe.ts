@@ -1,7 +1,7 @@
 import type * as signer from "@distilled.cloud/aws/signer";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { SigningProfile } from "./SigningProfile.js";
+import type { SigningProfile } from "./SigningProfile.vibe";
 /**
  * Runtime binding for `signer:RevokeSigningProfile`.
  *

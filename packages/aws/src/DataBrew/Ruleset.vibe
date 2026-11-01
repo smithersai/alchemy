@@ -1,0 +1,254 @@
+import * as databrew from "@distilled.cloud/aws/databrew"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import { cleanMap, databrewArn, fetchObservedTags, syncTags } from "./internal.ts"
+
+/** A single data-quality rule (a check expression + optional threshold). */
+export interface RulesetRule {
+  /** The rule name (unique within the ruleset). */
+  mutable name: string
+  /** Skip the rule without deleting it. @default false */
+  mutable disabled?: boolean
+  /**
+   * The check expression, e.g. `:col1 is_between :val1 and :val2` or
+   * `AGG(MISSING_VALUES_PERCENTAGE) < :val1`.
+   */
+  mutable checkExpression: string
+  /** Variable substitutions for the expression, keyed by `:name`. */
+  mutable substitutionMap?: Record<string, string>
+  /** Pass/fail threshold for row-level checks. */
+  mutable threshold?: {
+    /** The threshold value. */
+    mutable value: number
+    /** Comparison type. @default "GREATER_THAN_OR_EQUAL" */
+    mutable type?:
+      | "GREATER_THAN_OR_EQUAL"
+      | "LESS_THAN_OR_EQUAL"
+      | "GREATER_THAN"
+      | "LESS_THAN"
+      | (string & {})
+    /** Whether `value` is a row count or a percentage. @default "COUNT" */
+    mutable unit?: "COUNT" | "PERCENTAGE" | (string & {})
+  }
+  /** Columns the rule applies to (by name or regex). */
+  mutable columnSelectors?: {
+    /** A regular expression matching column names. */
+    mutable regex?: string
+    /** An exact column name. */
+    mutable name?: string
+  }[]
+}
+
+export interface RulesetProps {
+  /**
+   * Name of the ruleset. If omitted, a unique name is generated. Changing
+   * the name replaces the ruleset.
+   * @default a generated physical name
+   */
+  mutable rulesetName?: string
+  /**
+   * A description of the ruleset.
+   */
+  mutable description?: string
+  /**
+   * The ARN of the DataBrew dataset the ruleset validates. Changing it
+   * replaces the ruleset.
+   */
+  mutable targetArn: string
+  /**
+   * The data-quality rules.
+   */
+  mutable rules: RulesetRule[]
+  /**
+   * Tags to apply to the ruleset. Merged with internal Alchemy tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Ruleset extends
+  Resource<
+    "AWS.DataBrew.Ruleset",
+    RulesetProps,
+    {
+      /** Name of the ruleset. */
+      mutable rulesetName: string
+      /** ARN of the ruleset. */
+      mutable rulesetArn: string
+      /** ARN of the dataset the ruleset validates. */
+      mutable targetArn: string
+    },
+    {},
+    Providers
+  >
+{}
+
+/**
+ * An AWS Glue DataBrew ruleset — a set of data-quality rules bound to a
+ * dataset. Attach it to a profile job via `validationConfigurations` to
+ * produce pass/fail validation results alongside the data profile.
+ * ### Creating Rulesets
+ * **Example:** Data-Quality Rules for a Dataset
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const ruleset = yield* AWS.DataBrew.Ruleset("Quality", {
+ *   targetArn: dataset.datasetArn,
+ *   rules: [
+ *     {
+ *       name: "no-missing-ids",
+ *       checkExpression: "AGG(MISSING_VALUES_PERCENTAGE) == :val1",
+ *       substitutionMap: { ":val1": "0" },
+ *       columnSelectors: [{ name: "id" }],
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * **Example:** Validate in a Profile Job
+ * ```typescript
+ * const profile = yield* AWS.DataBrew.Job("Profile", {
+ *   type: "PROFILE",
+ *   datasetName: dataset.datasetName,
+ *   role: role.roleArn,
+ *   outputLocation: { bucket: bucket.bucketName, key: "profiles/" },
+ *   validationConfigurations: [{ rulesetArn: ruleset.rulesetArn }],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Ruleset = Resource<Ruleset>("AWS.DataBrew.Ruleset")
+
+const buildRules = (rules: RulesetRule[]): infer _ =>
+  rules.map((rule) => ({
+    Name: rule.name,
+    Disabled: rule.disabled,
+    CheckExpression: rule.checkExpression,
+    SubstitutionMap: rule.substitutionMap,
+    Threshold: rule.threshold
+      ? {
+        Value: rule.threshold.value,
+        Type: rule.threshold.type,
+        Unit: rule.threshold.unit,
+      }
+      : undefined,
+    ColumnSelectors: rule.columnSelectors?.map((s) => ({
+      Regex: s.regex,
+      Name: s.name,
+    })),
+  }))
+
+export const RulesetProvider = (): infer _ =>
+  Provider.effect(
+    Ruleset,
+    effect {
+      const createName = effect (
+        id: string,
+        props: { mutable rulesetName?: string | undefined },
+      ) => props.rulesetName ?? (try createPhysicalName({ id, maxLength: 255 }))
+
+      const observe = effect (name: string) =>
+        databrew
+          .describeRuleset({ Name: name }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      return Ruleset.Provider.of({
+        stables: ["rulesetName", "rulesetArn", "targetArn"],
+
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const pages = try databrew.listRulesets.pages({}).pipe(Stream.runCollect)
+          return Array.from(pages)
+            .flatMap((page) => page.Rulesets ?? [])
+            .map((r) => ({
+              rulesetName: r.Name,
+              rulesetArn: r.ResourceArn ?? databrewArn(region, accountId, "ruleset", r.Name),
+              targetArn: r.TargetArn ?? "",
+            }))
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.rulesetName ?? (try createName(id, olds ?? {}))
+          const ruleset = try observe(name)
+          if (ruleset === undefined) return undefined
+          const arn = ruleset.ResourceArn ?? databrewArn(region, accountId, "ruleset", name)
+          const attrs = {
+            rulesetName: name,
+            rulesetArn: arn,
+            targetArn: ruleset.TargetArn ?? "",
+          }
+          const tags = cleanMap(ruleset.Tags)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+          // UpdateRuleset only accepts Description + Rules.
+          if (olds.targetArn !== news.targetArn) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.rulesetName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE
+          const ruleset = try observe(name)
+
+          // 2. ENSURE / 3. SYNC — UpdateRuleset is a full PUT of the rules
+          if (ruleset === undefined) {
+            databrew
+              .createRuleset({
+                Name: name,
+                Description: news.description,
+                TargetArn: news.targetArn,
+                Rules: buildRules(news.rules),
+                Tags: desiredTags,
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+          } else {
+            try databrew.updateRuleset({
+              Name: name,
+              Description: news.description,
+              Rules: buildRules(news.rules),
+            })
+          }
+
+          const arn = ruleset?.ResourceArn ?? databrewArn(region, accountId, "ruleset", name)
+
+          // 3b. SYNC TAGS against observed cloud tags
+          const observedTags = try fetchObservedTags(arn)
+          try syncTags(arn, observedTags, desiredTags)
+
+          try session.note(name)
+          return {
+            rulesetName: name,
+            rulesetArn: arn,
+            targetArn: news.targetArn,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          databrew
+            .deleteRuleset({ Name: output.rulesetName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

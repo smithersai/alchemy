@@ -1,4 +1,4 @@
-export * from "./DeliveryStream.ts";
+export * from "./DeliveryStream.vibe";
 export * from "./DeliveryStreamSink.vibe";
 export * from "./DeliveryStreamSinkHttp.vibe";
 export * from "./ListDeliveryStreams.vibe";

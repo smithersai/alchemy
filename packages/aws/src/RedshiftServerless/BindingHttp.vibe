@@ -1,0 +1,119 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Namespace } from "./Namespace.vibe"
+
+/**
+ * Shared scaffolding for Amazon Redshift Serverless HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every snapshot/recovery-point/restore
+ * `{Op}Http.ts` in this service is a thin
+ * `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation, the identifier resolver, and the
+ * IAM action list is boilerplate. (`ConnectHttp` stays bespoke — it also
+ * publishes endpoint environment variables and formats connection URLs.)
+ */
+
+/**
+ * Build the impl Effect for an account-level operation (snapshot
+ * administration, recovery-point reads, table-restore status). The
+ * deploy-time half grants `actions` on `*` — these operations span every
+ * namespace in the account and the identifiers they filter on are runtime
+ * data.
+ */
+export const makeServerlessAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.RedshiftServerless.GetSnapshot`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a namespace-scoped operation: the runtime
+ * callable injects the bound {@link Namespace}'s name as `namespaceName`
+ * and the deploy-time half grants `actions` on the namespace ARN (plus any
+ * `extraResources`, e.g. the `snapshot/*` or `recoverypoint/*` ARN patterns
+ * that snapshot creation and restores also authorize against).
+ */
+export const makeServerlessNamespaceHttpBinding = effect <
+  I extends { mutable namespaceName?: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.RedshiftServerless.CreateSnapshot`. */
+  mutable tag: string
+  /** The distilled operation; `namespaceName` is injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the namespace ARN. */
+  mutable actions: readonly string[]
+  /** Additional IAM resource ARNs derived from the namespace ARN. */
+  mutable extraResources?: (namespaceArn: string) => string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (namespace: Namespace) => {
+    const Identifier = try namespace.namespaceName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const resources = options.extraResources
+      try bind`${options.tag}(${namespace})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: resources
+              ? Output.map(namespace.namespaceArn, (arn) => [arn, ...resources(arn)])
+              : [Output.interpolate`${namespace.namespaceArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "namespaceName">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            namespaceName: try Identifier,
+          } as I)
+        },
+        `${options.tag}(${namespace.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * The `arn:…:{account}` prefix of a Redshift Serverless resource ARN —
+ * used to widen a namespace grant to sibling resource types (`snapshot/*`,
+ * `recoverypoint/*`, `workgroup/*`) that snapshot and restore operations
+ * also authorize against.
+ */
+export const serverlessArnPrefix = (arn: string): string => arn.split(":").slice(0, 5).join(":")

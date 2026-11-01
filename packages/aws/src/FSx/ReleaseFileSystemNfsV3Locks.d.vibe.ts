@@ -1,7 +1,7 @@
 import type * as fsx from "@distilled.cloud/aws/fsx";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { FileSystem } from "./FileSystem.js";
+import type { FileSystem } from "./FileSystem.vibe";
 /**
  * Runtime binding for the `ReleaseFileSystemNfsV3Locks` operation scoped to
  * one OpenZFS file system (IAM action `fsx:ReleaseFileSystemNfsV3Locks` on

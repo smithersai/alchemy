@@ -1,7 +1,7 @@
 import type * as healthlake from "@distilled.cloud/aws/healthlake";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { FHIRDatastore } from "./FHIRDatastore.js";
+import type { FHIRDatastore } from "./FHIRDatastore.vibe";
 /**
  * `DescribeFHIRExportJob` request with `DatastoreId` injected from the bound
  * data store.

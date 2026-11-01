@@ -1,0 +1,139 @@
+import * as detective from "@distilled.cloud/aws/detective"
+import { Unowned } from "alchemy/AdoptPolicy"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+
+export interface GraphProps {
+  /**
+   * Tags applied to the behavior graph. Alchemy ownership tags are merged in
+   * automatically so the graph can be recognized on subsequent runs.
+   */
+  mutable tags?: Record<string, string>
+}
+
+/** @resource */
+export interface Graph extends
+  Resource<
+    "AWS.Detective.Graph",
+    GraphProps,
+    {
+      /** ARN of the Detective behavior graph. */
+      mutable graphArn: string
+      /** ISO timestamp of when the graph was created. */
+      mutable createdTime: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A Detective behavior graph — the account/region singleton that enables Amazon
+ * Detective. An account can have at most one behavior graph per region, so this
+ * resource is a capture-and-restore singleton: adopting a pre-existing graph
+ * that Alchemy did not create requires `--adopt`.
+ *
+ * ### Enabling Detective
+ * **Example:** Enable a behavior graph
+ * ```typescript
+ * const graph = yield* Detective.Graph("Graph", {});
+ * ```
+ *
+ * **Example:** Enable with tags
+ * ```typescript
+ * const graph = yield* Detective.Graph("Graph", {
+ *   tags: { team: "security" },
+ * });
+ * ```
+ */
+const GraphResource = Resource<Graph>("AWS.Detective.Graph")
+
+export { GraphResource as Graph }
+
+const buildAttrs = (g: detective.Graph): infer _ => ({
+  graphArn: g.Arn!,
+  createdTime: g.CreatedTime?.toISOString(),
+})
+
+export const GraphProvider = (): infer _ =>
+  Provider.effect(
+    GraphResource,
+    effect {
+      // Detective allows at most one behavior graph per account/region. Return
+      // the first (only) graph, if any.
+      const firstGraph = effect {
+        return (try detective.listGraphs({})).GraphList?.[0]
+      }
+
+      const readTags = effect (arn: string) =>
+        (((try detective.listTagsForResource({ ResourceArn: arn })).Tags ?? {}) as Record<string, string>) catch () =>
+          ({}) as Record<string, string>
+
+      return {
+        read: effect ({ id, output }) => {
+          const graph = try firstGraph
+          if (!graph?.Arn) return undefined
+          // If we have a cached ARN and it no longer matches the single graph,
+          // the graph we knew about is gone.
+          if (output?.graphArn && output.graphArn !== graph.Arn) {
+            return undefined
+          }
+          const attrs = buildAttrs(graph)
+          const tags = try readTags(graph.Arn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        // Account/region singleton — enumerate the single behavior graph.
+        list: effect () => ((try detective.listGraphs({})).GraphList ?? []).map(buildAttrs),
+
+        reconcile: effect ({ id, news = {}, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative.
+          let graph = try firstGraph
+
+          // 2. ENSURE — create the graph (with tags inline) if none exists.
+          if (!graph?.Arn) {
+            const created = try detective.createGraph({
+              Tags: desiredTags,
+            })
+            graph = { Arn: created.GraphArn! }
+          }
+
+          const arn = graph.Arn!
+
+          // 3. SYNC tags — diff against OBSERVED cloud tags.
+          const currentTags = try readTags(arn)
+          const { upsert, removed } = diffTags(currentTags, desiredTags)
+          if (upsert.length > 0) {
+            try detective.tagResource({
+              ResourceArn: arn,
+              Tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+            })
+          }
+          if (removed.length > 0) {
+            try detective.untagResource({
+              ResourceArn: arn,
+              TagKeys: removed,
+            })
+          }
+
+          // 4. RETURN fresh attributes.
+          const final = try firstGraph
+          try session.note(arn)
+          return final?.Arn ? buildAttrs(final) : { graphArn: arn, createdTime: undefined }
+        },
+
+        delete: effect ({ output }) => {
+          detective
+            .deleteGraph({ GraphArn: output.graphArn }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

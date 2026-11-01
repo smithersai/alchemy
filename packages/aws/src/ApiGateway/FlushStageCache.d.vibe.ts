@@ -1,7 +1,7 @@
 import type * as ag from "@distilled.cloud/aws/api-gateway";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ApiGatewayStage } from "./Stage.js";
+import type { ApiGatewayStage } from "./Stage.vibe";
 /**
  * Runtime binding for flushing a stage's response cache
  * (`apigateway:DELETE` on `/restapis/{id}/stages/{name}/cache/data`).

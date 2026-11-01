@@ -1,7 +1,7 @@
 import type * as paymentcryptographydata from "@distilled.cloud/aws/payment-cryptography-data";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.vibe";
 export interface GeneratePinDataRequest extends Omit<paymentcryptographydata.GeneratePinDataInput, "GenerationKeyIdentifier" | "EncryptionKeyIdentifier"> {
 }
 /**

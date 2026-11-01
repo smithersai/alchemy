@@ -10,9 +10,9 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { AccountID } from "../Environment.ts";
-import type { PolicyDocument } from "../IAM/Policy.ts";
-import { normalizePolicyDocument, stringifyPolicyDocument } from "../IAM/Policy.ts";
-import type { Providers } from "../Providers.ts";
+import type { PolicyDocument } from "../IAM/Policy.vibe";
+import { normalizePolicyDocument, stringifyPolicyDocument } from "../IAM/Policy.vibe";
+import type { Providers } from "../Providers.vibe";
 import type { RegionID } from "../Region.ts";
 
 export type KeyId = string;

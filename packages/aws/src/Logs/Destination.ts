@@ -7,8 +7,8 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import type { PolicyDocument } from "../IAM/Policy.ts";
-import type { Providers } from "../Providers.ts";
+import type { PolicyDocument } from "../IAM/Policy.vibe";
+import type { Providers } from "../Providers.vibe";
 
 export interface DestinationProps {
   /**

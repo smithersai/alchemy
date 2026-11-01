@@ -1,0 +1,137 @@
+import * as frauddetector from "@distilled.cloud/aws/frauddetector"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readFraudDetectorTags, syncFraudDetectorTags } from "./internal.ts"
+
+export interface OutcomeProps {
+  /**
+   * Name of the outcome. If omitted, a unique lowercase name is generated from
+   * the app, stage, and logical ID. Changing the name replaces the outcome.
+   */
+  mutable name?: string
+  /**
+   * Human-readable description. This is an in-place update.
+   */
+  mutable description?: string
+  /**
+   * User-defined tags for the outcome.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Outcome extends
+  Resource<
+    "AWS.FraudDetector.Outcome",
+    OutcomeProps,
+    {
+      /** The name of the outcome. */
+      mutable name: string
+      /** The ARN of the outcome. */
+      mutable arn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Fraud Detector outcome — the result a rule produces when it matches
+ * (e.g. `approve`, `review`, `block`). Detector rules reference outcomes; they
+ * are cheap metadata objects.
+ *
+ * ### Creating an Outcome
+ * **Example:** Approve and Review Outcomes
+ * ```typescript
+ * const approve = yield* FraudDetector.Outcome("approve", {
+ *   description: "let the transaction through",
+ * });
+ * const review = yield* FraudDetector.Outcome("review", {});
+ * ```
+ *
+ * @resource
+ */
+export const Outcome = Resource<Outcome>("AWS.FraudDetector.Outcome")
+
+export const OutcomeProvider = (): infer _ =>
+  Provider.effect(
+    Outcome,
+    effect {
+      const createName = effect (id: string, props: OutcomeProps) =>
+        props.name ?? (try createPhysicalName({ id, maxLength: 64, lowercase: true }))
+
+      /** Look an outcome up by name; typed not-found → undefined. */
+      const get = effect (name: string) => {
+        const response = frauddetector
+          .getOutcomes({ name }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.outcomes?.[0]
+      }
+
+      const toAttrs = (outcome: frauddetector.Outcome): infer _ => ({
+        name: outcome.name!,
+        arn: outcome.arn!,
+      })
+
+      return {
+        stables: ["name", "arn"],
+
+        diff: effect ({ id, olds = {}, news }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.name ?? (try createName(id, olds ?? {}))
+          const outcome = try get(name)
+          if (outcome === undefined) return undefined
+          const attrs = toAttrs(outcome)
+          const tags = try readFraudDetectorTags(outcome.arn!)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news = {}, session }) => {
+          const name = try createName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // putOutcome is an idempotent upsert — call it to converge whether
+          // creating or updating the description.
+          try frauddetector.putOutcome({
+            name,
+            description: news.description,
+          })
+
+          const outcome = try get(name)
+          // Sync tags — diff against OBSERVED cloud tags.
+          try syncFraudDetectorTags(outcome!.arn!, desiredTags)
+
+          try session.note(name)
+          return toAttrs(outcome!)
+        },
+
+        delete: effect ({ output }) => {
+          frauddetector.deleteOutcome({ name: output.name }) catch effect (e) => match (e) {
+            when { _tag: "ValidationException" }: try Effect.void;
+            default: throw e;
+          }
+        },
+
+        list: effect () =>
+          Array.from(
+            try (frauddetector.getOutcomes.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => (page.outcomes ?? []).map(toAttrs)),
+      }
+    },
+  )

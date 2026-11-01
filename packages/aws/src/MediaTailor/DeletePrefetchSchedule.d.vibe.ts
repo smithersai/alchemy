@@ -1,7 +1,7 @@
 import type * as mediatailor from "@distilled.cloud/aws/mediatailor";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { PlaybackConfiguration } from "./PlaybackConfiguration.js";
+import type { PlaybackConfiguration } from "./PlaybackConfiguration.vibe";
 /**
  * `DeletePrefetchSchedule` request with `PlaybackConfigurationName` injected
  * from the bound {@link PlaybackConfiguration}.

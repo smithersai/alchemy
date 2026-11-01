@@ -1,7 +1,7 @@
 import type * as paymentcryptography from "@distilled.cloud/aws/payment-cryptography";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.vibe";
 /**
  * Runtime binding for `payment-cryptography:GetPublicKeyCertificate` —
  * exports the public-key certificate (and its root certificate chain) of an

@@ -1,7 +1,7 @@
 import type * as sagemaker from "@distilled.cloud/aws/sagemaker";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Endpoint } from "./Endpoint.js";
+import type { Endpoint } from "./Endpoint.vibe";
 export interface UpdateEndpointWeightsAndCapacitiesRequest extends Omit<sagemaker.UpdateEndpointWeightsAndCapacitiesInput, "EndpointName"> {
 }
 /**

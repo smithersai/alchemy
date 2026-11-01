@@ -13,7 +13,7 @@ import {
   type GraphQLRequest,
   type GraphQLResult,
 } from "./GraphQL.vibe";
-import type { GraphqlApi } from "./GraphqlApi.ts";
+import type { GraphqlApi } from "./GraphqlApi.vibe";
 
 /**
  * HTTP implementation of the {@link GraphQL} binding. The AppSync data

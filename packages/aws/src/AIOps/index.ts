@@ -2,7 +2,7 @@ export * from "./GetInvestigationGroup.vibe";
 export * from "./GetInvestigationGroupHttp.vibe";
 export * from "./GetInvestigationGroupPolicy.vibe";
 export * from "./GetInvestigationGroupPolicyHttp.vibe";
-export * from "./InvestigationGroup.ts";
+export * from "./InvestigationGroup.vibe";
 export * from "./ListInvestigationGroups.vibe";
 export * from "./ListInvestigationGroupsHttp.vibe";
 export * from "./ListTagsForResource.vibe";

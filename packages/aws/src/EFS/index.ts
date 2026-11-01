@@ -1,4 +1,4 @@
-export * from "./AccessPoint.ts";
+export * from "./AccessPoint.vibe";
 export * from "./CreateAccessPoint.vibe";
 export * from "./CreateAccessPointHttp.vibe";
 export * from "./DeleteAccessPoint.vibe";
@@ -15,9 +15,9 @@ export * from "./DescribeMountTargets.vibe";
 export * from "./DescribeMountTargetsHttp.vibe";
 export * from "./DescribeReplicationConfigurations.vibe";
 export * from "./DescribeReplicationConfigurationsHttp.vibe";
-export * from "./FileSystem.ts";
+export * from "./FileSystem.vibe";
 export * from "./Mount.ts";
-export * from "./MountTarget.ts";
+export * from "./MountTarget.vibe";
 export * from "./PutBackupPolicy.vibe";
 export * from "./PutBackupPolicyHttp.vibe";
 export * from "./PutLifecycleConfiguration.vibe";

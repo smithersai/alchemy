@@ -1,7 +1,7 @@
 import type * as cloudtrail from "@distilled.cloud/aws/cloudtrail";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { EventDataStore } from "./EventDataStore.js";
+import type { EventDataStore } from "./EventDataStore.vibe";
 /**
  * Request for the {@link StartQuery} binding. CloudTrail Lake SQL references
  * the event data store by its ID (the ARN's `eventdatastore/` suffix) in the

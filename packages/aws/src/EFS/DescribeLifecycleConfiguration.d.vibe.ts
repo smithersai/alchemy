@@ -1,7 +1,7 @@
 import type * as efs from "@distilled.cloud/aws/efs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { FileSystem } from "./FileSystem.js";
+import type { FileSystem } from "./FileSystem.vibe";
 /**
  * Runtime binding for the `DescribeLifecycleConfiguration` operation (IAM
  * action `elasticfilesystem:DescribeLifecycleConfiguration` on the file

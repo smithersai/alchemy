@@ -12,7 +12,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
 import { plainJson } from "../internal/Observe.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export type StartingPosition = "TRIM_HORIZON" | "LATEST" | "AT_TIMESTAMP";
 

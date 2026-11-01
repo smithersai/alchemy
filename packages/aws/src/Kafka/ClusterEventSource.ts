@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { ServerlessCluster } from "./ServerlessCluster.ts";
+import type { ServerlessCluster } from "./ServerlessCluster.vibe";
 
 export type MSKRecord = import("aws-lambda").MSKRecord;
 

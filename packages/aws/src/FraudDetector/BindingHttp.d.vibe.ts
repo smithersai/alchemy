@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
-import type { Detector } from "./Detector.js";
-import type { EventType } from "./EventType.js";
-import type { List } from "./List.js";
+import type { Detector } from "./Detector.vibe";
+import type { EventType } from "./EventType.vibe";
+import type { List } from "./List.vibe";
 /**
  * Shared scaffolding for Amazon Fraud Detector HTTP bindings.
  *

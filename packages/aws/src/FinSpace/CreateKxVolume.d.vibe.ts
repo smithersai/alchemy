@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/finspace";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { KxEnvironment } from "./KxEnvironment.js";
+import type { KxEnvironment } from "./KxEnvironment.vibe";
 /**
  * Runtime binding for `finspace:CreateKxVolume` — provisions a NAS_1 storage volume in the bound environment that clusters mount for tickerplant logs and shared savedown space.
  * Provide the implementation with

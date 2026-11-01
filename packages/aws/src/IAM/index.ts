@@ -7,7 +7,7 @@ export { GenerateCredentialReportHttp } from "./GenerateCredentialReportHttp.vib
 export { GenerateServiceLastAccessedDetails } from "./GenerateServiceLastAccessedDetails.ts";
 export { GenerateServiceLastAccessedDetailsHttp } from "./GenerateServiceLastAccessedDetailsHttp.vibe";
 export { GetAccessKeyLastUsed } from "./GetAccessKeyLastUsed.ts";
-export { GetAccessKeyLastUsedHttp } from "./GetAccessKeyLastUsedHttp.ts";
+export { GetAccessKeyLastUsedHttp } from "./GetAccessKeyLastUsedHttp.vibe";
 export { GetAccountAuthorizationDetails } from "./GetAccountAuthorizationDetails.ts";
 export { GetAccountAuthorizationDetailsHttp } from "./GetAccountAuthorizationDetailsHttp.vibe";
 export { GetAccountSummary } from "./GetAccountSummary.ts";
@@ -31,9 +31,9 @@ export { SimulatePrincipalPolicyHttp } from "./SimulatePrincipalPolicyHttp.vibe"
 export { AccountPasswordPolicy, AccountPasswordPolicyProvider } from "./AccountPasswordPolicy.ts";
 export { Group, GroupProvider } from "./Group.ts";
 export { GroupMembership, GroupMembershipProvider } from "./GroupMembership.ts";
-export { InstanceProfile, InstanceProfileProvider } from "./InstanceProfile.ts";
+export { InstanceProfile, InstanceProfileProvider } from "./InstanceProfile.vibe";
 export { LoginProfile, LoginProfileProvider } from "./LoginProfile.ts";
-export { OpenIDConnectProvider, OpenIDConnectProviderProvider } from "./OpenIDConnectProvider.ts";
+export { OpenIDConnectProvider, OpenIDConnectProviderProvider } from "./OpenIDConnectProvider.vibe";
 export {
   normalizePolicyDocument,
   Policy,
@@ -44,10 +44,10 @@ export {
   type PolicyStatement,
   type ServiceControlPolicyDocument,
   type ServiceControlPolicyStatement,
-} from "./Policy.ts";
+} from "./Policy.vibe";
 export { Role, RoleProvider } from "./Role.ts";
 export { SAMLProvider, SAMLProviderProvider } from "./SAMLProvider.ts";
-export { ServerCertificate, ServerCertificateProvider } from "./ServerCertificate.ts";
+export { ServerCertificate, ServerCertificateProvider } from "./ServerCertificate.vibe";
 export {
   ServiceLinkedRole,
   ServiceLinkedRoleDeletionFailed,

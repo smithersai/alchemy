@@ -1,7 +1,7 @@
 import type * as iotw from "@distilled.cloud/aws/iot-wireless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { WirelessGateway } from "./WirelessGateway.js";
+import type { WirelessGateway } from "./WirelessGateway.vibe";
 /**
  * Request for {@link GetWirelessGatewayStatistics}. The bound gateway's id
  * is injected automatically, leaving nothing else to supply.

@@ -1,7 +1,7 @@
 import type * as appflow from "@distilled.cloud/aws/appflow";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Flow } from "./Flow.js";
+import type { Flow } from "./Flow.vibe";
 export interface DescribeFlowExecutionRecordsRequest extends Omit<appflow.DescribeFlowExecutionRecordsRequest, "flowName"> {
 }
 /**

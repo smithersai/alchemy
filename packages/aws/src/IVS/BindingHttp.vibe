@@ -1,0 +1,97 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Channel } from "./Channel.ts"
+
+/**
+ * Shared scaffolding for Amazon IVS stream data-plane HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service
+ * is a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the two
+ * builders below. Everything except the operation and the IAM action list
+ * is boilerplate: channel-scoped bindings inject the bound channel's ARN
+ * as the request's `channelArn` and grant `actions` on that ARN;
+ * account-scoped bindings pass the request through and grant `actions` on
+ * `*`.
+ */
+
+/**
+ * Build the impl Effect for an IVS operation scoped to a {@link Channel}:
+ * the deploy-time half grants `actions` on the bound channel's ARN, and
+ * the runtime half injects the channel's ARN into every request as
+ * `channelArn`.
+ */
+export const makeIvsChannelHttpBinding = effect <I extends { mutable channelArn: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.IVS.GetStream`. */
+  mutable tag: string
+  /** The distilled operation; `channelArn` is injected from the channel. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the channel ARN. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (channel: Channel) => {
+    const ChannelArn = try channel.channelArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${channel})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [channel.channelArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "channelArn"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const channelArn = try ChannelArn
+          return try op({ ...request, channelArn } as I)
+        },
+        `${options.tag}(${channel.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level IVS operation (e.g.
+ * enumerating the account's live streams). The deploy-time half grants
+ * `actions` on `*` — these list actions are not scoped to a single
+ * channel resource.
+ */
+export const makeIvsAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.IVS.ListStreams`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

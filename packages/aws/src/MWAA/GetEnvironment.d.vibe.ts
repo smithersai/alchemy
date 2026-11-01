@@ -1,7 +1,7 @@
 import type * as mwaa from "@distilled.cloud/aws/mwaa";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Environment } from "./Environment.js";
+import type { Environment } from "./Environment.vibe";
 /**
  * Runtime binding for `airflow:GetEnvironment`.
  *

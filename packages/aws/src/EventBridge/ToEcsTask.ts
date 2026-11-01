@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import * as Effect from "effect/Effect";
-import type { Cluster } from "../ECS/Cluster.ts";
+import type { Cluster } from "../ECS/Cluster.vibe";
 import * as IAM from "../IAM/index.ts";
-import type { EventBus } from "./EventBus.ts";
-import { Rule, type RuleProps, type RuleTarget } from "./Rule.ts";
+import type { EventBus } from "./EventBus.vibe";
+import { Rule, type RuleProps, type RuleTarget } from "./Rule.vibe";
 
 interface EventDescriptor {
   id?: string;

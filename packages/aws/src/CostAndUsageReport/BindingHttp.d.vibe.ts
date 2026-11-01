@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { ReportDefinition } from "./ReportDefinition.js";
+import type { ReportDefinition } from "./ReportDefinition.vibe";
 /**
  * Build the impl Effect for an account-level CUR operation.
  * `cur:DescribeReportDefinitions` enumerates every report definition in the

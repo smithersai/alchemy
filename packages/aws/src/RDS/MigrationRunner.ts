@@ -1,7 +1,7 @@
 import type { Input } from "alchemy/Input";
 import { moduleExtension } from "alchemy/Util/Node";
 import * as Duration from "effect/Duration";
-import type { SecurityGroupId } from "../EC2/SecurityGroup.ts";
+import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
 import type { SubnetId } from "../EC2/Subnet.ts";
 import { Function as LambdaFunction } from "../Lambda/Function.ts";
 

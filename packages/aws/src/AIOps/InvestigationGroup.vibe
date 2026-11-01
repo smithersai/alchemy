@@ -1,0 +1,478 @@
+import * as aiops from "@distilled.cloud/aws/aiops"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { toWireDays } from "alchemy/Util/Duration"
+import type * as Duration from "effect/Duration"
+import type { PolicyStatement } from "../IAM/Policy.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface InvestigationGroupEncryptionConfiguration {
+  /**
+   * How investigation data is encrypted — `"AWS_OWNED_KEY"` (the default,
+   * an AWS owned key) or `"CUSTOMER_MANAGED_KMS_KEY"`.
+   * @default "AWS_OWNED_KEY"
+   */
+  mutable type?: aiops.EncryptionConfigurationType
+  /**
+   * ID or ARN of the customer managed KMS key to encrypt investigation data
+   * with. Required when `type` is `"CUSTOMER_MANAGED_KMS_KEY"`.
+   */
+  mutable kmsKeyId?: string
+}
+
+export interface InvestigationGroupCrossAccountConfiguration {
+  /**
+   * ARN of an IAM role in a source account that CloudWatch investigations
+   * assumes to retrieve telemetry during cross-account investigations.
+   */
+  mutable sourceRoleArn: string
+}
+
+export interface InvestigationGroupProps {
+  /**
+   * Name of the investigation group. If omitted, a deterministic physical
+   * name is generated from the app, stage, and logical ID.
+   *
+   * Changing the name replaces the investigation group.
+   * @default ${app}-${stage}-${id}
+   */
+  mutable name?: string
+  /**
+   * ARN of the IAM role that CloudWatch investigations assumes to access
+   * telemetry (CloudWatch, X-Ray, CloudTrail, ...) during investigations.
+   * The role's trust policy must allow the `aiops.amazonaws.com` service
+   * principal to assume it.
+   */
+  mutable roleArn: string
+  /**
+   * How long investigations and their data are retained (e.g. `"7 days"`
+   * or `Duration.days(7)`). Rounded to whole days on the wire
+   * (`retentionInDays`).
+   * The retention period cannot be updated in place — changing it replaces
+   * the investigation group.
+   * @default 90 days
+   */
+  mutable retention?: Duration.Input
+  /**
+   * Encryption configuration for investigation data. Omit to use an AWS
+   * owned key.
+   * @default AWS owned key
+   */
+  mutable encryptionConfiguration?: InvestigationGroupEncryptionConfiguration
+  /**
+   * Tag keys whose values CloudWatch investigations uses as boundaries to
+   * narrow the search for related telemetry (useful when resource names
+   * repeat across applications).
+   */
+  mutable tagKeyBoundaries?: string[]
+  /**
+   * Map of Amazon Q Developer in chat applications configuration ARNs to
+   * SNS topic ARNs, used to send investigation updates to chat channels.
+   */
+  mutable chatbotNotificationChannel?: Record<string, string[]>
+  /**
+   * Whether investigations can query CloudTrail event history for the past
+   * seven days of events.
+   * @default true
+   */
+  mutable isCloudTrailEventHistoryEnabled?: boolean
+  /**
+   * Source-account role configurations for cross-account investigations.
+   */
+  mutable crossAccountConfigurations?: InvestigationGroupCrossAccountConfiguration[]
+  /**
+   * IAM resource-policy statements attached to the investigation group,
+   * granting other principals or AWS services (for example
+   * `aiops.alarms.cloudwatch.amazonaws.com`, so CloudWatch alarms can start
+   * investigations) access to it. Serialized as a `2012-10-17` policy
+   * document via `PutInvestigationGroupPolicy`.
+   *
+   * Omit to leave any existing policy unmanaged; pass `[]` to delete a
+   * previously attached policy.
+   */
+  mutable policy?: PolicyStatement[]
+  /**
+   * Tags to apply to the investigation group. Merged with internal Alchemy
+   * tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface InvestigationGroup extends
+  Resource<
+    "AWS.AIOps.InvestigationGroup",
+    InvestigationGroupProps,
+    {
+      /** Name of the investigation group. */
+      mutable name: string
+      /** ARN of the investigation group. */
+      mutable arn: string
+      /** ARN of the IAM role investigations assume to access telemetry. */
+      mutable roleArn: string | undefined
+      /**
+       * How long investigations and their data are retained, in whole days
+       * (the AWS wire unit for the `retention` prop).
+       */
+      mutable retentionInDays: number | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A CloudWatch investigations *investigation group* — the one-time,
+ * per-Region container that configures who can run AI-assisted operational
+ * investigations, which IAM role is used to access telemetry, how long
+ * investigation data is retained, and how it is encrypted.
+ *
+ * You can have at most one investigation group per Region in an account, so
+ * replacements are performed delete-first.
+ * ### Creating an Investigation Group
+ * **Example:** Basic Investigation Group
+ * ```typescript
+ * import * as AIOps from "@alchemy.run/aws/AIOps";
+ * import * as IAM from "@alchemy.run/aws/IAM";
+ *
+ * const role = yield* IAM.Role("InvestigationsRole", {
+ *   assumeRolePolicyDocument: {
+ *     Version: "2012-10-17",
+ *     Statement: [{
+ *       Effect: "Allow",
+ *       Principal: { Service: "aiops.amazonaws.com" },
+ *       Action: ["sts:AssumeRole"],
+ *     }],
+ *   },
+ *   managedPolicyArns: ["arn:aws:iam::aws:policy/AIOpsAssistantPolicy"],
+ * });
+ *
+ * const group = yield* AIOps.InvestigationGroup("Investigations", {
+ *   roleArn: role.roleArn,
+ * });
+ * ```
+ *
+ * **Example:** Short Retention and Tag Boundaries
+ * ```typescript
+ * const group = yield* AIOps.InvestigationGroup("Investigations", {
+ *   roleArn: role.roleArn,
+ *   retention: "7 days",
+ *   tagKeyBoundaries: ["Application"],
+ *   tags: { Environment: "test" },
+ * });
+ * ```
+ *
+ * ### Resource Policy
+ * **Example:** Let CloudWatch Alarms Start Investigations
+ * ```typescript
+ * const group = yield* AIOps.InvestigationGroup("Investigations", {
+ *   roleArn: role.roleArn,
+ *   policy: [{
+ *     Effect: "Allow",
+ *     Principal: { Service: "aiops.alarms.cloudwatch.amazonaws.com" },
+ *     Action: ["aiops:CreateInvestigation", "aiops:CreateInvestigationEvent"],
+ *     Resource: "*",
+ *     Condition: {
+ *       StringEquals: { "aws:SourceAccount": "111122223333" },
+ *       ArnLike: { "aws:SourceArn": "arn:aws:cloudwatch:us-east-1:111122223333:alarm:*" },
+ *     },
+ *   }],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const InvestigationGroup = Resource<InvestigationGroup>("AWS.AIOps.InvestigationGroup")
+
+/**
+ * Bounded retry for `createInvestigationGroup` while the freshly created IAM
+ * role propagates — AIOps validates that it can assume the role at create
+ * time, which surfaces as a ValidationException/AccessDeniedException that
+ * mentions the role for the first seconds of the role's life.
+ *
+ * Explicitly annotated so the conditional `Retry.Return` type never leaks
+ * into declaration emit (it would widen `AWS.providers()` for consumers).
+ */
+const retryWhileRolePropagates = effect <A, R>(
+  self: A!aiops.CreateInvestigationGroupError!R,
+): A!aiops.CreateInvestigationGroupError!R =>
+  try Effect.retry(self, {
+    while: (e) =>
+      (e._tag === "ValidationException" || e._tag === "AccessDeniedException")
+      && /role/i.test(e.message ?? ""),
+    schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(8)]),
+  })
+
+const sameStringArray = (l: readonly string[], r: readonly string[]): infer _ =>
+  l.length === r.length && l.every((v, i) => v === r[i])
+
+export const InvestigationGroupProvider = (): infer _ =>
+  Provider.effect(
+    InvestigationGroup,
+    effect {
+      const createName = effect (
+        id: string,
+        props: Pick<InvestigationGroupProps, "name">,
+      ) => props.name ?? (try createPhysicalName({ id, maxLength: 64 }))
+
+      const observeByArn = effect (arn: string) =>
+        aiops
+          .getInvestigationGroup({ identifier: arn }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      // At most one investigation group exists per Region, so scanning the
+      // list for our name is a single cheap call.
+      const findArnByName = effect (name: string) =>
+        Array.from(
+          try (aiops.listInvestigationGroups.items({})
+            |> Stream.runCollect(%)),
+        ).find((g) => g.name === name)?.arn
+
+      const observe = effect (name: string, arnHint: string | undefined) => {
+        if (arnHint !== undefined) {
+          const found = try observeByArn(arnHint)
+          if (found !== undefined) return found
+        }
+        const arn = try findArnByName(name)
+        return arn === undefined ? undefined : try observeByArn(arn)
+      }
+
+      const observedTags = effect (arn: string) =>
+        (try effect {
+          const r = try aiops.listTagsForResource({ resourceArn: arn })
+
+          const tags: Record<string, string> = {}
+          for (const [key, value] of Object.entries(r.tags ?? {})) {
+            if (value !== undefined) tags[key] = value
+          }
+          return tags
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>;
+          default: throw e;
+        }
+
+      const toAttributes = (live: aiops.GetInvestigationGroupResponse): infer _ => ({
+        name: live.name!,
+        arn: live.arn!,
+        roleArn: live.roleArn,
+        retentionInDays: live.retentionInDays,
+      })
+
+      return InvestigationGroup.Provider.of({
+        stables: ["name", "arn"],
+        list: effect () => {
+          const items = try aiops.listInvestigationGroups.items({}).pipe(Stream.runCollect)
+          const groups: {
+            mutable name: string
+            mutable arn: string
+            mutable roleArn: string | undefined
+            mutable retentionInDays: number | undefined
+          }[] = []
+          for (const item of Array.from(items)) {
+            if (item.arn === undefined) continue
+            const live = try observeByArn(item.arn)
+            if (live?.arn !== undefined && live.name !== undefined) {
+              groups.push(toAttributes(live))
+            }
+          }
+          return groups
+        },
+        read: effect ({ id, olds, output }) => {
+          const name = output?.name ?? (try createName(id, olds ?? {}))
+          const live = try observe(name, output?.arn)
+          if (live?.arn === undefined || live.name === undefined) {
+            return undefined
+          }
+          const attrs = toAttributes(live)
+          const tags = try observedTags(live.arn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds ?? {})
+          const newName = try createName(id, news ?? {})
+          // Only one investigation group may exist per Region, so a
+          // replacement must delete the old group before creating the new.
+          if (oldName !== newName) {
+            return { action: "replace", deleteFirst: true } as const
+          }
+          // The retention period has no update API — replace to change it.
+          if (toWireDays(olds?.retention) !== toWireDays(news?.retention)) {
+            return { action: "replace", deleteFirst: true } as const
+          }
+          // fall through: engine default update logic for mutable fields
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.name ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative; output.arn is only a
+          //    cache of the identifier.
+          let live = try observe(name, output?.arn)
+
+          // 2. ENSURE — create when missing. A ConflictException here means
+          //    a concurrent create raced us (one group per Region): if a
+          //    group with OUR name now exists we converge on it, otherwise
+          //    the conflict is a real error (a foreign group occupies the
+          //    Region's single slot) and is propagated.
+          if (live === undefined) {
+            live = (try effect {
+              const created = try (aiops
+                .createInvestigationGroup({
+                  name,
+                  roleArn: news.roleArn,
+                  retentionInDays: toWireDays(news.retention),
+                  encryptionConfiguration: news.encryptionConfiguration,
+                  tagKeyBoundaries: news.tagKeyBoundaries,
+                  chatbotNotificationChannel: news.chatbotNotificationChannel,
+                  isCloudTrailEventHistoryEnabled: news.isCloudTrailEventHistoryEnabled,
+                  crossAccountConfigurations: news.crossAccountConfigurations,
+                  tags: desiredTags,
+                })
+                |> retryWhileRolePropagates(%))
+              return (created.arn === undefined ? try observe(name, undefined) : try observeByArn(created.arn))
+            }) catch effect (error) => match (error) {
+              when { _tag: "ConflictException" }: try effect {
+                const existing = try observe(name, undefined)
+                return (existing === undefined ? throw error : existing)
+              };
+              default: throw error;
+            }
+          }
+
+          const arn = live?.arn ?? output?.arn
+
+          // 3. SYNC — diff each OBSERVED mutable aspect against the desired
+          //    state and PATCH only on drift. Aspects the user leaves
+          //    undefined are unmanaged (left as observed).
+          if (live !== undefined && arn !== undefined) {
+            const update: Omit<aiops.UpdateInvestigationGroupRequest, "identifier"> = {}
+            if (live.roleArn !== news.roleArn) {
+              update.roleArn = news.roleArn
+            }
+            if (
+              news.encryptionConfiguration !== undefined
+              && ((live.encryptionConfiguration?.type ?? "AWS_OWNED_KEY")
+                  !== (news.encryptionConfiguration.type ?? "AWS_OWNED_KEY")
+                || live.encryptionConfiguration?.kmsKeyId !== news.encryptionConfiguration.kmsKeyId)
+            ) {
+              update.encryptionConfiguration = news.encryptionConfiguration
+            }
+            if (
+              news.tagKeyBoundaries !== undefined
+              && !sameStringArray(live.tagKeyBoundaries ?? [], news.tagKeyBoundaries)
+            ) {
+              update.tagKeyBoundaries = news.tagKeyBoundaries
+            }
+            if (
+              news.isCloudTrailEventHistoryEnabled !== undefined
+              && live.isCloudTrailEventHistoryEnabled !== news.isCloudTrailEventHistoryEnabled
+            ) {
+              update.isCloudTrailEventHistoryEnabled = news.isCloudTrailEventHistoryEnabled
+            }
+            if (
+              news.chatbotNotificationChannel !== undefined
+              && JSON.stringify(live.chatbotNotificationChannel ?? {})
+                !== JSON.stringify(news.chatbotNotificationChannel)
+            ) {
+              update.chatbotNotificationChannel = news.chatbotNotificationChannel
+            }
+            if (
+              news.crossAccountConfigurations !== undefined
+              && JSON.stringify(live.crossAccountConfigurations ?? [])
+                !== JSON.stringify(news.crossAccountConfigurations)
+            ) {
+              update.crossAccountConfigurations = news.crossAccountConfigurations
+            }
+            if (Object.keys(update).length > 0) {
+              try aiops.updateInvestigationGroup({
+                identifier: arn,
+                ...update,
+              })
+              live = (try observeByArn(arn)) ?? live
+            }
+          }
+
+          // 3b. SYNC POLICY — diff the OBSERVED resource policy against the
+          //     desired policy document and put/delete only on drift.
+          //     `policy: undefined` leaves any existing policy unmanaged;
+          //     `policy: []` deletes it.
+          if (arn !== undefined && news.policy !== undefined) {
+            const observedPolicy = (try aiops
+              .getInvestigationGroupPolicy({ identifier: arn })).policy catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                default: throw e;
+              }
+            if (news.policy.length === 0) {
+              if (observedPolicy !== undefined) {
+                aiops
+                  .deleteInvestigationGroupPolicy({ identifier: arn }) catch effect (e) => match (e) {
+                    when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                    default: throw e;
+                  }
+              }
+            } else {
+              const desiredPolicy = JSON.stringify({
+                Version: "2012-10-17",
+                Statement: news.policy,
+              })
+              const inSync = try Effect.sync(() => {
+                if (observedPolicy === undefined) return false
+                try {
+                  return JSON.stringify(JSON.parse(observedPolicy)) === desiredPolicy
+                } catch {
+                  return false
+                }
+              })
+              if (!inSync) {
+                try aiops.putInvestigationGroupPolicy({
+                  identifier: arn,
+                  policy: desiredPolicy,
+                })
+              }
+            }
+          }
+
+          // 3c. SYNC TAGS — diff against OBSERVED cloud tags so adoption
+          //     converges (create-time tags only apply on first create).
+          if (arn !== undefined) {
+            const currentTags = try observedTags(arn)
+            const { upsert, removed } = diffTags(currentTags, desiredTags)
+            if (upsert.length > 0) {
+              try aiops.tagResource({
+                resourceArn: arn,
+                tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+              })
+            }
+            if (removed.length > 0) {
+              try aiops.untagResource({
+                resourceArn: arn,
+                tagKeys: removed,
+              })
+            }
+          }
+
+          try session.note(name)
+          return {
+            name: live?.name ?? name,
+            arn: arn!,
+            roleArn: live?.roleArn ?? news.roleArn,
+            retentionInDays: live?.retentionInDays ?? toWireDays(news.retention),
+          }
+        },
+        delete: effect ({ output }) => {
+          aiops
+            .deleteInvestigationGroup({ identifier: output.arn }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

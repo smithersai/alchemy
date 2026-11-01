@@ -1,0 +1,203 @@
+import * as forecast from "@distilled.cloud/aws/forecast"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readForecastTags, syncForecastTags, toForecastName } from "./internal.ts"
+
+export interface DatasetGroupProps {
+  /**
+   * Name of the dataset group. If omitted, a unique name is generated from the
+   * app, stage, and logical ID. Changing the name replaces the group.
+   */
+  mutable datasetGroupName?: string
+  /**
+   * The forecasting domain: `RETAIL`, `CUSTOM`, `INVENTORY_PLANNING`,
+   * `EC2_CAPACITY`, `WORK_FORCE`, `WEB_TRAFFIC`, or `METRICS`. Immutable —
+   * changing it replaces the group.
+   */
+  mutable domain: string
+  /**
+   * ARNs of the datasets to attach to the group. This is an in-place update —
+   * changing the set re-associates the datasets without replacing the group.
+   */
+  mutable datasetArns?: string[]
+  /**
+   * User-defined tags for the dataset group.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface DatasetGroup extends
+  Resource<
+    "AWS.Forecast.DatasetGroup",
+    DatasetGroupProps,
+    {
+      /** The ARN of the dataset group. */
+      mutable datasetGroupArn: string
+      /** The name of the dataset group. */
+      mutable datasetGroupName: string
+      /** The forecasting domain of the group, e.g. `RETAIL` or `CUSTOM`. */
+      mutable domain: string
+      /** The dataset group status, e.g. `ACTIVE`. */
+      mutable status: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Forecast dataset group — a domain-scoped container that groups the
+ * datasets used to train predictors. Creating the group is cheap; the
+ * expensive training work lives in predictors and forecasts provisioned
+ * separately.
+ *
+ * ### Creating a Dataset Group
+ * **Example:** Custom Dataset Group
+ * ```typescript
+ * const group = yield* Forecast.DatasetGroup("Sales", {
+ *   domain: "CUSTOM",
+ * });
+ * ```
+ *
+ * **Example:** Dataset Group with Attached Datasets
+ * ```typescript
+ * const group = yield* Forecast.DatasetGroup("Sales", {
+ *   domain: "RETAIL",
+ *   datasetArns: [dataset.datasetArn],
+ *   tags: { team: "planning" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DatasetGroup = Resource<DatasetGroup>("AWS.Forecast.DatasetGroup")
+
+const sameArns = (a: string[], b: string[]): infer _ => {
+  const sa = [...a].sort()
+  const sb = [...b].sort()
+  return sa.length === sb.length && sa.every((v, i) => v === sb[i])
+}
+
+export const DatasetGroupProvider = (): infer _ =>
+  Provider.effect(
+    DatasetGroup,
+    effect {
+      const createName = effect (id: string, props: DatasetGroupProps) => (
+        props.datasetGroupName ?? toForecastName(try createPhysicalName({ id, maxLength: 63 }))
+      )
+
+      const describe = effect (datasetGroupArn: string) =>
+        forecast
+          .describeDatasetGroup({ DatasetGroupArn: datasetGroupArn }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      const toAttrs = (group: forecast.DescribeDatasetGroupResponse): infer _ => ({
+        datasetGroupArn: group.DatasetGroupArn!,
+        datasetGroupName: group.DatasetGroupName!,
+        domain: group.Domain!,
+        status: group.Status!,
+      })
+
+      return {
+        stables: ["datasetGroupArn", "datasetGroupName"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName || (olds.domain ?? undefined) !== (news.domain ?? undefined)) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, output }) => {
+          if (!output?.datasetGroupArn) return undefined
+          const group = try describe(output.datasetGroupArn)
+          if (group === undefined) return undefined
+          const attrs = toAttrs(group)
+          const tags = try readForecastTags(group.DatasetGroupArn!)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try createName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const desiredArns = news.datasetArns ?? []
+
+          // 1. Observe — cloud state is authoritative; output is an ARN cache.
+          let group = output?.datasetGroupArn !== undefined
+            ? try describe(output.datasetGroupArn)
+            : undefined
+
+          // 2. Ensure — create if missing.
+          if (group === undefined) {
+            const created = try forecast.createDatasetGroup({
+              DatasetGroupName: name,
+              Domain: news.domain,
+              DatasetArns: desiredArns,
+              Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                Key,
+                Value,
+              })),
+            })
+            group = try describe(created.DatasetGroupArn!)
+          } else {
+            // 3. Sync attached datasets — in-place update on drift.
+            if (!sameArns(group.DatasetArns ?? [], desiredArns)) {
+              try forecast.updateDatasetGroup({
+                DatasetGroupArn: group.DatasetGroupArn!,
+                DatasetArns: desiredArns,
+              })
+            }
+            // 3b. Sync tags — diff against OBSERVED cloud tags.
+            try syncForecastTags(group.DatasetGroupArn!, desiredTags)
+          }
+
+          const arn = group!.DatasetGroupArn!
+          try session.note(arn)
+          const fresh = (try describe(arn)) ?? group!
+          return toAttrs(fresh)
+        },
+
+        delete: effect ({ output }) => {
+          try (effect {
+            return forecast.deleteDatasetGroup({ DatasetGroupArn: output.datasetGroupArn }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          }
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "ResourceInUseException",
+              schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(20)]),
+            }))
+        },
+
+        list: effect () =>
+          (try (effect {
+            return Array.from(
+              try (forecast.listDatasetGroups.pages({})
+                |> Stream.runCollect(%)),
+            ).flatMap((page) => page.DatasetGroups ?? [])
+          }
+            |> Effect.flatMap(
+              %,
+              Effect.forEach(
+                effect (summary) =>
+                  try effect {
+                    const g = try describe(summary.DatasetGroupArn!)
+                    return (g ? toAttrs(g) : undefined)
+                  },
+                { concurrency: 4 },
+              ),
+            ))).filter((item) => item !== undefined),
+      }
+    },
+  )

@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { durationToSeconds } from "../IAM/common.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { resolveHostedZoneId } from "./HostedZoneLookup.ts";
 
 export interface RecordAliasTarget {

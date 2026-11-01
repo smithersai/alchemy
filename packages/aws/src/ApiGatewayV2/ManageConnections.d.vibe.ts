@@ -1,7 +1,7 @@
 import type * as mgmt from "@distilled.cloud/aws/apigatewaymanagementapi";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ApiGatewayV2Stage } from "./Stage.js";
+import type { ApiGatewayV2Stage } from "./Stage.vibe";
 export interface PostToConnectionRequest extends mgmt.PostToConnectionRequest {
 }
 export interface GetConnectionRequest extends mgmt.GetConnectionRequest {

@@ -1,7 +1,7 @@
 import type * as lambda from "aws-lambda";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
-import type { Api } from "./Api.ts";
+import type { Api } from "./Api.vibe";
 
 /**
  * The event shape a WebSocket route handler receives — the API Gateway v2

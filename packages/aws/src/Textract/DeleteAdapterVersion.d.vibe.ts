@@ -1,7 +1,7 @@
 import type * as textract from "@distilled.cloud/aws/textract";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Adapter } from "./Adapter.js";
+import type { Adapter } from "./Adapter.vibe";
 /**
  * Runtime binding for `textract:DeleteAdapterVersion` — delete a version
  * of the bound adapter (e.g. retire superseded versions from a retraining

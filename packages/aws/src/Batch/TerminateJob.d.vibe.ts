@@ -1,7 +1,7 @@
 import type * as batch from "@distilled.cloud/aws/batch";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { JobQueue } from "./JobQueue.js";
+import type { JobQueue } from "./JobQueue.vibe";
 export interface TerminateJobRequest extends batch.TerminateJobRequest {
 }
 /**

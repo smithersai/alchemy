@@ -1,7 +1,7 @@
 import type * as elasticache from "@distilled.cloud/aws/elasticache";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ServerlessCache } from "./ServerlessCache.js";
+import type { ServerlessCache } from "./ServerlessCache.vibe";
 /**
  * Runtime binding for the `CreateServerlessCacheSnapshot` operation (IAM
  * actions `elasticache:CreateServerlessCacheSnapshot` +

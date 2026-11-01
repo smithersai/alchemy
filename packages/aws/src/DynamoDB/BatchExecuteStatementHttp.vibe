@@ -1,0 +1,50 @@
+import * as DynamoDB from "@distilled.cloud/aws/dynamodb"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import {
+  BatchExecuteStatement,
+  type BatchExecuteStatementRequest,
+  type BatchExecuteStatementTables,
+  sortBatchExecuteStatementTables,
+} from "./BatchExecuteStatement.vibe"
+import { GrantTables, tablesRegion } from "./BindingHttp.ts"
+
+export const BatchExecuteStatementHttp = Layer.effect(
+  BatchExecuteStatement,
+  effect {
+    const grantTables = try GrantTables
+    return effect (...tables: BatchExecuteStatementTables) => {
+      const sortedTables = sortBatchExecuteStatementTables(tables)
+      try grantTables(
+        `AWS.DynamoDB.BatchExecuteStatement(${sortedTables.map((table) => table.LogicalId).join(", ")})`,
+        () => [
+          {
+            Effect: "Allow",
+            Action: [
+              "dynamodb:PartiQLDelete",
+              "dynamodb:PartiQLInsert",
+              "dynamodb:PartiQLSelect",
+              "dynamodb:PartiQLUpdate",
+            ],
+            Resource: sortedTables.flatMap((table) => [
+              table.tableArn,
+              Output.interpolate`${table.tableArn}/index/*`,
+            ]),
+          },
+        ],
+      )
+      const batchExecuteStatement = try AWSBindings.withCredentials(
+        DynamoDB.batchExecuteStatement,
+        tablesRegion(sortedTables),
+      )
+      return effect (request: BatchExecuteStatementRequest) =>
+        try withSpan(
+          effect {
+            return try batchExecuteStatement(request)
+          },
+          `AWS.DynamoDB.BatchExecuteStatement(${sortedTables.map((table) => table.LogicalId).join(", ")})`,
+        )
+    }
+  },
+)

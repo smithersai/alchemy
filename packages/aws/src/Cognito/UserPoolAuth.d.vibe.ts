@@ -1,7 +1,7 @@
 import type * as cip from "@distilled.cloud/aws/cognito-identity-provider";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { UserPoolClient } from "./UserPoolClient.js";
+import type { UserPoolClient } from "./UserPoolClient.vibe";
 export interface SignUpRequest extends Omit<cip.SignUpRequest, "ClientId"> {
 }
 export interface ConfirmSignUpRequest extends Omit<cip.ConfirmSignUpRequest, "ClientId"> {

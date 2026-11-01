@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { ServerlessCache } from "./ServerlessCache.js";
+import type { ServerlessCache } from "./ServerlessCache.vibe";
 /**
  * Connection descriptor for an ElastiCache serverless cache. Alchemy does
  * not bundle a valkey/redis client — pass these settings to the client of

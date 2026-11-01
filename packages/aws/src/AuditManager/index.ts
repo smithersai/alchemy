@@ -1,5 +1,5 @@
 // NOTE: BindingHttp.ts is shared scaffolding — intentionally NOT exported.
-export * from "./Assessment.ts";
+export * from "./Assessment.vibe";
 export * from "./AssociateAssessmentReportEvidenceFolder.vibe";
 export * from "./AssociateAssessmentReportEvidenceFolderHttp.vibe";
 export * from "./BatchAssociateAssessmentReportEvidence.vibe";
@@ -12,14 +12,14 @@ export * from "./BatchDisassociateAssessmentReportEvidence.vibe";
 export * from "./BatchDisassociateAssessmentReportEvidenceHttp.vibe";
 export * from "./BatchImportEvidenceToAssessmentControl.vibe";
 export * from "./BatchImportEvidenceToAssessmentControlHttp.vibe";
-export * from "./Control.ts";
+export * from "./Control.vibe";
 export * from "./CreateAssessmentReport.vibe";
 export * from "./CreateAssessmentReportHttp.vibe";
 export * from "./DeleteAssessmentReport.vibe";
 export * from "./DeleteAssessmentReportHttp.vibe";
 export * from "./DisassociateAssessmentReportEvidenceFolder.vibe";
 export * from "./DisassociateAssessmentReportEvidenceFolderHttp.vibe";
-export * from "./Framework.ts";
+export * from "./Framework.vibe";
 export * from "./GetAccountStatus.vibe";
 export * from "./GetAccountStatusHttp.vibe";
 export * from "./GetAssessmentReportUrl.vibe";

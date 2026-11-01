@@ -1,0 +1,59 @@
+import * as backup from "@distilled.cloud/aws/backup"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Role } from "../IAM/Role.ts"
+import type { BackupVault } from "./BackupVault.vibe"
+import { StartCopyJob, type StartCopyJobRequest } from "./StartCopyJob.vibe"
+
+export const StartCopyJobHttp = Layer.effect(
+  StartCopyJob,
+  effect {
+    const bind = try AWSBindings.Bind
+    const startCopyJob = try AWSBindings.withCredentials(backup.startCopyJob)
+
+    return effect <R extends Role>(sourceVault: BackupVault, copyRole: R) => {
+      const SourceBackupVaultName = try sourceVault.backupVaultName.asEffect()
+      const RoleArn = try copyRole.roleArn.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.Backup.StartCopyJob(${sourceVault}, ${copyRole})`({
+          policyStatements: [
+            // StartCopyJob authorizes on the recovery point's underlying
+            // resource ARN and CopyIntoBackupVault on the destination
+            // vault — both runtime request fields, so the grant is `*`.
+            {
+              Effect: "Allow",
+              Action: ["backup:StartCopyJob", "backup:CopyIntoBackupVault"],
+              Resource: ["*"],
+            },
+            // CRITICAL: without iam:PassRole on the copy role,
+            // StartCopyJob fails only at runtime with an AccessDenied.
+            {
+              Effect: "Allow",
+              Action: ["iam:PassRole"],
+              Resource: [Output.interpolate`${copyRole.roleArn}`],
+              Condition: {
+                StringEquals: {
+                  "iam:PassedToService": "backup.amazonaws.com",
+                },
+              },
+            },
+          ],
+        })
+      }
+      return effect (
+        request: StartCopyJobRequest,
+      ) =>
+        try withSpan(
+          effect {
+            return try startCopyJob({
+              ...request,
+              SourceBackupVaultName: try SourceBackupVaultName,
+              IamRoleArn: request.IamRoleArn ?? (try RoleArn),
+            })
+          },
+          `AWS.Backup.StartCopyJob(${sourceVault.LogicalId})`,
+        )
+    }
+  },
+)

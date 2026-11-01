@@ -1,0 +1,328 @@
+import type { Credentials } from "@distilled.cloud/aws/Credentials"
+import type { Region } from "@distilled.cloud/aws/Region"
+import * as incidents from "@distilled.cloud/aws/ssm-incidents"
+import { Unowned } from "alchemy/AdoptPolicy"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { HttpClient } from "effect/http/HttpClient"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+
+/**
+ * Raised when the replication set enters a terminal `FAILED` state (or does
+ * not become `ACTIVE` within the bounded wait window) while reconciling.
+ */
+export error ReplicationSetNotActive {
+  mutable message: string
+  mutable status: string
+}
+
+export interface ReplicationSetProps {
+  /**
+   * The Regions that Incident Manager replicates your data to, keyed by
+   * Region name. Each Region may specify a customer-managed KMS key for
+   * encryption at rest via `sseKmsKeyId`; omit it to use an AWS-owned key.
+   *
+   * @default the ambient deployment Region with an AWS-owned key
+   */
+  mutable regions?: Record<string, { mutable sseKmsKeyId?: string }>
+
+  /**
+   * Whether deletion protection is enabled. When `true`, the replication set
+   * cannot be deleted until protection is disabled. Alchemy automatically
+   * disables protection before deleting the resource.
+   *
+   * @default false
+   */
+  mutable deletionProtected?: boolean
+
+  /**
+   * Tags applied to the replication set. Alchemy ownership tags are merged
+   * in automatically.
+   */
+  mutable tags?: Record<string, string>
+}
+
+/** @resource */
+export interface ReplicationSet extends
+  Resource<
+    "AWS.SSMIncidents.ReplicationSet",
+    ReplicationSetProps,
+    {
+      /** ARN of the replication set. */
+      mutable arn: string
+      /** Current status (`ACTIVE`, `CREATING`, `UPDATING`, `DELETING`, `FAILED`). */
+      mutable status: string
+      /** Names of the Regions in the replication set. */
+      mutable regionNames: string[]
+      /** Whether deletion protection is currently enabled. */
+      mutable deletionProtected: boolean
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * The Incident Manager replication set — the account/region singleton that
+ * onboards AWS Systems Manager Incident Manager. Creating it replicates and
+ * encrypts Incident Manager data (response plans, incidents, contacts) to the
+ * configured Regions; deleting it offboards Incident Manager and removes all
+ * Incident Manager data account-wide.
+ *
+ * Only one replication set can exist per account, so this is a
+ * capture-and-restore singleton: adopting a pre-existing replication set that
+ * Alchemy did not create requires `--adopt`.
+ *
+ * ### Onboarding Incident Manager
+ * **Example:** Replication set in the current Region
+ * ```typescript
+ * const replicationSet = yield* SSMIncidents.ReplicationSet("Incidents", {});
+ * ```
+ *
+ * **Example:** Multi-Region replication with a KMS key
+ * ```typescript
+ * const replicationSet = yield* SSMIncidents.ReplicationSet("Incidents", {
+ *   regions: {
+ *     "us-east-1": {},
+ *     "us-west-2": { sseKmsKeyId: key.keyArn },
+ *   },
+ *   deletionProtected: true,
+ * });
+ * ```
+ */
+const ReplicationSetResource = Resource<ReplicationSet>("AWS.SSMIncidents.ReplicationSet")
+
+export { ReplicationSetResource as ReplicationSet }
+
+type IncidentsDeps = Credentials | Region | HttpClient
+
+// Explicitly-typed pipeable helpers. Inlining `Effect.retry`/`Effect.repeat`
+// in a provider lifecycle op leaks `Retry.Return`'s conditional into
+// declaration emit and widens the provider layer to `unknown` R for every
+// consumer of `AWS.providers()`.
+
+/**
+ * Polls the replication set until it leaves its transitional state
+ * (`CREATING`/`UPDATING`), then fails with a typed error unless it landed on
+ * `ACTIVE`. Bounded: ~5s x 60 = 5 minutes (onboarding takes ~1-2 minutes).
+ */
+const waitForReplicationSetActive = effect (
+  arn: string,
+): incidents.ReplicationSet!incidents.GetReplicationSetError | ReplicationSetNotActive!IncidentsDeps =>
+  try effect {
+    const rs = try (effect {
+      return (try incidents.getReplicationSet({ arn })).replicationSet
+    }
+      |> Effect.repeat(%, {
+        schedule: Schedule.max([Schedule.fixed(5000), Schedule.recurs(60)]),
+        until: (rs) => rs.status !== "CREATING" && rs.status !== "UPDATING",
+      }))
+    return (rs.status === "ACTIVE" ? rs : throw new ReplicationSetNotActive({
+      message: `replication set ${arn} did not become ACTIVE`,
+      status: rs.status,
+    }))
+  }
+
+/**
+ * Polls until the replication set is fully gone (offboarding takes ~1-2
+ * minutes and a subsequent create conflicts until it completes). Bounded:
+ * ~5s x 60 = 5 minutes.
+ */
+const waitForReplicationSetGone = effect (
+  arn: string,
+): void!incidents.GetReplicationSetError!IncidentsDeps =>
+  try (effect {
+    return (try incidents.getReplicationSet({ arn })).replicationSet.status catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: "GONE" as const;
+      default: throw e;
+    }
+  }
+    |> Effect.repeat(%, {
+      schedule: Schedule.max([Schedule.fixed(5000), Schedule.recurs(60)]),
+      until: (status) => status === "GONE",
+    })
+    |> Effect.asVoid(%))
+
+export const ReplicationSetProvider = (): infer _ =>
+  Provider.effect(
+    ReplicationSetResource,
+    effect {
+      // The replication set is the account singleton — its ARN is not
+      // derivable, so observation always starts from the list.
+      const observe = effect {
+        const listed = try incidents.listReplicationSets({})
+        const arn = listed.replicationSetArns[0]
+        if (arn === undefined) return undefined
+        return ({ ...(try incidents.getReplicationSet({ arn })).replicationSet, arn }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+      }
+
+      const readTags = effect (arn: string) =>
+        (Object.fromEntries(
+          Object.entries((try incidents.listTagsForResource({ resourceArn: arn })).tags).filter((
+            e,
+          ): e is [string, string] => e[1] !== undefined),
+        ) as Record<string, string>) catch () => ({})
+
+      const buildAttrs = (rs: incidents.ReplicationSet & { mutable arn: string }): infer _ => ({
+        arn: rs.arn,
+        status: rs.status,
+        regionNames: Object.keys(rs.regionMap).sort(),
+        deletionProtected: rs.deletionProtected,
+      })
+
+      const desiredRegions = effect (props: ReplicationSetProps) => {
+        if (props.regions && Object.keys(props.regions).length > 0) {
+          return props.regions
+        }
+        const { region } = try AWSEnvironment.current
+        return { [region]: {} } as Record<string, { mutable sseKmsKeyId?: string }>
+      }
+
+      return ReplicationSetResource.Provider.of({
+        stables: ["arn"],
+
+        read: effect ({ id, output }) => {
+          const live = try observe
+          if (live === undefined) return undefined
+          const attrs = buildAttrs(live)
+          const tags = try readTags(live.arn)
+          if (try hasAlchemyTags(id, tags)) return attrs
+          // Tag-based ownership is best-effort — if we have prior state for
+          // this exact singleton, it is ours; otherwise gate adoption.
+          return output !== undefined ? attrs : Unowned(attrs)
+        },
+
+        // Account/region singleton — report the single replication set, if any.
+        list: effect () =>
+          try effect {
+            const rs = try observe
+            return (rs ? [buildAttrs(rs)] : [])
+          },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+          const regions = try desiredRegions(news)
+
+          // 1. OBSERVE — cloud state is authoritative; `output` is only an
+          //    identifier cache.
+          let live = try observe
+
+          // 2. ENSURE — onboard Incident Manager if there is no replication
+          //    set. Tolerate the singleton-create race (ConflictException)
+          //    by falling through to observation.
+          if (live === undefined) {
+            try session.note("creating Incident Manager replication set")
+            const created = (try incidents
+              .createReplicationSet({
+                regions: Object.fromEntries(
+                  Object.entries(regions).map(([name, cfg]) => [
+                    name,
+                    { sseKmsKeyId: cfg.sseKmsKeyId },
+                  ]),
+                ),
+                tags: desiredTags,
+              })).arn catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: (try incidents
+                  .listReplicationSets({})).replicationSetArns[0]!;
+                default: throw e;
+              }
+            try waitForReplicationSetActive(created)
+            live = (try observe)!
+          } else if (live.status === "CREATING" || live.status === "UPDATING") {
+            // A prior reconcile may have been interrupted mid-transition.
+            try waitForReplicationSetActive(live.arn)
+            live = (try observe)!
+          }
+          const arn = output?.arn ?? live.arn
+
+          // 3. SYNC regions — diff observed Region map against desired and
+          //    apply one add/delete action at a time (the API allows a single
+          //    Region change per update). Add first so the set never shrinks
+          //    to zero.
+          const observedRegions = Object.keys(live.regionMap)
+          const toAdd = Object.keys(regions).filter((r) => !observedRegions.includes(r))
+          const toRemove = observedRegions.filter((r) => !(r in regions))
+          for (const regionName of toAdd) {
+            try session.note(`adding region ${regionName}`)
+            try incidents.updateReplicationSet({
+              arn,
+              actions: [
+                {
+                  addRegionAction: {
+                    regionName,
+                    sseKmsKeyId: regions[regionName]?.sseKmsKeyId,
+                  },
+                },
+              ],
+            })
+            try waitForReplicationSetActive(arn)
+          }
+          for (const regionName of toRemove) {
+            try session.note(`removing region ${regionName}`)
+            try incidents.updateReplicationSet({
+              arn,
+              actions: [{ deleteRegionAction: { regionName } }],
+            })
+            try waitForReplicationSetActive(arn)
+          }
+
+          // 3b. SYNC deletion protection — observed vs desired.
+          const desiredProtection = news.deletionProtected ?? false
+          if (live.deletionProtected !== desiredProtection) {
+            try incidents.updateDeletionProtection({
+              arn,
+              deletionProtected: desiredProtection,
+            })
+          }
+
+          // 3c. SYNC tags — diff against OBSERVED cloud tags.
+          const currentTags = try readTags(arn)
+          const { upsert, removed } = diffTags(currentTags, desiredTags)
+          if (upsert.length > 0) {
+            try incidents.tagResource({
+              resourceArn: arn,
+              tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+            })
+          }
+          if (removed.length > 0) {
+            try incidents.untagResource({
+              resourceArn: arn,
+              tagKeys: removed,
+            })
+          }
+
+          // 4. RETURN fresh attributes.
+          const final = (try observe)!
+          try session.note(arn)
+          return buildAttrs(final)
+        },
+
+        delete: effect ({ output }) => {
+          // Deleting the replication set offboards Incident Manager. Deletion
+          // protection must be lifted first; both calls are idempotent.
+          incidents
+            .updateDeletionProtection({
+              arn: output.arn,
+              deletionProtected: false,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          ;(try (incidents.deleteReplicationSet({ arn: output.arn })
+            |> Effect.asVoid(%))) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          // Offboarding is asynchronous (~1-2 minutes); wait until fully gone
+          // so an immediate re-create does not conflict.
+          try waitForReplicationSetGone(output.arn)
+        },
+      })
+    },
+  )

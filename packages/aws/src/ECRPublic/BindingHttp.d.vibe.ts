@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import { Region } from "../Region.js";
-import type { PublicRepository } from "./Repository.js";
+import type { PublicRepository } from "./Repository.vibe";
 /** Pin a distilled `ecr-public` effect to the service's home region. */
 export declare const pinEcrPublic: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Region>>;
 /**

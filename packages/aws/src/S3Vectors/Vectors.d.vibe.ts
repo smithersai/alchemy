@@ -1,6 +1,6 @@
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./VectorIndex.js";
+import type { Index } from "./VectorIndex.vibe";
 import type { ReadVectorsClient } from "./VectorsRead.vibe";
 import type { WriteVectorsClient } from "./VectorsWrite.vibe";
 /**

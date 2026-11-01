@@ -1,7 +1,7 @@
 import type * as config from "@distilled.cloud/aws/config-service";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ConfigRule } from "./ConfigRule.js";
+import type { ConfigRule } from "./ConfigRule.vibe";
 /** Request for {@link GetComplianceDetailsByConfigRule} — the rule name is injected from the bound rule. */
 export interface GetComplianceDetailsByConfigRuleRequest extends Omit<config.GetComplianceDetailsByConfigRuleRequest, "ConfigRuleName"> {
 }

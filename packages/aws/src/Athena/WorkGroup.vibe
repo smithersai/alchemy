@@ -1,0 +1,365 @@
+import * as athena from "@distilled.cloud/aws/athena"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags } from "alchemy/Tags"
+import { AWSEnvironment, type AccountID } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import type { RegionID } from "../Region.ts"
+
+export type WorkGroupName = string
+export type WorkGroupArn = `arn:aws:athena:${RegionID}:${AccountID}:workgroup/${WorkGroupName}`
+
+export interface WorkGroupProps {
+  /**
+   * Name of the workgroup. If omitted, a unique name is generated.
+   * Changing this replaces the workgroup. Up to 128 characters.
+   */
+  mutable workGroupName?: string
+  /**
+   * Human-readable description of the workgroup.
+   */
+  mutable description?: string
+  /**
+   * S3 URI (`s3://bucket/prefix/`) where query results are written.
+   * Applied as the workgroup's `ResultConfiguration.OutputLocation`.
+   */
+  mutable outputLocation?: string
+  /**
+   * Server-side encryption for query results written to S3.
+   */
+  mutable encryptionOption?: "SSE_S3" | "SSE_KMS" | "CSE_KMS"
+  /**
+   * KMS key ARN/ID — required when `encryptionOption` is `SSE_KMS` or `CSE_KMS`.
+   */
+  mutable kmsKey?: string
+  /**
+   * Force queries to use this workgroup's result configuration (output
+   * location, encryption) instead of client-side settings.
+   * @default true
+   */
+  mutable enforceWorkGroupConfiguration?: boolean
+  /**
+   * Per-query data-scanned cutoff in bytes. Queries scanning more are
+   * cancelled. Minimum is 10 MB (10_000_000).
+   */
+  mutable bytesScannedCutoffPerQuery?: number
+  /**
+   * Publish per-query CloudWatch metrics for this workgroup.
+   * @default false
+   */
+  mutable publishCloudWatchMetricsEnabled?: boolean
+  /**
+   * Charge S3 data-transfer/request costs to the query requester.
+   * @default false
+   */
+  mutable requesterPaysEnabled?: boolean
+  /**
+   * Selected Athena engine version (e.g. `"Athena engine version 3"`).
+   * If omitted, Athena picks the account default (AUTO).
+   */
+  mutable engineVersion?: string
+  /**
+   * Whether the workgroup accepts queries.
+   * @default "ENABLED"
+   */
+  mutable state?: "ENABLED" | "DISABLED"
+  /**
+   * User-defined tags to apply to the workgroup.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface WorkGroup extends
+  Resource<
+    "AWS.Athena.WorkGroup",
+    WorkGroupProps,
+    {
+      /**
+       * Name of the workgroup.
+       */
+      mutable workGroupName: WorkGroupName
+      /**
+       * ARN of the workgroup.
+       */
+      mutable workGroupArn: WorkGroupArn
+      /**
+       * Whether the workgroup accepts queries.
+       */
+      mutable state: "ENABLED" | "DISABLED"
+      /**
+       * S3 location query results are written to (`s3://bucket/prefix/`).
+       */
+      mutable outputLocation: string | undefined
+      /**
+       * Tags on the workgroup.
+       */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Athena workgroup — an isolation boundary for queries that pins the
+ * S3 result-output location, result encryption, a bytes-scanned cutoff, and
+ * whether that configuration is enforced over per-query client settings.
+ *
+ * ### Creating Workgroups
+ * **Example:** Workgroup with an enforced result location
+ * ```typescript
+ * const results = yield* AWS.S3.Bucket("AthenaResults", {});
+ * const wg = yield* AWS.Athena.WorkGroup("Analytics", {
+ *   outputLocation: results.bucketName.pipe(
+ *     Output.map((b) => `s3://${b}/results/`),
+ *   ),
+ *   enforceWorkGroupConfiguration: true,
+ * });
+ * ```
+ *
+ * **Example:** Workgroup with a bytes-scanned cost guardrail
+ * ```typescript
+ * const wg = yield* AWS.Athena.WorkGroup("Guarded", {
+ *   outputLocation: "s3://my-results-bucket/prefix/",
+ *   bytesScannedCutoffPerQuery: 10_000_000, // 10 MB per query
+ *   publishCloudWatchMetricsEnabled: true,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const WorkGroup = Resource<WorkGroup>("AWS.Athena.WorkGroup")
+
+const observedTagsOf = (tags: readonly athena.Tag[] | undefined): infer _ =>
+  Object.fromEntries(
+    (tags ?? []).flatMap((t) => t.Key !== undefined && t.Value !== undefined ? [[t.Key, t.Value]] : []),
+  )
+
+const outputLocationOf = (wg: athena.WorkGroup | undefined): infer _ =>
+  wg?.Configuration?.ResultConfiguration?.OutputLocation
+
+export const WorkGroupProvider = (): infer _ =>
+  Provider.effect(
+    WorkGroup,
+    effect {
+      const toName = effect (
+        id: string,
+        props: WorkGroupProps = {},
+      ) => (props.workGroupName ? props.workGroupName : try createPhysicalName({ id, maxLength: 128 }))
+
+      const getOne = effect (name: string) =>
+        (try athena.getWorkGroup({ WorkGroup: name })).WorkGroup catch effect (e) => match (e) {
+          when { _tag: "WorkGroupNotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      const fetchTags = effect (arn: string) =>
+        (observedTagsOf(Array.from(
+          try (athena.listTagsForResource.items({ ResourceARN: arn })
+            |> Stream.runCollect(%)),
+        ))) catch () => ({}) as Record<string, string>
+
+      return {
+        stables: ["workGroupName", "workGroupArn"],
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return
+          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.workGroupName ?? (try toName(id, olds ?? {}))
+          const wg = try getOne(name)
+          if (!wg) return undefined
+          const arn = `arn:aws:athena:${region}:${accountId}:workgroup/${name}` as WorkGroupArn
+          return {
+            workGroupName: name,
+            workGroupArn: arn,
+            state: (wg.State ?? "ENABLED") as "ENABLED" | "DISABLED",
+            outputLocation: outputLocationOf(wg),
+            tags: try fetchTags(arn),
+          }
+        },
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const pages = try athena.listWorkGroups.pages({}).pipe(Stream.runCollect)
+          return Array.from(pages)
+            .flatMap((page) => page.WorkGroups ?? [])
+            .flatMap((wg) =>
+              // `primary` is the account's built-in default workgroup;
+              // DeleteWorkGroup always rejects it, so keep it out of
+              // enumeration for account-wide teardown (nuke).
+              wg.Name && wg.Name !== "primary"
+                ? [
+                  {
+                    workGroupName: wg.Name,
+                    workGroupArn: `arn:aws:athena:${region}:${accountId}:workgroup/${wg.Name}` as WorkGroupArn,
+                    state: (wg.State ?? "ENABLED") as "ENABLED" | "DISABLED",
+                    outputLocation: undefined,
+                    tags: {} as Record<string, string>,
+                  },
+                ]
+                : []
+            )
+        },
+        reconcile: effect ({ id, news = {}, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.workGroupName ?? (try toName(id, news))
+          const arn = `arn:aws:athena:${region}:${accountId}:workgroup/${name}` as WorkGroupArn
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const desiredState = news.state ?? "ENABLED"
+          const enforce = news.enforceWorkGroupConfiguration ?? true
+          const encryption = news.encryptionOption
+            ? {
+              EncryptionOption: news.encryptionOption,
+              KmsKey: news.kmsKey,
+            }
+            : undefined
+
+          // Observe — cloud state is authoritative.
+          let wg = try getOne(name)
+
+          // Ensure — create if missing.
+          if (!wg) {
+            try athena.createWorkGroup({
+              Name: name,
+              Description: news.description,
+              Configuration: {
+                ResultConfiguration: news.outputLocation
+                  ? {
+                    OutputLocation: news.outputLocation,
+                    EncryptionConfiguration: encryption,
+                  }
+                  : undefined,
+                EnforceWorkGroupConfiguration: enforce,
+                PublishCloudWatchMetricsEnabled: news.publishCloudWatchMetricsEnabled,
+                BytesScannedCutoffPerQuery: news.bytesScannedCutoffPerQuery,
+                RequesterPaysEnabled: news.requesterPaysEnabled,
+                EngineVersion: news.engineVersion
+                  ? { SelectedEngineVersion: news.engineVersion }
+                  : undefined,
+              },
+              Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                Key,
+                Value,
+              })),
+            })
+            wg = try getOne(name)
+          } else {
+            // Sync — diff observed configuration against desired, apply the
+            // delta via UpdateWorkGroup (which takes a ConfigurationUpdates
+            // shape distinct from CreateWorkGroup's Configuration).
+            const cfg = wg.Configuration
+            const updates: athena.WorkGroupConfigurationUpdates = {}
+            let dirty = false
+
+            if ((cfg?.EnforceWorkGroupConfiguration ?? false) !== enforce) {
+              updates.EnforceWorkGroupConfiguration = enforce
+              dirty = true
+            }
+            if (
+              news.outputLocation !== undefined
+              && cfg?.ResultConfiguration?.OutputLocation !== news.outputLocation
+            ) {
+              updates.ResultConfigurationUpdates = {
+                ...updates.ResultConfigurationUpdates,
+                OutputLocation: news.outputLocation,
+              }
+              dirty = true
+            }
+            if (
+              encryption
+              && cfg?.ResultConfiguration?.EncryptionConfiguration?.EncryptionOption
+                !== encryption.EncryptionOption
+            ) {
+              updates.ResultConfigurationUpdates = {
+                ...updates.ResultConfigurationUpdates,
+                EncryptionConfiguration: encryption,
+              }
+              dirty = true
+            }
+            if (
+              (cfg?.PublishCloudWatchMetricsEnabled ?? false)
+                !== (news.publishCloudWatchMetricsEnabled ?? false)
+            ) {
+              updates.PublishCloudWatchMetricsEnabled = news.publishCloudWatchMetricsEnabled ?? false
+              dirty = true
+            }
+            if ((cfg?.RequesterPaysEnabled ?? false) !== (news.requesterPaysEnabled ?? false)) {
+              updates.RequesterPaysEnabled = news.requesterPaysEnabled ?? false
+              dirty = true
+            }
+            if (
+              (cfg?.BytesScannedCutoffPerQuery ?? undefined) !== news.bytesScannedCutoffPerQuery
+            ) {
+              if (news.bytesScannedCutoffPerQuery === undefined) {
+                updates.RemoveBytesScannedCutoffPerQuery = true
+              } else {
+                updates.BytesScannedCutoffPerQuery = news.bytesScannedCutoffPerQuery
+              }
+              dirty = true
+            }
+            if (
+              news.engineVersion !== undefined
+              && cfg?.EngineVersion?.SelectedEngineVersion !== news.engineVersion
+            ) {
+              updates.EngineVersion = {
+                SelectedEngineVersion: news.engineVersion,
+              }
+              dirty = true
+            }
+
+            const stateChange = (wg.State ?? "ENABLED") !== desiredState ? desiredState : undefined
+            const descChange = news.description !== undefined && wg.Description !== news.description
+              ? news.description
+              : undefined
+
+            if (dirty || stateChange || descChange) {
+              try athena.updateWorkGroup({
+                WorkGroup: name,
+                Description: descChange,
+                State: stateChange,
+                ConfigurationUpdates: dirty ? updates : undefined,
+              })
+            }
+          }
+
+          // Sync tags — diff against OBSERVED cloud tags.
+          const observed = try fetchTags(arn)
+          const { upsert, removed } = diffTags(observed, desiredTags)
+          if (upsert.length > 0) {
+            try athena.tagResource({
+              ResourceARN: arn,
+              Tags: upsert.map((t) => ({ Key: t.Key, Value: t.Value })),
+            })
+          }
+          if (removed.length > 0) {
+            try athena.untagResource({ ResourceARN: arn, TagKeys: removed })
+          }
+
+          const final = (try getOne(name)) ?? wg
+          try session.note(arn)
+          return {
+            workGroupName: name,
+            workGroupArn: arn,
+            state: (final?.State ?? desiredState) as "ENABLED" | "DISABLED",
+            outputLocation: outputLocationOf(final) ?? news.outputLocation,
+            tags: desiredTags,
+          }
+        },
+        delete: effect ({ output }) => {
+          // Idempotent: DeleteWorkGroup succeeds (no error) when the workgroup
+          // is already gone. RecursiveDeleteOption tears down any named
+          // queries / prepared statements still saved in it.
+          try athena.deleteWorkGroup({
+            WorkGroup: output.workGroupName,
+            RecursiveDeleteOption: true,
+          })
+        },
+      }
+    },
+  )

@@ -2,7 +2,7 @@ import * as rdsdata from "@distilled.cloud/aws/rds-data";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { DBCluster } from "../RDS/DBCluster.js";
+import type { DBCluster } from "../RDS/DBCluster.vibe";
 import type { Secret } from "../SecretsManager/Secret.js";
 export interface CommitTransactionOptions {
     secret: Secret;

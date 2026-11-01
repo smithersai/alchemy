@@ -1,0 +1,230 @@
+import * as s3vectors from "@distilled.cloud/aws/s3vectors"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+
+export interface IndexProps {
+  /**
+   * Name of the vector bucket that holds this index. Pass
+   * `bucket.vectorBucketName` from a {@link VectorBucket}.
+   *
+   * Changing it replaces the index.
+   */
+  mutable vectorBucketName: string
+  /**
+   * Name of the index (3-63 chars, lowercase). If omitted, a unique name is
+   * generated from the app, stage, and logical id.
+   *
+   * Changing the name replaces the index.
+   * @default ${app}-${stage}-${id}
+   */
+  mutable indexName?: string
+  /**
+   * The data type of the vectors stored in this index. Immutable — changing
+   * it replaces the index.
+   * @default "float32"
+   */
+  mutable dataType?: "float32"
+  /**
+   * The number of dimensions of the vectors stored in this index. Immutable —
+   * changing it replaces the index.
+   */
+  mutable dimension: number
+  /**
+   * The distance metric used for similarity queries. Immutable — changing it
+   * replaces the index.
+   */
+  mutable distanceMetric: "euclidean" | "cosine"
+  /**
+   * Metadata keys that are stored but NOT filterable at query time. Immutable
+   * — changing it replaces the index.
+   */
+  mutable nonFilterableMetadataKeys?: string[]
+  /**
+   * Tags to apply to the index. Merged with internal Alchemy tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Index extends
+  Resource<
+    "AWS.S3Vectors.Index",
+    IndexProps,
+    {
+      /**
+       * Name of the vector bucket containing the index.
+       */
+      mutable vectorBucketName: string
+      /**
+       * Name of the index.
+       */
+      mutable indexName: string
+      /**
+       * ARN of the index.
+       */
+      mutable indexArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A vector index inside an S3 Vectors {@link VectorBucket} — stores vectors of
+ * a fixed dimension and answers similarity queries under a distance metric.
+ *
+ * The index shape (data type, dimension, distance metric, non-filterable
+ * metadata keys) is fixed at create time; changing any of them replaces the
+ * index.
+ *
+ * ### Creating an Index
+ * **Example:** Cosine-Similarity Index
+ * ```typescript
+ * import * as S3Vectors from "@alchemy.run/aws/S3Vectors";
+ *
+ * const bucket = yield* S3Vectors.VectorBucket("Embeddings", {});
+ * const index = yield* S3Vectors.Index("Docs", {
+ *   vectorBucketName: bucket.vectorBucketName,
+ *   dimension: 1024,
+ *   distanceMetric: "cosine",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Index = Resource<Index>("AWS.S3Vectors.Index")
+
+const shapeKey = (props: IndexProps): infer _ =>
+  JSON.stringify({
+    dataType: props.dataType ?? "float32",
+    dimension: props.dimension,
+    distanceMetric: props.distanceMetric,
+    nonFilterableMetadataKeys: [...(props.nonFilterableMetadataKeys ?? [])].sort(),
+  })
+
+export const IndexProvider = (): infer _ =>
+  Provider.effect(
+    Index,
+    effect {
+      const createName = effect (id: string, props: Pick<IndexProps, "indexName">) =>
+        props.indexName ?? (try createPhysicalName({ id, maxLength: 63 })).toLowerCase()
+
+      const observe = effect (vectorBucketName: string, indexName: string) =>
+        (try s3vectors.getIndex({ vectorBucketName, indexName })).index catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      const observedTags = effect (resourceArn: string) =>
+        (Object.fromEntries(
+          Object.entries((try s3vectors.listTagsForResource({ resourceArn })).tags ?? {}).filter(([, v]) =>
+            v !== undefined
+          ),
+        ) as Record<string, string>) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: {} as Record<string, string>;
+          default: throw e;
+        }
+
+      return Index.Provider.of({
+        stables: ["vectorBucketName", "indexName", "indexArn"],
+        // Indexes are keyed by a parent vector bucket; global enumeration would
+        // require fanning out over every bucket. Return empty — the engine
+        // reads owned indexes via read() using the cached output identity.
+        list: effect () => [],
+        read: effect ({ id, olds, output }) => {
+          const vectorBucketName = output?.vectorBucketName ?? olds?.vectorBucketName
+          if (vectorBucketName === undefined) return undefined
+          const name = output?.indexName ?? (try createName(id, olds ?? {}))
+          const found = try observe(vectorBucketName, name)
+          if (!found) return undefined
+          const attrs = {
+            vectorBucketName: found.vectorBucketName,
+            indexName: found.indexName,
+            indexArn: found.indexArn,
+          }
+          const tags = try observedTags(found.indexArn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          if (
+            olds?.vectorBucketName !== undefined
+            && olds.vectorBucketName !== news.vectorBucketName
+          ) {
+            return { action: "replace" } as const
+          }
+          const oldName = try createName(id, olds ?? {})
+          const newName = try createName(id, news ?? {})
+          if (oldName !== newName) return { action: "replace" } as const
+          // The index shape is immutable — any change replaces.
+          if (olds !== undefined && shapeKey(olds) !== shapeKey(news)) {
+            return { action: "replace" } as const
+          }
+          // fall through: engine default update (tags only)
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const vectorBucketName = news.vectorBucketName
+          const name = output?.indexName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative.
+          let live = try observe(vectorBucketName, name)
+
+          // 2. ENSURE — create when missing; a concurrent create surfaces as
+          //    ConflictException, which we treat as a race and re-observe.
+          if (live === undefined) {
+            s3vectors
+              .createIndex({
+                vectorBucketName,
+                indexName: name,
+                dataType: news.dataType ?? "float32",
+                dimension: news.dimension,
+                distanceMetric: news.distanceMetric,
+                metadataConfiguration: news.nonFilterableMetadataKeys
+                  ? {
+                    nonFilterableMetadataKeys: news.nonFilterableMetadataKeys,
+                  }
+                  : undefined,
+                tags: desiredTags,
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            live = try observe(vectorBucketName, name)
+          }
+
+          const indexArn = live?.indexArn ?? output?.indexArn
+
+          // 3. SYNC TAGS — diff against OBSERVED cloud tags.
+          if (indexArn !== undefined) {
+            const currentTags = try observedTags(indexArn)
+            const { upsert, removed } = diffTags(currentTags, desiredTags)
+            if (upsert.length > 0) {
+              try s3vectors.tagResource({
+                resourceArn: indexArn,
+                tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+              })
+            }
+            if (removed.length > 0) {
+              try s3vectors.untagResource({
+                resourceArn: indexArn,
+                tagKeys: removed,
+              })
+            }
+          }
+
+          try session.note(name)
+          return { vectorBucketName, indexName: name, indexArn: indexArn! }
+        },
+        delete: effect ({ output }) => {
+          s3vectors
+            .deleteIndex({
+              vectorBucketName: output.vectorBucketName,
+              indexName: output.indexName,
+            }) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+        },
+      })
+    },
+  )

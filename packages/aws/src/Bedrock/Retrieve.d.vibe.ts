@@ -1,7 +1,7 @@
 import type * as bedrock from "@distilled.cloud/aws/bedrock-agent-runtime";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { KnowledgeBase } from "./KnowledgeBase.js";
+import type { KnowledgeBase } from "./KnowledgeBase.vibe";
 /**
  * The `Retrieve` request with the binding-injected `knowledgeBaseId` removed —
  * it is supplied automatically from the bound {@link KnowledgeBase}.

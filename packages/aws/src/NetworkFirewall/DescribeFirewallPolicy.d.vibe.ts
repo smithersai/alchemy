@@ -1,7 +1,7 @@
 import type * as NFW from "@distilled.cloud/aws/network-firewall";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { FirewallPolicy } from "./FirewallPolicy.js";
+import type { FirewallPolicy } from "./FirewallPolicy.vibe";
 export interface DescribeFirewallPolicyRequest extends Omit<NFW.DescribeFirewallPolicyRequest, "FirewallPolicyArn" | "FirewallPolicyName"> {
 }
 /**

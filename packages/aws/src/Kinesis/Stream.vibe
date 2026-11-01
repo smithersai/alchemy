@@ -1,0 +1,738 @@
+// required to avoid this error in consumers: "The inferred type of 'Records' cannot be named without a reference to '../../@distilled.cloud/aws/node_modules/@types/aws-lambda'. This is likely not portable. A type annotation is necessary.ts(2742)"
+export type * as lambda from "aws-lambda"
+
+import * as kinesis from "@distilled.cloud/aws/kinesis"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import { toWireHours } from "alchemy/Util/Duration"
+import type * as lambda from "aws-lambda"
+import type * as Duration from "effect/Duration"
+// `Stream` is the resource class name in this file, so alias the Effect
+// `Stream` module to avoid the collision.
+import * as EffectStream from "effect/Stream"
+import { AWSEnvironment, type AccountID } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import type { RegionID } from "../Region.ts"
+
+export error KinesisStreamInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error KinesisStreamUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type StreamRecord = lambda.KinesisStreamRecord
+
+export type StreamEvent = lambda.KinesisStreamEvent
+
+export type StreamName = string
+export type StreamArn = `arn:aws:kinesis:${RegionID}:${AccountID}:stream/${StreamName}`
+
+export type StreamStatus = "CREATING" | "DELETING" | "ACTIVE" | "UPDATING"
+
+export type StreamMode = "PROVISIONED" | "ON_DEMAND"
+
+export type EncryptionType = "NONE" | "KMS"
+
+export type WarmThroughput = {
+  /**
+   * Requested warm throughput in MiBps.
+   */
+  mutable targetMiBps?: number
+  /**
+   * Warm throughput currently provisioned by AWS, in MiBps.
+   */
+  mutable currentMiBps?: number
+}
+
+export type StreamProps = {
+  /**
+   * Name of the stream.
+   * @default ${app}-${stage}-${id}
+   */
+  mutable streamName?: string
+  /**
+   * The capacity mode of the data stream.
+   * - PROVISIONED: You specify the number of shards for the data stream.
+   * - ON_DEMAND: AWS manages the shards for the data stream.
+   * @default "ON_DEMAND"
+   */
+  mutable streamMode?: StreamMode
+  /**
+   * The number of shards that the stream will use when in PROVISIONED mode.
+   * Required when `streamMode` is `"PROVISIONED"`.
+   */
+  mutable shardCount?: number
+  /**
+   * How long records remain accessible in the stream, e.g. `"48 hours"` or
+   * `Duration.hours(48)`. The API stores whole hours; valid values range
+   * from 24 hours to 8760 hours (365 days).
+   * @default "24 hours"
+   */
+  mutable retentionPeriod?: Duration.Input
+  /**
+   * If set to true, server-side encryption is enabled on the stream.
+   * Uses the AWS managed CMK for Kinesis (`alias/aws/kinesis`) when `kmsKeyId`
+   * is omitted.
+   * @default false
+   */
+  mutable encryption?: boolean
+  /**
+   * The AWS KMS key to use when encryption is enabled.
+   */
+  mutable kmsKeyId?: string
+  /**
+   * A list of shard-level CloudWatch metrics to enable for the stream.
+   */
+  mutable shardLevelMetrics?: ShardLevelMetric[]
+  /**
+   * Pre-provisioned warm throughput for on-demand streams, in MiBps.
+   */
+  mutable warmThroughputMiBps?: number
+  /**
+   * Maximum size of a single record, in KiB.
+   */
+  mutable maxRecordSizeInKiB?: number
+  /**
+   * Resource policy attached to the stream.
+   */
+  mutable resourcePolicy?: string
+  /**
+   * Tags to associate with the stream.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Stream extends
+  Resource<
+    "AWS.Kinesis.Stream",
+    StreamProps,
+    {
+      /**
+       * The stream's physical name.
+       */
+      mutable streamName: StreamName
+      /**
+       * ARN of the stream.
+       */
+      mutable streamArn: StreamArn
+      /**
+       * Provider-assigned unique identifier for the stream, when returned by AWS.
+       */
+      mutable streamId: string | undefined
+      /**
+       * Current lifecycle status of the stream.
+       */
+      mutable streamStatus: StreamStatus
+      /**
+       * Current capacity mode of the stream.
+       */
+      mutable streamMode: StreamMode
+      /**
+       * Number of hours that records remain accessible in the stream.
+       */
+      mutable retentionPeriodHours: number
+      /**
+       * Current server-side encryption mode.
+       */
+      mutable encryptionType: EncryptionType
+      /**
+       * KMS key ID backing stream encryption, when encryption is enabled with KMS.
+       */
+      mutable kmsKeyId: string | undefined
+      /**
+       * Number of open shards currently reported by the stream summary.
+       */
+      mutable openShardCount: number | undefined
+      /**
+       * Number of registered consumers currently attached to the stream.
+       */
+      mutable consumerCount: number | undefined
+      /**
+       * Enabled shard-level CloudWatch metrics for the stream.
+       */
+      mutable shardLevelMetrics: ShardLevelMetric[]
+      /**
+       * Current and target warm throughput settings for on-demand streams, when available.
+       */
+      mutable warmThroughput: WarmThroughput | undefined
+      /**
+       * Maximum record size, in KiB, that the stream accepts.
+       */
+      mutable maxRecordSizeInKiB: number | undefined
+      /**
+       * Current resource policy attached to the stream, if one is configured.
+       */
+      mutable resourcePolicy: string | undefined
+      /**
+       * Current tags reported for the stream.
+       */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Kinesis Data Stream.
+ *
+ * `Stream` owns the stream's lifecycle and mutable control-plane configuration,
+ * including retention, encryption, monitoring, warm throughput, record size, tags,
+ * and stream resource policy. A stream name is auto-generated from the app,
+ * stage, and logical ID unless you provide one explicitly.
+ * ### Creating Streams
+ * **Example:** On-Demand Stream
+ * ```typescript
+ * import * as Kinesis from "@alchemy.run/aws/Kinesis";
+ *
+ * const stream = yield* Kinesis.Stream("OrdersStream");
+ * ```
+ *
+ * **Example:** Provisioned Stream
+ * ```typescript
+ * const stream = yield* Kinesis.Stream("AnalyticsStream", {
+ *   streamMode: "PROVISIONED",
+ *   shardCount: 2,
+ *   retentionPeriod: "48 hours",
+ * });
+ * ```
+ *
+ * **Example:** Encrypted Stream
+ * ```typescript
+ * const stream = yield* Kinesis.Stream("SecureStream", {
+ *   encryption: true,
+ *   kmsKeyId: "alias/my-key",
+ * });
+ * ```
+ *
+ * ### Runtime Producers
+ * Bind producer operations in the init phase and use them in runtime
+ * handlers.
+ *
+ * **Example:** Put a record from a handler
+ * ```typescript
+ * // init
+ * const putRecord = yield* AWS.Kinesis.PutRecord(stream);
+ *
+ * return {
+ *   fetch: Effect.gen(function* () {
+ *     // runtime
+ *     yield* putRecord({
+ *       PartitionKey: "order-123",
+ *       Data: new TextEncoder().encode(JSON.stringify({ orderId: "123" })),
+ *     });
+ *     return HttpServerResponse.text("Sent");
+ *   }),
+ * };
+ * ```
+ *
+ * ### Event Sources
+ * Process records from a Kinesis stream using a Lambda event source
+ * mapping.
+ *
+ * **Example:** Process stream records
+ * ```typescript
+ * // init
+ * yield* Kinesis.consumeStreamRecords(
+ *   stream,
+ *   {},
+ *   Effect.fn(function* (event) {
+ *     for (const record of event.Records) {
+ *       const data = Buffer.from(record.kinesis.data, "base64").toString("utf8");
+ *       yield* Effect.log(`Received: ${data}`);
+ *     }
+ *   }),
+ * );
+ * ```
+ *
+ * @resource
+ */
+export const Stream = Resource<Stream>("AWS.Kinesis.Stream")
+
+export type ShardLevelMetric =
+  | "IncomingBytes"
+  | "IncomingRecords"
+  | "OutgoingBytes"
+  | "OutgoingRecords"
+  | "WriteProvisionedThroughputExceeded"
+  | "ReadProvisionedThroughputExceeded"
+  | "IteratorAgeMilliseconds"
+  | "ALL"
+
+const defaultStreamMode = "ON_DEMAND" as const
+const defaultRetentionPeriodHours = 24
+const defaultEncryptionType = "NONE" as const
+
+const createStreamName = effect (
+  id: string,
+  props: {
+    mutable streamName?: string | undefined
+  },
+) => {
+  if (props.streamName) {
+    return props.streamName
+  }
+  return try createPhysicalName({
+    id,
+    maxLength: 128,
+  })
+}
+
+const getStreamMode = (props: StreamProps): kinesis.StreamModeDetails => ({
+  StreamMode: props.streamMode ?? defaultStreamMode,
+})
+
+const assertProvisionedProps = effect (
+  props: StreamProps,
+) => (props.streamMode === "PROVISIONED" && props.shardCount === undefined
+  ? throw new KinesisStreamInvalidProps({
+    message: `streamMode "PROVISIONED" requires shardCount to be set`,
+  })
+  : try Effect.void)
+
+const toTagRecord = (tags: Array<{ mutable Key: string; mutable Value?: string }> | undefined): infer _ =>
+  Object.fromEntries(
+    (tags ?? [])
+      .filter((tag): tag is { mutable Key: string; mutable Value: string } => typeof tag.Value === "string")
+      .map((tag) => [tag.Key, tag.Value]),
+  )
+
+const toWarmThroughput = (
+  warmThroughput: kinesis.WarmThroughputObject | undefined,
+): WarmThroughput | undefined =>
+  warmThroughput
+    ? {
+      targetMiBps: warmThroughput.TargetMiBps,
+      currentMiBps: warmThroughput.CurrentMiBps,
+    }
+    : undefined
+
+const toShardLevelMetrics = (
+  monitoring: kinesis.EnhancedMetrics[] | undefined,
+): ShardLevelMetric[] =>
+  [
+    ...new Set((monitoring ?? []).flatMap((metric) => metric.ShardLevelMetrics ?? [])),
+  ] as ShardLevelMetric[]
+
+const toAttrs = ({
+  summary,
+  tags,
+  resourcePolicy,
+}: {
+  mutable summary: kinesis.StreamDescriptionSummary
+  mutable tags: Record<string, string>
+  mutable resourcePolicy?: string
+}): Stream["Attributes"] => ({
+  streamName: summary.StreamName,
+  streamArn: summary.StreamARN as StreamArn,
+  streamId: summary.StreamId,
+  streamStatus: summary.StreamStatus as StreamStatus,
+  streamMode: (summary.StreamModeDetails?.StreamMode ?? defaultStreamMode) as StreamMode,
+  retentionPeriodHours: summary.RetentionPeriodHours ?? defaultRetentionPeriodHours,
+  encryptionType: (summary.EncryptionType ?? defaultEncryptionType) as EncryptionType,
+  kmsKeyId: summary.KeyId,
+  openShardCount: summary.OpenShardCount,
+  consumerCount: summary.ConsumerCount,
+  shardLevelMetrics: toShardLevelMetrics(summary.EnhancedMonitoring),
+  warmThroughput: toWarmThroughput(summary.WarmThroughput),
+  maxRecordSizeInKiB: summary.MaxRecordSizeInKiB,
+  resourcePolicy,
+  tags,
+})
+
+const readStream = effect ({
+  streamName,
+  streamArn,
+}: {
+  mutable streamName?: string
+  mutable streamArn?: string
+}) => {
+  const response = kinesis
+    .describeStreamSummary({
+      StreamName: streamName,
+      StreamARN: streamArn,
+    }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+
+  if (!response) {
+    return undefined
+  }
+
+  const summary = response.StreamDescriptionSummary
+  // The stream can vanish between the describe above and these follow-up
+  // calls (e.g. another test tears its stream down while `list` hydrates) —
+  // a `ResourceNotFoundException` here just means it's gone, so report it as
+  // missing rather than failing the whole enumeration.
+  const tagsResponse = kinesis
+    .listTagsForResource({
+      ResourceARN: summary.StreamARN,
+    }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!tagsResponse) {
+    return undefined
+  }
+  const policyResponse = kinesis
+    .getResourcePolicy({
+      ResourceARN: summary.StreamARN,
+    }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+
+  return toAttrs({
+    summary,
+    tags: toTagRecord(tagsResponse.Tags),
+    // Treat an empty policy string as "no policy attached" so the
+    // sync step doesn't try to delete a phantom policy.
+    resourcePolicy: policyResponse?.Policy ? policyResponse.Policy : undefined,
+  })
+}
+
+const waitForStreamActive = effect (streamName: string) =>
+  try (effect {
+    try Effect.sleep("2 seconds")
+    const { StreamDescriptionSummary } = try kinesis.describeStreamSummary({
+      StreamName: streamName,
+    })
+    if (StreamDescriptionSummary.StreamStatus !== "ACTIVE") {
+      throw { _tag: "StreamNotActive" as const }
+    }
+    return StreamDescriptionSummary
+  }
+    |> Effect.retry(%, {
+      while: (e: { mutable _tag: string }) => e._tag === "StreamNotActive" || e._tag === "ParseError",
+      schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(60)]),
+    }))
+
+const waitForStreamDeleted = effect (streamName: string) =>
+  (try (effect {
+    try kinesis.describeStreamSummary({
+      StreamName: streamName,
+    })
+    throw { _tag: "StreamStillExists" as const }
+  }
+    |> Effect.retry(%, {
+      while: (e: { mutable _tag: string }) => e._tag === "StreamStillExists" || e._tag === "ParseError",
+      schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(60)]),
+    }))) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.void; default: throw e; }
+
+export const StreamProvider = (): infer _ =>
+  Provider.effect(
+    Stream,
+    effect {
+      return {
+        stables: ["streamName", "streamArn"],
+        // Enumerate every stream in the ambient account/region. `listStreams`
+        // is paginated; collect every page exhaustively, then hydrate each
+        // stream into the exact `read` Attributes shape (summary + tags +
+        // resource policy) via `readStream` with bounded concurrency. A
+        // stream that disappears between listing and hydration is handled
+        // inside `readStream` (typed `ResourceNotFoundException` -> undefined)
+        // and filtered out.
+        list: effect () => {
+          const streamNames = Array.from(
+            try (kinesis.listStreams.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => page.StreamNames ?? [])
+
+          const hydrated = try Effect.forEach(
+            streamNames,
+            (streamName) => readStream({ streamName }),
+            { concurrency: 10 },
+          )
+
+          return hydrated.filter((attrs): attrs is Stream["Attributes"] => attrs !== undefined)
+        },
+        read: effect ({ id, olds, output }) => {
+          const streamName = output?.streamName ?? (try createStreamName(id, olds ?? {}))
+          const state = try readStream({
+            streamName,
+            streamArn: output?.streamArn,
+          })
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+        },
+        diff: effect ({ id, news = {}, olds = {} }) => {
+          if (!isResolved(news)) return
+          const oldStreamName = try createStreamName(id, olds)
+          const newStreamName = try createStreamName(id, news)
+          if (oldStreamName !== newStreamName) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news = {}, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          try assertProvisionedProps(news)
+
+          const streamName = output?.streamName ?? (try createStreamName(id, news))
+          const streamArn = `arn:aws:kinesis:${region}:${accountId}:stream/${streamName}` as const
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — fetch live cloud state. `output` is treated as a cache
+          // for the physical name only; the stream's actual existence and
+          // configuration are fetched fresh so the reconciler converges
+          // regardless of drift, adoption, or a partially-completed prior
+          // run.
+          let state = try readStream({ streamName, streamArn })
+
+          // Ensure — create the stream if it's missing. Tolerate
+          // `ResourceInUseException` as a race with a peer reconciler:
+          // re-read and continue with the sync path. Retry transient
+          // `LimitExceededException`.
+          if (state === undefined) {
+            try (effect {
+              return kinesis
+                .createStream({
+                  StreamName: streamName,
+                  ShardCount: news.streamMode === "PROVISIONED" ? news.shardCount : undefined,
+                  StreamModeDetails: getStreamMode(news),
+                  Tags: desiredTags,
+                  WarmThroughputMiBps: news.warmThroughputMiBps,
+                  MaxRecordSizeInKiB: news.maxRecordSizeInKiB,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceInUseException" }: try Effect.void;
+                  default: throw e;
+                }
+            }
+              |> Effect.retry(%, {
+                while: (e: any) => e._tag === "LimitExceededException",
+                schedule: Schedule.exponential(1000),
+              }))
+
+            try session.note(`Creating stream ${streamName}...`)
+            try waitForStreamActive(streamName)
+
+            state = try readStream({ streamName, streamArn })
+            if (state === undefined) {
+              throw new KinesisStreamUnexpectedResponse({
+                message: `failed to read created stream ${streamName}`,
+              })
+            }
+          }
+
+          // Sync stream mode — observed ↔ desired.
+          const desiredMode = news.streamMode ?? defaultStreamMode
+          if (state.streamMode !== desiredMode) {
+            try kinesis.updateStreamMode({
+              StreamARN: streamArn,
+              StreamModeDetails: getStreamMode(news),
+              WarmThroughputMiBps: desiredMode === "ON_DEMAND" ? news.warmThroughputMiBps : undefined,
+            })
+            try waitForStreamActive(streamName)
+            try session.note(`Updated stream mode to ${desiredMode}`)
+            state = try readStream({ streamName, streamArn })
+            if (state === undefined) {
+              throw new KinesisStreamUnexpectedResponse({
+                message: `failed to re-read stream ${streamName}`,
+              })
+            }
+          }
+
+          // Sync shard count — only meaningful in PROVISIONED mode.
+          if (
+            desiredMode === "PROVISIONED"
+            && news.shardCount !== undefined
+            && state.openShardCount !== news.shardCount
+          ) {
+            try kinesis.updateShardCount({
+              StreamName: streamName,
+              TargetShardCount: news.shardCount,
+              ScalingType: "UNIFORM_SCALING",
+            })
+            try waitForStreamActive(streamName)
+            try session.note(`Updated shard count to ${news.shardCount}`)
+          }
+
+          // Sync retention period — observed ↔ desired.
+          const desiredRetention = toWireHours(news.retentionPeriod) ?? defaultRetentionPeriodHours
+          if (state.retentionPeriodHours !== desiredRetention) {
+            if (desiredRetention > state.retentionPeriodHours) {
+              try kinesis.increaseStreamRetentionPeriod({
+                StreamName: streamName,
+                RetentionPeriodHours: desiredRetention,
+              })
+            } else {
+              try kinesis.decreaseStreamRetentionPeriod({
+                StreamName: streamName,
+                RetentionPeriodHours: desiredRetention,
+              })
+            }
+            try waitForStreamActive(streamName)
+            try session.note(`Updated retention period to ${desiredRetention} hours`)
+          }
+
+          // Sync encryption — observed ↔ desired.
+          const desiredEncryption = news.encryption ?? false
+          const desiredKmsKey = news.kmsKeyId ?? "alias/aws/kinesis"
+          const observedEncryption = state.encryptionType === "KMS"
+          if (!observedEncryption && desiredEncryption) {
+            try kinesis.startStreamEncryption({
+              StreamName: streamName,
+              EncryptionType: "KMS",
+              KeyId: desiredKmsKey,
+            })
+            try waitForStreamActive(streamName)
+            try session.note("Enabled encryption")
+          } else if (observedEncryption && !desiredEncryption) {
+            try kinesis.stopStreamEncryption({
+              StreamName: streamName,
+              EncryptionType: "KMS",
+              KeyId: state.kmsKeyId ?? desiredKmsKey,
+            })
+            try waitForStreamActive(streamName)
+            try session.note("Disabled encryption")
+          } else if (
+            observedEncryption
+            && desiredEncryption
+            && news.kmsKeyId !== undefined
+            && state.kmsKeyId !== news.kmsKeyId
+          ) {
+            try kinesis.startStreamEncryption({
+              StreamName: streamName,
+              EncryptionType: "KMS",
+              KeyId: news.kmsKeyId,
+            })
+            try waitForStreamActive(streamName)
+            try session.note("Updated KMS key")
+          }
+
+          // Sync shard-level metrics — observed ↔ desired.
+          const observedMetrics = new Set(state.shardLevelMetrics)
+          const desiredMetrics = new Set(news.shardLevelMetrics ?? [])
+          const metricsToEnable = (news.shardLevelMetrics ?? []).filter(
+            (metric) => !observedMetrics.has(metric),
+          )
+          const metricsToDisable = state.shardLevelMetrics.filter(
+            (metric) => !desiredMetrics.has(metric),
+          )
+
+          if (metricsToDisable.length > 0) {
+            try kinesis.disableEnhancedMonitoring({
+              StreamName: streamName,
+              ShardLevelMetrics: metricsToDisable,
+            })
+            try waitForStreamActive(streamName)
+            try session.note(`Disabled metrics: ${metricsToDisable.join(", ")}`)
+          }
+
+          if (metricsToEnable.length > 0) {
+            try kinesis.enableEnhancedMonitoring({
+              StreamName: streamName,
+              ShardLevelMetrics: metricsToEnable,
+            })
+            try waitForStreamActive(streamName)
+            try session.note(`Enabled metrics: ${metricsToEnable.join(", ")}`)
+          }
+
+          // Sync warm throughput — only meaningful in ON_DEMAND mode.
+          if (
+            desiredMode === "ON_DEMAND"
+            && news.warmThroughputMiBps !== undefined
+            && state.warmThroughput?.targetMiBps !== news.warmThroughputMiBps
+          ) {
+            try kinesis.updateStreamWarmThroughput({
+              StreamARN: streamArn,
+              WarmThroughputMiBps: news.warmThroughputMiBps,
+            })
+            try waitForStreamActive(streamName)
+            try session.note(`Updated warm throughput to ${news.warmThroughputMiBps} MiBps`)
+          }
+
+          // Sync max record size — observed ↔ desired.
+          if (
+            news.maxRecordSizeInKiB !== undefined
+            && state.maxRecordSizeInKiB !== news.maxRecordSizeInKiB
+          ) {
+            try kinesis.updateMaxRecordSize({
+              StreamARN: streamArn,
+              MaxRecordSizeInKiB: news.maxRecordSizeInKiB,
+            })
+            try waitForStreamActive(streamName)
+            try session.note(`Updated max record size to ${news.maxRecordSizeInKiB} KiB`)
+          }
+
+          // Sync tags — diff observed cloud tags against desired. Adoption
+          // may bring us a stream that already has its own tag set; diffing
+          // against `state.tags` (fetched fresh) lets the reconciler
+          // converge ownership without fighting whatever was there before.
+          const { removed, upsert } = diffTags(state.tags, desiredTags)
+
+          if (removed.length > 0) {
+            try kinesis.removeTagsFromStream({
+              StreamName: streamName,
+              TagKeys: removed,
+            })
+          }
+
+          if (upsert.length > 0) {
+            const tagsToAdd: Record<string, string> = {}
+            for (const { Key, Value } of upsert) {
+              tagsToAdd[Key] = Value
+            }
+            try kinesis.addTagsToStream({
+              StreamName: streamName,
+              Tags: tagsToAdd,
+            })
+          }
+
+          // Sync resource policy — observed ↔ desired. Tolerate the
+          // race where the cloud's policy was already removed (delete
+          // fails with `ResourceNotFoundException`) or where another
+          // reconcile already wrote the same policy.
+          if (state.resourcePolicy !== news.resourcePolicy) {
+            if (news.resourcePolicy) {
+              try kinesis.putResourcePolicy({
+                ResourceARN: streamArn,
+                Policy: news.resourcePolicy,
+              })
+            } else if (state.resourcePolicy) {
+              kinesis
+                .deleteResourcePolicy({
+                  ResourceARN: streamArn,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            }
+          }
+
+          try session.note(streamArn)
+
+          // Re-read final state so the returned attributes reflect what's
+          // actually in the cloud after all sync steps.
+          const final = try readStream({ streamName, streamArn })
+          if (!final) {
+            throw new KinesisStreamUnexpectedResponse({
+              message: `failed to read reconciled stream ${streamName}`,
+            })
+          }
+          return final
+        },
+        delete: effect ({ output }) => {
+          kinesis
+            .deleteStream({
+              StreamName: output.streamName,
+              EnforceConsumerDeletion: true,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+
+          try waitForStreamDeleted(output.streamName)
+        },
+      }
+    },
+  )

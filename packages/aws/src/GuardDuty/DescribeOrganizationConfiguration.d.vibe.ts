@@ -1,7 +1,7 @@
 import type * as guardduty from "@distilled.cloud/aws/guardduty";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Detector } from "./Detector.js";
+import type { Detector } from "./Detector.vibe";
 /**
  * Runtime binding for `guardduty:DescribeOrganizationConfiguration`.
  *

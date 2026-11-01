@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Index } from "./VectorIndex.js";
+import type { Index } from "./VectorIndex.vibe";
 import type { ReadVectorsClient } from "./VectorsRead.vibe";
 import type { WriteVectorsClient } from "./VectorsWrite.vibe";
 /** IAM actions granted by the read-level binding. */

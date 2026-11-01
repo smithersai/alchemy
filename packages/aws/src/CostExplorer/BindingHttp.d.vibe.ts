@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import type { AnomalyMonitor } from "./AnomalyMonitor.js";
-import type { CostCategory } from "./CostCategory.js";
+import type { AnomalyMonitor } from "./AnomalyMonitor.vibe";
+import type { CostCategory } from "./CostCategory.vibe";
 /**
  * Shared HTTP scaffolding for the Cost Explorer runtime bindings.
  *

@@ -1,7 +1,7 @@
 import type * as mediaconnect from "@distilled.cloud/aws/mediaconnect";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Flow } from "./Flow.js";
+import type { Flow } from "./Flow.vibe";
 /**
  * Runtime binding for `mediaconnect:RevokeFlowEntitlement`.
  *

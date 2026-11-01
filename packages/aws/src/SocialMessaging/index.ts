@@ -24,7 +24,7 @@ export * from "./GetWhatsAppMessageMedia.vibe";
 export * from "./GetWhatsAppMessageMediaHttp.vibe";
 export * from "./GetWhatsAppMessageTemplate.vibe";
 export * from "./GetWhatsAppMessageTemplateHttp.vibe";
-export * from "./LinkedWhatsAppBusinessAccount.ts";
+export * from "./LinkedWhatsAppBusinessAccount.vibe";
 export * from "./ListWhatsAppFlowAssets.vibe";
 export * from "./ListWhatsAppFlowAssetsHttp.vibe";
 export * from "./ListWhatsAppFlows.vibe";

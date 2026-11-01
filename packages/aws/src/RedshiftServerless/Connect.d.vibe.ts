@@ -4,7 +4,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
 import { type SqlConnectionInfo } from "../Connection/internal.vibe";
-import type { Workgroup } from "./Workgroup.js";
+import type { Workgroup } from "./Workgroup.vibe";
 /**
  * Connection descriptor for a Redshift Serverless workgroup. Extends the
  * shared SQL shape with the temporary credential's expiration so callers

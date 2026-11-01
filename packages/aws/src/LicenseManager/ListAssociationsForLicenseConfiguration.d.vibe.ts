@@ -1,7 +1,7 @@
 import type * as licensemanager from "@distilled.cloud/aws/license-manager";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LicenseConfiguration } from "./LicenseConfiguration.js";
+import type { LicenseConfiguration } from "./LicenseConfiguration.vibe";
 /**
  * Request for {@link ListAssociationsForLicenseConfiguration}. The bound configuration's ARN is injected
  * automatically.

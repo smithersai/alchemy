@@ -12,8 +12,8 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
-import type { Providers } from "../Providers.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
+import type { Providers } from "../Providers.vibe";
 import { compileProgram, SfnCompileError } from "./Asl/compile.ts";
 import type { SfnEffect } from "./Asl/Program.vibe";
 

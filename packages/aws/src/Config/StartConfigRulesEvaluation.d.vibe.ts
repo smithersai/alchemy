@@ -1,7 +1,7 @@
 import type * as config from "@distilled.cloud/aws/config-service";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ConfigRule } from "./ConfigRule.js";
+import type { ConfigRule } from "./ConfigRule.vibe";
 /**
  * Runtime binding for `config:StartConfigRulesEvaluation` — run an
  * on-demand evaluation of the bound {@link ConfigRule} against the last

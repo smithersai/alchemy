@@ -1,7 +1,7 @@
 import type * as elbv2 from "@distilled.cloud/aws/elastic-load-balancing-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LoadBalancer } from "./LoadBalancer.js";
+import type { LoadBalancer } from "./LoadBalancer.vibe";
 /**
  * `DescribeCapacityReservation` request with `LoadBalancerArn` injected from
  * the bound {@link LoadBalancer}.

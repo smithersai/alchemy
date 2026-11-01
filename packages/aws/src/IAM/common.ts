@@ -1,7 +1,7 @@
 import type * as iam from "@distilled.cloud/aws/iam";
 import { toWireDays, toWireSeconds } from "alchemy/Util/Duration";
 import * as Redacted from "effect/Redacted";
-import type { PolicyDocument } from "./Policy.ts";
+import type { PolicyDocument } from "./Policy.vibe";
 
 /**
  * Convert an optional `Duration.Input` prop to whole wire seconds.

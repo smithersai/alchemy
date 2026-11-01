@@ -1,7 +1,7 @@
 import type * as deadline from "@distilled.cloud/aws/deadline";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Queue } from "./Queue.js";
+import type { Queue } from "./Queue.vibe";
 /**
  * Runtime binding for `deadline:ListTasks`.
  *

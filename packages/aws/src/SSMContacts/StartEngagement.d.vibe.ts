@@ -1,7 +1,7 @@
 import type * as ssm from "@distilled.cloud/aws/ssm-contacts";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Contact } from "./Contact.js";
+import type { Contact } from "./Contact.vibe";
 /**
  * Runtime binding for `ssm-contacts:StartEngagement`.
  *

@@ -21,7 +21,7 @@ import { DEFAULT_LOCAL_ENDPOINT } from "./AuthProvider.ts";
 import { Credentials, makeAssumeRoleResolver } from "./Credentials.ts";
 import { AWSEnvironment } from "./Environment.ts";
 import { AccessKey } from "./IAM/AccessKey.ts";
-import type { PolicyStatement } from "./IAM/Policy.ts";
+import type { PolicyStatement } from "./IAM/Policy.vibe";
 import { Role } from "./IAM/Role.ts";
 import { User } from "./IAM/User.ts";
 import { CurrentRegion } from "./Region.ts";

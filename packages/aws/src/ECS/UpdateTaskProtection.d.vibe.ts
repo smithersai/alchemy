@@ -2,7 +2,7 @@ import type * as ECS from "@distilled.cloud/aws/ecs";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 export interface UpdateTaskProtectionRequest extends Omit<ECS.UpdateTaskProtectionRequest, "cluster" | "expiresInMinutes"> {
     /**
      * How long the protection should last, e.g. `"20 minutes"` or

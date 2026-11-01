@@ -1,7 +1,7 @@
 import type * as frauddetector from "@distilled.cloud/aws/frauddetector";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { List } from "./List.js";
+import type { List } from "./List.vibe";
 /**
  * The list `name` is injected by the binding from the bound list; only the
  * pagination controls remain.

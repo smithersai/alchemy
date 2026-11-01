@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/finspace";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { KxEnvironment } from "./KxEnvironment.js";
+import type { KxEnvironment } from "./KxEnvironment.vibe";
 /**
  * Runtime binding for `finspace:UpdateKxDataview` — advances a dataview of a kdb database in the bound environment to a new changeset (or new segment configurations) — how ingestion pipelines roll fresh data out to readers.
  * Provide the implementation with

@@ -1,7 +1,7 @@
 import type * as codeartifact from "@distilled.cloud/aws/codeartifact";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.vibe";
 /**
  * Request for {@link DeletePackage} — `domain`, `domainOwner`, and
  * `repository` are injected from the bound {@link Repository}.

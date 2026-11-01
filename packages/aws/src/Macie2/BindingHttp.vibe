@@ -1,0 +1,48 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+
+/**
+ * Shared scaffolding for Amazon Macie HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, makeMacie2HttpBinding({ … }))` over the builder below.
+ * Everything except the operation and the IAM action list is boilerplate.
+ *
+ * Macie is an account/region singleton service: every operation is implicitly
+ * scoped to the caller's Macie session, so there is no identifier to inject —
+ * the caller's request is passed through as-is. Macie2 IAM actions do not
+ * support resource-level permissions (the session has no bindable ARN), so
+ * the deploy-time half grants `actions` on `*`.
+ */
+export const makeMacie2HttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Macie2.ListFindings`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

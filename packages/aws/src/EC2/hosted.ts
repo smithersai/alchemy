@@ -18,7 +18,7 @@ import type * as rolldown from "rolldown";
 import { Assets } from "../Assets.ts";
 import { roleHostBundle } from "../AWSBindings.ts";
 import { AWSEnvironment } from "../Environment.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 
 export class EC2HostedInvalidProps extends Data.TaggedError("EC2HostedInvalidProps")<{
   readonly message: string;

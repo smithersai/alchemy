@@ -1,0 +1,218 @@
+import * as codedeploy from "@distilled.cloud/aws/codedeploy"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+
+export interface ApplicationProps {
+  /**
+   * Name of the application (1-100 chars). If omitted a deterministic physical
+   * name is generated. Changing the name replaces the application.
+   */
+  mutable applicationName?: string
+  /**
+   * The compute platform the application deploys to. Immutable — changing it
+   * replaces the application.
+   * @default "Server"
+   */
+  mutable computePlatform?: "Server" | "Lambda" | "ECS"
+  /**
+   * User-defined tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Application extends
+  Resource<
+    "AWS.CodeDeploy.Application",
+    ApplicationProps,
+    {
+      /** Physical name of the application. */
+      mutable applicationName: string
+      /** Unique CodeDeploy-assigned application ID. */
+      mutable applicationId: string
+      /** ARN of the application. */
+      mutable applicationArn: string
+      /** The compute platform (`Lambda`, `Server`, or `ECS`). */
+      mutable computePlatform: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS CodeDeploy application — a logical container that groups the
+ * deployment groups and revisions for a single deployable unit on a given
+ * compute platform (EC2/on-prem `Server`, `Lambda`, or `ECS`).
+ *
+ * ### Creating an Application
+ * **Example:** Lambda Application
+ * ```typescript
+ * const app = yield* CodeDeploy.Application("api", {
+ *   computePlatform: "Lambda",
+ * });
+ * ```
+ *
+ * **Example:** EC2/On-Premises Application
+ * ```typescript
+ * const app = yield* CodeDeploy.Application("web", {
+ *   applicationName: "web-fleet",
+ *   computePlatform: "Server",
+ *   tags: { team: "platform" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Application = Resource<Application>("AWS.CodeDeploy.Application")
+
+/** Build the ARN for a CodeDeploy application. */
+const applicationArn = (region: string, account: string, name: string): string =>
+  `arn:aws:codedeploy:${region}:${account}:application:${name}`
+
+/** Convert a CodeDeploy wire tag list into a plain record. */
+const toTagRecord = (
+  tags: ReadonlyArray<{ mutable Key?: string; mutable Value?: string }> | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    (tags ?? [])
+      .filter(
+        (tag): tag is { mutable Key: string; mutable Value: string } =>
+          typeof tag.Key === "string" && typeof tag.Value === "string",
+      )
+      .map((tag) => [tag.Key, tag.Value]),
+  )
+
+export const ApplicationProvider = (): infer _ =>
+  Provider.effect(
+    Application,
+    effect {
+      const toName = effect (
+        id: string,
+        props: Partial<ApplicationProps>,
+      ) => (props.applicationName ? props.applicationName : try createPhysicalName({ id, maxLength: 100 }))
+
+      const getApplication = effect (name: string) => {
+        const response = codedeploy
+          .getApplication({ applicationName: name }) catch effect (e) => match (e) {
+            when { _tag: "ApplicationDoesNotExistException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.application
+      }
+
+      const syncTags = effect (arn: string, desiredTags: Record<string, string>) => {
+        const observed = codedeploy
+          .listTagsForResource({ ResourceArn: arn }) catch () => undefined
+        const { removed, upsert } = diffTags(toTagRecord(observed?.Tags), desiredTags)
+        if (upsert.length > 0) {
+          try codedeploy.tagResource({ ResourceArn: arn, Tags: upsert })
+        }
+        if (removed.length > 0) {
+          try codedeploy.untagResource({
+            ResourceArn: arn,
+            TagKeys: removed,
+          })
+        }
+      }
+
+      return {
+        stables: ["applicationName", "applicationId", "computePlatform"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+            return { action: "replace" } as const
+          }
+          // Compute platform is immutable — replace on change.
+          if ((news?.computePlatform ?? "Server") !== (olds?.computePlatform ?? "Server")) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.applicationName ?? (try toName(id, olds ?? {}))
+          const application = try getApplication(name)
+          if (application?.applicationId === undefined) return undefined
+          const arn = applicationArn(region, accountId, name)
+          const attrs = {
+            applicationName: application.applicationName ?? name,
+            applicationId: application.applicationId,
+            applicationArn: arn,
+            computePlatform: application.computePlatform ?? "Server",
+          }
+          const tags = (toTagRecord((try codedeploy.listTagsForResource({ ResourceArn: arn })).Tags)) catch () => ({})
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.applicationName ?? (try toName(id, news))
+          const arn = applicationArn(region, accountId, name)
+          const computePlatform = news.computePlatform ?? "Server"
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe — cloud state is authoritative.
+          let application = try getApplication(name)
+
+          // 2. Ensure — create if missing. Tolerate an already-exists race.
+          if (application?.applicationId === undefined) {
+            codedeploy
+              .createApplication({
+                applicationName: name,
+                computePlatform,
+                tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "ApplicationAlreadyExistsException" }: try Effect.undefined;
+                default: throw e;
+              }
+            application = try getApplication(name)
+          }
+
+          // 3. Sync tags — diff against OBSERVED cloud tags.
+          try syncTags(arn, desiredTags)
+
+          // 4. Return fresh attributes.
+          try session.note(name)
+          return {
+            applicationName: application?.applicationName ?? name,
+            applicationId: application?.applicationId ?? "",
+            applicationArn: arn,
+            computePlatform: application?.computePlatform ?? computePlatform,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          // DeleteApplication is idempotent — deleting a non-existent
+          // application succeeds (no not-found variant in its error union).
+          try codedeploy.deleteApplication({
+            applicationName: output.applicationName,
+          })
+        },
+
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const names = Array.from(
+            try (codedeploy.listApplications.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.applications ?? [])
+          return names.map((name) => ({
+            applicationName: name,
+            applicationId: "",
+            applicationArn: applicationArn(region, accountId, name),
+            computePlatform: "",
+          }))
+        },
+      }
+    },
+  )

@@ -1,0 +1,256 @@
+import * as identitystore from "@distilled.cloud/aws/identitystore"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+import { listGroups, resolveIdentityStoreId, retryIdentityCenter, unredact } from "./common.ts"
+
+export error GroupUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface GroupProps {
+  /**
+   * Explicit identity store ID.
+   * If omitted, Alchemy resolves it from the selected Identity Center instance.
+   */
+  mutable identityStoreId?: string
+  /**
+   * Optional instance ARN used to discover the identity store ID.
+   */
+  mutable instanceArn?: string
+  /**
+   * Group display name.
+   */
+  mutable displayName: string
+  /**
+   * Optional group description.
+   */
+  mutable description?: string
+}
+
+export interface Group extends
+  Resource<
+    "AWS.IdentityCenter.Group",
+    GroupProps,
+    {
+      /** The identity store containing the group. */
+      mutable identityStoreId: string
+      /** The unique ID of the group. */
+      mutable groupId: string
+      /** The display name of the group. */
+      mutable displayName: string | undefined
+      /** The description of the group. */
+      mutable description: string | undefined
+      /** When the group was created. */
+      mutable createdAt: Date | undefined
+      /** When the group was last updated. */
+      mutable updatedAt: Date | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A group in the IAM Identity Center identity store.
+ * ### Creating Groups
+ * **Example:** Platform Engineers
+ * ```typescript
+ * const engineers = yield* Group("PlatformEngineers", {
+ *   displayName: "platform-engineers",
+ *   description: "Platform engineering team",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Group = Resource<Group>("AWS.IdentityCenter.Group")
+
+export const GroupProvider = (): infer _ =>
+  Provider.effect(
+    Group,
+    effect {
+      return {
+        stables: ["identityStoreId", "groupId"],
+        list: effect () => {
+          // Identity Center groups live in the instance's identity store.
+          // Resolve it from the (single) enabled SSO instance, then
+          // enumerate every group and hydrate each into the exact `read`
+          // shape via `describeGroup` (bounded concurrency, typed
+          // per-item not-found handled inside `readGroupById`).
+          const identityStoreId = try resolveIdentityStoreId({})
+          const groups = try listGroups(identityStoreId)
+          const rows = try Effect.forEach(
+            groups,
+            effect (
+              group,
+            ) => (group.GroupId ? try readGroupById(identityStoreId, group.GroupId) : try Effect.undefined),
+            { concurrency: 10 },
+          )
+          return rows.filter((row): row is Group["Attributes"] => row !== undefined)
+        },
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return
+          if (olds?.identityStoreId !== news.identityStoreId) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          if (output?.groupId && output.identityStoreId) {
+            return try readGroupById(output.identityStoreId, output.groupId)
+          }
+
+          if (!olds) {
+            return undefined
+          }
+
+          return try readGroupByDisplayName(olds)
+        },
+        reconcile: effect ({ news, output, session }) => {
+          const identityStoreId = output?.identityStoreId ?? (try resolveIdentityStoreId(news))
+
+          // Observe — find the group by id (if we already have one) or
+          // by display name. We never trust `output.groupId` blindly: a
+          // group deleted out of band shows up as missing here.
+          let existing = (output?.groupId ? try readGroupById(identityStoreId, output.groupId) : undefined)
+            ?? (try readGroupByDisplayName({
+              ...news,
+              identityStoreId,
+            }))
+
+          // Ensure — create the group if missing.
+          if (!existing) {
+            const response = try retryIdentityCenter(
+              identitystore.createGroup({
+                IdentityStoreId: identityStoreId,
+                DisplayName: news.displayName,
+                Description: news.description,
+              }),
+            )
+
+            existing = (response.GroupId
+              ? try readGroupById(identityStoreId, response.GroupId)
+              : undefined)
+              ?? (try readGroupByDisplayName({
+                ...news,
+                identityStoreId,
+              }))
+
+            if (!existing) {
+              throw new GroupUnexpectedResponse({
+                message: `group '${news.displayName}' not found after create`,
+              })
+            }
+
+            try session.note(existing.groupId)
+            return existing
+          }
+
+          // Sync mutable attributes — `updateGroup` overwrites
+          // displayName and description in one call. We diff against
+          // observed cloud state so adoption converges.
+          const operations: {
+            mutable AttributePath: string
+            mutable AttributeValue: string
+          }[] = []
+          // Attribute paths are SCIM-style camelCase (`displayName`,
+          // `description`) per the UpdateGroup API.
+          if (existing.displayName !== news.displayName) {
+            operations.push({
+              AttributePath: "displayName",
+              AttributeValue: news.displayName,
+            })
+          }
+          const desiredDescription = news.description ?? ""
+          if ((existing.description ?? "") !== desiredDescription) {
+            operations.push({
+              AttributePath: "description",
+              AttributeValue: desiredDescription,
+            })
+          }
+
+          if (operations.length > 0) {
+            try retryIdentityCenter(
+              identitystore.updateGroup({
+                IdentityStoreId: existing.identityStoreId,
+                GroupId: existing.groupId,
+                Operations: operations,
+              }),
+            )
+
+            const updated = try readGroupById(existing.identityStoreId, existing.groupId)
+            if (!updated) {
+              throw new GroupUnexpectedResponse({
+                message: `group '${existing.groupId}' not found after update`,
+              })
+            }
+            try session.note(updated.groupId)
+            return updated
+          }
+
+          try session.note(existing.groupId)
+          return existing
+        },
+        delete: effect ({ output }) => {
+          try retryIdentityCenter(
+            effect {
+              return identitystore
+                .deleteGroup({
+                  IdentityStoreId: output.identityStoreId,
+                  GroupId: output.groupId,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            },
+          )
+        },
+      }
+    },
+  )
+
+const readGroupById = effect (identityStoreId: string, groupId: string) => {
+  const response = try retryIdentityCenter(
+    effect {
+      return identitystore
+        .describeGroup({
+          IdentityStoreId: identityStoreId,
+          GroupId: groupId,
+        }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+    },
+  )
+
+  if (!response?.GroupId || !response.IdentityStoreId) {
+    return undefined
+  }
+
+  return {
+    identityStoreId: response.IdentityStoreId,
+    groupId: response.GroupId,
+    // Sensitive-trait fields decode to Redacted at runtime — unwrap before
+    // persisting into Attributes / diffing against desired props.
+    displayName: unredact(response.DisplayName),
+    description: unredact(response.Description),
+    createdAt: response.CreatedAt,
+    updatedAt: response.UpdatedAt,
+  } satisfies Group["Attributes"]
+}
+
+const readGroupByDisplayName = effect ({
+  identityStoreId,
+  instanceArn,
+  displayName,
+}: Pick<GroupProps, "identityStoreId" | "instanceArn" | "displayName">) => {
+  const resolvedIdentityStoreId = try resolveIdentityStoreId({
+    identityStoreId,
+    instanceArn,
+  })
+  const groups = try listGroups(resolvedIdentityStoreId)
+  const match = groups.find((group) => unredact(group.DisplayName) === displayName)
+  return match?.GroupId ? try readGroupById(resolvedIdentityStoreId, match.GroupId) : undefined
+}

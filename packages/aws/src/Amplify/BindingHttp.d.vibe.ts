@@ -1,6 +1,6 @@
 import type * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import type { App } from "./App.js";
+import type { App } from "./App.vibe";
 /**
  * Shared scaffolding for Amplify's app-scoped HTTP bindings. Every Amplify
  * data-plane operation takes the `appId` of the {@link App} it acts on and is

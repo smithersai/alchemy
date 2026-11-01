@@ -1,7 +1,7 @@
 import type * as bdar from "@distilled.cloud/aws/bedrock-data-automation-runtime";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DataAutomationProject } from "./DataAutomationProject.js";
+import type { DataAutomationProject } from "./DataAutomationProject.vibe";
 /**
  * `InvokeDataAutomation` request with `dataAutomationConfiguration`
  * (project ARN + stage) injected from the bound

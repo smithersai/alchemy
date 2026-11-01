@@ -12,7 +12,7 @@ import {
   type TopicNotification,
 } from "../SNS/TopicEventSource.ts";
 import * as Lambda from "./Function.ts";
-import { Permission as LambdaPermission } from "./Permission.ts";
+import { Permission as LambdaPermission } from "./Permission.vibe";
 
 export const isSNSEvent = (event: any): event is lambda.SNSEvent =>
   Array.isArray(event?.Records) &&

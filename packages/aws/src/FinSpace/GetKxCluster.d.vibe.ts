@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/finspace";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { KxEnvironment } from "./KxEnvironment.js";
+import type { KxEnvironment } from "./KxEnvironment.vibe";
 /**
  * Runtime binding for `finspace:GetKxCluster` — reads one kdb cluster of the bound environment — status, mounted databases, code configuration, and endpoints — for runtime monitoring and orchestration.
  * Provide the implementation with

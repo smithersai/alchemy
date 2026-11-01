@@ -22,11 +22,11 @@ import {
   type Ec2HostRuntimeContext,
   type InstanceMetadataOptions,
 } from "../EC2/hosted.ts";
-import type { SecurityGroupId } from "../EC2/SecurityGroup.ts";
+import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
 import type { AccountID } from "../Environment.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { AWSEnvironment } from "../index.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { RegionID } from "../Region.ts";
 
 export class LaunchTemplateUnexpectedResponse extends Data.TaggedError(

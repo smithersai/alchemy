@@ -1,7 +1,7 @@
 import type * as detective from "@distilled.cloud/aws/detective";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Graph } from "./Graph.js";
+import type { Graph } from "./Graph.vibe";
 /**
  * Runtime binding for `detective:CreateMembers`.
  *

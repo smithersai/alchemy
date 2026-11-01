@@ -1,6 +1,6 @@
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Room } from "./Room.ts";
+import type { Room } from "./Room.vibe";
 
 /**
  * The payload Amazon IVS Chat sends to a room's message review handler for

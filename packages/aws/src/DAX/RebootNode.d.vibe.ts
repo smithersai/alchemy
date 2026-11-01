@@ -1,7 +1,7 @@
 import type * as dax from "@distilled.cloud/aws/dax";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 /**
  * Runtime binding for the `RebootNode` operation (IAM action
  * `dax:RebootNode`), scoped to one {@link Cluster}.

@@ -1,7 +1,7 @@
 import type * as location from "@distilled.cloud/aws/location";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { PlaceIndex } from "./PlaceIndex.js";
+import type { PlaceIndex } from "./PlaceIndex.vibe";
 /**
  * `SearchPlaceIndexForPosition` request with `IndexName` injected from the bound
  * resource.

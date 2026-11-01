@@ -1,0 +1,228 @@
+import * as mi from "@distilled.cloud/aws/iot-managed-integrations"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import { syncManagedIntegrationsTags, toTagRecord } from "./internal.ts"
+
+export error IoTManagedIntegrationsNotificationConfigurationUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface NotificationConfigurationProps {
+  /**
+   * Event type to route, e.g. `DEVICE_STATE`, `DEVICE_LIFE_CYCLE`,
+   * `DEVICE_EVENT`, `DEVICE_COMMAND_REQUEST`, `DEVICE_OTA`,
+   * `CONNECTOR_ASSOCIATION`, `ACCOUNT_ASSOCIATION`,
+   * `CONNECTOR_ERROR_REPORT`. The event type is the configuration's
+   * identifier — at most one configuration exists per event type, and
+   * changing it replaces the configuration.
+   */
+  mutable eventType: mi.EventType
+  /**
+   * Name of the {@link Destination} that receives events of this type.
+   */
+  mutable destinationName: string
+  /**
+   * User-defined tags to apply to the notification configuration.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface NotificationConfiguration extends
+  Resource<
+    "AWS.IoTManagedIntegrations.NotificationConfiguration",
+    NotificationConfigurationProps,
+    {
+      /** Event type routed by this configuration (its identifier). */
+      mutable eventType: mi.EventType
+      /** Name of the destination that receives the events. */
+      mutable destinationName: string
+      /** Constructed ARN of the notification configuration. */
+      mutable notificationConfigurationArn: string
+      /** Tags applied to the notification configuration (user + internal). */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS IoT Managed Integrations notification configuration — routes one
+ * event type (device state, lifecycle, OTA, discovery, association events)
+ * to a {@link Destination}.
+ *
+ * Managed integrations has no direct Lambda invocation path: events flow
+ * `NotificationConfiguration -> Destination -> Kinesis Data Stream`, so pair
+ * this resource with a Kinesis-backed destination and consume the stream
+ * with the Kinesis stream event source (`Kinesis.consumeStreamRecords`).
+ *
+ * IoT Managed Integrations is a regional service available in a limited set
+ * of regions (e.g. `eu-west-1`, `ca-central-1`).
+ *
+ * ### Routing Events
+ * **Example:** Route Device State Events to a Kinesis Destination
+ * ```typescript
+ * const destination = yield* Destination("EventDestination", {
+ *   deliveryDestinationArn: stream.streamArn,
+ *   roleArn: role.roleArn,
+ * });
+ * const routing = yield* NotificationConfiguration("DeviceState", {
+ *   eventType: "DEVICE_STATE",
+ *   destinationName: destination.destinationName,
+ * });
+ * ```
+ *
+ * **Example:** Route Lifecycle Events with Tags
+ * ```typescript
+ * const routing = yield* NotificationConfiguration("Lifecycle", {
+ *   eventType: "DEVICE_LIFE_CYCLE",
+ *   destinationName: destination.destinationName,
+ *   tags: { team: "iot" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const NotificationConfiguration = Resource<NotificationConfiguration>(
+  "AWS.IoTManagedIntegrations.NotificationConfiguration",
+)
+
+export const NotificationConfigurationProvider = (): infer _ =>
+  Provider.effect(
+    NotificationConfiguration,
+    effect {
+      const observe = effect (eventType: mi.EventType) =>
+        mi
+          .getNotificationConfiguration({ EventType: eventType }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      // GetNotificationConfiguration does not return an ARN; the tag APIs
+      // need one, so construct it from the ambient account/region (same
+      // approach as the Destination provider).
+      const configurationArn = effect (eventType: mi.EventType) => {
+        const { accountId, region } = try AWSEnvironment.current
+        return `arn:aws:iotmanagedintegrations:${region}:${accountId}:notification-configuration/${eventType}`
+      }
+
+      const toAttributes = effect (
+        configuration: mi.GetNotificationConfigurationResponse,
+      ) => {
+        if (configuration.EventType === undefined || configuration.DestinationName === undefined) {
+          throw new IoTManagedIntegrationsNotificationConfigurationUnexpectedResponse({
+            message: "notification configuration response is missing EventType or DestinationName",
+          })
+        }
+        return {
+          eventType: configuration.EventType,
+          destinationName: configuration.DestinationName,
+          notificationConfigurationArn: try configurationArn(configuration.EventType),
+          tags: toTagRecord(configuration.Tags),
+        }
+      }
+
+      return {
+        stables: ["eventType", "notificationConfigurationArn"],
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return
+          if (olds !== undefined && olds.eventType !== news.eventType) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const eventType = output?.eventType ?? olds?.eventType
+          if (eventType === undefined) return undefined
+          const configuration = try observe(eventType)
+          if (configuration === undefined) return undefined
+          const attrs = try toAttributes(configuration)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+        },
+        reconcile: effect ({ id, news, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — cloud state is authoritative; the event type is the
+          // identifier so no cached output is needed to find it.
+          let configuration = try observe(news.eventType)
+
+          // Ensure — create if missing; tolerate a concurrent-create race.
+          if (configuration === undefined) {
+            mi
+              .createNotificationConfiguration({
+                EventType: news.eventType,
+                DestinationName: news.destinationName,
+                Tags: desiredTags,
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            configuration = try observe(news.eventType)
+            if (configuration === undefined) {
+              throw new IoTManagedIntegrationsNotificationConfigurationUnexpectedResponse({
+                message: `notification configuration '${news.eventType}' vanished after create`,
+              })
+            }
+          }
+
+          // Sync the destination — apply only the delta.
+          if (configuration.DestinationName !== news.destinationName) {
+            try mi.updateNotificationConfiguration({
+              EventType: news.eventType,
+              DestinationName: news.destinationName,
+            })
+            configuration = {
+              ...configuration,
+              DestinationName: news.destinationName,
+            }
+          }
+
+          // Sync tags — diff against OBSERVED cloud tags.
+          try syncManagedIntegrationsTags(
+            try configurationArn(news.eventType),
+            toTagRecord(configuration.Tags),
+            desiredTags,
+          )
+
+          const attrs = try toAttributes(configuration)
+          try session.note(attrs.eventType)
+          return { ...attrs, tags: desiredTags }
+        },
+        // Enumerate every notification configuration; fetch each one to
+        // resolve tags (summaries omit them).
+        list: effect () => {
+          const summaries = Array.from(
+            try (mi.listNotificationConfigurations.items({})
+              |> Stream.runCollect(%)),
+          )
+          const configurations = try Effect.forEach(
+            summaries.filter(
+              (
+                s,
+              ): s is mi.NotificationConfigurationSummary & {
+                mutable EventType: mi.EventType
+              } => s.EventType !== undefined,
+            ),
+            (summary) => observe(summary.EventType),
+            { concurrency: 5 },
+          )
+          return try Effect.forEach(
+            configurations.filter(
+              (c): c is mi.GetNotificationConfigurationResponse => c !== undefined,
+            ),
+            toAttributes,
+          )
+        },
+        delete: effect ({ output }) => {
+          mi
+            .deleteNotificationConfiguration({ EventType: output.eventType }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

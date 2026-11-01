@@ -1,0 +1,43 @@
+import * as agw2 from "@distilled.cloud/aws/apigatewayv2"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { RegisterApiGatewayV2Binding } from "./BindingHttp.vibe"
+import { ResetAuthorizersCache } from "./ResetAuthorizersCache.vibe"
+import type { ApiGatewayV2Stage } from "./Stage.vibe"
+
+/**
+ * HTTP implementation of the {@link ResetAuthorizersCache} binding.
+ * Grants `apigateway:DELETE` on the stage's `/cache/authorizers` path and
+ * calls the API with the host Function's credentials.
+ */
+export const ResetAuthorizersCacheHttp = Layer.effect(
+  ResetAuthorizersCache,
+  effect {
+    const registerApiGatewayV2Binding = try RegisterApiGatewayV2Binding
+    const resetAuthorizersCache = try AWSBindings.withCredentials(agw2.resetAuthorizersCache)
+    return effect <S extends ApiGatewayV2Stage>(stage: S) => {
+      const ApiId = try stage.apiId.asEffect()
+      const StageName = try stage.stageName.asEffect()
+      try registerApiGatewayV2Binding({
+        cap: "AWS.ApiGatewayV2.ResetAuthorizersCache",
+        target: stage,
+        verb: "DELETE",
+        paths: (region) => [
+          Output
+            .interpolate`arn:aws:apigateway:${region}::/apis/${stage.apiId}/stages/${stage.stageName}/cache/authorizers`,
+        ],
+      })
+      return effect () =>
+        try withSpan(
+          effect {
+            return try resetAuthorizersCache({
+              ApiId: try ApiId,
+              StageName: try StageName,
+            })
+          },
+          `AWS.ApiGatewayV2.ResetAuthorizersCache(${stage.LogicalId})`,
+        )
+    }
+  },
+)

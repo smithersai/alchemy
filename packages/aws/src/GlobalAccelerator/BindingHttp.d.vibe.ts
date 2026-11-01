@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { PolicyStatement } from "../IAM/Policy.js";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 import type { Accelerator } from "./Accelerator.vibe";
 import type { EndpointGroup } from "./EndpointGroup.vibe";
 /**

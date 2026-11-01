@@ -1,7 +1,7 @@
 import type * as iotfleetwise from "@distilled.cloud/aws/iotfleetwise";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Vehicle } from "./Vehicle.js";
+import type { Vehicle } from "./Vehicle.vibe";
 /**
  * `GetVehicleStatus` request with `vehicleName` injected from the bound
  * vehicle.

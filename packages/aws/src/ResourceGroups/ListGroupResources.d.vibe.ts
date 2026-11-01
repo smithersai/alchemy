@@ -1,7 +1,7 @@
 import type * as resourcegroups from "@distilled.cloud/aws/resource-groups";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Group } from "./Group.js";
+import type { Group } from "./Group.vibe";
 /** Request for {@link ListGroupResources} — the group is injected from the binding. */
 export type ListGroupResourcesRequest = Omit<resourcegroups.ListGroupResourcesInput, "Group" | "GroupName">;
 /**

@@ -1,7 +1,7 @@
 import * as cloudwatch from "@distilled.cloud/aws/cloudwatch";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { MetricStream } from "./MetricStream.js";
+import type { MetricStream } from "./MetricStream.vibe";
 export interface GetMetricStreamRequest extends Omit<cloudwatch.GetMetricStreamInput, "Name"> {
 }
 /**

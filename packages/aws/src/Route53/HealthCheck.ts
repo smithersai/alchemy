@@ -9,7 +9,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { durationToSeconds } from "../IAM/common.ts";
 import { plainJson } from "../internal/Observe.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export interface HealthCheckProps {
   /**

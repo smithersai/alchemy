@@ -2,7 +2,7 @@ export * from "./DescribeFHIRExportJob.vibe";
 export * from "./DescribeFHIRExportJobHttp.vibe";
 export * from "./DescribeFHIRImportJob.vibe";
 export * from "./DescribeFHIRImportJobHttp.vibe";
-export * from "./FHIRDatastore.ts";
+export * from "./FHIRDatastore.vibe";
 export * from "./ListFHIRExportJobs.vibe";
 export * from "./ListFHIRExportJobsHttp.vibe";
 export * from "./ListFHIRImportJobs.vibe";

@@ -1,7 +1,7 @@
 import type * as location from "@distilled.cloud/aws/location";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { GeofenceCollection } from "./GeofenceCollection.js";
+import type { GeofenceCollection } from "./GeofenceCollection.vibe";
 /**
  * `BatchPutGeofence` request with `CollectionName` injected from the bound
  * resource.

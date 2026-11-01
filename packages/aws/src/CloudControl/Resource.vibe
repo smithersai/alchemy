@@ -1,0 +1,314 @@
+import * as cloudcontrol from "@distilled.cloud/aws/cloudcontrol"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource as makeResource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface CloudControlResourceProps {
+  /**
+   * The CloudFormation resource type name, e.g. `"AWS::SNS::Topic"` or
+   * `"AWS::SSM::Parameter"`. Changing the type replaces the resource. See the
+   * Cloud Control API's supported resource types in the AWS documentation.
+   */
+  mutable typeName: string
+  /**
+   * A specific version of the resource type to use. Defaults to the account's
+   * default version.
+   */
+  mutable typeVersionId?: string
+  /**
+   * The desired state of the resource as a plain object matching the CFN
+   * resource type's property schema (e.g. `{ Name, Type, Value }` for
+   * `AWS::SSM::Parameter`). Only the keys you specify are managed — on update,
+   * a JSON Patch is computed over exactly these keys, so create-only
+   * properties you never change are left untouched.
+   */
+  mutable desiredState: Record<string, unknown>
+  /**
+   * ARN of an IAM role Cloud Control assumes to perform the operation.
+   * Defaults to the deploying principal's credentials.
+   */
+  mutable roleArn?: string
+}
+
+export interface CloudControlResource extends
+  makeResource<
+    "AWS.CloudControl.Resource",
+    CloudControlResourceProps,
+    {
+      /** The CloudFormation resource type name (e.g. `AWS::SSM::Parameter`). */
+      mutable typeName: string
+      /** The resource's primary identifier assigned by Cloud Control. */
+      mutable identifier: string
+      /** The observed properties of the resource as a plain object. */
+      mutable properties: Record<string, unknown>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A generic AWS resource managed through the Cloud Control API — the escape
+ * hatch that covers hundreds of CloudFormation resource types with a single
+ * Alchemy resource.
+ *
+ * Provide a CloudFormation `typeName` and a `desiredState` object; the provider
+ * drives Cloud Control's asynchronous create/update/delete and polls the
+ * request token (bounded) until it reaches `SUCCESS`, surfacing a `FAILED`
+ * operation as a typed error rather than hanging. Updates are expressed as an
+ * RFC 6902 JSON Patch computed over the keys you specify.
+ * ### Managing a Resource
+ * **Example:** SSM Parameter
+ * ```typescript
+ * const param = yield* CloudControl.Resource("Greeting", {
+ *   typeName: "AWS::SSM::Parameter",
+ *   desiredState: {
+ *     Name: "/app/greeting",
+ *     Type: "String",
+ *     Value: "hello",
+ *   },
+ * });
+ * // param.identifier -> "/app/greeting"
+ * // param.properties.Value -> "hello"
+ * ```
+ *
+ * **Example:** SNS Topic
+ * ```typescript
+ * const topic = yield* CloudControl.Resource("Alerts", {
+ *   typeName: "AWS::SNS::Topic",
+ *   desiredState: { TopicName: "alerts", DisplayName: "Alerts" },
+ * });
+ * // topic.identifier -> "arn:aws:sns:us-west-2:...:alerts"
+ * ```
+ *
+ * @resource
+ */
+export const Resource = makeResource<CloudControlResource>("AWS.CloudControl.Resource")
+
+error ResourceRequestNotSettled {
+  requestToken: string
+  status: string
+}
+
+error ResourceRequestFailed {
+  typeName: string
+  operation: string
+  errorCode: string | undefined
+  statusMessage: string | undefined
+}
+
+/** Unwrap distilled's sensitive-string decoding to a plain string. */
+const plain = (value: string | Redacted<string> | undefined): string | undefined =>
+  value === undefined || typeof value === "string" ? value : Redacted.value(value)
+
+const parseProperties = (
+  properties: string | Redacted<string> | undefined,
+): Record<string, unknown> => {
+  const raw = plain(properties)
+  if (raw === undefined) return {}
+  try {
+    const parsed = JSON.parse(raw)
+    return parsed !== null && typeof parsed === "object" ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+/** RFC 6901 escape for a JSON Pointer path segment. */
+const escapePointer = (key: string): string => key.replace(/~/g, "~0").replace(/\//g, "~1")
+
+/**
+ * Build an RFC 6902 JSON Patch that converges the observed properties to the
+ * user-specified desired state. Only keys present in `desired` are touched —
+ * create-only properties the user never changes are left alone (patching them
+ * would trigger `NotUpdatableException`).
+ */
+const buildPatch = (
+  observed: Record<string, unknown>,
+  desired: Record<string, unknown>,
+): Array<{ mutable op: "add" | "replace"; mutable path: string; mutable value: unknown }> =>
+  Object.entries(desired).flatMap(([key, value]) => {
+    const hasKey = Object.prototype.hasOwnProperty.call(observed, key)
+    if (hasKey && deepEqual(observed[key], value)) {
+      return []
+    }
+    return [
+      {
+        op: hasKey ? ("replace" as const) : ("add" as const),
+        path: `/${escapePointer(key)}`,
+        value,
+      },
+    ]
+  })
+
+/**
+ * Normalize `AWS::SSM::Document` state before diffing. SSM returns JSON
+ * `Content` as a formatted string, so compare it structurally, and omits
+ * the write-only `UpdateMethod`, which selects how a real change is applied
+ * rather than describing persistent document state — resend it only
+ * alongside an actual change.
+ *
+ * @see https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-ssm-document.html
+ */
+const resourcePatch = (
+  typeName: string,
+  observed: Record<string, unknown>,
+  desired: Record<string, unknown>,
+): infer _ => {
+  if (typeName !== "AWS::SSM::Document") return buildPatch(observed, desired)
+  const { UpdateMethod, ...document } = desired
+  const normalizeDocument = (value: Record<string, unknown>): infer _ =>
+    value.DocumentFormat === "JSON" && typeof value.Content === "string"
+      ? { ...value, Content: JSON.parse(value.Content) }
+      : value
+  const patch = buildPatch(normalizeDocument(observed), normalizeDocument(document))
+  return patch.length > 0 && UpdateMethod !== undefined
+    ? [...patch, ...buildPatch(observed, { UpdateMethod })]
+    : patch
+}
+
+export const CloudControlResourceProvider = (): infer _ =>
+  Provider.effect(
+    Resource,
+    effect {
+      /**
+       * Poll a Cloud Control request token until the operation settles.
+       * Operations are typically fast (seconds); budget ~5 min (60 * 5s).
+       * Returns the terminal ProgressEvent, failing on FAILED.
+       */
+      const waitForRequest = effect (requestToken: string, typeName: string) => {
+        const event = try (effect {
+          return try effect {
+            const e = (try cloudcontrol
+              .getResourceRequestStatus({ RequestToken: requestToken })).ProgressEvent
+
+            const status = e?.OperationStatus
+            if (
+              status === "PENDING"
+              || status === "IN_PROGRESS"
+              || status === "CANCEL_IN_PROGRESS"
+            ) {
+              throw new ResourceRequestNotSettled({
+                requestToken,
+                status: status ?? "UNKNOWN",
+              })
+            }
+            return e
+          }
+        }
+          |> Effect.retry(%, {
+            while: (e) => e._tag === "ResourceRequestNotSettled",
+            schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(60)]),
+          }))
+        if (event?.OperationStatus !== "SUCCESS") {
+          throw new ResourceRequestFailed({
+            typeName,
+            operation: event?.Operation ?? "UNKNOWN",
+            errorCode: event?.ErrorCode,
+            statusMessage: event?.StatusMessage,
+          })
+        }
+        return event
+      }
+
+      /** Read live resource properties; a missing resource reads as absent. */
+      const getResource = effect (typeName: string, identifier: string) =>
+        (try cloudcontrol.getResource({ TypeName: typeName, Identifier: identifier })).ResourceDescription catch effect (
+          e,
+        ) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+
+      return {
+        stables: ["typeName", "identifier"],
+
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((olds?.typeName ?? undefined) !== (news?.typeName ?? undefined)) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ output }) => {
+          if (output?.identifier === undefined) return undefined
+          const description = try getResource(output.typeName, output.identifier)
+          if (description?.Identifier === undefined) return undefined
+          return {
+            typeName: output.typeName,
+            identifier: description.Identifier,
+            properties: parseProperties(description.Properties),
+          }
+        },
+
+        reconcile: effect ({ news, output, session }) => {
+          const typeName = news.typeName
+
+          // 1. Observe — cloud state is authoritative; output is only an id
+          // cache.
+          let identifier = output?.identifier
+          let description = identifier !== undefined ? try getResource(typeName, identifier) : undefined
+
+          // 2. Ensure — create if missing, then poll to SUCCESS.
+          if (description === undefined) {
+            const created = try cloudcontrol.createResource({
+              TypeName: typeName,
+              TypeVersionId: news.typeVersionId,
+              RoleArn: news.roleArn,
+              DesiredState: JSON.stringify(news.desiredState),
+            })
+            const settled = try waitForRequest(created.ProgressEvent!.RequestToken!, typeName)
+            identifier = settled.Identifier!
+            description = try getResource(typeName, identifier)
+          } else {
+            // 3. Sync — patch only the drifted user-specified keys.
+            identifier = description.Identifier!
+            const patch = resourcePatch(
+              typeName,
+              parseProperties(description.Properties),
+              news.desiredState,
+            )
+            if (patch.length > 0) {
+              const updated = try cloudcontrol.updateResource({
+                TypeName: typeName,
+                TypeVersionId: news.typeVersionId,
+                RoleArn: news.roleArn,
+                Identifier: identifier,
+                PatchDocument: JSON.stringify(patch),
+              })
+              try waitForRequest(updated.ProgressEvent!.RequestToken!, typeName)
+              description = try getResource(typeName, identifier)
+            }
+          }
+
+          // 4. Return fresh attributes.
+          try session.note(identifier)
+          return {
+            typeName,
+            identifier,
+            properties: parseProperties(description?.Properties),
+          }
+        },
+
+        delete: effect ({ output }) => {
+          const deleted = (try cloudcontrol
+            .deleteResource({
+              TypeName: output.typeName,
+              Identifier: output.identifier,
+            })).ProgressEvent catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+          if (deleted?.RequestToken !== undefined) {
+            waitForRequest(deleted.RequestToken, output.typeName) catch effect (e) => match (e) {
+              when { _tag: "ResourceRequestFailed" }: try (e.errorCode === "NotFound" ? Effect.void : throw e);
+              default: throw e;
+            }
+          }
+        },
+
+        // Cloud Control's ListResources requires a TypeName; there is no
+        // global enumeration across every managed type, so the generic
+        // escape-hatch resource is not listable.
+        list: effect () => [],
+      }
+    },
+  )

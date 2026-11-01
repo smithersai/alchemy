@@ -1,8 +1,8 @@
 import type * as sesv2 from "@distilled.cloud/aws/sesv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ConfigurationSet } from "./ConfigurationSet.js";
-import type { EmailIdentity } from "./EmailIdentity.js";
+import type { ConfigurationSet } from "./ConfigurationSet.vibe";
+import type { EmailIdentity } from "./EmailIdentity.vibe";
 /**
  * The `sendBulkEmail` request with the binding-injected members removed:
  * `ConfigurationSetName` comes from the bound configuration set, and

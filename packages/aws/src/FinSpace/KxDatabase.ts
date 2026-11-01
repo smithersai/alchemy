@@ -7,7 +7,7 @@ import { Resource } from "alchemy/Resource";
 import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export class KxDatabaseInvalidProps extends Data.TaggedError("KxDatabaseInvalidProps")<{
   readonly message: string;

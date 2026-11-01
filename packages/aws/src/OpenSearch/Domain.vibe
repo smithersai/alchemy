@@ -1,0 +1,663 @@
+import * as opensearch from "@distilled.cloud/aws/opensearch"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { subsetDiffers } from "alchemy/Util/equal"
+import type { PolicyDocument } from "../IAM/Policy.vibe"
+import { normalizePolicyDocument, stringifyPolicyDocument } from "../IAM/Policy.vibe"
+import type { Providers } from "../Providers.vibe"
+import {
+  domainEndpoint,
+  isDomainActive,
+  isDomainDeletable,
+  readDomainTags,
+  repeatUntilDomainState,
+} from "./internal.vibe"
+
+export error OpenSearchDomainUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface DomainClusterConfig {
+  /**
+   * Instance type of the data nodes, e.g. `"t3.small.search"` (the cheapest
+   * general-purpose type) or `"r7g.large.search"`.
+   * @default "t3.small.search"
+   */
+  mutable instanceType?: opensearch.OpenSearchPartitionInstanceType
+  /**
+   * Number of data nodes in the cluster.
+   * @default 1
+   */
+  mutable instanceCount?: number
+  /**
+   * Whether dedicated master nodes are enabled.
+   */
+  mutable dedicatedMasterEnabled?: boolean
+  /**
+   * Instance type of the dedicated master nodes.
+   */
+  mutable dedicatedMasterType?: opensearch.OpenSearchPartitionInstanceType
+  /**
+   * Number of dedicated master nodes (3 or 5 recommended).
+   */
+  mutable dedicatedMasterCount?: number
+  /**
+   * Whether data is distributed across multiple Availability Zones.
+   */
+  mutable zoneAwarenessEnabled?: boolean
+  /**
+   * Number of Availability Zones (2 or 3) when zone awareness is enabled.
+   */
+  mutable availabilityZoneCount?: number
+  /**
+   * Whether UltraWarm storage is enabled. Not supported on t2/t3 instances.
+   */
+  mutable warmEnabled?: boolean
+  /**
+   * Instance type of the UltraWarm nodes.
+   */
+  mutable warmType?: opensearch.OpenSearchWarmPartitionInstanceType
+  /**
+   * Number of UltraWarm nodes.
+   */
+  mutable warmCount?: number
+  /**
+   * Whether the domain runs in Multi-AZ with Standby mode.
+   */
+  mutable multiAZWithStandbyEnabled?: boolean
+}
+
+export interface DomainEbsOptions {
+  /**
+   * Whether EBS volumes are attached to the data nodes. Required for
+   * EBS-only instance types like `t3.small.search`.
+   * @default true
+   */
+  mutable enabled?: boolean
+  /**
+   * EBS volume type.
+   * @default "gp3"
+   */
+  mutable volumeType?: opensearch.VolumeType
+  /**
+   * EBS volume size in GiB per data node.
+   * @default 10
+   */
+  mutable volumeSize?: number
+  /**
+   * Provisioned IOPS (io1/gp3 volumes).
+   */
+  mutable iops?: number
+  /**
+   * Provisioned throughput in MiB/s (gp3 volumes).
+   */
+  mutable throughput?: number
+}
+
+export interface DomainEncryptionAtRestOptions {
+  /**
+   * Whether encryption at rest is enabled. Enabling on an existing domain is
+   * an in-place update; DISABLING it is not supported and replaces the
+   * domain. Not supported on t2 instance types.
+   * @default true when `encryptionAtRest` is specified
+   */
+  mutable enabled?: boolean
+  /**
+   * Customer-managed KMS key ID used for encryption.
+   * @default the AWS-owned aws/es key
+   */
+  mutable kmsKeyId?: string
+}
+
+export interface DomainEndpointOptionsProps {
+  /**
+   * Whether all traffic to the domain must arrive over HTTPS.
+   */
+  mutable enforceHTTPS?: boolean
+  /**
+   * Minimum TLS version for HTTPS connections, e.g.
+   * `"Policy-Min-TLS-1-2-2019-07"`.
+   */
+  mutable tlsSecurityPolicy?: opensearch.TLSSecurityPolicy
+  /**
+   * Whether a custom endpoint is enabled for the domain.
+   */
+  mutable customEndpointEnabled?: boolean
+  /**
+   * Fully qualified custom endpoint, e.g. `"search.example.com"`.
+   */
+  mutable customEndpoint?: string
+  /**
+   * ACM certificate ARN for the custom endpoint.
+   */
+  mutable customEndpointCertificateArn?: string
+}
+
+export interface DomainSnapshotOptions {
+  /**
+   * Hour of the day (0-23, UTC) when automated snapshots are taken.
+   */
+  mutable automatedSnapshotStartHour?: number
+}
+
+export interface DomainVpcOptions {
+  /**
+   * Subnet IDs the domain's endpoints are placed into. One subnet unless
+   * zone awareness is enabled.
+   */
+  mutable subnetIds?: string[]
+  /**
+   * Security group IDs applied to the domain's network interfaces.
+   */
+  mutable securityGroupIds?: string[]
+}
+
+export interface DomainProps {
+  /**
+   * Name of the domain. 3-28 characters; lowercase letters, numbers, and
+   * hyphens; must start with a lowercase letter. If omitted, a deterministic
+   * physical name is generated. Changing the name replaces the domain.
+   */
+  mutable domainName?: string
+  /**
+   * Engine version, e.g. `"OpenSearch_2.19"` or `"Elasticsearch_7.10"`.
+   * Raising the version triggers an in-place engine upgrade.
+   * @default the latest OpenSearch version
+   */
+  mutable engineVersion?: string
+  /**
+   * Cluster topology: data node type/count, dedicated masters, zone
+   * awareness, and UltraWarm.
+   * @default a single t3.small.search data node
+   */
+  mutable clusterConfig?: DomainClusterConfig
+  /**
+   * EBS storage attached to each data node.
+   * @default 10 GiB gp3
+   */
+  mutable ebsOptions?: DomainEbsOptions
+  /**
+   * IAM resource-based access policy document controlling who can reach the
+   * domain endpoint, either as a structured {@link PolicyDocument} or a raw
+   * JSON string (escape hatch / adoption of pre-existing policies).
+   */
+  mutable accessPolicies?: PolicyDocument | string
+  /**
+   * IP address type of the endpoint — `"ipv4"` or `"dualstack"`.
+   */
+  mutable ipAddressType?: opensearch.IPAddressType
+  /**
+   * VPC placement for the domain endpoints. Omit for a public endpoint.
+   */
+  mutable vpcOptions?: DomainVpcOptions
+  /**
+   * Encryption of data at rest. Disabling on an existing domain replaces it.
+   */
+  mutable encryptionAtRest?: DomainEncryptionAtRestOptions
+  /**
+   * Whether node-to-node (in transit) encryption is enabled. Disabling on an
+   * existing domain replaces it.
+   */
+  mutable nodeToNodeEncryption?: boolean
+  /**
+   * Advanced OpenSearch settings, e.g.
+   * `{ "rest.action.multi.allow_explicit_index": "true" }`.
+   */
+  mutable advancedOptions?: Record<string, string>
+  /**
+   * HTTPS enforcement, TLS policy, and custom endpoint configuration.
+   */
+  mutable domainEndpointOptions?: DomainEndpointOptionsProps
+  /**
+   * Automated snapshot configuration.
+   */
+  mutable snapshotOptions?: DomainSnapshotOptions
+  /**
+   * User-defined tags for the domain.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Domain extends
+  Resource<
+    "AWS.OpenSearch.Domain",
+    DomainProps,
+    {
+      /**
+       * Name of the domain.
+       */
+      mutable domainName: string
+      /**
+       * ARN of the domain.
+       */
+      mutable domainArn: string
+      /**
+       * Unique identifier of the domain (`account-id/domain-name`).
+       */
+      mutable domainId: string
+      /**
+       * Engine version running on the domain (e.g. `OpenSearch_2.19`).
+       */
+      mutable engineVersion: string | undefined
+      /**
+       * Domain-specific HTTPS endpoint for search and index requests.
+       */
+      mutable endpoint: string | undefined
+      /**
+       * Whether domain creation has completed.
+       */
+      mutable created: boolean
+      /**
+       * Whether a configuration change is currently being applied.
+       */
+      mutable processing: boolean
+      /**
+       * Tags on the domain.
+       */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon OpenSearch Service domain — a managed OpenSearch/Elasticsearch
+ * cluster with a search/HTTP endpoint.
+ *
+ * Domains take roughly 15-25 minutes to provision (and about as long for
+ * blue/green configuration changes) and are billed per instance-hour while
+ * they exist. Destroy domains you are not using.
+ * ### Creating a Domain
+ * **Example:** Minimal Domain
+ * ```typescript
+ * // A single t3.small.search node with 10 GiB of gp3 EBS storage.
+ * const domain = yield* Domain("Search", {});
+ * ```
+ *
+ * **Example:** Encrypted Domain with Access Policy
+ * ```typescript
+ * const domain = yield* Domain("Search", {
+ *   engineVersion: "OpenSearch_2.19",
+ *   clusterConfig: { instanceType: "t3.small.search", instanceCount: 1 },
+ *   ebsOptions: { volumeType: "gp3", volumeSize: 10 },
+ *   encryptionAtRest: { enabled: true },
+ *   nodeToNodeEncryption: true,
+ *   domainEndpointOptions: {
+ *     enforceHTTPS: true,
+ *     tlsSecurityPolicy: "Policy-Min-TLS-1-2-2019-07",
+ *   },
+ *   accessPolicies: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Allow",
+ *         Principal: { AWS: `arn:aws:iam::${accountId}:root` },
+ *         Action: ["es:*"],
+ *         Resource: `arn:aws:es:${region}:${accountId}:domain/*`,
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * ### Multi-AZ Cluster
+ * **Example:** Zone-Aware Cluster
+ * ```typescript
+ * const domain = yield* Domain("Search", {
+ *   clusterConfig: {
+ *     instanceType: "r7g.large.search",
+ *     instanceCount: 2,
+ *     zoneAwarenessEnabled: true,
+ *     availabilityZoneCount: 2,
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Domain = Resource<Domain>("AWS.OpenSearch.Domain")
+
+const DEFAULT_INSTANCE_TYPE = "t3.small.search"
+
+const toClusterConfig = (config: DomainClusterConfig | undefined): opensearch.ClusterConfig => ({
+  InstanceType: config?.instanceType ?? DEFAULT_INSTANCE_TYPE,
+  InstanceCount: config?.instanceCount ?? 1,
+  DedicatedMasterEnabled: config?.dedicatedMasterEnabled,
+  DedicatedMasterType: config?.dedicatedMasterType,
+  DedicatedMasterCount: config?.dedicatedMasterCount,
+  ZoneAwarenessEnabled: config?.zoneAwarenessEnabled,
+  ZoneAwarenessConfig: config?.availabilityZoneCount !== undefined
+    ? { AvailabilityZoneCount: config.availabilityZoneCount }
+    : undefined,
+  WarmEnabled: config?.warmEnabled,
+  WarmType: config?.warmType,
+  WarmCount: config?.warmCount,
+  MultiAZWithStandbyEnabled: config?.multiAZWithStandbyEnabled,
+})
+
+const toEbsOptions = (ebs: DomainEbsOptions | undefined): opensearch.EBSOptions =>
+  ebs?.enabled === false
+    ? { EBSEnabled: false }
+    : {
+      EBSEnabled: true,
+      VolumeType: ebs?.volumeType ?? "gp3",
+      VolumeSize: ebs?.volumeSize ?? 10,
+      Iops: ebs?.iops,
+      Throughput: ebs?.throughput,
+    }
+
+const toEndpointOptions = (
+  options: DomainEndpointOptionsProps | undefined,
+): opensearch.DomainEndpointOptions | undefined =>
+  options === undefined
+    ? undefined
+    : {
+      EnforceHTTPS: options.enforceHTTPS,
+      TLSSecurityPolicy: options.tlsSecurityPolicy,
+      CustomEndpointEnabled: options.customEndpointEnabled,
+      CustomEndpoint: options.customEndpoint,
+      CustomEndpointCertificateArn: options.customEndpointCertificateArn,
+    }
+
+const toAccessPolicies = (policy: PolicyDocument | string | undefined): string | undefined =>
+  policy === undefined
+    ? undefined
+    : typeof policy === "string"
+    ? policy
+    : stringifyPolicyDocument(policy)
+
+const toVpcOptions = (options: DomainVpcOptions | undefined): opensearch.VPCOptions | undefined =>
+  options === undefined
+    ? undefined
+    : {
+      SubnetIds: options.subnetIds,
+      SecurityGroupIds: options.securityGroupIds,
+    }
+
+export const DomainProvider = (): infer _ =>
+  Provider.effect(
+    Domain,
+    effect {
+      const toName = effect (
+        id: string,
+        props: DomainProps,
+      ) => (props.domainName ? props.domainName : try createPhysicalName({ id, maxLength: 28, lowercase: true }))
+
+      const readDomain = effect (name: string) =>
+        (try opensearch.describeDomain({ DomainName: name })).DomainStatus catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      const waitForActive = effect (name: string) => {
+        const domain = try repeatUntilDomainState(readDomain(name), isDomainActive)
+        if (domain === undefined) {
+          throw new OpenSearchDomainUnexpectedResponse({
+            message: `OpenSearch domain '${name}' not found while waiting`,
+          })
+        }
+        return domain
+      }
+
+      const toAttrs = effect (domain: opensearch.DomainStatus) => ({
+        domainName: domain.DomainName,
+        domainArn: domain.ARN,
+        domainId: domain.DomainId,
+        engineVersion: domain.EngineVersion,
+        endpoint: domainEndpoint(domain),
+        created: domain.Created === true,
+        processing: domain.Processing === true,
+        tags: try readDomainTags(domain.ARN),
+      })
+
+      return {
+        stables: ["domainName", "domainArn", "domainId"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          const o: DomainProps = olds ?? {}
+          const n: DomainProps = news ?? {}
+          if ((try toName(id, o)) !== (try toName(id, n))) {
+            return { action: "replace" } as const
+          }
+          // Encryption at rest and node-to-node encryption can be ENABLED
+          // in place but never disabled — disabling replaces the domain.
+          if (
+            o.encryptionAtRest?.enabled !== false
+            && o.encryptionAtRest !== undefined
+            && n.encryptionAtRest?.enabled === false
+          ) {
+            return { action: "replace" } as const
+          }
+          if (o.nodeToNodeEncryption === true && n.nodeToNodeEncryption === false) {
+            return { action: "replace" } as const
+          }
+          // Moving a domain between public and VPC endpoints replaces it.
+          if ((o.vpcOptions === undefined) !== (n.vpcOptions === undefined)) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.domainName ?? (try toName(id, olds ?? {}))
+          const domain = try readDomain(name)
+          if (domain === undefined) return undefined
+          const attrs = try toAttrs(domain)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const props = news!
+          const name = output?.domainName ?? (try toName(id, props))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...props.tags }
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = try readDomain(name)
+
+          // 2. Ensure — create if missing; tolerate AlreadyExists as a race.
+          if (observed === undefined) {
+            opensearch
+              .createDomain({
+                DomainName: name,
+                EngineVersion: props.engineVersion,
+                ClusterConfig: toClusterConfig(props.clusterConfig),
+                EBSOptions: toEbsOptions(props.ebsOptions),
+                AccessPolicies: toAccessPolicies(props.accessPolicies),
+                IPAddressType: props.ipAddressType,
+                SnapshotOptions: props.snapshotOptions !== undefined
+                  ? {
+                    AutomatedSnapshotStartHour: props.snapshotOptions.automatedSnapshotStartHour,
+                  }
+                  : undefined,
+                VPCOptions: toVpcOptions(props.vpcOptions),
+                EncryptionAtRestOptions: props.encryptionAtRest !== undefined
+                  ? {
+                    Enabled: props.encryptionAtRest.enabled ?? true,
+                    KmsKeyId: props.encryptionAtRest.kmsKeyId,
+                  }
+                  : undefined,
+                NodeToNodeEncryptionOptions: props.nodeToNodeEncryption !== undefined
+                  ? { Enabled: props.nodeToNodeEncryption }
+                  : undefined,
+                AdvancedOptions: props.advancedOptions,
+                DomainEndpointOptions: toEndpointOptions(props.domainEndpointOptions),
+                TagList: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                default: throw e;
+              }
+          }
+
+          // Provisioning and blue/green config changes both surface as
+          // Processing=true; wait (bounded) so config updates do not fail.
+          observed = try waitForActive(name)
+
+          // 3. Sync — compute the update delta from OBSERVED state.
+          const update: opensearch.UpdateDomainConfigRequest = {
+            DomainName: name,
+          }
+          let mutated = false
+
+          const desiredCluster = toClusterConfig(props.clusterConfig)
+          if (subsetDiffers(desiredCluster, observed.ClusterConfig)) {
+            update.ClusterConfig = desiredCluster
+            mutated = true
+          }
+          const desiredEbs = toEbsOptions(props.ebsOptions)
+          if (subsetDiffers(desiredEbs, observed.EBSOptions)) {
+            update.EBSOptions = desiredEbs
+            mutated = true
+          }
+          // Drift-compare canonicalized documents so key order / encoding
+          // differences in what OpenSearch echoes back never cause a
+          // spurious blue/green config change on re-deploy.
+          if (
+            props.accessPolicies !== undefined
+            && normalizePolicyDocument(props.accessPolicies)
+              !== normalizePolicyDocument(observed.AccessPolicies ?? "")
+          ) {
+            update.AccessPolicies = toAccessPolicies(props.accessPolicies)
+            mutated = true
+          }
+          if (props.ipAddressType !== undefined && props.ipAddressType !== observed.IPAddressType) {
+            update.IPAddressType = props.ipAddressType
+            mutated = true
+          }
+          if (
+            props.snapshotOptions?.automatedSnapshotStartHour !== undefined
+            && props.snapshotOptions.automatedSnapshotStartHour
+              !== observed.SnapshotOptions?.AutomatedSnapshotStartHour
+          ) {
+            update.SnapshotOptions = {
+              AutomatedSnapshotStartHour: props.snapshotOptions.automatedSnapshotStartHour,
+            }
+            mutated = true
+          }
+          const desiredVpc = toVpcOptions(props.vpcOptions)
+          if (
+            desiredVpc !== undefined
+            && subsetDiffers(desiredVpc, {
+              SubnetIds: observed.VPCOptions?.SubnetIds,
+              SecurityGroupIds: observed.VPCOptions?.SecurityGroupIds,
+            })
+          ) {
+            update.VPCOptions = desiredVpc
+            mutated = true
+          }
+          if (
+            props.advancedOptions !== undefined
+            && subsetDiffers(props.advancedOptions, observed.AdvancedOptions)
+          ) {
+            update.AdvancedOptions = props.advancedOptions
+            mutated = true
+          }
+          const desiredEndpointOptions = toEndpointOptions(props.domainEndpointOptions)
+          if (
+            desiredEndpointOptions !== undefined
+            && subsetDiffers(desiredEndpointOptions, observed.DomainEndpointOptions)
+          ) {
+            update.DomainEndpointOptions = desiredEndpointOptions
+            mutated = true
+          }
+          // Encryption can only be enabled in place (disable = replacement,
+          // handled by diff).
+          if (
+            props.encryptionAtRest !== undefined
+            && props.encryptionAtRest.enabled !== false
+            && observed.EncryptionAtRestOptions?.Enabled !== true
+          ) {
+            update.EncryptionAtRestOptions = {
+              Enabled: true,
+              KmsKeyId: props.encryptionAtRest.kmsKeyId,
+            }
+            mutated = true
+          }
+          if (
+            props.nodeToNodeEncryption === true
+            && observed.NodeToNodeEncryptionOptions?.Enabled !== true
+          ) {
+            update.NodeToNodeEncryptionOptions = { Enabled: true }
+            mutated = true
+          }
+
+          if (mutated) {
+            try opensearch.updateDomainConfig(update)
+            observed = try waitForActive(name)
+          }
+
+          // 3b. Engine upgrades run through the dedicated upgrade API.
+          if (
+            props.engineVersion !== undefined
+            && observed.EngineVersion !== undefined
+            && observed.EngineVersion !== props.engineVersion
+          ) {
+            try opensearch.upgradeDomain({
+              DomainName: name,
+              TargetVersion: props.engineVersion,
+            })
+            observed = try waitForActive(name)
+          }
+
+          // 3c. Sync tags — diff against OBSERVED cloud tags.
+          const observedTags = try readDomainTags(observed.ARN)
+          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0) {
+            try opensearch.addTags({ ARN: observed.ARN, TagList: upsert })
+          }
+          if (removed.length > 0) {
+            try opensearch.removeTags({
+              ARN: observed.ARN,
+              TagKeys: removed,
+            })
+          }
+
+          try session.note(name)
+          return try toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          const name = output.domainName
+          // A domain mid-create/config-change may reject deletion — wait
+          // (bounded, tolerant) for it to settle first. Already deleting
+          // (or gone) is success.
+          repeatUntilDomainState(readDomain(name), isDomainDeletable) catch () => undefined
+          opensearch
+            .deleteDomain({ DomainName: name }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        list: effect () =>
+          try (effect {
+            return (try (effect {
+              return ((try opensearch.listDomainNames({})).DomainNames ?? [])
+                .map((info) => info.DomainName)
+                .filter((name): name is string => name !== undefined)
+            }
+              |> Effect.flatMap(
+                %,
+                Effect.forEach(
+                  effect (name) =>
+                    (try opensearch.describeDomain({ DomainName: name })).DomainStatus catch effect (e) => match (e) {
+                      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                      default: throw e;
+                    },
+                  { concurrency: 4 },
+                ),
+              ))).filter((domain): domain is opensearch.DomainStatus => domain !== undefined)
+          }
+            |> Effect.flatMap(%, Effect.forEach((domain) => toAttrs(domain), { concurrency: 4 }))),
+      }
+    },
+  )

@@ -2,7 +2,7 @@ import type * as ivsrealtime from "@distilled.cloud/aws/ivs-realtime";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
-import type { Stage } from "./Stage.js";
+import type { Stage } from "./Stage.vibe";
 /**
  * The `stageArn` is injected by the binding from the bound stage, and the
  * wire `duration` (whole minutes) is expressed as a `Duration.Input`.

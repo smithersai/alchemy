@@ -1,7 +1,7 @@
 import type * as bda from "@distilled.cloud/aws/bedrock-data-automation";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DataAutomationLibrary } from "./DataAutomationLibrary.js";
+import type { DataAutomationLibrary } from "./DataAutomationLibrary.vibe";
 /**
  * `GetDataAutomationLibraryEntity` request with `libraryArn` injected from
  * the bound {@link DataAutomationLibrary}.

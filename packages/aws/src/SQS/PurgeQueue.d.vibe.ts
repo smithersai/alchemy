@@ -1,7 +1,7 @@
 import type * as sqs from "@distilled.cloud/aws/sqs";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Queue } from "./Queue.js";
+import type { Queue } from "./Queue.vibe";
 /**
  * Runtime binding for `sqs:PurgeQueue`.
  *

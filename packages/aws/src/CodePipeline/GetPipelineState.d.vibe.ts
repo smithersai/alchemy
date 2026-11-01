@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/codepipeline";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Pipeline } from "./Pipeline.js";
+import type { Pipeline } from "./Pipeline.vibe";
 /**
  * Runtime binding for `codepipeline:GetPipelineState` — returns the current
  * state of every stage and action in the pipeline, including in-flight

@@ -4,10 +4,10 @@ import type { Input } from "alchemy/Input";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import type { SecurityGroupId } from "../EC2/SecurityGroup.js";
+import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
 import type { SubnetId } from "../EC2/Subnet.js";
 import type { Secret } from "../SecretsManager/Secret.js";
-import type { DBCluster } from "./DBCluster.js";
+import type { DBCluster } from "./DBCluster.vibe";
 /**
  * Connection descriptor for a DocumentDB cluster's MongoDB-compatible data
  * plane. The `url` field is a ready-to-use `mongodb://` connection string —

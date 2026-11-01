@@ -1,0 +1,153 @@
+import * as paymentcryptography from "@distilled.cloud/aws/payment-cryptography"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface AliasProps {
+  /**
+   * The alias name. Must begin with `alias/` and may contain alphanumeric
+   * characters, forward slashes, underscores and hyphens. Changing it
+   * replaces the alias.
+   * @default alias/${app}-${stage}-${id}
+   */
+  mutable aliasName?: string
+  /**
+   * The ARN of the key the alias points to. Omit to create an unattached
+   * alias; set later to point it at a key. Updated in place.
+   */
+  mutable keyArn?: string
+}
+
+export interface Alias extends
+  Resource<
+    "AWS.PaymentCryptography.Alias",
+    AliasProps,
+    {
+      /**
+       * Name of the alias (starts with `alias/`).
+       */
+      mutable aliasName: string
+      /**
+       * ARN of the key the alias points to, if attached.
+       */
+      mutable keyArn: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A friendly name for an AWS Payment Cryptography {@link Key}. Aliases give
+ * keys a stable, human-readable identifier that survives key rotation — the
+ * alias can be repointed to a new key without touching consumers.
+ * ### Creating Aliases
+ * **Example:** Alias attached to a key
+ * ```typescript
+ * import * as PaymentCryptography from "@alchemy.run/aws/PaymentCryptography";
+ *
+ * const key = yield* PaymentCryptography.Key("DataKey", { keyAttributes: { ... } });
+ * const alias = yield* PaymentCryptography.Alias("DataKeyAlias", {
+ *   keyArn: key.keyArn,
+ * });
+ * ```
+ *
+ * **Example:** Alias with an explicit name
+ * ```typescript
+ * const alias = yield* PaymentCryptography.Alias("DataKeyAlias", {
+ *   aliasName: "alias/payments/data-encryption",
+ *   keyArn: key.keyArn,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Alias = Resource<Alias>("AWS.PaymentCryptography.Alias")
+
+const toAttrs = (alias: paymentcryptography.Alias): Alias["Attributes"] => ({
+  aliasName: alias.AliasName,
+  keyArn: alias.KeyArn,
+})
+
+export const AliasProvider = (): infer _ =>
+  Provider.effect(
+    Alias,
+    effect {
+      const createAliasName = effect (id: string, props: AliasProps) => {
+        if (props.aliasName) {
+          return props.aliasName
+        }
+        const baseName = try createPhysicalName({
+          id,
+          maxLength: 256 - "alias/".length,
+        })
+        return `alias/${baseName}`
+      }
+
+      const observeAlias = effect (aliasName: string) =>
+        (try paymentcryptography.getAlias({ AliasName: aliasName })).Alias catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      return Alias.Provider.of({
+        stables: ["aliasName"],
+        list: effect () =>
+          Array.from(
+            try (paymentcryptography.listAliases.items({})
+              |> Stream.runCollect(%)),
+          ).map(toAttrs),
+        read: effect ({ id, olds, output }) => {
+          const aliasName = output?.aliasName ?? (try createAliasName(id, olds ?? {}))
+          const alias = try observeAlias(aliasName)
+          if (alias === undefined) return undefined
+          return toAttrs(alias)
+        },
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createAliasName(id, olds)
+          const newName = try createAliasName(id, news)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+          // fall through: undefined → default update (keyArn repoint)
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const aliasName = output?.aliasName ?? (try createAliasName(id, news))
+
+          // 1. Observe — cloud state is authoritative.
+          let alias = try observeAlias(aliasName)
+
+          // 2. Ensure — create when missing; a concurrent create surfaces as
+          //    ConflictException, which resolves by re-observing.
+          if (alias === undefined) {
+            alias = (try paymentcryptography
+              .createAlias({ AliasName: aliasName, KeyArn: news.keyArn })).Alias catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: (try paymentcryptography
+                  .getAlias({ AliasName: aliasName })).Alias;
+                default: throw e;
+              }
+          }
+
+          // 3. Sync — repoint the alias when the observed target differs
+          //    from the desired one (including detaching).
+          if (alias.KeyArn !== news.keyArn) {
+            alias = (try paymentcryptography
+              .updateAlias({ AliasName: aliasName, KeyArn: news.keyArn })).Alias
+          }
+
+          try session.note(aliasName)
+          return toAttrs(alias)
+        },
+        delete: effect ({ output }) => {
+          paymentcryptography
+            .deleteAlias({ AliasName: output.aliasName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

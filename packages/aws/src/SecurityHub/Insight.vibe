@@ -1,0 +1,189 @@
+import * as securityhub from "@distilled.cloud/aws/securityhub"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface InsightProps {
+  /**
+   * Name of the insight. If omitted, a unique name is generated. Updatable
+   * in place.
+   */
+  mutable name?: string
+
+  /**
+   * The finding filters the insight aggregates over, e.g.
+   * `{ SeverityLabel: [{ Value: "CRITICAL", Comparison: "EQUALS" }] }`.
+   * Updatable in place.
+   */
+  mutable filters: securityhub.AwsSecurityFindingFilters
+
+  /**
+   * The finding attribute results are grouped by, e.g. `ResourceId`,
+   * `SeverityLabel`, `AwsAccountId`. Updatable in place.
+   */
+  mutable groupByAttribute: string
+}
+
+/** @resource */
+export interface Insight extends
+  Resource<
+    "AWS.SecurityHub.Insight",
+    InsightProps,
+    {
+      /** ARN of the insight (its identity). */
+      mutable insightArn: string
+      /** Name of the insight. */
+      mutable name: string
+      /** The attribute results are grouped by. */
+      mutable groupByAttribute: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A Security Hub custom insight — a saved finding query grouped by an
+ * attribute. Read its aggregated results at runtime with the
+ * {@link GetInsightResults} binding.
+ *
+ * ### Creating an Insight
+ * **Example:** Critical Findings by Resource
+ * ```typescript
+ * const insight = yield* AWS.SecurityHub.Insight("CriticalByResource", {
+ *   filters: {
+ *     SeverityLabel: [{ Value: "CRITICAL", Comparison: "EQUALS" }],
+ *     RecordState: [{ Value: "ACTIVE", Comparison: "EQUALS" }],
+ *   },
+ *   groupByAttribute: "ResourceId",
+ * });
+ * ```
+ *
+ * **Example:** Read Insight Results at Runtime
+ * ```typescript
+ * const getInsightResults = yield* AWS.SecurityHub.GetInsightResults();
+ * const { InsightResults } = yield* getInsightResults({
+ *   InsightArn: insight.insightArn,
+ * });
+ * ```
+ */
+const InsightResource = Resource<Insight>("AWS.SecurityHub.Insight")
+
+export { InsightResource as Insight }
+
+export const InsightProvider = (): infer _ =>
+  Provider.effect(
+    InsightResource,
+    effect {
+      const toName = effect (
+        id: string,
+        props: { mutable name?: string },
+      ) => (props.name ? props.name : try createPhysicalName({ id, maxLength: 128 }))
+
+      const getInsight = effect (arn: string) =>
+        ((try securityhub.getInsights({ InsightArns: [arn] })).Insights?.[0]) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "InvalidAccessException" }: try Effect.undefined;
+          when { _tag: "InvalidInputException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      const listInsights = effect {
+        return (Array.from(
+          try (securityhub.getInsights.pages({})
+            |> Stream.runCollect(%)),
+        ).flatMap((page) => page.Insights ?? [])) catch effect (e) => match (e) {
+          when { _tag: "InvalidAccessException" }: [] as securityhub.Insight[];
+          default: throw e;
+        }
+      }
+
+      const buildAttrs = (i: securityhub.Insight): infer _ => ({
+        insightArn: i.InsightArn!,
+        name: i.Name ?? "",
+        groupByAttribute: i.GroupByAttribute ?? "",
+      })
+
+      return {
+        stables: ["insightArn"],
+        read: effect ({ id, olds, output }) => {
+          if (output?.insightArn) {
+            const live = try getInsight(output.insightArn)
+            return live ? buildAttrs(live) : undefined
+          }
+          // No prior state — find by (deterministic) name. Insights cannot be
+          // tagged; the generated name embeds the app/stage physical-name
+          // hash, so a match is ours.
+          const name = try toName(id, olds ?? {})
+          const all = try listInsights
+          const match = all.find((i) => i.Name === name)
+          return match ? buildAttrs(match) : undefined
+        },
+        list: effect () => (try listInsights).map(buildAttrs),
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try toName(id, news)
+
+          // 1. OBSERVE — by cached ARN first, then by name.
+          let live: securityhub.Insight | undefined = output?.insightArn
+            ? try getInsight(output.insightArn)
+            : undefined
+          if (!live) {
+            const all = try listInsights
+            live = all.find((i) => i.Name === name)
+          }
+
+          let final: securityhub.Insight
+          if (!live) {
+            // 2. ENSURE.
+            const { InsightArn } = try securityhub.createInsight({
+              Name: name,
+              Filters: news.filters,
+              GroupByAttribute: news.groupByAttribute,
+            })
+            // The read-after-create may lag — fall back to the desired state.
+            final = (try getInsight(InsightArn)) ?? {
+              InsightArn,
+              Name: name,
+              Filters: news.filters,
+              GroupByAttribute: news.groupByAttribute,
+            }
+          } else if (
+            live.Name !== name
+            || live.GroupByAttribute !== news.groupByAttribute
+            || JSON.stringify(live.Filters) !== JSON.stringify(news.filters)
+          ) {
+            // 3. SYNC — observed ↔ desired.
+            const arn = live.InsightArn!
+            try securityhub.updateInsight({
+              InsightArn: arn,
+              Name: name,
+              Filters: news.filters,
+              GroupByAttribute: news.groupByAttribute,
+            })
+            final = (try getInsight(arn)) ?? {
+              InsightArn: arn,
+              Name: name,
+              Filters: news.filters,
+              GroupByAttribute: news.groupByAttribute,
+            }
+          } else {
+            final = live
+          }
+
+          // 4. RETURN fresh attributes.
+          try session.note(final.InsightArn!)
+          return buildAttrs(final)
+        },
+        delete: effect ({ output }) => {
+          // Idempotent — the insight (or the whole hub) may already be gone.
+          securityhub.deleteInsight({ InsightArn: output.insightArn }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "InvalidAccessException" }: try Effect.void;
+            when { _tag: "InvalidInputException" }: try Effect.void;
+            default: throw e;
+          }
+        },
+      }
+    },
+  )

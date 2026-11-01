@@ -1,7 +1,7 @@
 import type * as ce from "@distilled.cloud/aws/cost-explorer";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AnomalyMonitor } from "./AnomalyMonitor.js";
+import type { AnomalyMonitor } from "./AnomalyMonitor.vibe";
 /**
  * Request for {@link GetAnomalies} — the bound monitor's ARN is
  * injected automatically.

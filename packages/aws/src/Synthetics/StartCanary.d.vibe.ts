@@ -1,7 +1,7 @@
 import type * as synthetics from "@distilled.cloud/aws/synthetics";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Canary } from "./Canary.js";
+import type { Canary } from "./Canary.vibe";
 /**
  * Runtime binding for `synthetics:StartCanary` — start the bound
  * {@link Canary} running on its configured schedule (e.g. trigger an

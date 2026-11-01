@@ -1,2 +1,2 @@
 export * from "./Statements.vibe";
-export * from "./StatementsHttp.ts";
+export * from "./StatementsHttp.vibe";

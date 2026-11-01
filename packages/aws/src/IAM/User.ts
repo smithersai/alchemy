@@ -7,9 +7,9 @@ import { createInternalTags, createTagsList, diffTags, hasTags } from "alchemy/T
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { parsePolicyDocument, stringifyPolicyDocument, toTagRecord } from "./common.ts";
-import type { PolicyDocument } from "./Policy.ts";
+import type { PolicyDocument } from "./Policy.vibe";
 
 export class UserConflict extends Data.TaggedError("UserConflict")<{
   readonly message: string;

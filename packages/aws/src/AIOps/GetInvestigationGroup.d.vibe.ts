@@ -1,7 +1,7 @@
 import type * as aiops from "@distilled.cloud/aws/aiops";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { InvestigationGroup } from "./InvestigationGroup.js";
+import type { InvestigationGroup } from "./InvestigationGroup.vibe";
 /**
  * Runtime binding for `aiops:GetInvestigationGroup`.
  *

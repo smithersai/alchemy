@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Domain } from "./Domain.js";
+import type { Domain } from "./Domain.vibe";
 /**
  * Shared scaffolding for SimpleDB per-operation bindings.
  *

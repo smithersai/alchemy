@@ -1,0 +1,236 @@
+import * as servicecatalog from "@distilled.cloud/aws/service-catalog"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, diffTags, hasAlchemyTags, tagRecord } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { idempotencyToken, retryWhileResourceInUse } from "./internal.vibe"
+
+export interface PortfolioProps {
+  /**
+   * Display name of the portfolio (1-100 characters). Portfolio display
+   * names are not unique in an account; the portfolio's identity is its
+   * auto-generated ID. If omitted, a unique name is generated from the app,
+   * stage, and logical ID. Display name changes are applied in place.
+   */
+  mutable displayName?: string
+  /**
+   * Name of the person or organization that owns the portfolio
+   * (for example a team name). Updatable in place.
+   */
+  mutable providerName: string
+  /**
+   * Description of the portfolio. Updatable in place.
+   */
+  mutable description?: string
+  /**
+   * Tags to apply to the portfolio. Merged with internal Alchemy tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Portfolio extends
+  Resource<
+    "AWS.ServiceCatalog.Portfolio",
+    PortfolioProps,
+    {
+      /** The auto-generated portfolio ID (e.g. `port-abc123`). */
+      mutable portfolioId: string
+      /** The ARN of the portfolio. */
+      mutable portfolioArn: string
+      /** The display name of the portfolio. */
+      mutable portfolioName: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Service Catalog portfolio — a container that organizes products
+ * and grants access to them for a set of principals.
+ *
+ * ### Creating a Portfolio
+ * **Example:** Basic Portfolio
+ * ```typescript
+ * import * as ServiceCatalog from "@alchemy.run/aws/ServiceCatalog";
+ *
+ * const portfolio = yield* ServiceCatalog.Portfolio("Tools", {
+ *   providerName: "platform-team",
+ * });
+ * ```
+ *
+ * **Example:** Portfolio with Description and Tags
+ * ```typescript
+ * const portfolio = yield* ServiceCatalog.Portfolio("Tools", {
+ *   displayName: "engineering-tools",
+ *   providerName: "platform-team",
+ *   description: "Self-service infrastructure for engineering",
+ *   tags: { team: "platform" },
+ * });
+ * ```
+ *
+ * ### Granting Access
+ * **Example:** Associate a principal (IAM role)
+ * ```typescript
+ * yield* ServiceCatalog.PrincipalPortfolioAssociation("DevAccess", {
+ *   portfolioId: portfolio.portfolioId,
+ *   principalArn: role.roleArn,
+ * });
+ * ```
+ *
+ * ### Adding Products
+ * **Example:** Associate a product
+ * ```typescript
+ * yield* ServiceCatalog.PortfolioProductAssociation("ToolsVpcProduct", {
+ *   portfolioId: portfolio.portfolioId,
+ *   productId: product.productId,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Portfolio = Resource<Portfolio>("AWS.ServiceCatalog.Portfolio")
+
+export const PortfolioProvider = (): infer _ =>
+  Provider.effect(
+    Portfolio,
+    effect {
+      const createName = effect (
+        id: string,
+        props: Pick<PortfolioProps, "displayName">,
+      ) => props.displayName ?? (try createPhysicalName({ id, maxLength: 100 }))
+
+      // Portfolio display names are not unique, so the fallback lookup
+      // (state lost, no cached ID) scans for the deterministic name we
+      // would have created and takes the first match.
+      const findByDisplayName = effect (displayName: string) =>
+        Array.from(
+          try (servicecatalog.listPortfolios.pages({})
+            |> Stream.runCollect(%)),
+        )
+          .flatMap((page) => page.PortfolioDetails ?? [])
+          .find((p) => p.DisplayName === displayName)
+
+      const observe = effect (portfolioId: string) =>
+        servicecatalog
+          .describePortfolio({ Id: portfolioId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      return Portfolio.Provider.of({
+        stables: ["portfolioId", "portfolioArn"],
+        list: effect () =>
+          Array.from(
+            try (servicecatalog.listPortfolios.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.PortfolioDetails ?? [])
+            .filter((d) => d.Id != null && d.ARN != null && d.DisplayName != null)
+            .map((d) => ({
+              portfolioId: d.Id!,
+              portfolioArn: d.ARN!,
+              portfolioName: d.DisplayName!,
+            })),
+        read: effect ({ id, olds, output }) => {
+          let portfolioId = output?.portfolioId
+          if (portfolioId === undefined) {
+            const displayName = try createName(id, olds ?? {})
+            const found = try findByDisplayName(displayName)
+            portfolioId = found?.Id
+          }
+          if (portfolioId === undefined) return undefined
+          const described = try observe(portfolioId)
+          const detail = described?.PortfolioDetail
+          if (!detail?.Id) return undefined
+          const attrs = {
+            portfolioId: detail.Id,
+            portfolioArn: detail.ARN!,
+            portfolioName: detail.DisplayName!,
+          }
+          return (try hasAlchemyTags(id, tagRecord(described?.Tags))) ? attrs : Unowned(attrs)
+        },
+        // Display name, provider name, description, and tags are all
+        // updatable in place — no diff needed (identity is the generated ID).
+        reconcile: effect ({ id, news, output, session, instanceId }) => {
+          const displayName = try createName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags: Record<string, string> = {
+            ...news.tags,
+            ...internalTags,
+          }
+
+          // 1. OBSERVE — cloud is authoritative; output caches the ID only.
+          let described = output?.portfolioId ? try observe(output.portfolioId) : undefined
+          if (!described?.PortfolioDetail?.Id) {
+            const found = try findByDisplayName(displayName)
+            described = found?.Id ? try observe(found.Id) : undefined
+          }
+
+          // 2. ENSURE — create when missing. The idempotency token (derived
+          // from the instance ID) makes a retried create converge on the
+          // same portfolio instead of duplicating it.
+          if (!described?.PortfolioDetail?.Id) {
+            const created = try servicecatalog.createPortfolio({
+              DisplayName: displayName,
+              ProviderName: news.providerName,
+              Description: news.description,
+              Tags: createTagsList(desiredTags),
+              IdempotencyToken: idempotencyToken(instanceId),
+            })
+            described = try observe(created.PortfolioDetail!.Id!)
+          }
+
+          const detail = described!.PortfolioDetail!
+          const portfolioId = detail.Id!
+
+          // 3. SYNC — diff observed details + tags against desired and apply
+          // only the delta in a single updatePortfolio call.
+          const observedTags = tagRecord(described!.Tags)
+          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          const changes: {
+            mutable DisplayName?: string
+            mutable ProviderName?: string
+            mutable Description?: string
+          } = {}
+          if (detail.DisplayName !== displayName) {
+            changes.DisplayName = displayName
+          }
+          if (detail.ProviderName !== news.providerName) {
+            changes.ProviderName = news.providerName
+          }
+          if (news.description !== undefined && detail.Description !== news.description) {
+            changes.Description = news.description
+          }
+          if (Object.keys(changes).length > 0 || upsert.length > 0 || removed.length > 0) {
+            try servicecatalog.updatePortfolio({
+              Id: portfolioId,
+              ...changes,
+              AddTags: upsert.length > 0 ? upsert : undefined,
+              RemoveTags: removed.length > 0 ? removed : undefined,
+            })
+          }
+
+          try session.note(portfolioId)
+          return {
+            portfolioId,
+            portfolioArn: detail.ARN!,
+            portfolioName: displayName,
+          }
+        },
+        delete: effect ({ output }) => {
+          // Disassociations of products/principals settle asynchronously, so
+          // a portfolio delete right after teardown of its associations can
+          // transiently report ResourceInUseException.
+          retryWhileResourceInUse(
+            servicecatalog.deletePortfolio({ Id: output.portfolioId }),
+          ) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

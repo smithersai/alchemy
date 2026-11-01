@@ -18,7 +18,7 @@ export * from "./RegisterAdmin.vibe";
 export * from "./RegisterAdminHttp.vibe";
 export * from "./SendInvites.vibe";
 export * from "./SendInvitesHttp.vibe";
-export * from "./Space.ts";
+export * from "./Space.vibe";
 export * from "./UpdateChannel.vibe";
 export * from "./UpdateChannelHttp.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding and intentionally NOT exported.

@@ -1,4 +1,4 @@
-export * from "./Activity.ts";
+export * from "./Activity.vibe";
 export * as Sfn from "./Asl/index.ts";
 export * from "./DescribeExecution.vibe";
 export * from "./DescribeExecutionHttp.vibe";

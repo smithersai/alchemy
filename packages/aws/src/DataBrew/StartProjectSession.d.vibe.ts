@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/databrew";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Project } from "./Project.js";
+import type { Project } from "./Project.vibe";
 export interface StartProjectSessionRequest extends Omit<SVC.StartProjectSessionRequest, "Name"> {
 }
 /**

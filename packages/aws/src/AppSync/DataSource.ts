@@ -9,14 +9,14 @@ import { createInternalTags } from "alchemy/Tags";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
-import type { Providers } from "../Providers.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
+import type { Providers } from "../Providers.vibe";
 import {
   retryConcurrentModification,
   retryWhileRolePropagates,
   sanitizeAppSyncName,
 } from "./common.ts";
-import type { GraphqlApi } from "./GraphqlApi.ts";
+import type { GraphqlApi } from "./GraphqlApi.vibe";
 
 /** The data source types supported by the resource. */
 export type DataSourceType =

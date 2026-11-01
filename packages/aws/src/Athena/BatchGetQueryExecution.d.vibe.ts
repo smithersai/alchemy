@@ -1,7 +1,7 @@
 import type * as athena from "@distilled.cloud/aws/athena";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { WorkGroup } from "./WorkGroup.js";
+import type { WorkGroup } from "./WorkGroup.vibe";
 /**
  * Runtime binding for `athena:BatchGetQueryExecution`.
  *

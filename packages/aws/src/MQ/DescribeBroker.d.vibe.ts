@@ -1,7 +1,7 @@
 import type * as mq from "@distilled.cloud/aws/mq";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Broker } from "./Broker.js";
+import type { Broker } from "./Broker.vibe";
 /**
  * Runtime binding for the `DescribeBroker` operation (IAM action
  * `mq:DescribeBroker`), scoped to one {@link Broker}.

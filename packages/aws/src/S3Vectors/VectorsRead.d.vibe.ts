@@ -1,7 +1,7 @@
 import type * as s3vectors from "@distilled.cloud/aws/s3vectors";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./VectorIndex.js";
+import type { Index } from "./VectorIndex.vibe";
 /** Fields the binding injects from the bound {@link Index}. */
 type IndexRef = "vectorBucketName" | "indexName" | "indexArn";
 export interface QueryVectorsRequest extends Omit<s3vectors.QueryVectorsInput, IndexRef> {

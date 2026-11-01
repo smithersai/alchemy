@@ -1,0 +1,241 @@
+import * as rds from "@distilled.cloud/aws/rds"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+
+export error RDSDBClusterParameterGroupUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface DBClusterParameterGroupProps {
+  /**
+   * Name of the parameter group. If omitted, Alchemy generates one.
+   */
+  mutable dbClusterParameterGroupName?: string
+  /**
+   * Parameter group family, for example `aurora-postgresql16`.
+   */
+  mutable family: string
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string
+  /**
+   * User-defined tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface DBClusterParameterGroup extends
+  Resource<
+    "AWS.RDS.DBClusterParameterGroup",
+    DBClusterParameterGroupProps,
+    {
+      /**
+       * Name of the cluster parameter group.
+       */
+      mutable dbClusterParameterGroupName: string
+      /**
+       * ARN of the cluster parameter group.
+       */
+      mutable dbClusterParameterGroupArn: string | undefined
+      /**
+       * Parameter group family (e.g. `aurora-postgresql16`).
+       */
+      mutable family: string
+      /**
+       * Description of the parameter group.
+       */
+      mutable description: string | undefined
+      /**
+       * Tags on the parameter group.
+       */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Aurora cluster parameter group — cluster-wide engine settings shared by
+ * every instance in a `DBCluster`.
+ *
+ * Name, family, and description changes force a replacement (RDS has no
+ * modify API for these); tags update in place.
+ * ### Creating a Cluster Parameter Group
+ * **Example:** Parameter Group for Aurora Postgres 16
+ * ```typescript
+ * const clusterParams = yield* DBClusterParameterGroup("ClusterParams", {
+ *   family: "aurora-postgresql16",
+ *   description: "Cluster-wide settings for the app database",
+ * });
+ * ```
+ *
+ * **Example:** Attach to a Cluster
+ * ```typescript
+ * const cluster = yield* DBCluster("Cluster", {
+ *   engine: "aurora-postgresql",
+ *   dbClusterParameterGroupName: clusterParams.dbClusterParameterGroupName,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DBClusterParameterGroup = Resource<DBClusterParameterGroup>(
+  "AWS.RDS.DBClusterParameterGroup",
+)
+
+export const DBClusterParameterGroupProvider = (): infer _ =>
+  Provider.effect(
+    DBClusterParameterGroup,
+    effect {
+      const toName = effect (id: string, props: DBClusterParameterGroupProps) => (props.dbClusterParameterGroupName
+        ? props.dbClusterParameterGroupName
+        : try createPhysicalName({ id, maxLength: 255 }))
+
+      const readGroup = effect (name: string) => {
+        const response = rds
+          .describeDBClusterParameterGroups({
+            DBClusterParameterGroupName: name,
+          }) catch effect (e) => match (e) {
+            when { _tag: "DBParameterGroupNotFoundFault" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.DBClusterParameterGroups?.[0]
+      }
+
+      return {
+        stables: ["dbClusterParameterGroupArn", "dbClusterParameterGroupName"],
+        list: effect () =>
+          Array.from(
+            try (rds.describeDBClusterParameterGroups.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.DBClusterParameterGroups ?? [])
+              .filter(
+                (
+                  g,
+                ): g is rds.DBClusterParameterGroup & {
+                  mutable DBClusterParameterGroupName: string
+                } =>
+                  g.DBClusterParameterGroupName != null
+                  // AWS-managed `default.*` groups cannot be deleted
+                  // (InvalidDBParameterGroupStateFault) — don't enumerate.
+                  && !g.DBClusterParameterGroupName.startsWith("default."),
+              )
+              .map((g) => ({
+                dbClusterParameterGroupName: g.DBClusterParameterGroupName,
+                dbClusterParameterGroupArn: g.DBClusterParameterGroupArn,
+                family: g.DBParameterGroupFamily ?? "",
+                description: g.Description,
+                tags: {} as Record<string, string>,
+              }))
+          ),
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) {
+            return
+          }
+          if (
+            (try toName(id, olds ?? ({} as DBClusterParameterGroupProps)))
+              !== (try toName(id, news))
+          ) {
+            return { action: "replace" } as const
+          }
+          if (olds?.family !== news.family || olds?.description !== news.description) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const name = output?.dbClusterParameterGroupName
+            ?? (try toName(id, olds ?? ({ family: "" } as DBClusterParameterGroupProps)))
+          const group = try readGroup(name)
+          if (!group?.DBClusterParameterGroupName) {
+            return undefined
+          }
+          return {
+            dbClusterParameterGroupName: group.DBClusterParameterGroupName,
+            dbClusterParameterGroupArn: group.DBClusterParameterGroupArn,
+            family: group.DBParameterGroupFamily ?? olds?.family ?? "",
+            description: group.Description,
+            tags: output?.tags ?? {},
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.dbClusterParameterGroupName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — fetch the parameter group's live state.
+          let observed = try readGroup(name)
+
+          // Ensure — create if missing. Tolerate
+          // `DBParameterGroupAlreadyExistsFault` as a race with a peer
+          // reconciler by re-reading.
+          if (!observed?.DBClusterParameterGroupName) {
+            rds
+              .createDBClusterParameterGroup({
+                DBClusterParameterGroupName: name,
+                DBParameterGroupFamily: news.family,
+                Description: news.description ?? `Alchemy parameter group ${name}`,
+                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "DBParameterGroupAlreadyExistsFault" }: try Effect.void;
+                default: throw e;
+              }
+            observed = try readGroup(name)
+            if (!observed?.DBClusterParameterGroupName) {
+              throw new RDSDBClusterParameterGroupUnexpectedResponse({
+                message: `Failed to create DB cluster parameter group '${name}'`,
+              })
+            }
+          }
+
+          const dbClusterParameterGroupArn = observed.DBClusterParameterGroupArn
+
+          // Sync tags — diff observed (the describe response does not
+          // surface tags, so use prior `output.tags` as the baseline) ↔
+          // desired.
+          const observedTags = output?.tags ?? {}
+          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0 && dbClusterParameterGroupArn) {
+            try rds.addTagsToResource({
+              ResourceName: dbClusterParameterGroupArn,
+              Tags: upsert,
+            })
+          }
+          if (removed.length > 0 && dbClusterParameterGroupArn) {
+            try rds.removeTagsFromResource({
+              ResourceName: dbClusterParameterGroupArn,
+              TagKeys: removed,
+            })
+          }
+
+          try session.note(dbClusterParameterGroupArn ?? name)
+          return {
+            dbClusterParameterGroupName: observed.DBClusterParameterGroupName,
+            dbClusterParameterGroupArn,
+            family: observed.DBParameterGroupFamily ?? news.family,
+            description: observed.Description,
+            tags: desiredTags,
+          }
+        },
+        delete: effect ({ output }) => {
+          rds
+            .deleteDBClusterParameterGroup({
+              DBClusterParameterGroupName: output.dbClusterParameterGroupName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "DBParameterGroupNotFoundFault" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

@@ -1,0 +1,210 @@
+import * as analytics from "@distilled.cloud/aws/kinesis-analytics-v2"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface ApplicationCloudWatchLoggingOptionProps {
+  /**
+   * Name of the Managed Service for Apache Flink application to attach the
+   * logging option to. Changing the application replaces the option.
+   */
+  mutable applicationName: string
+  /**
+   * ARN of the CloudWatch Logs log stream that receives application
+   * messages. Changing the log stream replaces the option.
+   */
+  mutable logStreamArn: string
+}
+
+export interface ApplicationCloudWatchLoggingOption extends
+  Resource<
+    "AWS.KinesisAnalyticsV2.ApplicationCloudWatchLoggingOption",
+    ApplicationCloudWatchLoggingOptionProps,
+    {
+      /**
+       * Name of the application the option is attached to.
+       */
+      mutable applicationName: string
+      /**
+       * ARN of the CloudWatch Logs log stream receiving application messages.
+       */
+      mutable logStreamArn: string
+      /**
+       * Service-assigned ID of the logging option within the application.
+       */
+      mutable cloudWatchLoggingOptionId: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Attaches an Amazon CloudWatch Logs log stream to a Managed Service for
+ * Apache Flink application so application messages (errors, job lifecycle
+ * events) are delivered to CloudWatch.
+ *
+ * The option is identified by the log stream it delivers to — changing
+ * either the application or the log stream replaces the option. The
+ * application's service execution role must be allowed to call
+ * `logs:PutLogEvents` / `logs:DescribeLogStreams` (the role auto-created by
+ * `Application` already is).
+ * ### Attaching Logging
+ * **Example:** Deliver application messages to a log stream
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const logGroup = yield* AWS.Logs.LogGroup("FlinkLogs");
+ * const logStream = yield* AWS.Logs.LogStream("FlinkLogStream", {
+ *   logGroupName: logGroup.logGroupName,
+ * });
+ * const logging = yield* AWS.KinesisAnalyticsV2.ApplicationCloudWatchLoggingOption(
+ *   "AppLogging",
+ *   {
+ *     applicationName: app.applicationName,
+ *     logStreamArn: logStream.logStreamArn.as<string>(),
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ */
+export const ApplicationCloudWatchLoggingOption = Resource<ApplicationCloudWatchLoggingOption>(
+  "AWS.KinesisAnalyticsV2.ApplicationCloudWatchLoggingOption",
+)
+
+/**
+ * The logging option could not be observed on the application after it was
+ * added — the add call succeeded but the option never appeared.
+ */
+export error LoggingOptionNotFound {
+  applicationName: string
+  logStreamArn: string
+}
+
+/**
+ * Retries `ResourceInUseException` / `ConcurrentModificationException`
+ * (application transitioning between statuses, or a concurrent operation in
+ * flight) on a bounded schedule. Explicit return annotation for the same
+ * declaration-emit reason as `retryThroughRolePropagation` in
+ * `Application.ts`.
+ */
+const retryWhileInUse = effect <A, E extends { mutable _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "ResourceInUseException" || e._tag === "ConcurrentModificationException",
+    schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(30)]),
+  })
+
+const describeApplicationDetail = effect (applicationName: string) => {
+  const response = analytics
+    .describeApplication({ ApplicationName: applicationName }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  return response?.ApplicationDetail
+}
+
+const findOption = (detail: analytics.ApplicationDetail | undefined, logStreamArn: string): infer _ =>
+  detail?.CloudWatchLoggingOptionDescriptions?.find(
+    (option) => option.LogStreamARN === logStreamArn,
+  )
+
+export const ApplicationCloudWatchLoggingOptionProvider = (): infer _ =>
+  Provider.effect(
+    ApplicationCloudWatchLoggingOption,
+    effect {
+      return ApplicationCloudWatchLoggingOption.Provider.of({
+        stables: ["applicationName", "logStreamArn", "cloudWatchLoggingOptionId"],
+
+        // Sub-resource keyed by its parent application — there is no
+        // account-level enumeration of logging options, so `list` is empty
+        // and refresh flows through `read` on known instances.
+        list: effect () => [],
+
+        read: effect ({ olds, output }) => {
+          const applicationName = output?.applicationName ?? olds?.applicationName
+          const logStreamArn = output?.logStreamArn ?? olds?.logStreamArn
+          if (!applicationName || !logStreamArn) return undefined
+          const detail = try describeApplicationDetail(applicationName)
+          const option = findOption(detail, logStreamArn)
+          if (!option) return undefined
+          return {
+            applicationName,
+            logStreamArn,
+            cloudWatchLoggingOptionId: option.CloudWatchLoggingOptionId,
+          }
+        },
+
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return undefined
+          // The option's identity is (application, log stream) — the only
+          // way to change either is to delete and re-add.
+          if (
+            olds?.applicationName !== news?.applicationName
+            || olds?.logStreamArn !== news?.logStreamArn
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        // Existence-only sub-resource: observe → if missing, add. The add
+        // uses the freshly observed application version id as its
+        // compare-and-set token and is retried through concurrent
+        // modifications with a re-read.
+        reconcile: effect ({ news, session }) => {
+          const applicationName = news.applicationName
+          const logStreamArn = news.logStreamArn
+
+          const ensureOption = effect {
+            const detail = try describeApplicationDetail(applicationName)
+            const existing = findOption(detail, logStreamArn)
+            if (existing || !detail) return existing
+            const response = try analytics.addApplicationCloudWatchLoggingOption({
+              ApplicationName: applicationName,
+              CurrentApplicationVersionId: detail.ApplicationVersionId,
+              CloudWatchLoggingOption: { LogStreamARN: logStreamArn },
+            })
+            return response.CloudWatchLoggingOptionDescriptions?.find(
+              (option) => option.LogStreamARN === logStreamArn,
+            )
+          }
+          const option = try retryWhileInUse(ensureOption)
+          if (!option) {
+            throw new LoggingOptionNotFound({ applicationName, logStreamArn })
+          }
+
+          try session.note(
+            `CloudWatch logging option ${option.CloudWatchLoggingOptionId ?? logStreamArn}`,
+          )
+          return {
+            applicationName,
+            logStreamArn,
+            cloudWatchLoggingOptionId: option.CloudWatchLoggingOptionId,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          // A missing application means the option is already gone.
+          const removeOption = effect {
+            const detail = try describeApplicationDetail(output.applicationName)
+            const option = findOption(detail, output.logStreamArn)
+            const optionId = option?.CloudWatchLoggingOptionId ?? output.cloudWatchLoggingOptionId
+            if (!detail || !option || !optionId) return
+            analytics
+              .deleteApplicationCloudWatchLoggingOption({
+                ApplicationName: output.applicationName,
+                CurrentApplicationVersionId: detail.ApplicationVersionId,
+                CloudWatchLoggingOptionId: optionId,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                default: throw e;
+              }
+          }
+          try retryWhileInUse(removeOption)
+        },
+      })
+    },
+  )

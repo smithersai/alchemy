@@ -1,0 +1,163 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { DBCluster } from "./DBCluster.vibe"
+import type { DBInstance } from "./DBInstance.vibe"
+
+/**
+ * Shared scaffolding for Amazon Neptune HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation, the identifier resolver, and the
+ * IAM action list is boilerplate.
+ *
+ * Neptune shares the RDS control plane, so its management IAM actions live
+ * under the `rds:` service prefix (`rds:FailoverDBCluster`,
+ * `rds:DescribeDBClusters`, …) and its ARNs use the `rds` service segment.
+ */
+
+/**
+ * Build the impl Effect for an account-level operation (cluster discovery,
+ * event history, snapshot administration). The deploy-time half grants
+ * `actions` on `*` — these operations span every cluster in the account and
+ * the identifiers they filter on are runtime data.
+ */
+export const makeNeptuneAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Neptune.DescribeEvents`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a cluster-scoped operation: the runtime callable
+ * injects the bound {@link DBCluster}'s identifier as `DBClusterIdentifier`
+ * and the deploy-time half grants `actions` on the cluster ARN (plus any
+ * `extraResources`, e.g. the `cluster-snapshot` ARN pattern for snapshot
+ * creation).
+ */
+export const makeNeptuneClusterHttpBinding = effect <
+  I extends { mutable DBClusterIdentifier?: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Neptune.FailoverDBCluster`. */
+  mutable tag: string
+  /** The distilled operation; `DBClusterIdentifier` is injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the cluster ARN. */
+  mutable actions: readonly string[]
+  /** Additional IAM resource ARNs derived from the cluster ARN. */
+  mutable extraResources?: (clusterArn: string) => string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (cluster: DBCluster) => {
+    const Identifier = try cluster.dbClusterIdentifier.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const resources = options.extraResources
+      try bind`${options.tag}(${cluster})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: resources
+              ? Output.map(cluster.dbClusterArn, (arn) => [arn, ...resources(arn)])
+              : [Output.interpolate`${cluster.dbClusterArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "DBClusterIdentifier"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            DBClusterIdentifier: try Identifier,
+          } as I)
+        },
+        `${options.tag}(${cluster.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an instance-scoped operation: the runtime
+ * callable injects the bound {@link DBInstance}'s identifier as
+ * `DBInstanceIdentifier` and the deploy-time half grants `actions` on the
+ * instance ARN.
+ */
+export const makeNeptuneInstanceHttpBinding = effect <
+  I extends { mutable DBInstanceIdentifier?: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Neptune.RebootDBInstance`. */
+  mutable tag: string
+  /** The distilled operation; `DBInstanceIdentifier` is injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the instance ARN. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (instance: DBInstance) => {
+    const Identifier = try instance.dbInstanceIdentifier.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${instance})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${instance.dbInstanceArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "DBInstanceIdentifier"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            DBInstanceIdentifier: try Identifier,
+          } as I)
+        },
+        `${options.tag}(${instance.LogicalId})`,
+      )
+  }
+}

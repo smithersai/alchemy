@@ -1,7 +1,7 @@
 import type * as mm from "@distilled.cloud/aws/mailmanager";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Archive } from "./Archive.js";
+import type { Archive } from "./Archive.vibe";
 /**
  * Runtime binding for `ses:StartArchiveSearch`.
  *

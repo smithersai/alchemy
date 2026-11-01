@@ -2,11 +2,11 @@ import type { Input } from "alchemy/Input";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type { AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.vibe";
 import type { RegionID } from "../Region.js";
 import { type ListenerAction } from "./common.vibe";
-import type { LoadBalancer, LoadBalancerArn } from "./LoadBalancer.js";
-import type { TargetGroup, TargetGroupArn } from "./TargetGroup.js";
+import type { LoadBalancer, LoadBalancerArn } from "./LoadBalancer.vibe";
+import type { TargetGroup, TargetGroupArn } from "./TargetGroup.vibe";
 export type ListenerArn = `arn:aws:elasticloadbalancing:${RegionID}:${AccountID}:listener/${string}`;
 export interface ListenerProps {
     /** The load balancer this listener belongs to. Changing it replaces the listener. */

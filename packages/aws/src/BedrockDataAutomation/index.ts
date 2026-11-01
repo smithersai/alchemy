@@ -1,11 +1,11 @@
 // NOTE: BindingHttp.ts is shared scaffolding — intentionally NOT exported.
-export * from "./Blueprint.ts";
+export * from "./Blueprint.vibe";
 export * from "./CopyBlueprintStage.vibe";
 export * from "./CopyBlueprintStageHttp.vibe";
 export * from "./CreateBlueprintVersion.vibe";
 export * from "./CreateBlueprintVersionHttp.vibe";
-export * from "./DataAutomationLibrary.ts";
-export * from "./DataAutomationProject.ts";
+export * from "./DataAutomationLibrary.vibe";
+export * from "./DataAutomationProject.vibe";
 export * from "./GetBlueprintOptimizationStatus.vibe";
 export * from "./GetBlueprintOptimizationStatusHttp.vibe";
 export * from "./GetDataAutomationLibraryEntity.vibe";

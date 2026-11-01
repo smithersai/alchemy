@@ -1,0 +1,227 @@
+import * as cloudfront from "@distilled.cloud/aws/cloudfront"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export error InvalidationUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface InvalidationProps {
+  /**
+   * Distribution to invalidate.
+   */
+  mutable distributionId: string
+  /**
+   * Version string used as the invalidation caller reference. Change this value
+   * to trigger a new invalidation.
+   */
+  mutable version: string
+  /**
+   * Paths to invalidate.
+   * @default ["/*"]
+   */
+  mutable paths?: string[]
+  /**
+   * Wait for the invalidation to complete.
+   * @default false
+   */
+  mutable wait?: boolean
+}
+
+export interface Invalidation extends
+  Resource<
+    "AWS.CloudFront.Invalidation",
+    InvalidationProps,
+    {
+      /**
+       * The identifier of the invalidation batch.
+       */
+      mutable invalidationId: string
+      /**
+       * The distribution the invalidation ran against.
+       */
+      mutable distributionId: string
+      /**
+       * The version prop that triggered this invalidation batch.
+       */
+      mutable version: string
+      /**
+       * Current status of the invalidation (`InProgress` or `Completed`).
+       */
+      mutable status: string
+      /**
+       * The path patterns that were invalidated.
+       */
+      mutable paths: string[]
+      /**
+       * When the invalidation batch was created.
+       */
+      mutable createTime: Date | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A CloudFront cache invalidation request.
+ *
+ * `Invalidation` is a helper resource for website deployments that need to
+ * clear selected CloudFront cache paths after asset updates.
+ * ### Creating Invalidations
+ * **Example:** Invalidate The Entire Distribution
+ * ```typescript
+ * const invalidation = yield* Invalidation("WebsiteInvalidation", {
+ *   distributionId: distribution.distributionId,
+ *   version: files.version,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Invalidation = Resource<Invalidation>("AWS.CloudFront.Invalidation")
+
+const defaultPaths = ["/*"]
+
+error InvalidationInProgress {
+  mutable message: string
+}
+
+export const InvalidationProvider = (): infer _ =>
+  Provider.effect(
+    Invalidation,
+    effect {
+      const waitForCompletion = effect (
+        distributionId: string,
+        invalidationId: string,
+      ) => {
+        try Effect.logInfo(
+          `CloudFront Invalidation wait: polling ${invalidationId} for distribution ${distributionId}`,
+        )
+        return try (effect {
+          return try effect {
+            const invalidation = (try cloudfront
+              .getInvalidation({
+                DistributionId: distributionId,
+                Id: invalidationId,
+              })).Invalidation
+            return (invalidation?.Status === "Completed"
+              ? try effect {
+                try Effect.logInfo(
+                  `CloudFront Invalidation wait: ${invalidationId} completed`,
+                )
+                return invalidation
+              }
+              : try effect {
+                try Effect.logInfo(
+                  `CloudFront Invalidation wait: ${invalidationId} status=${invalidation?.Status ?? "unknown"}`,
+                )
+                throw new InvalidationInProgress({
+                  message: `Invalidation ${invalidationId} is still in progress`,
+                })
+              })
+          }
+        }
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "InvalidationInProgress",
+            schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(120)]),
+          }))
+      }
+
+      const createInvalidation = effect (props: InvalidationProps) => {
+        try Effect.logInfo(
+          `CloudFront Invalidation create: distribution=${props.distributionId} version=${props.version} paths=${
+            (props.paths ?? defaultPaths).length
+          } wait=${props.wait ?? false}`,
+        )
+        const response = try cloudfront.createInvalidation({
+          DistributionId: props.distributionId,
+          InvalidationBatch: {
+            CallerReference: props.version,
+            Paths: {
+              Quantity: (props.paths ?? defaultPaths).length,
+              Items: props.paths ?? defaultPaths,
+            },
+          },
+        })
+
+        try Effect.logInfo(
+          `CloudFront Invalidation create: created ${response.Invalidation?.Id ?? "missing"} status=${
+            response.Invalidation?.Status ?? "unknown"
+          }`,
+        )
+        const invalidation = props.wait
+          ? try waitForCompletion(props.distributionId, response.Invalidation?.Id!)
+          : response.Invalidation
+
+        if (!invalidation?.Id) {
+          throw new InvalidationUnexpectedResponse({
+            message: "createInvalidation returned no invalidation",
+          })
+        }
+
+        return invalidation
+      }
+
+      return {
+        stables: ["distributionId", "version"],
+        // Non-listable: an Invalidation is an ephemeral, immutable ledger entry
+        // keyed by {distributionId, invalidationId}. It completes on its own and
+        // cannot be deleted (`delete` is a no-op), so there is no persistent
+        // "current resource" to enumerate for nuke. `listInvalidations` only
+        // exposes historical, undeletable entries per distribution.
+        list: effect () => [],
+        diff: effect ({ olds, news: _news }) => {
+          if (!isResolved(_news)) return undefined
+          const news = _news as typeof olds
+          try Effect.logInfo(
+            `CloudFront Invalidation diff: oldDistribution=${olds.distributionId} newDistribution=${news.distributionId} oldVersion=${olds.version} newVersion=${news.version}`,
+          )
+          if (olds.distributionId !== news.distributionId || olds.version !== news.version) {
+            try Effect.logInfo(
+              `CloudFront Invalidation diff: replacing invalidation for distribution=${news.distributionId}`,
+            )
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ news, output, session }) => {
+          // An invalidation is an immutable ledger entry, not a mutable
+          // resource. If we already issued one for this distribution and
+          // version, return its attributes unchanged. `diff` only sees a
+          // version change when it is resolved at plan time; a version taken
+          // from an upstream output (e.g. `AssetDeployment.version`) is
+          // unresolved whenever that upstream changes, so the engine plans an
+          // update instead of a replace and lands here with the old output.
+          if (
+            output?.invalidationId
+            && output.distributionId === news.distributionId
+            && output.version === news.version
+          ) {
+            try session.note(output.invalidationId)
+            return output
+          }
+
+          // Ensure — issue the invalidation. CloudFront uses
+          // `CallerReference` (= `version`) for idempotency: the same
+          // version submitted twice returns the same invalidation.
+          const invalidation = try createInvalidation(news)
+          try Effect.logInfo(
+            `CloudFront Invalidation reconcile: storing ${invalidation.Id} for distribution=${news.distributionId}`,
+          )
+          try session.note(invalidation.Id)
+          return {
+            invalidationId: invalidation.Id,
+            distributionId: news.distributionId,
+            version: news.version,
+            status: invalidation.Status ?? "InProgress",
+            paths: news.paths ?? defaultPaths,
+            createTime: invalidation.CreateTime,
+          }
+        },
+        delete: effect () => {},
+      }
+    },
+  )

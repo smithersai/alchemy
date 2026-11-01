@@ -1,0 +1,338 @@
+import * as efs from "@distilled.cloud/aws/efs"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface MountTargetProps {
+  /**
+   * ID of the EFS file system to expose through this mount target
+   * (e.g. `fileSystem.fileSystemId`). Cannot be changed after creation
+   * (replacement).
+   */
+  mutable fileSystemId: string
+  /**
+   * ID of the subnet to create the mount target in. Determines the VPC and
+   * Availability Zone; one mount target is allowed per AZ. Cannot be changed
+   * after creation (replacement).
+   */
+  mutable subnetId: string
+  /**
+   * Static private IPv4 address for the mount target within the subnet's
+   * range. Cannot be changed after creation (replacement).
+   * @default an address assigned by EFS
+   */
+  mutable ipAddress?: string
+  /**
+   * Security groups attached to the mount target's network interface (up to
+   * five). NFS clients must be allowed to reach TCP port 2049 through these
+   * groups. Updatable in place.
+   * @default the VPC's default security group
+   */
+  mutable securityGroups?: string[]
+}
+
+export interface MountTarget extends
+  Resource<
+    "AWS.EFS.MountTarget",
+    MountTargetProps,
+    {
+      /** The ID of the mount target (e.g. `fsmt-0123456789abcdef0`). */
+      mutable mountTargetId: string
+      /** The ID of the EFS file system the mount target belongs to. */
+      mutable fileSystemId: string
+      /** The ID of the subnet the mount target was created in. */
+      mutable subnetId: string
+      /** The IPv4 address at which the file system is reachable in the subnet. */
+      mutable ipAddress: string | undefined
+      /** The ID of the network interface created for the mount target. */
+      mutable networkInterfaceId: string | undefined
+      /** The name of the Availability Zone the mount target resides in. */
+      mutable availabilityZoneName: string | undefined
+    },
+    {},
+    Providers
+  >
+{}
+
+/**
+ * An Amazon EFS mount target — the per-subnet network endpoint (an ENI
+ * serving NFS on TCP 2049) that compute in a VPC uses to reach a file
+ * system.
+ *
+ * Create one mount target per Availability Zone you run compute in. The
+ * reconciler waits for the mount target to reach the `available` state
+ * (typically 1–2 minutes), so downstream resources that depend on its
+ * attributes deploy only once the endpoint is usable. Deletion likewise
+ * waits until the mount target is fully gone, because its ENI must be
+ * released before the subnet, security groups, or file system can be
+ * deleted.
+ * ### Creating Mount Targets
+ * **Example:** Mount target in a subnet
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const files = yield* AWS.EFS.FileSystem("Files");
+ * const target = yield* AWS.EFS.MountTarget("FilesTarget", {
+ *   fileSystemId: files.fileSystemId,
+ *   subnetId,
+ * });
+ * ```
+ *
+ * **Example:** Mount target with explicit security groups
+ * ```typescript
+ * const target = yield* AWS.EFS.MountTarget("FilesTarget", {
+ *   fileSystemId: files.fileSystemId,
+ *   subnetId,
+ *   securityGroups: [nfsSecurityGroupId],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const MountTarget = Resource<MountTarget>("AWS.EFS.MountTarget")
+
+/**
+ * Internal marker error used to drive the bounded wait for a mount target to
+ * reach the `available` lifecycle state.
+ */
+export error MountTargetNotAvailable {
+  mutable mountTargetId: string
+  mutable state: string
+}
+
+/**
+ * Internal marker error used to drive the bounded wait for a mount target to
+ * disappear after deletion (its ENI releases asynchronously).
+ */
+export error MountTargetStillDeleting {
+  mutable mountTargetId: string
+  mutable state: string
+}
+
+/**
+ * Mount-target provisioning takes 1–3 minutes. Bounded poll (5s × 36 ≈
+ * 180s), explicitly typed so declaration emit never widens the provider
+ * layer (see PATTERNS §7).
+ */
+const retryUntilMountTargetAvailable = effect <E extends { mutable _tag: string }, R>(
+  self: efs.MountTargetDescription!E!R,
+): efs.MountTargetDescription!E | MountTargetNotAvailable!R =>
+  try Effect.retry(
+    Effect.flatMap(self, effect (mt) => (mt.LifeCycleState === "available" ? mt : throw new MountTargetNotAvailable({
+      mountTargetId: mt.MountTargetId,
+      state: mt.LifeCycleState,
+    }))),
+    {
+      while: (e) => e._tag === "MountTargetNotAvailable",
+      schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(36)]),
+    },
+  )
+
+/**
+ * Deletion releases the mount target's ENI asynchronously (1–3 minutes).
+ * Bounded poll (5s × 36 ≈ 180s) until the mount target is observed gone,
+ * explicitly typed (PATTERNS §7).
+ */
+const retryUntilMountTargetGone = effect <A, E extends { mutable _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "MountTargetStillDeleting",
+    schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(36)]),
+  })
+
+/**
+ * Security-group modifications race the mount target's own state machine;
+ * `IncorrectMountTargetState` while it is still creating is transient.
+ * Bounded retry (~60s), explicitly typed (PATTERNS §7).
+ */
+const retryWhileMountTargetSettling = effect <A, E extends { mutable _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "IncorrectMountTargetState" || e._tag === "DependencyTimeout",
+    schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(20)]),
+  })
+
+export const MountTargetProvider = (): infer _ =>
+  Provider.effect(
+    MountTarget,
+    effect {
+      const findById = effect (mountTargetId: string) =>
+        ((try efs.describeMountTargets({ MountTargetId: mountTargetId })).MountTargets?.[0]) catch effect (e) => match (e) {
+          when { _tag: "MountTargetNotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      const findBySubnet = effect (fileSystemId: string, subnetId: string) =>
+        ((try efs.describeMountTargets({ FileSystemId: fileSystemId })).MountTargets?.find((mt) =>
+          mt.SubnetId === subnetId
+        )) catch effect (e) => match (e) { when { _tag: "FileSystemNotFound" }: try Effect.undefined; default: throw e; }
+
+      const toAttributes = (mt: efs.MountTargetDescription): infer _ => ({
+        mountTargetId: mt.MountTargetId,
+        fileSystemId: mt.FileSystemId,
+        subnetId: mt.SubnetId,
+        ipAddress: mt.IpAddress,
+        networkInterfaceId: mt.NetworkInterfaceId,
+        availabilityZoneName: mt.AvailabilityZoneName,
+      })
+
+      return MountTarget.Provider.of({
+        stables: ["mountTargetId", "fileSystemId", "subnetId", "ipAddress", "availabilityZoneName"],
+
+        // Mount targets are only enumerable per file system, so walk every
+        // file system in the account/region. A file system can vanish between
+        // the enumeration and the per-FS describe — drop it.
+        list: effect () => {
+          const systems = Array.from(
+            try (efs.describeFileSystems.items({})
+              |> Stream.runCollect(%)),
+          )
+          const perSystem = try Effect.forEach(
+            systems,
+            effect (fs) =>
+              (((try efs.describeMountTargets({ FileSystemId: fs.FileSystemId })).MountTargets ?? [])
+                .filter((mt) => mt.LifeCycleState !== "deleted")
+                .map(toAttributes)) catch effect (e) => match (e) {
+                  when { _tag: "FileSystemNotFound" }: [];
+                  default: throw e;
+                },
+            { concurrency: 5 },
+          )
+          return perSystem.flat()
+        },
+
+        // Mount targets are untaggable, so there is no ownership marker to
+        // check: identity is the (fileSystemId, subnetId) pair, matching the
+        // one-mount-target-per-AZ constraint.
+        read: effect ({ olds, output }) => {
+          const mt = output?.mountTargetId
+            ? try findById(output.mountTargetId)
+            : olds?.fileSystemId && olds.subnetId
+            ? try findBySubnet(olds.fileSystemId, olds.subnetId)
+            : undefined
+          if (mt === undefined || mt.LifeCycleState === "deleted") {
+            return undefined
+          }
+          return toAttributes(mt)
+        },
+
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news) || olds === undefined) return undefined
+          if (
+            news.fileSystemId !== olds.fileSystemId
+            || news.subnetId !== olds.subnetId
+            || news.ipAddress !== olds.ipAddress
+          ) {
+            return { action: "replace" } as const
+          }
+          // undefined → default update path (security-group sync)
+        },
+
+        reconcile: effect ({ news, output, session }) => {
+          // 1. OBSERVE — output.mountTargetId is only a cache; fall through
+          //    to the (fileSystemId, subnetId) identity if it is stale.
+          let mt = output?.mountTargetId ? try findById(output.mountTargetId) : undefined
+          if (mt === undefined || mt.LifeCycleState === "deleted") {
+            mt = try findBySubnet(news.fileSystemId, news.subnetId)
+          }
+          if (mt?.LifeCycleState === "deleted") {
+            mt = undefined
+          }
+
+          // 2. ENSURE — create if missing. `MountTargetConflict` means a peer
+          //    created it in the same subnet/AZ concurrently — re-observe.
+          if (mt === undefined) {
+            mt = efs
+              .createMountTarget({
+                FileSystemId: news.fileSystemId,
+                SubnetId: news.subnetId,
+                IpAddress: news.ipAddress,
+                SecurityGroups: news.securityGroups,
+              }) catch effect (e) => match (e) {
+                when { _tag: "MountTargetConflict" }: try effect {
+                  const existing = try findBySubnet(news.fileSystemId, news.subnetId)
+                  return (existing !== undefined ? existing : try efs.createMountTarget({
+                    FileSystemId: news.fileSystemId,
+                    SubnetId: news.subnetId,
+                    IpAddress: news.ipAddress,
+                    SecurityGroups: news.securityGroups,
+                  }))
+                };
+                default: throw e;
+              }
+          }
+
+          const mountTargetId = mt.MountTargetId
+
+          // Wait for the network endpoint to become usable — dependents
+          // (e.g. a Lambda with fileSystemConfigs) fail to create against a
+          // mount target that is still `creating`.
+          try session.note(`waiting for ${mountTargetId} to be available`)
+          mt = try retryUntilMountTargetAvailable(
+            effect {
+              return (try efs
+                .describeMountTargets({ MountTargetId: mountTargetId })).MountTargets![0]
+            },
+          )
+
+          // 3. SYNC security groups — diff the OBSERVED set against the
+          //    desired one; only call the API on a real delta. When the prop
+          //    is omitted the observed groups (VPC default) are left alone.
+          if (news.securityGroups !== undefined) {
+            const observed = [
+              ...(try efs
+                .describeMountTargetSecurityGroups({
+                  MountTargetId: mountTargetId,
+                })).SecurityGroups,
+            ].sort()
+            const desired = [...news.securityGroups].sort()
+            if (JSON.stringify(observed) !== JSON.stringify(desired)) {
+              try retryWhileMountTargetSettling(
+                efs.modifyMountTargetSecurityGroups({
+                  MountTargetId: mountTargetId,
+                  SecurityGroups: news.securityGroups,
+                }),
+              )
+            }
+          }
+
+          try session.note(mountTargetId)
+          return toAttributes(mt)
+        },
+
+        // Deletion must observe the mount target actually GONE before
+        // returning: its ENI is released asynchronously and the subnet,
+        // security groups, and file system cannot be deleted until then.
+        delete: effect ({ output, session }) => {
+          efs
+            .deleteMountTarget({ MountTargetId: output.mountTargetId }) catch effect (e) => match (e) {
+              when { _tag: "MountTargetNotFound" }: try Effect.void;
+              default: throw e;
+            }
+
+          try session.note(`waiting for ${output.mountTargetId} to be deleted`)
+          try retryUntilMountTargetGone(
+            effect {
+              return (try effect {
+                const r = try efs.describeMountTargets({ MountTargetId: output.mountTargetId })
+
+                const state = r.MountTargets?.[0]?.LifeCycleState
+                return (state === undefined || state === "deleted"
+                  ? try Effect.void
+                  : throw new MountTargetStillDeleting({
+                    mountTargetId: output.mountTargetId,
+                    state,
+                  }))
+              }) catch effect (e) => match (e) {
+                when { _tag: "MountTargetNotFound" }: try Effect.void;
+                default: throw e;
+              }
+            },
+          )
+        },
+      })
+    },
+  )

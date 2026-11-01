@@ -10,7 +10,7 @@ export default Contributions.make({
     aws: {
       description: "DynamoDB state store in the profile's AWS account",
       load: Contributions.lazy(
-        () => import("./Alchemist/DynamoDBStateStore.ts"),
+        () => import("./Alchemist/DynamoDBStateStore.vibe"),
         (module) => module.stateStore,
       ),
     },

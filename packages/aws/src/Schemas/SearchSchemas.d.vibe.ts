@@ -1,7 +1,7 @@
 import type * as schemas from "@distilled.cloud/aws/schemas";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Registry } from "./Registry.js";
+import type { Registry } from "./Registry.vibe";
 /**
  * Runtime binding for `schemas:SearchSchemas`.
  *

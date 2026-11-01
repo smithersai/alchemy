@@ -2,10 +2,10 @@ import * as Binding from "alchemy/Binding";
 import type { Input } from "alchemy/Input";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { SecurityGroupId } from "../EC2/SecurityGroup.js";
+import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
 import type { SubnetId } from "../EC2/Subnet.js";
-import type { Cluster } from "./Cluster.js";
-import type { User } from "./User.js";
+import type { Cluster } from "./Cluster.vibe";
+import type { User } from "./User.vibe";
 /**
  * Connection descriptor for a MemoryDB cluster. Alchemy does not bundle a
  * valkey/redis client — pass these settings to the cluster-mode client of

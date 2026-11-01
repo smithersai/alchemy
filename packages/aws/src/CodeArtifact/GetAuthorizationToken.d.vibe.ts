@@ -2,7 +2,7 @@ import type * as codeartifact from "@distilled.cloud/aws/codeartifact";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
-import type { Domain } from "./Domain.js";
+import type { Domain } from "./Domain.vibe";
 /**
  * Request for {@link GetAuthorizationToken} — `domain` and `domainOwner` are
  * injected from the bound {@link Domain}.

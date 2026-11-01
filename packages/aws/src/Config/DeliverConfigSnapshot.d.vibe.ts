@@ -1,7 +1,7 @@
 import type * as config from "@distilled.cloud/aws/config-service";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DeliveryChannel } from "./DeliveryChannel.js";
+import type { DeliveryChannel } from "./DeliveryChannel.vibe";
 /**
  * Runtime binding for `config:DeliverConfigSnapshot` — trigger an on-demand
  * delivery of a configuration snapshot to the bound

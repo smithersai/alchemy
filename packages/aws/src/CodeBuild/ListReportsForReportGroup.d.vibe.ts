@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/codebuild";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ReportGroup } from "./ReportGroup.js";
+import type { ReportGroup } from "./ReportGroup.vibe";
 /**
  * Runtime binding for `codebuild:ListReportsForReportGroup` — lists the
  * bound report group's report ARNs, newest first.

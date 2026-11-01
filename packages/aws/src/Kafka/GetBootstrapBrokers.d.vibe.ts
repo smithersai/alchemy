@@ -1,7 +1,7 @@
 import type * as kafka from "@distilled.cloud/aws/kafka";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ServerlessCluster } from "./ServerlessCluster.js";
+import type { ServerlessCluster } from "./ServerlessCluster.vibe";
 /**
  * Runtime binding for the `GetBootstrapBrokers` operation (IAM action
  * `kafka:GetBootstrapBrokers`), scoped to one {@link ServerlessCluster}.

@@ -13,6 +13,6 @@ export * from "./ListResourceRequests.vibe";
 export * from "./ListResourceRequestsHttp.vibe";
 export * from "./ListResources.vibe";
 export * from "./ListResourcesHttp.vibe";
-export * from "./Resource.ts";
+export * from "./Resource.vibe";
 export * from "./UpdateResource.vibe";
 export * from "./UpdateResourceHttp.vibe";

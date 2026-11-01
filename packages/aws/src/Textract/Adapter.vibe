@@ -1,0 +1,309 @@
+import * as textract from "@distilled.cloud/aws/textract"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+
+export interface AdapterProps {
+  /**
+   * Name of the adapter — 1-128 characters matching `[a-zA-Z0-9-_]+`. If
+   * omitted, a unique name is generated. The name is updatable in place
+   * (adapter identity is the server-assigned `adapterId`).
+   */
+  mutable adapterName?: string
+  /**
+   * Description of the adapter, updatable in place. Once set, the Textract
+   * API cannot clear it back to empty — removing this prop leaves the last
+   * description in place.
+   */
+  mutable description?: string
+  /**
+   * Feature types the adapter enhances. Textract currently supports only
+   * `["QUERIES"]`. Changing this replaces the adapter.
+   */
+  mutable featureTypes: textract.FeatureType[]
+  /**
+   * Whether Textract automatically retrains the adapter as the base model
+   * improves (`ENABLED` or `DISABLED`).
+   * @default "DISABLED"
+   */
+  mutable autoUpdate?: textract.AutoUpdate
+  /**
+   * Tags to apply to the adapter. Internal alchemy ownership tags are always
+   * added.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Adapter extends
+  Resource<
+    "AWS.Textract.Adapter",
+    AdapterProps,
+    {
+      /**
+       * Server-assigned identifier of the adapter (its identity). Pass it in
+       * `AdaptersConfig` to `AnalyzeDocument` / `StartDocumentAnalysis`.
+       */
+      mutable adapterId: string
+      /**
+       * ARN of the adapter. Textract uses a nonstandard resource path:
+       * `arn:aws:textract:{region}:{account}:/adapters/{adapterId}`.
+       */
+      mutable adapterArn: string
+      /**
+       * Name of the adapter.
+       */
+      mutable adapterName: string
+      /**
+       * Feature types the adapter enhances (currently only `QUERIES`).
+       */
+      mutable featureTypes: string[]
+      /**
+       * Whether the adapter auto-updates as the base model improves.
+       */
+      mutable autoUpdate: string | undefined
+      /**
+       * Creation time of the adapter as an ISO-8601 string.
+       */
+      mutable creationTime: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Textract adapter — a container for custom, trained adapter
+ * versions that enhance the pre-trained Queries feature for your specific
+ * documents. The adapter itself is cheap metadata (name, feature types,
+ * auto-update, tags); versions are trained separately with
+ * `CreateAdapterVersion` against an annotated dataset.
+ *
+ * ### Managing Adapters
+ * **Example:** Create an adapter for the Queries feature
+ * ```typescript
+ * const adapter = yield* AWS.Textract.Adapter("InvoiceAdapter", {
+ *   featureTypes: ["QUERIES"],
+ *   description: "Tuned for invoice layouts",
+ *   autoUpdate: "ENABLED",
+ * });
+ * ```
+ *
+ * **Example:** Analyze a document with a trained adapter version
+ * ```typescript
+ * const analyzeDocument = yield* AWS.Textract.AnalyzeDocument();
+ * const result = yield* analyzeDocument({
+ *   Document: { S3Object: { Bucket: bucketName, Name: "invoice.pdf" } },
+ *   FeatureTypes: ["QUERIES"],
+ *   QueriesConfig: { Queries: [{ Text: "What is the invoice total?" }] },
+ *   AdaptersConfig: {
+ *     Adapters: [{ AdapterId: adapter.adapterId, Version: "1" }],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Adapter = Resource<Adapter>("AWS.Textract.Adapter")
+
+const toAttributes = (
+  arn: string,
+  adapter: textract.GetAdapterResponse & { mutable AdapterId: string },
+): infer _ => ({
+  adapterId: adapter.AdapterId,
+  adapterArn: arn,
+  adapterName: adapter.AdapterName ?? "",
+  featureTypes: [...(adapter.FeatureTypes ?? [])],
+  autoUpdate: adapter.AutoUpdate,
+  creationTime: adapter.CreationTime?.toISOString(),
+})
+
+// Textract's adapter management APIs have very low default rates (~1 TPS);
+// bounded backoff absorbs the short bursts the engine's read/diff/reconcile
+// sequence emits.
+const throttleRetry = effect <A, E extends { readonly _tag: string }, R>(effect: A!E!R) =>
+  try (effect
+    |> Effect.retry(%, {
+      while: (e): boolean => e._tag === "ProvisionedThroughputExceededException" || e._tag === "ThrottlingException",
+      schedule: Schedule.exponential("1 second"),
+      times: 5,
+    }))
+
+const normalizeTags = (
+  tags: { mutable [key: string]: string | undefined } | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(tags ?? {}).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+
+export const AdapterProvider = (): infer _ =>
+  Provider.effect(
+    Adapter,
+    effect {
+      // Adapter names must match [a-zA-Z0-9-_]{1,128}; the engine-generated
+      // physical name (alphanumerics + dashes) already satisfies it.
+      const toName = effect (
+        id: string,
+        props: AdapterProps,
+      ) => (props.adapterName ? props.adapterName : try createPhysicalName({ id, maxLength: 128 }))
+
+      // Confirmed live: Textract adapter ARNs use a nonstandard resource
+      // path with a leading slash — `:/adapters/{adapterId}`.
+      const adapterArn = effect (adapterId: string) => {
+        const { accountId, region } = try AWSEnvironment.current
+        return `arn:aws:textract:${region}:${accountId}:/adapters/${adapterId}`
+      }
+
+      const getOne = effect (adapterId: string) =>
+        ({ ...(try throttleRetry(textract.getAdapter({ AdapterId: adapterId }))), AdapterId: adapterId }) catch effect (
+          e,
+        ) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+
+      // Adapter ids are server-assigned, so recovery without persisted
+      // output falls back to a bounded name scan.
+      const findByName = effect (name: string) => {
+        let nextToken: string | undefined
+        for (let page = 0; page < 25; page++) {
+          const res = try throttleRetry(textract.listAdapters({ NextToken: nextToken }))
+          const match = (res.Adapters ?? []).find((a) => a.AdapterName === name)
+          if (match?.AdapterId) return match.AdapterId
+          nextToken = res.NextToken
+          if (!nextToken) break
+        }
+        return undefined
+      }
+
+      return {
+        stables: ["adapterId", "adapterArn", "creationTime"],
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return
+          const oldFeatures = [...(olds?.featureTypes ?? [])].sort()
+          const newFeatures = [...news.featureTypes].sort()
+          if (
+            oldFeatures.length !== newFeatures.length
+            || oldFeatures.some((f, i) => f !== newFeatures[i])
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const adapterId = output?.adapterId
+            ?? (try findByName(try toName(id, olds ?? { featureTypes: [] })))
+          if (!adapterId) return undefined
+          const found = try getOne(adapterId)
+          if (!found) return undefined
+          return toAttributes(try adapterArn(adapterId), found)
+        },
+        list: effect () => {
+          const attrs: ReturnType<typeof toAttributes>[] = []
+          let nextToken: string | undefined
+          for (let page = 0; page < 25; page++) {
+            const res = try throttleRetry(textract.listAdapters({ NextToken: nextToken }))
+            for (const overview of res.Adapters ?? []) {
+              if (overview.AdapterId) {
+                const found = try getOne(overview.AdapterId)
+                if (found) {
+                  attrs.push(toAttributes(try adapterArn(overview.AdapterId), found))
+                }
+              }
+            }
+            nextToken = res.NextToken
+            if (!nextToken) break
+          }
+          return attrs
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try toName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // Observe — cloud state is authoritative; `output` is only a
+          // cached id hint and may be stale.
+          let adapterId = output?.adapterId ?? (try findByName(name))
+          let observed = adapterId ? try getOne(adapterId) : undefined
+
+          // Ensure — create when missing; a ConflictException means another
+          // writer won the race, so fall through to the name lookup.
+          if (!observed) {
+            const created = throttleRetry(
+              textract.createAdapter({
+                AdapterName: name,
+                FeatureTypes: news.featureTypes,
+                Description: news.description,
+                AutoUpdate: news.autoUpdate,
+                Tags: desiredTags,
+              }),
+            ) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: try Effect.undefined;
+              default: throw e;
+            }
+            adapterId = created?.AdapterId ?? (try findByName(name))
+            if (!adapterId) {
+              return try Effect.die(
+                new Error(`Textract adapter ${name} was neither created nor found`),
+              )
+            }
+            observed = try getOne(adapterId)
+          }
+
+          try session.note(adapterId!)
+          const arn = try adapterArn(adapterId!)
+
+          // Sync mutable settings — diff observed against desired and apply
+          // only the delta. UpdateAdapter treats omitted fields as unchanged.
+          const update: textract.UpdateAdapterRequest = {
+            AdapterId: adapterId!,
+          }
+          let dirty = false
+          if (observed?.AdapterName !== name) {
+            update.AdapterName = name
+            dirty = true
+          }
+          if (news.description !== undefined && observed?.Description !== news.description) {
+            update.Description = news.description
+            dirty = true
+          }
+          if (news.autoUpdate !== undefined && observed?.AutoUpdate !== news.autoUpdate) {
+            update.AutoUpdate = news.autoUpdate
+            dirty = true
+          }
+          if (dirty) {
+            try throttleRetry(textract.updateAdapter(update))
+          }
+
+          // Sync tags — diff against the OBSERVED cloud tags (adoption may
+          // hand us foreign tags), not olds/output.
+          const { removed, upsert } = diffTags(normalizeTags(observed?.Tags), desiredTags)
+          if (upsert.length > 0) {
+            try throttleRetry(
+              textract.tagResource({
+                ResourceARN: arn,
+                Tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+              }),
+            )
+          }
+          if (removed.length > 0) {
+            try throttleRetry(
+              textract.untagResource({
+                ResourceARN: arn,
+                TagKeys: removed,
+              }),
+            )
+          }
+
+          const final = try getOne(adapterId!)
+          return toAttributes(arn, final ?? { AdapterId: adapterId!, AdapterName: name })
+        },
+        delete: effect ({ output }) => {
+          // Idempotent — the adapter may already be gone.
+          throttleRetry(textract.deleteAdapter({ AdapterId: output.adapterId })) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            default: throw e;
+          }
+        },
+      }
+    },
+  )

@@ -1,7 +1,7 @@
 import type * as polly from "@distilled.cloud/aws/polly";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Lexicon } from "./Lexicon.js";
+import type { Lexicon } from "./Lexicon.vibe";
 /**
  * Runtime binding for `polly:GetLexicon` — read the PLS content and
  * attributes of a pronunciation lexicon at runtime.

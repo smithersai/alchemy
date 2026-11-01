@@ -1,7 +1,7 @@
 import type * as ECS from "@distilled.cloud/aws/ecs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 import type { Task } from "./Task.js";
 export interface RunTaskRequest extends Omit<ECS.RunTaskRequest, "cluster" | "taskDefinition"> {
 }

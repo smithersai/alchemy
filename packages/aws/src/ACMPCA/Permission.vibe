@@ -1,0 +1,210 @@
+import * as acmpca from "@distilled.cloud/aws/acm-pca"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+const DEFAULT_PRINCIPAL = "acm.amazonaws.com"
+const DEFAULT_ACTIONS: acmpca.ActionType[] = [
+  "IssueCertificate",
+  "GetCertificate",
+  "ListPermissions",
+]
+
+export interface PermissionProps {
+  /**
+   * The ARN of the private certificate authority the permission is
+   * granted on. Changing this replaces the permission.
+   */
+  mutable certificateAuthorityArn: string
+  /**
+   * The Amazon Web Services service principal receiving the permission.
+   * Currently the only supported value is `acm.amazonaws.com`.
+   * Changing this replaces the permission.
+   * @default "acm.amazonaws.com"
+   */
+  mutable principal?: string
+  /**
+   * The actions the principal may perform against the CA. For the ACM
+   * principal AWS requires all three actions — a subset is rejected with
+   * `ValidationException: Permissions must contain all three actions
+   * [IssueCertificate, GetCertificate, ListPermissions] for ACM to
+   * perform renewals.`
+   * @default ["IssueCertificate", "GetCertificate", "ListPermissions"]
+   */
+  mutable actions?: acmpca.ActionType[]
+  /**
+   * The account that owns the CA (for CAs shared into this account).
+   * Changing this replaces the permission.
+   */
+  mutable sourceAccount?: string
+}
+
+export interface Permission extends
+  Resource<
+    "AWS.ACMPCA.Permission",
+    PermissionProps,
+    {
+      /** The ARN of the CA the permission is granted on. */
+      mutable certificateAuthorityArn: string
+      /** The service principal the permission is granted to. */
+      mutable principal: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A permission on a private CA granted to the Certificate Manager (ACM)
+ * service principal, allowing ACM to automatically issue and renew ACM
+ * certificates signed by the CA.
+ * ### Granting Permissions
+ * **Example:** Allow ACM to auto-renew certificates
+ * ```typescript
+ * import * as ACMPCA from "@alchemy.run/aws/ACMPCA";
+ *
+ * const permission = yield* ACMPCA.Permission("AcmRenewal", {
+ *   certificateAuthorityArn: ca.certificateAuthorityArn,
+ * });
+ * ```
+ *
+ * **Example:** Restrict the granted actions
+ * ```typescript
+ * const permission = yield* ACMPCA.Permission("AcmIssueOnly", {
+ *   certificateAuthorityArn: ca.certificateAuthorityArn,
+ *   actions: ["IssueCertificate", "GetCertificate"],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Permission = Resource<Permission>("AWS.ACMPCA.Permission")
+
+const sortedActions = (actions: readonly acmpca.ActionType[] | undefined): infer _ =>
+  JSON.stringify([...(actions ?? [])].sort())
+
+export const PermissionProvider = (): infer _ =>
+  Provider.effect(
+    Permission,
+    effect {
+      // Find the permission entry for a principal on a CA. A missing or
+      // deleted CA yields "no permission" for observation purposes.
+      const findPermission = effect (
+        certificateAuthorityArn: string,
+        principal: string,
+      ) =>
+        (Array.from(
+          try (acmpca.listPermissions
+            .items({ CertificateAuthorityArn: certificateAuthorityArn })
+            |> Stream.runCollect(%)),
+        ).find((p) => p.Principal === principal)) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      return {
+        stables: ["certificateAuthorityArn", "principal"],
+        list: effect () => {
+          // Permissions hang off CAs: enumerate every non-deleted CA in
+          // the ambient account/region and collect its permissions.
+          const cas = Array.from(
+            try (acmpca.listCertificateAuthorities.items({})
+              |> Stream.runCollect(%)),
+          )
+            .filter((ca) => ca.Arn !== undefined && ca.Status !== "DELETED")
+            .map((ca) => ca.Arn!)
+          const perCa = try Effect.forEach(
+            cas,
+            effect (arn) =>
+              (Array.from(
+                try (acmpca.listPermissions.items({ CertificateAuthorityArn: arn })
+                  |> Stream.runCollect(%)),
+              )
+                .filter((p) => p.Principal !== undefined)
+                .map((p) => ({
+                  certificateAuthorityArn: arn,
+                  principal: p.Principal!,
+                }))) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidStateException" }:
+                    [] as Permission["Attributes"][];
+                  default: throw e;
+                },
+            { concurrency: 5 },
+          )
+          return perCa.flat()
+        },
+        read: effect ({ olds, output }) => {
+          const arn = output?.certificateAuthorityArn ?? olds?.certificateAuthorityArn
+          if (arn === undefined) return undefined
+          const principal = output?.principal ?? olds?.principal ?? DEFAULT_PRINCIPAL
+          const found = try findPermission(arn, principal)
+          if (found === undefined) return undefined
+          return { certificateAuthorityArn: arn, principal }
+        },
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          if (
+            news.certificateAuthorityArn !== olds.certificateAuthorityArn
+            || (news.principal ?? DEFAULT_PRINCIPAL) !== (olds.principal ?? DEFAULT_PRINCIPAL)
+            || news.sourceAccount !== olds.sourceAccount
+          ) {
+            return { action: "replace" } as const
+          }
+          // actions changes converge through the default update path.
+        },
+        reconcile: effect ({ news, session }) => {
+          const principal = news.principal ?? DEFAULT_PRINCIPAL
+          const actions = news.actions ?? DEFAULT_ACTIONS
+
+          // OBSERVE — the permission has no update API, so converge by
+          // comparing the observed action set and recreating on drift.
+          const existing = try findPermission(news.certificateAuthorityArn, principal)
+
+          const converged = existing !== undefined
+            && sortedActions(existing.Actions) === sortedActions(actions)
+            && (news.sourceAccount === undefined || existing.SourceAccount === news.sourceAccount)
+
+          if (!converged) {
+            if (existing !== undefined) {
+              acmpca
+                .deletePermission({
+                  CertificateAuthorityArn: news.certificateAuthorityArn,
+                  Principal: principal,
+                  SourceAccount: news.sourceAccount,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            }
+            acmpca
+              .createPermission({
+                CertificateAuthorityArn: news.certificateAuthorityArn,
+                Principal: principal,
+                SourceAccount: news.sourceAccount,
+                Actions: actions,
+              }) catch effect (e) => match (e) {
+                when { _tag: "PermissionAlreadyExistsException" }: try Effect.void;
+                default: throw e;
+              }
+          }
+
+          try session.note(`Permission for ${principal} on ${news.certificateAuthorityArn}`)
+          return {
+            certificateAuthorityArn: news.certificateAuthorityArn,
+            principal,
+          }
+        },
+        delete: effect ({ output }) => {
+          acmpca
+            .deletePermission({
+              CertificateAuthorityArn: output.certificateAuthorityArn,
+              Principal: output.principal,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidStateException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

@@ -15,7 +15,7 @@ export * from "./DescribeDomainNodesHttp.vibe";
 export * from "./DescribeDomains.vibe";
 export * from "./DescribeDomainsHttp.vibe";
 export * from "./DataPlaneTypes.vibe";
-export * from "./Domain.ts";
+export * from "./Domain.vibe";
 export * from "./DomainEventSource.vibe";
 export * from "./DomainRead.vibe";
 export * from "./DomainReadHttp.vibe";

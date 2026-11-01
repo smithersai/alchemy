@@ -1,0 +1,63 @@
+import * as paymentcryptographydata from "@distilled.cloud/aws/payment-cryptography-data"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { GenerateMacEmvPinChange, type GenerateMacEmvPinChangeRequest } from "./GenerateMacEmvPinChange.vibe"
+import type { Key } from "./Key.vibe"
+
+/**
+ * HTTP implementation of {@link GenerateMacEmvPinChange} — bespoke (not
+ * scaffolded): the operation spans three keys (the new PIN PEK plus the
+ * secure-messaging integrity and confidentiality keys). Grants the host
+ * Function `payment-cryptography:GenerateMacEmvPinChange` on all three key
+ * ARNs and injects each identifier at runtime.
+ */
+export const GenerateMacEmvPinChangeHttp = Layer.effect(
+  GenerateMacEmvPinChange,
+  effect {
+    const bind = try AWSBindings.Bind
+    const generateMacEmvPinChange = try AWSBindings.withCredentials(
+      paymentcryptographydata.generateMacEmvPinChange,
+    )
+
+    return effect <P extends Key, I extends Key, C extends Key>(
+      newPinPek: P,
+      secureMessagingIntegrityKey: I,
+      secureMessagingConfidentialityKey: C,
+    ) => {
+      const NewPinPekArn = try newPinPek.keyArn.asEffect()
+      const IntegrityKeyArn = try secureMessagingIntegrityKey.keyArn.asEffect()
+      const ConfidentialityKeyArn = try secureMessagingConfidentialityKey.keyArn.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        for (
+          const key of [
+            newPinPek,
+            secureMessagingIntegrityKey,
+            secureMessagingConfidentialityKey,
+          ]
+        ) {
+          try bind`AWS.PaymentCryptography.GenerateMacEmvPinChange(${key})`({
+            policyStatements: [
+              {
+                Effect: "Allow",
+                Action: ["payment-cryptography:GenerateMacEmvPinChange"],
+                Resource: [key.keyArn],
+              },
+            ],
+          })
+        }
+      }
+      return effect (request: GenerateMacEmvPinChangeRequest) =>
+        try withSpan(
+          effect {
+            return try generateMacEmvPinChange({
+              ...request,
+              NewPinPekIdentifier: try NewPinPekArn,
+              SecureMessagingIntegrityKeyIdentifier: try IntegrityKeyArn,
+              SecureMessagingConfidentialityKeyIdentifier: try ConfidentialityKeyArn,
+            })
+          },
+          `AWS.PaymentCryptography.GenerateMacEmvPinChange(${newPinPek.LogicalId})`,
+        )
+    }
+  },
+)

@@ -1,4 +1,4 @@
-export * from "./Cluster.ts";
+export * from "./Cluster.vibe";
 export * from "./Connect.vibe";
 export * from "./ConnectReadHttp.vibe";
 export * from "./ConnectReadWriteHttp.vibe";
@@ -11,7 +11,7 @@ export * from "./DescribeEvents.vibe";
 export * from "./DescribeEventsHttp.vibe";
 export * from "./IncreaseReplicationFactor.vibe";
 export * from "./IncreaseReplicationFactorHttp.vibe";
-export * from "./ParameterGroup.ts";
+export * from "./ParameterGroup.vibe";
 export * from "./RebootNode.vibe";
 export * from "./RebootNodeHttp.vibe";
-export * from "./SubnetGroup.ts";
+export * from "./SubnetGroup.vibe";

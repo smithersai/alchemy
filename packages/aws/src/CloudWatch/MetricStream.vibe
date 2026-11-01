@@ -1,0 +1,260 @@
+import * as cloudwatch from "@distilled.cloud/aws/cloudwatch"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import type { Input } from "alchemy/Input"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment, type AccountID } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import type { RegionID } from "../Region.ts"
+import { createName, readResourceTags, retryConcurrent, updateResourceTags } from "./common.ts"
+
+export error MetricStreamUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type MetricStreamName = string
+export type MetricStreamArn = `arn:aws:cloudwatch:${RegionID}:${AccountID}:metric-stream/${string}`
+
+export interface MetricStreamProps extends Omit<cloudwatch.PutMetricStreamInput, "Name" | "Tags"> {
+  /**
+   * Name of the metric stream. If omitted, a unique name is generated.
+   */
+  mutable name?: MetricStreamName
+  /**
+   * Whether the stream should be running after deployment.
+   * @default true
+   */
+  mutable enabled?: boolean
+  /**
+   * Optional tags to apply to the metric stream.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface MetricStream extends
+  Resource<
+    "AWS.CloudWatch.MetricStream",
+    MetricStreamProps,
+    {
+      /** Physical name of the metric stream. */
+      mutable metricStreamName: MetricStreamName
+      /** ARN of the metric stream. */
+      mutable metricStreamArn: MetricStreamArn
+      /** Current state of the stream (`running` or `stopped`). */
+      mutable state: string | undefined
+      /** The full metric stream description as last read from CloudWatch. */
+      mutable metricStream: cloudwatch.GetMetricStreamOutput
+      /** Tags on the metric stream, including the internal Alchemy ownership tags. */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A CloudWatch metric stream — continuously exports CloudWatch metrics to
+ * a Kinesis Data Firehose delivery stream (and on to S3, Datadog, etc.).
+ * ### Creating Metric Streams
+ * **Example:** Firehose Delivery Stream
+ * ```typescript
+ * const stream = yield* MetricStream("MetricsExport", {
+ *   FirehoseArn: "arn:aws:firehose:us-east-1:123456789012:deliverystream/example",
+ *   RoleArn: "arn:aws:iam::123456789012:role/example",
+ *   OutputFormat: "json",
+ * });
+ * ```
+ *
+ * **Example:** Stream Only Selected Namespaces
+ * ```typescript
+ * const stream = yield* MetricStream("LambdaMetricsExport", {
+ *   FirehoseArn: firehose.deliveryStreamArn,
+ *   RoleArn: role.roleArn,
+ *   OutputFormat: "json",
+ *   IncludeFilters: [{ Namespace: "AWS/Lambda" }],
+ * });
+ * ```
+ *
+ * ### Reading Metric Streams at Runtime
+ * **Example:** Read the Stream's State from a Function
+ * ```typescript
+ * // init — bind the stream to the function (see GetMetricStream)
+ * const getMetricStream = yield* AWS.CloudWatch.GetMetricStream(stream);
+ *
+ * // runtime
+ * const result = yield* getMetricStream();
+ * const state = result.State; // "running" | "stopped"
+ * ```
+ *
+ * @resource
+ */
+export const MetricStream = Resource<MetricStream>("AWS.CloudWatch.MetricStream")
+
+export const MetricStreamProvider = (): infer _ =>
+  Provider.effect(
+    MetricStream,
+    effect {
+      const createMetricStreamName = (id: string, props: { mutable name?: string } = {}) =>
+        createName(id, props.name, 255)
+
+      const metricStreamArn = effect (name: string) =>
+        try effect {
+          const env = try AWSEnvironment.current
+          return `arn:aws:cloudwatch:${env.region}:${env.accountId}:metric-stream/${name}` as MetricStreamArn
+        }
+
+      const readMetricStream = effect (name: string) => {
+        const output = cloudwatch
+          .getMetricStream({
+            Name: name,
+          }) catch effect (e) => match (e) {
+            when { _tag: "InvalidParameterValueException" }: try Effect.undefined;
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+        if (!output?.Name || !output.Arn) {
+          return undefined
+        }
+
+        const tags = readResourceTags(output.Arn) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: {};
+          when { _tag: "InvalidParameterValueException" }: {};
+          default: throw e;
+        }
+
+        return {
+          metricStreamName: output.Name,
+          metricStreamArn: output.Arn as MetricStreamArn,
+          state: output.State,
+          metricStream: output,
+          tags,
+        }
+      }
+
+      const syncMetricStreamState = effect ({
+        name,
+        enabled,
+      }: {
+        mutable name: string
+        mutable enabled: boolean | undefined
+      }) => {
+        if (enabled === false) {
+          try retryConcurrent(
+            cloudwatch.stopMetricStreams({
+              Names: [name],
+            }),
+          )
+          return
+        }
+
+        try retryConcurrent(
+          cloudwatch.startMetricStreams({
+            Names: [name],
+          }),
+        )
+      }
+
+      return {
+        stables: ["metricStreamName", "metricStreamArn"],
+        diff: effect ({ id, olds = {}, news = {} as Input<MetricStreamProps> }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createMetricStreamName(id, olds)
+          const newName = try createMetricStreamName(id, news)
+
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+        },
+        list: effect () => {
+          // Enumerate every metric stream in the account/region. The list
+          // op only returns summary entries, so re-read each by name to
+          // produce the full Attributes shape `read` returns.
+          const entries = Array.from(
+            try (cloudwatch.listMetricStreams.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Entries ?? [])
+
+          const results = try Effect.forEach(
+            entries,
+            effect (entry) => (entry.Name ? try readMetricStream(entry.Name) : try Effect.undefined),
+            { concurrency: 10 },
+          )
+
+          return results.filter(
+            (state): state is NonNullable<typeof state> => state !== undefined,
+          )
+        },
+        read: effect ({ id, olds, output }) => {
+          const name = output?.metricStreamName ?? (try createMetricStreamName(id, olds ?? {}))
+          const state = try readMetricStream(name)
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.tags)) ? state : Unowned(state)
+        },
+        reconcile: effect ({ id, news, olds, output, session }) => {
+          // Observe — pin the physical name from `output` if present;
+          // otherwise derive from desired props. Read existing so we have
+          // a baseline for tag-diffing on adoption.
+          const name = output?.metricStreamName ?? (try createMetricStreamName(id, news))
+          const existing = try readMetricStream(name)
+
+          // Ensure — `putMetricStream` is an upsert; we send the full
+          // desired config every reconcile.
+          try retryConcurrent(
+            cloudwatch.putMetricStream({
+              ...news,
+              Name: name,
+            }),
+          )
+
+          // Sync running state — `enabled` drives start/stop independently
+          // of the put call.
+          try syncMetricStreamState({
+            name,
+            enabled: news.enabled,
+          })
+
+          // Sync tags — diff against `olds.tags` when we have prior state,
+          // otherwise fall back to what we observed (adoption path).
+          const tags = try updateResourceTags({
+            id,
+            resourceArn: try metricStreamArn(name),
+            olds: olds?.tags ?? existing?.tags,
+            news: news.tags,
+          })
+
+          try session.note(try metricStreamArn(name))
+
+          const state = try readMetricStream(name)
+          if (!state) {
+            throw new MetricStreamUnexpectedResponse({
+              message: `failed to read reconciled metric stream '${name}'`,
+            })
+          }
+
+          return {
+            ...state,
+            tags,
+          }
+        },
+        delete: effect ({ output }) => {
+          const existing = try readMetricStream(output.metricStreamName)
+          if (!existing) {
+            return
+          }
+
+          retryConcurrent(
+            cloudwatch.deleteMetricStream({
+              Name: output.metricStreamName,
+            }),
+          ) catch effect (e) => match (e) {
+            when { _tag: "InvalidParameterValueException" }: try Effect.void;
+            default: throw e;
+          }
+        },
+      }
+    },
+  )

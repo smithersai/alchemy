@@ -2,7 +2,7 @@ import type * as qbusiness from "@distilled.cloud/aws/qbusiness";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
-import type { WebExperience } from "./WebExperience.js";
+import type { WebExperience } from "./WebExperience.vibe";
 /**
  * `CreateAnonymousWebExperienceUrl` request with `applicationId` +
  * `webExperienceId` injected from the bound web experience.

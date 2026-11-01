@@ -1,7 +1,7 @@
 import type * as iotfleetwise from "@distilled.cloud/aws/iotfleetwise";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ModelManifest } from "./ModelManifest.js";
+import type { ModelManifest } from "./ModelManifest.vibe";
 /**
  * `ListModelManifestNodes` request with `name` injected from the bound
  * model manifest.

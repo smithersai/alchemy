@@ -1,7 +1,7 @@
 import type * as AVP from "@distilled.cloud/aws/verifiedpermissions";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { PolicyStore } from "./PolicyStore.js";
+import type { PolicyStore } from "./PolicyStore.vibe";
 /**
  * A batch policy-retrieval request scoped to the bound policy store — the
  * store's `policyStoreId` is injected into every item.

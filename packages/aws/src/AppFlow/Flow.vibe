@@ -1,0 +1,243 @@
+import * as appflow from "@distilled.cloud/aws/appflow"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readAppFlowTags, syncAppFlowTags } from "./internal.ts"
+
+export interface FlowProps {
+  /**
+   * The name of the flow. Must be unique in the account/region, may contain
+   * only letters, digits, hyphens, underscores, `!`, `@`, `#`, `.`, `$`.
+   * If omitted, a deterministic physical name is generated. Changing the
+   * name replaces the flow.
+   */
+  mutable flowName?: string
+  /**
+   * A description of the flow.
+   */
+  mutable description?: string
+  /**
+   * The ARN of a KMS key AppFlow uses to encrypt data. If omitted, the
+   * AWS-managed AppFlow key is used.
+   */
+  mutable kmsArn?: string
+  /**
+   * How the flow is triggered — on demand, on a schedule, or by an event.
+   * @default { triggerType: "OnDemand" }
+   */
+  mutable triggerConfig?: appflow.TriggerConfig
+  /**
+   * Configuration of the source connector (e.g. S3, Salesforce) the flow
+   * pulls data from.
+   */
+  mutable sourceFlowConfig: appflow.SourceFlowConfig
+  /**
+   * Configuration of the destination connector(s) the flow pushes data to.
+   */
+  mutable destinationFlowConfigList: appflow.DestinationFlowConfig[]
+  /**
+   * The field mapping tasks applied to records as they move from source to
+   * destination.
+   */
+  mutable tasks: appflow.Task[]
+  /**
+   * Glue Data Catalog configuration for cataloging flow output.
+   */
+  mutable metadataCatalogConfig?: appflow.MetadataCatalogConfig
+  /**
+   * User-defined tags for the flow.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Flow extends
+  Resource<
+    "AWS.AppFlow.Flow",
+    FlowProps,
+    {
+      mutable flowName: string
+      mutable flowArn: string
+      mutable flowStatus: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon AppFlow flow. A flow transfers data between a source connector
+ * and one or more destination connectors, applying field-mapping tasks.
+ * The credential-free S3-to-S3 path is directly testable; other connectors
+ * require a {@link ConnectorProfile} with vendor credentials.
+ *
+ * For an S3 source, the bucket policy must authorize the
+ * `appflow.amazonaws.com` service principal (`s3:GetObject` + `s3:ListBucket`
+ * on the source; `s3:PutObject` and the multipart/ACL actions on the
+ * destination), and the source prefix must contain at least one object when
+ * the flow is created — AppFlow validates connectivity by listing the source
+ * at `CreateFlow` time and rejects an empty prefix with
+ * `ConnectorServerException`.
+ * ### Creating a Flow
+ * **Example:** S3 to S3 On-Demand Flow
+ * ```typescript
+ * const flow = yield* AppFlow.Flow("Copy", {
+ *   triggerConfig: { triggerType: "OnDemand" },
+ *   sourceFlowConfig: {
+ *     connectorType: "S3",
+ *     sourceConnectorProperties: {
+ *       S3: { bucketName: srcBucket, bucketPrefix: "input" },
+ *     },
+ *   },
+ *   destinationFlowConfigList: [
+ *     {
+ *       connectorType: "S3",
+ *       destinationConnectorProperties: {
+ *         S3: { bucketName: dstBucket, bucketPrefix: "output" },
+ *       },
+ *     },
+ *   ],
+ *   tasks: [
+ *     {
+ *       taskType: "Map_all",
+ *       sourceFields: [],
+ *       connectorOperator: { S3: "NO_OP" },
+ *       taskProperties: {},
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Flow = Resource<Flow>("AWS.AppFlow.Flow")
+
+const ON_DEMAND: appflow.TriggerConfig = { triggerType: "OnDemand" }
+
+export const FlowProvider = (): infer _ =>
+  Provider.effect(
+    Flow,
+    effect {
+      const toName = effect (
+        id: string,
+        props: FlowProps,
+      ) => (props.flowName ? props.flowName : try createPhysicalName({ id, maxLength: 100 }))
+
+      return {
+        stables: ["flowName", "flowArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toName(id, olds)) !== (try toName(id, news))) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.flowName ?? (try toName(id, olds ?? {}))
+          const flow = appflow
+            .describeFlow({ flowName: name }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+          if (flow === undefined || flow.flowArn === undefined) return undefined
+          const attrs = {
+            flowName: name,
+            flowArn: flow.flowArn,
+            flowStatus: flow.flowStatus,
+          }
+          const tags = try readAppFlowTags(flow.flowArn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.flowName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const trigger = news.triggerConfig ?? ON_DEMAND
+
+          // 1. Observe.
+          let live = appflow
+            .describeFlow({ flowName: name }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+
+          // 2. Ensure — create if missing. Tolerate an AlreadyExists race by
+          // falling back to describe.
+          if (live === undefined) {
+            appflow
+              .createFlow({
+                flowName: name,
+                description: news.description,
+                kmsArn: news.kmsArn,
+                triggerConfig: trigger,
+                sourceFlowConfig: news.sourceFlowConfig,
+                destinationFlowConfigList: news.destinationFlowConfigList,
+                tasks: news.tasks,
+                metadataCatalogConfig: news.metadataCatalogConfig,
+                tags: desiredTags,
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            live = try appflow.describeFlow({ flowName: name })
+          } else {
+            // 3. Sync — updateFlow converges the mutable configuration
+            // (trigger, source/destination, tasks). It does not accept tags.
+            try appflow.updateFlow({
+              flowName: name,
+              description: news.description,
+              triggerConfig: trigger,
+              sourceFlowConfig: news.sourceFlowConfig,
+              destinationFlowConfigList: news.destinationFlowConfigList,
+              tasks: news.tasks,
+              metadataCatalogConfig: news.metadataCatalogConfig,
+            })
+            live = try appflow.describeFlow({ flowName: name })
+          }
+
+          // 3b. Sync tags against observed cloud tags.
+          if (live.flowArn) {
+            try syncAppFlowTags(live.flowArn, desiredTags)
+          }
+
+          try session.note(name)
+          return {
+            flowName: name,
+            flowArn: live.flowArn!,
+            flowStatus: live.flowStatus,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          appflow
+            .deleteFlow({ flowName: output.flowName, forceDelete: true }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        list: effect () =>
+          Array.from(
+            try (appflow.listFlows.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.flows ?? [])
+              .filter(
+                (
+                  f,
+                ): f is appflow.FlowDefinition & {
+                  mutable flowName: string
+                  mutable flowArn: string
+                } => f.flowName !== undefined && f.flowArn !== undefined,
+              )
+              .map((f) => ({
+                flowName: f.flowName,
+                flowArn: f.flowArn,
+                flowStatus: f.flowStatus,
+              }))
+          ),
+      }
+    },
+  )

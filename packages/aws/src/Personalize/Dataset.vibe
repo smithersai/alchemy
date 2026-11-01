@@ -1,0 +1,276 @@
+import * as personalize from "@distilled.cloud/aws/personalize"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readPersonalizeTags, syncPersonalizeTags } from "./internal.vibe"
+
+export error PersonalizeDatasetNotReady {
+  message: string
+  cause?: unknown
+}
+
+export interface DatasetProps {
+  /**
+   * Name of the dataset. If omitted, a unique name is generated from the app,
+   * stage, and logical ID. Changing the name replaces the dataset.
+   */
+  mutable name?: string
+  /**
+   * ARN of the schema that describes this dataset's fields. Immutable —
+   * changing it replaces the dataset.
+   */
+  mutable schemaArn: string
+  /**
+   * ARN of the dataset group this dataset belongs to. Immutable — changing it
+   * replaces the dataset.
+   */
+  mutable datasetGroupArn: string
+  /**
+   * The type of dataset: `Interactions`, `Items`, `Users`, `Actions`, or
+   * `Action_Interactions`. Immutable — changing it replaces the dataset.
+   */
+  mutable datasetType: string
+  /**
+   * User-defined tags for the dataset.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Dataset extends
+  Resource<
+    "AWS.Personalize.Dataset",
+    DatasetProps,
+    {
+      /**
+       * ARN of the dataset.
+       */
+      mutable datasetArn: string
+      /**
+       * Name of the dataset.
+       */
+      mutable name: string
+      /**
+       * Dataset type (`Interactions`, `Items`, `Users`, or `Actions`).
+       */
+      mutable datasetType: string
+      /**
+       * Dataset status (e.g. `ACTIVE`, `CREATE PENDING`).
+       */
+      mutable status: string
+      /**
+       * ARN of the schema the dataset conforms to.
+       */
+      mutable schemaArn: string
+      /**
+       * ARN of the dataset group the dataset belongs to.
+       */
+      mutable datasetGroupArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Personalize dataset — a typed collection (Interactions, Items,
+ * Users, …) inside a dataset group, backed by a schema. Creating the dataset
+ * is a cheap metadata operation; bulk imports and training happen through
+ * separate import jobs and solutions.
+ *
+ * ### Creating a Dataset
+ * **Example:** Interactions Dataset
+ * ```typescript
+ * const dataset = yield* Personalize.Dataset("Interactions", {
+ *   schemaArn: schema.schemaArn,
+ *   datasetGroupArn: group.datasetGroupArn,
+ *   datasetType: "Interactions",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Dataset = Resource<Dataset>("AWS.Personalize.Dataset")
+
+export const DatasetProvider = (): infer _ =>
+  Provider.effect(
+    Dataset,
+    effect {
+      const createName = effect (id: string, props: DatasetProps) =>
+        props.name ?? (try createPhysicalName({ id, maxLength: 63 }))
+
+      const describe = effect (datasetArn: string) => {
+        const response = personalize
+          .describeDataset({ datasetArn }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.dataset
+      }
+
+      const waitActive = effect (datasetArn: string) => {
+        const dataset = try (describe(datasetArn)
+          |> Effect.repeat(%, {
+            schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(40)]),
+            until: (d) => d?.status === "ACTIVE" || (d?.status ?? "").includes("FAILED"),
+          }))
+        if (dataset?.status !== "ACTIVE") {
+          throw new PersonalizeDatasetNotReady({
+            message: `Personalize dataset ${datasetArn} did not become ACTIVE (status: ${dataset?.status})`,
+          })
+        }
+        return dataset
+      }
+
+      /** Find an existing dataset's ARN by name within its dataset group. */
+      const findArnByName = effect (name: string, datasetGroupArn: string) => {
+        const pages = try personalize.listDatasets
+          .pages({ datasetGroupArn })
+          .pipe(Stream.runCollect)
+        return Array.from(pages)
+          .flatMap((page) => page.datasets ?? [])
+          .find((summary) => summary.name === name)?.datasetArn
+      }
+
+      const toAttrs = (dataset: personalize.Dataset): infer _ => ({
+        datasetArn: dataset.datasetArn!,
+        name: dataset.name!,
+        datasetType: dataset.datasetType!,
+        status: dataset.status!,
+        schemaArn: dataset.schemaArn!,
+        datasetGroupArn: dataset.datasetGroupArn!,
+      })
+
+      return {
+        stables: ["datasetArn", "name"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (
+            oldName !== newName
+            || (olds.schemaArn ?? undefined) !== (news.schemaArn ?? undefined)
+            || (olds.datasetGroupArn ?? undefined) !== (news.datasetGroupArn ?? undefined)
+            || (olds.datasetType ?? undefined) !== (news.datasetType ?? undefined)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, output }) => {
+          if (!output?.datasetArn) return undefined
+          const dataset = try describe(output.datasetArn)
+          if (dataset === undefined) return undefined
+          const attrs = toAttrs(dataset)
+          const tags = try readPersonalizeTags(dataset.datasetArn!)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try createName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          let dataset = output?.datasetArn !== undefined ? try describe(output.datasetArn) : undefined
+
+          // Ensure — create if missing. A crashed prior run may have left a
+          // same-named dataset behind with no persisted state — adopt it by
+          // name and converge.
+          if (dataset === undefined) {
+            const arn = ((try personalize
+              .createDataset({
+                name,
+                schemaArn: news.schemaArn,
+                datasetGroupArn: news.datasetGroupArn,
+                datasetType: news.datasetType,
+                tags: Object.entries(desiredTags).map(([tagKey, tagValue]) => ({
+                  tagKey,
+                  tagValue,
+                })),
+              })).datasetArn!) catch effect (error) => match (error) {
+                when { _tag: "ResourceAlreadyExistsException" }: try effect {
+                  const existing = try findArnByName(name, news.datasetGroupArn)
+                  return (existing === undefined ? throw error : existing)
+                };
+                default: throw error;
+              }
+            dataset = try waitActive(arn)
+          }
+
+          // Sync tags — diff against OBSERVED cloud tags (no-op after a fresh
+          // create; converges an adopted leftover).
+          try syncPersonalizeTags(dataset.datasetArn!, desiredTags)
+
+          try session.note(dataset.datasetArn!)
+          return toAttrs(dataset)
+        },
+
+        delete: effect ({ output }) => {
+          try (effect {
+            return personalize.deleteDataset({ datasetArn: output.datasetArn }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          }
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "ResourceInUseException",
+              schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(20)]),
+            }))
+          // Deletion is asynchronous (DELETE PENDING) — wait until the dataset
+          // is actually gone so the schema and dataset group it references can
+          // delete without exhausting their ResourceInUse retries.
+          const remaining = try (describe(output.datasetArn)
+            |> Effect.repeat(%, {
+              schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(40)]),
+              until: (dataset): boolean => dataset === undefined,
+            }))
+          if (remaining !== undefined) {
+            throw new PersonalizeDatasetNotReady({
+              message: `Personalize dataset ${output.datasetArn} was not deleted (status: ${remaining.status})`,
+            })
+          }
+        },
+
+        // Datasets are keyed by their parent dataset group (ListDatasets
+        // requires a datasetGroupArn), so account-wide enumeration walks the
+        // dataset groups first and lists each group's datasets. Without this,
+        // orphaned datasets are invisible to nuke and permanently block both
+        // their schema and their dataset group from deleting.
+        list: effect () =>
+          (try (effect {
+            return (try (effect {
+              return Array.from(
+                try (personalize.listDatasetGroups.pages({})
+                  |> Stream.runCollect(%)),
+              ).flatMap((page) => page.datasetGroups ?? [])
+            }
+              |> Effect.flatMap(
+                %,
+                Effect.forEach(
+                  effect (group) =>
+                    Array.from(
+                      try (personalize.listDatasets.pages({ datasetGroupArn: group.datasetGroupArn })
+                        |> Stream.runCollect(%)),
+                    ).flatMap((page) => page.datasets ?? []),
+                  { concurrency: 4 },
+                ),
+              ))).flat()
+          }
+            |> Effect.flatMap(
+              %,
+              Effect.forEach(
+                effect (summary) =>
+                  try effect {
+                    const d = try describe(summary.datasetArn!)
+                    return (d ? toAttrs(d) : undefined)
+                  },
+                { concurrency: 4 },
+              ),
+            ))).filter((item) => item !== undefined),
+      }
+    },
+  )

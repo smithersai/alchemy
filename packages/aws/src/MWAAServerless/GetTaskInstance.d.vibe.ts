@@ -1,7 +1,7 @@
 import type * as mwaa from "@distilled.cloud/aws/mwaa-serverless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Workflow } from "./Workflow.js";
+import type { Workflow } from "./Workflow.vibe";
 /**
  * Request accepted by the {@link GetTaskInstance} runtime callable. The
  * `WorkflowArn` is injected from the bound {@link Workflow}.

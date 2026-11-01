@@ -1,7 +1,7 @@
 import type * as bda from "@distilled.cloud/aws/bedrock-data-automation";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Blueprint } from "./Blueprint.js";
+import type { Blueprint } from "./Blueprint.vibe";
 /**
  * `CreateBlueprintVersion` request with `blueprintArn` injected from the
  * bound {@link Blueprint}.

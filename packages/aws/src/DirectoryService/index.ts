@@ -1,4 +1,4 @@
-export * from "./ConditionalForwarder.ts";
+export * from "./ConditionalForwarder.vibe";
 export * from "./CreateComputer.vibe";
 export * from "./CreateComputerHttp.vibe";
 export * from "./CreateSnapshot.vibe";
@@ -11,7 +11,7 @@ export * from "./DescribeSnapshots.vibe";
 export * from "./DescribeSnapshotsHttp.vibe";
 export * from "./Directory.ts";
 export * from "./DirectoryEventSource.vibe";
-export * from "./EventTopic.ts";
+export * from "./EventTopic.vibe";
 export * from "./GetDirectoryLimits.vibe";
 export * from "./GetDirectoryLimitsHttp.vibe";
 export * from "./GetSnapshotLimits.vibe";

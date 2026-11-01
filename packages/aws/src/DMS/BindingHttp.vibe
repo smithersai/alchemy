@@ -1,0 +1,224 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Endpoint } from "./Endpoint.vibe"
+import type { ReplicationInstance } from "./ReplicationInstance.vibe"
+
+/**
+ * Shared HTTP scaffolding for the DMS runtime bindings.
+ *
+ * Every capability follows the same shape — resolve the distilled operation,
+ * register an IAM policy statement on the binding host, and return a runtime
+ * callable. The only variation is the operation, the IAM action(s), and the
+ * identifier(s) injected from the bound resource: an {@link Endpoint}'s ARN,
+ * a {@link ReplicationInstance}'s ARN, both (connection-shaped operations
+ * like `TestConnection`/`RefreshSchemas`), or none (account-level describes).
+ *
+ * DMS `Describe*` actions do not support resource-level IAM permissions, so
+ * describe-shaped capabilities grant on `*`; mutating capabilities
+ * (`TestConnection`, `RefreshSchemas`, `RebootReplicationInstance`) grant on
+ * the bound resource ARN(s).
+ *
+ * NOT exported from `index.ts`.
+ */
+
+/**
+ * Build the impl Effect for an endpoint-scoped operation: the runtime
+ * callable injects the bound {@link Endpoint}'s ARN as `EndpointArn`. DMS
+ * describe actions are not resource-scoped in IAM, so the deploy-time half
+ * grants `actions` on `*`.
+ */
+export const makeDmsEndpointScopedHttpBinding = effect <
+  I extends { mutable EndpointArn: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.DMS.DescribeSchemas`. */
+  mutable tag: string
+  /** The distilled operation; `EndpointArn` is injected from the resource. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*` (DMS describes are not resource-scoped). */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (endpoint: Endpoint) => {
+    const EndpointArn = try endpoint.endpointArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${endpoint})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "EndpointArn"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            EndpointArn: try EndpointArn,
+          } as I)
+        },
+        `${options.tag}(${endpoint.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a replication-instance-scoped operation: the
+ * runtime callable injects the bound {@link ReplicationInstance}'s ARN as
+ * `ReplicationInstanceArn`. Mutating actions (`RebootReplicationInstance`)
+ * support resource-level IAM and grant on the instance ARN; describe actions
+ * grant on `*` (set `iam: "wildcard"`).
+ */
+export const makeDmsInstanceScopedHttpBinding = effect <
+  I extends { mutable ReplicationInstanceArn: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.DMS.RebootReplicationInstance`. */
+  mutable tag: string
+  /** The distilled operation; `ReplicationInstanceArn` is injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted. */
+  mutable actions: readonly string[]
+  /**
+   * `"resource"` grants on the instance ARN (actions with resource-level IAM
+   * support); `"wildcard"` grants on `*` (DMS describes).
+   */
+  mutable iam: "resource" | "wildcard"
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (instance: ReplicationInstance) => {
+    const ReplicationInstanceArn = try instance.replicationInstanceArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${instance})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: options.iam === "resource"
+              ? [Output.interpolate`${instance.replicationInstanceArn}`]
+              : ["*"],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "ReplicationInstanceArn"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ReplicationInstanceArn: try ReplicationInstanceArn,
+          } as I)
+        },
+        `${options.tag}(${instance.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a connection-shaped operation that targets a
+ * (replication instance, endpoint) pair — `TestConnection` and
+ * `RefreshSchemas`. Both ARNs are injected from the bound resources and the
+ * deploy-time half grants `actions` on both ARNs (these actions support
+ * resource-level IAM on both resource types).
+ */
+export const makeDmsConnectionScopedHttpBinding = effect <
+  I extends { mutable ReplicationInstanceArn: string; mutable EndpointArn: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.DMS.TestConnection`. */
+  mutable tag: string
+  /** The distilled operation; both ARNs are injected from the resources. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the instance + endpoint ARNs. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (instance: ReplicationInstance, endpoint: Endpoint) => {
+    const ReplicationInstanceArn = try instance.replicationInstanceArn.asEffect()
+    const EndpointArn = try endpoint.endpointArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${instance}, ${endpoint})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [
+              Output.interpolate`${instance.replicationInstanceArn}`,
+              Output.interpolate`${endpoint.endpointArn}`,
+            ],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "ReplicationInstanceArn" | "EndpointArn"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ReplicationInstanceArn: try ReplicationInstanceArn,
+            EndpointArn: try EndpointArn,
+          } as I)
+        },
+        `${options.tag}(${instance.LogicalId}, ${endpoint.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level operation (no target resource).
+ * The deploy-time half grants `actions` on `*`.
+ */
+export const makeDmsAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.DMS.DescribeConnections`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

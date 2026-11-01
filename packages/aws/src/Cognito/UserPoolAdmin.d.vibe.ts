@@ -1,7 +1,7 @@
 import type * as cip from "@distilled.cloud/aws/cognito-identity-provider";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { UserPool } from "./UserPool.js";
+import type { UserPool } from "./UserPool.vibe";
 export interface AdminCreateUserRequest extends Omit<cip.AdminCreateUserRequest, "UserPoolId"> {
 }
 export interface AdminGetUserRequest extends Omit<cip.AdminGetUserRequest, "UserPoolId"> {

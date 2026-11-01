@@ -1,8 +1,8 @@
 import type * as dms from "@distilled.cloud/aws/database-migration-service";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Endpoint } from "./Endpoint.js";
-import type { ReplicationInstance } from "./ReplicationInstance.js";
+import type { Endpoint } from "./Endpoint.vibe";
+import type { ReplicationInstance } from "./ReplicationInstance.vibe";
 /**
  * Runtime binding for `dms:RefreshSchemas`.
  *

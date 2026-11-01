@@ -1,7 +1,7 @@
 import type * as featurestore from "@distilled.cloud/aws/sagemaker-featurestore-runtime";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { FeatureGroup } from "./FeatureGroup.js";
+import type { FeatureGroup } from "./FeatureGroup.vibe";
 export interface GetRecordRequest extends Omit<featurestore.GetRecordRequest, "FeatureGroupName"> {
 }
 /**

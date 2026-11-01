@@ -1,7 +1,7 @@
 export * from "./Analyzer.ts";
 export * from "./ApplyArchiveRule.vibe";
 export * from "./ApplyArchiveRuleHttp.vibe";
-export * from "./ArchiveRule.ts";
+export * from "./ArchiveRule.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding — intentionally NOT exported.
 export * from "./CancelPolicyGeneration.vibe";
 export * from "./CancelPolicyGenerationHttp.vibe";

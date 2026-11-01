@@ -1,7 +1,7 @@
 import * as Kinesis from "@distilled.cloud/aws/kinesis";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Stream } from "./Stream.js";
+import type { Stream } from "./Stream.vibe";
 export interface ListStreamConsumersRequest extends Omit<Kinesis.ListStreamConsumersInput, "StreamARN"> {
 }
 /**

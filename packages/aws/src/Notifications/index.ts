@@ -1,4 +1,4 @@
-export * from "./ChannelAssociation.ts";
+export * from "./ChannelAssociation.vibe";
 export * from "./EventRule.ts";
 export * from "./GetManagedNotificationChildEvent.vibe";
 export * from "./GetManagedNotificationChildEventHttp.vibe";

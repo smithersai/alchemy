@@ -1,7 +1,7 @@
 import type * as bcm from "@distilled.cloud/aws/bcm-data-exports";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Export } from "./Export.js";
+import type { Export } from "./Export.vibe";
 /**
  * Runtime binding for `bcm-data-exports:GetExport`.
  *

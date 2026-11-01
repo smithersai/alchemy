@@ -1,7 +1,7 @@
 import type * as glue from "@distilled.cloud/aws/glue";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Crawler } from "./Crawler.js";
+import type { Crawler } from "./Crawler.vibe";
 /**
  * Runtime binding for `glue:StartCrawler`.
  *

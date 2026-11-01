@@ -1,7 +1,7 @@
 import type * as qapps from "@distilled.cloud/aws/qapps";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { QApp } from "./QApp.js";
+import type { QApp } from "./QApp.vibe";
 /**
  * Request for {@link ExportQAppSessionData} — `instanceId` is injected from the bound Q App.
  */

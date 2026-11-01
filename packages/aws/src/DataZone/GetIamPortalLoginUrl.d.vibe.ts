@@ -1,7 +1,7 @@
 import type * as datazone from "@distilled.cloud/aws/datazone";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Domain } from "./Domain.js";
+import type { Domain } from "./Domain.vibe";
 /**
  * Runtime binding for `datazone:GetIamPortalLoginUrl`.
  *

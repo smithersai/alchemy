@@ -1,0 +1,195 @@
+import * as iotfleetwise from "@distilled.cloud/aws/iotfleetwise"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import {
+  inFleetWiseRegion,
+  readFleetWiseTags,
+  retryObservation,
+  syncFleetWiseTags,
+  toFleetWiseTagList,
+} from "./internal.ts"
+
+export error IoTFleetWiseFleetUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface FleetProps {
+  /**
+   * ID of the fleet. Must be 1-100 characters of `[a-zA-Z0-9:_-]`. If
+   * omitted, a deterministic physical name is generated. Changing the ID
+   * replaces the fleet.
+   */
+  mutable fleetId?: string
+  /**
+   * ARN of the {@link SignalCatalog} the fleet is associated with.
+   * Changing the signal catalog replaces the fleet.
+   */
+  mutable signalCatalogArn: string
+  /**
+   * Human-readable description of the fleet.
+   */
+  mutable description?: string
+  /**
+   * User-defined tags for the fleet.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Fleet extends
+  Resource<
+    "AWS.IoTFleetWise.Fleet",
+    FleetProps,
+    {
+      /** The unique ID of the fleet. */
+      mutable fleetId: string
+      /** The ARN of the fleet. */
+      mutable fleetArn: string
+      /** The signal catalog associated with the fleet. */
+      mutable signalCatalogArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS IoT FleetWise fleet — a group of vehicles that campaigns can
+ * target collectively.
+ *
+ * Fleets are free, provisioned near-instantly, and only carry a
+ * description besides their signal-catalog association. AWS IoT FleetWise
+ * is allowlist-gated and offered in `us-east-1`/`eu-central-1` only.
+ * ### Creating a Fleet
+ * **Example:** Basic Fleet
+ * ```typescript
+ * const fleet = yield* Fleet("TestFleet", {
+ *   signalCatalogArn: catalog.signalCatalogArn,
+ *   description: "west-coast pilot vehicles",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Fleet = Resource<Fleet>("AWS.IoTFleetWise.Fleet")
+
+export const FleetProvider = (): infer _ =>
+  Provider.effect(
+    Fleet,
+    effect {
+      const toId = effect (
+        id: string,
+        props: { mutable fleetId?: string },
+      ) => (props.fleetId ? props.fleetId : try createPhysicalName({ id, maxLength: 100 }))
+
+      const readFleet = effect (fleetId: string) =>
+        (try (iotfleetwise.getFleet({ fleetId })
+          |> inFleetWiseRegion(%))) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      const toAttrs = (fleet: iotfleetwise.GetFleetResponse): infer _ => ({
+        fleetId: fleet.id,
+        fleetArn: fleet.arn,
+        signalCatalogArn: fleet.signalCatalogArn,
+      })
+
+      return {
+        stables: ["fleetId", "fleetArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toId(id, olds)) !== (try toId(id, news))) {
+            return { action: "replace" } as const
+          }
+          // The update API can only change the description.
+          if (news.signalCatalogArn !== olds.signalCatalogArn) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const fleetId = output?.fleetId ?? (try toId(id, olds ?? {}))
+          const found = try readFleet(fleetId)
+          if (found === undefined) return undefined
+          const attrs = toAttrs(found)
+          const tags = try readFleetWiseTags(found.arn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const fleetId = output?.fleetId ?? (try toId(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = try readFleet(fleetId)
+
+          // 2. Ensure — create if missing; tolerate the AlreadyExists race.
+          if (observed === undefined) {
+            ;(try (iotfleetwise
+              .createFleet({
+                fleetId,
+                signalCatalogArn: news.signalCatalogArn,
+                description: news.description,
+                tags: toFleetWiseTagList(desiredTags),
+              })
+              |> inFleetWiseRegion(%))) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try Effect.void;
+                default: throw e;
+              }
+            observed = try (effect {
+              return try effect {
+                const fleet = try readFleet(fleetId)
+                return (fleet === undefined
+                  ? throw new IoTFleetWiseFleetUnexpectedResponse({
+                    message: `Fleet '${fleetId}' not found`,
+                  })
+                  : fleet)
+              }
+            }
+              |> retryObservation(%))
+          }
+
+          // 3. Sync description — the only mutable aspect.
+          if (news.description !== undefined && news.description !== observed.description) {
+            try (iotfleetwise
+              .updateFleet({ fleetId, description: news.description })
+              |> inFleetWiseRegion(%))
+          }
+
+          // 3b. Sync tags against OBSERVED cloud tags.
+          try syncFleetWiseTags(observed.arn, desiredTags)
+
+          try session.note(fleetId)
+          return toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          // Idempotent: deleting a missing fleet succeeds (vehicles are
+          // detached automatically before deletion).
+          try (iotfleetwise.deleteFleet({ fleetId: output.fleetId })
+            |> inFleetWiseRegion(%))
+        },
+
+        list: () =>
+          iotfleetwise.listFleets.items({}).pipe(
+            Stream.runCollect,
+            Effect.map((chunk) =>
+              Array.from(chunk).map((summary) => ({
+                fleetId: summary.id,
+                fleetArn: summary.arn,
+                signalCatalogArn: summary.signalCatalogArn,
+              }))
+            ),
+            inFleetWiseRegion,
+          ),
+      }
+    },
+  )

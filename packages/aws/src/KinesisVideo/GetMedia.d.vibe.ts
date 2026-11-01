@@ -2,7 +2,7 @@ import type * as kv from "@distilled.cloud/aws/kinesis-video";
 import type * as kvm from "@distilled.cloud/aws/kinesis-video-media";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Stream } from "./Stream.js";
+import type { Stream } from "./Stream.vibe";
 export interface GetMediaRequest extends Omit<kvm.GetMediaInput, "StreamName" | "StreamARN"> {
 }
 /**

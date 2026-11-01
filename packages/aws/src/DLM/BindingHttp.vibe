@@ -1,0 +1,94 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { LifecyclePolicy } from "./LifecyclePolicy.ts"
+
+/**
+ * Shared scaffolding for Amazon Data Lifecycle Manager (DLM) HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the two builders
+ * below. Everything except the operation and the IAM action list is
+ * boilerplate.
+ */
+
+/**
+ * Build the impl Effect for a DLM operation scoped to a
+ * {@link LifecyclePolicy}: the deploy-time half grants `actions` on the bound
+ * policy's ARN, and the runtime half injects the policy's `PolicyId` into
+ * every request.
+ */
+export const makeDlmPolicyHttpBinding = effect <I extends { mutable PolicyId: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.DLM.GetLifecyclePolicy`. */
+  mutable tag: string
+  /** The distilled operation. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the lifecycle policy ARN. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (policy: LifecyclePolicy) => {
+    const PolicyId = try policy.policyId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${policy})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [policy.policyArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "PolicyId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const policyId = try PolicyId
+          return try op({ ...request, PolicyId: policyId } as I)
+        },
+        `${options.tag}(${policy.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level DLM operation (enumerating the
+ * account's lifecycle policies). The deploy-time half grants `actions` on
+ * `*` — `dlm:GetLifecyclePolicies` is a list action that is not scoped to a
+ * single policy resource.
+ */
+export const makeDlmAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.DLM.GetLifecyclePolicies`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

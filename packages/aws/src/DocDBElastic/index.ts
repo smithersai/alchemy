@@ -1,6 +1,6 @@
 export * from "./ApplyPendingMaintenanceAction.vibe";
 export * from "./ApplyPendingMaintenanceActionHttp.vibe";
-export * from "./Cluster.ts";
+export * from "./Cluster.vibe";
 export * from "./CopyClusterSnapshot.vibe";
 export * from "./CopyClusterSnapshotHttp.vibe";
 export * from "./CreateClusterSnapshot.vibe";

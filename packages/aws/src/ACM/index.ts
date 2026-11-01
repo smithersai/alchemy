@@ -1,4 +1,4 @@
-export { AccountConfiguration, AccountConfigurationProvider } from "./AccountConfiguration.ts";
+export { AccountConfiguration, AccountConfigurationProvider } from "./AccountConfiguration.vibe";
 export {
   Certificate,
   CertificateCaaError,

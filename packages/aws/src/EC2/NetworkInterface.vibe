@@ -1,0 +1,427 @@
+import * as ec2 from "@distilled.cloud/aws/ec2"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import type { ScopedPlanStatusSession } from "alchemy/Report"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, diffTags } from "alchemy/Tags"
+import type { AccountID } from "../Environment.ts"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import type { RegionID } from "../Region.ts"
+import type { SecurityGroupId } from "./SecurityGroup.vibe"
+import type { SubnetId } from "./Subnet.ts"
+import type { VpcId } from "./Vpc.vibe"
+
+export error NetworkInterfaceUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type NetworkInterfaceId<ID extends string = string> = `eni-${ID}`
+export const NetworkInterfaceId = <ID extends string>(id: ID): ID & NetworkInterfaceId<ID> =>
+  `eni-${id}` as ID & NetworkInterfaceId<ID>
+
+export type NetworkInterfaceArn = `arn:aws:ec2:${RegionID}:${AccountID}:network-interface/${NetworkInterfaceId}`
+
+export interface NetworkInterfaceProps {
+  /**
+   * The ID of the subnet to create the network interface in. Required.
+   * Changing it replaces the interface.
+   */
+  mutable subnetId: SubnetId
+
+  /**
+   * A description for the network interface. Mutable in place.
+   */
+  mutable description?: string
+
+  /**
+   * The primary private IPv4 address to assign. If omitted, AWS selects one
+   * from the subnet range. Changing it replaces the interface.
+   */
+  mutable privateIpAddress?: string
+
+  /**
+   * Additional (secondary) private IPv4 addresses to assign at creation.
+   */
+  mutable privateIpAddresses?: string[]
+
+  /**
+   * The security groups to associate with the interface. Mutable in place.
+   */
+  mutable securityGroupIds?: SecurityGroupId[]
+
+  /**
+   * Whether source/destination checking is enabled. Disable it for NAT
+   * instances and other appliances that forward traffic. Mutable in place.
+   * @default true
+   */
+  mutable sourceDestCheck?: boolean
+
+  /**
+   * The type of network interface.
+   * @default "interface"
+   */
+  mutable interfaceType?: ec2.NetworkInterfaceCreationType
+
+  /**
+   * Tags to assign to the network interface. Merged with alchemy auto-tags
+   * (alchemy::stack, alchemy::stage, alchemy::id).
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface NetworkInterface extends
+  Resource<
+    "AWS.EC2.NetworkInterface",
+    NetworkInterfaceProps,
+    {
+      /**
+       * The ID of the network interface.
+       */
+      mutable networkInterfaceId: NetworkInterfaceId
+
+      /**
+       * The Amazon Resource Name (ARN) of the network interface.
+       */
+      mutable networkInterfaceArn: NetworkInterfaceArn
+
+      /**
+       * The ID of the subnet the interface is in.
+       */
+      mutable subnetId: SubnetId
+
+      /**
+       * The ID of the VPC the interface is in.
+       */
+      mutable vpcId: VpcId
+
+      /**
+       * The Availability Zone of the interface.
+       */
+      mutable availabilityZone: string
+
+      /**
+       * The primary private IPv4 address.
+       */
+      mutable privateIpAddress?: string
+
+      /**
+       * All private IPv4 addresses assigned to the interface.
+       */
+      mutable privateIpAddresses: string[]
+
+      /**
+       * The MAC address of the interface.
+       */
+      mutable macAddress?: string
+
+      /**
+       * The security groups associated with the interface.
+       */
+      mutable securityGroupIds: SecurityGroupId[]
+
+      /**
+       * Whether source/destination checking is enabled.
+       */
+      mutable sourceDestCheck: boolean
+
+      /**
+       * The current status of the interface.
+       */
+      mutable status: ec2.NetworkInterfaceStatus
+
+      /**
+       * The ID of the AWS account that owns the interface.
+       */
+      mutable ownerId?: string
+    },
+    never,
+    Providers
+  >
+{}
+/**
+ * An Elastic Network Interface (ENI) — a virtual network card in a VPC subnet
+ * with its own private IPs, MAC address, and security groups. Attach one to an
+ * instance via a {@link NetworkInterfaceAttachment} for stable-IP and
+ * multi-homing patterns.
+ *
+ * Changing `subnetId` or the primary `privateIpAddress` replaces the interface.
+ * `description`, `securityGroupIds`, and `sourceDestCheck` are applied in place.
+ *
+ * ### Creating a Network Interface
+ * **Example:** Basic ENI
+ * ```typescript
+ * const eni = yield* AWS.EC2.NetworkInterface("AppEni", {
+ *   subnetId: subnet.subnetId,
+ *   description: "stable IP for the app server",
+ *   securityGroupIds: [securityGroup.groupId],
+ * });
+ * ```
+ *
+ * The interface gets a private IP from the subnet's range. Its IP survives
+ * instance replacement — detach it from a failed instance and attach it to a
+ * new one to keep the same address.
+ *
+ * ### Fixed Private IP
+ * **Example:** ENI with a Fixed Private IP
+ * ```typescript
+ * const eni = yield* AWS.EC2.NetworkInterface("FixedIpEni", {
+ *   subnetId: subnet.subnetId,
+ *   privateIpAddress: "10.0.1.50",
+ *   securityGroupIds: [securityGroup.groupId],
+ * });
+ * ```
+ *
+ * Pinning `privateIpAddress` gives the interface a predictable address —
+ * useful for appliances and services other resources reference by IP.
+ *
+ * ### Forwarding Appliances
+ * **Example:** ENI with Source/Dest Check Disabled
+ * ```typescript
+ * const eni = yield* AWS.EC2.NetworkInterface("NatEni", {
+ *   subnetId: subnet.subnetId,
+ *   sourceDestCheck: false,
+ *   securityGroupIds: [securityGroup.groupId],
+ * });
+ * ```
+ *
+ * Disable `sourceDestCheck` when the interface belongs to a NAT instance,
+ * firewall, or router that forwards packets not addressed to itself.
+ *
+ * @resource
+ */
+export const NetworkInterface = Resource<NetworkInterface>("AWS.EC2.NetworkInterface")
+
+export const NetworkInterfaceProvider = (): infer _ =>
+  Provider.effect(
+    NetworkInterface,
+    effect {
+      return {
+        stables: [
+          "networkInterfaceId",
+          "networkInterfaceArn",
+          "subnetId",
+          "vpcId",
+          "availabilityZone",
+          "ownerId",
+        ],
+
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          if (olds.subnetId !== news.subnetId || olds.privateIpAddress !== news.privateIpAddress) {
+            return { action: "replace" }
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const alchemyTags = try createInternalTags(id)
+          const desiredTags = { ...alchemyTags, ...news.tags }
+
+          // 1. OBSERVE — output is only an id cache.
+          let eni: ec2.NetworkInterface | undefined
+          if (output?.networkInterfaceId) {
+            const lookup = ec2
+              .describeNetworkInterfaces({
+                NetworkInterfaceIds: [output.networkInterfaceId],
+              }) catch effect (e) => match (e) {
+                when { _tag: "InvalidNetworkInterfaceID.NotFound" }: { NetworkInterfaces: [] };
+                default: throw e;
+              }
+            eni = lookup.NetworkInterfaces?.[0]
+          }
+
+          // 2. ENSURE — create the interface when missing.
+          if (eni === undefined) {
+            const secondary = (news.privateIpAddresses ?? []).map((ip) => ({
+              Primary: false,
+              PrivateIpAddress: ip,
+            }))
+            const created = try ec2.createNetworkInterface({
+              SubnetId: news.subnetId,
+              Description: news.description,
+              PrivateIpAddress: news.privateIpAddress,
+              PrivateIpAddresses: secondary.length > 0 ? secondary : undefined,
+              Groups: news.securityGroupIds,
+              InterfaceType: news.interfaceType,
+              TagSpecifications: [
+                {
+                  ResourceType: "network-interface",
+                  Tags: createTagsList(desiredTags),
+                },
+              ],
+              DryRun: false,
+            })
+            eni = created.NetworkInterface!
+            try session.note(`Network interface created: ${eni.NetworkInterfaceId}`)
+            eni = try waitForNetworkInterface(eni.NetworkInterfaceId!, session)
+          }
+
+          const eniId = eni.NetworkInterfaceId! as NetworkInterfaceId
+
+          // 3. SYNC — description, security groups, source/dest check.
+          if (news.description !== undefined && news.description !== (eni.Description ?? "")) {
+            try ec2.modifyNetworkInterfaceAttribute({
+              NetworkInterfaceId: eniId,
+              Description: { Value: news.description },
+              DryRun: false,
+            })
+            try session.note("Updated network interface description")
+          }
+
+          if (news.securityGroupIds !== undefined) {
+            const observed = (eni.Groups ?? []).map((g) => g.GroupId!).sort()
+            const desired = [...news.securityGroupIds].sort()
+            if (JSON.stringify(observed) !== JSON.stringify(desired)) {
+              try ec2.modifyNetworkInterfaceAttribute({
+                NetworkInterfaceId: eniId,
+                Groups: news.securityGroupIds,
+                DryRun: false,
+              })
+              try session.note("Updated network interface security groups")
+            }
+          }
+
+          const desiredSourceDestCheck = news.sourceDestCheck ?? true
+          if ((eni.SourceDestCheck ?? true) !== desiredSourceDestCheck) {
+            try ec2.modifyNetworkInterfaceAttribute({
+              NetworkInterfaceId: eniId,
+              SourceDestCheck: { Value: desiredSourceDestCheck },
+              DryRun: false,
+            })
+            try session.note(`Updated source/dest check: ${desiredSourceDestCheck}`)
+          }
+
+          // 3b. SYNC TAGS — diff against observed cloud tags.
+          const currentTags = Object.fromEntries(
+            (eni.TagSet ?? []).map((t) => [t.Key!, t.Value!]),
+          ) as Record<string, string>
+          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          if (removed.length > 0) {
+            try ec2.deleteTags({
+              Resources: [eniId],
+              Tags: removed.map((key) => ({ Key: key })),
+              DryRun: false,
+            })
+          }
+          if (upsert.length > 0) {
+            try ec2.createTags({
+              Resources: [eniId],
+              Tags: upsert,
+              DryRun: false,
+            })
+          }
+
+          // 4. RETURN fresh attributes.
+          const finalLookup = try ec2.describeNetworkInterfaces({
+            NetworkInterfaceIds: [eniId],
+          })
+          const final = finalLookup.NetworkInterfaces?.[0] ?? eni
+          return toNetworkInterfaceAttributes(final, region, accountId)
+        },
+
+        // Enumerate every network interface in the ambient account/region.
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const chunk = try ec2.describeNetworkInterfaces.pages({}).pipe(Stream.runCollect)
+          return Array.from(chunk).flatMap((page) =>
+            (page.NetworkInterfaces ?? []).map((n) => toNetworkInterfaceAttributes(n, region, accountId))
+          )
+        },
+
+        delete: effect ({ output, session }) => {
+          const eniId = output.networkInterfaceId
+          try session.note(`Deleting network interface: ${eniId}`)
+          try (effect {
+            return (try (ec2
+              .deleteNetworkInterface({
+                NetworkInterfaceId: eniId,
+                DryRun: false,
+              })
+              |> Effect.tapError(%, Effect.logDebug))) catch effect (e) => match (e) {
+                when { _tag: "InvalidNetworkInterfaceID.NotFound" }: try Effect.void;
+                default: throw e;
+              }
+          }
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "InvalidNetworkInterface.InUse",
+              schedule: Schedule.max([Schedule.fixed(3000), Schedule.recurs(20)]).pipe(
+                Schedule.tap(({ attempt }) =>
+                  session.note(`Waiting for interface to detach... (attempt ${attempt + 1})`)
+                ),
+              ),
+            }))
+          try session.note(`Network interface ${eniId} deleted`)
+        },
+      }
+    },
+  )
+
+const toNetworkInterfaceAttributes = (
+  eni: ec2.NetworkInterface,
+  region: RegionID,
+  accountId: AccountID,
+): NetworkInterface["Attributes"] => {
+  const eniId = eni.NetworkInterfaceId! as NetworkInterfaceId
+  return {
+    networkInterfaceId: eniId,
+    networkInterfaceArn: `arn:aws:ec2:${region}:${accountId}:network-interface/${eniId}` as NetworkInterfaceArn,
+    subnetId: eni.SubnetId! as SubnetId,
+    vpcId: eni.VpcId! as VpcId,
+    availabilityZone: eni.AvailabilityZone!,
+    privateIpAddress: eni.PrivateIpAddress,
+    privateIpAddresses: (eni.PrivateIpAddresses ?? [])
+      .map((p) => p.PrivateIpAddress!)
+      .filter((ip): ip is string => ip !== undefined),
+    macAddress: eni.MacAddress,
+    securityGroupIds: (eni.Groups ?? [])
+      .map((g) => g.GroupId! as SecurityGroupId)
+      .filter((g): g is SecurityGroupId => g !== undefined),
+    sourceDestCheck: eni.SourceDestCheck ?? true,
+    status: eni.Status ?? "available",
+    ownerId: eni.OwnerId,
+  }
+}
+
+error NetworkInterfacePending {
+  mutable networkInterfaceId: string
+  mutable status: string
+}
+
+/**
+ * Wait for the network interface to reach an `available` (or in-use) status.
+ */
+const waitForNetworkInterface = effect (networkInterfaceId: string, session?: ScopedPlanStatusSession) =>
+  try (effect {
+    const result = try ec2.describeNetworkInterfaces({
+      NetworkInterfaceIds: [networkInterfaceId],
+    })
+    const eni = result.NetworkInterfaces?.[0]
+    if (!eni) {
+      throw new NetworkInterfaceUnexpectedResponse({
+        message: `Network interface ${networkInterfaceId} not found`,
+      })
+    }
+    if (eni.Status === "available" || eni.Status === "in-use") {
+      return eni
+    }
+    throw new NetworkInterfacePending({
+      networkInterfaceId,
+      status: eni.Status!,
+    })
+  }
+    |> Effect.retry(%, {
+      while: (e) => e instanceof NetworkInterfacePending,
+      schedule: Schedule.max([
+        Schedule.fixed(2000),
+        Schedule.recurs(20), // max ~40s
+      ]).pipe(
+        Schedule.tap(effect (
+          { attempt },
+        ) => (session
+          ? try session.note(`Waiting for network interface... (${(attempt + 1) * 2}s)`)
+          : try Effect.void)
+        ),
+      ),
+    }))

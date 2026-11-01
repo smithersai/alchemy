@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { BatchRetryExhaustedError } from "alchemy/Util/BatchedSink";
 import type * as Effect from "effect/Effect";
 import type * as Sink from "effect/Sink";
-import type { DeliveryStream } from "./DeliveryStream.js";
+import type { DeliveryStream } from "./DeliveryStream.vibe";
 /**
  * The raw distilled `PutRecordBatch` entry. Callers stay in control of the
  * record payload (including any delimiters — Firehose does not add newlines

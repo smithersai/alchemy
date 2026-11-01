@@ -5,11 +5,11 @@ import { Resource } from "alchemy/Resource";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { ClientVpnEndpointId } from "./ClientVpnEndpoint.ts";
 import { retryClientVpn } from "./ClientVpnWait.ts";
 import type { SubnetId } from "./Subnet.ts";
-import type { VpcId } from "./Vpc.ts";
+import type { VpcId } from "./Vpc.vibe";
 
 /** The identifier of a Client VPN target network association. */
 export type ClientVpnTargetNetworkAssociationId = `cvpn-assoc-${string}`;

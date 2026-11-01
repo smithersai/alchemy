@@ -2,7 +2,7 @@ import type * as aas from "@distilled.cloud/aws/application-auto-scaling";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import { type EventRecord } from "../EventBridge/EventSource.js";
-import type { ScalableTarget } from "./ScalableTarget.js";
+import type { ScalableTarget } from "./ScalableTarget.vibe";
 /**
  * The `detail` payload Application Auto Scaling delivers to EventBridge for a
  * `Application Auto Scaling Scaling Activity State Change` event. Emitted

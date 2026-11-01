@@ -1,7 +1,7 @@
 import type * as data from "@distilled.cloud/aws/redshift-data";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Workgroup } from "../RedshiftServerless/Workgroup.js";
+import type { Workgroup } from "../RedshiftServerless/Workgroup.vibe";
 /**
  * Options that pin every statement run through this binding to a database and,
  * optionally, an authentication method.

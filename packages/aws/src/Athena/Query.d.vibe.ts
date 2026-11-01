@@ -2,7 +2,7 @@ import type * as athena from "@distilled.cloud/aws/athena";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { Bucket } from "../S3/Bucket.js";
-import type { WorkGroup } from "./WorkGroup.js";
+import type { WorkGroup } from "./WorkGroup.vibe";
 /**
  * The query request — the workgroup is injected by the binding (which also
  * supplies the enforced result location), so callers pass the SQL text and any

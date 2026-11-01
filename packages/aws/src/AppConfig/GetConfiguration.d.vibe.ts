@@ -2,9 +2,9 @@ import type * as appconfigdata from "@distilled.cloud/aws/appconfigdata";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
-import type { ConfigurationProfile } from "./ConfigurationProfile.js";
-import type { Environment } from "./Environment.js";
+import type { Application } from "./Application.vibe";
+import type { ConfigurationProfile } from "./ConfigurationProfile.vibe";
+import type { Environment } from "./Environment.vibe";
 /**
  * Options for a {@link GetConfiguration} binding.
  */

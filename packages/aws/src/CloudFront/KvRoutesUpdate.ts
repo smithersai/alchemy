@@ -7,7 +7,7 @@ import type { HttpClient } from "effect/http/HttpClient";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import type { Credentials } from "../Credentials.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { Region } from "../Region.ts";
 import {
   extractValue,

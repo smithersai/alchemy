@@ -1,7 +1,7 @@
 import type * as rum from "@distilled.cloud/aws/rum";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AppMonitor } from "./AppMonitor.js";
+import type { AppMonitor } from "./AppMonitor.vibe";
 export interface PutRumEventsRequest extends Omit<rum.PutRumEventsRequest, "Id" | "AppMonitorDetails"> {
     /**
      * Details of the app monitor sending the events. Defaults to the bound

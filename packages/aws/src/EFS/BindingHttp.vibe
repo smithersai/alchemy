@@ -1,0 +1,118 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { FileSystem } from "./FileSystem.vibe"
+
+/**
+ * Shared scaffolding for the EFS runtime bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, makeEfs…HttpBinding({ … }))` over one of the two
+ * builders below. Everything except the operation, the IAM action list, and
+ * (for file-system-scoped operations) the injected `FileSystemId` is
+ * boilerplate.
+ */
+
+/**
+ * Build the impl Effect for a file-system-scoped EFS operation: the runtime
+ * callable injects the bound {@link FileSystem}'s ID as `FileSystemId` and
+ * the deploy-time half grants `actions` on the file system's ARN.
+ */
+export const makeEfsFileSystemHttpBinding = effect <
+  I extends { mutable FileSystemId?: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.EFS.DescribeMountTargets`. */
+  mutable tag: string
+  /** The distilled operation; `FileSystemId` is injected from the file system. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the file system ARN. */
+  mutable actions: readonly string[]
+  /**
+   * Additional IAM actions granted on `*`. Used for tag-on-create
+   * (`elasticfilesystem:TagResource` authorizes against the ARN of the
+   * resource being created, which is unknowable at deploy time).
+   */
+  mutable wildcardActions?: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (fileSystem: FileSystem) => {
+    const FileSystemId = try fileSystem.fileSystemId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${fileSystem})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${fileSystem.fileSystemArn}`],
+          },
+          ...(options.wildcardActions !== undefined && options.wildcardActions.length > 0
+            ? [
+              {
+                Effect: "Allow" as const,
+                Action: [...options.wildcardActions],
+                Resource: ["*"],
+              },
+            ]
+            : []),
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "FileSystemId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            FileSystemId: try FileSystemId,
+          } as I)
+        },
+        `${options.tag}(${fileSystem.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level EFS operation (no file-system
+ * argument): the deploy-time half grants `actions` on `*`. Used for
+ * operations that authorize against ARNs unknowable at deploy time (e.g.
+ * `DeleteAccessPoint` authorizes on the access point's own ARN, and access
+ * points deleted at runtime are typically created at runtime too).
+ */
+export const makeEfsAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.EFS.DeleteAccessPoint`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import type { Destination } from "./Destination.ts";
+import type { Destination } from "./Destination.vibe";
 
 /**
  * The JSON envelope AWS IoT Core for LoRaWAN delivers to a `RuleName`

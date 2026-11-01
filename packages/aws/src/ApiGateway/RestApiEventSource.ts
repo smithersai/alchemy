@@ -1,7 +1,7 @@
 import type * as lambda from "aws-lambda";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
-import type { RestApi } from "./RestApi.ts";
+import type { RestApi } from "./RestApi.vibe";
 
 /**
  * The event shape a REST API route handler receives — the API Gateway v1

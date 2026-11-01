@@ -1,0 +1,547 @@
+import * as memorydb from "@distilled.cloud/aws/memorydb"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { toWireDays } from "alchemy/Util/Duration"
+import type * as Duration from "effect/Duration"
+import type { Providers } from "../Providers.vibe"
+import { readMemoryDbTags, sameStringSet } from "./internal.vibe"
+
+export error MemoryDBClusterNotReady {
+  message: string
+  cause?: unknown
+}
+
+export error MemoryDBClusterUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface ClusterProps {
+  /**
+   * Name of the cluster. Must be 1-40 alphanumeric characters. If omitted, a
+   * deterministic physical name is generated. Changing the name replaces the
+   * cluster.
+   */
+  mutable clusterName?: string
+  /**
+   * Compute and memory capacity of the nodes, e.g. `"db.t4g.small"` (the
+   * cheapest supported node type) or `"db.r7g.large"`.
+   * @default "db.t4g.small"
+   */
+  mutable nodeType?: string
+  /**
+   * Name of the {@link ACL} that authenticates connections to the cluster.
+   * Required by MemoryDB. The ACL must include a user named `default`.
+   */
+  mutable aclName: string
+  /**
+   * Name of the {@link SubnetGroup} the cluster's nodes are placed into.
+   * Changing the subnet group replaces the cluster.
+   * @default the default subnet group
+   */
+  mutable subnetGroupName?: string
+  /**
+   * VPC security groups that control network access to the cluster endpoint.
+   * @default the VPC's default security group
+   */
+  mutable securityGroupIds?: string[]
+  /**
+   * Number of shards (partitions) in the cluster.
+   * @default 1
+   */
+  mutable numShards?: number
+  /**
+   * Number of read replicas per shard (0-5).
+   * @default 1
+   */
+  mutable numReplicasPerShard?: number
+  /**
+   * Name of the parameter group applied to the cluster.
+   * @default the engine's default parameter group
+   */
+  mutable parameterGroupName?: string
+  /**
+   * Human-readable description of the cluster.
+   */
+  mutable description?: string
+  /**
+   * Engine — `"redis"` or `"valkey"`.
+   * @default "valkey"
+   */
+  mutable engine?: string
+  /**
+   * Engine version, e.g. `"7.1"` (redis) or `"7.2"` (valkey).
+   * @default latest for the engine
+   */
+  mutable engineVersion?: string
+  /**
+   * Port the cluster accepts connections on. Changing the port replaces the
+   * cluster.
+   * @default 6379
+   */
+  mutable port?: number
+  /**
+   * Whether in-transit encryption (TLS) is enabled. Changing this replaces the
+   * cluster.
+   * @default true
+   */
+  mutable tlsEnabled?: boolean
+  /**
+   * Customer-managed KMS key for encryption at rest. Changing the key replaces
+   * the cluster.
+   * @default AWS-owned key
+   */
+  mutable kmsKeyId?: string
+  /**
+   * Weekly maintenance window, e.g. `"sun:23:00-mon:01:30"` (UTC).
+   */
+  mutable maintenanceWindow?: string
+  /**
+   * How long automatic snapshots are retained (e.g. `"7 days"` or
+   * `Duration.days(7)`). Sent to the API in whole days; `Duration.zero`
+   * disables automatic snapshots.
+   */
+  mutable snapshotRetentionLimit?: Duration.Input
+  /**
+   * Daily window (UTC, `HH:MM-HH:MM`) when automatic snapshots are taken.
+   */
+  mutable snapshotWindow?: string
+  /**
+   * SNS topic ARN to publish cluster events to.
+   */
+  mutable snsTopicArn?: string
+  /**
+   * Whether minor engine version upgrades are applied automatically.
+   * @default true
+   */
+  mutable autoMinorVersionUpgrade?: boolean
+  /**
+   * Whether data tiering (SSD) is enabled. Only supported on r6gd node types.
+   * Changing this replaces the cluster.
+   */
+  mutable dataTiering?: boolean
+  /**
+   * IP address type. Changing this replaces the cluster.
+   * @default "ipv4"
+   */
+  mutable networkType?: memorydb.NetworkType
+  /**
+   * IP discovery protocol.
+   */
+  mutable ipDiscovery?: memorydb.IpDiscovery
+  /**
+   * User-defined tags for the cluster.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Cluster extends
+  Resource<
+    "AWS.MemoryDB.Cluster",
+    ClusterProps,
+    {
+      /** Name of the cluster. */
+      mutable clusterName: string
+      /** ARN of the cluster. */
+      mutable clusterArn: string
+      /** Current lifecycle status (e.g. `creating`, `available`). */
+      mutable status: string
+      /** Node instance type (e.g. `db.t4g.small`). */
+      mutable nodeType: string
+      /** Engine (`redis` or `valkey`). */
+      mutable engine: string
+      /** Running engine version. */
+      mutable engineVersion: string | undefined
+      /** DNS address of the cluster endpoint. */
+      mutable endpointAddress: string | undefined
+      /** Port of the cluster endpoint. */
+      mutable endpointPort: number | undefined
+      /** Name of the ACL attached to the cluster. */
+      mutable aclName: string | undefined
+      /** Name of the parameter group in use. */
+      mutable parameterGroupName: string | undefined
+      /** Name of the subnet group the cluster's nodes are placed in. */
+      mutable subnetGroupName: string | undefined
+      /** Whether in-transit encryption (TLS) is enabled. */
+      mutable tlsEnabled: boolean | undefined
+      /** Number of shards in the cluster. */
+      mutable numberOfShards: number | undefined
+      /** Tags on the cluster (user + internal Alchemy tags). */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon MemoryDB cluster — a durable, Redis/Valkey-compatible in-memory
+ * database.
+ *
+ * Clusters take roughly 10-15 minutes to provision and are billed per node
+ * while they exist. They are reachable only from inside a VPC and require an
+ * {@link ACL}; place them in a {@link SubnetGroup} spanning multiple AZs for
+ * high availability. Destroy clusters you are not using.
+ * ### Creating a Cluster
+ * **Example:** Single-Shard Cluster
+ * ```typescript
+ * const user = yield* User("CacheUser", {
+ *   authenticationMode: { type: "password", passwords: [cachePassword] },
+ *   accessString: "on ~* +@all",
+ * });
+ * const acl = yield* ACL("CacheAcl", { userNames: [user.userName] });
+ * const subnetGroup = yield* SubnetGroup("CacheSubnets", {
+ *   subnetIds: [subnetA.subnetId, subnetB.subnetId],
+ * });
+ * const cluster = yield* Cluster("Cache", {
+ *   nodeType: "db.t4g.small",
+ *   aclName: acl.aclName,
+ *   subnetGroupName: subnetGroup.subnetGroupName,
+ *   numShards: 1,
+ *   numReplicasPerShard: 1,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Cluster = Resource<Cluster>("AWS.MemoryDB.Cluster")
+
+const DEFAULT_NODE_TYPE = "db.t4g.small"
+
+export const ClusterProvider = (): infer _ =>
+  Provider.effect(
+    Cluster,
+    effect {
+      const toName = effect (
+        id: string,
+        props: Partial<ClusterProps>,
+      ) => (props.clusterName ? props.clusterName : try createPhysicalName({ id, maxLength: 40, lowercase: true }))
+
+      const readCluster = effect (name: string) => {
+        const response = memorydb
+          .describeClusters({ ClusterName: name }) catch effect (e) => match (e) {
+            when { _tag: "ClusterNotFoundFault" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.Clusters?.[0]
+      }
+
+      // Bounded readiness wait. MemoryDB cluster provisioning/modification
+      // typically completes in 10-15 minutes; budget ~20 min (80 * 15s).
+      const waitForAvailable = effect (name: string) => {
+        const policy = Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(80)])
+        return try (effect {
+          return try effect {
+            const cluster = try readCluster(name)
+
+            if (!cluster?.ARN) {
+              throw new MemoryDBClusterNotReady({ message: `Cluster '${name}' not found` })
+            }
+            if (cluster.Status !== "available") {
+              throw new MemoryDBClusterNotReady({
+                message: `Cluster '${name}' not available (status: ${cluster.Status})`,
+              })
+            }
+            return cluster
+          }
+        }
+          |> Effect.retry(%, { schedule: policy }))
+      }
+
+      // Wait for a cluster to leave a transitional state before delete. Ends
+      // when the cluster is available, deleting, or gone.
+      const waitUntilSettled = effect (name: string) => {
+        const policy = Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(80)])
+        return try (effect {
+          return try effect {
+            const cluster = try readCluster(name)
+
+            if (
+              cluster !== undefined
+              && cluster.Status !== "available"
+              && cluster.Status !== "deleting"
+            ) {
+              throw new MemoryDBClusterNotReady({
+                message: `Cluster '${name}' still settling (status: ${cluster.Status})`,
+              })
+            }
+            return cluster
+          }
+        }
+          |> Effect.retry(%, { schedule: policy }))
+      }
+
+      const toAttrs = effect (cluster: memorydb.Cluster) => {
+        if (!cluster.Name || !cluster.ARN) {
+          throw new MemoryDBClusterUnexpectedResponse({
+            message: `Cluster '${cluster.Name}' is missing its ARN`,
+          })
+        }
+        return {
+          clusterName: cluster.Name,
+          clusterArn: cluster.ARN,
+          status: cluster.Status ?? "available",
+          nodeType: cluster.NodeType ?? DEFAULT_NODE_TYPE,
+          engine: cluster.Engine ?? "valkey",
+          engineVersion: cluster.EngineVersion,
+          endpointAddress: cluster.ClusterEndpoint?.Address,
+          endpointPort: cluster.ClusterEndpoint?.Port,
+          aclName: cluster.ACLName,
+          parameterGroupName: cluster.ParameterGroupName,
+          subnetGroupName: cluster.SubnetGroupName,
+          tlsEnabled: cluster.TLSEnabled,
+          numberOfShards: cluster.NumberOfShards,
+          tags: try readMemoryDbTags(cluster.ARN),
+        }
+      }
+
+      return {
+        stables: ["clusterName", "clusterArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          const n = news ?? { aclName: "" }
+          const o = olds ?? { aclName: "" }
+          if ((try toName(id, o)) !== (try toName(id, n))) {
+            return { action: "replace" } as const
+          }
+          // Create-only properties force a replacement.
+          if (
+            n.subnetGroupName !== undefined
+            && o.subnetGroupName !== undefined
+            && n.subnetGroupName !== o.subnetGroupName
+          ) {
+            return { action: "replace" } as const
+          }
+          if ((n.port ?? undefined) !== (o.port ?? undefined)) {
+            return { action: "replace" } as const
+          }
+          if ((n.tlsEnabled ?? undefined) !== (o.tlsEnabled ?? undefined)) {
+            return { action: "replace" } as const
+          }
+          if ((n.kmsKeyId ?? undefined) !== (o.kmsKeyId ?? undefined)) {
+            return { action: "replace" } as const
+          }
+          if ((n.networkType ?? undefined) !== (o.networkType ?? undefined)) {
+            return { action: "replace" } as const
+          }
+          if ((n.dataTiering ?? undefined) !== (o.dataTiering ?? undefined)) {
+            return { action: "replace" } as const
+          }
+          if ((n.engine ?? undefined) !== (o.engine ?? undefined)) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.clusterName ?? (try toName(id, olds ?? { aclName: "" }))
+          const cluster = try readCluster(name)
+          if (!cluster?.ARN) return undefined
+          const attrs = try toAttrs(cluster)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const props = news!
+          const name = output?.clusterName ?? (try toName(id, props))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...props.tags }
+          // The wire field is whole days.
+          const snapshotRetentionDays = toWireDays(props.snapshotRetentionLimit)
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = try readCluster(name)
+
+          // 2. Ensure — create if missing; tolerate AlreadyExists as a race.
+          if (observed === undefined) {
+            memorydb
+              .createCluster({
+                ClusterName: name,
+                NodeType: props.nodeType ?? DEFAULT_NODE_TYPE,
+                ACLName: props.aclName,
+                SubnetGroupName: props.subnetGroupName,
+                SecurityGroupIds: props.securityGroupIds,
+                NumShards: props.numShards,
+                NumReplicasPerShard: props.numReplicasPerShard,
+                ParameterGroupName: props.parameterGroupName,
+                Description: props.description,
+                Engine: props.engine,
+                EngineVersion: props.engineVersion,
+                Port: props.port,
+                TLSEnabled: props.tlsEnabled,
+                KmsKeyId: props.kmsKeyId,
+                MaintenanceWindow: props.maintenanceWindow,
+                SnapshotRetentionLimit: snapshotRetentionDays,
+                SnapshotWindow: props.snapshotWindow,
+                SnsTopicArn: props.snsTopicArn,
+                AutoMinorVersionUpgrade: props.autoMinorVersionUpgrade,
+                DataTiering: props.dataTiering,
+                NetworkType: props.networkType,
+                IpDiscovery: props.ipDiscovery,
+                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "ClusterAlreadyExistsFault" }: try Effect.void;
+                default: throw e;
+              }
+          }
+
+          // Provisioning and in-flight modifications both surface as a
+          // non-available status; wait for availability (bounded) so modify
+          // calls do not hit InvalidClusterStateFault.
+          observed = try waitForAvailable(name)
+
+          // 3. Sync — compute the update delta from OBSERVED state.
+          const update: memorydb.UpdateClusterRequest = { ClusterName: name }
+          let mutated = false
+          if (props.description !== undefined && props.description !== observed.Description) {
+            update.Description = props.description
+            mutated = true
+          }
+          const observedSg = (observed.SecurityGroups ?? [])
+            .map((g) => g.SecurityGroupId)
+            .filter((g): g is string => g !== undefined)
+          if (
+            props.securityGroupIds !== undefined
+            && !sameStringSet(props.securityGroupIds, observedSg)
+          ) {
+            update.SecurityGroupIds = props.securityGroupIds
+            mutated = true
+          }
+          if (
+            props.maintenanceWindow !== undefined
+            && props.maintenanceWindow !== observed.MaintenanceWindow
+          ) {
+            update.MaintenanceWindow = props.maintenanceWindow
+            mutated = true
+          }
+          if (
+            snapshotRetentionDays !== undefined
+            && snapshotRetentionDays !== (observed.SnapshotRetentionLimit ?? 0)
+          ) {
+            update.SnapshotRetentionLimit = snapshotRetentionDays
+            mutated = true
+          }
+          if (
+            props.snapshotWindow !== undefined
+            && props.snapshotWindow !== observed.SnapshotWindow
+          ) {
+            update.SnapshotWindow = props.snapshotWindow
+            mutated = true
+          }
+          if (props.nodeType !== undefined && props.nodeType !== observed.NodeType) {
+            update.NodeType = props.nodeType
+            mutated = true
+          }
+          if (props.engineVersion !== undefined && props.engineVersion !== observed.EngineVersion) {
+            update.EngineVersion = props.engineVersion
+            mutated = true
+          }
+          if (
+            props.parameterGroupName !== undefined
+            && props.parameterGroupName !== observed.ParameterGroupName
+          ) {
+            update.ParameterGroupName = props.parameterGroupName
+            mutated = true
+          }
+          if (props.aclName !== undefined && props.aclName !== observed.ACLName) {
+            update.ACLName = props.aclName
+            mutated = true
+          }
+          if (props.ipDiscovery !== undefined && props.ipDiscovery !== observed.IpDiscovery) {
+            update.IpDiscovery = props.ipDiscovery
+            mutated = true
+          }
+          if (props.numShards !== undefined && props.numShards !== observed.NumberOfShards) {
+            update.ShardConfiguration = { ShardCount: props.numShards }
+            mutated = true
+          }
+
+          if (mutated) {
+            try memorydb.updateCluster(update)
+            observed = try waitForAvailable(name)
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags.
+          const arn = observed.ARN
+          if (arn) {
+            const observedTags = try readMemoryDbTags(arn)
+            const { removed, upsert } = diffTags(observedTags, desiredTags)
+            if (upsert.length > 0) {
+              try memorydb.tagResource({ ResourceArn: arn, Tags: upsert })
+            }
+            if (removed.length > 0) {
+              try memorydb.untagResource({
+                ResourceArn: arn,
+                TagKeys: removed,
+              })
+            }
+          }
+
+          try session.note(name)
+          return try toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          const name = output.clusterName
+          // A cluster mid-create/modify rejects deletion with
+          // InvalidClusterStateFault — wait (bounded) for it to settle first.
+          // A cluster already deleting (or gone) is success.
+          const settled = waitUntilSettled(name) catch () => undefined
+          if (settled === undefined) {
+            return
+          }
+          if (settled.Status !== "deleting") {
+            ;(try (effect {
+              return memorydb.deleteCluster({ ClusterName: name }) catch effect (e) => match (e) {
+                when { _tag: "ClusterNotFoundFault" }: try Effect.void;
+                default: throw e;
+              }
+            }
+              |> Effect.retry(%, {
+                while: (e) => e._tag === "InvalidClusterStateFault",
+                schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(20)]),
+              }))) catch effect (e) => match (e) {
+                when { _tag: "InvalidClusterStateFault" }: try Effect.void;
+                default: throw e;
+              }
+          }
+          // Wait until the cluster is actually gone: a `deleting` cluster
+          // still holds its subnet group and ACL, so dependents deleted right
+          // after fail with SubnetGroupInUseFault / InvalidACLStateFault.
+          // MemoryDB cluster deletion typically takes 5-10 minutes; budget
+          // ~15 min (60 * 15s).
+          try (effect {
+            return try effect {
+              const cluster = try readCluster(name)
+              return (cluster === undefined ? try Effect.void : throw new MemoryDBClusterNotReady({
+                message: `MemoryDB cluster '${name}' still deleting (status: ${cluster.Status})`,
+              }))
+            }
+          }
+            |> Effect.retry(%, {
+              schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(60)]),
+            }))
+        },
+
+        list: effect () =>
+          try (effect {
+            return Array.from(
+              try (memorydb.describeClusters.pages({})
+                |> Stream.runCollect(%)),
+            ).flatMap((page) =>
+              (page.Clusters ?? []).filter(
+                (cluster) => cluster.Name !== undefined && cluster.ARN !== undefined,
+              )
+            )
+          }
+            |> Effect.flatMap(%, Effect.forEach((cluster) => toAttrs(cluster), { concurrency: 4 }))),
+      }
+    },
+  )

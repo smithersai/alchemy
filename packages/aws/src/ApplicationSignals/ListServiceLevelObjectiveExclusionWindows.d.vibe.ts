@@ -1,7 +1,7 @@
 import type * as appsignals from "@distilled.cloud/aws/application-signals";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ServiceLevelObjective } from "./ServiceLevelObjective.js";
+import type { ServiceLevelObjective } from "./ServiceLevelObjective.vibe";
 /**
  * `ListServiceLevelObjectiveExclusionWindows` request with `Id` injected
  * from the bound {@link ServiceLevelObjective}.

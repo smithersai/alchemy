@@ -43,7 +43,7 @@ import {
   stateBucketExists,
   stateEnvironment,
   withoutSdkDebugLogs,
-} from "./State.ts";
+} from "./State.vibe";
 
 export interface DynamoDBStateOptions {
   /**

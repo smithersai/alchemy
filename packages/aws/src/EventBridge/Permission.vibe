@@ -1,0 +1,203 @@
+import * as eventbridge from "@distilled.cloud/aws/eventbridge"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export interface PermissionProps {
+  /**
+   * Event bus name. Defaults to the account default bus.
+   */
+  mutable eventBusName?: string
+  /**
+   * The action that EventBridge allows for the principal.
+   * @default "events:PutEvents"
+   */
+  mutable action?: string
+  /**
+   * The AWS account ID, organization ID, or `*` principal receiving access.
+   */
+  mutable principal: string
+  /**
+   * Optional statement identifier. If omitted, Alchemy generates one.
+   */
+  mutable statementId?: string
+  /**
+   * Optional condition limiting the allowed caller.
+   */
+  mutable condition?: eventbridge.Condition
+}
+
+/**
+ * An EventBridge event bus permission statement.
+ *
+ * `Permission` manages a single `PutPermission` / `RemovePermission` lifecycle
+ * entry on an event bus so helper surfaces can safely grant publishers access
+ * without requiring callers to hand-write raw bus policies.
+ * ### Granting Access
+ * **Example:** Allow Another Account To Publish
+ * ```typescript
+ * const permission = yield* Permission("PartnerPublish", {
+ *   eventBusName: bus.eventBusName,
+ *   principal: "123456789012",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export interface Permission extends
+  Resource<
+    "AWS.EventBridge.Permission",
+    PermissionProps,
+    {
+      /** The statement ID identifying the permission on the bus policy. */
+      mutable statementId: string
+      /** The name of the event bus the permission is attached to. */
+      mutable eventBusName: string
+    },
+    never,
+    Providers
+  >
+{}
+
+export const Permission = Resource<Permission>("AWS.EventBridge.Permission")
+
+/** An event bus resource policy is not valid JSON. */
+export error InvalidEventBusPolicy {
+  mutable message: string
+  mutable cause?: unknown
+}
+
+export const PermissionProvider = (): infer _ =>
+  Provider.effect(
+    Permission,
+    effect {
+      const toStatementId = effect (
+        id: string,
+        props: PermissionProps,
+      ) => (props.statementId ? props.statementId : try createPhysicalName({
+        id,
+        maxLength: 64,
+      }))
+
+      type PermissionAttrs = { mutable statementId: string; mutable eventBusName: string }
+
+      return {
+        stables: ["statementId", "eventBusName"],
+        list: effect () => {
+          // EventBridge has no list-permissions API. A Permission is a
+          // single statement inside an event bus resource policy, so we
+          // enumerate every bus in the ambient account/region (manual
+          // NextToken pagination — listEventBuses is not a paginated
+          // distilled op), describe each bus to read its Policy JSON, and
+          // emit one Attributes per statement Sid.
+          const busNames: string[] = []
+          let nextToken: string | undefined
+          do {
+            const page = try eventbridge.listEventBuses({
+              NextToken: nextToken,
+            })
+            for (const bus of page.EventBuses ?? []) {
+              if (bus.Name) busNames.push(bus.Name)
+            }
+            nextToken = page.NextToken
+          } while (nextToken)
+
+          const perBus = try Effect.forEach(
+            busNames,
+            effect (busName) =>
+              (try effect {
+                const res = try eventbridge.describeEventBus({
+                  Name: busName,
+                })
+                if (!res.Policy) return [] as PermissionAttrs[]
+                const policy = Effect.try({
+                  try: () =>
+                    JSON.parse(res.Policy!) as {
+                      mutable Statement?: { mutable Sid?: string } | { mutable Sid?: string }[]
+                    },
+                  catch: (cause) => new InvalidEventBusPolicy({ message: "invalid policy", cause }),
+                }) catch () => ({
+                  Statement: [] as { mutable Sid?: string }[],
+                })
+                const statements = Array.isArray(policy.Statement)
+                  ? policy.Statement
+                  : policy.Statement
+                  ? [policy.Statement]
+                  : []
+                return statements
+                  .filter((s): s is { mutable Sid: string } => typeof s.Sid === "string")
+                  .map((s): PermissionAttrs => ({
+                    statementId: s.Sid,
+                    eventBusName: busName,
+                  }))
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: [] as PermissionAttrs[];
+                default: throw e;
+              },
+            { concurrency: 10 },
+          )
+          return perBus.flat()
+        },
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return
+          const oldStatementId = try toStatementId(id, olds)
+          const newStatementId = try toStatementId(id, news)
+
+          if (oldStatementId !== newStatementId) {
+            return { action: "replace" } as const
+          }
+
+          if ((olds.eventBusName ?? "default") !== (news.eventBusName ?? "default")) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const statementId = output?.statementId ?? (try toStatementId(id, news))
+          const eventBusName = output?.eventBusName ?? news.eventBusName ?? "default"
+          const eventBusParam = eventBusName !== "default" ? eventBusName : undefined
+
+          // Observe + Ensure for an existence-only resource: there is no
+          // server-side `describePermission` for a single statement, so we
+          // remove-then-put unconditionally. `removePermission` tolerates
+          // missing statements; `putPermission` is idempotent on identical
+          // params and overwrites on different ones — this is the official
+          // recommended update path.
+          eventbridge
+            .removePermission({
+              EventBusName: eventBusParam,
+              StatementId: statementId,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+
+          try eventbridge.putPermission({
+            EventBusName: eventBusParam,
+            Action: news.action ?? "events:PutEvents",
+            Principal: news.principal,
+            StatementId: statementId,
+            Condition: news.condition,
+          })
+
+          try session.note(`EventBridge permission ${statementId}`)
+
+          return {
+            statementId,
+            eventBusName,
+          }
+        },
+        delete: effect ({ output }) => {
+          eventbridge
+            .removePermission({
+              EventBusName: output.eventBusName !== "default" ? output.eventBusName : undefined,
+              StatementId: output.statementId,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

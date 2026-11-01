@@ -1,7 +1,7 @@
 import * as eventbridge from "@distilled.cloud/aws/eventbridge";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { EventBus } from "./EventBus.js";
+import type { EventBus } from "./EventBus.vibe";
 export interface DescribeEventBusRequest extends Omit<eventbridge.DescribeEventBusRequest, "Name"> {
 }
 /**

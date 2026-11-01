@@ -1,0 +1,80 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { PolicyStatement } from "../IAM/Policy.vibe"
+
+/**
+ * Shared HTTP scaffolding for the Amazon Forecast runtime bindings.
+ *
+ * The runtime-targeted Forecast objects (dataset import jobs, predictors,
+ * forecasts) are created *at runtime* with caller-chosen names, so their ARNs
+ * are unknowable at deploy time — every binding is account-level and grants
+ * its action(s) on `Resource: ["*"]`. The only variation between bindings is
+ * the distilled operation, the IAM action, and whether the operation passes
+ * a data-access role to the service (`CreateDatasetImportJob` /
+ * `CreateAutoPredictor`, which additionally need `iam:PassRole` conditioned
+ * to `forecast.amazonaws.com`).
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, makeForecastHttpBinding({ … }))`.
+ */
+export const makeForecastHttpBinding = effect <I, A, E, R>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"QueryForecast"`.
+   */
+  mutable capability: string
+  /**
+   * IAM actions granted on `Resource: ["*"]` (the target ARNs are created at
+   * runtime and unknowable at deploy time).
+   */
+  mutable iamActions: readonly string[]
+  /**
+   * The distilled operation implementing the capability.
+   */
+  mutable operation: ((input: I) => A!E)!never!R
+  /**
+   * Grant `iam:PassRole` (conditioned to `forecast.amazonaws.com`) so the
+   * function can hand the service the role it assumes to read S3 training
+   * data or use a customer KMS key. Set on the `Create*` bindings that accept
+   * a `RoleArn`.
+   */
+  mutable passRole?: boolean
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const policyStatements: PolicyStatement[] = [
+        {
+          Effect: "Allow",
+          Action: [...options.iamActions],
+          // Runtime-created Forecast ARNs are unknowable at deploy time.
+          Resource: ["*"],
+        },
+      ]
+      if (options.passRole) {
+        policyStatements.push({
+          Effect: "Allow",
+          Action: ["iam:PassRole"],
+          Resource: ["*"],
+          Condition: {
+            StringEquals: {
+              "iam:PassedToService": "forecast.amazonaws.com",
+            },
+          },
+        })
+      }
+      try bind`AWS.Forecast.${options.capability}()`({
+        policyStatements,
+      })
+    }
+    return effect (request: I) =>
+      try withSpan(
+        effect {
+          return try op(request)
+        },
+        `AWS.Forecast.${options.capability}`,
+      )
+  }
+}

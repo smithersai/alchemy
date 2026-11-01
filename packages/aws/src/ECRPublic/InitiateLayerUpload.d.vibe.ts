@@ -1,7 +1,7 @@
 import type * as ecrpublic from "@distilled.cloud/aws/ecr-public";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { PublicRepository } from "./Repository.js";
+import type { PublicRepository } from "./Repository.vibe";
 /** Request for {@link InitiateLayerUpload} — `repositoryName` is injected. */
 export interface InitiateLayerUploadRequest extends Omit<ecrpublic.InitiateLayerUploadRequest, "repositoryName"> {
 }

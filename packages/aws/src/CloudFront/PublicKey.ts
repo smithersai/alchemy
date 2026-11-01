@@ -9,7 +9,7 @@ import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { extractValue } from "./common.vibe";
 
 export class PublicKeyConflict extends Data.TaggedError("PublicKeyConflict")<{

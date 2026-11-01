@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.vibe";
 export interface ActiveReceiptRuleSetProps {
     /**
      * Name of the receipt rule set to make active for the account in the current

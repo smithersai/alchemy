@@ -1,7 +1,7 @@
 import type * as agentcore from "@distilled.cloud/aws/bedrock-agentcore";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Runtime } from "./Runtime.js";
+import type { Runtime } from "./Runtime.vibe";
 export interface StopRuntimeSessionRequest extends Omit<agentcore.StopRuntimeSessionRequest, "agentRuntimeArn"> {
 }
 /**

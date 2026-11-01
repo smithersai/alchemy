@@ -28,6 +28,6 @@ export * from "./StartExperiment.vibe";
 export * from "./StartExperimentHttp.vibe";
 export * from "./StopExperiment.vibe";
 export * from "./StopExperimentHttp.vibe";
-export * from "./TargetAccountConfiguration.ts";
+export * from "./TargetAccountConfiguration.vibe";
 export * from "./UpdateSafetyLeverState.vibe";
 export * from "./UpdateSafetyLeverStateHttp.vibe";

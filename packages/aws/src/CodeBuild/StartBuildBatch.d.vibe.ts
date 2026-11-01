@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/codebuild";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Project } from "./Project.js";
+import type { Project } from "./Project.vibe";
 /**
  * Runtime binding for `codebuild:StartBuildBatch` — kicks off a batch
  * (fan-out) build of the bound project. The project must have a build batch

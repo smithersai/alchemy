@@ -1,7 +1,7 @@
 import type * as mm from "@distilled.cloud/aws/mailmanager";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AddressList } from "./AddressList.js";
+import type { AddressList } from "./AddressList.vibe";
 /**
  * Runtime binding for `ses:StartAddressListImportJob`.
  *

@@ -18,10 +18,10 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { AccountID } from "../Environment.ts";
 import { tagListRecord } from "../internal/Observe.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { RegionID } from "../Region.ts";
 import { retryWhileLingeringEnis } from "./LingeringEnis.vibe";
-import type { VpcId } from "./Vpc.ts";
+import type { VpcId } from "./Vpc.vibe";
 
 export class SubnetUnexpectedResponse extends Data.TaggedError("SubnetUnexpectedResponse")<{
   readonly message: string;

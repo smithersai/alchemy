@@ -1,8 +1,8 @@
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import type { Application } from "./Application.ts";
-import type { Environment } from "./Environment.ts";
+import type { Application } from "./Application.vibe";
+import type { Environment } from "./Environment.vibe";
 
 /**
  * The deployment notification action points an AppConfig deployment emits as

@@ -1,7 +1,7 @@
 import type * as medialive from "@distilled.cloud/aws/medialive";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Channel } from "./Channel.js";
+import type { Channel } from "./Channel.vibe";
 /**
  * Runtime binding for `medialive:DeleteSchedule`.
  *

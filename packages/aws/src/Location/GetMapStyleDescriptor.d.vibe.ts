@@ -1,7 +1,7 @@
 import type * as location from "@distilled.cloud/aws/location";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Map as LocationMap } from "./Map.js";
+import type { Map as LocationMap } from "./Map.vibe";
 /**
  * `GetMapStyleDescriptor` request with `MapName` injected from the bound
  * resource.

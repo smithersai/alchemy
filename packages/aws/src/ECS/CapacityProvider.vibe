@@ -1,0 +1,341 @@
+import * as ecs from "@distilled.cloud/aws/ecs"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import type { Input } from "alchemy/Input"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasTags } from "alchemy/Tags"
+import { AWSEnvironment, type AccountID } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import type { RegionID } from "../Region.ts"
+
+export type CapacityProviderName = string
+export type CapacityProviderArn = `arn:aws:ecs:${RegionID}:${AccountID}:capacity-provider/${CapacityProviderName}`
+
+export interface CapacityProviderProps {
+  /**
+   * Capacity provider name. If omitted, a deterministic name is generated;
+   * a generated name that would begin with a reserved prefix gets `cp-`
+   * prepended.
+   *
+   * Names beginning with `aws`, `ecs`, or `fargate` are reserved by AWS.
+   * Changing this triggers a replacement.
+   */
+  mutable name?: string
+  /**
+   * ARN of the EC2 Auto Scaling Group that backs this capacity provider.
+   *
+   * Cannot be changed after creation; changing this triggers a replacement.
+   */
+  mutable autoScalingGroupArn: Input<string>
+  /**
+   * Managed scaling configuration applied by ECS to the underlying ASG.
+   */
+  mutable managedScaling?: ecs.ManagedScaling
+  /**
+   * Whether ECS protects in-use container instances from ASG scale-in.
+   * @default "DISABLED"
+   */
+  mutable managedTerminationProtection?: ecs.ManagedTerminationProtection
+  /**
+   * Whether ECS sets container instances to DRAINING when terminated by ASG.
+   * @default "DISABLED"
+   */
+  mutable managedDraining?: ecs.ManagedDraining
+  /**
+   * User-defined tags to apply to the capacity provider.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface CapacityProvider extends
+  Resource<
+    "AWS.ECS.CapacityProvider",
+    CapacityProviderProps,
+    {
+      /** The ARN of the capacity provider. */
+      mutable capacityProviderArn: CapacityProviderArn
+      /** The name of the capacity provider. */
+      mutable name: CapacityProviderName
+      /** The current status, e.g. `ACTIVE`. */
+      mutable status: ecs.CapacityProviderStatus
+      /** The status of the most recent update to the provider. */
+      mutable updateStatus: ecs.CapacityProviderUpdateStatus | undefined
+      /** The Auto Scaling group backing the provider. */
+      mutable autoScalingGroupArn: string
+      /** The managed scaling configuration. */
+      mutable managedScaling: ecs.ManagedScaling | undefined
+      /** Whether managed termination protection is enabled. */
+      mutable managedTerminationProtection: ecs.ManagedTerminationProtection | undefined
+      /** Whether managed instance draining is enabled. */
+      mutable managedDraining: ecs.ManagedDraining | undefined
+      /** The tags attached to the capacity provider. */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon ECS capacity provider backed by an EC2 Auto Scaling Group.
+ *
+ * Capacity providers are associated with one or more ECS clusters via
+ * {@link Cluster#capacityProviders} and are referenced by a service or task's
+ * capacity provider strategy.
+ *
+ * Only EC2 Auto Scaling Group-backed capacity providers are currently
+ * supported. The reserved AWS providers `FARGATE` and `FARGATE_SPOT` do not
+ * need to be created and can be referenced by name on a `Cluster` directly.
+ * ### Creating Capacity Providers
+ * **Example:** ASG-Backed Capacity Provider
+ * ```typescript
+ * const provider = yield* CapacityProvider("AppCapacityProvider", {
+ *   autoScalingGroupArn: asg.autoScalingGroupArn,
+ *   managedScaling: {
+ *     status: "ENABLED",
+ *     targetCapacity: 80,
+ *     minimumScalingStepSize: 1,
+ *     maximumScalingStepSize: 10,
+ *   },
+ *   managedTerminationProtection: "ENABLED",
+ * });
+ *
+ * yield* Cluster("AppCluster", {
+ *   capacityProviders: [provider.name],
+ *   defaultCapacityProviderStrategy: [
+ *     { capacityProvider: provider.name, weight: 1 },
+ *   ],
+ * });
+ * ```
+ *
+ * ### Adopting Existing Capacity Providers
+ * Foreign-tagged capacity providers (i.e. providers that exist in AWS but were
+ * not created by this stack/stage/logical-id) are surfaced as `Unowned` by
+ * `read`, and the engine fails with `OwnedBySomeoneElse` unless adoption is
+ * explicitly opted in via `--adopt` or {@link adopt}.
+ * **Example:** Adopt an existing provider
+ * ```typescript
+ * import { adopt } from "alchemy/AdoptPolicy";
+ *
+ * yield* CapacityProvider("AppCapacityProvider", {
+ *   name: "existing-provider",
+ *   autoScalingGroupArn: asg.autoScalingGroupArn,
+ * }).pipe(adopt());
+ * ```
+ *
+ * @resource
+ */
+export const CapacityProvider = Resource<CapacityProvider>("AWS.ECS.CapacityProvider")
+
+export const CapacityProviderProvider = (): infer _ =>
+  Provider.effect(
+    CapacityProvider,
+    effect {
+      const toEcsTags = (tags: Record<string, string>): ecs.Tag[] =>
+        Object.entries(tags).map(([key, value]) => ({ key, value }))
+
+      const fromEcsTags = (tags: ecs.Tag[] | undefined): Record<string, string> =>
+        Object.fromEntries(
+          (tags ?? [])
+            .filter(
+              (t): t is { mutable key: string; mutable value: string } => t.key !== undefined && t.value !== undefined,
+            )
+            .map((t) => [t.key, t.value]),
+        )
+
+      const toName = effect (
+        id: string,
+        props: { mutable name?: string } = {},
+      ) => (props.name ? props.name : try effect {
+        const name = try createPhysicalName({ id, maxLength: 252, lowercase: true })
+        return (/^(aws|ecs|fargate)/.test(name) ? `cp-${name}` : name)
+      })
+
+      const describe = effect (name: string) =>
+        (try ecs
+          .describeCapacityProviders({
+            capacityProviders: [name],
+            include: ["TAGS"],
+          })).capacityProviders?.find((p) => p.name === name && p.status !== "INACTIVE")
+
+      return {
+        stables: ["capacityProviderArn", "name"],
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return
+          const oldName = try toName(id, olds ?? {})
+          const newName = try toName(id, news)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+          if (
+            isResolved(olds.autoScalingGroupArn)
+            && olds.autoScalingGroupArn !== news.autoScalingGroupArn
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.name ?? (try toName(id, olds ?? {}))
+          const found = try describe(name)
+          if (!found?.name || !found.capacityProviderArn) {
+            return undefined
+          }
+          const internalTags = try createInternalTags(id)
+          const existingTags = fromEcsTags(found.tags)
+          const attrs = {
+            capacityProviderArn: found.capacityProviderArn as CapacityProviderArn,
+            name: found.name,
+            status: (found.status ?? "ACTIVE") as ecs.CapacityProviderStatus,
+            updateStatus: found.updateStatus,
+            autoScalingGroupArn: found.autoScalingGroupProvider?.autoScalingGroupArn ?? "",
+            managedScaling: found.autoScalingGroupProvider?.managedScaling,
+            managedTerminationProtection: found.autoScalingGroupProvider?.managedTerminationProtection,
+            managedDraining: found.autoScalingGroupProvider?.managedDraining,
+            tags: existingTags,
+          }
+          return hasTags(internalTags, existingTags) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = try toName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const autoScalingGroupArn = news.autoScalingGroupArn as string
+
+          // Observe — fetch live cloud state. We fetch fresh on every
+          // reconcile so adoption, drift, and partial-prior-runs all
+          // converge.
+          let existing = try describe(name)
+
+          // Ensure — create the capacity provider if missing.
+          if (!existing?.name || !existing.capacityProviderArn) {
+            ecs
+              .createCapacityProvider({
+                name,
+                autoScalingGroupProvider: {
+                  autoScalingGroupArn,
+                  managedScaling: news.managedScaling,
+                  managedTerminationProtection: news.managedTerminationProtection,
+                  managedDraining: news.managedDraining,
+                },
+                tags: toEcsTags(desiredTags),
+              }) catch effect (e) => match (e) {
+                when { _tag: "LimitExceededException" }: try Effect.void;
+                default: throw e;
+              }
+            existing = try describe(name)
+          }
+
+          const capacityProviderArn = (existing?.capacityProviderArn
+            ?? `arn:aws:ecs:${region}:${accountId}:capacity-provider/${name}`) as CapacityProviderArn
+
+          // Sync managed scaling — observed ↔ desired. ECS
+          // updateCapacityProvider only mutates managed* fields; ASG ARN is
+          // immutable (replacement-triggering, handled in diff).
+          try ecs.updateCapacityProvider({
+            name,
+            autoScalingGroupProvider: {
+              managedScaling: news.managedScaling,
+              managedTerminationProtection: news.managedTerminationProtection,
+              managedDraining: news.managedDraining,
+            },
+          })
+
+          // Sync tags — diff observed cloud tags against desired.
+          const observedTags = fromEcsTags(existing?.tags)
+          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0) {
+            try ecs.tagResource({
+              resourceArn: capacityProviderArn,
+              tags: upsert.map((t) => ({ key: t.Key, value: t.Value })),
+            })
+          }
+          if (removed.length > 0) {
+            try ecs.untagResource({
+              resourceArn: capacityProviderArn,
+              tagKeys: removed,
+            })
+          }
+
+          // Re-read to capture status / updateStatus reflecting our changes.
+          const found = try describe(name)
+          try session.note(capacityProviderArn)
+
+          return {
+            capacityProviderArn,
+            name,
+            status: (found?.status ?? "ACTIVE") as ecs.CapacityProviderStatus,
+            updateStatus: found?.updateStatus,
+            autoScalingGroupArn: found?.autoScalingGroupProvider?.autoScalingGroupArn ?? autoScalingGroupArn,
+            managedScaling: found?.autoScalingGroupProvider?.managedScaling ?? news.managedScaling,
+            managedTerminationProtection: found?.autoScalingGroupProvider?.managedTerminationProtection
+              ?? news.managedTerminationProtection,
+            managedDraining: found?.autoScalingGroupProvider?.managedDraining ?? news.managedDraining,
+            tags: desiredTags,
+          }
+        },
+
+        list: effect () => {
+          // Enumerate every capacity provider in the account/region.
+          // `describeCapacityProviders` with no filter returns all providers
+          // and paginates via `nextToken`; it is a plain operation (no
+          // `.pages`), so drive the pagination with `Stream.paginate`.
+          const all = Array.from(
+            try (Stream.paginate(undefined as string | undefined, effect (token) =>
+              try effect {
+                const res = try ecs
+                  .describeCapacityProviders({
+                    include: ["TAGS"],
+                    ...(token ? { nextToken: token } : {}),
+                  })
+                return [
+                  res.capacityProviders ?? [],
+                  res.nextToken ? Option.some(res.nextToken) : Option.none<string>(),
+                ] as const
+              })
+              |> Stream.runCollect(%)),
+          )
+
+          return all
+            .filter(
+              (
+                p,
+              ): p is ecs.CapacityProvider & {
+                mutable name: string
+                mutable capacityProviderArn: string
+              } =>
+                p.name != null
+                && p.capacityProviderArn != null
+                // FARGATE / FARGATE_SPOT are AWS-managed reserved providers
+                // that this resource does not create or own.
+                && p.name !== "FARGATE"
+                && p.name !== "FARGATE_SPOT",
+            )
+            .map((p) => ({
+              capacityProviderArn: p.capacityProviderArn as CapacityProviderArn,
+              name: p.name,
+              status: (p.status ?? "ACTIVE") as ecs.CapacityProviderStatus,
+              updateStatus: p.updateStatus,
+              autoScalingGroupArn: p.autoScalingGroupProvider?.autoScalingGroupArn ?? "",
+              managedScaling: p.autoScalingGroupProvider?.managedScaling,
+              managedTerminationProtection: p.autoScalingGroupProvider?.managedTerminationProtection,
+              managedDraining: p.autoScalingGroupProvider?.managedDraining,
+              tags: fromEcsTags(p.tags),
+            }))
+        },
+
+        delete: effect ({ output }) => {
+          ecs.deleteCapacityProvider({ capacityProvider: output.name }) catch effect (e) => match (e) {
+            when { _tag: "InvalidParameterException" }: try Effect.void;
+            when { _tag: "ClientException" }: try Effect.void;
+            default: throw e;
+          }
+        },
+      }
+    },
+  )

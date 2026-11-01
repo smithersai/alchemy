@@ -7,7 +7,7 @@ import { createInternalTags, hasAlchemyTags } from "alchemy/Tags";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { retryWhileConflict, retryWhileThrottled, syncIvsTags, toTagRecord } from "./internal.ts";
 
 export interface ChannelProps {

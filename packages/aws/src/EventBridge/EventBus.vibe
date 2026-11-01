@@ -1,0 +1,427 @@
+import * as eventbridge from "@distilled.cloud/aws/eventbridge"
+import { Region as AwsRegion } from "@distilled.cloud/aws/Region"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment, type AccountID } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import type { RegionID } from "../Region.ts"
+import type { QueueArn } from "../SQS/Queue.vibe"
+
+export type { IncludeDetail, Level, LogConfig } from "@distilled.cloud/aws/eventbridge"
+
+export type EventBusName = string
+export type EventBusArn = `arn:aws:events:${RegionID}:${AccountID}:event-bus/${EventBusName}`
+
+export interface EventBusDeadLetterConfig {
+  /** ARN of the SQS queue used as the dead-letter queue. */
+  mutable Arn?: QueueArn
+}
+
+export interface EventBusProps {
+  /**
+   * Name of the event bus. Must match [/\.\-_A-Za-z0-9]+, 1-256 characters.
+   * If omitted, a unique name will be generated.
+   * Cannot be "default" — use the default event bus by omitting eventBusName on rules.
+   */
+  mutable name?: EventBusName
+
+  /**
+   * The partner event source to associate with this event bus.
+   * Only used when creating a partner event bus.
+   */
+  mutable eventSourceName?: string
+
+  /**
+   * Description of the event bus.
+   */
+  mutable description?: string
+
+  /**
+   * The identifier of the KMS customer managed key for EventBridge to use
+   * to encrypt events on this event bus.
+   */
+  mutable kmsKeyIdentifier?: string
+
+  /**
+   * Dead-letter queue configuration for undeliverable events.
+   */
+  mutable deadLetterConfig?: EventBusDeadLetterConfig
+
+  /**
+   * Logging configuration for the event bus.
+   */
+  mutable logConfig?: eventbridge.LogConfig
+
+  /**
+   * Whether to delete any rules remaining on the bus (removing their
+   * targets first) when the bus is destroyed. Rules managed by the same
+   * stack are always deleted before the bus by the engine, and AWS-managed
+   * rules (e.g. the hidden archival rule an Archive leaves behind while
+   * AWS's async cleanup lags) are always force-swept; `forceDestroy`
+   * additionally sweeps rules created out-of-band (or leaked by an
+   * interrupted deploy), which would otherwise block bus deletion with
+   * `EventBusHasRules` forever.
+   * @default false
+   */
+  mutable forceDestroy?: boolean
+
+  /**
+   * Tags to assign to the event bus.
+   */
+  mutable tags?: Record<string, string>
+
+  /**
+   * AWS region to create the event bus in. Defaults to the stack's region.
+   * Set it to place the secondary bus of a global {@link Endpoint} in its
+   * failover region. Changing the region replaces the event bus.
+   */
+  mutable region?: string
+}
+
+/** The region segment of an event bus ARN. */
+const regionOfEventBusArn = (arn: string): infer _ => arn.split(":")[3]
+
+/** Run EventBridge calls in `region`, or the ambient region when omitted. */
+const inRegion = (region: string | undefined): infer _ =>
+effect <A, E, R>(
+  effect: A!E!R,
+) => (region === undefined ? try effect : try effect {
+  provide AwsRegion = Effect.succeed(region as RegionID) {
+    return try effect
+  }
+})
+
+/**
+ * An Amazon EventBridge event bus for receiving and routing events.
+ * ### Creating Event Buses
+ * **Example:** Custom Event Bus
+ * ```typescript
+ * const bus = yield* EventBus("MyAppEvents", {
+ *   description: "Custom event bus for my application",
+ * });
+ * ```
+ *
+ * **Example:** Event Bus with Dead Letter Queue
+ * ```typescript
+ * const bus = yield* EventBus("ReliableBus", {
+ *   deadLetterConfig: {
+ *     Arn: yield* dlq.queueArn,
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Event Bus in Another Region
+ * ```typescript
+ * const secondary = yield* EventBus("SecondaryBus", {
+ *   name: "orders",
+ *   region: "us-east-2",
+ * });
+ * ```
+ *
+ * **Example:** Event Bus with KMS Encryption
+ * ```typescript
+ * const bus = yield* EventBus("EncryptedBus", {
+ *   kmsKeyIdentifier: yield* key.keyArn(),
+ * });
+ * ```
+ *
+ * @resource
+ */
+export interface EventBus extends
+  Resource<
+    "AWS.EventBridge.EventBus",
+    EventBusProps,
+    {
+      /** The name of the event bus. */
+      mutable eventBusName: EventBusName
+      /** The ARN of the event bus. */
+      mutable eventBusArn: EventBusArn
+      /** Description of the event bus, if set. */
+      mutable description?: string
+    },
+    never,
+    Providers
+  >
+{}
+export const EventBus = Resource<EventBus>("AWS.EventBridge.EventBus")
+
+export const EventBusProvider = (): infer _ =>
+  Provider.effect(
+    EventBus,
+    effect {
+      const createEventBusName = effect (id: string, props: { mutable name?: string } = {}) => {
+        if (props.name) {
+          return props.name
+        }
+        return try createPhysicalName({
+          id,
+          maxLength: 256,
+        })
+      }
+
+      return {
+        stables: ["eventBusName", "eventBusArn"],
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return
+          const oldName = try createEventBusName(id, olds)
+          const newName = try createEventBusName(id, news)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+          if ((olds.eventSourceName ?? "") !== (news.eventSourceName ?? "")) {
+            return { action: "replace" } as const
+          }
+          const { region } = try AWSEnvironment.current
+          if ((olds.region ?? region) !== (news.region ?? region)) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const eventBusName = output?.eventBusName ?? (try createEventBusName(id, olds ?? {}))
+          const region = output ? regionOfEventBusArn(output.eventBusArn) : olds?.region
+          return try inRegion(region)(
+            effect {
+              const described = eventbridge
+                .describeEventBus({
+                  Name: eventBusName,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                  default: throw e;
+                }
+
+              if (!described?.Arn || !described.Name) {
+                return undefined
+              }
+
+              const { Tags } = try eventbridge.listTagsForResource({
+                ResourceARN: described.Arn,
+              })
+              const attrs = {
+                eventBusName: described.Name,
+                eventBusArn: described.Arn as EventBusArn,
+                description: described.Description,
+              }
+              return (try hasAlchemyTags(id, Tags ?? [])) ? attrs : Unowned(attrs)
+            },
+          )
+        },
+        list: effect () => {
+          // Enumerate every event bus in the ambient account/region via
+          // manual NextToken pagination (listEventBuses is not a paginated
+          // distilled op). The AWS-managed `default` bus is excluded — the
+          // EventBus resource cannot manage it (name "default" is reserved).
+          const attrs: {
+            mutable eventBusName: EventBusName
+            mutable eventBusArn: EventBusArn
+            mutable description?: string
+          }[] = []
+          let nextToken: string | undefined
+          do {
+            const page = try eventbridge.listEventBuses({
+              NextToken: nextToken,
+            })
+            for (const bus of page.EventBuses ?? []) {
+              if (!bus.Name || !bus.Arn || bus.Name === "default") {
+                continue
+              }
+              attrs.push({
+                eventBusName: bus.Name,
+                eventBusArn: bus.Arn as EventBusArn,
+                description: bus.Description,
+              })
+            }
+            nextToken = page.NextToken
+          } while (nextToken)
+          return attrs
+        },
+        reconcile: effect ({ id, news = {}, output, session }) =>
+          try inRegion(news.region)(
+            effect {
+              const env = try AWSEnvironment.current
+              const { accountId } = env
+              const region = news.region ?? env.region
+              const eventBusName = output?.eventBusName ?? (try createEventBusName(id, news))
+              const eventBusArn = (output?.eventBusArn
+                ?? `arn:aws:events:${region}:${accountId}:event-bus/${eventBusName}`) as EventBusArn
+              const internalTags = try createInternalTags(id)
+              const desiredTags = {
+                ...internalTags,
+                ...(news.tags as Record<string, string> | undefined),
+              }
+
+              // Observe — fetch live cloud state. We don't trust `output`
+              // blindly: a bus deleted out of band shows up as missing and we
+              // recreate. Foreign-tagged buses have already been screened by
+              // `read` upstream.
+              let described = eventbridge
+                .describeEventBus({
+                  Name: eventBusName,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                  default: throw e;
+                }
+
+              // Ensure — create the bus if missing. Tolerate
+              // `ResourceAlreadyExistsException` as a race with a peer
+              // reconciler: re-read and continue with the sync path.
+              if (!described?.Arn) {
+                eventbridge
+                  .createEventBus({
+                    Name: eventBusName,
+                    EventSourceName: news.eventSourceName,
+                    Description: news.description,
+                    KmsKeyIdentifier: news.kmsKeyIdentifier as string | undefined,
+                    DeadLetterConfig: news.deadLetterConfig
+                      ? { Arn: news.deadLetterConfig.Arn as string | undefined }
+                      : undefined,
+                    LogConfig: news.logConfig,
+                    Tags: createTagsList(desiredTags),
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                    default: throw e;
+                  }
+
+                described = eventbridge
+                  .describeEventBus({
+                    Name: eventBusName,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                    default: throw e;
+                  }
+              }
+
+              // Sync mutable bus configuration — `updateEventBus` overwrites
+              // `description`, KMS key, DLQ, and log config in one shot, so we
+              // call it unconditionally (idempotent for matching values).
+              try eventbridge.updateEventBus({
+                Name: eventBusName,
+                Description: news.description,
+                KmsKeyIdentifier: news.kmsKeyIdentifier as string | undefined,
+                DeadLetterConfig: news.deadLetterConfig
+                  ? { Arn: news.deadLetterConfig.Arn as string | undefined }
+                  : undefined,
+                LogConfig: news.logConfig,
+              })
+
+              // Sync tags — diff observed cloud tags against desired. Adoption
+              // may bring us a bus with its own tag set; diffing against the
+              // freshly-fetched tags lets the reconciler converge regardless.
+              const observedTagsList = (try eventbridge
+                .listTagsForResource({
+                  ResourceARN: eventBusArn,
+                })).Tags ?? []
+              const observedTags: Record<string, string> = {}
+              for (const tag of observedTagsList) {
+                if (tag.Key && tag.Value !== undefined) {
+                  observedTags[tag.Key] = tag.Value
+                }
+              }
+              const { removed, upsert } = diffTags(observedTags, desiredTags)
+
+              if (removed.length > 0) {
+                try eventbridge.untagResource({
+                  ResourceARN: eventBusArn,
+                  TagKeys: removed,
+                })
+              }
+
+              if (upsert.length > 0) {
+                try eventbridge.tagResource({
+                  ResourceARN: eventBusArn,
+                  Tags: upsert,
+                })
+              }
+
+              try session.note(eventBusArn)
+              return {
+                eventBusName,
+                eventBusArn,
+                description: news.description,
+              }
+            },
+          ),
+        delete: effect ({ olds = {}, output }) =>
+          try inRegion(regionOfEventBusArn(output.eventBusArn))(
+            effect {
+              const eventBusName = output.eventBusName // Rules the engine knows about are deleted first (they depend on
+               // the bus), but AWS-managed rules can linger: deleting an archive
+              // removes its hidden archival rule *asynchronously*, sometimes
+              // minutes later, during which deleteEventBus keeps failing with
+              // EventBusHasRules. Sweep remaining rules with Force (required for
+              // managed rules) instead of waiting out AWS's async cleanup:
+              // AWS-managed rules (`ManagedBy` set) are always swept; rules
+              // created out-of-band by the user are only swept when
+              // `forceDestroy` is enabled.
+              ;(try effect {
+                let nextToken: string | undefined
+                do {
+                  const page = try eventbridge.listRules({
+                    EventBusName: eventBusName,
+                    NextToken: nextToken,
+                  })
+                  for (const rule of page.Rules ?? []) {
+                    if (!rule.Name) continue
+                    if (!rule.ManagedBy && !olds.forceDestroy) continue
+                    const targets = eventbridge
+                      .listTargetsByRule({
+                        Rule: rule.Name,
+                        EventBusName: eventBusName,
+                      }) catch effect (e) => match (e) {
+                        when { _tag: "ResourceNotFoundException" }: { Targets: [] };
+                        default: throw e;
+                      }
+                    const targetIds = (targets.Targets ?? []).map((t) => t.Id)
+                    if (targetIds.length > 0) {
+                      eventbridge
+                        .removeTargets({
+                          Rule: rule.Name,
+                          EventBusName: eventBusName,
+                          Ids: targetIds,
+                          Force: true,
+                        }) catch effect (e) => match (e) {
+                          when { _tag: "ResourceNotFoundException" } or { _tag: "ManagedRuleException" }: try Effect
+                            .void;
+                          default: throw e;
+                        }
+                    }
+                    eventbridge
+                      .deleteRule({
+                        Name: rule.Name,
+                        EventBusName: eventBusName,
+                        Force: true,
+                      }) catch effect (e) => match (e) {
+                        when { _tag: "ResourceNotFoundException" } or { _tag: "ManagedRuleException" }: try Effect
+                          .void;
+                        default: throw e;
+                      }
+                  }
+                  nextToken = page.NextToken
+                } while (nextToken)
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                default: throw e;
+              } // The sweep and EventBridge's own bookkeeping are eventually
+               // consistent — a just-deleted rule can still count against the bus
+              // for a few seconds. Retry the typed dependency violation on a
+              // bounded schedule.
+              ;(try (eventbridge
+                .deleteEventBus({
+                  Name: eventBusName,
+                })
+                |> Effect.retry(%, {
+                  while: (e): boolean => e._tag === "EventBusHasRules",
+                  schedule: Schedule.spaced("3 seconds"),
+                  times: 10,
+                }))) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            },
+          ),
+      }
+    },
+  )

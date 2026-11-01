@@ -1,0 +1,249 @@
+import * as athena from "@distilled.cloud/aws/athena"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags } from "alchemy/Tags"
+import { AWSEnvironment, type AccountID } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import type { RegionID } from "../Region.ts"
+
+export type DataCatalogArn = `arn:aws:athena:${RegionID}:${AccountID}:datacatalog/${string}`
+
+export interface DataCatalogProps {
+  /**
+   * Name of the data catalog. This is the catalog's identity — changing it
+   * replaces the resource. Up to 256 characters.
+   */
+  mutable name: string
+  /**
+   * Catalog type. Changing this replaces the resource.
+   * - `LAMBDA` — a federated connector backed by a Lambda metadata function.
+   * - `GLUE` — an AWS Glue Data Catalog (typically in another account).
+   * - `HIVE` — an external Apache Hive metastore via a Lambda function.
+   * - `FEDERATED` — a managed federated connector.
+   */
+  mutable type: "LAMBDA" | "GLUE" | "HIVE" | "FEDERATED"
+  /**
+   * Optional description.
+   */
+  mutable description?: string
+  /**
+   * Type-specific parameters. For `LAMBDA`/`HIVE` this carries the
+   * `metadata-function` / `record-function` (or `function`) ARNs; for `GLUE`
+   * the `catalog-id`.
+   */
+  mutable parameters?: Record<string, string>
+  /**
+   * User-defined tags to apply to the data catalog.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface DataCatalog extends
+  Resource<
+    "AWS.Athena.DataCatalog",
+    DataCatalogProps,
+    {
+      /**
+       * Name of the data catalog.
+       */
+      mutable name: string
+      /**
+       * ARN of the data catalog.
+       */
+      mutable dataCatalogArn: DataCatalogArn
+      /**
+       * Catalog type (`LAMBDA`, `GLUE`, or `HIVE`).
+       */
+      mutable type: string
+      /**
+       * Type-specific connection parameters.
+       */
+      mutable parameters: Record<string, string>
+      /**
+       * Description of the data catalog.
+       */
+      mutable description: string | undefined
+      /**
+       * Tags on the data catalog.
+       */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Athena data catalog — registers an external metadata source (a
+ * federated Lambda connector, an external Hive metastore, or a cross-account
+ * Glue Data Catalog) that Athena queries can reference as a `catalog`.
+ *
+ * ### Registering Catalogs
+ * **Example:** A federated Lambda-backed catalog
+ * ```typescript
+ * const catalog = yield* AWS.Athena.DataCatalog("Cmdb", {
+ *   name: "cmdb_connector",
+ *   type: "LAMBDA",
+ *   parameters: {
+ *     "metadata-function": connector.functionArn,
+ *     "record-function": connector.functionArn,
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DataCatalog = Resource<DataCatalog>("AWS.Athena.DataCatalog")
+
+const observedTagsOf = (tags: readonly athena.Tag[] | undefined): infer _ =>
+  Object.fromEntries(
+    (tags ?? []).flatMap((t) => t.Key !== undefined && t.Value !== undefined ? [[t.Key, t.Value]] : []),
+  )
+
+const paramsOf = (params: { mutable [key: string]: string | undefined } | undefined): infer _ =>
+  Object.fromEntries(
+    Object.entries(params ?? {}).flatMap((e) => (typeof e[1] === "string" ? [[e[0], e[1]]] : [])),
+  ) as Record<string, string>
+
+export const DataCatalogProvider = (): infer _ =>
+  Provider.effect(
+    DataCatalog,
+    effect {
+      const getOne = effect (name: string) =>
+        (try athena.getDataCatalog({ Name: name, WorkGroup: "primary" })).DataCatalog catch effect (e) => match (e) {
+          when { _tag: "DataCatalogNotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      const fetchTags = effect (arn: string) =>
+        (observedTagsOf(Array.from(
+          try (athena.listTagsForResource.items({ ResourceARN: arn })
+            |> Stream.runCollect(%)),
+        ))) catch () => ({}) as Record<string, string>
+
+      return {
+        stables: ["name", "dataCatalogArn"],
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return
+          if ((olds?.name ?? undefined) !== news.name) {
+            return { action: "replace" } as const
+          }
+          if ((olds?.type ?? undefined) !== news.type) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.name ?? olds?.name
+          if (!name) return undefined
+          const dc = try getOne(name)
+          if (!dc) return undefined
+          const arn = `arn:aws:athena:${region}:${accountId}:datacatalog/${name}` as DataCatalogArn
+          return {
+            name,
+            dataCatalogArn: arn,
+            type: dc.Type,
+            parameters: paramsOf(dc.Parameters),
+            description: dc.Description,
+            tags: try fetchTags(arn),
+          }
+        },
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const pages = try athena.listDataCatalogs.pages({}).pipe(Stream.runCollect)
+          return Array.from(pages)
+            .flatMap((page) => page.DataCatalogsSummary ?? [])
+            .flatMap((dc) =>
+              dc.CatalogName
+                ? [
+                  {
+                    name: dc.CatalogName,
+                    dataCatalogArn:
+                      `arn:aws:athena:${region}:${accountId}:datacatalog/${dc.CatalogName}` as DataCatalogArn,
+                    type: dc.Type ?? "LAMBDA",
+                    parameters: {} as Record<string, string>,
+                    description: undefined,
+                    tags: {} as Record<string, string>,
+                  },
+                ]
+                : []
+            )
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = news.name ?? output?.name!
+          const arn = `arn:aws:athena:${region}:${accountId}:datacatalog/${name}` as DataCatalogArn
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const desiredParams = news.parameters ?? {}
+
+          // Observe — cloud state is authoritative.
+          let dc = try getOne(name)
+
+          // Ensure — create if missing.
+          if (!dc) {
+            try athena.createDataCatalog({
+              Name: name,
+              Type: news.type,
+              Description: news.description,
+              Parameters: desiredParams,
+              Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                Key,
+                Value,
+              })),
+            })
+            dc = try getOne(name)
+          } else {
+            // Sync — AWS derives extra parameter keys (e.g. `catalog`) beyond
+            // what we sent, so only update when a DESIRED key is missing or
+            // differs from the observed value (ignore AWS-added keys).
+            const observedParams = paramsOf(dc.Parameters)
+            const paramsDrift = Object.entries(desiredParams).some(
+              ([k, v]) => observedParams[k] !== v,
+            )
+            const descDrift = news.description !== undefined && dc.Description !== news.description
+            if (paramsDrift || descDrift) {
+              try athena.updateDataCatalog({
+                Name: name,
+                Type: news.type,
+                Description: news.description,
+                Parameters: desiredParams,
+              })
+            }
+          }
+
+          // Sync tags — diff against OBSERVED cloud tags.
+          const observed = try fetchTags(arn)
+          const { upsert, removed } = diffTags(observed, desiredTags)
+          if (upsert.length > 0) {
+            try athena.tagResource({
+              ResourceARN: arn,
+              Tags: upsert.map((t) => ({ Key: t.Key, Value: t.Value })),
+            })
+          }
+          if (removed.length > 0) {
+            try athena.untagResource({ ResourceARN: arn, TagKeys: removed })
+          }
+
+          const final = (try getOne(name)) ?? dc
+          try session.note(arn)
+          return {
+            name,
+            dataCatalogArn: arn,
+            type: final?.Type ?? news.type,
+            parameters: paramsOf(final?.Parameters),
+            description: final?.Description ?? news.description,
+            tags: desiredTags,
+          }
+        },
+        delete: effect ({ output }) => {
+          athena
+            .deleteDataCatalog({ Name: output.name }) catch effect (e) => match (e) {
+              when { _tag: "DataCatalogNotFound" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

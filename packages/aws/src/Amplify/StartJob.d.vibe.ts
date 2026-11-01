@@ -1,7 +1,7 @@
 import type * as amplify from "@distilled.cloud/aws/amplify";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { App } from "./App.js";
+import type { App } from "./App.vibe";
 export interface StartJobRequest extends Omit<amplify.StartJobRequest, "appId"> {
 }
 /**

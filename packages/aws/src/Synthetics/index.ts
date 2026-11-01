@@ -1,4 +1,4 @@
-export * from "./Canary.ts";
+export * from "./Canary.vibe";
 export * from "./CanaryEventSource.vibe";
 export * from "./DescribeCanariesLastRun.vibe";
 export * from "./DescribeCanariesLastRunHttp.vibe";
@@ -6,7 +6,7 @@ export * from "./GetCanary.vibe";
 export * from "./GetCanaryHttp.vibe";
 export * from "./GetCanaryRuns.vibe";
 export * from "./GetCanaryRunsHttp.vibe";
-export * from "./Group.ts";
+export * from "./Group.vibe";
 export * from "./StartCanary.vibe";
 export * from "./StartCanaryHttp.vibe";
 export * from "./StopCanary.vibe";

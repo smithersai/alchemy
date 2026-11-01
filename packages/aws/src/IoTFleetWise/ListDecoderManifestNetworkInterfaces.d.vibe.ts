@@ -1,7 +1,7 @@
 import type * as iotfleetwise from "@distilled.cloud/aws/iotfleetwise";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DecoderManifest } from "./DecoderManifest.js";
+import type { DecoderManifest } from "./DecoderManifest.vibe";
 /**
  * `ListDecoderManifestNetworkInterfaces` request with `name` injected from
  * the bound decoder manifest.

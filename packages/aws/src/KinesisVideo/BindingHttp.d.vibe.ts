@@ -1,7 +1,7 @@
 import * as kv from "@distilled.cloud/aws/kinesis-video";
 import * as Effect from "effect/Effect";
-import type { SignalingChannel } from "./SignalingChannel.js";
-import type { Stream } from "./Stream.js";
+import type { SignalingChannel } from "./SignalingChannel.vibe";
+import type { Stream } from "./Stream.vibe";
 /**
  * Shared scaffolding for AWS Kinesis Video HTTP bindings.
  *
@@ -56,4 +56,4 @@ export declare const makeChannelSignalingHttpBinding: <K extends "ChannelARN" | 
     key: K;
     /** The distilled operation; the channel ARN is injected under `key`. */
     operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
-}) => Effect.Effect<(channel: SignalingChannel) => Effect.Effect<(request?: Omit<I, K> | undefined) => Effect.Effect<A, E | import("./internal.js").SignalingEndpointUnavailable | kv.GetSignalingChannelEndpointError, never>, never, never>, never, never>;
+}) => Effect.Effect<(channel: SignalingChannel) => Effect.Effect<(request?: Omit<I, K> | undefined) => Effect.Effect<A, E | import("./internal.vibe").SignalingEndpointUnavailable | kv.GetSignalingChannelEndpointError, never>, never, never>, never, never>;

@@ -1,0 +1,306 @@
+import * as location from "@distilled.cloud/aws/location"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as Redacted from "effect/Redacted"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+import { toTagRecord } from "./internal.ts"
+
+export error LocationApiKeyUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+/**
+ * What a Location API key is allowed to call. Keys authorize *unsigned*
+ * requests, so restrictions should be as narrow as possible.
+ */
+export interface ApiKeyRestrictions {
+  /**
+   * Allowed API actions, e.g. `["geo:GetMap*"]` or
+   * `["geo:SearchPlaceIndexForText"]`. Wildcards are allowed at the end of
+   * an action name.
+   */
+  mutable allowActions: string[]
+  /**
+   * Allowed resource ARNs, e.g. a specific map's ARN or a wildcard like
+   * `arn:aws:geo:*:*:map/*`.
+   */
+  mutable allowResources: string[]
+  /**
+   * Optional HTTP referer patterns the key may be used from, e.g.
+   * `["https://example.com/*"]`.
+   */
+  mutable allowReferers?: string[]
+}
+
+export interface ApiKeyProps {
+  /**
+   * Name of the API key. Immutable — changing it replaces the key.
+   * @default ${app}-${stage}-${id}
+   */
+  mutable keyName?: string
+  /**
+   * The actions, resources, and referers the key is allowed to be used
+   * with. Updatable in place.
+   */
+  mutable restrictions: ApiKeyRestrictions
+  /**
+   * Optional description of the API key.
+   */
+  mutable description?: string
+  /**
+   * Expiry as an ISO-8601 timestamp, e.g. `"2027-01-01T00:00:00Z"`.
+   * Mutually exclusive with `noExpiry`.
+   */
+  mutable expireTime?: string
+  /**
+   * Create the key without an expiry.
+   * @default true when `expireTime` is omitted
+   */
+  mutable noExpiry?: boolean
+  /**
+   * Tags to associate with the API key.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface ApiKey extends
+  Resource<
+    "AWS.Location.ApiKey",
+    ApiKeyProps,
+    {
+      /** Physical name of the API key. */
+      mutable keyName: string
+      /** ARN of the API key resource. */
+      mutable keyArn: string
+      /**
+       * The key value clients send (`v1.public.…`). Wrapped in `Redacted` —
+       * unwrap with `Redacted.value(apiKey.key)` where the raw value is
+       * needed.
+       */
+      mutable key: Redacted.Redacted<string>
+      /** Restrictions currently applied to the key. */
+      mutable restrictions: ApiKeyRestrictions
+      /** Expiry timestamp (ISO-8601), if any. */
+      mutable expireTime: string | undefined
+      /** Description of the API key. */
+      mutable description: string | undefined
+      /** Tags currently associated with the key. */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Location Service API key. API keys authorize **unsigned**
+ * requests (e.g. map tiles rendered directly in a browser) to a restricted
+ * set of Location actions and resources. The key name is immutable;
+ * restrictions, description, and expiry can be updated in place.
+ *
+ * The `key` attribute is the secret key value (`v1.public.…`) clients pass
+ * as the `key` query parameter; it is wrapped in `Redacted`.
+ *
+ * Availability: Amazon Location classic (V1) is closed to newer AWS
+ * accounts — `geo:CreateKey` is rejected service-side with an
+ * `AccessDeniedException` regardless of IAM policy. Accounts onboarded to
+ * Location before the V2 split can create keys normally.
+ *
+ * ### Creating API Keys
+ * **Example:** Map-Rendering Key for Browsers
+ * ```typescript
+ * import * as Location from "@alchemy.run/aws/Location";
+ *
+ * const map = yield* Location.Map("SiteMap", {
+ *   configuration: { style: "VectorEsriStreets" },
+ * });
+ *
+ * const key = yield* Location.ApiKey("SiteMapKey", {
+ *   restrictions: {
+ *     allowActions: ["geo:GetMap*"],
+ *     allowResources: [map.mapArn],
+ *   },
+ * });
+ * // Redacted.value(key.key) → "v1.public.…" — append as ?key=… to tile URLs
+ * ```
+ *
+ * **Example:** Key with Referer Restrictions and Expiry
+ * ```typescript
+ * const key = yield* Location.ApiKey("WebKey", {
+ *   restrictions: {
+ *     allowActions: ["geo:GetMap*"],
+ *     allowResources: ["arn:aws:geo:*:*:map/*"],
+ *     allowReferers: ["https://example.com/*"],
+ *   },
+ *   expireTime: "2027-01-01T00:00:00Z",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ApiKey = Resource<ApiKey>("AWS.Location.ApiKey")
+
+const createKeyName = effect (id: string, props: { mutable keyName?: string | undefined }) => {
+  if (props.keyName) return props.keyName
+  return try createPhysicalName({ id, maxLength: 100 })
+}
+
+const unredact = (value: string | Redacted.Redacted<string>): string =>
+  Redacted.isRedacted(value) ? Redacted.value(value) : value
+
+const toRestrictions = (restrictions: location.ApiKeyRestrictions): ApiKeyRestrictions => ({
+  allowActions: [...restrictions.AllowActions],
+  allowResources: [...restrictions.AllowResources],
+  allowReferers: restrictions.AllowReferers === undefined
+    ? undefined
+    : (restrictions.AllowReferers as (string | Redacted.Redacted<string>)[]).map(unredact),
+})
+
+/** Order-insensitive structural comparison of key restrictions. */
+const sameRestrictions = (a: ApiKeyRestrictions, b: ApiKeyRestrictions): infer _ => {
+  const norm = (r: ApiKeyRestrictions): infer _ =>
+    JSON.stringify({
+      actions: [...r.allowActions].sort(),
+      resources: [...r.allowResources].sort(),
+      referers: [...(r.allowReferers ?? [])].sort(),
+    })
+  return norm(a) === norm(b)
+}
+
+const readKey = effect (keyName: string) => {
+  const found = location
+    .describeKey({ KeyName: keyName }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!found) return undefined
+  return {
+    keyName: found.KeyName,
+    keyArn: found.KeyArn,
+    key: Redacted.make(unredact(found.Key)),
+    restrictions: toRestrictions(found.Restrictions),
+    expireTime: found.ExpireTime ? found.ExpireTime.toISOString() : undefined,
+    description: found.Description ? found.Description : undefined,
+    tags: toTagRecord(found.Tags),
+  } satisfies ApiKey["Attributes"]
+}
+
+export const ApiKeyProvider = (): infer _ =>
+  Provider.effect(
+    ApiKey,
+    effect {
+      return {
+        stables: ["keyName", "keyArn", "key"],
+        list: effect () => {
+          const names = Array.from(
+            try (location.listKeys.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => (page.Entries ?? []).map((entry) => entry.KeyName))
+          const hydrated = try Effect.forEach(names, (name) => readKey(name), {
+            concurrency: 10,
+          })
+          return hydrated.filter((attrs): attrs is ApiKey["Attributes"] => attrs !== undefined)
+        },
+        read: effect ({ id, olds, output }) => {
+          const keyName = output?.keyName ?? (try createKeyName(id, olds ?? {}))
+          const state = try readKey(keyName)
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+        },
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return
+          const oldName = try createKeyName(id, olds)
+          const newName = try createKeyName(id, news)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const keyName = output?.keyName ?? (try createKeyName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const desiredRestrictions: location.ApiKeyRestrictions = {
+            AllowActions: news.restrictions.allowActions,
+            AllowResources: news.restrictions.allowResources,
+            AllowReferers: news.restrictions.allowReferers,
+          }
+
+          let state = try readKey(keyName)
+
+          if (state === undefined) {
+            location
+              .createKey({
+                KeyName: keyName,
+                Restrictions: desiredRestrictions,
+                Description: news.description,
+                ExpireTime: news.expireTime ? new Date(news.expireTime) : undefined,
+                NoExpiry: news.expireTime ? undefined : (news.noExpiry ?? true),
+                Tags: desiredTags,
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            state = try readKey(keyName)
+            if (state === undefined) {
+              throw new LocationApiKeyUnexpectedResponse({
+                message: `failed to read created API key ${keyName}`,
+              })
+            }
+          }
+
+          const desiredExpireTime = news.expireTime
+            ? new Date(news.expireTime).toISOString()
+            : undefined
+          if (
+            state.description !== (news.description ?? undefined)
+            || !sameRestrictions(state.restrictions, news.restrictions)
+            || (desiredExpireTime !== undefined && state.expireTime !== desiredExpireTime)
+          ) {
+            try location.updateKey({
+              KeyName: keyName,
+              Description: news.description,
+              Restrictions: desiredRestrictions,
+              ExpireTime: desiredExpireTime ? new Date(desiredExpireTime) : undefined,
+              NoExpiry: desiredExpireTime ? undefined : true,
+              // Required to update a key that has been used recently.
+              ForceUpdate: true,
+            })
+          }
+
+          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          if (removed.length > 0) {
+            try location.untagResource({
+              ResourceArn: state.keyArn,
+              TagKeys: removed,
+            })
+          }
+          if (upsert.length > 0) {
+            try location.tagResource({
+              ResourceArn: state.keyArn,
+              Tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+            })
+          }
+
+          try session.note(state.keyArn)
+
+          const final = try readKey(keyName)
+          if (!final) {
+            throw new LocationApiKeyUnexpectedResponse({
+              message: `failed to read reconciled API key ${keyName}`,
+            })
+          }
+          return final
+        },
+        delete: effect ({ output }) => {
+          location
+            .deleteKey({ KeyName: output.keyName, ForceDelete: true }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

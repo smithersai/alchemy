@@ -1,7 +1,7 @@
 import type * as TSQ from "@distilled.cloud/aws/timestream-query";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ScheduledQuery } from "./ScheduledQuery.js";
+import type { ScheduledQuery } from "./ScheduledQuery.vibe";
 export interface ExecuteScheduledQueryRequest extends Omit<TSQ.ExecuteScheduledQueryRequest, "ScheduledQueryArn"> {
 }
 /**

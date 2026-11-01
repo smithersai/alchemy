@@ -1,0 +1,51 @@
+import * as cloudwatch from "@distilled.cloud/aws/cloudwatch"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { type AlarmResource, sortAlarmResources } from "./binding-common.ts"
+import { DescribeAlarms, type DescribeAlarmsRequest } from "./DescribeAlarms.vibe"
+
+export const DescribeAlarmsHttp = Layer.effect(
+  DescribeAlarms,
+  effect {
+    const bind = try AWSBindings.Bind
+    const describeAlarms = try AWSBindings.withCredentials(cloudwatch.describeAlarms)
+
+    return effect (...alarms: AlarmResources) => {
+      const sorted = sortAlarmResources(alarms)
+      const AlarmNames = try Effect.forEach(sorted, (alarm) => alarm.alarmName.asEffect())
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.CloudWatch.DescribeAlarms(${sorted})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["cloudwatch:DescribeAlarms"],
+              // AWS requires "*" here to return composite alarms.
+              Resource: ["*"],
+            },
+          ],
+        })
+      }
+
+      return effect (request: DescribeAlarmsRequest = {}) =>
+        try withSpan(
+          effect {
+            return try describeAlarms({
+              ...request,
+              AlarmTypes: getAlarmTypes(sorted),
+              AlarmNames: try Effect.forEach(AlarmNames, (alarmName) => alarmName),
+            })
+          },
+          `AWS.CloudWatch.DescribeAlarms(${sorted.map((alarm) => alarm.LogicalId).join(", ")})`,
+        )
+    }
+  },
+)
+
+type AlarmResources = [AlarmResource, ...AlarmResource[]]
+
+const getAlarmTypes = (alarms: AlarmResources): infer _ =>
+  [
+    ...new Set(
+      alarms.map((alarm) => alarm.Type === "AWS.CloudWatch.CompositeAlarm" ? "CompositeAlarm" : "MetricAlarm"),
+    ),
+  ] as cloudwatch.AlarmType[]

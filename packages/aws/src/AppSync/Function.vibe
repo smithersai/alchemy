@@ -1,0 +1,290 @@
+import * as appsync from "@distilled.cloud/aws/appsync"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import type { Input } from "alchemy/Input"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import type { Providers } from "../Providers.vibe"
+import { retryConcurrentModification, sanitizeAppSyncName } from "./common.ts"
+import type { AppSyncDataSource } from "./DataSource.ts"
+import type { GraphqlApi } from "./GraphqlApi.vibe"
+import { APPSYNC_JS } from "./Resolver.vibe"
+
+export interface FunctionProps {
+  /**
+   * ID of the GraphQL API. Usually derived from `api.apiId` by the
+   * {@link Function} wrapper.
+   */
+  mutable apiId: string
+  /**
+   * Name of the function (`[_A-Za-z][_0-9A-Za-z]*` — no dashes). If
+   * omitted, a deterministic name is generated (dashes sanitized to
+   * underscores). Names are mutable.
+   */
+  mutable name?: string
+  /** Description of the function. */
+  mutable description?: string
+  /** Name of the data source this function targets. */
+  mutable dataSourceName: string
+  /**
+   * `APPSYNC_JS` function code exporting `request(ctx)` and
+   * `response(ctx)`. When set, the runtime defaults to APPSYNC_JS 1.0.0.
+   */
+  mutable code?: string
+  /** VTL request mapping template (legacy alternative to `code`). */
+  mutable requestMappingTemplate?: string
+  /** VTL response mapping template (legacy alternative to `code`). */
+  mutable responseMappingTemplate?: string
+  /**
+   * The VTL function version — only used with mapping templates.
+   * @default "2018-05-29" (when templates are used)
+   */
+  mutable functionVersion?: string
+  /** Maximum batch size for batched Lambda invocations (0–2000). */
+  mutable maxBatchSize?: number
+}
+
+export interface AppSyncFunction extends
+  Resource<
+    "AWS.AppSync.Function",
+    FunctionProps,
+    {
+      /** The API this function belongs to. */
+      mutable apiId: string
+      /** The immutable function ID (referenced by pipeline resolvers). */
+      mutable functionId: string
+      /** The function ARN. */
+      mutable functionArn: string
+      /** The function name. */
+      mutable name: string
+      /** The data source this function targets. */
+      mutable dataSourceName: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AppSync pipeline function — a reusable step composed by `PIPELINE`
+ * resolvers.
+ * ### Creating Pipeline Functions
+ * **Example:** JavaScript pipeline function over a Lambda data source
+ * ```typescript
+ * const step = yield* AppSync.Function("InvokeStep", {
+ *   api,
+ *   dataSource: lambdaDS,
+ *   code: `
+ *     export function request(ctx) {
+ *       return { operation: "Invoke", payload: { args: ctx.args } };
+ *     }
+ *     export function response(ctx) {
+ *       return ctx.result;
+ *     }
+ *   `,
+ * });
+ * // reference from a PIPELINE resolver:
+ * // pipelineFunctionIds: [step.functionId]
+ * ```
+ *
+ * @resource
+ */
+export const FunctionResource = Resource<AppSyncFunction>("AWS.AppSync.Function")
+
+export interface FunctionInputProps extends
+  Omit<
+    {
+      [K in keyof FunctionProps]?: Input<FunctionProps[K]>
+    },
+    "apiId" | "dataSourceName"
+  >
+{
+  /**
+   * The `GraphqlApi` this function belongs to (preferred). Alternatively
+   * pass a raw `apiId`.
+   */
+  mutable api?: GraphqlApi
+  mutable apiId?: Input<string>
+  /**
+   * The data source this function targets (preferred). Alternatively pass
+   * a raw `dataSourceName`.
+   */
+  mutable dataSource?: AppSyncDataSource
+  mutable dataSourceName?: Input<string>
+}
+
+/**
+ * User-facing wrapper for the pipeline Function resource. Accepts
+ * `api: GraphqlApi` and `dataSource: DataSource` directly.
+ */
+export const Function = effect (id: string, props: FunctionInputProps) => {
+  const { api, dataSource, ...rest } = props
+  const apiId = rest.apiId ?? api?.apiId
+  if (!apiId) {
+    return try Effect.die(
+      "AppSync.Function requires either `api` (preferred) or an explicit `apiId`.",
+    )
+  }
+  const dataSourceName = rest.dataSourceName ?? dataSource?.name
+  if (!dataSourceName) {
+    return try Effect.die(
+      "AppSync.Function requires either `dataSource` (preferred) or an explicit `dataSourceName`.",
+    )
+  }
+  return try FunctionResource(id, {
+    ...rest,
+    apiId,
+    dataSourceName,
+  } as any)
+}
+
+export const FunctionProvider = (): infer _ =>
+  Provider.effect(
+    FunctionResource,
+    effect {
+      const createName = effect (id: string, props: Pick<FunctionProps, "name">) =>
+        props.name ?? sanitizeAppSyncName(try createPhysicalName({ id, maxLength: 64 }))
+
+      const getFunctionSafe = effect (apiId: string, functionId: string) =>
+        (try appsync.getFunction({ apiId, functionId })).functionConfiguration catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      /** Find a function by name (fallback when no functionId is cached). */
+      const findFunctionByName = effect (apiId: string, name: string) => {
+        const pages = (try (appsync.listFunctions.pages({ apiId })
+          |> Stream.runCollect(%))) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: [];
+            default: throw e;
+          }
+        return Array.from(pages)
+          .flatMap((page) => page.functions ?? [])
+          .find((fn) => fn.name === name)
+      }
+
+      const desiredWire = (news: FunctionProps, name: string): infer _ => ({
+        name,
+        description: news.description,
+        dataSourceName: news.dataSourceName,
+        code: news.code,
+        runtime: news.code !== undefined ? APPSYNC_JS : undefined,
+        requestMappingTemplate: news.requestMappingTemplate,
+        responseMappingTemplate: news.responseMappingTemplate,
+        functionVersion: news.functionVersion ?? (news.code === undefined ? "2018-05-29" : undefined),
+        maxBatchSize: news.maxBatchSize,
+      })
+
+      const surface = (fn: {
+        mutable name?: string
+        mutable description?: string
+        mutable dataSourceName?: string
+        mutable code?: string
+        mutable runtime?: appsync.AppSyncRuntime
+        mutable requestMappingTemplate?: string
+        mutable responseMappingTemplate?: string
+        mutable maxBatchSize?: number
+      }): infer _ =>
+        JSON.parse(
+          JSON.stringify({
+            name: fn.name,
+            description: fn.description,
+            dataSourceName: fn.dataSourceName,
+            code: fn.code,
+            runtime: fn.runtime,
+            requestMappingTemplate: fn.requestMappingTemplate,
+            responseMappingTemplate: fn.responseMappingTemplate,
+            maxBatchSize: fn.maxBatchSize ?? 0,
+          }),
+        )
+
+      const toAttributes = (
+        apiId: string,
+        fn: appsync.FunctionConfiguration,
+      ): AppSyncFunction["Attributes"] => ({
+        apiId,
+        functionId: fn.functionId!,
+        functionArn: fn.functionArn!,
+        name: fn.name!,
+        dataSourceName: fn.dataSourceName!,
+      })
+
+      return FunctionResource.Provider.of({
+        stables: ["apiId", "functionId", "functionArn"],
+
+        // Sub-resource keyed entirely by its GraphQL API (apiId) with no global
+        // enumeration API of its own — nuke reaches it through the parent's
+        // deletion, so enumeration returns empty per the ProviderService
+        // doctrine.
+        list: effect () => [],
+
+        read: effect ({ id, olds, output }) => {
+          const apiId = output?.apiId ?? olds?.apiId
+          if (apiId === undefined) return undefined
+          const fn = output?.functionId !== undefined
+            ? try getFunctionSafe(apiId, output.functionId)
+            : try findFunctionByName(apiId, try createName(id, olds ?? {}))
+          if (fn?.functionId == null) return undefined
+          return toAttributes(apiId, fn)
+        },
+
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return undefined
+          if (news.apiId !== olds.apiId) {
+            return { action: "replace" } as const
+          }
+          // name/code/data source converge via updateFunction
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const apiId = output?.apiId ?? news.apiId
+          const name = news.name ?? (try createName(id, news))
+          const desired = desiredWire(news, name)
+
+          // 1. OBSERVE — functionId cache first, then name scan.
+          let observed = output?.functionId !== undefined
+            ? try getFunctionSafe(apiId, output.functionId)
+            : try findFunctionByName(apiId, name)
+
+          if (observed?.functionId == null) {
+            // 2. ENSURE
+            const created = try retryConcurrentModification(
+              appsync.createFunction({ apiId, ...desired }),
+            )
+            observed = created.functionConfiguration!
+            try session.note(`Created pipeline function ${name}`)
+          } else if (!deepEqual(surface(observed), surface(desired))) {
+            // 3. SYNC
+            const updated = try retryConcurrentModification(
+              appsync.updateFunction({
+                apiId,
+                functionId: observed.functionId,
+                ...desired,
+              }),
+            )
+            observed = updated.functionConfiguration ?? observed
+            try session.note(`Updated pipeline function ${name}`)
+          }
+
+          try session.note(name)
+          return toAttributes(apiId, observed)
+        },
+
+        delete: effect ({ output }) => {
+          try retryConcurrentModification(
+            effect {
+              return appsync
+                .deleteFunction({
+                  apiId: output.apiId,
+                  functionId: output.functionId,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "NotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            },
+          )
+        },
+      })
+    },
+  )

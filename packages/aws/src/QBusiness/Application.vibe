@@ -1,0 +1,474 @@
+import * as qbusiness from "@distilled.cloud/aws/qbusiness"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+
+export error QBusinessApplicationInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error QBusinessApplicationUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type ApplicationStatus = qbusiness.ApplicationStatus
+export type IdentityType = qbusiness.IdentityType
+
+/**
+ * Encryption-at-rest configuration for an Amazon Q Business application.
+ */
+export interface ApplicationEncryptionConfiguration {
+  /**
+   * The identifier of the customer-managed KMS key. Amazon Q Business does
+   * not support asymmetric keys.
+   */
+  mutable kmsKeyId?: string
+}
+
+export interface ApplicationProps {
+  /**
+   * Display name of the application.
+   * @default ${app}-${stage}-${id}
+   */
+  mutable displayName?: string
+  /**
+   * The authentication type the application connects users with.
+   * `AWS_IAM_IDC` (IAM Identity Center) is the default and requires
+   * `identityCenterInstanceArn`. Changing it replaces the application.
+   * @default "AWS_IAM_IDC"
+   */
+  mutable identityType?: IdentityType
+  /**
+   * ARN of the IAM Identity Center instance the application connects to.
+   * Required when `identityType` is `AWS_IAM_IDC` (the default).
+   */
+  mutable identityCenterInstanceArn?: string
+  /**
+   * ARN of an IAM identity provider (SAML/OIDC) when `identityType` is
+   * `AWS_IAM_IDP_SAML` or `AWS_IAM_IDP_OIDC`. Changing it replaces the
+   * application.
+   */
+  mutable iamIdentityProviderArn?: string
+  /**
+   * OIDC client IDs when `identityType` is `AWS_IAM_IDP_OIDC`. Changing
+   * them replaces the application.
+   */
+  mutable clientIdsForOIDC?: string[]
+  /**
+   * ARN of the IAM role Amazon Q Business assumes to publish CloudWatch
+   * logs and metrics.
+   */
+  mutable roleArn?: string
+  /**
+   * A description of the application.
+   */
+  mutable description?: string
+  /**
+   * Encryption-at-rest configuration. Changing it replaces the application.
+   */
+  mutable encryptionConfiguration?: ApplicationEncryptionConfiguration
+  /**
+   * Whether end users can upload files directly into chat conversations.
+   */
+  mutable attachmentsConfiguration?: qbusiness.AttachmentsConfiguration
+  /**
+   * Whether end users can create and use Amazon Q Apps.
+   */
+  mutable qAppsConfiguration?: qbusiness.QAppsConfiguration
+  /**
+   * Whether Amazon Q Business personalizes chat responses using details
+   * from the user's IAM Identity Center profile.
+   */
+  mutable personalizationConfiguration?: qbusiness.PersonalizationConfiguration
+  /**
+   * Automatic-subscription settings for users of the application.
+   */
+  mutable autoSubscriptionConfiguration?: qbusiness.AutoSubscriptionConfiguration
+  /**
+   * Amazon QuickSight identity configuration, when `identityType` is
+   * `AWS_QUICKSIGHT_IDP`. Changing it replaces the application.
+   */
+  mutable quickSightConfiguration?: qbusiness.QuickSightConfiguration
+  /**
+   * Tags to associate with the application.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Application extends
+  Resource<
+    "AWS.QBusiness.Application",
+    ApplicationProps,
+    {
+      /**
+       * Service-assigned unique identifier of the application.
+       */
+      mutable applicationId: string
+      /**
+       * ARN of the application.
+       */
+      mutable applicationArn: string
+      /**
+       * The application's display name.
+       */
+      mutable displayName: string
+      /**
+       * Current lifecycle status of the application.
+       */
+      mutable status: ApplicationStatus | undefined
+      /**
+       * The authentication type the application was created with.
+       */
+      mutable identityType: IdentityType | undefined
+      /**
+       * ARN of the IAM Identity Center application created for this Amazon Q
+       * Business application (when `identityType` is `AWS_IAM_IDC`).
+       */
+      mutable identityCenterApplicationArn: string | undefined
+      /**
+       * ARN of the IAM role used for CloudWatch logs/metrics.
+       */
+      mutable roleArn: string | undefined
+      /**
+       * Current tags reported for the application.
+       */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Q Business application — the top-level container that indices,
+ * retrievers, data sources, and web experiences attach to.
+ *
+ * :::caution
+ * Creating an application with the default `AWS_IAM_IDC` identity type
+ * requires an IAM Identity Center instance in the account (pass its ARN as
+ * `identityCenterInstanceArn`).
+ * :::
+ * ### Creating Applications
+ * **Example:** Identity Center Application
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const app = yield* AWS.QBusiness.Application("Assistant", {
+ *   identityCenterInstanceArn: "arn:aws:sso:::instance/ssoins-1234567890abcdef",
+ *   description: "Company knowledge assistant",
+ * });
+ * ```
+ *
+ * **Example:** Anonymous Application
+ * ```typescript
+ * const app = yield* AWS.QBusiness.Application("PublicAssistant", {
+ *   identityType: "ANONYMOUS",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Application = Resource<Application>("AWS.QBusiness.Application")
+
+const createDisplayName = effect (
+  id: string,
+  props: { mutable displayName?: string | undefined },
+) => (props.displayName ? props.displayName : try createPhysicalName({ id, maxLength: 100 }))
+
+const fetchTags = effect (arn: string) => {
+  const response = qbusiness
+    .listTagsForResource({ resourceARN: arn }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  return Object.fromEntries((response?.tags ?? []).map((tag) => [tag.key, tag.value]))
+}
+
+interface ApplicationState {
+  mutable attrs: Application["Attributes"]
+  mutable described: qbusiness.GetApplicationResponse
+}
+
+const readApplicationById = effect (applicationId: string) => {
+  const described = qbusiness
+    .getApplication({ applicationId }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!described || described.status === "DELETING") return undefined
+  const arn = described.applicationArn
+  if (arn === undefined) return undefined
+  const state: ApplicationState = {
+    described,
+    attrs: {
+      applicationId: described.applicationId ?? applicationId,
+      applicationArn: arn,
+      displayName: described.displayName ?? "",
+      status: described.status,
+      identityType: described.identityType,
+      identityCenterApplicationArn: described.identityCenterApplicationArn,
+      roleArn: described.roleArn,
+      tags: try fetchTags(arn),
+    },
+  }
+  return state
+}
+
+const findApplicationByName = effect (displayName: string) => {
+  const summaries = Array.from(
+    try (qbusiness.listApplications.pages({})
+      |> EffectStream.runCollect(%)),
+  ).flatMap((page) => page.applications ?? [])
+  const match = summaries.find(
+    (summary) => summary.displayName === displayName && summary.status !== "DELETING",
+  )
+  if (!match?.applicationId) return undefined
+  return try readApplicationById(match.applicationId)
+}
+
+/**
+ * An application still transitioning toward the awaited status — retried by
+ * {@link waitForApplicationStatus}'s bounded schedule.
+ */
+error ApplicationNotReady {
+  applicationId: string
+  status: string | undefined
+}
+
+/**
+ * An application whose asynchronous provisioning converged to the terminal
+ * `FAILED` status.
+ */
+export error ApplicationProvisioningFailed {
+  applicationId: string
+  message: string | undefined
+}
+
+// Explicitly-typed retry wrapper — an inline `Effect.retry` in provider
+// lifecycle code leaks `Retry.Return`'s conditional type into declaration
+// emit and widens the provider layer to `unknown` for every consumer of
+// `AWS.providers()`.
+const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "ApplicationNotReady",
+    // Application provisioning normally completes within a couple minutes;
+    // poll every 5s up to ~10 min.
+    schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(120)]),
+  })
+
+// Deleting an application while dependent resources are still tearing down
+// surfaces as ConflictException. Bounded retry through the window.
+const retryThroughConflict = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "ConflictException",
+    schedule: Schedule.max([Schedule.spaced("10 seconds"), Schedule.recurs(10)]),
+  })
+
+const waitForApplicationStatus = (applicationId: string, target: "ACTIVE" | "DELETED") =>
+  retryWhileNotReady(
+    effect {
+      const described = qbusiness
+        .getApplication({ applicationId }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (target === "DELETED") {
+        if (described === undefined) return
+        throw new ApplicationNotReady({ applicationId, status: described.status })
+      }
+      if (described?.status === "ACTIVE") return
+      if (described?.status === "FAILED") {
+        throw new ApplicationProvisioningFailed({
+          applicationId,
+          message: described.error?.errorMessage,
+        })
+      }
+      throw new ApplicationNotReady({ applicationId, status: described?.status })
+    },
+  )
+
+export const ApplicationProvider = (): infer _ =>
+  Provider.effect(
+    Application,
+    effect {
+      return {
+        stables: ["applicationId", "applicationArn"],
+        list: effect () => {
+          const summaries = Array.from(
+            try (qbusiness.listApplications.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => page.applications ?? [])
+          const hydrated = try Effect.forEach(
+            summaries.flatMap((s) => (s.applicationId ? [s.applicationId] : [])),
+            (applicationId) => readApplicationById(applicationId),
+            { concurrency: 5 },
+          )
+          return hydrated.flatMap((state) => (state === undefined ? [] : [state.attrs]))
+        },
+        read: effect ({ id, olds, output }) => {
+          const state = output?.applicationId
+            ? try readApplicationById(output.applicationId)
+            : try findApplicationByName(try createDisplayName(id, olds ?? {}))
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.attrs.tags as Tags))
+            ? state.attrs
+            : Unowned(state.attrs)
+        },
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          if (olds === undefined) return
+          // Identity wiring and encryption-at-rest are fixed at creation.
+          if (
+            (olds.identityType ?? "AWS_IAM_IDC") !== (news.identityType ?? "AWS_IAM_IDC")
+            || olds.iamIdentityProviderArn !== news.iamIdentityProviderArn
+            || olds.encryptionConfiguration?.kmsKeyId !== news.encryptionConfiguration?.kmsKeyId
+            || olds.quickSightConfiguration?.clientNamespace
+              !== news.quickSightConfiguration?.clientNamespace
+            || JSON.stringify(olds.clientIdsForOIDC ?? [])
+              !== JSON.stringify(news.clientIdsForOIDC ?? [])
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (!news) {
+            throw new QBusinessApplicationInvalidProps({
+              message: "QBusiness Application requires props",
+            })
+          }
+          const displayName = try createDisplayName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — prefer the cached id; fall back to a name lookup so a
+          // create whose state failed to persist is adopted, not duplicated.
+          let state = output?.applicationId
+            ? try readApplicationById(output.applicationId)
+            : try findApplicationByName(displayName)
+
+          // Ensure — create if missing, then wait for ACTIVE.
+          if (state === undefined) {
+            const created = try qbusiness.createApplication({
+              displayName,
+              identityType: news.identityType,
+              identityCenterInstanceArn: news.identityCenterInstanceArn,
+              iamIdentityProviderArn: news.iamIdentityProviderArn,
+              clientIdsForOIDC: news.clientIdsForOIDC,
+              roleArn: news.roleArn,
+              description: news.description,
+              encryptionConfiguration: news.encryptionConfiguration,
+              attachmentsConfiguration: news.attachmentsConfiguration,
+              qAppsConfiguration: news.qAppsConfiguration,
+              personalizationConfiguration: news.personalizationConfiguration,
+              quickSightConfiguration: news.quickSightConfiguration,
+              tags: Object.entries(desiredTags).map(([key, value]) => ({
+                key,
+                value,
+              })),
+            })
+            if (!created.applicationId) {
+              throw new QBusinessApplicationUnexpectedResponse({
+                message: `CreateApplication for '${displayName}' returned no applicationId`,
+              })
+            }
+            try session.note(
+              `Creating application ${displayName} (${created.applicationId})...`,
+            )
+            try waitForApplicationStatus(created.applicationId, "ACTIVE")
+            state = try readApplicationById(created.applicationId)
+            if (state === undefined) {
+              throw new QBusinessApplicationUnexpectedResponse({
+                message: `failed to read created application ${displayName}`,
+              })
+            }
+          }
+
+          // Sync mutable settings via UpdateApplication — only when drifted.
+          const described = state.described
+          const needsUpdate = displayName !== described.displayName
+            || (news.description ?? "") !== (described.description ?? "")
+            || (news.roleArn !== undefined && news.roleArn !== described.roleArn)
+            || (news.attachmentsConfiguration !== undefined
+              && news.attachmentsConfiguration.attachmentsControlMode
+                !== described.attachmentsConfiguration?.attachmentsControlMode)
+            || (news.qAppsConfiguration !== undefined
+              && news.qAppsConfiguration.qAppsControlMode
+                !== described.qAppsConfiguration?.qAppsControlMode)
+            || (news.personalizationConfiguration !== undefined
+              && news.personalizationConfiguration.personalizationControlMode
+                !== described.personalizationConfiguration?.personalizationControlMode)
+            || (news.autoSubscriptionConfiguration !== undefined
+              && (news.autoSubscriptionConfiguration.autoSubscribe
+                  !== described.autoSubscriptionConfiguration?.autoSubscribe
+                || news.autoSubscriptionConfiguration.defaultSubscriptionType
+                  !== described.autoSubscriptionConfiguration?.defaultSubscriptionType))
+          if (needsUpdate) {
+            try qbusiness.updateApplication({
+              applicationId: state.attrs.applicationId,
+              displayName,
+              description: news.description,
+              roleArn: news.roleArn,
+              identityCenterInstanceArn: news.identityCenterInstanceArn,
+              attachmentsConfiguration: news.attachmentsConfiguration,
+              qAppsConfiguration: news.qAppsConfiguration,
+              personalizationConfiguration: news.personalizationConfiguration,
+              autoSubscriptionConfiguration: news.autoSubscriptionConfiguration,
+            })
+            try waitForApplicationStatus(state.attrs.applicationId, "ACTIVE")
+            try session.note(`Updated application ${displayName}`)
+          }
+
+          // Sync tags — diff against observed cloud tags.
+          const { removed, upsert } = diffTags(state.attrs.tags, desiredTags)
+          if (removed.length > 0) {
+            try qbusiness.untagResource({
+              resourceARN: state.attrs.applicationArn,
+              tagKeys: removed,
+            })
+          }
+          if (upsert.length > 0) {
+            try qbusiness.tagResource({
+              resourceARN: state.attrs.applicationArn,
+              tags: upsert.map(({ Key, Value }) => ({
+                key: Key,
+                value: Value,
+              })),
+            })
+          }
+
+          try session.note(state.attrs.applicationArn)
+
+          const final = try readApplicationById(state.attrs.applicationId)
+          if (!final) {
+            throw new QBusinessApplicationUnexpectedResponse({
+              message: `failed to read reconciled application ${displayName}`,
+            })
+          }
+          return final.attrs
+        },
+        delete: effect ({ output }) => {
+          try retryThroughConflict(
+            effect {
+              return qbusiness
+                .deleteApplication({ applicationId: output.applicationId }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            },
+          )
+          try waitForApplicationStatus(output.applicationId, "DELETED")
+        },
+      }
+    },
+  )

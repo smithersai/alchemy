@@ -1,7 +1,7 @@
 import * as omics from "@distilled.cloud/aws/omics";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { ReferenceStore } from "./ReferenceStore.js";
+import type { ReferenceStore } from "./ReferenceStore.vibe";
 export interface GetReferenceImportJobRequest extends Omit<omics.GetReferenceImportJobRequest, "referenceStoreId"> {
 }
 /**

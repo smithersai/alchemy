@@ -1,7 +1,7 @@
 import type * as agw2 from "@distilled.cloud/aws/apigatewayv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ApiGatewayV2Stage } from "./Stage.js";
+import type { ApiGatewayV2Stage } from "./Stage.vibe";
 /**
  * Runtime binding for resetting a stage's authorizer result cache
  * (`apigateway:DELETE` on `/apis/{apiId}/stages/{stageName}/cache/authorizers`).

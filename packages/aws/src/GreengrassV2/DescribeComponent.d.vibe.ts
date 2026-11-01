@@ -1,7 +1,7 @@
 import type * as greengrassv2 from "@distilled.cloud/aws/greengrassv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ComponentVersion } from "./ComponentVersion.js";
+import type { ComponentVersion } from "./ComponentVersion.vibe";
 /**
  * Runtime binding for `greengrass:DescribeComponent`.
  *

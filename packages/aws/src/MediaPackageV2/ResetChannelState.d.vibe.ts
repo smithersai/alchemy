@@ -1,7 +1,7 @@
 import type * as mediapackagev2 from "@distilled.cloud/aws/mediapackagev2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Channel } from "./Channel.js";
+import type { Channel } from "./Channel.vibe";
 /**
  * Runtime binding for `mediapackagev2:ResetChannelState`.
  *

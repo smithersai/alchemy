@@ -20,6 +20,6 @@ export * from "./ListServices.vibe";
 export * from "./ListServicesHttp.vibe";
 export * from "./RequestServiceQuotaIncrease.vibe";
 export * from "./RequestServiceQuotaIncreaseHttp.vibe";
-export * from "./ServiceQuotaIncreaseRequest.ts";
+export * from "./ServiceQuotaIncreaseRequest.vibe";
 export * from "./StartQuotaUtilizationReport.vibe";
 export * from "./StartQuotaUtilizationReportHttp.vibe";

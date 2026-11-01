@@ -1,7 +1,7 @@
 import type * as serverless from "@distilled.cloud/aws/redshift-serverless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Namespace } from "./Namespace.js";
+import type { Namespace } from "./Namespace.vibe";
 /**
  * Runtime binding for the `RestoreTableFromRecoveryPoint` operation (IAM actions
  * `redshift-serverless:RestoreTableFromRecoveryPoint`).

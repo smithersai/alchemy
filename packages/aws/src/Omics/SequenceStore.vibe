@@ -1,0 +1,215 @@
+import * as omics from "@distilled.cloud/aws/omics"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { fetchOmicsTags, syncOmicsTags } from "./internal.ts"
+
+export interface SequenceStoreProps {
+  /**
+   * A name for the sequence store. If omitted, a unique name is generated
+   * from the app, stage, and logical ID. Changing the name replaces the
+   * store. Must match `[\w -.]+` and be 1-127 characters.
+   */
+  mutable name?: string
+  /**
+   * A description for the sequence store. Changing the description replaces
+   * the store (HealthOmics has no update-store API).
+   */
+  mutable description?: string
+  /**
+   * Server-side encryption (SSE) settings. Defaults to an AWS-owned key.
+   * Changing this replaces the store.
+   */
+  mutable sseConfig?: {
+    /** Encryption type. `KMS` uses a customer-managed key. */
+    mutable type: "KMS"
+    /** ARN of the customer-managed KMS key. Required when `type` is `KMS`. */
+    mutable keyArn?: string
+  }
+  /**
+   * An S3 location that is used as the destination for read sets whose
+   * upload failed. Changing this replaces the store.
+   */
+  mutable fallbackLocation?: string
+  /**
+   * The ETag algorithm family to use for ingested read sets. Changing this
+   * replaces the store. Valid values are `MD5up` and `SHA256up`.
+   */
+  mutable eTagAlgorithmFamily?: "MD5up" | "SHA256up"
+  /**
+   * The tags keys to propagate to the S3 objects associated with read sets
+   * in this store. Changing this replaces the store.
+   */
+  mutable propagatedSetLevelTags?: string[]
+  /**
+   * Tags to apply to the sequence store. Merged with internal Alchemy tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface SequenceStore extends
+  Resource<
+    "AWS.Omics.SequenceStore",
+    SequenceStoreProps,
+    {
+      /**
+       * ID of the sequence store.
+       */
+      mutable sequenceStoreId: string
+      /**
+       * ARN of the sequence store.
+       */
+      mutable sequenceStoreArn: string
+      /**
+       * Name of the sequence store.
+       */
+      mutable name: string
+      /**
+       * When the sequence store was created (ISO-8601).
+       */
+      mutable creationTime: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon HealthOmics sequence store — a container for genomics read sets
+ * (FASTQ, BAM, CRAM).
+ *
+ * A sequence store name is auto-generated from the app, stage, and logical ID
+ * unless you provide one. HealthOmics offers no update-store API, so any
+ * change to an immutable property (name, description, encryption, fallback
+ * location, ETag algorithm) replaces the store. A store can only be deleted
+ * once it contains no read sets.
+ * ### Creating a Sequence Store
+ * **Example:** Basic Sequence Store
+ * ```typescript
+ * import * as Omics from "@alchemy.run/aws/Omics";
+ *
+ * const store = yield* Omics.SequenceStore("Reads");
+ * ```
+ *
+ * **Example:** Sequence Store with Fallback Location
+ * ```typescript
+ * const store = yield* Omics.SequenceStore("Reads", {
+ *   name: "sample-reads",
+ *   fallbackLocation: "s3://my-bucket/omics-fallback/",
+ *   eTagAlgorithmFamily: "SHA256up",
+ * });
+ * ```
+ *
+ * ### Encryption
+ * **Example:** Customer-managed KMS key
+ * ```typescript
+ * const store = yield* Omics.SequenceStore("Reads", {
+ *   sseConfig: {
+ *     type: "KMS",
+ *     keyArn: "arn:aws:kms:us-east-1:123456789012:key/abc-123",
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const SequenceStore = Resource<SequenceStore>("AWS.Omics.SequenceStore")
+
+export const SequenceStoreProvider = (): infer _ =>
+  Provider.effect(
+    SequenceStore,
+    effect {
+      const createName = effect (id: string, props: { mutable name?: string | undefined }) =>
+        props.name ?? (try createPhysicalName({ id, maxLength: 96 }))
+
+      const toAttrs = (
+        store: { mutable id: string; mutable arn: string; mutable name?: string; mutable creationTime: Date },
+      ): infer _ => ({
+        sequenceStoreId: store.id,
+        sequenceStoreArn: store.arn,
+        name: store.name ?? "",
+        creationTime: store.creationTime.toISOString(),
+      })
+
+      return SequenceStore.Provider.of({
+        stables: ["sequenceStoreId", "sequenceStoreArn", "name", "creationTime"],
+        list: effect () =>
+          Array.from(
+            try (omics.listSequenceStores.items({})
+              |> Stream.map(toAttrs)(%)
+              |> Stream.runCollect(%)),
+          ),
+        read: effect ({ id, output }) => {
+          if (output?.sequenceStoreId === undefined) return undefined
+          const found = omics
+            .getSequenceStore({ id: output.sequenceStoreId }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+          if (found === undefined) return undefined
+          const attrs = toAttrs(found)
+          const tags = try fetchOmicsTags(found.arn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const prev = olds ?? {}
+          const oldName = try createName(id, prev)
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+          if ((prev.description ?? "") !== (news.description ?? "")) {
+            return { action: "replace" } as const
+          }
+          if (
+            prev.sseConfig?.type !== news.sseConfig?.type
+            || prev.sseConfig?.keyArn !== news.sseConfig?.keyArn
+            || (prev.fallbackLocation ?? "") !== (news.fallbackLocation ?? "")
+            || (prev.eTagAlgorithmFamily ?? "") !== (news.eTagAlgorithmFamily ?? "")
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.name ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          let store = output?.sequenceStoreId === undefined
+            ? undefined
+            : omics
+              .getSequenceStore({ id: output.sequenceStoreId }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                default: throw e;
+              }
+
+          if (store === undefined) {
+            store = try omics.createSequenceStore({
+              name,
+              description: news.description,
+              sseConfig: news.sseConfig,
+              fallbackLocation: news.fallbackLocation,
+              eTagAlgorithmFamily: news.eTagAlgorithmFamily,
+              propagatedSetLevelTags: news.propagatedSetLevelTags,
+              tags: desiredTags,
+            })
+          }
+
+          try syncOmicsTags(store.arn, desiredTags)
+
+          try session.note(store.id)
+          return toAttrs(store)
+        },
+        delete: effect ({ output }) => {
+          omics
+            .deleteSequenceStore({ id: output.sequenceStoreId }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

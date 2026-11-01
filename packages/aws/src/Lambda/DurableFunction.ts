@@ -16,7 +16,7 @@ import type * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import type { Scope } from "effect/Scope";
 import type { DurableExecutionContext, DurableStep } from "./Durable.ts";
-import { DURABLE_SDK_MODULE, encodeDurableEnvelope, makeDurableListener } from "./DurableBridge.ts";
+import { DURABLE_SDK_MODULE, encodeDurableEnvelope, makeDurableListener } from "./DurableBridge.vibe";
 import { Function, type FunctionProps, type FunctionServices } from "./Function.ts";
 import type { HandlerContext } from "./InvocationDeadline.ts";
 import { qualifierOf } from "./QualifiedArn.ts";

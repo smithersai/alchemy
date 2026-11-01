@@ -2,7 +2,7 @@ import type * as ivschat from "@distilled.cloud/aws/ivschat";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
-import type { Room } from "./Room.js";
+import type { Room } from "./Room.vibe";
 /**
  * The `roomIdentifier` is injected by the binding from the bound room, and
  * the wire `sessionDurationInMinutes` is expressed as a `Duration.Input`.

@@ -1,4 +1,4 @@
-export * from "./Connection.ts";
+export * from "./Connection.vibe";
 export * from "./GetConnection.vibe";
 export * from "./GetConnectionHttp.vibe";
 export * from "./GetRepositorySyncStatus.vibe";
@@ -7,7 +7,7 @@ export * from "./GetResourceSyncStatus.vibe";
 export * from "./GetResourceSyncStatusHttp.vibe";
 export * from "./GetSyncBlockerSummary.vibe";
 export * from "./GetSyncBlockerSummaryHttp.vibe";
-export * from "./Host.ts";
+export * from "./Host.vibe";
 export * from "./ListConnections.vibe";
 export * from "./ListConnectionsHttp.vibe";
 export * from "./ListHosts.vibe";
@@ -18,8 +18,8 @@ export * from "./ListRepositorySyncDefinitions.vibe";
 export * from "./ListRepositorySyncDefinitionsHttp.vibe";
 export * from "./ListSyncConfigurations.vibe";
 export * from "./ListSyncConfigurationsHttp.vibe";
-export * from "./RepositoryLink.ts";
-export * from "./SyncConfiguration.ts";
+export * from "./RepositoryLink.vibe";
+export * from "./SyncConfiguration.vibe";
 export * from "./UpdateSyncBlocker.vibe";
 export * from "./UpdateSyncBlockerHttp.vibe";
 // NOTE: BindingHttp.ts and internal.ts are shared scaffolding and

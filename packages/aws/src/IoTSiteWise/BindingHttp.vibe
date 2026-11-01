@@ -1,0 +1,104 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Asset } from "./Asset.vibe"
+
+/**
+ * Shared HTTP scaffolding for the AWS IoT SiteWise runtime bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation, the IAM action, and the request
+ * shaping is boilerplate.
+ */
+
+/**
+ * Build the impl Effect for an IoT SiteWise operation scoped to one
+ * {@link Asset}: the deploy-time half grants `iamActions` on the bound
+ * asset's ARN, and the runtime half injects the asset's service-assigned id
+ * into every request via `prepare`.
+ *
+ * Note: requests that identify the target data stream by `propertyAlias`
+ * instead of `assetId`/`propertyId` authorize against the time-series
+ * resource, which this asset-scoped grant does not cover.
+ */
+export const makeSiteWiseAssetHttpBinding = effect <I, A, E, R, Req>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"GetAssetPropertyValue"`.
+   */
+  mutable capability: string
+  /** IAM actions granted on the bound asset's ARN. */
+  mutable iamActions: readonly string[]
+  /** The distilled operation implementing the capability. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** Map the public request shape + bound asset id onto the wire request. */
+  mutable prepare: (request: Req, assetId: string) => I
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (asset: Asset) => {
+    // Output yields a DEFERRED effect — resolve again per invocation below.
+    const AssetId = try asset.assetId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.IoTSiteWise.${options.capability}(${asset})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: [asset.assetArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Req,
+    ) =>
+      try withSpan(
+        effect {
+          const assetId = try AssetId
+          return try op(options.prepare(request, assetId))
+        },
+        `AWS.IoTSiteWise.${options.capability}(${asset.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level IoT SiteWise operation (e.g.
+ * `ExecuteQuery`, which queries across all asset models and assets and is
+ * not scoped to a single resource). Grants `iamActions` on
+ * `Resource: ["*"]`.
+ */
+export const makeSiteWiseAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Short capability name used in the binding sid and runtime span. */
+  mutable capability: string
+  /** IAM actions granted on `Resource: ["*"]`. */
+  mutable iamActions: readonly string[]
+  /** The distilled operation implementing the capability. */
+  mutable operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.IoTSiteWise.${options.capability}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request: I) =>
+      try withSpan(
+        effect {
+          return try op(request)
+        },
+        `AWS.IoTSiteWise.${options.capability}`,
+      )
+  }
+}

@@ -1,7 +1,7 @@
 import type * as route53 from "@distilled.cloud/aws/route-53";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { HostedZone } from "./HostedZone.js";
+import type { HostedZone } from "./HostedZone.vibe";
 /**
  * Runtime binding for the `GetHostedZone` operation (IAM action
  * `route53:GetHostedZone` on the hosted zone ARN).

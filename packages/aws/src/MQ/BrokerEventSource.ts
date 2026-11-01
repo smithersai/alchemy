@@ -2,7 +2,7 @@ import * as Context from "effect/Context";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Broker } from "./Broker.ts";
+import type { Broker } from "./Broker.vibe";
 
 /**
  * A single message delivered by an Amazon MQ event source. The shape differs

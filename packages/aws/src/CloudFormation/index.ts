@@ -20,7 +20,7 @@ export * from "./ListStackResources.vibe";
 export * from "./ListStackResourcesHttp.vibe";
 export * from "./SignalResource.vibe";
 export * from "./SignalResourceHttp.vibe";
-export * from "./Stack.ts";
+export * from "./Stack.vibe";
 export * from "./StackEventSource.vibe";
 export * from "./ValidateTemplate.vibe";
 export * from "./ValidateTemplateHttp.vibe";

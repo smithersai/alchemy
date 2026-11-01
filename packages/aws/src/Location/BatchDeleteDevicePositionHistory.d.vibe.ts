@@ -1,7 +1,7 @@
 import type * as location from "@distilled.cloud/aws/location";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Tracker } from "./Tracker.js";
+import type { Tracker } from "./Tracker.vibe";
 /**
  * `BatchDeleteDevicePositionHistory` request with `TrackerName` injected from the bound
  * resource.

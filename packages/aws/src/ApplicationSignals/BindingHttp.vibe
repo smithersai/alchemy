@@ -1,0 +1,154 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { ServiceLevelObjective } from "./ServiceLevelObjective.vibe"
+
+/**
+ * Shared scaffolding for Application Signals HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation, the IAM action list, and (for
+ * SLO-scoped operations) the injected identifier is boilerplate.
+ */
+
+/**
+ * Build the impl Effect for an account-level operation (the service
+ * discovery, audit, and change-event read APIs). The deploy-time half
+ * grants `actions` on `*` because the Application Signals discovery
+ * actions do not support resource-level scoping.
+ */
+export const makeApplicationSignalsAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.ApplicationSignals.ListServices`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request: I) =>
+      try withSpan(
+        effect {
+          return try op(request)
+        },
+        options.tag,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an SLO-scoped operation taking a single `Id`
+ * (`GetServiceLevelObjective`, `ListServiceLevelObjectiveExclusionWindows`):
+ * the runtime callable injects the bound SLO's ARN as `Id` and the
+ * deploy-time half grants `actions` on the SLO ARN.
+ */
+export const makeSloIdHttpBinding = effect <I extends { mutable Id: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag. */
+  mutable tag: string
+  /** The distilled operation; `Id` is injected from the SLO. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the SLO ARN. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (slo: ServiceLevelObjective) => {
+    const SloArn = try slo.sloArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${slo})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${slo.sloArn}`],
+          },
+        ],
+      })
+    }
+    return effect (request?: Omit<I, "Id"> | undefined) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            Id: try SloArn,
+          } as I)
+        },
+        `${options.tag}(${slo.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a batch SLO operation taking `SloIds`
+ * (`BatchGetServiceLevelObjectiveBudgetReport`,
+ * `BatchUpdateExclusionWindows`), narrowed to the single bound SLO: the
+ * runtime callable injects `SloIds: [sloArn]` and the deploy-time half
+ * grants `actions` on the SLO ARN.
+ */
+export const makeSloBatchHttpBinding = effect <I extends { mutable SloIds: string[] }, A, E, R>(options: {
+  /** Fully-qualified binding tag. */
+  mutable tag: string
+  /** The distilled operation; `SloIds` is injected from the SLO. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the SLO ARN. */
+  mutable actions: readonly string[]
+  /**
+   * Additional IAM actions granted on `*` — dependent permissions the
+   * operation exercises with the caller's credentials (e.g. budget reports
+   * read the SLI metric via `cloudwatch:GetMetricData`).
+   */
+  mutable accountActions?: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (slo: ServiceLevelObjective) => {
+    const SloArn = try slo.sloArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${slo})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${slo.sloArn}`],
+          },
+          ...(options.accountActions?.length
+            ? [
+              {
+                Effect: "Allow" as const,
+                Action: [...options.accountActions],
+                Resource: ["*"],
+              },
+            ]
+            : []),
+        ],
+      })
+    }
+    return effect (request: Omit<I, "SloIds">) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            SloIds: [try SloArn],
+          } as I)
+        },
+        `${options.tag}(${slo.LogicalId})`,
+      )
+  }
+}

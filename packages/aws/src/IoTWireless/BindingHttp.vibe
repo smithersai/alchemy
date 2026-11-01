@@ -1,0 +1,155 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { WirelessDevice } from "./WirelessDevice.vibe"
+import type { WirelessGateway } from "./WirelessGateway.vibe"
+
+/**
+ * Shared HTTP scaffolding for the AWS IoT Wireless runtime bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation, the IAM action, and the request
+ * shaping is boilerplate.
+ */
+
+/**
+ * Build the impl Effect for an IoT Wireless operation scoped to one
+ * {@link WirelessDevice}: the deploy-time half grants `iamActions` on the
+ * bound device's ARN, and the runtime half injects the device's
+ * server-assigned id into every request via `prepare`.
+ */
+export const makeIotWirelessDeviceHttpBinding = effect <I, A, E, R, Req>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"SendDataToWirelessDevice"`.
+   */
+  mutable capability: string
+  /** IAM actions granted on the bound device's ARN. */
+  mutable iamActions: readonly string[]
+  /** The distilled operation implementing the capability. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** Map the public request shape + bound device id onto the wire request. */
+  mutable prepare: (request: Req, wirelessDeviceId: string) => I
+  /**
+   * IAM resource scope. Defaults to the bound device's ARN. The position
+   * operations (`GetResourcePosition` / `UpdateResourcePosition`) must use
+   * `"any"`: IoT Wireless authorizes them against a type-level ARN
+   * (`…:WirelessDevice/WirelessDevice`, built from the `resourceType`
+   * query parameter), which the device ARN never matches.
+   */
+  mutable resourceScope?: "device" | "any"
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (device: WirelessDevice) => {
+    // Output yields a DEFERRED effect — resolve again per invocation below.
+    const DeviceId = try device.wirelessDeviceId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.IoTWireless.${options.capability}(${device})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: options.resourceScope === "any" ? ["*"] : [device.wirelessDeviceArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Req,
+    ) =>
+      try withSpan(
+        effect {
+          const wirelessDeviceId = try DeviceId
+          return try op(options.prepare(request, wirelessDeviceId))
+        },
+        `AWS.IoTWireless.${options.capability}(${device.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an IoT Wireless operation scoped to one
+ * {@link WirelessGateway}: the deploy-time half grants `iamActions` on the
+ * bound gateway's ARN, and the runtime half injects the gateway's
+ * server-assigned id into every request via `prepare`.
+ */
+export const makeIotWirelessGatewayHttpBinding = effect <I, A, E, R, Req>(options: {
+  /** Short capability name used in the binding sid and runtime span. */
+  mutable capability: string
+  /** IAM actions granted on the bound gateway's ARN. */
+  mutable iamActions: readonly string[]
+  /** The distilled operation implementing the capability. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** Map the public request shape + bound gateway id onto the wire request. */
+  mutable prepare: (request: Req, wirelessGatewayId: string) => I
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (gateway: WirelessGateway) => {
+    const GatewayId = try gateway.wirelessGatewayId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.IoTWireless.${options.capability}(${gateway})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: [gateway.wirelessGatewayArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Req,
+    ) =>
+      try withSpan(
+        effect {
+          const wirelessGatewayId = try GatewayId
+          return try op(options.prepare(request, wirelessGatewayId))
+        },
+        `AWS.IoTWireless.${options.capability}(${gateway.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level IoT Wireless operation (e.g.
+ * `GetServiceEndpoint` or `GetPositionEstimate`, which are not scoped to a
+ * single resource). Grants `iamActions` on `Resource: ["*"]`.
+ */
+export const makeIotWirelessAccountHttpBinding = effect <I, A, E, R, Req>(options: {
+  /** Short capability name used in the binding sid and runtime span. */
+  mutable capability: string
+  /** IAM actions granted on `Resource: ["*"]`. */
+  mutable iamActions: readonly string[]
+  /** The distilled operation implementing the capability. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** Map the public request shape onto the wire request. */
+  mutable prepare: (request: Req) => I
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.IoTWireless.${options.capability}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request: Req) =>
+      try withSpan(
+        effect {
+          return try op(options.prepare(request))
+        },
+        `AWS.IoTWireless.${options.capability}`,
+      )
+  }
+}

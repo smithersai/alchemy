@@ -1,7 +1,7 @@
 import type * as grafana from "@distilled.cloud/aws/grafana";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Workspace } from "./Workspace.js";
+import type { Workspace } from "./Workspace.vibe";
 /**
  * Runtime binding for the `DeleteWorkspaceServiceAccountToken` operation
  * (IAM action `grafana:DeleteWorkspaceServiceAccountToken`), scoped to one

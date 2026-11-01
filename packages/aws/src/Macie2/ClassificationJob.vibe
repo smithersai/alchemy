@@ -1,0 +1,257 @@
+import * as macie2 from "@distilled.cloud/aws/macie2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, tagRecord } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { retryThroughEnablement } from "./common.vibe"
+
+/**
+ * Whether the classification job runs once (`ONE_TIME`) or on a recurring
+ * schedule (`SCHEDULED`).
+ */
+export type JobType = "ONE_TIME" | "SCHEDULED"
+
+/**
+ * How Macie selects managed data identifiers for the job.
+ */
+export type ManagedDataIdentifierSelector = "ALL" | "EXCLUDE" | "INCLUDE" | "NONE" | "RECOMMENDED"
+
+/**
+ * A set of S3 buckets (within one account) that the job analyzes.
+ */
+export interface BucketDefinition {
+  /** The account that owns the buckets. */
+  mutable accountId: string
+  /** The names of the buckets to analyze. */
+  mutable buckets: string[]
+}
+
+export interface ClassificationJobProps {
+  /**
+   * Custom name for the job. Must be unique per account. If omitted, a unique
+   * name is generated from the app/stage/logical ID.
+   */
+  mutable name?: string
+
+  /**
+   * Whether the job runs once (`ONE_TIME`) or on a recurring schedule
+   * (`SCHEDULED`).
+   * @default "ONE_TIME"
+   */
+  mutable jobType?: JobType
+
+  /**
+   * The S3 buckets to analyze, grouped by owning account. Changing this
+   * replaces the job — classification jobs are immutable once created.
+   */
+  mutable bucketDefinitions: BucketDefinition[]
+
+  /**
+   * Optional description of the job.
+   */
+  mutable description?: string
+
+  /**
+   * The sampling depth, as a percentage, applied to objects in the buckets.
+   * @default 100
+   */
+  mutable samplingPercentage?: number
+
+  /**
+   * For a scheduled job, whether Macie analyzes all existing eligible objects
+   * immediately on the first run.
+   */
+  mutable initialRun?: boolean
+
+  /**
+   * How Macie selects managed data identifiers for the job.
+   */
+  mutable managedDataIdentifierSelector?: ManagedDataIdentifierSelector
+
+  /**
+   * Tags applied to the job. Alchemy ownership tags are merged in automatically.
+   */
+  mutable tags?: Record<string, string>
+}
+
+/** @resource */
+export interface ClassificationJob extends
+  Resource<
+    "AWS.Macie2.ClassificationJob",
+    ClassificationJobProps,
+    {
+      /** Generated job ID. */
+      mutable jobId: string
+      /** ARN of the classification job. */
+      mutable jobArn: string
+      /** The resolved job name. */
+      mutable name: string
+      /** Current job status (`RUNNING` / `COMPLETE` / `CANCELLED` / ...). */
+      mutable jobStatus: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Macie classification job — scans one or more S3 buckets for
+ * sensitive data. Requires Macie to be enabled for the account (see
+ * `Macie2.Session`). Jobs are immutable once created; changing the job type,
+ * name, or bucket set replaces the job. Destroy cancels the job.
+ *
+ * ### Creating a classification job
+ * **Example:** One-time job over a bucket
+ * ```typescript
+ * const job = yield* Macie2.ClassificationJob("Scan", {
+ *   jobType: "ONE_TIME",
+ *   bucketDefinitions: [{ accountId, buckets: ["my-bucket"] }],
+ * });
+ * ```
+ *
+ * **Example:** Sampled scan with a description
+ * ```typescript
+ * const job = yield* Macie2.ClassificationJob("Scan", {
+ *   jobType: "ONE_TIME",
+ *   bucketDefinitions: [{ accountId, buckets: ["my-bucket"] }],
+ *   samplingPercentage: 20,
+ *   description: "PII sweep",
+ * });
+ * ```
+ */
+const ClassificationJobResource = Resource<ClassificationJob>("AWS.Macie2.ClassificationJob")
+
+export { ClassificationJobResource as ClassificationJob }
+
+const createName = effect (
+  id: string,
+  props: Partial<ClassificationJobProps>,
+) => (props.name ? props.name : try createPhysicalName({ id, maxLength: 200 }))
+
+// A stable fingerprint of the immutable definition — any change replaces.
+const fingerprint = (props: Partial<ClassificationJobProps>): infer _ =>
+  JSON.stringify({
+    jobType: props.jobType ?? "ONE_TIME",
+    bucketDefinitions: (props.bucketDefinitions ?? [])
+      .map((b) => ({ accountId: b.accountId, buckets: [...b.buckets].sort() }))
+      .sort((a, b) => a.accountId.localeCompare(b.accountId)),
+  })
+
+const buildAttrs = (jobId: string, d: macie2.DescribeClassificationJobResponse): infer _ => ({
+  jobId,
+  jobArn: d.jobArn!,
+  name: d.name!,
+  jobStatus: d.jobStatus,
+})
+
+export const ClassificationJobProvider = (): infer _ =>
+  Provider.effect(
+    ClassificationJobResource,
+    effect {
+      const describe = effect (jobId: string) =>
+        macie2
+          .describeClassificationJob({ jobId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      return {
+        stables: ["jobId", "jobArn", "name"],
+
+        read: effect ({ id, output }) => {
+          if (!output?.jobId) return undefined
+          const d = try describe(output.jobId)
+          if (!d) return undefined
+          const attrs = buildAttrs(output.jobId, d)
+          return (try hasAlchemyTags(id, d.tags)) ? attrs : Unowned(attrs)
+        },
+
+        // Classification jobs are enumerable, but they are per-job resources
+        // (not a singleton); the engine keys them by logical ID, so return the
+        // empty set here and rely on `read` for state refresh.
+        list: effect () => [],
+
+        diff: effect ({ id, news, olds = {} }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+          if (fingerprint(olds) !== fingerprint(news)) {
+            return { action: "replace" } as const
+          }
+          // Jobs are immutable apart from status; nothing else to update.
+          return undefined
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+          const name = output?.name ?? (try createName(id, news))
+
+          // 1. OBSERVE — cloud state is authoritative; output is an id cache.
+          let jobId = output?.jobId
+          let live = jobId ? try describe(jobId) : undefined
+
+          // 2. ENSURE — create the job if it does not exist.
+          if (jobId === undefined || live === undefined) {
+            const created = try retryThroughEnablement(
+              macie2.createClassificationJob({
+                name,
+                jobType: news.jobType ?? "ONE_TIME",
+                s3JobDefinition: {
+                  bucketDefinitions: news.bucketDefinitions.map((b) => ({
+                    accountId: b.accountId,
+                    buckets: b.buckets,
+                  })),
+                },
+                description: news.description,
+                samplingPercentage: news.samplingPercentage,
+                initialRun: news.initialRun,
+                managedDataIdentifierSelector: news.managedDataIdentifierSelector,
+                tags: desiredTags,
+              }),
+            )
+            jobId = created.jobId!
+            live = try macie2.describeClassificationJob({ jobId })
+          } else {
+            // 3. SYNC tags — the definition is immutable; only tags mutate.
+            const { upsert, removed } = diffTags(tagRecord(live.tags), desiredTags)
+            if (upsert.length > 0) {
+              try macie2.tagResource({
+                resourceArn: live.jobArn!,
+                tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+              })
+            }
+            if (removed.length > 0) {
+              try macie2.untagResource({
+                resourceArn: live.jobArn!,
+                tagKeys: removed,
+              })
+            }
+          }
+
+          // 4. RETURN fresh attributes.
+          const final = try macie2.describeClassificationJob({ jobId })
+          try session.note(jobId)
+          return buildAttrs(jobId, final)
+        },
+
+        delete: effect ({ output }) => {
+          // Classification jobs cannot be deleted — only cancelled. Cancelling
+          // an already-terminal job raises ConflictException; treat as done.
+          macie2
+            .updateClassificationJob({
+              jobId: output.jobId,
+              jobStatus: "CANCELLED",
+            }) catch effect (e) => match (e) {
+              when { _tag: "ConflictException" }: try Effect.void;
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

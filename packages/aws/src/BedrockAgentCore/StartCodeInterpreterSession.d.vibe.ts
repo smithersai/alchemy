@@ -2,7 +2,7 @@ import type * as agentcore from "@distilled.cloud/aws/bedrock-agentcore";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
-import type { CodeInterpreter } from "./CodeInterpreter.js";
+import type { CodeInterpreter } from "./CodeInterpreter.vibe";
 export interface StartCodeInterpreterSessionRequest extends Omit<agentcore.StartCodeInterpreterSessionRequest, "codeInterpreterIdentifier" | "sessionTimeoutSeconds"> {
     /**
      * How long the session may sit idle before AgentCore terminates it, e.g.

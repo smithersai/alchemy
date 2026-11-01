@@ -1,0 +1,56 @@
+import * as DynamoDB from "@distilled.cloud/aws/dynamodb"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { GrantTables, tablesRegion } from "./BindingHttp.ts"
+import { RestoreTableToPointInTime, type RestoreTableToPointInTimeRequest } from "./RestoreTableToPointInTime.vibe"
+import type { Table } from "./Table.ts"
+
+export const RestoreTableToPointInTimeHttp = Layer.effect(
+  RestoreTableToPointInTime,
+  effect {
+    const grantTables = try GrantTables
+    return effect <From extends Table, To extends Table>(from: From, to: To) => {
+      const SourceTableName = try from.tableName.asEffect()
+      const TargetTableName = try to.tableName.asEffect()
+      try grantTables(
+        `AWS.DynamoDB.RestoreTableToPointInTime(${from.LogicalId}, ${to.LogicalId})`,
+        () => [
+          {
+            Effect: "Allow",
+            Action: ["dynamodb:RestoreTableToPointInTime"],
+            Resource: [from.tableArn],
+          },
+          {
+            Effect: "Allow",
+            Action: [
+              "dynamodb:PutItem",
+              "dynamodb:UpdateItem",
+              "dynamodb:DeleteItem",
+              "dynamodb:GetItem",
+              "dynamodb:Query",
+              "dynamodb:Scan",
+              "dynamodb:BatchWriteItem",
+            ],
+            Resource: [to.tableArn],
+          },
+        ],
+      )
+      // Restores stay in-region: both tables must share it.
+      const restoreTableToPointInTime = try AWSBindings.withCredentials(
+        DynamoDB.restoreTableToPointInTime,
+        tablesRegion([from, to]),
+      )
+      return effect (request: RestoreTableToPointInTimeRequest) =>
+        try withSpan(
+          effect {
+            return try restoreTableToPointInTime({
+              ...request,
+              SourceTableName: try SourceTableName,
+              TargetTableName: try TargetTableName,
+            })
+          },
+          `AWS.DynamoDB.RestoreTableToPointInTime(${from.LogicalId}, ${to.LogicalId})`,
+        )
+    }
+  },
+)

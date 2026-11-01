@@ -2,7 +2,7 @@ import type * as agentcore from "@distilled.cloud/aws/bedrock-agentcore";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
-import type { BrowserCustom } from "./BrowserCustom.js";
+import type { BrowserCustom } from "./BrowserCustom.vibe";
 export interface StartBrowserSessionRequest extends Omit<agentcore.StartBrowserSessionRequest, "browserIdentifier" | "sessionTimeoutSeconds"> {
     /**
      * How long the session may sit idle before AgentCore terminates it, e.g.

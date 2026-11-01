@@ -1,0 +1,156 @@
+import * as ses from "@distilled.cloud/aws/ses"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+/**
+ * Whether the filter permits (`Allow`) or blocks (`Block`) mail from the
+ * matching IP range.
+ */
+export type ReceiptFilterPolicy = ses.ReceiptFilterPolicy
+
+export interface ReceiptIpFilter {
+  /**
+   * Whether to allow or block mail from the CIDR range.
+   */
+  mutable policy: ReceiptFilterPolicy
+  /**
+   * A single IPv4 address (e.g. `1.2.3.4`) or CIDR range (e.g. `1.2.3.0/24`)
+   * the filter applies to.
+   */
+  mutable cidr: string
+}
+
+export interface ReceiptFilterProps {
+  /**
+   * Name of the IP address filter. May contain letters, numbers, dashes and
+   * underscores, up to 64 characters, and must start and end with a letter or
+   * number. If omitted, a deterministic physical name is generated from the
+   * app, stage, and logical ID. Changing the name replaces the filter.
+   */
+  mutable filterName?: string
+  /**
+   * The IP filtering rule — an allow or block decision for a CIDR range.
+   * Changing it replaces the filter (SES has no update operation for filters).
+   */
+  mutable ipFilter: ReceiptIpFilter
+}
+
+export interface ReceiptFilter extends
+  Resource<
+    "AWS.SES.ReceiptFilter",
+    ReceiptFilterProps,
+    {
+      /** Name of the IP address filter. */
+      mutable filterName: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon SES receipt IP address filter — an account-level allow/block rule
+ * for the source IP of inbound mail. Block filters take precedence over allow
+ * filters.
+ *
+ * Filters are immutable: there is no update API, so any change to the name or
+ * the IP rule replaces the filter.
+ * ### Creating Filters
+ * **Example:** Block a CIDR Range
+ * ```typescript
+ * import * as SES from "@alchemy.run/aws/SES";
+ *
+ * const filter = yield* SES.ReceiptFilter("BlockBadActors", {
+ *   ipFilter: { policy: "Block", cidr: "10.0.0.0/24" },
+ * });
+ * ```
+ *
+ * **Example:** Allow a Single Address
+ * ```typescript
+ * const filter = yield* SES.ReceiptFilter("AllowPartner", {
+ *   ipFilter: { policy: "Allow", cidr: "192.0.2.10" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ReceiptFilter = Resource<ReceiptFilter>("AWS.SES.ReceiptFilter")
+
+export const ReceiptFilterProvider = (): infer _ =>
+  Provider.effect(
+    ReceiptFilter,
+    effect {
+      const createName = effect (
+        id: string,
+        props: Pick<ReceiptFilterProps, "filterName">,
+      ) => props.filterName ?? (try createPhysicalName({ id, maxLength: 64 }))
+
+      const findFilter = effect (name: string) => {
+        const filters = (try ses
+          .listReceiptFilters({})).Filters ?? []
+        return filters.find((filter) => filter.Name === name)
+      }
+
+      return ReceiptFilter.Provider.of({
+        stables: ["filterName"],
+
+        // Account/region-scoped: enumerate every filter so leaked test
+        // resources are cleaned by nuke. Receipt filters carry no tags.
+        list: effect () =>
+          ((try ses
+            .listReceiptFilters({})).Filters ?? []).flatMap((filter) =>
+              filter.Name ? [{ filterName: filter.Name }] : []
+            ),
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.filterName ?? (try createName(id, olds))
+          const found = try findFilter(name)
+          return found ? { filterName: name } : undefined
+        },
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (
+            oldName !== newName
+            || olds.ipFilter.policy !== news.ipFilter.policy
+            || olds.ipFilter.cidr !== news.ipFilter.cidr
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output }) => {
+          const name = output?.filterName ?? (try createName(id, news))
+
+          // OBSERVE — filters have no update API, so reconcile is create-only.
+          const observed = try findFilter(name)
+
+          // ENSURE — create if missing; AlreadyExists is a race, not a failure.
+          if (observed === undefined) {
+            ses
+              .createReceiptFilter({
+                Filter: {
+                  Name: name,
+                  IpFilter: {
+                    Policy: news.ipFilter.policy,
+                    Cidr: news.ipFilter.cidr,
+                  },
+                },
+              }) catch effect (e) => match (e) { when { _tag: "AlreadyExistsException" }: {}; default: throw e; }
+          }
+
+          return { filterName: name }
+        },
+
+        delete: effect ({ output }) => {
+          // deleteReceiptFilter is idempotent for a missing filter.
+          try ses.deleteReceiptFilter({ FilterName: output.filterName })
+        },
+      })
+    },
+  )

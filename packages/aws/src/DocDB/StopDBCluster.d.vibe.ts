@@ -1,7 +1,7 @@
 import type * as docdb from "@distilled.cloud/aws/docdb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DBCluster } from "./DBCluster.js";
+import type { DBCluster } from "./DBCluster.vibe";
 /**
  * Runtime binding for the `StopDBCluster` operation (IAM action
  * `rds:StopDBCluster`).

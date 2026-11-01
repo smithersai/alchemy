@@ -8,10 +8,10 @@ import {
   type RotationEventSourceService,
   type SecretRotationEvent,
 } from "../SecretsManager/RotationEventSource.ts";
-import { RotationSchedule } from "../SecretsManager/RotationSchedule.ts";
+import { RotationSchedule } from "../SecretsManager/RotationSchedule.vibe";
 import type { Secret } from "../SecretsManager/Secret.ts";
 import * as Lambda from "./Function.ts";
-import { Permission as LambdaPermission } from "./Permission.ts";
+import { Permission as LambdaPermission } from "./Permission.vibe";
 
 /**
  * Narrow an arbitrary Lambda invocation payload to a Secrets Manager

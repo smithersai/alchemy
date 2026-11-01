@@ -1,7 +1,7 @@
 import * as omics from "@distilled.cloud/aws/omics";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { SequenceStore } from "./SequenceStore.js";
+import type { SequenceStore } from "./SequenceStore.vibe";
 export interface ListReadSetsRequest extends Omit<omics.ListReadSetsRequest, "sequenceStoreId"> {
 }
 /**

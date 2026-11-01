@@ -7,7 +7,7 @@ import * as S3 from "../S3/index.ts";
 import { normalizeBucketNotification } from "../S3/normalizeBucketNotification.ts";
 import type { S3EventType } from "../S3/S3Event.ts";
 import * as SQS from "../SQS/index.ts";
-import { SQSQueueEventSource } from "./SQSQueueEventSource.ts";
+import { SQSQueueEventSource } from "./SQSQueueEventSource.vibe";
 
 /** @binding */
 export const S3BucketEventSource = Layer.effect(

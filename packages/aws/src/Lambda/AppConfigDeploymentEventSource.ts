@@ -2,7 +2,7 @@ import * as Namespace from "alchemy/Namespace";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import type { Application } from "../AppConfig/Application.ts";
+import type { Application } from "../AppConfig/Application.vibe";
 import {
   DeploymentEventSource as AppConfigDeploymentEventSourceContract,
   type DeploymentEventRecord,
@@ -10,9 +10,9 @@ import {
   type DeploymentEventSourceService,
   type DeploymentEventType,
 } from "../AppConfig/DeploymentEventSource.ts";
-import type { Environment } from "../AppConfig/Environment.ts";
-import { Extension } from "../AppConfig/Extension.ts";
-import { ExtensionAssociation } from "../AppConfig/ExtensionAssociation.ts";
+import type { Environment } from "../AppConfig/Environment.vibe";
+import { Extension } from "../AppConfig/Extension.vibe";
+import { ExtensionAssociation } from "../AppConfig/ExtensionAssociation.vibe";
 import { Role } from "../IAM/Role.ts";
 import * as Lambda from "./Function.ts";
 

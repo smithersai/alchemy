@@ -1,7 +1,7 @@
 import type * as qbusiness from "@distilled.cloud/aws/qbusiness";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.vibe";
 /**
  * `GetPolicy` request with `applicationId` injected from the bound application.
  */

@@ -1,7 +1,7 @@
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as AWSBindings from "../AWSBindings.ts";
-import type { Cluster } from "./Cluster.ts";
+import type { Cluster } from "./Cluster.vibe";
 import type { Service } from "./Service.ts";
 import { type Task } from "./Task.ts";
 

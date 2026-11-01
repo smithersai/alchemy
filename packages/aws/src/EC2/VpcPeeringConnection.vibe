@@ -1,0 +1,361 @@
+import * as ec2 from "@distilled.cloud/aws/ec2"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, diffTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import type { VpcId } from "./Vpc.vibe"
+
+export type VpcPeeringConnectionId<ID extends string = string> = `pcx-${ID}`
+export const VpcPeeringConnectionId = <ID extends string>(
+  id: ID,
+): ID & VpcPeeringConnectionId<ID> => `pcx-${id}` as ID & VpcPeeringConnectionId<ID>
+
+export type VpcPeeringConnectionStatus =
+  | "initiating-request"
+  | "pending-acceptance"
+  | "active"
+  | "deleted"
+  | "rejected"
+  | "failed"
+  | "expired"
+  | "provisioning"
+  | "deleting"
+
+// Terminal states from which a peering connection cannot recover — observing
+// one of these means the cached connection is dead and must be recreated.
+const DEAD_STATES = new Set<string>(["deleted", "deleting", "rejected", "failed", "expired"])
+
+export interface VpcPeeringConnectionProps {
+  /**
+   * The ID of the requester VPC (the VPC you own that initiates the peering).
+   * Immutable — changing it replaces the connection.
+   */
+  mutable vpcId: VpcId
+
+  /**
+   * The ID of the accepter VPC with which to create the connection. May belong
+   * to another account (`peerOwnerId`) or Region (`peerRegion`). Immutable.
+   */
+  mutable peerVpcId: VpcId
+
+  /**
+   * The Region of the accepter VPC for an inter-Region peering. Defaults to the
+   * requester's Region (same-Region peering). Immutable.
+   */
+  mutable peerRegion?: string
+
+  /**
+   * The AWS account ID of the accepter VPC owner. Defaults to the requester's
+   * account (same-account peering). Immutable.
+   */
+  mutable peerOwnerId?: string
+
+  /**
+   * Whether to automatically accept the peering request. Only possible for
+   * same-account, same-Region peering (the accepter side must be reachable
+   * with the same credentials). Defaults to `true` when the peer is in the same
+   * account and Region, `false` otherwise (a cross-account/Region request stays
+   * in `pending-acceptance` until the peer accepts it out of band).
+   */
+  mutable autoAccept?: boolean
+
+  /**
+   * Tags to assign to the peering connection.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface VpcPeeringConnection extends
+  Resource<
+    "AWS.EC2.VpcPeeringConnection",
+    VpcPeeringConnectionProps,
+    {
+      /**
+       * The ID of the VPC peering connection (prefixed `pcx-`).
+       */
+      mutable vpcPeeringConnectionId: VpcPeeringConnectionId
+
+      /**
+       * The current status code of the peering connection.
+       */
+      mutable status: VpcPeeringConnectionStatus
+
+      /**
+       * The ID of the requester VPC.
+       */
+      mutable requesterVpcId: VpcId
+
+      /**
+       * The ID of the accepter VPC.
+       */
+      mutable accepterVpcId: VpcId
+
+      /**
+       * The AWS account ID of the accepter VPC owner.
+       */
+      mutable accepterOwnerId: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A VPC peering connection links two VPCs so resources in each can communicate
+ * using private IP addresses, as if they were on the same network. The two VPCs
+ * can be in the same account or different accounts, and the same Region or
+ * different Regions. Their CIDR blocks must not overlap.
+ *
+ * A peering connection is a two-sided handshake: a *requester* VPC creates the
+ * request and an *accepter* VPC accepts it. For same-account, same-Region
+ * peering alchemy accepts the request for you automatically (`autoAccept`
+ * defaults to `true`); for cross-account or cross-Region peering the connection
+ * is left in `pending-acceptance` for the peer to accept out of band. Once
+ * `active`, add {@link Route}s on both sides pointing the peer CIDR at the
+ * connection to actually carry traffic.
+ *
+ * ### Creating a Peering Connection
+ * **Example:** Same-Account Peering (auto-accepted)
+ * ```typescript
+ * const vpcA = yield* AWS.EC2.Vpc("VpcA", { cidrBlock: "10.0.0.0/16" });
+ * const vpcB = yield* AWS.EC2.Vpc("VpcB", { cidrBlock: "10.1.0.0/16" });
+ *
+ * const peering = yield* AWS.EC2.VpcPeeringConnection("Peering", {
+ *   vpcId: vpcA.vpcId,
+ *   peerVpcId: vpcB.vpcId,
+ * });
+ * ```
+ * Because both VPCs are in the same account and Region, the request is accepted
+ * automatically and the connection reaches the `active` state.
+ *
+ * **Example:** Cross-Account Peering (accepted out of band)
+ * ```typescript
+ * const peering = yield* AWS.EC2.VpcPeeringConnection("Peering", {
+ *   vpcId: myVpc.vpcId,
+ *   peerVpcId: "vpc-0abc123",
+ *   peerOwnerId: "123456789012",
+ * });
+ * ```
+ * With a different `peerOwnerId` the connection stays in `pending-acceptance`
+ * until the peer account accepts it.
+ *
+ * ### Routing Traffic Across the Peering
+ * **Example:** Route the Peer CIDR at the Connection
+ * ```typescript
+ * const peering = yield* AWS.EC2.VpcPeeringConnection("Peering", {
+ *   vpcId: vpcA.vpcId,
+ *   peerVpcId: vpcB.vpcId,
+ * });
+ *
+ * const routeAtoB = yield* AWS.EC2.Route("RouteAtoB", {
+ *   routeTableId: vpcARouteTable.routeTableId,
+ *   destinationCidrBlock: "10.1.0.0/16",
+ *   vpcPeeringConnectionId: peering.vpcPeeringConnectionId,
+ * });
+ * ```
+ * Each side needs a route pointing the other VPC's CIDR at the peering
+ * connection; only then can instances reach each other over private IPs.
+ *
+ * @resource
+ */
+export const VpcPeeringConnection = Resource<VpcPeeringConnection>("AWS.EC2.VpcPeeringConnection")
+
+class PeeringNotSettled {
+  readonly _tag = "PeeringNotSettled"
+}
+
+export const VpcPeeringConnectionProvider = (): infer _ =>
+  Provider.effect(
+    VpcPeeringConnection,
+    effect {
+      const createTags = effect (id: string, tags?: Record<string, string> | undefined) => ({
+        Name: id,
+        ...(try createInternalTags(id)),
+        ...tags,
+      })
+
+      const describePeering = effect (pcxId: string) =>
+        ((try ec2.describeVpcPeeringConnections({ VpcPeeringConnectionIds: [pcxId] })).VpcPeeringConnections?.[0])
+          catch effect (e) => match (e) {
+            when { _tag: "InvalidVpcPeeringConnectionID.NotFound" }: try Effect.undefined;
+            when { _tag: "InvalidVpcPeeringConnectionId.NotFound" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      // Poll until the connection reaches a settled state (out of the transient
+      // "initiating-request"/"provisioning" states) or becomes `target`.
+      const waitFor = effect (pcxId: string, target: VpcPeeringConnectionStatus) =>
+        try (effect {
+          return try effect {
+            const pcx = try describePeering(pcxId)
+
+            const code = pcx?.Status?.Code
+            if (code === target || (code && DEAD_STATES.has(code))) {
+              return pcx
+            }
+            throw new PeeringNotSettled()
+          }
+        }
+          |> Effect.retry(%, {
+            while: (e) => e instanceof PeeringNotSettled,
+            schedule: Schedule.max([Schedule.fixed(2000), Schedule.recurs(30)]),
+          }))
+
+      const toAttrs = (pcx: ec2.VpcPeeringConnection): infer _ => ({
+        vpcPeeringConnectionId: pcx.VpcPeeringConnectionId as VpcPeeringConnectionId,
+        status: (pcx.Status?.Code ?? "initiating-request") as VpcPeeringConnectionStatus,
+        requesterVpcId: pcx.RequesterVpcInfo?.VpcId as VpcId,
+        accepterVpcId: pcx.AccepterVpcInfo?.VpcId as VpcId,
+        accepterOwnerId: pcx.AccepterVpcInfo?.OwnerId ?? "",
+      })
+
+      return {
+        stables: ["vpcPeeringConnectionId"],
+
+        list: effect () => {
+          const items = Array.from(
+            try (ec2.describeVpcPeeringConnections.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.VpcPeeringConnections ?? [])
+              .filter(
+                (
+                  pcx,
+                ): pcx is ec2.VpcPeeringConnection & {
+                  mutable VpcPeeringConnectionId: string
+                } =>
+                  pcx.VpcPeeringConnectionId != null
+                  && !DEAD_STATES.has(pcx.Status?.Code ?? ""),
+              )
+              .map(toAttrs)
+          )
+          return items satisfies VpcPeeringConnection["Attributes"][]
+        },
+
+        read: effect ({ output }) => {
+          if (!output) return undefined
+          const pcx = try describePeering(output.vpcPeeringConnectionId)
+          if (!pcx || DEAD_STATES.has(pcx.Status?.Code ?? "")) return undefined
+          return toAttrs(pcx)
+        },
+
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          if (
+            news.vpcId !== olds.vpcId
+            || news.peerVpcId !== olds.peerVpcId
+            || news.peerRegion !== olds.peerRegion
+            || news.peerOwnerId !== olds.peerOwnerId
+          ) {
+            return { action: "replace" }
+          }
+          // Only tags are mutable in place.
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const desiredTags = try createTags(id, news.tags)
+
+          const sameAccount = news.peerOwnerId === undefined || news.peerOwnerId === accountId
+          const sameRegion = news.peerRegion === undefined || news.peerRegion === region
+          const autoAccept = news.autoAccept ?? (sameAccount && sameRegion)
+
+          // Observe — the cached connection may have been deleted or moved to a
+          // terminal state, in which case we recreate.
+          let pcx: ec2.VpcPeeringConnection | undefined
+          if (output?.vpcPeeringConnectionId) {
+            pcx = try describePeering(output.vpcPeeringConnectionId)
+            if (pcx && DEAD_STATES.has(pcx.Status?.Code ?? "")) {
+              pcx = undefined
+            }
+          }
+
+          // Ensure — create the connection if missing.
+          if (pcx === undefined) {
+            try session.note("Creating VPC peering connection...")
+            const result = try ec2.createVpcPeeringConnection({
+              VpcId: news.vpcId as string,
+              PeerVpcId: news.peerVpcId as string,
+              PeerRegion: news.peerRegion,
+              PeerOwnerId: news.peerOwnerId,
+              TagSpecifications: [
+                {
+                  ResourceType: "vpc-peering-connection",
+                  Tags: createTagsList(desiredTags),
+                },
+              ],
+            })
+            pcx = result.VpcPeeringConnection!
+            try session.note(`VPC peering connection created: ${pcx.VpcPeeringConnectionId}`)
+          }
+
+          const pcxId = pcx.VpcPeeringConnectionId!
+
+          // Accept — for same-account/same-Region peering, wait for the request
+          // to settle into pending-acceptance, then accept it.
+          if (autoAccept) {
+            const settled = try waitFor(pcxId, "pending-acceptance")
+            if (settled?.Status?.Code === "pending-acceptance") {
+              try session.note("Accepting VPC peering connection...")
+              ec2.acceptVpcPeeringConnection({ VpcPeeringConnectionId: pcxId }) catch effect (e) => match (e) {
+                when { _tag: "InvalidVpcPeeringConnectionID.NotFound" }: try Effect.undefined;
+                when { _tag: "InvalidVpcPeeringConnectionId.NotFound" }: try Effect.undefined;
+                default: throw e;
+              }
+              try waitFor(pcxId, "active")
+            }
+          }
+
+          // Sync tags — observed cloud tags vs desired.
+          const currentTags = (Object.fromEntries(
+            (try ec2
+              .describeTags({
+                Filters: [
+                  { Name: "resource-id", Values: [pcxId] },
+                  {
+                    Name: "resource-type",
+                    Values: ["vpc-peering-connection"],
+                  },
+                ],
+              })).Tags?.map((t) => [t.Key!, t.Value!]) ?? [],
+          ) as Record<
+            string,
+            string
+          >) ?? {}
+          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          if (removed.length > 0) {
+            try ec2.deleteTags({
+              Resources: [pcxId],
+              Tags: removed.map((key) => ({ Key: key })),
+            })
+          }
+          if (upsert.length > 0) {
+            try ec2.createTags({ Resources: [pcxId], Tags: upsert })
+          }
+
+          const final = try describePeering(pcxId)
+          return toAttrs(final ?? pcx)
+        },
+
+        delete: effect ({ output, session }) => {
+          const pcxId = output.vpcPeeringConnectionId
+
+          // A connection already in a terminal state cannot (and need not) be
+          // deleted — AWS rejects deleting failed/rejected connections.
+          const observed = try describePeering(pcxId)
+          if (!observed || DEAD_STATES.has(observed.Status?.Code ?? "")) {
+            return
+          }
+
+          try session.note(`Deleting VPC peering connection: ${pcxId}`)
+          ec2.deleteVpcPeeringConnection({ VpcPeeringConnectionId: pcxId }) catch effect (e) => match (e) {
+            when { _tag: "InvalidVpcPeeringConnectionID.NotFound" }: try Effect.void;
+            when { _tag: "InvalidVpcPeeringConnectionId.NotFound" }: try Effect.void;
+            default: throw e;
+          }
+        },
+      }
+    },
+  )

@@ -10,7 +10,7 @@ import {
   type ConnectOptions,
   formatMongoConnectionUrl,
 } from "./Connect.vibe";
-import type { DBCluster } from "./DBCluster.ts";
+import type { DBCluster } from "./DBCluster.vibe";
 
 export const ConnectHttp = Layer.effect(
   Connect,

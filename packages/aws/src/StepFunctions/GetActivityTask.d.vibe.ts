@@ -1,7 +1,7 @@
 import type * as sfn from "@distilled.cloud/aws/sfn";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Activity } from "./Activity.js";
+import type { Activity } from "./Activity.vibe";
 export interface GetActivityTaskRequest extends Omit<sfn.GetActivityTaskInput, "activityArn"> {
 }
 /**

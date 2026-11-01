@@ -1,0 +1,141 @@
+import * as vpclattice from "@distilled.cloud/aws/vpc-lattice"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { PolicyDocument } from "../IAM/Policy.vibe"
+import { normalizePolicyDocument, stringifyPolicyDocument } from "../IAM/Policy.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface ResourcePolicyProps {
+  /**
+   * The ARN of the service network or service the resource policy is attached
+   * to. Immutable — changing it replaces the resource.
+   */
+  mutable resourceArn: string
+  /**
+   * The resource-based permission policy, either as a structured
+   * {@link PolicyDocument} or a raw JSON string (escape hatch). Must contain
+   * the same actions and condition statements as the RAM permission for
+   * sharing services and service networks.
+   */
+  mutable policy: PolicyDocument | string
+}
+
+export interface ResourcePolicy extends
+  Resource<
+    "AWS.VpcLattice.ResourcePolicy",
+    ResourcePolicyProps,
+    {
+      /**
+       * ARN of the service network or service the policy is attached to.
+       */
+      mutable resourceArn: string
+      /**
+       * The attached policy document as a JSON string.
+       */
+      mutable policy: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A resource-based permission policy on a VPC Lattice service or service
+ * network — the policy AWS RAM manages when sharing Lattice resources across
+ * accounts, attachable directly for fine-grained cross-account control.
+ *
+ * ### Attaching Resource Policies
+ * **Example:** Allow Another Account to Associate with a Service Network
+ * ```typescript
+ * const network = yield* ServiceNetwork("SharedNetwork", {});
+ * const policy = yield* ResourcePolicy("SharePolicy", {
+ *   resourceArn: network.serviceNetworkArn,
+ *   policy: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Allow",
+ *         Principal: { AWS: "arn:aws:iam::123456789012:root" },
+ *         Action: [
+ *           "vpc-lattice:CreateServiceNetworkVpcAssociation",
+ *           "vpc-lattice:CreateServiceNetworkServiceAssociation",
+ *           "vpc-lattice:GetServiceNetwork",
+ *         ],
+ *         Resource: network.serviceNetworkArn,
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ResourcePolicy = Resource<ResourcePolicy>("AWS.VpcLattice.ResourcePolicy")
+
+export const ResourcePolicyProvider = (): infer _ =>
+  Provider.effect(
+    ResourcePolicy,
+    effect {
+      // A missing parent and a parent without a policy are both "no policy" —
+      // getResourcePolicy answers with an empty body for the latter, so treat
+      // an absent `policy` as non-existence.
+      const observe = effect (resourceArn: string) =>
+        (try vpclattice.getResourcePolicy({ resourceArn })).policy catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      const toDesired = (policy: PolicyDocument | string): infer _ =>
+        typeof policy === "string" ? policy : stringifyPolicyDocument(policy)
+
+      return {
+        stables: ["resourceArn"],
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return
+          if (olds && olds.resourceArn !== news.resourceArn) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          const resourceArn = output?.resourceArn ?? olds?.resourceArn
+          if (!resourceArn) return undefined
+          const observed = try observe(resourceArn)
+          if (observed === undefined) return undefined
+          return { resourceArn, policy: observed }
+        },
+        reconcile: effect ({ news, session }) => {
+          const resourceArn = news.resourceArn
+          const desired = toDesired(news.policy)
+
+          // Observe — putResourcePolicy is an upsert. Compare the
+          // canonicalized live document against the canonicalized desired one
+          // so a re-deploy of an equivalent policy (key order, whitespace)
+          // skips the API call entirely.
+          const observed = try observe(resourceArn)
+          if (
+            observed === undefined
+            || normalizePolicyDocument(observed) !== normalizePolicyDocument(desired)
+          ) {
+            try vpclattice.putResourcePolicy({
+              resourceArn,
+              policy: desired,
+            })
+          }
+
+          try session.note(resourceArn)
+          return { resourceArn, policy: desired }
+        },
+        // Resource policies are sub-resources keyed entirely by their parent
+        // service network / service ARN — there is no enumeration API.
+        list: effect () => [] as ResourcePolicy["Attributes"][],
+        delete: effect ({ output }) => {
+          vpclattice
+            .deleteResourcePolicy({ resourceArn: output.resourceArn }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

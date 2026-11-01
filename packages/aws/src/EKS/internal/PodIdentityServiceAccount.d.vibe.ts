@@ -8,10 +8,10 @@ import type { Input } from "alchemy/Input";
  * the pieces from resources.
  */
 import * as Effect from "effect/Effect";
-import type { PolicyDocument } from "../../IAM/Policy.js";
+import type { PolicyDocument } from "../../IAM/Policy.vibe";
 import { Role, type Role as RoleResource } from "../../IAM/Role.js";
 import type { Cluster } from "../Cluster.js";
-import { PodIdentityAssociation, type PodIdentityAssociation as PodIdentityAssociationResource } from "../PodIdentityAssociation.js";
+import { PodIdentityAssociation, type PodIdentityAssociation as PodIdentityAssociationResource } from "../PodIdentityAssociation.vibe";
 import { type ClusterObjectRef } from "./ClusterObject.vibe";
 export interface PodIdentityServiceAccountProps {
     /** Target EKS cluster. */
@@ -77,4 +77,4 @@ export declare const PodIdentityServiceAccount: (id: string, props: PodIdentityS
     podIdentityAssociation: PodIdentityAssociation;
     role: Role | undefined;
     roleArn: string | import("alchemy").Output<`arn:aws:iam::${string}:role/${string}`, never>;
-}, never, import("../../Providers.js").Providers>;
+}, never, import("../../Providers.vibe").Providers>;

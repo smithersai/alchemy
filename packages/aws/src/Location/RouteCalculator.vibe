@@ -1,0 +1,195 @@
+import * as location from "@distilled.cloud/aws/location"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+import { toTagRecord } from "./internal.ts"
+
+export error RouteCalculatorUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface RouteCalculatorProps {
+  /**
+   * Name of the route calculator. Immutable — changing it replaces the
+   * calculator.
+   * @default ${app}-${stage}-${id}
+   */
+  mutable calculatorName?: string
+  /**
+   * Data provider for routing. Immutable — changing it replaces the
+   * calculator. One of `Esri`, `Grab`, or `Here`.
+   */
+  mutable dataSource: string
+  /**
+   * Optional description of the route calculator resource.
+   */
+  mutable description?: string
+  /**
+   * Tags to associate with the route calculator.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface RouteCalculator extends
+  Resource<
+    "AWS.Location.RouteCalculator",
+    RouteCalculatorProps,
+    {
+      /** Physical name of the route calculator. */
+      mutable calculatorName: string
+      /** ARN of the route calculator. */
+      mutable calculatorArn: string
+      /** Data provider backing the calculator. */
+      mutable dataSource: string
+      /** Description of the route calculator. */
+      mutable description: string | undefined
+      /** Tags currently associated with the calculator. */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Location Service route calculator. A route calculator computes
+ * routes and route matrices against a chosen data provider. The data source
+ * is immutable; the description can be updated in place.
+ *
+ * ### Creating Route Calculators
+ * **Example:** Basic Route Calculator
+ * ```typescript
+ * import * as Location from "@alchemy.run/aws/Location";
+ *
+ * const calculator = yield* Location.RouteCalculator("Routes", {
+ *   dataSource: "Esri",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const RouteCalculator = Resource<RouteCalculator>("AWS.Location.RouteCalculator")
+
+const createCalculatorName = effect (id: string, props: { mutable calculatorName?: string | undefined }) => {
+  if (props.calculatorName) return props.calculatorName
+  return try createPhysicalName({ id, maxLength: 100 })
+}
+
+const readCalculator = effect (calculatorName: string) => {
+  const found = location
+    .describeRouteCalculator({ CalculatorName: calculatorName }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!found) return undefined
+  return {
+    calculatorName: found.CalculatorName,
+    calculatorArn: found.CalculatorArn,
+    dataSource: found.DataSource,
+    description: found.Description ? found.Description : undefined,
+    tags: toTagRecord(found.Tags),
+  } satisfies RouteCalculator["Attributes"]
+}
+
+export const RouteCalculatorProvider = (): infer _ =>
+  Provider.effect(
+    RouteCalculator,
+    effect {
+      return {
+        stables: ["calculatorName", "calculatorArn"],
+        list: effect () => {
+          const names = Array.from(
+            try (location.listRouteCalculators.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => (page.Entries ?? []).map((entry) => entry.CalculatorName))
+          const hydrated = try Effect.forEach(names, (name) => readCalculator(name), {
+            concurrency: 10,
+          })
+          return hydrated.filter(
+            (attrs): attrs is RouteCalculator["Attributes"] => attrs !== undefined,
+          )
+        },
+        read: effect ({ id, olds, output }) => {
+          const calculatorName = output?.calculatorName ?? (try createCalculatorName(id, olds ?? {}))
+          const state = try readCalculator(calculatorName)
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+        },
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return
+          const oldName = try createCalculatorName(id, olds)
+          const newName = try createCalculatorName(id, news)
+          if (oldName !== newName || olds.dataSource !== news.dataSource) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const calculatorName = output?.calculatorName ?? (try createCalculatorName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          let state = try readCalculator(calculatorName)
+
+          if (state === undefined) {
+            location
+              .createRouteCalculator({
+                CalculatorName: calculatorName,
+                DataSource: news.dataSource,
+                Description: news.description,
+                Tags: desiredTags,
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            state = try readCalculator(calculatorName)
+            if (state === undefined) {
+              throw new RouteCalculatorUnexpectedResponse({
+                message: `failed to read created route calculator ${calculatorName}`,
+              })
+            }
+          }
+
+          if (state.description !== (news.description ?? undefined)) {
+            try location.updateRouteCalculator({
+              CalculatorName: calculatorName,
+              Description: news.description,
+            })
+          }
+
+          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          if (removed.length > 0) {
+            try location.untagResource({
+              ResourceArn: state.calculatorArn,
+              TagKeys: removed,
+            })
+          }
+          if (upsert.length > 0) {
+            try location.tagResource({
+              ResourceArn: state.calculatorArn,
+              Tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+            })
+          }
+
+          try session.note(state.calculatorArn)
+
+          const final = try readCalculator(calculatorName)
+          if (!final) {
+            throw new RouteCalculatorUnexpectedResponse({
+              message: `failed to read reconciled route calculator ${calculatorName}`,
+            })
+          }
+          return final
+        },
+        delete: effect ({ output }) => {
+          location
+            .deleteRouteCalculator({ CalculatorName: output.calculatorName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

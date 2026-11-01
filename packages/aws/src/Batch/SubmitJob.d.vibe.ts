@@ -2,7 +2,7 @@ import type * as batch from "@distilled.cloud/aws/batch";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { JobDefinition } from "./JobDefinition.js";
-import type { JobQueue } from "./JobQueue.js";
+import type { JobQueue } from "./JobQueue.vibe";
 /**
  * The queue and job definition are injected by the binding; everything else
  * (name, parameters, container overrides, ...) is the raw distilled request.

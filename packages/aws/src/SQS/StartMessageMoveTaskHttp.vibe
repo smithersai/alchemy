@@ -1,0 +1,59 @@
+import * as sqs from "@distilled.cloud/aws/sqs"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Queue } from "./Queue.vibe"
+import { StartMessageMoveTask, type StartMessageMoveTaskRequest } from "./StartMessageMoveTask.vibe"
+
+// Bespoke (not the shared scaffold): redrive spans TWO queues. The source
+// (DLQ) needs the start/receive/delete/get-attributes actions, and the
+// destination needs send/get-attributes — on `*` when no explicit
+// destination is given, because "redrive to original source queues" targets
+// queues unknowable at deploy time.
+export const StartMessageMoveTaskHttp = Layer.effect(
+  StartMessageMoveTask,
+  effect {
+    const bind = try AWSBindings.Bind
+    const startMessageMoveTask = try AWSBindings.withCredentials(sqs.startMessageMoveTask)
+
+    return effect (source: Queue, options?: { mutable destination?: Queue }) => {
+      const SourceArn = try source.queueArn.asEffect()
+      const destination = options?.destination
+      const DestinationArn = destination ? try destination.queueArn.asEffect() : undefined
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.SQS.StartMessageMoveTask(${source})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: [
+                "sqs:StartMessageMoveTask",
+                "sqs:ReceiveMessage",
+                "sqs:DeleteMessage",
+                "sqs:GetQueueAttributes",
+              ],
+              Resource: [Output.interpolate`${source.queueArn}`],
+            },
+            {
+              Effect: "Allow",
+              Action: ["sqs:SendMessage", "sqs:GetQueueAttributes"],
+              Resource: [destination ? Output.interpolate`${destination.queueArn}` : "*"],
+            },
+          ],
+        })
+      }
+      return effect (
+        request?: StartMessageMoveTaskRequest | undefined,
+      ) =>
+        try withSpan(
+          effect {
+            return try startMessageMoveTask({
+              ...request,
+              SourceArn: try SourceArn,
+              ...(DestinationArn !== undefined ? { DestinationArn: try DestinationArn } : {}),
+            })
+          },
+          `AWS.SQS.StartMessageMoveTask(${source.LogicalId})`,
+        )
+    }
+  },
+)

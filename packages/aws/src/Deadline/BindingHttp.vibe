@@ -1,0 +1,162 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Farm } from "./Farm.vibe"
+import type { Queue } from "./Queue.vibe"
+
+/**
+ * Shared scaffolding for AWS Deadline Cloud HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation, the IAM action list, and the
+ * injected identifiers is boilerplate.
+ */
+
+/**
+ * Build the impl Effect for a queue-scoped job operation. The runtime half
+ * injects the bound {@link Queue}'s `farmId` and `queueId` into every
+ * request; the deploy-time half grants `actions` on the queue's ARN and on
+ * its jobs (`{queueArn}/job/*`), since Deadline authorizes job-level actions
+ * (GetJob, UpdateJob, ListSteps, …) against the job resource.
+ */
+export const makeDeadlineQueueHttpBinding = effect <
+  I extends { mutable farmId: string; mutable queueId: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Deadline.CreateJob`. */
+  mutable tag: string
+  /** The distilled operation; `farmId`/`queueId` are injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the queue ARN and its jobs. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (queue: Queue) => {
+    const FarmId = try queue.farmId.asEffect()
+    const QueueId = try queue.queueId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${queue})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [queue.queueArn, queue.queueArn.pipe(Output.map((arn) => `${arn}/job/*`))],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "farmId" | "queueId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            farmId: try FarmId,
+            queueId: try QueueId,
+          } as I)
+        },
+        `${options.tag}(${queue.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a queue-scoped search operation
+ * (`SearchJobs`/`SearchSteps`/`SearchTasks` take a `queueIds` array rather
+ * than a single `queueId`). The runtime half injects the bound
+ * {@link Queue}'s `farmId` and `queueIds: [queueId]`; the deploy-time half
+ * grants `actions` on the queue's ARN and its jobs.
+ */
+export const makeDeadlineQueueSearchHttpBinding = effect <
+  I extends { mutable farmId: string; mutable queueIds: string[] },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Deadline.SearchJobs`. */
+  mutable tag: string
+  /** The distilled operation; `farmId`/`queueIds` are injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the queue ARN and its jobs. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (queue: Queue) => {
+    const FarmId = try queue.farmId.asEffect()
+    const QueueId = try queue.queueId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${queue})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [queue.queueArn, queue.queueArn.pipe(Output.map((arn) => `${arn}/job/*`))],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "farmId" | "queueIds"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            farmId: try FarmId,
+            queueIds: [try QueueId],
+          } as I)
+        },
+        `${options.tag}(${queue.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a farm-scoped operation (usage statistics
+ * aggregations). The runtime half injects the bound {@link Farm}'s `farmId`;
+ * the deploy-time half grants `actions` on the farm's ARN and everything
+ * under it (queues/fleets referenced by the aggregation's `resourceIds`).
+ */
+export const makeDeadlineFarmHttpBinding = effect <I extends { mutable farmId: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Deadline.GetSessionsStatisticsAggregation`. */
+  mutable tag: string
+  /** The distilled operation; `farmId` is injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the farm ARN and its sub-resources. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (farm: Farm) => {
+    const FarmId = try farm.farmId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${farm})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [farm.farmArn, farm.farmArn.pipe(Output.map((arn) => `${arn}/*`))],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "farmId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({ ...request, farmId: try FarmId } as I)
+        },
+        `${options.tag}(${farm.LogicalId})`,
+      )
+  }
+}

@@ -1,7 +1,7 @@
 import type * as aas from "@distilled.cloud/aws/application-auto-scaling";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ScalableTarget } from "./ScalableTarget.js";
+import type { ScalableTarget } from "./ScalableTarget.vibe";
 /**
  * `DescribeScalingActivities` request with the scalable target's identity
  * triple (`ServiceNamespace`/`ResourceId`/`ScalableDimension`) injected from

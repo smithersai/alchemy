@@ -30,9 +30,9 @@ import { isResolved } from "alchemy/Diff";
 import * as Provider from "alchemy/Provider";
 import type { ScopedPlanStatusSession } from "alchemy/Report";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { InstanceId } from "./Instance.ts";
-import type { VolumeId } from "./Volume.ts";
+import type { VolumeId } from "./Volume.vibe";
 
 export interface VolumeAttachmentProps {
   /**

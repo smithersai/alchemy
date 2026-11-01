@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Profile } from "./Profile.js";
+import type { Profile } from "./Profile.vibe";
 /**
  * Shared scaffolding for Route 53 Profiles HTTP bindings.
  *

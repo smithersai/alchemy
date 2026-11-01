@@ -6,7 +6,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { toRedactedString } from "./common.ts";
 
 export class AccessKeyUnexpectedResponse extends Data.TaggedError("AccessKeyUnexpectedResponse")<{

@@ -3,7 +3,7 @@ export * from "./DescribePipe.vibe";
 export * from "./DescribePipeHttp.vibe";
 export * from "./ListPipes.vibe";
 export * from "./ListPipesHttp.vibe";
-export * from "./Pipe.ts";
+export * from "./Pipe.vibe";
 export * from "./StartPipe.vibe";
 export * from "./StartPipeHttp.vibe";
 export * from "./StopPipe.vibe";

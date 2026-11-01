@@ -1,0 +1,124 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Budget } from "./Budget.vibe"
+import type { BudgetAction } from "./BudgetAction.vibe"
+
+/**
+ * Shared scaffolding for the AWS Budgets HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the two
+ * builders below. Everything except the operation, the IAM action list, and
+ * the injected identifiers (`AccountId` + `BudgetName`, plus `ActionId` for
+ * action-scoped operations) is boilerplate.
+ *
+ * Budgets is a global service — its ARNs have no region component and the
+ * endpoint resolver routes every standard-partition region to the global
+ * endpoint.
+ */
+
+/**
+ * Build the impl Effect for a budget-scoped operation: the runtime callable
+ * injects the bound {@link Budget}'s `AccountId` and `BudgetName` and the
+ * deploy-time half grants `actions` on the budget ARN.
+ */
+export const makeBudgetHttpBinding = effect <
+  I extends { mutable AccountId: string; mutable BudgetName: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Budgets.DescribeBudget`. */
+  mutable tag: string
+  /** The distilled operation; `AccountId`/`BudgetName` are injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the budget ARN. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (budget: Budget) => {
+    const AccountId = try budget.accountId.asEffect()
+    const BudgetName = try budget.budgetName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${budget})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${budget.budgetArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "AccountId" | "BudgetName"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            AccountId: try AccountId,
+            BudgetName: try BudgetName,
+          } as I)
+        },
+        `${options.tag}(${budget.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a budget-action-scoped operation: the runtime
+ * callable injects the bound {@link BudgetAction}'s `AccountId`,
+ * `BudgetName`, and `ActionId`, and the deploy-time half grants `actions` on
+ * the action ARN.
+ */
+export const makeBudgetActionHttpBinding = effect <
+  I extends { mutable AccountId: string; mutable BudgetName: string; mutable ActionId: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Budgets.ExecuteBudgetAction`. */
+  mutable tag: string
+  /** The distilled operation; the action identifiers are injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the budget action ARN. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (action: BudgetAction) => {
+    const AccountId = try action.accountId.asEffect()
+    const BudgetName = try action.budgetName.asEffect()
+    const ActionId = try action.actionId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${action})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${action.actionArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "AccountId" | "BudgetName" | "ActionId">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            AccountId: try AccountId,
+            BudgetName: try BudgetName,
+            ActionId: try ActionId,
+          } as I)
+        },
+        `${options.tag}(${action.LogicalId})`,
+      )
+  }
+}

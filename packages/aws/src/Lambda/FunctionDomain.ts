@@ -19,8 +19,8 @@ import { defaultProviderMode, type ProviderMode } from "alchemy/ProviderMode";
  */
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import { ApiMapping } from "../ApiGatewayV2/ApiMapping.ts";
-import { DomainName } from "../ApiGatewayV2/DomainName.ts";
+import { ApiMapping } from "../ApiGatewayV2/ApiMapping.vibe";
+import { DomainName } from "../ApiGatewayV2/DomainName.vibe";
 import { HttpApi } from "../ApiGatewayV2/HttpApi.ts";
 import { domainCertificate, resolveDomainDns } from "../CustomDomain.ts";
 import { qualifiedArnOf, qualifiedNameOf } from "./QualifiedArn.ts";

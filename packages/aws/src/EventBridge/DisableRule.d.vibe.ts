@@ -1,7 +1,7 @@
 import type * as eventbridge from "@distilled.cloud/aws/eventbridge";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Rule } from "./Rule.js";
+import type { Rule } from "./Rule.vibe";
 /**
  * Disables an EventBridge rule (`events:DisableRule`) so it stops matching
  * events without deleting it.

@@ -1,7 +1,7 @@
 import type * as quicksight from "@distilled.cloud/aws/quicksight";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Dashboard } from "./Dashboard.js";
+import type { Dashboard } from "./Dashboard.vibe";
 /**
  * Request for {@link GenerateEmbedUrlForRegisteredUser}. `AwsAccountId` is
  * injected from the bound dashboard's ARN; `ExperienceConfiguration`

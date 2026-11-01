@@ -1,7 +1,7 @@
 import type * as glacier from "@distilled.cloud/aws/glacier";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Vault } from "./Vault.js";
+import type { Vault } from "./Vault.vibe";
 /**
  * `CompleteMultipartUpload` request with `accountId` and `vaultName` injected from the bound
  * {@link Vault}.

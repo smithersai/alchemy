@@ -1,7 +1,7 @@
 import type * as scheduler from "@distilled.cloud/aws/scheduler";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ScheduleGroup } from "./ScheduleGroup.js";
+import type { ScheduleGroup } from "./ScheduleGroup.vibe";
 export interface DeleteScheduleRequest extends Omit<scheduler.DeleteScheduleInput, "GroupName"> {
 }
 /**

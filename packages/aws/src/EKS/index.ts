@@ -56,7 +56,7 @@ export * from "./ListPodIdentityAssociationsHttp.vibe";
 export * from "./ListUpdates.vibe";
 export * from "./ListUpdatesHttp.vibe";
 export * from "./Nodegroup.ts";
-export * from "./PodIdentityAssociation.ts";
+export * from "./PodIdentityAssociation.vibe";
 export * from "./StartInsightsRefresh.vibe";
 export * from "./StartInsightsRefreshHttp.vibe";
 

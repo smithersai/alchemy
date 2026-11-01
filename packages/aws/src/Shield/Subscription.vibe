@@ -1,0 +1,176 @@
+import * as shield from "@distilled.cloud/aws/shield"
+import { Unowned } from "alchemy/AdoptPolicy"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+export error ShieldSubscriptionUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+/** Whether the Shield Advanced subscription renews automatically. */
+export type SubscriptionAutoRenew = "ENABLED" | "DISABLED"
+
+export interface SubscriptionProps {
+  /**
+   * Whether the subscription renews automatically at the end of the 1-year
+   * commitment. Mutable — but AWS only allows changing it in the 30 days
+   * before the current period ends.
+   * @default "ENABLED"
+   */
+  mutable autoRenew?: SubscriptionAutoRenew
+}
+
+export interface Subscription extends
+  Resource<
+    "AWS.Shield.Subscription",
+    SubscriptionProps,
+    {
+      /** ARN of the subscription. */
+      mutable subscriptionArn: string | undefined
+      /** Start of the current subscription period (ISO timestamp). */
+      mutable startTime: string | undefined
+      /** End of the current subscription period (ISO timestamp). */
+      mutable endTime: string | undefined
+      /** Length of the commitment, in seconds (1 year). */
+      mutable timeCommitmentInSeconds: number | undefined
+      /** Whether the subscription auto-renews. */
+      mutable autoRenew: string | undefined
+      /** Whether proactive engagement by the Shield Response Team is enabled. */
+      mutable proactiveEngagementStatus: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * The account-level AWS Shield Advanced subscription.
+ *
+ * :::caution
+ * Creating this resource subscribes the account to Shield Advanced at
+ * **$3,000/month with a mandatory 1-year commitment** (billed to the
+ * Organizations payer account). AWS refuses `DeleteSubscription` until the
+ * commitment ends, so destroying this resource before then leaves the
+ * subscription in place (a warning is logged); after the commitment it is
+ * cancelled for real.
+ * :::
+ *
+ * ### Subscribing to Shield Advanced
+ * **Example:** Subscribe with Auto-Renew
+ * ```typescript
+ * const subscription = yield* Shield.Subscription("Shield", {});
+ * ```
+ *
+ * **Example:** Subscribe and Disable Auto-Renew
+ * ```typescript
+ * const subscription = yield* Shield.Subscription("Shield", {
+ *   autoRenew: "DISABLED",
+ * });
+ * ```
+ */
+const SubscriptionResource = Resource<Subscription>("AWS.Shield.Subscription")
+
+export { SubscriptionResource as Subscription }
+
+// `describeSubscription` fails with the (patched) typed `SubscriptionNotFound`
+// when the account is not subscribed — collapse it to `undefined`.
+const observeSubscription = effect {
+  return (try shield.describeSubscription({})).Subscription catch effect (e) => match (e) {
+    when { _tag: "SubscriptionNotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+}
+
+const buildAttrs = (subscription: shield.Subscription): infer _ => ({
+  subscriptionArn: subscription.SubscriptionArn,
+  startTime: subscription.StartTime?.toISOString(),
+  endTime: subscription.EndTime?.toISOString(),
+  timeCommitmentInSeconds: subscription.TimeCommitmentInSeconds,
+  autoRenew: subscription.AutoRenew,
+  proactiveEngagementStatus: subscription.ProactiveEngagementStatus,
+})
+
+export const SubscriptionProvider = (): infer _ =>
+  Provider.effect(
+    SubscriptionResource,
+    effect {
+      return {
+        stables: ["subscriptionArn"],
+
+        read: effect ({ output }) => {
+          const subscription = try observeSubscription
+          if (!subscription) return undefined
+          const attrs = buildAttrs(subscription)
+          // Shield subscriptions carry no tags, so ownership cannot be
+          // verified from cloud state alone. Treat it as ours only when we
+          // have prior state; otherwise gate adoption behind --adopt.
+          return output ? attrs : Unowned(attrs)
+        },
+
+        // Account-level singleton — report the single subscription, if any.
+        list: effect () =>
+          try effect {
+            const subscription = try observeSubscription
+            return (subscription ? [buildAttrs(subscription)] : [])
+          },
+
+        reconcile: effect ({ news, session }) => {
+          // 1. OBSERVE — cloud state is authoritative.
+          let subscription = try observeSubscription
+
+          // 2. ENSURE — subscribe if not already; tolerate the AlreadyExists
+          //    race.
+          if (!subscription) {
+            shield
+              .createSubscription({}) catch effect (e) => match (e) {
+                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                default: throw e;
+              }
+            subscription = (try shield
+              .describeSubscription({})).Subscription
+            if (!subscription) {
+              throw new ShieldSubscriptionUnexpectedResponse({
+                message: "Failed to create or read the Shield Advanced subscription",
+              })
+            }
+          }
+
+          // 3. SYNC auto-renew — observed ↔ desired; AWS only accepts the
+          //    change within 30 days of the period end, so skip the call on
+          //    a no-op.
+          const desiredAutoRenew = news.autoRenew ?? "ENABLED"
+          if (subscription.AutoRenew !== desiredAutoRenew) {
+            try shield.updateSubscription({ AutoRenew: desiredAutoRenew })
+            const refreshed = (try shield
+              .describeSubscription({})).Subscription
+            subscription = refreshed ?? subscription
+          }
+
+          // 4. RETURN fresh attributes.
+          if (subscription.SubscriptionArn !== undefined) {
+            try session.note(subscription.SubscriptionArn)
+          }
+          return buildAttrs(subscription)
+        },
+
+        delete: effect () => {
+          // AWS refuses to cancel a Shield Advanced subscription before the
+          // 1-year commitment ends (LockedSubscriptionException). Warn and
+          // leave it in place rather than wedging the destroy.
+          shield.deleteSubscription({}) catch effect (e) =>
+            match (e) {
+              when { _tag: "SubscriptionNotFound" } or { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            } catch effect (error) => match (error) {
+              when { _tag: "LockedSubscriptionException" }: try Effect.logWarning(
+                "Shield Advanced subscription is locked for its 1-year commitment and cannot be cancelled yet; leaving it in place.",
+                error,
+              );
+              default: throw error;
+            }
+        },
+      }
+    },
+  )

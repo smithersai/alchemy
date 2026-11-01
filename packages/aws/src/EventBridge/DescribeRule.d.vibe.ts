@@ -1,7 +1,7 @@
 import * as eventbridge from "@distilled.cloud/aws/eventbridge";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Rule } from "./Rule.js";
+import type { Rule } from "./Rule.vibe";
 export interface DescribeRuleRequest extends Omit<eventbridge.DescribeRuleRequest, "Name" | "EventBusName"> {
 }
 /**

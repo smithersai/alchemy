@@ -1,0 +1,505 @@
+import * as cloudtrail from "@distilled.cloud/aws/cloudtrail"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { toWireDays } from "alchemy/Util/Duration"
+import type * as Duration from "effect/Duration"
+import type { Providers } from "../Providers.vibe"
+
+/**
+ * A field selector inside an advanced event selector. Mirrors the
+ * CloudTrail `AdvancedFieldSelector` wire shape.
+ */
+export interface EventDataStoreFieldSelector {
+  /**
+   * The event record field to select on (e.g. `eventCategory`,
+   * `resources.type`).
+   */
+  mutable field: string
+  /** Exact-match values. */
+  mutable equals?: string[]
+  /** Prefix-match values. */
+  mutable startsWith?: string[]
+  /** Suffix-match values. */
+  mutable endsWith?: string[]
+  /** Exact-mismatch values. */
+  mutable notEquals?: string[]
+  /** Prefix-mismatch values. */
+  mutable notStartsWith?: string[]
+  /** Suffix-mismatch values. */
+  mutable notEndsWith?: string[]
+}
+
+/**
+ * An advanced event selector controlling which events the event data
+ * store collects.
+ */
+export interface EventDataStoreEventSelector {
+  /** Descriptive name for the selector. */
+  mutable name?: string
+  /** Field selectors that events must match to be collected. */
+  mutable fieldSelectors: EventDataStoreFieldSelector[]
+}
+
+export interface EventDataStoreProps {
+  /**
+   * Name of the event data store. Must be 3-128 characters, contain only
+   * letters, numbers, periods, underscores, and dashes, and start and end
+   * with a letter or number. Renaming updates the store in place (the ARN
+   * is the stable identity).
+   * @default ${app}-${stage}-${id}
+   */
+  mutable name?: string
+  /**
+   * Advanced event selectors controlling which events are collected.
+   * @default management events
+   */
+  mutable advancedEventSelectors?: EventDataStoreEventSelector[]
+  /**
+   * Whether the event data store collects events from all Regions or
+   * only the current Region.
+   * @default true
+   */
+  mutable multiRegionEnabled?: boolean
+  /**
+   * Whether the event data store collects events for all accounts in an
+   * organization.
+   * @default false
+   */
+  mutable organizationEnabled?: boolean
+  /**
+   * Retention period, e.g. `"30 days"` or `Duration.days(30)` (minimum
+   * 7 days; maximum 2557 days under `EXTENDABLE_RETENTION_PRICING`,
+   * 3653 days under `FIXED_RETENTION_PRICING`). Rounded to whole days
+   * on the wire.
+   * @default 366 days
+   */
+  mutable retentionPeriod?: Duration.Input
+  /**
+   * Whether termination protection is enabled. A protected store cannot
+   * be deleted until protection is disabled.
+   * @default true (AWS default)
+   */
+  mutable terminationProtectionEnabled?: boolean
+  /**
+   * The billing mode for the event data store.
+   * @default "EXTENDABLE_RETENTION_PRICING"
+   */
+  mutable billingMode?: "EXTENDABLE_RETENTION_PRICING" | "FIXED_RETENTION_PRICING"
+  /**
+   * KMS key ID (ID, alias, or ARN) used to encrypt the events delivered
+   * to the event data store.
+   */
+  mutable kmsKeyId?: string
+  /**
+   * Whether the event data store ingests live events. Synced via
+   * `StartEventDataStoreIngestion` / `StopEventDataStoreIngestion`; a
+   * stopped store keeps its collected events queryable.
+   * @default true (AWS default)
+   */
+  mutable ingestionEnabled?: boolean
+  /**
+   * Tags to apply to the event data store. Merged with internal Alchemy
+   * tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface EventDataStore extends
+  Resource<
+    "AWS.CloudTrail.EventDataStore",
+    EventDataStoreProps,
+    {
+      /** ARN of the event data store (its stable identity). */
+      mutable eventDataStoreArn: string
+      /** Name of the event data store. */
+      mutable name: string
+      /** Current status (e.g. `ENABLED`, `STARTING_INGESTION`). */
+      mutable status: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A CloudTrail Lake event data store — an immutable collection of events
+ * that can be queried with SQL via CloudTrail Lake.
+ *
+ * Deleting an event data store schedules it for deletion
+ * (`PENDING_DELETION`); AWS purges it after a seven-day wait period during
+ * which it incurs no cost. If a store with the same name is still pending
+ * deletion, the reconciler restores it instead of creating a duplicate.
+ * ### Creating Event Data Stores
+ * **Example:** Basic Event Data Store
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const store = yield* AWS.CloudTrail.EventDataStore("Lake", {
+ *   retentionPeriod: "7 days",
+ *   terminationProtectionEnabled: false,
+ * });
+ * ```
+ *
+ * **Example:** Single-Region Store with Custom Selectors
+ * ```typescript
+ * const store = yield* AWS.CloudTrail.EventDataStore("S3DataEvents", {
+ *   multiRegionEnabled: false,
+ *   retentionPeriod: "30 days",
+ *   terminationProtectionEnabled: false,
+ *   advancedEventSelectors: [
+ *     {
+ *       name: "S3 data events",
+ *       fieldSelectors: [
+ *         { field: "eventCategory", equals: ["Data"] },
+ *         { field: "resources.type", equals: ["AWS::S3::Object"] },
+ *       ],
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const EventDataStore = Resource<EventDataStore>("AWS.CloudTrail.EventDataStore")
+
+/**
+ * A just-created or just-restored event data store transitions through
+ * `CREATED`/`STARTING_INGESTION` before mutations are accepted; concurrent
+ * mutations surface as transient `ConflictException` /
+ * `InvalidEventDataStoreStatusException`.
+ *
+ * Expressed as an explicitly-typed helper: inlining `Effect.retry` in a
+ * lifecycle op leaks `Retry.Return`'s conditional into declaration emit
+ * and widens the provider layer to an `unknown` R for every consumer of
+ * `AWS.providers()`.
+ */
+const retryWhileSettling = effect <A, E extends { mutable _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) =>
+      e._tag === "ConflictException"
+      || e._tag === "InvalidEventDataStoreStatusException"
+      || e._tag === "InactiveEventDataStoreException",
+    schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(10)]),
+  })
+
+/**
+ * Deletion right after another mutation can raise a transient
+ * `ConflictException`; already-inactive stores are handled by the caller
+ * as success and must NOT be retried.
+ */
+const retryWhileDeleteConflict = effect <A, E extends { mutable _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "ConflictException",
+    schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(10)]),
+  })
+
+const toWireSelectors = (
+  selectors: EventDataStoreEventSelector[] | undefined,
+): cloudtrail.AdvancedEventSelector[] | undefined =>
+  selectors?.map((s) => ({
+    Name: s.name,
+    FieldSelectors: s.fieldSelectors.map((f) => ({
+      Field: f.field,
+      Equals: f.equals,
+      StartsWith: f.startsWith,
+      EndsWith: f.endsWith,
+      NotEquals: f.notEquals,
+      NotStartsWith: f.notStartsWith,
+      NotEndsWith: f.notEndsWith,
+    })),
+  }))
+
+export const EventDataStoreProvider = (): infer _ =>
+  Provider.effect(
+    EventDataStore,
+    effect {
+      const createName = effect (id: string, props: { mutable name?: string | undefined }) => {
+        if (props.name) {
+          return props.name
+        }
+        return try createPhysicalName({ id, maxLength: 128 })
+      }
+
+      const fetchObservedTags = effect (arn: string) =>
+        (try effect {
+          const r = try cloudtrail.listTags({ ResourceIdList: [arn] })
+
+          const tags: Record<string, string> = {}
+          for (const t of r.ResourceTagList?.[0]?.TagsList ?? []) {
+            tags[t.Key] = t.Value ?? ""
+          }
+          return tags
+        }) catch () => ({}) as Record<string, string>
+
+      // Look up a store by ARN, tolerating the typed not-found.
+      const getByArn = effect (arn: string) =>
+        cloudtrail
+          .getEventDataStore({ EventDataStore: arn }) catch effect (e) => match (e) {
+            when { _tag: "EventDataStoreNotFoundException" } or { _tag: "EventDataStoreARNInvalidException" }:
+              try Effect.undefined;
+            default: throw e;
+          }
+
+      // Find a store by name, INCLUDING pending-deletion ones — the caller
+      // decides whether a `PENDING_DELETION` match should be restored.
+      const findByName = effect (name: string) =>
+        Array.from(
+          try (cloudtrail.listEventDataStores.pages({})
+            |> Stream.runCollect(%)),
+        )
+          .flatMap((page) => page.EventDataStores ?? [])
+          .find((s) => s.Name === name)
+
+      return EventDataStore.Provider.of({
+        stables: ["eventDataStoreArn", "name"],
+        list: effect () => {
+          const stores = Array.from(
+            try (cloudtrail.listEventDataStores.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.EventDataStores ?? [])
+          return stores
+            .filter(
+              (s) =>
+                s.EventDataStoreArn !== undefined
+                && s.Name !== undefined
+                && s.Status !== "PENDING_DELETION",
+            )
+            .map((s) => ({
+              eventDataStoreArn: s.EventDataStoreArn!,
+              name: s.Name!,
+              status: s.Status ?? "ENABLED",
+            }))
+        },
+        read: effect ({ id, olds, output }) => {
+          const store = output?.eventDataStoreArn
+            ? try getByArn(output.eventDataStoreArn)
+            : try findByName(try createName(id, olds ?? {}))
+          if (store === undefined || store.Status === "PENDING_DELETION") {
+            return undefined
+          }
+          const attrs = {
+            eventDataStoreArn: store.EventDataStoreArn!,
+            name: store.Name!,
+            status: store.Status ?? "ENABLED",
+          }
+          const tags = try fetchObservedTags(attrs.eventDataStoreArn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+        diff: effect ({ news }) => {
+          if (!isResolved(news)) return undefined
+          // Every prop (including the name) is mutable via
+          // UpdateEventDataStore — the ARN is the stable identity, so no
+          // prop change forces a replacement.
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try createName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredSelectors = toWireSelectors(news.advancedEventSelectors)
+          // The CloudTrail wire unit for RetentionPeriod is whole days.
+          const retentionDays = toWireDays(news.retentionPeriod)
+
+          // 1. OBSERVE — prefer the cached ARN, fall back to name lookup.
+          let store = output?.eventDataStoreArn
+            ? try getByArn(output.eventDataStoreArn)
+            : try effect {
+              const s = try findByName(name)
+              return (s?.EventDataStoreArn ? try getByArn(s.EventDataStoreArn) : try Effect.undefined)
+            }
+
+          // A pending-deletion store still holds the name — restore it and
+          // let the sync step converge it to the desired state.
+          if (store !== undefined && store.Status === "PENDING_DELETION") {
+            try session.note(`Restoring pending-deletion event data store ${store.Name}`)
+            try retryWhileSettling(
+              cloudtrail.restoreEventDataStore({
+                EventDataStore: store.EventDataStoreArn!,
+              }),
+            )
+            store = try getByArn(store.EventDataStoreArn!)
+          }
+
+          // 2. ENSURE — create if missing; on the AlreadyExists race (or a
+          // same-name store pending deletion), converge via name lookup +
+          // restore.
+          if (store === undefined) {
+            try session.note(`Creating event data store ${name}`)
+            const created = cloudtrail
+              .createEventDataStore({
+                Name: name,
+                AdvancedEventSelectors: desiredSelectors,
+                MultiRegionEnabled: news.multiRegionEnabled,
+                OrganizationEnabled: news.organizationEnabled,
+                RetentionPeriod: retentionDays,
+                TerminationProtectionEnabled: news.terminationProtectionEnabled,
+                BillingMode: news.billingMode,
+                KmsKeyId: news.kmsKeyId,
+                StartIngestion: news.ingestionEnabled,
+                TagsList: Object.entries({
+                  ...news.tags,
+                  ...internalTags,
+                }).map(([Key, Value]) => ({ Key, Value })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "EventDataStoreAlreadyExistsException" }: try Effect.undefined;
+                default: throw e;
+              }
+            if (created?.EventDataStoreArn) {
+              store = try getByArn(created.EventDataStoreArn)
+            } else {
+              // AlreadyExists race — the holder may be active (peer created
+              // it) or pending deletion (a prior stack run deleted it).
+              const existing = try findByName(name)
+              if (existing?.Status === "PENDING_DELETION") {
+                try session.note(
+                  `Name ${name} is held by a pending-deletion store — restoring it`,
+                )
+                try retryWhileSettling(
+                  cloudtrail.restoreEventDataStore({
+                    EventDataStore: existing.EventDataStoreArn!,
+                  }),
+                )
+              }
+              store = existing?.EventDataStoreArn
+                ? try getByArn(existing.EventDataStoreArn)
+                : undefined
+            }
+          }
+          if (store === undefined) {
+            // Surface the typed not-found from a direct name-keyed get.
+            store = try cloudtrail.getEventDataStore({
+              EventDataStore: name,
+            })
+          }
+
+          const arn = store.EventDataStoreArn!
+
+          // 3. SYNC — diff observed against desired, push only the delta.
+          const updateDelta: Partial<
+            Omit<cloudtrail.UpdateEventDataStoreRequest, "EventDataStore">
+          > = {}
+          if (store.Name !== name) {
+            updateDelta.Name = name
+          }
+          if (retentionDays !== undefined && store.RetentionPeriod !== retentionDays) {
+            updateDelta.RetentionPeriod = retentionDays
+          }
+          if (
+            news.multiRegionEnabled !== undefined
+            && store.MultiRegionEnabled !== news.multiRegionEnabled
+          ) {
+            updateDelta.MultiRegionEnabled = news.multiRegionEnabled
+          }
+          if (
+            news.organizationEnabled !== undefined
+            && store.OrganizationEnabled !== news.organizationEnabled
+          ) {
+            updateDelta.OrganizationEnabled = news.organizationEnabled
+          }
+          if (
+            news.terminationProtectionEnabled !== undefined
+            && store.TerminationProtectionEnabled !== news.terminationProtectionEnabled
+          ) {
+            updateDelta.TerminationProtectionEnabled = news.terminationProtectionEnabled
+          }
+          if (news.billingMode !== undefined && store.BillingMode !== news.billingMode) {
+            updateDelta.BillingMode = news.billingMode
+          }
+          if (news.kmsKeyId !== undefined && store.KmsKeyId !== news.kmsKeyId) {
+            updateDelta.KmsKeyId = news.kmsKeyId
+          }
+          if (
+            desiredSelectors !== undefined
+            && JSON.stringify(store.AdvancedEventSelectors ?? []) !== JSON.stringify(desiredSelectors)
+          ) {
+            updateDelta.AdvancedEventSelectors = desiredSelectors
+          }
+          if (Object.keys(updateDelta).length > 0) {
+            try session.note(
+              `Updating event data store: ${Object.keys(updateDelta).join(", ")}`,
+            )
+            store = try retryWhileSettling(
+              cloudtrail.updateEventDataStore({
+                EventDataStore: arn,
+                ...updateDelta,
+              }),
+            )
+          }
+
+          // 3b. SYNC ingestion state — only when declared. The store's
+          // Status is the observed ingestion state: ENABLED ingests,
+          // STOPPED_INGESTION does not. retryWhileSettling rides out the
+          // CREATED/STARTING_INGESTION window after create/restore.
+          if (news.ingestionEnabled !== undefined) {
+            const status = store.Status ?? "ENABLED"
+            if (news.ingestionEnabled && status === "STOPPED_INGESTION") {
+              try session.note(`Starting ingestion for ${name}`)
+              try retryWhileSettling(
+                cloudtrail.startEventDataStoreIngestion({
+                  EventDataStore: arn,
+                }),
+              )
+              store = (try getByArn(arn)) ?? store
+            } else if (!news.ingestionEnabled && status !== "STOPPED_INGESTION") {
+              try session.note(`Stopping ingestion for ${name}`)
+              try retryWhileSettling(
+                cloudtrail.stopEventDataStoreIngestion({
+                  EventDataStore: arn,
+                }),
+              )
+              store = (try getByArn(arn)) ?? store
+            }
+          }
+
+          // 3c. SYNC tags against OBSERVED cloud tags (adoption-safe).
+          const observedTags = try fetchObservedTags(arn)
+          const { upsert, removed } = diffTags(observedTags, {
+            ...news.tags,
+            ...internalTags,
+          })
+          if (upsert.length > 0) {
+            try cloudtrail.addTags({
+              ResourceId: arn,
+              TagsList: upsert.map((t) => ({ Key: t.Key, Value: t.Value })),
+            })
+          }
+          if (removed.length > 0) {
+            try cloudtrail.removeTags({
+              ResourceId: arn,
+              TagsList: removed.map((Key) => ({ Key })),
+            })
+          }
+
+          try session.note(arn)
+          return {
+            eventDataStoreArn: arn,
+            name: store.Name ?? name,
+            status: store.Status ?? "ENABLED",
+          }
+        },
+        // DeleteEventDataStore schedules PENDING_DELETION (7-day window, no
+        // cost). Idempotent: already-deleted (NotFound/ARNInvalid) and
+        // already-pending (Inactive) stores are both success. A protected
+        // store fails with the typed
+        // `EventDataStoreTerminationProtectedException` — disable
+        // `terminationProtectionEnabled` first.
+        delete: effect ({ output }) => {
+          retryWhileDeleteConflict(
+            cloudtrail.deleteEventDataStore({
+              EventDataStore: output.eventDataStoreArn,
+            }),
+          ) catch effect (e) => match (e) {
+            when { _tag: "EventDataStoreNotFoundException" } or { _tag: "EventDataStoreARNInvalidException" } or { _tag: "InactiveEventDataStoreException" }:
+              try Effect.void;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

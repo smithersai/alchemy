@@ -17,7 +17,7 @@ export {
 } from "./DescribeImageScanFindings.vibe";
 export { DescribeImageScanFindingsHttp } from "./DescribeImageScanFindingsHttp.vibe";
 export { GetAuthorizationToken } from "./GetAuthorizationToken.vibe";
-export { GetAuthorizationTokenHttp } from "./GetAuthorizationTokenHttp.ts";
+export { GetAuthorizationTokenHttp } from "./GetAuthorizationTokenHttp.vibe";
 export {
   GetDownloadUrlForLayer,
   type GetDownloadUrlForLayerRequest,
@@ -51,8 +51,8 @@ export {
   RegistryPolicy,
   RegistryPolicyProvider,
   type RegistryPolicyProps,
-} from "./RegistryPolicy.ts";
-export { Repository, RepositoryProvider, type RepositoryProps } from "./Repository.ts";
+} from "./RegistryPolicy.vibe";
+export { Repository, RepositoryProvider, type RepositoryProps } from "./Repository.vibe";
 export { StartImageScan, type StartImageScanRequest } from "./StartImageScan.vibe";
 export { StartImageScanHttp } from "./StartImageScanHttp.vibe";
 export { UploadLayerPart, type UploadLayerPartRequest } from "./UploadLayerPart.vibe";

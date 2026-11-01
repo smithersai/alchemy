@@ -20,6 +20,6 @@ export * from "./DescribeServerlessCaches.vibe";
 export * from "./DescribeServerlessCachesHttp.vibe";
 export * from "./ExportServerlessCacheSnapshot.vibe";
 export * from "./ExportServerlessCacheSnapshotHttp.vibe";
-export * from "./ServerlessCache.ts";
+export * from "./ServerlessCache.vibe";
 export * from "./ReplicationGroup.ts";
-export * from "./SubnetGroup.ts";
+export * from "./SubnetGroup.vibe";

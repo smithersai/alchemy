@@ -1,7 +1,7 @@
 import type * as elbv2 from "@distilled.cloud/aws/elastic-load-balancing-v2";
 import type * as Duration from "effect/Duration";
 import type * as Redacted from "effect/Redacted";
-import type { TargetGroupArn } from "./TargetGroup.js";
+import type { TargetGroupArn } from "./TargetGroup.vibe";
 /**
  * A single forward target with an optional traffic weight. Used by the
  * weighted-forward action to split traffic across multiple target groups.

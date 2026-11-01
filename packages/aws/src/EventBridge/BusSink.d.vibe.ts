@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { BatchRetryExhaustedError } from "alchemy/Util/BatchedSink";
 import type * as Effect from "effect/Effect";
 import type * as Sink from "effect/Sink";
-import type { EventBus } from "./EventBus.js";
+import type { EventBus } from "./EventBus.vibe";
 /**
  * A raw `PutEventsRequestEntry` minus `EventBusName`, which the sink derives
  * from the bus it is bound to. Callers stay in control of `Source`,

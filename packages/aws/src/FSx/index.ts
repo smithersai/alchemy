@@ -28,7 +28,7 @@ export * from "./DescribeStorageVirtualMachines.vibe";
 export * from "./DescribeStorageVirtualMachinesHttp.vibe";
 export * from "./DescribeVolumes.vibe";
 export * from "./DescribeVolumesHttp.vibe";
-export * from "./FileSystem.ts";
+export * from "./FileSystem.vibe";
 export * from "./ReleaseFileSystemNfsV3Locks.vibe";
 export * from "./ReleaseFileSystemNfsV3LocksHttp.vibe";
 export * from "./RestoreVolumeFromSnapshot.vibe";

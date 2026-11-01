@@ -2,7 +2,7 @@ import type * as Lambda from "@distilled.cloud/aws/lambda";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import type { Stream as KinesisStream } from "./Stream.ts";
+import type { Stream as KinesisStream } from "./Stream.vibe";
 
 export type KinesisEventRecord = import("aws-lambda").KinesisStreamRecord;
 

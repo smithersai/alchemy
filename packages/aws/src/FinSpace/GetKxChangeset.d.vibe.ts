@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/finspace";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { KxEnvironment } from "./KxEnvironment.js";
+import type { KxEnvironment } from "./KxEnvironment.vibe";
 /**
  * Runtime binding for `finspace:GetKxChangeset` — reads one changeset of a kdb database in the bound environment — status, change requests, and error details — so ingestion pipelines can poll a changeset to `COMPLETED`.
  * Provide the implementation with

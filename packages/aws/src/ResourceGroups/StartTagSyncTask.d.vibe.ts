@@ -2,7 +2,7 @@ import type * as resourcegroups from "@distilled.cloud/aws/resource-groups";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { Role } from "../IAM/Role.js";
-import type { Group } from "./Group.js";
+import type { Group } from "./Group.vibe";
 /**
  * Request for {@link StartTagSyncTask} — the group and (by default) the
  * bound role are injected from the binding; pass `RoleArn` to override.

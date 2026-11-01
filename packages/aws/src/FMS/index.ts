@@ -1,4 +1,4 @@
-export * from "./AdminAccount.ts";
+export * from "./AdminAccount.vibe";
 export * from "./AssociateThirdPartyFirewall.vibe";
 export * from "./AssociateThirdPartyFirewallHttp.vibe";
 export * from "./BatchAssociateResource.vibe";

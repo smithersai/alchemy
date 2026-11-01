@@ -1,5 +1,5 @@
-export * from "./Budget.ts";
-export * from "./BudgetAction.ts";
+export * from "./Budget.vibe";
+export * from "./BudgetAction.vibe";
 export * from "./DescribeBudget.vibe";
 export * from "./DescribeBudgetHttp.vibe";
 export * from "./DescribeBudgetActionHistories.vibe";

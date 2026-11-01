@@ -1,0 +1,240 @@
+import * as iot from "@distilled.cloud/aws/iot"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readIotTags, syncIotTags } from "./internal.ts"
+
+export interface ThingTypeProps {
+  /**
+   * Name of the thing type. If omitted, a unique name is generated.
+   * Changing it replaces the thing type.
+   */
+  mutable thingTypeName?: string
+
+  /**
+   * A description of the thing type.
+   */
+  mutable description?: string
+
+  /**
+   * A list of searchable thing attribute names.
+   */
+  mutable searchableAttributes?: string[]
+
+  /**
+   * User tags to attach to the thing type.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface ThingType extends
+  Resource<
+    "AWS.IoT.ThingType",
+    ThingTypeProps,
+    {
+      /** The name of the thing type. */
+      mutable thingTypeName: string
+      /** The ARN of the thing type. */
+      mutable thingTypeArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS IoT Thing Type — a reusable template describing a class of things.
+ *
+ * ### Creating a Thing Type
+ * **Example:** Basic Thing Type
+ * ```typescript
+ * const thingType = yield* ThingType("sensor-type", {
+ *   description: "Temperature sensors",
+ *   searchableAttributes: ["location", "model"],
+ * });
+ * ```
+ *
+ * **Example:** Create a Thing of this Type
+ * ```typescript
+ * const thingType = yield* ThingType("sensor-type", {
+ *   searchableAttributes: ["location"],
+ * });
+ *
+ * const thing = yield* Thing("sensor", {
+ *   thingTypeName: thingType.thingTypeName,
+ *   attributes: { location: "warehouse-a" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ThingType = Resource<ThingType>("AWS.IoT.ThingType")
+
+export error ThingTypeDeletionTimedOut {
+  thingTypeName: string
+  waitedSeconds: number
+}
+
+export const ThingTypeProvider = (): infer _ =>
+  Provider.effect(
+    ThingType,
+    effect {
+      const createName = effect (id: string, props: ThingTypeProps) =>
+        props.thingTypeName ?? (try createPhysicalName({ id }))
+
+      return ThingType.Provider.of({
+        stables: ["thingTypeName", "thingTypeArn"],
+        list: effect () =>
+          Array.from(
+            try (iot.listThingTypes.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.thingTypes ?? [])
+              .filter((t) => t.thingTypeName != null && t.thingTypeArn != null)
+              .map((t) => ({
+                thingTypeName: t.thingTypeName!,
+                thingTypeArn: t.thingTypeArn!,
+              }))
+          ),
+        read: effect ({ id, olds, output }) => {
+          const thingTypeName = output?.thingTypeName ?? (try createName(id, olds ?? {}))
+          const found = iot
+            .describeThingType({ thingTypeName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+          if (!found) return undefined
+          const attrs = {
+            thingTypeName,
+            thingTypeArn: found.thingTypeArn!,
+          }
+          const tags = try readIotTags(found.thingTypeArn!)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+        diff: effect ({ id, news = {}, olds = {} }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+          // searchableAttributes are immutable after creation; a change
+          // requires replacement.
+          const oldAttrs = JSON.stringify(olds.searchableAttributes ?? [])
+          const newAttrs = JSON.stringify(news.searchableAttributes ?? [])
+          if (oldAttrs !== newAttrs) return { action: "replace" } as const
+          return undefined
+        },
+        reconcile: effect ({ id, news = {}, output, session }) => {
+          const thingTypeName = output?.thingTypeName ?? (try createName(id, news))
+
+          // OBSERVE
+          let live = iot
+            .describeThingType({ thingTypeName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+
+          // ENSURE
+          if (live === undefined) {
+            iot
+              .createThingType({
+                thingTypeName,
+                thingTypeProperties: {
+                  thingTypeDescription: news.description,
+                  searchableAttributes: news.searchableAttributes,
+                },
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                default: throw e;
+              }
+            live = try iot.describeThingType({ thingTypeName })
+          }
+
+          // SYNC deprecation — a destroy deprecates the type but AWS blocks
+          // deletion for 5 minutes, so a re-create with the same name can
+          // observe a deprecated type. Converge it back to active.
+          if (live.thingTypeMetadata?.deprecated) {
+            try iot.deprecateThingType({
+              thingTypeName,
+              undoDeprecate: true,
+            })
+            live = try iot.describeThingType({ thingTypeName })
+          }
+
+          // SYNC tags
+          try syncIotTags(live.thingTypeArn!, id, news.tags)
+
+          try session.note(thingTypeName)
+          return {
+            thingTypeName,
+            thingTypeArn: live.thingTypeArn!,
+          }
+        },
+        delete: effect ({ output }) => {
+          const thingTypeName = output.thingTypeName
+
+          // Things reference their type, so the engine dependency graph (and
+          // nuke's independent Thing provider) must remove owned Things first.
+          // Do not silently delete arbitrary foreign Things merely because
+          // they share this account-global type.
+          const initial = iot
+            .describeThingType({ thingTypeName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+          if (initial === undefined) return
+
+          if (!initial.thingTypeMetadata?.deprecated) {
+            iot
+              .deprecateThingType({ thingTypeName }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidRequestException" }: try Effect.void;
+                default: throw e;
+              }
+          }
+
+          // AWS enforces a mandatory five-minute deprecation window. A single
+          // provider operation must not block that long: retry only its typed
+          // InvalidRequestException for ~45s, then fail explicitly so state is
+          // preserved. A later destroy/nuke re-enters with the same stable name
+          // after AWS's clock has elapsed and completes the deletion. Success
+          // still requires DescribeThingType to report actual NotFound.
+          const attempts = 12
+          const intervalSeconds = 4
+          for (let attempt = 0; attempt < attempts; attempt++) {
+            const absent = (try (iot.describeThingType({ thingTypeName })
+              |> Effect.as(%, false))) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: true;
+                default: throw e;
+              }
+            if (absent) return
+
+            const deleteAccepted = (try (iot.deleteThingType({ thingTypeName })
+              |> Effect.as(%, true))) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: true;
+                when { _tag: "InvalidRequestException" }: false;
+                default: throw e;
+              }
+            if (deleteAccepted) {
+              const gone = (try (iot.describeThingType({ thingTypeName })
+                |> Effect.as(%, false))) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: true;
+                  default: throw e;
+                }
+              if (gone) return
+            }
+            if (attempt + 1 < attempts) {
+              try Effect.sleep(`${intervalSeconds} seconds`)
+            }
+          }
+
+          throw new ThingTypeDeletionTimedOut({
+            thingTypeName,
+            waitedSeconds: (attempts - 1) * intervalSeconds,
+          })
+        },
+      })
+    },
+  )

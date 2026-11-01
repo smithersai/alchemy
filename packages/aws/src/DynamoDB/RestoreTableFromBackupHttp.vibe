@@ -1,0 +1,55 @@
+import * as DynamoDB from "@distilled.cloud/aws/dynamodb"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { GrantTables, tablesRegion } from "./BindingHttp.ts"
+import { RestoreTableFromBackup, type RestoreTableFromBackupRequest } from "./RestoreTableFromBackup.vibe"
+import type { Table } from "./Table.ts"
+
+export const RestoreTableFromBackupHttp = Layer.effect(
+  RestoreTableFromBackup,
+  effect {
+    const grantTables = try GrantTables
+    return effect <From extends Table, To extends Table>(from: From, to: To) => {
+      const TargetTableName = try to.tableName.asEffect()
+      try grantTables(
+        `AWS.DynamoDB.RestoreTableFromBackup(${from.LogicalId}, ${to.LogicalId})`,
+        () => [
+          {
+            Effect: "Allow",
+            Action: ["dynamodb:RestoreTableFromBackup"],
+            Resource: [Output.interpolate`${from.tableArn}/backup/*`],
+          },
+          {
+            Effect: "Allow",
+            Action: [
+              "dynamodb:PutItem",
+              "dynamodb:UpdateItem",
+              "dynamodb:DeleteItem",
+              "dynamodb:GetItem",
+              "dynamodb:Query",
+              "dynamodb:Scan",
+              "dynamodb:BatchWriteItem",
+            ],
+            Resource: [to.tableArn],
+          },
+        ],
+      )
+      // Restores stay in-region: both tables must share it.
+      const restoreTableFromBackup = try AWSBindings.withCredentials(
+        DynamoDB.restoreTableFromBackup,
+        tablesRegion([from, to]),
+      )
+      return effect (request: RestoreTableFromBackupRequest) =>
+        try withSpan(
+          effect {
+            return try restoreTableFromBackup({
+              ...request,
+              TargetTableName: try TargetTableName,
+            })
+          },
+          `AWS.DynamoDB.RestoreTableFromBackup(${from.LogicalId}, ${to.LogicalId})`,
+        )
+    }
+  },
+)

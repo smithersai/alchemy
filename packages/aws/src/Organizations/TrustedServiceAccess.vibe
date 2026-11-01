@@ -1,0 +1,186 @@
+import * as organizations from "@distilled.cloud/aws/organizations"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+import { collectPages, retryOrganizations } from "./common.ts"
+
+export error TrustedServiceAccessUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface TrustedServiceAccessProps {
+  /**
+   * Service principal granted trusted access to the organization.
+   */
+  mutable servicePrincipal: string
+}
+
+export interface TrustedServiceAccess extends
+  Resource<
+    "AWS.Organizations.TrustedServiceAccess",
+    TrustedServiceAccessProps,
+    {
+      /**
+       * Service principal granted trusted access.
+       */
+      mutable servicePrincipal: string
+      /**
+       * When trusted access was enabled.
+       */
+      mutable dateEnabled: Date | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Enables trusted access for an AWS service principal, allowing that service
+ * to operate across all accounts in the organization.
+ *
+ * Typically paired with a {@link DelegatedAdministrator} that hands day-to-day
+ * administration of the service to a member account. Existence-only resource:
+ * changing `servicePrincipal` replaces it.
+ * ### Enabling Trusted Access
+ * **Example:** Enable IAM Identity Center
+ * ```typescript
+ * yield* TrustedServiceAccess("SsoTrustedAccess", {
+ *   servicePrincipal: "sso.amazonaws.com",
+ * });
+ * ```
+ *
+ * **Example:** Trusted Access Plus a Delegated Administrator
+ * ```typescript
+ * const guardDutyAccess = yield* TrustedServiceAccess("GuardDutyAccess", {
+ *   servicePrincipal: "guardduty.amazonaws.com",
+ * });
+ *
+ * yield* DelegatedAdministrator("GuardDutyAdmin", {
+ *   accountId: securityAccount.accountId,
+ *   servicePrincipal: guardDutyAccess.servicePrincipal,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const TrustedServiceAccess = Resource<TrustedServiceAccess>(
+  "AWS.Organizations.TrustedServiceAccess",
+)
+
+export const TrustedServiceAccessProvider = (): infer _ =>
+  Provider.effect(
+    TrustedServiceAccess,
+    effect {
+      return {
+        stables: ["servicePrincipal"],
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return
+          if (olds?.servicePrincipal !== news.servicePrincipal) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          const servicePrincipal = output?.servicePrincipal ?? olds?.servicePrincipal
+          if (servicePrincipal === undefined) {
+            // Output-valued props don't survive a `creating`-state round-trip
+            // (they deserialize as `undefined`) — report "not found" so the
+            // engine re-drives the create.
+            return undefined
+          }
+          return try readTrustedServiceAccess(servicePrincipal)
+        },
+        list: effect () =>
+          (try effect {
+            // Enumerate every service principal granted trusted access to the
+            // organization. The list response already carries the full `read`
+            // shape (servicePrincipal + dateEnabled), so each enabled principal
+            // maps directly to one Attributes — no per-item hydration needed.
+            const principals = try retryOrganizations(
+              collectPages(
+                (NextToken) =>
+                  organizations.listAWSServiceAccessForOrganization({
+                    NextToken,
+                  }),
+                (page) => page.EnabledServicePrincipals,
+              ),
+            )
+
+            return principals
+              .filter(
+                (
+                  candidate,
+                ): candidate is organizations.EnabledServicePrincipal & {
+                  mutable ServicePrincipal: string
+                } => candidate.ServicePrincipal != null,
+              )
+              .map(
+                (candidate) =>
+                  ({
+                    servicePrincipal: candidate.ServicePrincipal,
+                    dateEnabled: candidate.DateEnabled,
+                  }) satisfies TrustedServiceAccess["Attributes"],
+              )
+          }) catch effect (e) => match (e) {
+            when { _tag: "AWSOrganizationsNotInUseException" }: [] as TrustedServiceAccess["Attributes"][];
+            when { _tag: "AccessDeniedException" }: [] as TrustedServiceAccess["Attributes"][];
+            default: throw e;
+          },
+        reconcile: effect ({ news, session }) => {
+          // Observe — fetch live trusted-access state. We never trust prior
+          // `output` blindly; if access was disabled out-of-band we re-enable.
+          let state = try readTrustedServiceAccess(news.servicePrincipal)
+
+          // Ensure — enable trusted access if it's missing. This API is
+          // effectively idempotent for already-enabled principals, but we
+          // gate the call to avoid unnecessary churn.
+          if (!state) {
+            try retryOrganizations(
+              organizations.enableAWSServiceAccess({
+                ServicePrincipal: news.servicePrincipal,
+              }),
+            )
+            state = try readTrustedServiceAccess(news.servicePrincipal)
+            if (!state) {
+              throw new TrustedServiceAccessUnexpectedResponse({
+                message: `trusted service access '${news.servicePrincipal}' not found after create`,
+              })
+            }
+          }
+
+          try session.note(state.servicePrincipal)
+          return state
+        },
+        delete: effect ({ output }) => {
+          if (!(try readTrustedServiceAccess(output.servicePrincipal))) {
+            return
+          }
+
+          try retryOrganizations(
+            organizations.disableAWSServiceAccess({
+              ServicePrincipal: output.servicePrincipal,
+            }),
+          )
+        },
+      }
+    },
+  )
+
+const readTrustedServiceAccess = effect (servicePrincipal: string) => {
+  const principals = try retryOrganizations(
+    collectPages(
+      (NextToken) => organizations.listAWSServiceAccessForOrganization({ NextToken }),
+      (page) => page.EnabledServicePrincipals,
+    ),
+  )
+
+  const match = principals.find((candidate) => candidate.ServicePrincipal === servicePrincipal)
+
+  return match
+    ? ({
+      servicePrincipal,
+      dateEnabled: match.DateEnabled,
+    } satisfies TrustedServiceAccess["Attributes"])
+    : undefined
+}

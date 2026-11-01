@@ -1,7 +1,7 @@
 import type * as backup from "@distilled.cloud/aws/backup";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { BackupVault } from "./BackupVault.js";
+import type { BackupVault } from "./BackupVault.vibe";
 /**
  * `GetRecoveryPointRestoreMetadata` request with `BackupVaultName` injected
  * from the bound {@link BackupVault}.

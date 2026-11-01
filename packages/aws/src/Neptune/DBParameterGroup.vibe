@@ -1,0 +1,356 @@
+import * as neptune from "@distilled.cloud/aws/neptune"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+
+export error NeptuneDBParameterGroupUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface DBParameterGroupProps {
+  /**
+   * Name of the DB (instance-level) parameter group. If omitted, a
+   * deterministic name is generated. Changing it forces replacement.
+   */
+  mutable dbParameterGroupName?: string
+  /**
+   * DB parameter group family, e.g. `neptune1.4`, `neptune1.3`.
+   * Immutable — forces replacement.
+   */
+  mutable family: string
+  /**
+   * Description for the parameter group.
+   * @default "Managed by Alchemy"
+   */
+  mutable description?: string
+  /**
+   * Instance parameter overrides, e.g.
+   * `{ neptune_query_timeout: "120000" }`. Parameters removed from this map
+   * are reset to their engine defaults. Static parameters are applied with
+   * `pending-reboot`, dynamic parameters with `immediate`.
+   */
+  mutable parameters?: Record<string, string>
+  /**
+   * User-defined tags for the parameter group.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface DBParameterGroup extends
+  Resource<
+    "AWS.Neptune.DBParameterGroup",
+    DBParameterGroupProps,
+    {
+      /** Name of the parameter group. */
+      mutable dbParameterGroupName: string
+      /** ARN of the parameter group. */
+      mutable dbParameterGroupArn: string | undefined
+      /** Parameter group family (e.g. `neptune1.4`). */
+      mutable family: string
+      /** Description of the parameter group. */
+      mutable description: string | undefined
+      /** Non-default parameter values applied to the group. */
+      mutable parameters: Record<string, string>
+      /** Tags on the parameter group (user + internal Alchemy tags). */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Neptune DB (instance-level) parameter group — a named set of
+ * engine configuration parameters applied to individual Neptune
+ * {@link DBInstance}s via `dbParameterGroupName` (cluster-wide settings live
+ * in a {@link DBClusterParameterGroup} instead).
+ * ### Creating a Parameter Group
+ * **Example:** Parameter group with a custom query timeout
+ * ```typescript
+ * const params = yield* DBParameterGroup("InstanceParams", {
+ *   family: "neptune1.4",
+ *   parameters: {
+ *     neptune_query_timeout: "120000",
+ *   },
+ * });
+ * ```
+ *
+ * ### Attaching to an Instance
+ * **Example:** Instance using the parameter group
+ * ```typescript
+ * const writer = yield* DBInstance("Writer", {
+ *   dbClusterIdentifier: cluster.dbClusterIdentifier,
+ *   dbInstanceClass: "db.serverless",
+ *   dbParameterGroupName: params.dbParameterGroupName,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DBParameterGroup = Resource<DBParameterGroup>("AWS.Neptune.DBParameterGroup")
+
+const toTagRecord = (
+  tags: Array<{ mutable Key?: string; mutable Value?: string }> | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    (tags ?? [])
+      .filter(
+        (tag): tag is { mutable Key: string; mutable Value: string } =>
+          typeof tag.Key === "string" && typeof tag.Value === "string",
+      )
+      .map((tag) => [tag.Key, tag.Value]),
+  )
+
+/**
+ * A parameter modify/reset issued immediately after another change fails with
+ * `InvalidDBParameterGroupStateFault` ("has pending changes") until the prior
+ * change settles — retry it on a short bounded schedule.
+ */
+const retryWhileParameterGroupBusy = effect <A, E extends { mutable _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "InvalidDBParameterGroupStateFault",
+    schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(10)]),
+  })
+
+export const DBParameterGroupProvider = (): infer _ =>
+  Provider.effect(
+    DBParameterGroup,
+    effect {
+      const toName = effect (
+        id: string,
+        props: DBParameterGroupProps,
+      ) => (props.dbParameterGroupName ? props.dbParameterGroupName : try createPhysicalName({ id, maxLength: 255 }))
+
+      const readGroup = effect (groupName: string) => {
+        const response = neptune
+          .describeDBParameterGroups({
+            DBParameterGroupName: groupName,
+          }) catch effect (e) => match (e) {
+            when { _tag: "DBParameterGroupNotFoundFault" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.DBParameterGroups?.[0]
+      }
+
+      // All parameters (defaults + overrides) with their current values and
+      // apply types — the observed baseline for the parameter sync.
+      const readParameters = effect (groupName: string) =>
+        Array.from(
+          try (neptune.describeDBParameters.pages({ DBParameterGroupName: groupName })
+            |> Stream.runCollect(%)),
+        ).flatMap((page) => page.Parameters ?? [])
+
+      // The subset of parameters the user has overridden (Source `user`) —
+      // used to compute resets when a prop entry is removed.
+      const readUserParameters = effect (groupName: string) =>
+        Array.from(
+          try (neptune.describeDBParameters
+            .pages({ DBParameterGroupName: groupName, Source: "user" })
+            |> Stream.runCollect(%)),
+        ).flatMap((page) => page.Parameters ?? [])
+
+      const readTags = effect (arn: string | undefined) => {
+        if (!arn) return {} as Record<string, string>
+        const response = try neptune.listTagsForResource({
+          ResourceName: arn,
+        })
+        return toTagRecord(response?.TagList)
+      }
+
+      const toUserParameterRecord = (parameters: neptune.Parameter[]): Record<string, string> =>
+        Object.fromEntries(
+          parameters.flatMap((p) =>
+            p.ParameterName !== undefined && p.ParameterValue !== undefined
+              ? [[p.ParameterName, p.ParameterValue]]
+              : []
+          ),
+        )
+
+      return {
+        stables: ["dbParameterGroupArn", "dbParameterGroupName", "family"],
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toName(id, olds ?? { family: "" })) !== (try toName(id, news))) {
+            return { action: "replace" } as const
+          }
+          // Family is immutable — any change forces a fresh group.
+          if (olds !== undefined && olds.family !== news.family) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const name = output?.dbParameterGroupName
+            ?? (try toName(id, olds ?? ({ family: "" } as DBParameterGroupProps)))
+          const group = try readGroup(name)
+          if (!group?.DBParameterGroupName) {
+            return undefined
+          }
+          const userParameters = try readUserParameters(name)
+          const tags = try readTags(group.DBParameterGroupArn)
+          return {
+            dbParameterGroupName: group.DBParameterGroupName,
+            dbParameterGroupArn: group.DBParameterGroupArn,
+            family: group.DBParameterGroupFamily ?? "",
+            description: group.Description,
+            parameters: toUserParameterRecord(userParameters),
+            tags,
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.dbParameterGroupName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — fetch live parameter-group state.
+          let observed = try readGroup(name)
+
+          // Ensure — create if missing. Tolerate
+          // `DBParameterGroupAlreadyExistsFault` as a race with a peer
+          // reconciler by re-reading.
+          if (!observed?.DBParameterGroupName) {
+            neptune
+              .createDBParameterGroup({
+                DBParameterGroupName: name,
+                DBParameterGroupFamily: news.family,
+                Description: news.description ?? "Managed by Alchemy",
+                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "DBParameterGroupAlreadyExistsFault" }: try Effect.void;
+                default: throw e;
+              }
+            observed = try readGroup(name)
+            if (!observed?.DBParameterGroupName) {
+              throw new NeptuneDBParameterGroupUnexpectedResponse({
+                message: `Failed to create DB parameter group '${name}'`,
+              })
+            }
+          }
+
+          // Sync parameters — diff observed cloud values against desired.
+          const desiredParameters = news.parameters ?? {}
+          const allParameters = try readParameters(name)
+          const byName = new Map(allParameters.map((p) => [p.ParameterName, p]))
+
+          const toModify: neptune.Parameter[] = Object.entries(desiredParameters).flatMap(
+            ([ParameterName, ParameterValue]) => {
+              const current = byName.get(ParameterName)
+              if (current?.ParameterValue === ParameterValue) return []
+              return [
+                {
+                  ParameterName,
+                  ParameterValue,
+                  ApplyMethod: current?.ApplyType === "static" ? "pending-reboot" : "immediate",
+                },
+              ]
+            },
+          )
+          if (toModify.length > 0) {
+            // The API caps a single call at 20 parameters.
+            for (let i = 0; i < toModify.length; i += 20) {
+              try retryWhileParameterGroupBusy(
+                neptune.modifyDBParameterGroup({
+                  DBParameterGroupName: name,
+                  Parameters: toModify.slice(i, i + 20),
+                }),
+              )
+            }
+          }
+
+          // Reset user-overridden parameters that were removed from props.
+          const userParameters = try readUserParameters(name)
+          const toReset = userParameters.flatMap((p) =>
+            p.ParameterName !== undefined && !(p.ParameterName in desiredParameters)
+              ? [
+                {
+                  ParameterName: p.ParameterName,
+                  ApplyMethod: p.ApplyType === "static"
+                    ? ("pending-reboot" as const)
+                    : ("immediate" as const),
+                },
+              ]
+              : []
+          )
+          if (toReset.length > 0) {
+            for (let i = 0; i < toReset.length; i += 20) {
+              try retryWhileParameterGroupBusy(
+                neptune.resetDBParameterGroup({
+                  DBParameterGroupName: name,
+                  ResetAllParameters: false,
+                  Parameters: toReset.slice(i, i + 20),
+                }),
+              )
+            }
+          }
+
+          const arn = observed.DBParameterGroupArn
+
+          // Sync tags — diff observed cloud tags against desired.
+          const observedTags = try readTags(arn)
+          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0 && arn) {
+            try neptune.addTagsToResource({
+              ResourceName: arn,
+              Tags: upsert,
+            })
+          }
+          if (removed.length > 0 && arn) {
+            try neptune.removeTagsFromResource({
+              ResourceName: arn,
+              TagKeys: removed,
+            })
+          }
+
+          try session.note(arn ?? name)
+          return {
+            dbParameterGroupName: observed.DBParameterGroupName,
+            dbParameterGroupArn: arn,
+            family: observed.DBParameterGroupFamily ?? news.family,
+            description: observed.Description,
+            parameters: desiredParameters,
+            tags: desiredTags,
+          }
+        },
+        list: effect () =>
+          Array.from(
+            try (neptune.describeDBParameterGroups.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.DBParameterGroups ?? []).flatMap((group) =>
+              group.DBParameterGroupName
+                // `default.<family>` groups are AWS-managed and undeletable.
+                && !group.DBParameterGroupName.startsWith("default.")
+                && group.DBParameterGroupFamily?.startsWith("neptune")
+                ? [
+                  {
+                    dbParameterGroupName: group.DBParameterGroupName,
+                    dbParameterGroupArn: group.DBParameterGroupArn,
+                    family: group.DBParameterGroupFamily,
+                    description: group.Description,
+                    parameters: {} as Record<string, string>,
+                    tags: {} as Record<string, string>,
+                  },
+                ]
+                : []
+            )
+          ),
+        delete: effect ({ output }) => {
+          neptune
+            .deleteDBParameterGroup({
+              DBParameterGroupName: output.dbParameterGroupName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "DBParameterGroupNotFoundFault" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

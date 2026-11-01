@@ -4,7 +4,7 @@ import * as Binding from "alchemy/Binding";
 import type { SourceError } from "effect/ConfigProvider";
 import type * as Effect from "effect/Effect";
 import type { IngestRequest, PipelineIngestError } from "./BindingHttp.js";
-import type { Pipeline } from "./Pipeline.js";
+import type { Pipeline } from "./Pipeline.vibe";
 export type { IngestRequest } from "./BindingHttp.js";
 export { PipelineIngestError } from "./BindingHttp.js";
 /**

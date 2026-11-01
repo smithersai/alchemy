@@ -1,5 +1,5 @@
-export * from "./CapacityProvider.ts";
-export * from "./Cluster.ts";
+export * from "./CapacityProvider.vibe";
+export * from "./Cluster.vibe";
 export * from "./ClusterEventSource.vibe";
 export * from "./ContinueServiceDeployment.vibe";
 export * from "./ContinueServiceDeploymentHttp.vibe";
@@ -38,7 +38,7 @@ export * from "./StopServiceDeploymentHttp.vibe";
 export * from "./StopTask.vibe";
 export * from "./StopTaskHttp.vibe";
 export * from "./Task.ts";
-export * from "./TaskDefinition.ts";
+export * from "./TaskDefinition.vibe";
 export * from "./UpdateContainerInstancesState.vibe";
 export * from "./UpdateContainerInstancesStateHttp.vibe";
 export * from "./UpdateTaskProtection.vibe";

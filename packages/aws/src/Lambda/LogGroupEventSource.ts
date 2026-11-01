@@ -16,7 +16,7 @@ import {
 } from "../Logs/LogGroupEventSource.ts";
 import { SubscriptionFilter } from "../Logs/SubscriptionFilter.ts";
 import * as Lambda from "./Function.ts";
-import { Permission as LambdaPermission } from "./Permission.ts";
+import { Permission as LambdaPermission } from "./Permission.vibe";
 
 /**
  * Narrow an arbitrary Lambda invocation payload to a CloudWatch Logs

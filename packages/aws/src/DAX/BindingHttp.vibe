@@ -1,0 +1,96 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Cluster } from "./Cluster.vibe"
+
+/**
+ * Shared scaffolding for AWS DAX HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation and the IAM action list is
+ * boilerplate.
+ */
+
+/**
+ * Build the impl Effect for an account-level operation (cluster monitoring,
+ * event history). The deploy-time half grants `actions` on `*` — these
+ * read-only monitoring actions span every cluster/parameter-group in the
+ * account and the names they filter on are runtime data.
+ */
+export const makeDaxAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.DAX.DescribeEvents`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a cluster-scoped operation: the runtime callable
+ * injects the bound {@link Cluster}'s name as `ClusterName` and the
+ * deploy-time half grants `actions` on the cluster ARN.
+ */
+export const makeDaxClusterHttpBinding = effect <I extends { mutable ClusterName: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.DAX.RebootNode`. */
+  mutable tag: string
+  /** The distilled operation; `ClusterName` is injected from the cluster. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the cluster ARN. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (cluster: Cluster) => {
+    const ClusterName = try cluster.clusterName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${cluster})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${cluster.clusterArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "ClusterName">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ClusterName: try ClusterName,
+          } as I)
+        },
+        `${options.tag}(${cluster.LogicalId})`,
+      )
+  }
+}

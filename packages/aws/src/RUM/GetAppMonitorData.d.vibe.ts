@@ -1,7 +1,7 @@
 import type * as rum from "@distilled.cloud/aws/rum";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AppMonitor } from "./AppMonitor.js";
+import type { AppMonitor } from "./AppMonitor.vibe";
 export interface GetAppMonitorDataRequest extends Omit<rum.GetAppMonitorDataRequest, "Name"> {
 }
 /**

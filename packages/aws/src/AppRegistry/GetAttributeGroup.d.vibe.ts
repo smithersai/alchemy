@@ -1,7 +1,7 @@
 import type * as appregistry from "@distilled.cloud/aws/service-catalog-appregistry";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AttributeGroup } from "./AttributeGroup.js";
+import type { AttributeGroup } from "./AttributeGroup.vibe";
 /**
  * Runtime binding for `servicecatalog:GetAttributeGroup`.
  *

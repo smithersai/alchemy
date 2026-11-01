@@ -47,6 +47,6 @@ export * from "./SendApiAssetHttp.vibe";
 export * from "./SendDataSetNotification.vibe";
 export * from "./SendDataSetNotificationHttp.vibe";
 export * from "./StartJob.vibe";
-export * from "./StartJobHttp.ts";
+export * from "./StartJobHttp.vibe";
 export * from "./UpdateAsset.vibe";
 export * from "./UpdateAssetHttp.vibe";

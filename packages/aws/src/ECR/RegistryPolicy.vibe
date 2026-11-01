@@ -1,0 +1,129 @@
+import * as ecr from "@distilled.cloud/aws/ecr"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { AWSEnvironment } from "../Environment.ts"
+import type { PolicyDocument } from "../IAM/Policy.vibe"
+import { normalizePolicyDocument, stringifyPolicyDocument } from "../IAM/Policy.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface RegistryPolicyProps {
+  /**
+   * The registry permissions policy — grants other AWS accounts registry
+   * level permissions such as `ecr:ReplicateImage` (cross-account
+   * replication) or `ecr:CreateRepository`. Accepts either a structured IAM
+   * {@link PolicyDocument} or a raw JSON string (escape hatch / adoption of
+   * an existing policy).
+   */
+  mutable policy: PolicyDocument | string
+}
+
+export interface RegistryPolicy extends
+  Resource<
+    "AWS.ECR.RegistryPolicy",
+    RegistryPolicyProps,
+    {
+      /** The AWS account ID of the registry. */
+      mutable registryId: string
+      /** The JSON registry permissions policy as stored by ECR. */
+      mutable policy: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * The permissions policy for a private Amazon ECR registry — an
+ * account/region **singleton** used to grant other AWS accounts
+ * registry-level permissions (most commonly `ecr:ReplicateImage` when
+ * configuring cross-account replication).
+ * ### Managing the Registry Policy
+ * **Example:** Allow Cross-Account Replication
+ * ```typescript
+ * const policy = yield* RegistryPolicy("ReplicationPolicy", {
+ *   policy: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Sid: "AllowReplication",
+ *         Effect: "Allow",
+ *         Principal: { AWS: `arn:aws:iam::${sourceAccountId}:root` },
+ *         Action: ["ecr:ReplicateImage"],
+ *         Resource: `arn:aws:ecr:us-east-1:${accountId}:repository/*`,
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const RegistryPolicy = Resource<RegistryPolicy>("AWS.ECR.RegistryPolicy")
+
+export const RegistryPolicyProvider = (): infer _ =>
+  Provider.effect(
+    RegistryPolicy,
+    effect {
+      const readPolicy = effect {
+        return ecr
+          .getRegistryPolicy({}) catch effect (e) => match (e) {
+            when { _tag: "RegistryPolicyNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+      }
+
+      const toPolicyText = (policy: PolicyDocument | string): infer _ =>
+        typeof policy === "string" ? policy : stringifyPolicyDocument(policy)
+
+      return {
+        stables: ["registryId"],
+        read: effect () => {
+          const observed = try readPolicy
+          if (observed?.policyText === undefined) return undefined
+          return {
+            registryId: observed.registryId ?? (try AWSEnvironment.current).accountId,
+            policy: observed.policyText,
+          }
+        },
+        // The registry policy is an account/region singleton: at most one
+        // exists, keyed on the caller's registry.
+        list: effect () => {
+          const observed = try readPolicy
+          if (observed?.policyText === undefined) return []
+          return [
+            {
+              registryId: observed.registryId ?? (try AWSEnvironment.current).accountId,
+              policy: observed.policyText,
+            },
+          ]
+        },
+        reconcile: effect ({ news, session }) => {
+          const desired = toPolicyText(news.policy)
+
+          // Observe — compare the live policy against the desired one via
+          // `normalizePolicyDocument` (key order / whitespace insensitive)
+          // so a re-deploy of an equivalent document is a no-op.
+          const observed = try readPolicy
+          let registryId = observed?.registryId
+          if (
+            observed?.policyText === undefined
+            || normalizePolicyDocument(observed.policyText) !== normalizePolicyDocument(desired)
+          ) {
+            const put = try ecr.putRegistryPolicy({ policyText: desired })
+            registryId = put.registryId ?? registryId
+          }
+          registryId ??= (try AWSEnvironment.current).accountId
+
+          try session.note(registryId)
+          return { registryId, policy: desired }
+        },
+        delete: effect () => {
+          ecr
+            .deleteRegistryPolicy({}) catch effect (e) => match (e) {
+              when { _tag: "RegistryPolicyNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

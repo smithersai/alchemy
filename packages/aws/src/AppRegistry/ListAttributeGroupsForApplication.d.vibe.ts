@@ -1,7 +1,7 @@
 import type * as appregistry from "@distilled.cloud/aws/service-catalog-appregistry";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.vibe";
 /** `ListAttributeGroupsForApplication` request with `application` injected from the bound {@link Application}. */
 export interface ListAttributeGroupsForApplicationRequest extends Omit<appregistry.ListAttributeGroupsForApplicationRequest, "application"> {
 }

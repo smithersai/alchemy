@@ -1,7 +1,7 @@
 import type * as identitystore from "@distilled.cloud/aws/identitystore";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.vibe";
 /**
  * Runtime binding for the `DescribeUser` operation (IAM action
  * `identitystore:DescribeUser`), scoped to one {@link Instance}.

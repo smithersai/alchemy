@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import type { Endpoint } from "./Endpoint.js";
-import type { FeatureGroup } from "./FeatureGroup.js";
+import type { Endpoint } from "./Endpoint.vibe";
+import type { FeatureGroup } from "./FeatureGroup.vibe";
 /**
  * Shared scaffolding for Amazon SageMaker HTTP bindings.
  *

@@ -1,5 +1,5 @@
 import type { Input } from "alchemy/Input";
-import type { PolicyStatement } from "../IAM/Policy.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 import type { AliasName } from "./Alias.vibe";
 import type { Key } from "./Key.ts";
 

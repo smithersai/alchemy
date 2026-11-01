@@ -1,4 +1,4 @@
-export * from "./Export.ts";
+export * from "./Export.vibe";
 export * from "./GetExecution.vibe";
 export * from "./GetExecutionHttp.vibe";
 export * from "./GetExport.vibe";

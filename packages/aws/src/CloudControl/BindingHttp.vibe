@@ -1,0 +1,53 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { CloudControlBindingOptions } from "./BindingOptions.ts"
+
+/**
+ * Shared scaffolding for Cloud Control HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, makeCloudControlHttpBinding({ … }))` over the
+ * builder below. Everything except the operation and the IAM action is
+ * boilerplate.
+ *
+ * All Cloud Control bindings are account-level: the `cloudformation:*Resource`
+ * actions do not support resource-level scoping (the target is an arbitrary
+ * CloudFormation type name), so the grant is on `*`. Because Cloud Control
+ * invokes the resource type's handlers with the caller's credentials, callers
+ * of handler-invoking operations may pass extra
+ * {@link CloudControlBindingOptions.handlerPolicyStatements} that are attached
+ * to the host alongside the Cloud Control grant.
+ */
+export const makeCloudControlHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.CloudControl.GetResource`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*` (Cloud Control has no resource-level scoping). */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (bindOptions?: CloudControlBindingOptions | undefined) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+          ...(bindOptions?.handlerPolicyStatements ?? []),
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

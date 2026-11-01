@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type * as lambda from "aws-lambda";
 import type * as Effect from "effect/Effect";
-import type { UserPool, UserPoolTriggerName } from "./UserPool.ts";
+import type { UserPool, UserPoolTriggerName } from "./UserPool.vibe";
 
 /**
  * The typed event each trigger slot receives (the Cognito

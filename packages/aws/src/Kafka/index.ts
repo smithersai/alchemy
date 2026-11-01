@@ -15,6 +15,6 @@ export * from "./GetBootstrapBrokers.vibe";
 export * from "./GetBootstrapBrokersHttp.vibe";
 export * from "./ListTopics.vibe";
 export * from "./ListTopicsHttp.vibe";
-export * from "./ServerlessCluster.ts";
+export * from "./ServerlessCluster.vibe";
 export * from "./UpdateTopic.vibe";
 export * from "./UpdateTopicHttp.vibe";

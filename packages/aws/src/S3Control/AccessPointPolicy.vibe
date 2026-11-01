@@ -1,0 +1,147 @@
+import * as s3control from "@distilled.cloud/aws/s3-control"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { AWSEnvironment } from "../Environment.ts"
+import { normalizePolicyDocument, type PolicyDocument, stringifyPolicyDocument } from "../IAM/Policy.vibe"
+import type { Providers } from "../Providers.vibe"
+
+export interface AccessPointPolicyProps {
+  /**
+   * Name of the access point the policy is attached to.
+   *
+   * Changing the access point replaces the policy.
+   */
+  mutable accessPointName: string
+  /**
+   * The resource policy granting access through the access point, as a
+   * typed {@link PolicyDocument} or a raw JSON string (escape hatch /
+   * adoption). Object-level actions target `${accessPointArn}/object/${key}`.
+   */
+  mutable policy: PolicyDocument | string
+}
+
+export interface AccessPointPolicy extends
+  Resource<
+    "AWS.S3Control.AccessPointPolicy",
+    AccessPointPolicyProps,
+    {
+      /**
+       * Name of the access point the policy is attached to.
+       */
+      mutable accessPointName: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * The resource policy of an S3 Access Point. Grants principals access to
+ * objects through the access point — the delegated replacement for a giant
+ * shared bucket policy.
+ *
+ * Note that the underlying bucket must delegate access control to the access
+ * point (or the principals must also be allowed by the bucket policy).
+ * ### Attaching a Policy
+ * **Example:** Allow a role to read objects through the access point
+ * ```typescript
+ * import * as S3Control from "@alchemy.run/aws/S3Control";
+ *
+ * const accessPoint = yield* S3Control.AccessPoint("data-ap", {
+ *   bucket: bucket.bucketName,
+ * });
+ *
+ * yield* S3Control.AccessPointPolicy("data-ap-policy", {
+ *   accessPointName: accessPoint.accessPointName,
+ *   policy: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Allow",
+ *         Principal: { AWS: `arn:aws:iam::${accountId}:role/reader` },
+ *         Action: ["s3:GetObject"],
+ *         Resource: [Output.interpolate`${accessPoint.accessPointArn}/object/*`],
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const AccessPointPolicy = Resource<AccessPointPolicy>("AWS.S3Control.AccessPointPolicy")
+
+export const AccessPointPolicyProvider = (): infer _ =>
+  Provider.effect(
+    AccessPointPolicy,
+    effect {
+      const observePolicy = effect (accountId: string, name: string) =>
+        (try s3control.getAccessPointPolicy({ AccountId: accountId, Name: name })).Policy catch effect (e) => match (e) {
+          when { _tag: "NoSuchAccessPointPolicy" } or { _tag: "NoSuchAccessPoint" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      const desiredPolicy = (props: AccessPointPolicyProps): infer _ =>
+        typeof props.policy === "string" ? props.policy : stringifyPolicyDocument(props.policy)
+
+      return AccessPointPolicy.Provider.of({
+        stables: ["accessPointName"],
+        // Sub-resource keyed by its access point — there is no account-wide
+        // enumeration of access point policies, and the policy is deleted
+        // with its access point, so nuke discovers it via the parent.
+        list: effect () => [],
+        read: effect ({ olds, output }) => {
+          const { accountId } = try AWSEnvironment.current
+          const name = output?.accessPointName ?? olds?.accessPointName
+          if (name === undefined) return undefined
+          const policy = try observePolicy(accountId, name)
+          if (policy === undefined) return undefined
+          return { accessPointName: name }
+        },
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return undefined
+          if (olds !== undefined && olds.accessPointName !== news.accessPointName) {
+            return { action: "replace" } as const
+          }
+          // fall through: engine default update path (policy content)
+        },
+        reconcile: effect ({ news, session }) => {
+          const { accountId } = try AWSEnvironment.current
+          const name = news.accessPointName
+
+          // 1. OBSERVE — read the policy currently attached in the cloud.
+          const observed = try observePolicy(accountId, name)
+
+          // 2. SYNC — apply only when the desired document differs after
+          // canonicalization (key order / whitespace insensitive), so a
+          // re-deploy of an unchanged document is a no-op.
+          const desired = desiredPolicy(news)
+          if (
+            observed === undefined
+            || normalizePolicyDocument(observed) !== normalizePolicyDocument(desired)
+          ) {
+            try s3control.putAccessPointPolicy({
+              AccountId: accountId,
+              Name: name,
+              Policy: desired,
+            })
+          }
+
+          try session.note(name)
+          return { accessPointName: name }
+        },
+        delete: effect ({ output }) => {
+          const { accountId } = try AWSEnvironment.current
+          s3control
+            .deleteAccessPointPolicy({
+              AccountId: accountId,
+              Name: output.accessPointName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchAccessPointPolicy" } or { _tag: "NoSuchAccessPoint" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

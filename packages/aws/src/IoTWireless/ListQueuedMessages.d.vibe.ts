@@ -1,7 +1,7 @@
 import type * as iotw from "@distilled.cloud/aws/iot-wireless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { WirelessDevice } from "./WirelessDevice.js";
+import type { WirelessDevice } from "./WirelessDevice.vibe";
 /**
  * Request for {@link ListQueuedMessages}. The bound device's id is injected
  * automatically.

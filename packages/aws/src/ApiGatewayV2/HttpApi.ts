@@ -4,11 +4,11 @@ import * as Namespace from "alchemy/Namespace";
 import * as Output from "alchemy/Output";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import { Permission } from "../Lambda/Permission.ts";
-import { Api } from "./Api.ts";
-import { Integration } from "./Integration.ts";
-import { Route } from "./Route.ts";
-import { Stage } from "./Stage.ts";
+import { Permission } from "../Lambda/Permission.vibe";
+import { Api } from "./Api.vibe";
+import { Integration } from "./Integration.vibe";
+import { Route } from "./Route.vibe";
+import { Stage } from "./Stage.vibe";
 
 /**
  * The Lambda function an {@link HttpApi} fronts. Structural on purpose —

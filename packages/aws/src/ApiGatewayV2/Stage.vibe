@@ -1,0 +1,408 @@
+import * as agw2 from "@distilled.cloud/aws/apigatewayv2"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import type { Input } from "alchemy/Input"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import type { Api } from "./Api.vibe"
+import { collectAllPages, retryOnTooManyRequests, stageArn, syncTags, tagRecord } from "./common.ts"
+
+export interface StageProps {
+  /**
+   * ID of the API this stage belongs to. Usually derived from `api.apiId`
+   * by the {@link Stage} wrapper.
+   */
+  mutable apiId: string
+  /**
+   * The stage name. `$default` is served at the API's root endpoint
+   * (no path prefix).
+   * @default "$default"
+   */
+  mutable stageName?: string
+  /**
+   * Automatically deploy every route/integration change to this stage.
+   * The canonical happy path — a `Deployment` resource is only needed
+   * when this is off.
+   * @default false
+   */
+  mutable autoDeploy?: boolean
+  /**
+   * The deployment this stage points at (non-autoDeploy flows only).
+   */
+  mutable deploymentId?: string
+  /** Description of the stage. */
+  mutable description?: string
+  /** Stage variables. */
+  mutable stageVariables?: { mutable [key: string]: string | undefined }
+  /**
+   * Default route settings (throttling, logging, detailed metrics) applied
+   * to all routes on the stage.
+   */
+  mutable defaultRouteSettings?: agw2.RouteSettings
+  /** Per-route settings keyed by route key. */
+  mutable routeSettings?: { mutable [key: string]: agw2.RouteSettings | undefined }
+  /** Access log settings (CloudWatch Logs destination + format). */
+  mutable accessLogSettings?: agw2.AccessLogSettings
+  /** Client certificate ID (WebSocket APIs only). */
+  mutable clientCertificateId?: string
+  /**
+   * User-defined tags (Alchemy internal tags are merged automatically).
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface ApiGatewayV2Stage extends
+  Resource<
+    "AWS.ApiGatewayV2.Stage",
+    StageProps,
+    {
+      /** The API this stage belongs to. */
+      mutable apiId: string
+      /** The stage name. */
+      mutable stageName: string
+      /**
+       * The URL clients call:
+       * `https://{apiId}.execute-api.{region}.amazonaws.com[/{stageName}]`
+       * for HTTP APIs, `wss://{apiId}.execute-api.{region}.amazonaws.com/{stageName}`
+       * for WebSocket APIs.
+       */
+      mutable invokeUrl: string
+      /**
+       * The WebSocket callback endpoint
+       * (`https://{apiId}.execute-api.{region}.amazonaws.com/{stageName}`) —
+       * the endpoint the `ManageConnections` binding posts to.
+       */
+      mutable callbackUrl: string
+      /**
+       * The `execute-api` ARN covering the stage's `@connections` API,
+       * used to scope `execute-api:ManageConnections` IAM policies.
+       */
+      mutable connectionsArn: string
+      mutable autoDeploy: boolean | undefined
+      mutable deploymentId: string | undefined
+      mutable description: string | undefined
+      mutable stageVariables: { mutable [key: string]: string | undefined } | undefined
+      mutable defaultRouteSettings: agw2.RouteSettings | undefined
+      mutable routeSettings: { mutable [key: string]: agw2.RouteSettings | undefined } | undefined
+      mutable accessLogSettings: agw2.AccessLogSettings | undefined
+      mutable clientCertificateId: string | undefined
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An API Gateway v2 Stage — the deployed, callable endpoint of an HTTP or
+ * WebSocket API.
+ * ### The $default auto-deploy stage
+ * The canonical modern setup is a single `$default` stage with
+ * `autoDeploy: true` — every route/integration change goes live
+ * automatically at the API root endpoint, with no `Deployment` juggling.
+ *
+ * **Example:** $default stage with auto-deploy
+ * ```typescript
+ * const stage = yield* ApiGatewayV2.Stage("Stage", {
+ *   api,
+ *   autoDeploy: true,
+ * });
+ * // stage.invokeUrl === api.apiEndpoint
+ * ```
+ *
+ * ### Named stages
+ * **Example:** A named dev stage
+ * ```typescript
+ * const dev = yield* ApiGatewayV2.Stage("Dev", {
+ *   api,
+ *   stageName: "dev",
+ *   autoDeploy: true,
+ *   stageVariables: { logLevel: "debug" },
+ * });
+ * ```
+ *
+ * ### Throttling
+ * **Example:** Default route throttling
+ * ```typescript
+ * const stage = yield* ApiGatewayV2.Stage("Stage", {
+ *   api,
+ *   autoDeploy: true,
+ *   defaultRouteSettings: {
+ *     ThrottlingBurstLimit: 100,
+ *     ThrottlingRateLimit: 50,
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const StageResource = Resource<ApiGatewayV2Stage>("AWS.ApiGatewayV2.Stage")
+
+export interface StageInputProps extends
+  Omit<
+    {
+      [K in keyof StageProps]?: Input<StageProps[K]>
+    },
+    "apiId"
+  >
+{
+  /**
+   * The `Api` this stage belongs to (preferred). Alternatively pass a raw
+   * `apiId`.
+   */
+  mutable api?: Api
+  mutable apiId?: Input<string>
+}
+
+/**
+ * User-facing wrapper for the Stage resource. Accepts `api: Api` as the
+ * idiomatic way to attach a stage to an API.
+ */
+export const Stage = effect (id: string, props: StageInputProps = {}) => {
+  const { api, ...rest } = props
+  const apiId = rest.apiId ?? api?.apiId
+  if (!apiId) {
+    return try Effect.die("Stage requires either `api` (preferred) or an explicit `apiId`.")
+  }
+  return try StageResource(id, { ...rest, apiId } as any)
+}
+
+const computeUrls = (input: {
+  mutable region: string
+  mutable accountId: string
+  mutable apiId: string
+  mutable stageName: string
+  mutable protocolType: string | undefined
+  mutable apiEndpoint: string | undefined
+}): infer _ => {
+  const { region, accountId, apiId, stageName, protocolType, apiEndpoint } = input
+  const host = `${apiId}.execute-api.${region}.amazonaws.com`
+  const callbackUrl = `https://${host}/${stageName}`
+  const invokeUrl = protocolType === "WEBSOCKET"
+    ? `wss://${host}/${stageName}`
+    : stageName === "$default"
+    ? (apiEndpoint ?? `https://${host}`)
+    : `${apiEndpoint ?? `https://${host}`}/${stageName}`
+  const connectionsArn = `arn:aws:execute-api:${region}:${accountId}:${apiId}/${stageName}/*/@connections/*`
+  return { invokeUrl, callbackUrl, connectionsArn }
+}
+
+const snapshotFromStage = (
+  apiId: string,
+  stage: agw2.GetStageResponse,
+  urls: { mutable invokeUrl: string; mutable callbackUrl: string; mutable connectionsArn: string },
+): ApiGatewayV2Stage["Attributes"] => ({
+  apiId,
+  stageName: stage.StageName ?? "",
+  invokeUrl: urls.invokeUrl,
+  callbackUrl: urls.callbackUrl,
+  connectionsArn: urls.connectionsArn,
+  autoDeploy: stage.AutoDeploy,
+  deploymentId: stage.DeploymentId,
+  description: stage.Description,
+  stageVariables: stage.StageVariables,
+  defaultRouteSettings: stage.DefaultRouteSettings,
+  routeSettings: stage.RouteSettings,
+  accessLogSettings: stage.AccessLogSettings,
+  clientCertificateId: stage.ClientCertificateId,
+  tags: tagRecord(stage.Tags),
+})
+
+export const StageProvider = (): infer _ =>
+  Provider.effect(
+    StageResource,
+    effect {
+      const getStageSafe = effect (apiId: string, stageName: string) =>
+        agw2
+          .getStage({ ApiId: apiId, StageName: stageName }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      const getApiInfo = effect (apiId: string) =>
+        (try effect {
+          const api = try agw2.getApi({ ApiId: apiId })
+          return ({
+            protocolType: api.ProtocolType,
+            apiEndpoint: api.ApiEndpoint,
+          })
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFoundException" }: {
+            protocolType: undefined as string | undefined,
+            apiEndpoint: undefined as string | undefined,
+          };
+          default: throw e;
+        }
+
+      return StageResource.Provider.of({
+        stables: ["apiId", "stageName", "invokeUrl", "callbackUrl", "connectionsArn"],
+
+        list: effect () => {
+          const { region, accountId } = try AWSEnvironment.current
+          const apis = try collectAllPages((NextToken) => agw2.getApis({ NextToken }))
+          const perApi = try Effect.forEach(
+            apis.filter((api) => api.ApiId != null),
+            effect (api) =>
+              ((try collectAllPages((NextToken) => agw2.getStages({ ApiId: api.ApiId!, NextToken })))
+                .filter((stage) => stage.StageName != null)
+                .map((stage) =>
+                  snapshotFromStage(
+                    api.ApiId!,
+                    stage,
+                    computeUrls({
+                      region,
+                      accountId,
+                      apiId: api.ApiId!,
+                      stageName: stage.StageName!,
+                      protocolType: api.ProtocolType,
+                      apiEndpoint: api.ApiEndpoint,
+                    }),
+                  )
+                )) catch effect (e) => match (e) {
+                  when { _tag: "NotFoundException" }: [] as ApiGatewayV2Stage["Attributes"][];
+                  default: throw e;
+                },
+            { concurrency: 5 },
+          )
+          return perApi.flat()
+        },
+
+        read: effect ({ output }) => {
+          if (!output?.apiId || !output.stageName) return undefined
+          const { region, accountId } = try AWSEnvironment.current
+          const stage = try getStageSafe(output.apiId, output.stageName)
+          if (!stage?.StageName) return undefined
+          const info = try getApiInfo(output.apiId)
+          return snapshotFromStage(
+            output.apiId,
+            stage,
+            computeUrls({
+              region,
+              accountId,
+              apiId: output.apiId,
+              stageName: output.stageName,
+              ...info,
+            }),
+          )
+        },
+
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return undefined
+          if (
+            news.apiId !== olds.apiId
+            || (news.stageName ?? "$default") !== (olds.stageName ?? "$default")
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { region, accountId } = try AWSEnvironment.current
+          const apiId = output?.apiId ?? news.apiId
+          const stageName = output?.stageName ?? news.stageName ?? "$default"
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE
+          let observed = try getStageSafe(apiId, stageName)
+
+          // 2. ENSURE — tolerate a ConflictException as a concurrent-create
+          //    race and fall through to observation.
+          if (!observed?.StageName) {
+            observed = try retryOnTooManyRequests(
+              agw2.createStage({
+                ApiId: apiId,
+                StageName: stageName,
+                AutoDeploy: news.autoDeploy,
+                DeploymentId: news.deploymentId,
+                Description: news.description,
+                StageVariables: news.stageVariables,
+                DefaultRouteSettings: news.defaultRouteSettings,
+                RouteSettings: news.routeSettings,
+                AccessLogSettings: news.accessLogSettings,
+                ClientCertificateId: news.clientCertificateId,
+                Tags: desiredTags,
+              }),
+            )
+            try session.note(`Created stage ${stageName}`)
+          }
+
+          const urls = computeUrls({
+            region,
+            accountId,
+            apiId,
+            stageName,
+            ...(try getApiInfo(apiId)),
+          })
+          const snapshot = snapshotFromStage(apiId, observed, urls)
+
+          // 3. SYNC — update mutable settings on drift.
+          const drift = (news.autoDeploy !== undefined && (snapshot.autoDeploy ?? false) !== news.autoDeploy)
+            || (news.deploymentId !== undefined && snapshot.deploymentId !== news.deploymentId)
+            || snapshot.description !== news.description
+            || (news.stageVariables !== undefined
+              && !deepEqual(snapshot.stageVariables, news.stageVariables))
+            || (news.defaultRouteSettings !== undefined
+              && !deepEqual(snapshot.defaultRouteSettings, news.defaultRouteSettings))
+            || (news.routeSettings !== undefined
+              && !deepEqual(snapshot.routeSettings, news.routeSettings))
+            || (news.accessLogSettings !== undefined
+              && !deepEqual(snapshot.accessLogSettings, news.accessLogSettings))
+            || snapshot.clientCertificateId !== news.clientCertificateId
+          if (drift) {
+            try retryOnTooManyRequests(
+              agw2.updateStage({
+                ApiId: apiId,
+                StageName: stageName,
+                AutoDeploy: news.autoDeploy,
+                DeploymentId: news.deploymentId,
+                Description: news.description,
+                StageVariables: news.stageVariables,
+                DefaultRouteSettings: news.defaultRouteSettings,
+                RouteSettings: news.routeSettings,
+                AccessLogSettings: news.accessLogSettings,
+                ClientCertificateId: news.clientCertificateId,
+              }),
+            )
+            try session.note(`Updated stage ${stageName}`)
+          }
+
+          // 3b. SYNC TAGS — diff against OBSERVED cloud tags.
+          if (!deepEqual(snapshot.tags, desiredTags)) {
+            try syncTags({
+              resourceArn: stageArn(region, apiId, stageName),
+              oldTags: snapshot.tags,
+              newTags: desiredTags,
+            })
+          }
+
+          // 4. RETURN fresh state.
+          const final = try agw2.getStage({
+            ApiId: apiId,
+            StageName: stageName,
+          })
+          try session.note(`Reconciled stage ${stageName}`)
+          return snapshotFromStage(apiId, final, urls)
+        },
+
+        delete: effect ({ output, session }) => {
+          try retryOnTooManyRequests(
+            effect {
+              return agw2
+                .deleteStage({
+                  ApiId: output.apiId,
+                  StageName: output.stageName,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "NotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            },
+          )
+          try session.note(`Deleted stage ${output.stageName}`)
+        },
+      })
+    },
+  )

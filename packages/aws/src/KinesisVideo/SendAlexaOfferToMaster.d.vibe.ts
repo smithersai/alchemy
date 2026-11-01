@@ -2,8 +2,8 @@ import type * as kv from "@distilled.cloud/aws/kinesis-video";
 import type * as kvs from "@distilled.cloud/aws/kinesis-video-signaling";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { SignalingEndpointUnavailable } from "./internal.js";
-import type { SignalingChannel } from "./SignalingChannel.js";
+import type { SignalingEndpointUnavailable } from "./internal.vibe";
+import type { SignalingChannel } from "./SignalingChannel.vibe";
 export interface SendAlexaOfferToMasterRequest extends Omit<kvs.SendAlexaOfferToMasterRequest, "ChannelARN"> {
 }
 /**

@@ -2,10 +2,10 @@ import type * as pipes from "@distilled.cloud/aws/pipes";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import type { Table } from "../DynamoDB/Table.js";
-import type { Stream } from "../Kinesis/Stream.js";
+import type { Stream } from "../Kinesis/Stream.vibe";
 import type { Function } from "../Lambda/Function.js";
-import type { Queue } from "../SQS/Queue.js";
-import { Pipe, type PipeDesiredState } from "./Pipe.js";
+import type { Queue } from "../SQS/Queue.vibe";
+import { Pipe, type PipeDesiredState } from "./Pipe.vibe";
 /**
  * Resources the {@link from} builder accepts as a pipe source. DynamoDB
  * tables must have streams enabled (`latestStreamArn` defined).
@@ -96,9 +96,9 @@ export declare const from: (source: PipeSource, options?: PipeSourceOptions) => 
     /**
      * Deliver batches to a Lambda function target.
      */
-    toLambda: (fn: Function, options?: LambdaTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.js").Providers>;
+    toLambda: (fn: Function, options?: LambdaTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.vibe").Providers>;
     /**
      * Deliver batches to an SQS queue target.
      */
-    toQueue: (queue: Queue, options?: QueueTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.js").Providers>;
+    toQueue: (queue: Queue, options?: QueueTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.vibe").Providers>;
 };

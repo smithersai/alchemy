@@ -1,0 +1,249 @@
+import * as iot from "@distilled.cloud/aws/iot"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readIotTags, syncIotTags } from "./internal.ts"
+
+/**
+ * An IoT policy statement. Structurally similar to an IAM statement but
+ * scopes IoT actions (`iot:Connect`, `iot:Publish`, `iot:Subscribe`,
+ * `iot:Receive`) to topic / client ARNs.
+ */
+export interface IoTPolicyStatement {
+  mutable Effect: "Allow" | "Deny"
+  mutable Action: string | string[]
+  mutable Resource: string | string[]
+}
+
+export interface IoTPolicyDocument {
+  mutable Version?: string
+  mutable Statement: IoTPolicyStatement[]
+}
+
+export interface PolicyProps {
+  /**
+   * Name of the policy. If omitted, a unique name is generated.
+   * Changing it replaces the policy.
+   */
+  mutable policyName?: string
+
+  /**
+   * The JSON policy document, either as a string or a structured document.
+   */
+  mutable policyDocument: string | IoTPolicyDocument
+
+  /**
+   * User tags to attach to the policy.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Policy extends
+  Resource<
+    "AWS.IoT.Policy",
+    PolicyProps,
+    {
+      /** The name of the policy. */
+      mutable policyName: string
+      /** The ARN of the policy. */
+      mutable policyArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS IoT policy that grants MQTT permissions (connect, publish,
+ * subscribe, receive) to certificates and other principals.
+ *
+ * ### Creating a Policy
+ * **Example:** Allow Publish and Subscribe
+ * ```typescript
+ * const policy = yield* Policy("device-policy", {
+ *   policyDocument: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       { Effect: "Allow", Action: "iot:Connect", Resource: "*" },
+ *       { Effect: "Allow", Action: ["iot:Publish", "iot:Receive"], Resource: "*" },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Policy = Resource<Policy>("AWS.IoT.Policy")
+
+const stringifyDocument = (doc: string | IoTPolicyDocument): string =>
+  typeof doc === "string" ? doc : JSON.stringify(doc)
+
+// Normalize a policy document to a stable canonical JSON string for diffing.
+const normalizeDocument = (doc: string | undefined): string => {
+  if (!doc) return ""
+  try {
+    return JSON.stringify(JSON.parse(doc))
+  } catch {
+    return doc
+  }
+}
+
+export const PolicyProvider = (): infer _ =>
+  Provider.effect(
+    Policy,
+    effect {
+      const createName = effect (id: string, props: PolicyProps) =>
+        props.policyName ?? (try createPhysicalName({ id, maxLength: 128 }))
+
+      return Policy.Provider.of({
+        stables: ["policyName", "policyArn"],
+        list: effect () =>
+          Array.from(
+            try (iot.listPolicies.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.policies ?? [])
+              .filter((p) => p.policyName != null && p.policyArn != null)
+              .map((p) => ({
+                policyName: p.policyName!,
+                policyArn: p.policyArn!,
+              }))
+          ),
+        read: effect ({ id, olds, output }) => {
+          const policyName = output?.policyName ?? (try createName(id, olds ?? {}))
+          const found = iot
+            .getPolicy({ policyName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+          if (!found) return undefined
+          const attrs = {
+            policyName,
+            policyArn: found.policyArn!,
+          }
+          const tags = try readIotTags(found.policyArn!)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+          return undefined
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const policyName = output?.policyName ?? (try createName(id, news))
+          const desiredDocument = stringifyDocument(news.policyDocument)
+
+          // OBSERVE
+          let live = iot
+            .getPolicy({ policyName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+
+          // ENSURE
+          if (live === undefined) {
+            iot
+              .createPolicy({ policyName, policyDocument: desiredDocument }) catch effect (e) => match (e) {
+                when { _tag: "ResourceAlreadyExistsException" }: try Effect.void;
+                default: throw e;
+              }
+            live = try iot.getPolicy({ policyName })
+          } else if (
+            normalizeDocument(live.policyDocument) !== normalizeDocument(desiredDocument)
+          ) {
+            // SYNC document — a new default version. IoT caps a policy at 5
+            // versions, so prune the oldest non-default version first.
+            const { policyVersions = [] } = try iot.listPolicyVersions({
+              policyName,
+            })
+            const nonDefault = policyVersions
+              .filter((v) => !v.isDefaultVersion && v.versionId)
+              .sort((a, b) => (a.versionId! < b.versionId! ? -1 : 1))
+            if (policyVersions.length >= 5 && nonDefault[0]?.versionId) {
+              iot
+                .deletePolicyVersion({
+                  policyName,
+                  policyVersionId: nonDefault[0].versionId,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            }
+            try iot.createPolicyVersion({
+              policyName,
+              policyDocument: desiredDocument,
+              setAsDefault: true,
+            })
+            live = try iot.getPolicy({ policyName })
+          }
+
+          // SYNC tags
+          try syncIotTags(live.policyArn!, id, news.tags)
+
+          try session.note(policyName)
+          return {
+            policyName,
+            policyArn: live.policyArn!,
+          }
+        },
+        delete: effect ({ output }) => {
+          const policyName = output.policyName
+          // Delete all non-default versions first — deletePolicy rejects a
+          // policy that still has extra versions.
+          const { policyVersions = [] } = iot
+            .listPolicyVersions({ policyName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: { policyVersions: [] };
+              default: throw e;
+            }
+          try Effect.forEach(
+            policyVersions.filter((v) => !v.isDefaultVersion && v.versionId),
+            effect (v) =>
+              iot
+                .deletePolicyVersion({
+                  policyName,
+                  policyVersionId: v.versionId!,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  default: throw e;
+                },
+          )
+          // Detach any lingering targets (certificates/groups) before delete.
+          const detachTargets = effect {
+            const { targets = [] } = iot
+              .listTargetsForPolicy({ policyName }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: { targets: [] };
+                default: throw e;
+              }
+            try Effect.forEach(targets, effect (target) =>
+              iot
+                .detachPolicy({ policyName, target }) catch effect (e) => match (e) {
+                  when { _tag: "InvalidRequestException" }: try Effect.void;
+                  default: throw e;
+                })
+          }
+          iot.deletePolicy({ policyName }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            when { _tag: "DeleteConflictException" }: try (detachTargets
+              |> Effect.andThen(
+                %,
+                effect {
+                  return iot
+                    .deletePolicy({ policyName }) catch effect (e) => match (e) {
+                      when { _tag: "ResourceNotFoundException" } or { _tag: "DeleteConflictException" }: try Effect
+                        .void;
+                      default: throw e;
+                    }
+                },
+              ));
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

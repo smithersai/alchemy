@@ -29,7 +29,7 @@ import type {
   WriteDocumentResponse,
 } from "./DataPlaneTypes.vibe";
 import { OpenSearchApiError } from "./DataPlaneTypes.vibe";
-import type { Domain } from "./Domain.ts";
+import type { Domain } from "./Domain.vibe";
 import type { ReadDomainClient } from "./DomainRead.vibe";
 import type { WriteDomainClient } from "./DomainWrite.vibe";
 

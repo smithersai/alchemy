@@ -1,7 +1,7 @@
 import type * as neptune from "@distilled.cloud/aws/neptune";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DBCluster } from "./DBCluster.js";
+import type { DBCluster } from "./DBCluster.vibe";
 /**
  * Runtime binding for the `FailoverDBCluster` operation (IAM action
  * `rds:FailoverDBCluster`).

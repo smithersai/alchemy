@@ -1,0 +1,237 @@
+import * as cloudwatch from "@distilled.cloud/aws/cloudwatch"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import type { AlarmArn } from "./Alarm.vibe"
+import { createName, readResourceTags, retryConcurrent, updateResourceTags } from "./common.ts"
+
+export error CompositeAlarmUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type CompositeAlarmName = string
+
+export interface CompositeAlarmProps extends
+  Omit<
+    cloudwatch.PutCompositeAlarmInput,
+    "AlarmName" | "Tags"
+  >
+{
+  /**
+   * Name of the composite alarm. If omitted, a unique name is generated.
+   */
+  mutable name?: CompositeAlarmName
+  /**
+   * Optional tags to apply to the composite alarm.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface CompositeAlarm extends
+  Resource<
+    "AWS.CloudWatch.CompositeAlarm",
+    CompositeAlarmProps,
+    {
+      /** Physical name of the composite alarm. */
+      mutable alarmName: CompositeAlarmName
+      /** ARN of the composite alarm. */
+      mutable alarmArn: AlarmArn
+      /** Current state of the composite alarm (`OK`, `ALARM`, or `INSUFFICIENT_DATA`). */
+      mutable stateValue: cloudwatch.StateValue | undefined
+      /** Human-readable reason for the current state. */
+      mutable stateReason: string | undefined
+      /** The full CompositeAlarm description as last read from CloudWatch. */
+      mutable compositeAlarm: cloudwatch.CompositeAlarm
+      /** Tags on the composite alarm, including the internal Alchemy ownership tags. */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A CloudWatch composite alarm — combines the states of other alarms with
+ * a boolean `AlarmRule` expression so a single alarm (and its actions)
+ * reflects overall health.
+ * ### Creating Composite Alarms
+ * **Example:** Composite Rule
+ * ```typescript
+ * const composite = yield* CompositeAlarm("HighSeverity", {
+ *   AlarmRule: 'ALARM("HighErrors") OR ALARM("HighLatency")',
+ * });
+ * ```
+ *
+ * **Example:** Compose Alarm Resources with Output.interpolate
+ * ```typescript
+ * const errors = yield* Alarm("HighErrors", {
+ *   MetricName: "Errors",
+ *   Namespace: "AWS/Lambda",
+ *   Statistic: "Sum",
+ *   Period: 60,
+ *   EvaluationPeriods: 1,
+ *   Threshold: 1,
+ *   ComparisonOperator: "GreaterThanOrEqualToThreshold",
+ * });
+ *
+ * const composite = yield* CompositeAlarm("HighSeverity", {
+ *   AlarmRule: Output.interpolate`ALARM("${errors.alarmName}")`,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const CompositeAlarm = Resource<CompositeAlarm>("AWS.CloudWatch.CompositeAlarm")
+
+export const CompositeAlarmProvider = (): infer _ =>
+  Provider.effect(
+    CompositeAlarm,
+    effect {
+      const createAlarmName = (id: string, props: { mutable name?: string } = {}) => createName(id, props.name, 255)
+
+      const alarmArn = effect (alarmName: string) =>
+        try effect {
+          const env = try AWSEnvironment.current
+          return `arn:aws:cloudwatch:${env.region}:${env.accountId}:alarm:${alarmName}` as AlarmArn
+        }
+
+      const readCompositeAlarm = effect (alarmName: string) => {
+        const described = try cloudwatch.describeAlarms({
+          AlarmNames: [alarmName],
+          AlarmTypes: ["CompositeAlarm"],
+        })
+        const compositeAlarm = described.CompositeAlarms?.find(
+          (candidate) => candidate.AlarmName === alarmName,
+        )
+
+        if (!compositeAlarm?.AlarmName || !compositeAlarm.AlarmArn) {
+          return undefined
+        }
+
+        const tags = readResourceTags(compositeAlarm.AlarmArn) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: {};
+          default: throw e;
+        }
+
+        return {
+          alarmName: compositeAlarm.AlarmName,
+          alarmArn: compositeAlarm.AlarmArn as AlarmArn,
+          stateValue: compositeAlarm.StateValue,
+          stateReason: compositeAlarm.StateReason,
+          compositeAlarm,
+          tags,
+        }
+      }
+
+      return {
+        stables: ["alarmName", "alarmArn"],
+        diff: effect ({ id, olds = {}, news = {} }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createAlarmName(id, olds)
+          const newName = try createAlarmName(id, news)
+
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const name = output?.alarmName ?? (try createAlarmName(id, olds ?? {}))
+          const state = try readCompositeAlarm(name)
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.tags)) ? state : Unowned(state)
+        },
+        reconcile: effect ({ id, news, olds, output, session }) => {
+          // Observe — pin the physical name from `output` if present so we
+          // never rename an existing alarm; otherwise derive from desired
+          // props.
+          const name = output?.alarmName ?? (try createAlarmName(id, news))
+          const existing = try readCompositeAlarm(name)
+
+          // Ensure — `putCompositeAlarm` is an upsert. We always send the
+          // full desired config so the cloud converges to `news` whether
+          // the alarm pre-existed or not.
+          try retryConcurrent(
+            cloudwatch.putCompositeAlarm({
+              ...news,
+              AlarmName: name,
+            }),
+          )
+
+          // Sync tags — diff observed (or prior) tags against desired.
+          // `olds` is undefined on adoption, so fall back to what we just
+          // observed.
+          const tags = try updateResourceTags({
+            id,
+            resourceArn: try alarmArn(name),
+            olds: olds?.tags ?? existing?.tags,
+            news: news.tags,
+          })
+
+          try session.note(try alarmArn(name))
+
+          const state = try readCompositeAlarm(name)
+          if (!state) {
+            throw new CompositeAlarmUnexpectedResponse({
+              message: `failed to read reconciled composite alarm '${name}'`,
+            })
+          }
+
+          return {
+            ...state,
+            tags,
+          }
+        },
+        delete: effect ({ output }) => {
+          try retryConcurrent(
+            cloudwatch.deleteAlarms({
+              AlarmNames: [output.alarmName],
+            }),
+          )
+        },
+        list: effect () => {
+          // Enumerate every composite alarm in the account/region by
+          // exhaustively paginating `describeAlarms` filtered to composite
+          // alarms (items live under the `CompositeAlarms` field).
+          const alarms = Array.from(
+            try (cloudwatch.describeAlarms
+              .pages({ AlarmTypes: ["CompositeAlarm"] })
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.CompositeAlarms ?? []).filter(
+              (
+                candidate,
+              ): candidate is cloudwatch.CompositeAlarm & {
+                mutable AlarmName: string
+                mutable AlarmArn: string
+              } => candidate.AlarmName != null && candidate.AlarmArn != null,
+            )
+          )
+
+          return try Effect.forEach(
+            alarms,
+            effect (compositeAlarm) =>
+              try effect {
+                const tags = readResourceTags(compositeAlarm.AlarmArn) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: {};
+                  default: throw e;
+                }
+                return ({
+                  alarmName: compositeAlarm.AlarmName,
+                  alarmArn: compositeAlarm.AlarmArn as AlarmArn,
+                  stateValue: compositeAlarm.StateValue,
+                  stateReason: compositeAlarm.StateReason,
+                  compositeAlarm,
+                  tags,
+                })
+              },
+            { concurrency: 10 },
+          )
+        },
+      }
+    },
+  )

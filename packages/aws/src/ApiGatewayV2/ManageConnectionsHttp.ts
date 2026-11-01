@@ -9,7 +9,7 @@ import {
   type GetConnectionRequest,
   type PostToConnectionRequest,
 } from "./ManageConnections.vibe";
-import type { ApiGatewayV2Stage } from "./Stage.ts";
+import type { ApiGatewayV2Stage } from "./Stage.vibe";
 
 /**
  * HTTP implementation of the {@link ManageConnections} binding. Signs

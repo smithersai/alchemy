@@ -1,9 +1,9 @@
 import type * as sesv2 from "@distilled.cloud/aws/sesv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { EmailIdentityRef } from "./BindingHttp.js";
-import type { ConfigurationSet } from "./ConfigurationSet.js";
-import type { EmailIdentity } from "./EmailIdentity.js";
+import type { EmailIdentityRef } from "./BindingHttp.vibe";
+import type { ConfigurationSet } from "./ConfigurationSet.vibe";
+import type { EmailIdentity } from "./EmailIdentity.vibe";
 /**
  * Runtime binding for `sesv2:SendCustomVerificationEmail`.
  *

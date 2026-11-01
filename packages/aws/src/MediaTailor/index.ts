@@ -16,7 +16,7 @@ export * from "./ListAlerts.vibe";
 export * from "./ListAlertsHttp.vibe";
 export * from "./ListPrefetchSchedules.vibe";
 export * from "./ListPrefetchSchedulesHttp.vibe";
-export * from "./PlaybackConfiguration.ts";
+export * from "./PlaybackConfiguration.vibe";
 export * from "./StartChannel.vibe";
 export * from "./StartChannelHttp.vibe";
 export * from "./StopChannel.vibe";

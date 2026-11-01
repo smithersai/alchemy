@@ -12,7 +12,7 @@ import type { BucketNotification, NotificationsProps } from "../S3/BucketNotific
 import { normalizeBucketNotification } from "../S3/normalizeBucketNotification.ts";
 import type { S3EventType } from "../S3/S3Event.ts";
 import * as Lambda from "./Function.ts";
-import { Permission as LambdaPermission } from "./Permission.ts";
+import { Permission as LambdaPermission } from "./Permission.vibe";
 
 /**
  * Connects an S3 bucket notification stream to the current Lambda function.

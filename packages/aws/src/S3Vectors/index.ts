@@ -1,5 +1,5 @@
-export * from "./VectorBucket.ts";
-export * from "./VectorIndex.ts";
+export * from "./VectorBucket.vibe";
+export * from "./VectorIndex.vibe";
 export * from "./Vectors.vibe";
 export * from "./VectorsHttp.vibe";
 export * from "./VectorsRead.vibe";

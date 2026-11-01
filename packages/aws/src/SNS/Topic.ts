@@ -9,8 +9,8 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import type { AccountID } from "../Environment.ts";
-import { normalizePolicyDocument } from "../IAM/Policy.ts";
-import type { Providers } from "../Providers.ts";
+import { normalizePolicyDocument } from "../IAM/Policy.vibe";
+import type { Providers } from "../Providers.vibe";
 import type { RegionID } from "../Region.ts";
 
 export type TopicName = string;

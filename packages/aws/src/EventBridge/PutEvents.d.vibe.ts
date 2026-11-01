@@ -1,8 +1,8 @@
 import * as eventbridge from "@distilled.cloud/aws/eventbridge";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Endpoint } from "./Endpoint.js";
-import type { EventBus } from "./EventBus.js";
+import type { Endpoint } from "./Endpoint.vibe";
+import type { EventBus } from "./EventBus.vibe";
 export interface PutEventsRequest extends Omit<eventbridge.PutEventsRequest, "Entries"> {
     Entries: Array<Omit<eventbridge.PutEventsRequestEntry, "EventBusName">>;
 }

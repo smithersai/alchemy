@@ -1,7 +1,7 @@
-export * from "./App.ts";
+export * from "./App.vibe";
 export * from "./AppEventSource.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding and intentionally NOT exported.
-export * from "./Branch.ts";
+export * from "./Branch.vibe";
 export * from "./CreateDeployment.vibe";
 export * from "./CreateDeploymentHttp.vibe";
 export * from "./DeleteJob.vibe";
@@ -9,7 +9,7 @@ export * from "./DeleteJobHttp.vibe";
 export * from "./GenerateAccessLogs.vibe";
 export * from "./GenerateAccessLogsHttp.vibe";
 export * from "./GetArtifactUrl.vibe";
-export * from "./GetArtifactUrlHttp.ts";
+export * from "./GetArtifactUrlHttp.vibe";
 export * from "./GetJob.vibe";
 export * from "./GetJobHttp.vibe";
 export * from "./ListArtifacts.vibe";

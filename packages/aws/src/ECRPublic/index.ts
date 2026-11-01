@@ -20,7 +20,7 @@ export * from "./InitiateLayerUpload.vibe";
 export * from "./InitiateLayerUploadHttp.vibe";
 export * from "./PutImage.vibe";
 export * from "./PutImageHttp.vibe";
-export * from "./Repository.ts";
+export * from "./Repository.vibe";
 export * from "./UploadLayerPart.vibe";
 export * from "./UploadLayerPartHttp.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding and intentionally NOT exported.

@@ -1,7 +1,7 @@
 import type * as qbusiness from "@distilled.cloud/aws/qbusiness";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.vibe";
 /**
  * `DeleteGroup` request with `applicationId` + `indexId` injected from the bound index.
  */

@@ -1,0 +1,261 @@
+import * as control from "@distilled.cloud/aws/bedrock-agentcore-control"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import {
+  AgentCoreProvisioningFailed,
+  createAgentCoreName,
+  readAgentCoreTags,
+  retryWhileConflict,
+  retryWhileValidation,
+  syncAgentCoreTags,
+} from "./internal.ts"
+
+export interface BrowserCustomProps {
+  /**
+   * Name of the browser. Must match `[a-zA-Z][a-zA-Z0-9_]{0,47}`
+   * (underscores, no hyphens). If omitted, a deterministic physical name is
+   * generated from the app, stage, and logical ID. Changing the name triggers
+   * a replacement.
+   */
+  mutable name?: string
+  /**
+   * A description of the browser. Changing it triggers a replacement (the
+   * API has no update operation).
+   */
+  mutable description?: string
+  /**
+   * The ARN of an IAM role browser sessions assume (required for session
+   * recording to S3). Changing it triggers a replacement.
+   */
+  mutable executionRoleArn?: string
+  /**
+   * Network access for browser sessions: `PUBLIC` (internet egress) or
+   * `VPC`. Changing it triggers a replacement.
+   * @default { networkMode: "PUBLIC" }
+   */
+  mutable networkConfiguration?: control.BrowserNetworkConfiguration
+  /**
+   * Session recording configuration (S3 destination). Changing it triggers a
+   * replacement.
+   */
+  mutable recording?: control.RecordingConfig
+  /**
+   * Tags to apply to the browser. Merged with internal Alchemy tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface BrowserCustom extends
+  Resource<
+    "AWS.BedrockAgentCore.BrowserCustom",
+    BrowserCustomProps,
+    {
+      /**
+       * The unique identifier of the browser.
+       */
+      mutable browserId: string
+      /**
+       * The ARN of the browser.
+       */
+      mutable browserArn: string
+      /**
+       * Name of the browser.
+       */
+      mutable name: string
+      /**
+       * Current status of the browser (e.g. `READY`).
+       */
+      mutable status: string
+    }
+  >
+{}
+
+/**
+ * A custom Amazon Bedrock AgentCore Browser — a managed, isolated cloud
+ * browser that agents drive to interact with websites.
+ *
+ * A custom browser controls the sandbox's network mode, execution role, and
+ * session recording. All configuration is create-only (the API has no update
+ * operation); property changes trigger a replacement.
+ *
+ * ### Creating Browsers
+ * **Example:** Public-Egress Browser
+ * ```typescript
+ * import * as AgentCore from "@alchemy.run/aws/BedrockAgentCore";
+ *
+ * const browser = yield* AgentCore.BrowserCustom("AgentBrowser", {});
+ * ```
+ *
+ * **Example:** Browser with Session Recording
+ * ```typescript
+ * const browser = yield* AgentCore.BrowserCustom("RecordedBrowser", {
+ *   executionRoleArn: role.roleArn,
+ *   recording: {
+ *     enabled: true,
+ *     s3Location: { bucket: bucket.bucketName, prefix: "sessions/" },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const BrowserCustom = Resource<BrowserCustom>("AWS.BedrockAgentCore.BrowserCustom")
+
+export const BrowserCustomProvider = (): infer _ =>
+  Provider.effect(
+    BrowserCustom,
+    effect {
+      const createName = effect (id: string, props: Pick<BrowserCustomProps, "name">) =>
+        props.name ?? (try createAgentCoreName(id))
+
+      // getBrowser still resolves soft-deleted browsers — DELETED/DELETING
+      // count as gone.
+      const getLiveOrUndefined = effect (browserId: string) => {
+        const found = control
+          .getBrowser({ browserId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return found === undefined || found.status === "DELETED" || found.status === "DELETING"
+          ? undefined
+          : found
+      }
+
+      const findByName = effect (name: string) => {
+        const pages = try control.listBrowsers.pages({}).pipe(Stream.runCollect)
+        const summary = Array.from(pages)
+          .flatMap((page) => page.browserSummaries ?? [])
+          .find((s) => s.name === name && s.status !== "DELETED" && s.status !== "DELETING")
+        return summary === undefined ? undefined : try getLiveOrUndefined(summary.browserId)
+      }
+
+      const toAttributes = (browser: control.GetBrowserResponse): infer _ => ({
+        browserId: browser.browserId,
+        browserArn: browser.browserArn,
+        name: browser.name,
+        status: browser.status,
+      })
+
+      return BrowserCustom.Provider.of({
+        stables: ["browserId", "browserArn", "name"],
+
+        list: effect () => {
+          const pages = try control.listBrowsers.pages({}).pipe(Stream.runCollect)
+          const summaries = Array.from(pages)
+            .flatMap((page) => page.browserSummaries ?? [])
+            .filter((s) => s.status !== "DELETED" && s.status !== "DELETING")
+          const hydrated = try Effect.forEach(
+            summaries,
+            (s) => getLiveOrUndefined(s.browserId),
+            { concurrency: 5 },
+          )
+          return hydrated.filter((b) => b !== undefined).map(toAttributes)
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const browser = output?.browserId
+            ? try getLiveOrUndefined(output.browserId)
+            : try findByName(try createName(id, olds ?? ({} as BrowserCustomProps)))
+          if (browser === undefined) return undefined
+          const attrs = toAttributes(browser)
+          const tags = try readAgentCoreTags(browser.browserArn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        // Everything except tags is create-only — any change replaces.
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldProps = olds ?? ({} as BrowserCustomProps)
+          const newProps = news ?? ({} as BrowserCustomProps)
+          const oldName = try createName(id, oldProps)
+          const newName = try createName(id, newProps)
+          if (
+            oldName !== newName
+            || (oldProps.description ?? undefined) !== (newProps.description ?? undefined)
+            || (oldProps.executionRoleArn ?? undefined) !== (newProps.executionRoleArn ?? undefined)
+            || JSON.stringify(oldProps.networkConfiguration ?? { networkMode: "PUBLIC" })
+              !== JSON.stringify(newProps.networkConfiguration ?? { networkMode: "PUBLIC" })
+            || JSON.stringify(oldProps.recording ?? null)
+              !== JSON.stringify(newProps.recording ?? null)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const props = news ?? ({} as BrowserCustomProps)
+          const name = output?.name ?? (try createName(id, props))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...props.tags, ...internalTags }
+
+          // 1. OBSERVE
+          let browser = output?.browserId ? try getLiveOrUndefined(output.browserId) : undefined
+          if (browser === undefined) {
+            browser = try findByName(name)
+          }
+
+          // 2. ENSURE — creation is synchronous (READY on return); tolerate
+          // the name-exists race and transient IAM propagation.
+          if (browser === undefined) {
+            const created = (try (control
+              .createBrowser({
+                name,
+                description: props.description,
+                executionRoleArn: props.executionRoleArn,
+                networkConfiguration: props.networkConfiguration ?? {
+                  networkMode: "PUBLIC",
+                },
+                recording: props.recording,
+                tags: desiredTags,
+              })
+              |> retryWhileValidation(%))) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try Effect.undefined;
+                default: throw e;
+              }
+            browser = created === undefined
+              ? try findByName(name)
+              : try getLiveOrUndefined(created.browserId)
+          }
+          if (browser === undefined) {
+            throw new AgentCoreProvisioningFailed({
+              message: `browser '${name}' was neither created nor found`,
+            })
+          }
+          if (browser.status === "CREATE_FAILED") {
+            throw new AgentCoreProvisioningFailed({
+              message: `browser '${name}' failed: ${browser.failureReason ?? "unknown"}`,
+            })
+          }
+
+          // 3. SYNC — only tags are mutable.
+          try syncAgentCoreTags(browser.browserArn, desiredTags)
+
+          // 4. RETURN fresh attributes.
+          try session.note(browser.browserId)
+          return toAttributes(browser)
+        },
+
+        delete: effect ({ output }) => {
+          ;(try (control.deleteBrowser({ browserId: output.browserId })
+            |> retryWhileConflict(%))) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+          try (effect {
+            return ((try control.getBrowser({ browserId: output.browserId })).status as string) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: "DELETED" as string;
+              default: throw e;
+            }
+          }
+            |> Effect.repeat(%, {
+              schedule: Schedule.fixed("3 seconds"),
+              until: (status) => status === "DELETED" || status === "DELETE_FAILED",
+              times: 20,
+            }))
+        },
+      })
+    },
+  )

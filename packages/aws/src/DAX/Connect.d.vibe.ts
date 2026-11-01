@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 /**
  * Connection descriptor for a DAX cluster. Alchemy does not bundle a DAX
  * client — pass these settings to the DAX SDK client of your choice

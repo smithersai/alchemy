@@ -1,7 +1,7 @@
 // NOTE: BindingHttp.ts is shared scaffolding — intentionally NOT exported.
 export * from "./CopyBackupToRegion.vibe";
 export * from "./CopyBackupToRegionHttp.vibe";
-export * from "./Cluster.ts";
+export * from "./Cluster.vibe";
 export * from "./DeleteBackup.vibe";
 export * from "./DeleteBackupHttp.vibe";
 export * from "./DeleteResourcePolicy.vibe";
@@ -12,7 +12,7 @@ export * from "./DescribeClusters.vibe";
 export * from "./DescribeClustersHttp.vibe";
 export * from "./GetResourcePolicy.vibe";
 export * from "./GetResourcePolicyHttp.vibe";
-export * from "./Hsm.ts";
+export * from "./Hsm.vibe";
 export * from "./InitializeCluster.vibe";
 export * from "./InitializeClusterHttp.vibe";
 export * from "./ModifyBackupAttributes.vibe";

@@ -1,7 +1,7 @@
 import type * as route53 from "@distilled.cloud/aws/route-53";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { HostedZone } from "./HostedZone.js";
+import type { HostedZone } from "./HostedZone.vibe";
 /**
  * `TestDNSAnswer` request with `HostedZoneId` injected from the bound
  * {@link HostedZone}.

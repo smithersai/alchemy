@@ -21,7 +21,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as AWSBindings from "../AWSBindings.ts";
 import { PrometheusApiError, type PrometheusTime } from "./PrometheusTypes.vibe";
-import type { Workspace } from "./Workspace.ts";
+import type { Workspace } from "./Workspace.vibe";
 
 /** A request against the workspace's Prometheus-compatible endpoint. */
 export interface AmpHttpRequest {

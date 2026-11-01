@@ -1,7 +1,7 @@
 import type * as securitylake from "@distilled.cloud/aws/securitylake";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DataLake } from "./DataLake.js";
+import type { DataLake } from "./DataLake.vibe";
 /**
  * Runtime binding for `securitylake:GetDataLakeSources`.
  *

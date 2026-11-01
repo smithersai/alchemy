@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type { SqlConnectionInfo } from "../Connection/internal.vibe";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 export interface ConnectOptions {
     /**
      * Connect as the built-in `admin` role. Grants `dsql:DbConnectAdmin` on the

@@ -1,0 +1,116 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Monitor } from "./Monitor.vibe"
+
+/**
+ * Shared scaffolding for Amazon CloudWatch Internet Monitor HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the two
+ * builders below. Everything except the operation and the IAM action is
+ * boilerplate:
+ *
+ * - {@link makeInternetMonitorMonitorHttpBinding} — operations scoped to one
+ *   bound {@link Monitor} (`ListHealthEvents`, `GetHealthEvent`, the query
+ *   interface). The runtime callable injects the monitor's name as the
+ *   request's `MonitorName`; the deploy-time half grants `actions` on the
+ *   monitor ARN plus its sub-resources (health events are addressed as
+ *   `{monitorArn}/health-event/{id}`).
+ * - {@link makeInternetMonitorAccountHttpBinding} — account-level operations
+ *   (`GetInternetEvent`, `ListInternetEvents`). Internet events are global
+ *   outage records, not ARN-addressable resources, so the deploy-time half
+ *   grants `actions` on `*`.
+ */
+
+/**
+ * Build the impl Effect for an operation scoped to a single bound
+ * {@link Monitor}. The runtime callable injects the monitor's name as the
+ * request's `MonitorName`; the deploy-time half grants `actions` on the
+ * monitor ARN and its sub-resources.
+ */
+export const makeInternetMonitorMonitorHttpBinding = effect <
+  I extends { mutable MonitorName: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.InternetMonitor.ListHealthEvents`. */
+  mutable tag: string
+  /** The distilled operation; `MonitorName` is injected from the resource. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the monitor ARN (and its sub-resources). */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (monitor: Monitor) => {
+    const MonitorName = try monitor.monitorName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${monitor})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            // Health events (and other per-monitor entities) are
+            // addressed as sub-resources of the monitor ARN, e.g.
+            // `{monitorArn}/health-event/{eventId}`.
+            Resource: [monitor.monitorArn, Output.interpolate`${monitor.monitorArn}/*`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "MonitorName"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            MonitorName: try MonitorName,
+          } as I)
+        },
+        `${options.tag}(${monitor.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level Internet Monitor operation. The
+ * runtime callable passes the caller's request through unchanged; the
+ * deploy-time half grants `actions` on `*` (internet events do not support
+ * resource-level permissions).
+ */
+export const makeInternetMonitorAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.InternetMonitor.ListInternetEvents`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

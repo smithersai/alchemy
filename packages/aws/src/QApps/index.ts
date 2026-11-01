@@ -54,6 +54,6 @@ export * from "./UpdateQAppSession.vibe";
 export * from "./UpdateQAppSessionHttp.vibe";
 export * from "./UpdateQAppSessionMetadata.vibe";
 export * from "./UpdateQAppSessionMetadataHttp.vibe";
-export * from "./QApp.ts";
+export * from "./QApp.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding and is intentionally NOT
 // exported (see the Read/Write binding convention in AGENTS.md).

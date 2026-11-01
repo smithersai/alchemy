@@ -31,9 +31,9 @@ import {
   type RegistryImageSource,
 } from "../ECR/ImageSource.ts";
 import { AWSEnvironment } from "../Environment.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export class TaskConflict extends Data.TaggedError("TaskConflict")<{
   readonly message: string;

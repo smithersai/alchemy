@@ -1,0 +1,39 @@
+import * as polly from "@distilled.cloud/aws/polly"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { GetLexicon } from "./GetLexicon.vibe"
+import type { Lexicon } from "./Lexicon.vibe"
+
+// GetLexicon is one of the few Polly actions with resource-level IAM (the
+// `lexicon` resource type), so the grant is scoped to the lexicon's ARN
+// rather than `*` — that's why this binding is bespoke instead of a
+// makePollyHttpBinding thin call.
+export const GetLexiconHttp = Layer.effect(
+  GetLexicon,
+  effect {
+    const bind = try AWSBindings.Bind
+    const getLexicon = try AWSBindings.withCredentials(polly.getLexicon)
+
+    return effect <L extends Lexicon>(lexicon: L) => {
+      const Name = try lexicon.lexiconName.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.Polly.GetLexicon(${lexicon})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["polly:GetLexicon"],
+              Resource: [lexicon.lexiconArn],
+            },
+          ],
+        })
+      }
+      return effect () =>
+        try withSpan(
+          effect {
+            return try getLexicon({ Name: try Name })
+          },
+          `AWS.Polly.GetLexicon(${lexicon.LogicalId})`,
+        )
+    }
+  },
+)

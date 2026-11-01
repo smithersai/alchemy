@@ -11,12 +11,12 @@ import { Stack } from "alchemy/Stack";
 import { Stage } from "alchemy/Stage";
 import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import { CachePolicy } from "../CloudFront/CachePolicy.ts";
+import { CachePolicy } from "../CloudFront/CachePolicy.vibe";
 import { Distribution } from "../CloudFront/Distribution.ts";
-import { Function as CloudFrontFunction } from "../CloudFront/Function.ts";
-import { Invalidation } from "../CloudFront/Invalidation.ts";
+import { Function as CloudFrontFunction } from "../CloudFront/Function.vibe";
+import { Invalidation } from "../CloudFront/Invalidation.vibe";
 import { KeyValueStore } from "../CloudFront/KeyValueStore.ts";
-import { KvEntries } from "../CloudFront/KvEntries.ts";
+import { KvEntries } from "../CloudFront/KvEntries.vibe";
 import { KvRoutesUpdate } from "../CloudFront/KvRoutesUpdate.ts";
 import {
   MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID,
@@ -24,7 +24,7 @@ import {
 } from "../CloudFront/ManagedPolicies.ts";
 import { OriginAccessControl } from "../CloudFront/OriginAccessControl.ts";
 import { domainCertificate, resolveDomainDns } from "../CustomDomain.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { Bucket } from "../S3/Bucket.ts";
 import { AssetDeployment } from "./AssetDeployment.ts";
 import { buildHostRedirectInjection, CF_ROUTER_INJECTION } from "./cfcode.ts";

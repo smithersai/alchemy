@@ -1,7 +1,7 @@
 import type * as agentcore from "@distilled.cloud/aws/bedrock-agentcore";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { BrowserCustom } from "./BrowserCustom.js";
+import type { BrowserCustom } from "./BrowserCustom.vibe";
 export interface StopBrowserSessionRequest extends Omit<agentcore.StopBrowserSessionRequest, "browserIdentifier"> {
 }
 /**

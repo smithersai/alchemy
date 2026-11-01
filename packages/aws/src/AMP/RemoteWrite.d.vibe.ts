@@ -4,7 +4,7 @@ import * as Binding from "alchemy/Binding";
 import type { SourceError } from "effect/ConfigProvider";
 import type * as Effect from "effect/Effect";
 import type { PrometheusApiError } from "./PrometheusTypes.vibe";
-import type { Workspace } from "./Workspace.js";
+import type { Workspace } from "./Workspace.vibe";
 export interface RemoteWriteSample {
     /** Sample value. */
     value: number;

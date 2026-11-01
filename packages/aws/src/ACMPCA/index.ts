@@ -1,6 +1,6 @@
-export * from "./CertificateAuthority.ts";
+export * from "./CertificateAuthority.vibe";
 export * from "./CertificateAuthorityEventSource.vibe";
-export * from "./CertificateAuthorityPolicy.ts";
+export * from "./CertificateAuthorityPolicy.vibe";
 export * from "./CreateCertificateAuthorityAuditReport.vibe";
 export * from "./CreateCertificateAuthorityAuditReportHttp.vibe";
 export * from "./DescribeCertificateAuthorityAuditReport.vibe";
@@ -15,6 +15,6 @@ export * from "./ImportCertificateAuthorityCertificate.vibe";
 export * from "./ImportCertificateAuthorityCertificateHttp.vibe";
 export * from "./IssueCertificate.vibe";
 export * from "./IssueCertificateHttp.vibe";
-export * from "./Permission.ts";
+export * from "./Permission.vibe";
 export * from "./RevokeCertificate.vibe";
 export * from "./RevokeCertificateHttp.vibe";

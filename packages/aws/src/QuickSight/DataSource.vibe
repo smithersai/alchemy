@@ -1,0 +1,298 @@
+import * as quicksight from "@distilled.cloud/aws/quicksight"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import { readQuickSightTags, syncQuickSightTags, toWireTags, waitForSettled } from "./internal.ts"
+
+export error QuickSightDataSourceUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+/**
+ * Properties for an Amazon QuickSight data source — a connection to an
+ * external data store (Athena, S3, Redshift, an RDS engine, etc.) that
+ * datasets read from.
+ */
+export interface DataSourceProps {
+  /**
+   * Unique id of the data source within the account. Stable — changing it
+   * replaces the data source. If omitted, a unique id is generated.
+   */
+  mutable dataSourceId?: string
+
+  /**
+   * Display name of the data source.
+   */
+  mutable name: string
+
+  /**
+   * Type of the underlying data store (e.g. `ATHENA`, `S3`, `REDSHIFT`,
+   * `POSTGRESQL`). Immutable — changing the type replaces the data source.
+   */
+  mutable type: quicksight.DataSourceType
+
+  /**
+   * Connection parameters specific to the data source `type` (e.g.
+   * `AthenaParameters.WorkGroup`, `S3Parameters.ManifestFileLocation`).
+   */
+  mutable dataSourceParameters?: quicksight.DataSourceParameters
+
+  /**
+   * Credentials QuickSight uses to connect. Only required for stores that
+   * authenticate with a username/password or a Secrets Manager secret.
+   * Not required for `ATHENA`/`S3` sources that rely on the QuickSight IAM
+   * role.
+   */
+  mutable credentials?: quicksight.DataSourceCredentials
+
+  /**
+   * Resource-level permissions granting QuickSight principals access to the
+   * data source.
+   */
+  mutable permissions?: quicksight.ResourcePermission[]
+
+  /**
+   * VPC connection used to reach a data store inside a VPC.
+   */
+  mutable vpcConnectionProperties?: quicksight.VpcConnectionProperties
+
+  /**
+   * SSL options for the connection.
+   */
+  mutable sslProperties?: quicksight.SslProperties
+
+  /**
+   * Tags to apply to the data source.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface DataSource extends
+  Resource<
+    "AWS.QuickSight.DataSource",
+    DataSourceProps,
+    {
+      /** Unique id of the data source within the account. */
+      mutable dataSourceId: string
+      /** ARN of the data source. */
+      mutable arn: string
+      /** Display name of the data source. */
+      mutable name: string
+      /** Type of the underlying data store. */
+      mutable type: quicksight.DataSourceType
+      /** Current lifecycle status (e.g. `CREATION_SUCCESSFUL`). */
+      mutable status: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon QuickSight data source — a connection to an external data store
+ * that datasets read from.
+ *
+ * QuickSight requires an active account subscription in the region. Without
+ * one, create operations fail with the typed `QuickSightSubscriptionRequired`
+ * error.
+ *
+ * ### Creating a Data Source
+ * **Example:** Athena Data Source
+ * ```typescript
+ * const source = yield* DataSource("analytics", {
+ *   name: "Athena Analytics",
+ *   type: "ATHENA",
+ *   dataSourceParameters: { AthenaParameters: { WorkGroup: "primary" } },
+ * });
+ * ```
+ *
+ * **Example:** S3 Manifest Data Source
+ * ```typescript
+ * const source = yield* DataSource("s3-source", {
+ *   name: "S3 Sales Data",
+ *   type: "S3",
+ *   dataSourceParameters: {
+ *     S3Parameters: {
+ *       ManifestFileLocation: { Bucket: "my-bucket", Key: "manifest.json" },
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DataSource = Resource<DataSource>("AWS.QuickSight.DataSource")
+
+export const DataSourceProvider = (): infer _ =>
+  Provider.effect(
+    DataSource,
+    effect {
+      const toId = effect (
+        id: string,
+        props: Partial<DataSourceProps>,
+      ) => (props.dataSourceId ? props.dataSourceId : try createPhysicalName({ id, maxLength: 64 }))
+
+      const readSource = effect (accountId: string, dataSourceId: string) => {
+        const response = quicksight
+          .describeDataSource({
+            AwsAccountId: accountId,
+            DataSourceId: dataSourceId,
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        const source = response?.DataSource
+        if (source === undefined || source.Status === "DELETED") {
+          return undefined
+        }
+        return source
+      }
+
+      const toAttrs = (source: quicksight.DataSource): infer _ => ({
+        dataSourceId: source.DataSourceId,
+        arn: source.Arn,
+        name: source.Name,
+        type: source.Type,
+        status: source.Status,
+      })
+
+      return DataSource.Provider.of({
+        stables: ["dataSourceId", "arn"],
+
+        diff: effect ({ id, olds = {}, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toId(id, olds)) !== (try toId(id, news))) {
+            return { action: "replace" } as const
+          }
+          if ((olds.type ?? undefined) !== (news.type ?? undefined)) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds = {}, output }) => {
+          const { accountId } = try AWSEnvironment.current
+          const dataSourceId = output?.dataSourceId ?? (try toId(id, olds))
+          const source = try readSource(accountId, dataSourceId)
+          if (source === undefined) return undefined
+          const attrs = toAttrs(source)
+          const tags = try readQuickSightTags(attrs.arn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId } = try AWSEnvironment.current
+          const dataSourceId = output?.dataSourceId ?? (try toId(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = try readSource(accountId, dataSourceId)
+
+          // 2. Ensure — create if missing; tolerate an AlreadyExists race.
+          if (observed === undefined) {
+            quicksight
+              .createDataSource({
+                AwsAccountId: accountId,
+                DataSourceId: dataSourceId,
+                Name: news.name,
+                Type: news.type,
+                DataSourceParameters: news.dataSourceParameters,
+                Credentials: news.credentials,
+                Permissions: news.permissions,
+                VpcConnectionProperties: news.vpcConnectionProperties,
+                SslProperties: news.sslProperties,
+                Tags: toWireTags(desiredTags),
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceExistsException" }: try Effect.void;
+                default: throw e;
+              }
+            observed = try waitForSettled(
+              dataSourceId,
+              effect {
+                return try effect {
+                  const s = try readSource(accountId, dataSourceId)
+                  return (s === undefined ? undefined : { ...s, status: s.Status })
+                }
+              },
+            )
+            if (observed === undefined) {
+              throw new QuickSightDataSourceUnexpectedResponse({
+                message: `QuickSight data source '${dataSourceId}' disappeared while creating`,
+              })
+            }
+          } else {
+            // 3. Sync — apply mutable settings via an idempotent update.
+            try quicksight.updateDataSource({
+              AwsAccountId: accountId,
+              DataSourceId: dataSourceId,
+              Name: news.name,
+              DataSourceParameters: news.dataSourceParameters,
+              Credentials: news.credentials,
+              VpcConnectionProperties: news.vpcConnectionProperties,
+              SslProperties: news.sslProperties,
+            })
+            observed = try waitForSettled(
+              dataSourceId,
+              effect {
+                return try effect {
+                  const s = try readSource(accountId, dataSourceId)
+                  return (s === undefined ? undefined : { ...s, status: s.Status })
+                }
+              },
+            )
+            if (observed === undefined) {
+              throw new QuickSightDataSourceUnexpectedResponse({
+                message: `QuickSight data source '${dataSourceId}' disappeared while updating`,
+              })
+            }
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags.
+          try syncQuickSightTags(observed.Arn, desiredTags)
+
+          try session.note(dataSourceId)
+          return toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          const { accountId } = try AWSEnvironment.current
+          quicksight
+            .deleteDataSource({
+              AwsAccountId: accountId,
+              DataSourceId: output.dataSourceId,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        list: effect () => {
+          const { accountId } = try AWSEnvironment.current
+          return Array.from(
+            try (quicksight.listDataSources.pages({ AwsAccountId: accountId })
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.DataSources ?? [])
+            .flatMap((s) =>
+              s.DataSourceId !== undefined && s.Arn !== undefined && s.Status !== "DELETED"
+                ? [
+                  {
+                    dataSourceId: s.DataSourceId,
+                    arn: s.Arn,
+                    name: s.Name,
+                    type: s.Type,
+                    status: s.Status,
+                  },
+                ]
+                : []
+            )
+        },
+      })
+    },
+  )

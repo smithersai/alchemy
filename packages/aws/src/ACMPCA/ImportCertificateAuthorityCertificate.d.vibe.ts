@@ -1,7 +1,7 @@
 import type * as acmpca from "@distilled.cloud/aws/acm-pca";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { CertificateAuthority } from "./CertificateAuthority.js";
+import type { CertificateAuthority } from "./CertificateAuthority.vibe";
 export interface ImportCertificateAuthorityCertificateRequest extends Omit<acmpca.ImportCertificateAuthorityCertificateRequest, "CertificateAuthorityArn"> {
 }
 /**

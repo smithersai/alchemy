@@ -1,0 +1,295 @@
+import * as iotw from "@distilled.cloud/aws/iot-wireless"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readIotWirelessTags, syncIotWirelessTags } from "./internal.ts"
+
+export error IoTWirelessDestinationUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface DestinationProps {
+  /**
+   * Name of the destination. Names are unique per account/region and may
+   * contain only alphanumerics, dashes, and underscores. If omitted, a
+   * deterministic physical name is generated. Changing the name replaces
+   * the destination.
+   */
+  mutable name?: string
+  /**
+   * How `expression` is interpreted: `RuleName` routes uplinks to an AWS
+   * IoT rule; `MqttTopic` publishes them to an MQTT topic.
+   */
+  mutable expressionType: iotw.ExpressionType
+  /**
+   * The IoT rule name or MQTT topic uplink messages are routed to. The
+   * referenced rule does not need to exist when the destination is created.
+   */
+  mutable expression: string
+  /**
+   * Human-readable description of the destination.
+   */
+  mutable description?: string
+  /**
+   * ARN of the IAM role IoT Wireless assumes to deliver messages to the
+   * rule or topic. The role's trust policy must allow
+   * `iotwireless.amazonaws.com` to assume it.
+   */
+  mutable roleArn: string
+  /**
+   * Tags applied to the destination. Alchemy ownership tags are merged in
+   * automatically.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Destination extends
+  Resource<
+    "AWS.IoTWireless.Destination",
+    DestinationProps,
+    {
+      /** Name of the destination (its unique identifier). */
+      mutable destinationName: string
+      /** ARN of the destination. */
+      mutable destinationArn: string
+      /** How the expression is interpreted (`RuleName` or `MqttTopic`). */
+      mutable expressionType: iotw.ExpressionType
+      /** The IoT rule name or MQTT topic uplinks are routed to. */
+      mutable expression: string
+      /** ARN of the delivery IAM role. */
+      mutable roleArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS IoT Core for LoRaWAN destination — the routing rule that delivers
+ * uplink messages from wireless devices to an AWS IoT rule or MQTT topic.
+ *
+ * The destination name is its identity (changing it replaces the
+ * destination); the expression, expression type, description, role, and
+ * tags all update in place.
+ * ### Creating Destinations
+ * **Example:** Route uplinks to an IoT rule
+ * ```typescript
+ * import * as IoTWireless from "@alchemy.run/aws/IoTWireless";
+ *
+ * const destination = yield* IoTWireless.Destination("Uplinks", {
+ *   expressionType: "RuleName",
+ *   expression: "process_sensor_uplinks",
+ *   roleArn: deliveryRole.roleArn,
+ * });
+ * ```
+ *
+ * **Example:** Publish uplinks straight to an MQTT topic
+ * ```typescript
+ * const destination = yield* IoTWireless.Destination("Uplinks", {
+ *   expressionType: "MqttTopic",
+ *   expression: "sensors/uplinks",
+ *   roleArn: deliveryRole.roleArn,
+ * });
+ * ```
+ *
+ * ### Delivery Role
+ * **Example:** IAM role IoT Wireless assumes for delivery
+ * ```typescript
+ * const deliveryRole = yield* IAM.Role("IotWirelessDelivery", {
+ *   assumeRolePolicyDocument: {
+ *     Version: "2012-10-17",
+ *     Statement: [{
+ *       Effect: "Allow",
+ *       Principal: { Service: "iotwireless.amazonaws.com" },
+ *       Action: ["sts:AssumeRole"],
+ *     }],
+ *   },
+ *   policies: [{
+ *     policyName: "deliver",
+ *     policyDocument: {
+ *       Version: "2012-10-17",
+ *       Statement: [{
+ *         Effect: "Allow",
+ *         Action: ["iot:DescribeEndpoint", "iot:Publish"],
+ *         Resource: ["*"],
+ *       }],
+ *     },
+ *   }],
+ * });
+ * ```
+ *
+ * ### Consuming Uplinks in a Function
+ * Uplinks are delivered through AWS IoT Core. For a `RuleName` destination,
+ * `IoTWireless.consumeUplinks` (see {@link DestinationEventSource}) creates
+ * the named IoT rule targeting the current Lambda and invokes the handler
+ * for every uplink. Alternatively, point an `MqttTopic` destination at a
+ * topic and consume it with `AWS.IoT.consumeTopicMessages`.
+ * **Example:** Route Device Uplinks into a Lambda
+ * ```typescript
+ * const destination = yield* IoTWireless.Destination("Uplinks", {
+ *   expressionType: "RuleName",
+ *   expression: "sensor_uplinks",
+ *   roleArn: deliveryRole.roleArn,
+ * });
+ *
+ * // inside the Function effect (provide Lambda.WirelessDestinationEventSource):
+ * yield* IoTWireless.consumeUplinks(destination, (uplinks) =>
+ *   uplinks.pipe(
+ *     Stream.runForEach((uplink) => processUplink(uplink)),
+ *     Effect.orDie,
+ *   ),
+ * );
+ * ```
+ *
+ * @resource
+ */
+export const Destination = Resource<Destination>("AWS.IoTWireless.Destination")
+
+export const DestinationProvider = (): infer _ =>
+  Provider.effect(
+    Destination,
+    effect {
+      const createName = effect (id: string, props: { mutable name?: string }) =>
+        props.name ?? (try createPhysicalName({ id, maxLength: 128 }))
+
+      const getDestination = effect (name: string) =>
+        iotw
+          .getDestination({ Name: name }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      const toAttrs = effect (destination: iotw.GetDestinationResponse, name: string) => {
+        if (destination.Arn === undefined) {
+          throw new IoTWirelessDestinationUnexpectedResponse({
+            message: `IoT Wireless destination '${name}' returned without Arn`,
+          })
+        }
+        return {
+          destinationName: destination.Name ?? name,
+          destinationArn: destination.Arn,
+          expressionType: destination.ExpressionType ?? "RuleName",
+          expression: destination.Expression ?? "",
+          roleArn: destination.RoleArn ?? "",
+        }
+      }
+
+      return Destination.Provider.of({
+        stables: ["destinationName", "destinationArn"],
+
+        list: effect () =>
+          Array.from(
+            try (iotw.listDestinations.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.DestinationList ?? [])
+            .flatMap((d) =>
+              d.Name !== undefined && d.Arn !== undefined
+                ? [
+                  {
+                    destinationName: d.Name,
+                    destinationArn: d.Arn,
+                    expressionType: d.ExpressionType ?? "RuleName",
+                    expression: d.Expression ?? "",
+                    roleArn: d.RoleArn ?? "",
+                  },
+                ]
+                : []
+            ),
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.destinationName ?? (try createName(id, olds ?? {}))
+          const destination = try getDestination(name)
+          if (destination === undefined) return undefined
+          const attrs = try toAttrs(destination, name)
+          const tags = try readIotWirelessTags(attrs.destinationArn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        // The name is the destination's identity — changing it replaces the
+        // resource. Everything else updates in place via UpdateDestination.
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds ?? {})
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.destinationName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative.
+          let destination = try getDestination(name)
+
+          // 2. ENSURE — create if missing; a Conflict means a peer created
+          //    it concurrently, so fall through to the sync step.
+          if (destination === undefined) {
+            try session.note(`creating destination ${name}`)
+            ;(try (iotw
+              .createDestination({
+                Name: name,
+                ExpressionType: news.expressionType,
+                Expression: news.expression,
+                Description: news.description,
+                RoleArn: news.roleArn,
+                Tags: createTagsList(desiredTags),
+              })
+              |> Effect.asVoid(%))) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try Effect.void;
+                default: throw e;
+              }
+            destination = try getDestination(name)
+          }
+          if (destination === undefined) {
+            throw new IoTWirelessDestinationUnexpectedResponse({
+              message: `IoT Wireless destination '${name}' not found after create`,
+            })
+          }
+
+          // 3. SYNC — apply the expression/description/role delta from
+          //    OBSERVED state; skip the API call entirely on no-op.
+          const expressionDelta = destination.Expression !== news.expression
+            || destination.ExpressionType !== news.expressionType
+          const descriptionDelta = news.description !== undefined && destination.Description !== news.description
+          const roleDelta = destination.RoleArn !== news.roleArn
+          if (expressionDelta || descriptionDelta || roleDelta) {
+            try iotw.updateDestination({
+              Name: name,
+              ExpressionType: news.expressionType,
+              Expression: news.expression,
+              Description: news.description,
+              RoleArn: news.roleArn,
+            })
+            destination = try getDestination(name)
+          }
+          if (destination === undefined) {
+            throw new IoTWirelessDestinationUnexpectedResponse({
+              message: `IoT Wireless destination '${name}' vanished during update`,
+            })
+          }
+
+          // 3b. SYNC tags — diff against OBSERVED cloud tags.
+          const attrs = try toAttrs(destination, name)
+          try syncIotWirelessTags(attrs.destinationArn, desiredTags)
+
+          try session.note(attrs.destinationArn)
+          return attrs
+        },
+
+        delete: effect ({ output }) => {
+          ;(try (iotw.deleteDestination({ Name: output.destinationName })
+            |> Effect.asVoid(%))) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

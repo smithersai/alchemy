@@ -20,7 +20,7 @@ export * from "./ListRuleExecutions.vibe";
 export * from "./ListRuleExecutionsHttp.vibe";
 export * from "./OverrideStageCondition.vibe";
 export * from "./OverrideStageConditionHttp.vibe";
-export * from "./Pipeline.ts";
+export * from "./Pipeline.vibe";
 export * from "./PipelineEventSource.vibe";
 export * from "./PollForJobs.vibe";
 export * from "./PollForJobsHttp.vibe";

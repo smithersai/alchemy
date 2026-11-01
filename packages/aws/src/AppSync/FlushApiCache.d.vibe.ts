@@ -1,7 +1,7 @@
 import type * as appsync from "@distilled.cloud/aws/appsync";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { GraphqlApi } from "./GraphqlApi.js";
+import type { GraphqlApi } from "./GraphqlApi.vibe";
 /**
  * Runtime binding for `appsync:FlushApiCache` — flush a {@link GraphqlApi}'s
  * server-side cache from a Lambda (or other AWS runtime), e.g. after

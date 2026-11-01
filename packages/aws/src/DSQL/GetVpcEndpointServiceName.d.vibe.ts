@@ -1,7 +1,7 @@
 import type * as dsql from "@distilled.cloud/aws/dsql";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 /**
  * Retrieves the VPC endpoint service name of an Aurora DSQL cluster — the
  * `com.amazonaws.{region}.dsql-{suffix}` PrivateLink service name used to

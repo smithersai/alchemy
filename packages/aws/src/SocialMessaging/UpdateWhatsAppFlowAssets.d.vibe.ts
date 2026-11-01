@@ -1,7 +1,7 @@
 import type * as socialmessaging from "@distilled.cloud/aws/socialmessaging";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LinkedWhatsAppBusinessAccount } from "./LinkedWhatsAppBusinessAccount.js";
+import type { LinkedWhatsAppBusinessAccount } from "./LinkedWhatsAppBusinessAccount.vibe";
 /**
  * Request for {@link UpdateWhatsAppFlowAssets}. The linked WABA `id` is injected by
  * the binding from the bound {@link LinkedWhatsAppBusinessAccount}.

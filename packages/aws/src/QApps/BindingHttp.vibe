@@ -1,0 +1,128 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { QApp } from "./QApp.vibe"
+
+/**
+ * Shared HTTP scaffolding for the Amazon Q Apps runtime bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation and the IAM action list is
+ * boilerplate: every Q Apps operation runs against the Q Business
+ * application environment instance of the bound {@link QApp} (its
+ * `instanceId` is injected as the `instance-id` header), and app-keyed
+ * operations additionally inject the bound app's `appId`.
+ *
+ * Two IAM grant shapes:
+ *
+ * - {@link makeQAppHttpBinding} — operations keyed by the bound Q App or one
+ *   of its sessions. Granted on the app's ARN and its sub-resources
+ *   (`{appArn}`, `{appArn}/*` — Q App session ARNs are children of the app
+ *   ARN).
+ * - {@link makeQAppsInstanceHttpBinding} — instance-level operations
+ *   (library items, categories, listing, generation). Library-item and
+ *   category authorization ARNs are service-assigned and not derivable from
+ *   a bound Q App, so these grant on `Resource: ["*"]`.
+ */
+
+/**
+ * Build the impl Effect for a Q Apps operation keyed by the bound
+ * {@link QApp} (or one of its sessions): the runtime callable injects the
+ * app's `instanceId` (and, with `injectAppId`, its `appId`); the deploy-time
+ * half grants `iamActions` on the app ARN and its session sub-resources.
+ */
+export const makeQAppHttpBinding = effect <I extends { mutable instanceId: string }, A, E, R>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"StartQAppSession"`.
+   */
+  mutable capability: string
+  /** IAM actions granted on the app ARN + `{appArn}/*`. */
+  mutable iamActions: readonly string[]
+  /** The distilled operation; `instanceId` (and `appId`) are injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** Inject the bound app's `appId` into the request. */
+  mutable injectAppId?: boolean
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (app: QApp) => {
+    const instanceId = try app.instanceId.asEffect()
+    const appId = try app.appId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.QApps.${options.capability}(${app})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: [Output.interpolate`${app.appArn}`, Output.interpolate`${app.appArn}/*`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "instanceId" | "appId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const input = options.injectAppId
+            ? {
+              ...request,
+              instanceId: try instanceId,
+              appId: try appId,
+            }
+            : { ...request, instanceId: try instanceId }
+          return try op(input as I)
+        },
+        `AWS.QApps.${options.capability}(${app.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an instance-level Q Apps operation (library
+ * items, categories, listing, generation): the runtime callable injects the
+ * bound {@link QApp}'s `instanceId`. Library-item and category authorization
+ * ARNs are service-assigned and not derivable from a bound Q App, so the
+ * deploy-time half grants `iamActions` on `Resource: ["*"]`.
+ */
+export const makeQAppsInstanceHttpBinding = effect <I extends { mutable instanceId: string }, A, E, R>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"ListLibraryItems"`.
+   */
+  mutable capability: string
+  /** IAM actions granted on `Resource: ["*"]`. */
+  mutable iamActions: readonly string[]
+  /** The distilled operation; `instanceId` is injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (app: QApp) => {
+    const instanceId = try app.instanceId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.QApps.${options.capability}(${app})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "instanceId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({ ...request, instanceId: try instanceId } as I)
+        },
+        `AWS.QApps.${options.capability}(${app.LogicalId})`,
+      )
+  }
+}

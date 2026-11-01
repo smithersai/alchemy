@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment, type AccountID } from "../Environment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { RegionID } from "../Region.ts";
 
 export type TableBucketArn = `arn:aws:s3tables:${RegionID}:${AccountID}:bucket/${string}`;

@@ -7,7 +7,7 @@ import * as Schedule from "effect/Schedule";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { Bucket } from "../S3/Bucket.ts";
 import { AthenaQueryFailed, Query, type QueryResult, type RunQueryRequest } from "./Query.vibe";
-import type { WorkGroup } from "./WorkGroup.ts";
+import type { WorkGroup } from "./WorkGroup.vibe";
 
 // The workgroup ARN is `arn:aws:athena:{region}:{account}:workgroup/{name}` —
 // the Glue Data Catalog ARNs share that partition/region/account.

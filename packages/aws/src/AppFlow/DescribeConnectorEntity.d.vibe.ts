@@ -1,7 +1,7 @@
 import type * as appflow from "@distilled.cloud/aws/appflow";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ConnectorProfile } from "./ConnectorProfile.js";
+import type { ConnectorProfile } from "./ConnectorProfile.vibe";
 export interface DescribeConnectorEntityRequest extends Omit<appflow.DescribeConnectorEntityRequest, "connectorProfileName"> {
 }
 /**

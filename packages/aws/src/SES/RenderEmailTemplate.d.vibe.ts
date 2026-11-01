@@ -1,7 +1,7 @@
 import type * as sesv2 from "@distilled.cloud/aws/sesv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { EmailTemplate } from "./EmailTemplate.js";
+import type { EmailTemplate } from "./EmailTemplate.vibe";
 /**
  * The `testRenderEmailTemplate` request with the binding-injected
  * `TemplateName` removed — it comes from the bound template.

@@ -30,7 +30,7 @@ export * from "./PutRecords.vibe";
 export * from "./PutRecordsHttp.ts";
 export * from "./SplitShard.vibe";
 export * from "./SplitShardHttp.ts";
-export * from "./Stream.ts";
+export * from "./Stream.vibe";
 export * from "./StreamConsumer.vibe";
 export * from "./StreamEventSource.ts";
 export * from "./StreamSink.vibe";

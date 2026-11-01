@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { ServerlessCluster } from "./ServerlessCluster.js";
+import type { ServerlessCluster } from "./ServerlessCluster.vibe";
 /**
  * Connection descriptor for an MSK {@link ServerlessCluster}. Alchemy does
  * not bundle a Kafka client — pass these settings to the Kafka client of

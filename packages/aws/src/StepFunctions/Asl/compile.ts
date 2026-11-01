@@ -13,7 +13,7 @@ import { toSeconds as toWholeSeconds } from "alchemy/Util/Duration";
  */
 import * as Data from "effect/Data";
 import type * as Duration from "effect/Duration";
-import type { PolicyStatement } from "../../IAM/Policy.ts";
+import type { PolicyStatement } from "../../IAM/Policy.vibe";
 import {
   inputExpr,
   isExpr,

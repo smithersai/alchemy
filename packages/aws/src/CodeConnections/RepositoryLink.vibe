@@ -1,0 +1,246 @@
+import * as codeconnections from "@distilled.cloud/aws/codeconnections"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { fetchObservedTags, syncResourceTags, toTagList } from "./internal.ts"
+
+export interface RepositoryLinkProps {
+  /**
+   * ARN of the connection to the external provider. The connection must be
+   * in the `AVAILABLE` state (its OAuth handshake completed in the console).
+   */
+  mutable connectionArn: string
+  /**
+   * Owner ID of the repository — the GitHub organization/user or GitLab
+   * group/user that owns the repository. Changing the owner replaces the
+   * link.
+   */
+  mutable ownerId: string
+  /**
+   * Name of the repository to link. Changing the repository replaces the
+   * link.
+   */
+  mutable repositoryName: string
+  /**
+   * ARN of the KMS key used to encrypt the repository link's sync content.
+   */
+  mutable encryptionKeyArn?: string
+  /**
+   * User-defined tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface RepositoryLink extends
+  Resource<
+    "AWS.CodeConnections.RepositoryLink",
+    RepositoryLinkProps,
+    {
+      /** Unique ID of the repository link (used by sync operations). */
+      mutable repositoryLinkId: string
+      /** ARN of the repository link. */
+      mutable repositoryLinkArn: string
+      /** ARN of the connection the link authenticates through. */
+      mutable connectionArn: string
+      /** Owner ID of the linked repository. */
+      mutable ownerId: string
+      /** Name of the linked repository. */
+      mutable repositoryName: string
+      /** The source provider (`GitHub`, `GitLab`, ...). */
+      mutable providerType: string
+      /** ARN of the KMS key encrypting the link's sync content, if any. */
+      mutable encryptionKeyArn: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS CodeConnections repository link — associates a connection with a
+ * specific external Git repository so Git sync can monitor and sync changes
+ * (e.g. CloudFormation git sync).
+ *
+ * Requires a connection in the `AVAILABLE` state; the connection's OAuth
+ * handshake is a one-time **manual** console step.
+ * ### Linking a Repository
+ * **Example:** Link a GitHub Repository
+ * ```typescript
+ * const link = yield* CodeConnections.RepositoryLink("Repo", {
+ *   connectionArn: connection.connectionArn,
+ *   ownerId: "my-github-org",
+ *   repositoryName: "my-repo",
+ * });
+ * ```
+ *
+ * **Example:** Encrypted Repository Link
+ * ```typescript
+ * const link = yield* CodeConnections.RepositoryLink("Repo", {
+ *   connectionArn: connection.connectionArn,
+ *   ownerId: "my-github-org",
+ *   repositoryName: "my-repo",
+ *   encryptionKeyArn: key.keyArn,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const RepositoryLink = Resource<RepositoryLink>("AWS.CodeConnections.RepositoryLink")
+
+export const RepositoryLinkProvider = (): infer _ =>
+  Provider.effect(
+    RepositoryLink,
+    effect {
+      /** Read a repository link by ID; a missing link reads as absent. */
+      const getById = effect (id: string) => {
+        const response = codeconnections
+          .getRepositoryLink({ RepositoryLinkId: id }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.RepositoryLinkInfo
+      }
+
+      /**
+       * Find a repository link by its identity — owner + repository name
+       * (getRepositoryLink only accepts an ID).
+       */
+      const findByIdentity = effect (ownerId: string, repositoryName: string) => {
+        const links = Array.from(
+          try (codeconnections.listRepositoryLinks.pages({})
+            |> Stream.runCollect(%)),
+        ).flatMap((page) => page.RepositoryLinks ?? [])
+        return links.find(
+          (link) => link.OwnerId === ownerId && link.RepositoryName === repositoryName,
+        )
+      }
+
+      const toAttrs = (link: codeconnections.RepositoryLinkInfo): infer _ => ({
+        repositoryLinkId: link.RepositoryLinkId,
+        repositoryLinkArn: link.RepositoryLinkArn,
+        connectionArn: link.ConnectionArn,
+        ownerId: link.OwnerId,
+        repositoryName: link.RepositoryName,
+        providerType: link.ProviderType ?? "",
+        encryptionKeyArn: link.EncryptionKeyArn,
+      })
+
+      return {
+        stables: [
+          "repositoryLinkId",
+          "repositoryLinkArn",
+          "ownerId",
+          "repositoryName",
+          "providerType",
+        ],
+
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return undefined
+          // The linked repository is the link's identity — replace on change.
+          // Connection and encryption key are mutable via UpdateRepositoryLink.
+          if (
+            (news?.ownerId ?? undefined) !== (olds?.ownerId ?? undefined)
+            || (news?.repositoryName ?? undefined) !== (olds?.repositoryName ?? undefined)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const link = output?.repositoryLinkId
+            ? try getById(output.repositoryLinkId)
+            : olds?.ownerId && olds?.repositoryName
+            ? try findByIdentity(olds.ownerId, olds.repositoryName)
+            : undefined
+          if (link === undefined) return undefined
+          const attrs = toAttrs(link)
+          const tags = try fetchObservedTags(attrs.repositoryLinkArn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = output?.repositoryLinkId
+            ? try getById(output.repositoryLinkId)
+            : try findByIdentity(news.ownerId, news.repositoryName)
+
+          // 2. Ensure — create if missing; tolerate the AlreadyExists race.
+          if (observed === undefined) {
+            observed = (try codeconnections
+              .createRepositoryLink({
+                ConnectionArn: news.connectionArn,
+                OwnerId: news.ownerId,
+                RepositoryName: news.repositoryName,
+                EncryptionKeyArn: news.encryptionKeyArn,
+                Tags: toTagList(desiredTags),
+              })).RepositoryLinkInfo catch effect (error) => match (error) {
+                when { _tag: "ResourceAlreadyExistsException" }: try effect {
+                  const link = try findByIdentity(news.ownerId, news.repositoryName)
+                  return (link === undefined ? throw error : link)
+                };
+                default: throw error;
+              }
+          }
+
+          // 3. Sync — connection + encryption key, diffed against OBSERVED
+          // cloud state; skip the API entirely on no-op.
+          if (
+            observed.ConnectionArn !== news.connectionArn
+            || (observed.EncryptionKeyArn ?? undefined) !== (news.encryptionKeyArn ?? undefined)
+          ) {
+            const updated = try codeconnections.updateRepositoryLink({
+              RepositoryLinkId: observed.RepositoryLinkId,
+              ConnectionArn: news.connectionArn,
+              EncryptionKeyArn: news.encryptionKeyArn,
+            })
+            observed = updated.RepositoryLinkInfo
+          }
+
+          // 4. Sync tags — diff against OBSERVED cloud tags.
+          try syncResourceTags(observed.RepositoryLinkArn, desiredTags)
+
+          try session.note(`${news.ownerId}/${news.repositoryName}`)
+          return toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          // Sync configurations on the link must be deleted first — retry
+          // the dependency violation while downstream deletions land.
+          ;(try (codeconnections
+            .deleteRepositoryLink({
+              RepositoryLinkId: output.repositoryLinkId,
+            })
+            |> Effect.retry(%, {
+              while: (e): boolean => e._tag === "SyncConfigurationStillExistsException",
+              schedule: Schedule.exponential("2 seconds"),
+              times: 8,
+            }))) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        list: effect () =>
+          Array.from(
+            try (codeconnections.listRepositoryLinks.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.RepositoryLinks ?? [])
+            .map((link) => ({
+              repositoryLinkId: link.RepositoryLinkId,
+              repositoryLinkArn: link.RepositoryLinkArn,
+              connectionArn: link.ConnectionArn,
+              ownerId: link.OwnerId,
+              repositoryName: link.RepositoryName,
+              providerType: link.ProviderType ?? "",
+              encryptionKeyArn: link.EncryptionKeyArn,
+            })),
+      }
+    },
+  )

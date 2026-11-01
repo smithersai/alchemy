@@ -7,7 +7,7 @@ import type * as Output from "alchemy/Output";
  * policy statements) and `simulate.ts` (→ an in-process `Effect`).
  */
 import type * as Duration from "effect/Duration";
-import type { PolicyStatement } from "../../IAM/Policy.js";
+import type { PolicyStatement } from "../../IAM/Policy.vibe";
 import type { Expr } from "./Jsonata.js";
 import type { SfnEffect } from "./Program.vibe";
 /**

@@ -1,0 +1,287 @@
+import * as appregistry from "@distilled.cloud/aws/service-catalog-appregistry"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.vibe"
+
+/**
+ * Raised when a freshly created resource association has not become visible
+ * to `getAssociatedResource` within the bounded eventual-consistency window.
+ */
+export error ResourceAssociationNotVisible {
+  application: string
+  resource: string
+}
+
+export interface ResourceAssociationProps {
+  /**
+   * The application to associate the resource with: its ID, name, or ARN.
+   * Changing it replaces the association.
+   */
+  mutable application: string
+  /**
+   * The type of resource being associated: `CFN_STACK` for a CloudFormation
+   * stack or `RESOURCE_TAG_VALUE` for a tag-value query. Changing it replaces
+   * the association.
+   */
+  mutable resourceType: "CFN_STACK" | "RESOURCE_TAG_VALUE"
+  /**
+   * The name or ARN of the resource to associate (e.g. the CloudFormation
+   * stack name). Changing it replaces the association.
+   */
+  mutable resource: string
+  /**
+   * Association options. `APPLY_APPLICATION_TAG` (the service default) stamps
+   * the resource with the `awsApplication` tag; `SKIP_APPLICATION_TAG` leaves
+   * the resource's tags untouched. Updatable in place (the association is
+   * re-created under the hood).
+   */
+  mutable options?: ("APPLY_APPLICATION_TAG" | "SKIP_APPLICATION_TAG")[]
+}
+
+export interface ResourceAssociation extends
+  Resource<
+    "AWS.AppRegistry.ResourceAssociation",
+    ResourceAssociationProps,
+    {
+      /** The ID of the associated application. */
+      mutable applicationId: string
+      /** The ARN of the associated application. */
+      mutable applicationArn: string
+      /** The type of the associated resource. */
+      mutable resourceType: string
+      /** The canonical name of the associated resource. */
+      mutable resourceName: string
+      /** The ARN of the associated resource. */
+      mutable resourceArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Associates an AWS resource (a CloudFormation stack or a tag-value query)
+ * with an AppRegistry {@link Application} so the resource is inventoried
+ * under the application in myApplications.
+ *
+ * ### Associating a Resource
+ * **Example:** Associate a CloudFormation Stack
+ * ```typescript
+ * import * as AppRegistry from "@alchemy.run/aws/AppRegistry";
+ * import * as CloudFormation from "@alchemy.run/aws/CloudFormation";
+ *
+ * const app = yield* AppRegistry.Application("Storefront", {});
+ * const stack = yield* CloudFormation.Stack("Network", {
+ *   templateBody: networkTemplateJson,
+ * });
+ *
+ * const association = yield* AppRegistry.ResourceAssociation("StackAssoc", {
+ *   application: app.applicationId,
+ *   resourceType: "CFN_STACK",
+ *   resource: stack.stackName,
+ * });
+ * ```
+ *
+ * **Example:** Associate Without Applying the Application Tag
+ * ```typescript
+ * const association = yield* AppRegistry.ResourceAssociation("StackAssoc", {
+ *   application: app.applicationId,
+ *   resourceType: "CFN_STACK",
+ *   resource: stack.stackName,
+ *   options: ["SKIP_APPLICATION_TAG"],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ResourceAssociation = Resource<ResourceAssociation>(
+  "AWS.AppRegistry.ResourceAssociation",
+)
+
+const sameOptions = (
+  observed: readonly string[] | undefined,
+  desired: readonly string[],
+): boolean => {
+  const observedSet = new Set(observed ?? [])
+  return desired.length === observedSet.size && desired.every((option) => observedSet.has(option))
+}
+
+export const ResourceAssociationProvider = (): infer _ =>
+  Provider.effect(
+    ResourceAssociation,
+    effect {
+      const observeApplication = effect (specifier: string) =>
+        appregistry
+          .getApplication({ application: specifier }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      const observeAssociation = effect (
+        application: string,
+        resourceType: string,
+        resource: string,
+      ) =>
+        appregistry
+          .getAssociatedResource({ application, resourceType, resource }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      return ResourceAssociation.Provider.of({
+        stables: ["applicationId", "applicationArn", "resourceType", "resourceName", "resourceArn"],
+        // The application/resource pair IS the association's identity —
+        // changing either side replaces it. `options` is synced in place.
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if (
+            olds !== undefined
+            && (olds.application !== news.application
+              || olds.resourceType !== news.resourceType
+              || olds.resource !== news.resource)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          const applicationSpecifier = output?.applicationId ?? olds?.application
+          const resourceType = output?.resourceType ?? olds?.resourceType
+          const resource = output?.resourceName ?? olds?.resource
+          if (
+            applicationSpecifier === undefined
+            || resourceType === undefined
+            || resource === undefined
+          ) {
+            return undefined
+          }
+          const application = try observeApplication(applicationSpecifier)
+          if (application?.id === undefined) return undefined
+          const association = try observeAssociation(application.id, resourceType, resource)
+          if (association?.resource?.arn === undefined) return undefined
+          // Associations cannot carry tags; existence under our application
+          // is the ownership signal.
+          return {
+            applicationId: application.id,
+            applicationArn: application.arn!,
+            resourceType,
+            resourceName: association.resource.name ?? resource,
+            resourceArn: association.resource.arn,
+          }
+        },
+        reconcile: effect ({ news, session }) => {
+          // 1. OBSERVE — resolve the application; a missing parent surfaces
+          // its typed ResourceNotFoundException.
+          const application = try appregistry.getApplication({
+            application: news.application,
+          })
+          const applicationId = application.id!
+
+          const associate = effect {
+            return appregistry
+              .associateResource({
+                application: applicationId,
+                resourceType: news.resourceType,
+                resource: news.resource,
+                options: news.options,
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+          }
+
+          let observed = try observeAssociation(applicationId, news.resourceType, news.resource)
+
+          // 2. ENSURE — associate when missing; tolerate a concurrent
+          // associate race (ConflictException).
+          if (observed?.resource === undefined) {
+            try associate
+          } else if (news.options !== undefined && !sameOptions(observed.options, news.options)) {
+            // 3. SYNC options — the API has no update; converge by
+            // re-creating the association in place.
+            appregistry
+              .disassociateResource({
+                application: applicationId,
+                resourceType: news.resourceType,
+                resource: news.resource,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                default: throw e;
+              }
+            try associate
+          }
+
+          // 4. RETURN — re-read with a bounded wait for the association to
+          // become visible.
+          observed = try (effect {
+            return try effect {
+              const association = try observeAssociation(
+                applicationId,
+                news.resourceType,
+                news.resource,
+              )
+              return (association?.resource?.arn !== undefined ? association : throw new ResourceAssociationNotVisible({
+                application: applicationId,
+                resource: news.resource,
+              }))
+            }
+          }
+            |> Effect.retry(%, {
+              while: (e): boolean => e._tag === "ResourceAssociationNotVisible",
+              schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(8)]),
+            }))
+
+          try session.note(`${applicationId}/${news.resource}`)
+          return {
+            applicationId,
+            applicationArn: application.arn!,
+            resourceType: news.resourceType,
+            resourceName: observed.resource!.name ?? news.resource,
+            resourceArn: observed.resource!.arn!,
+          }
+        },
+        delete: effect ({ output }) => {
+          appregistry
+            .disassociateResource({
+              application: output.applicationId,
+              resourceType: output.resourceType,
+              resource: output.resourceName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+        list: effect () => {
+          const applications = Array.from(
+            try (appregistry.listApplications.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.applications ?? [])
+          const results: {
+            mutable applicationId: string
+            mutable applicationArn: string
+            mutable resourceType: string
+            mutable resourceName: string
+            mutable resourceArn: string
+          }[] = []
+          for (const application of applications) {
+            if (application.id === undefined) continue
+            const resources = Array.from(
+              try (appregistry.listAssociatedResources
+                .pages({ application: application.id })
+                |> Stream.runCollect(%)),
+            ).flatMap((page) => page.resources ?? [])
+            for (const resource of resources) {
+              if (resource.arn === undefined || resource.name === undefined) {
+                continue
+              }
+              results.push({
+                applicationId: application.id,
+                applicationArn: application.arn!,
+                resourceType: resource.resourceType ?? "CFN_STACK",
+                resourceName: resource.name,
+                resourceArn: resource.arn,
+              })
+            }
+          }
+          return results
+        },
+      })
+    },
+  )

@@ -8,7 +8,7 @@ import {
   type ClusterEventSourceService,
   type DocumentDBRecord,
 } from "../DocDB/ClusterEventSource.ts";
-import type { DBCluster } from "../DocDB/DBCluster.ts";
+import type { DBCluster } from "../DocDB/DBCluster.vibe";
 import { EventSourceMapping } from "./EventSourceMapping.ts";
 import * as Lambda from "./Function.ts";
 

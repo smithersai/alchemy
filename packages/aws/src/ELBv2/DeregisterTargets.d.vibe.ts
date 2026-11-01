@@ -1,7 +1,7 @@
 import type * as elbv2 from "@distilled.cloud/aws/elastic-load-balancing-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { TargetGroup } from "./TargetGroup.js";
+import type { TargetGroup } from "./TargetGroup.vibe";
 /**
  * `DeregisterTargets` request with `TargetGroupArn` injected from the bound
  * {@link TargetGroup}.

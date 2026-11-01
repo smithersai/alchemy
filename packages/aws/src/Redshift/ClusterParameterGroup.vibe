@@ -1,0 +1,296 @@
+import * as redshift from "@distilled.cloud/aws/redshift"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import { applyRedshiftTagDelta, redshiftArn, toTagRecord } from "./internal.ts"
+
+export error ClusterParameterGroupUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface ClusterParameterGroupProps {
+  /**
+   * Name of the cluster parameter group. Must be 1-255 lowercase
+   * alphanumeric characters or hyphens, starting with a letter, and must
+   * not be prefixed `default`. If omitted, a deterministic physical name is
+   * generated. Changing the name replaces the parameter group.
+   */
+  mutable clusterParameterGroupName?: string
+  /**
+   * Parameter group family the group applies to, e.g. `redshift-2.0` (or `redshift-1.0`).
+   * Changing the family replaces the parameter group.
+   */
+  mutable family: string
+  /**
+   * Human-readable description. Changing the description replaces the
+   * parameter group (Redshift descriptions are create-only).
+   * @default "Managed by Alchemy"
+   */
+  mutable description?: string
+  /**
+   * Cluster database parameters to override from the family defaults, e.g.
+   * `{ enable_user_activity_logging: "true" }`. Parameters removed from
+   * this map are reset to their engine defaults.
+   */
+  mutable parameters?: Record<string, string>
+  /**
+   * User-defined tags for the parameter group.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface ClusterParameterGroup extends
+  Resource<
+    "AWS.Redshift.ClusterParameterGroup",
+    ClusterParameterGroupProps,
+    {
+      /**
+       * Name of the parameter group.
+       */
+      mutable clusterParameterGroupName: string
+      /**
+       * ARN of the parameter group.
+       */
+      mutable clusterParameterGroupArn: string
+      /**
+       * Parameter group family (e.g. `"redshift-2.0"`).
+       */
+      mutable family: string
+      /**
+       * Description of the parameter group.
+       */
+      mutable description: string | undefined
+      /**
+       * Non-default parameter values applied to the group.
+       */
+      mutable parameters: Record<string, string>
+      /**
+       * Tags on the parameter group (including internal Alchemy tags).
+       */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Redshift cluster parameter group — a named set of database
+ * parameters applied to provisioned Redshift clusters.
+ *
+ * Parameter groups are free and provision instantly. A {@link Cluster}
+ * references one by name via `clusterParameterGroupName`; parameter changes
+ * take effect after the cluster reboots.
+ * ### Creating a Parameter Group
+ * **Example:** Default Parameter Group
+ * ```typescript
+ * const params = yield* Redshift.ClusterParameterGroup("WarehouseParams", {
+ *   family: "redshift-2.0",
+ * });
+ * ```
+ * **Example:** Overriding Parameters
+ * ```typescript
+ * const params = yield* Redshift.ClusterParameterGroup("WarehouseParams", {
+ *   family: "redshift-2.0",
+ *   parameters: {
+ *     enable_user_activity_logging: "true",
+ *     statement_timeout: "60000",
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ClusterParameterGroup = Resource<ClusterParameterGroup>(
+  "AWS.Redshift.ClusterParameterGroup",
+)
+
+export const ClusterParameterGroupProvider = (): infer _ =>
+  Provider.effect(
+    ClusterParameterGroup,
+    effect {
+      const toName = effect (id: string, props: Partial<ClusterParameterGroupProps>) => (props.clusterParameterGroupName
+        ? props.clusterParameterGroupName
+        : try createPhysicalName({ id, maxLength: 255, lowercase: true }))
+
+      const readGroup = effect (name: string) => {
+        const response = redshift
+          .describeClusterParameterGroups({ ParameterGroupName: name }) catch effect (e) => match (e) {
+            when { _tag: "ClusterParameterGroupNotFoundFault" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.ParameterGroups?.[0]
+      }
+
+      // User-sourced parameter overrides currently applied to the group.
+      const readUserParameters = effect (name: string) => {
+        const parameters = try (redshift.describeClusterParameters
+          .items({ ParameterGroupName: name, Source: "user" })
+          |> Stream.runCollect(%)
+          |> Effect.map(%, Array.from<redshift.Parameter>))
+        return Object.fromEntries(
+          parameters.flatMap((parameter) =>
+            parameter.ParameterName !== undefined && parameter.ParameterValue !== undefined
+              ? [[parameter.ParameterName, parameter.ParameterValue]]
+              : []
+          ),
+        )
+      }
+
+      const toAttrs = effect (group: redshift.ClusterParameterGroup) => {
+        const { accountId, region } = try AWSEnvironment.current
+        if (!group.ParameterGroupName) {
+          throw new ClusterParameterGroupUnexpectedResponse({
+            message: "Cluster parameter group is missing its name",
+          })
+        }
+        return {
+          clusterParameterGroupName: group.ParameterGroupName,
+          clusterParameterGroupArn: redshiftArn(
+            region,
+            accountId,
+            "parametergroup",
+            group.ParameterGroupName,
+          ),
+          family: group.ParameterGroupFamily ?? "",
+          description: group.Description,
+          parameters: try readUserParameters(group.ParameterGroupName),
+          tags: toTagRecord(group.Tags),
+        }
+      }
+
+      return {
+        stables: ["clusterParameterGroupName", "clusterParameterGroupArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) {
+            return undefined
+          }
+          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+            return { action: "replace" } as const
+          }
+          // Family and description are create-only.
+          if (olds?.family !== news.family || olds?.description !== news.description) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.clusterParameterGroupName ?? (try toName(id, olds ?? {}))
+          const group = try readGroup(name)
+          if (!group?.ParameterGroupName) return undefined
+          const attrs = try toAttrs(group)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.clusterParameterGroupName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = try readGroup(name)
+
+          // 2. Ensure — create if missing; tolerate AlreadyExists as a race
+          //    with a peer reconciler by re-reading.
+          if (!observed?.ParameterGroupName) {
+            redshift
+              .createClusterParameterGroup({
+                ParameterGroupName: name,
+                ParameterGroupFamily: news.family,
+                Description: news.description ?? "Managed by Alchemy",
+                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "ClusterParameterGroupAlreadyExistsFault" }: try Effect.void;
+                default: throw e;
+              }
+            observed = try readGroup(name)
+            if (!observed?.ParameterGroupName) {
+              throw new ClusterParameterGroupUnexpectedResponse({
+                message: `Failed to create cluster parameter group '${name}'`,
+              })
+            }
+          }
+
+          // 3. Sync parameters — diff OBSERVED user-sourced overrides
+          //    against desired; changed/added values are applied, removed
+          //    ones are reset to the engine defaults.
+          const observedParameters = try readUserParameters(name)
+          const desiredParameters = news.parameters ?? {}
+          const upsertParameters = Object.entries(desiredParameters)
+            .filter(([key, value]) => observedParameters[key] !== value)
+            .map(([ParameterName, ParameterValue]) => ({
+              ParameterName,
+              ParameterValue,
+            }))
+          const resetParameters = Object.keys(observedParameters)
+            .filter((key) => !(key in desiredParameters))
+            .map((ParameterName) => ({ ParameterName }))
+          if (upsertParameters.length > 0) {
+            try redshift.modifyClusterParameterGroup({
+              ParameterGroupName: name,
+              Parameters: upsertParameters,
+            })
+          }
+          if (resetParameters.length > 0) {
+            try redshift.resetClusterParameterGroup({
+              ParameterGroupName: name,
+              ResetAllParameters: false,
+              Parameters: resetParameters,
+            })
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags (describe
+          //     surfaces them inline).
+          const { accountId, region } = try AWSEnvironment.current
+          const arn = redshiftArn(region, accountId, "parametergroup", name)
+          const { removed, upsert } = diffTags(toTagRecord(observed.Tags), desiredTags)
+          try applyRedshiftTagDelta({ arn, upsert, removed })
+
+          try session.note(arn)
+          return {
+            clusterParameterGroupName: name,
+            clusterParameterGroupArn: arn,
+            family: observed.ParameterGroupFamily ?? news.family,
+            description: observed.Description,
+            parameters: desiredParameters,
+            tags: desiredTags,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          redshift
+            .deleteClusterParameterGroup({
+              ParameterGroupName: output.clusterParameterGroupName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ClusterParameterGroupNotFoundFault" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        list: effect () =>
+          try (effect {
+            return Array.from(
+              try (redshift.describeClusterParameterGroups.pages({})
+                |> Stream.runCollect(%)),
+            ).flatMap((page) =>
+              (page.ParameterGroups ?? []).filter(
+                (group) =>
+                  group.ParameterGroupName !== undefined
+                  && !group.ParameterGroupName.startsWith("default."),
+              )
+            )
+          }
+            |> Effect.flatMap(%, Effect.forEach((group) => toAttrs(group), { concurrency: 4 }))),
+      }
+    },
+  )

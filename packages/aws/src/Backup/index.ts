@@ -1,6 +1,6 @@
-export * from "./BackupPlan.ts";
-export * from "./BackupSelection.ts";
-export * from "./BackupVault.ts";
+export * from "./BackupPlan.vibe";
+export * from "./BackupSelection.vibe";
+export * from "./BackupVault.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding — intentionally NOT exported.
 export * from "./DeleteRecoveryPoint.vibe";
 export * from "./DeleteRecoveryPointHttp.vibe";
@@ -36,10 +36,10 @@ export * from "./ListRestoreJobsHttp.vibe";
 export * from "./PutRestoreValidationResult.vibe";
 export * from "./PutRestoreValidationResultHttp.vibe";
 export * from "./StartBackupJob.vibe";
-export * from "./StartBackupJobHttp.ts";
+export * from "./StartBackupJobHttp.vibe";
 export * from "./StartCopyJob.vibe";
-export * from "./StartCopyJobHttp.ts";
+export * from "./StartCopyJobHttp.vibe";
 export * from "./StartRestoreJob.vibe";
-export * from "./StartRestoreJobHttp.ts";
+export * from "./StartRestoreJobHttp.vibe";
 export * from "./StopBackupJob.vibe";
 export * from "./StopBackupJobHttp.vibe";

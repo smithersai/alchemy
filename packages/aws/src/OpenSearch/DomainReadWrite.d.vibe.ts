@@ -4,7 +4,7 @@ import * as Binding from "alchemy/Binding";
 import type { SourceError } from "effect/ConfigProvider";
 import type * as Effect from "effect/Effect";
 import type { OpenSearchApiError } from "./DataPlaneTypes.vibe";
-import type { Domain } from "./Domain.js";
+import type { Domain } from "./Domain.vibe";
 import type { ReadDomainClient } from "./DomainRead.vibe";
 import type { WriteDomainClient } from "./DomainWrite.vibe";
 /**

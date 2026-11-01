@@ -2,7 +2,7 @@ import * as Context from "effect/Context";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { DBCluster } from "./DBCluster.ts";
+import type { DBCluster } from "./DBCluster.vibe";
 
 /**
  * The `fullDocument` delivery mode for a DocumentDB change-stream event.

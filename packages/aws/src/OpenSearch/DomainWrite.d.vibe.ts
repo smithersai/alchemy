@@ -4,7 +4,7 @@ import * as Binding from "alchemy/Binding";
 import type { SourceError } from "effect/ConfigProvider";
 import type * as Effect from "effect/Effect";
 import type { BulkResponse, IndexDocumentOptions, OpenSearchApiError, WriteDocumentOptions, WriteDocumentResponse } from "./DataPlaneTypes.vibe";
-import type { Domain } from "./Domain.js";
+import type { Domain } from "./Domain.vibe";
 /** Runtime client for write access to a domain's REST data plane. */
 export interface WriteDomainClient {
     /**

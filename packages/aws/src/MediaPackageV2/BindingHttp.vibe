@@ -1,0 +1,206 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Channel } from "./Channel.vibe"
+import type { ChannelGroup } from "./ChannelGroup.vibe"
+import type { OriginEndpoint } from "./OriginEndpoint.vibe"
+
+/**
+ * Shared scaffolding for AWS Elemental MediaPackage v2 HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the three
+ * builders below. Everything except the operation and the IAM action list
+ * is boilerplate: each builder injects the bound resource's identifying
+ * names (`ChannelGroupName` / `ChannelName` / `OriginEndpointName`) into
+ * every request and grants `actions` on the resource's ARN.
+ *
+ * Harvest-job operations authorize against the *harvest job* ARN, which is
+ * the origin endpoint ARN with a `/harvestJob/{name}` suffix — set
+ * `harvestJobScoped` to grant on that pattern instead of the endpoint ARN.
+ */
+
+/**
+ * Build the impl Effect for a MediaPackage v2 operation scoped to a
+ * {@link ChannelGroup}: the runtime callable injects the group's
+ * `ChannelGroupName` and the deploy-time half grants `actions` on the
+ * group ARN (plus everything beneath it — channels, endpoints, harvest
+ * jobs — for list operations that enumerate child resources).
+ */
+export const makeMediaPackageV2ChannelGroupHttpBinding = effect <
+  I extends { mutable ChannelGroupName: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.MediaPackageV2.ListHarvestJobs`. */
+  mutable tag: string
+  /** The distilled operation; `ChannelGroupName` is injected from the group. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the group ARN and its child-resource pattern. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect <G extends ChannelGroup>(group: G) => {
+    const ChannelGroupName = try group.channelGroupName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${group})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [
+              Output.interpolate`${group.channelGroupArn}`,
+              Output.interpolate`${group.channelGroupArn}/*`,
+            ],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "ChannelGroupName"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ChannelGroupName: try ChannelGroupName,
+          } as I)
+        },
+        `${options.tag}(${group.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a MediaPackage v2 operation scoped to a
+ * {@link Channel}: the runtime callable injects the channel's
+ * `ChannelGroupName` + `ChannelName` and the deploy-time half grants
+ * `actions` on the channel ARN.
+ */
+export const makeMediaPackageV2ChannelHttpBinding = effect <
+  I extends { mutable ChannelGroupName: string; mutable ChannelName: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.MediaPackageV2.ResetChannelState`. */
+  mutable tag: string
+  /** The distilled operation; the channel's names are injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the channel ARN. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect <C extends Channel>(channel: C) => {
+    const ChannelGroupName = try channel.channelGroupName.asEffect()
+    const ChannelName = try channel.channelName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${channel})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [Output.interpolate`${channel.channelArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "ChannelGroupName" | "ChannelName"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ChannelGroupName: try ChannelGroupName,
+            ChannelName: try ChannelName,
+          } as I)
+        },
+        `${options.tag}(${channel.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a MediaPackage v2 operation scoped to an
+ * {@link OriginEndpoint}: the runtime callable injects the endpoint's
+ * `ChannelGroupName` + `ChannelName` + `OriginEndpointName` and the
+ * deploy-time half grants `actions` on the endpoint ARN — plus, when
+ * `harvestJobScoped` is set, on the endpoint's harvest-job ARN pattern
+ * (`{endpointArn}/harvestJob/*`) and the parent channel-group ARN:
+ * MediaPackage authorizes `CreateHarvestJob` against the bare channel
+ * group (observed live: "not authorized to perform
+ * mediapackagev2:CreateHarvestJob on resource: arn:…:channelGroup/{g}").
+ */
+export const makeMediaPackageV2OriginEndpointHttpBinding = effect <
+  I extends {
+    mutable ChannelGroupName: string
+    mutable ChannelName: string
+    mutable OriginEndpointName: string
+  },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.MediaPackageV2.CreateHarvestJob`. */
+  mutable tag: string
+  /** The distilled operation; the endpoint's names are injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the endpoint (or harvest-job pattern) ARN. */
+  mutable actions: readonly string[]
+  /** Additionally grant on `{endpointArn}/harvestJob/*` (harvest-job ops). */
+  mutable harvestJobScoped?: boolean
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect <O extends OriginEndpoint>(endpoint: O) => {
+    const ChannelGroupName = try endpoint.channelGroupName.asEffect()
+    const ChannelName = try endpoint.channelName.asEffect()
+    const OriginEndpointName = try endpoint.originEndpointName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${endpoint})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [
+              Output.interpolate`${endpoint.originEndpointArn}`,
+              ...(options.harvestJobScoped
+                ? [
+                  Output.interpolate`${endpoint.originEndpointArn}/harvestJob/*`,
+                  // The endpoint ARN is `…:channelGroup/{g}/channel/{c}/originEndpoint/{e}`;
+                  // harvest-job actions authorize against the bare
+                  // channel-group ARN prefix.
+                  Output.map(
+                    endpoint.originEndpointArn,
+                    (arn): string => arn.split("/channel/")[0]!,
+                  ),
+                ]
+                : []),
+            ],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "ChannelGroupName" | "ChannelName" | "OriginEndpointName"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ChannelGroupName: try ChannelGroupName,
+            ChannelName: try ChannelName,
+            OriginEndpointName: try OriginEndpointName,
+          } as I)
+        },
+        `${options.tag}(${endpoint.LogicalId})`,
+      )
+  }
+}

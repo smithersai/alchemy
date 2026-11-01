@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment, type AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.vibe";
 import type { RegionID } from "../Region.js";
 import type { KeyId } from "./Key.js";
 export type AliasName = `alias/${string}`;

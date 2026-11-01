@@ -1,7 +1,7 @@
 import type * as smsvoice from "@distilled.cloud/aws/pinpoint-sms-voice-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { PhoneNumber } from "./PhoneNumber.js";
+import type { PhoneNumber } from "./PhoneNumber.vibe";
 /**
  * The `OriginationIdentity` is injected by the binding from the bound
  * phone number; the caller supplies the keyword to remove.

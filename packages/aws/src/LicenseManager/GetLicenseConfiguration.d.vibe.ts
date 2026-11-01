@@ -1,7 +1,7 @@
 import type * as licensemanager from "@distilled.cloud/aws/license-manager";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LicenseConfiguration } from "./LicenseConfiguration.js";
+import type { LicenseConfiguration } from "./LicenseConfiguration.vibe";
 /**
  * Runtime binding for `license-manager:GetLicenseConfiguration` — read the
  * bound license configuration's live state (counting type, license count,

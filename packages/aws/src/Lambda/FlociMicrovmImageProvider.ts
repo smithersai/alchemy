@@ -56,7 +56,7 @@ import {
   MICROVM_BASE_DOCKER_IMAGE,
 } from "./MicrovmBundle.ts";
 import { MicrovmImage, type MicrovmImageProps } from "./MicrovmImage.ts";
-import { MicrovmImageProvider } from "./MicrovmProvider.ts";
+import { MicrovmImageProvider } from "./MicrovmProvider.vibe";
 
 /**
  * The AWS-managed MicroVM base is not publicly pullable; the floci fork

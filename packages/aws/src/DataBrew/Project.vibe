@@ -1,0 +1,213 @@
+import * as databrew from "@distilled.cloud/aws/databrew"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.vibe"
+import {
+  cleanMap,
+  databrewArn,
+  fetchObservedTags,
+  retryWhileConflict,
+  retryWhileRoleNotAssumable,
+  syncTags,
+} from "./internal.ts"
+
+/** How DataBrew samples the dataset in the interactive project view. */
+export interface ProjectSample {
+  /** Number of rows in the sample (default 500). */
+  mutable size?: number
+  /** Sampling strategy. */
+  mutable type: "FIRST_N" | "LAST_N" | "RANDOM" | (string & {})
+}
+
+export interface ProjectProps {
+  /**
+   * Name of the project. If omitted, a unique name is generated. Changing
+   * the name replaces the project.
+   * @default a generated physical name
+   */
+  mutable projectName?: string
+  /**
+   * The dataset the project explores. Changing it replaces the project.
+   */
+  mutable datasetName: string
+  /**
+   * The recipe the project edits (its `LATEST_WORKING` version). Changing
+   * it replaces the project.
+   */
+  mutable recipeName: string
+  /**
+   * The sample shown in the interactive session.
+   * @default 500 rows, FIRST_N
+   */
+  mutable sample?: ProjectSample
+  /**
+   * The IAM role ARN DataBrew assumes for the project's interactive
+   * sessions (needs read access to the dataset's source).
+   */
+  mutable role: string
+  /**
+   * Tags to apply to the project. Merged with internal Alchemy tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Project extends
+  Resource<
+    "AWS.DataBrew.Project",
+    ProjectProps,
+    {
+      /** Name of the project. */
+      mutable projectName: string
+      /** ARN of the project. */
+      mutable projectArn: string
+    },
+    {},
+    Providers
+  >
+{}
+
+/**
+ * An AWS Glue DataBrew project — the interactive workspace binding a dataset
+ * to a recipe's working version. The project definition is free; costs only
+ * accrue when an interactive session is started in the console.
+ * ### Creating Projects
+ * **Example:** Dataset + Recipe Project
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const project = yield* AWS.DataBrew.Project("Explore", {
+ *   datasetName: dataset.datasetName,
+ *   recipeName: recipe.recipeName,
+ *   role: role.roleArn,
+ * });
+ * ```
+ *
+ * **Example:** Custom Sample
+ * ```typescript
+ * const project = yield* AWS.DataBrew.Project("Explore", {
+ *   datasetName: dataset.datasetName,
+ *   recipeName: recipe.recipeName,
+ *   sample: { type: "RANDOM", size: 250 },
+ *   role: role.roleArn,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Project = Resource<Project>("AWS.DataBrew.Project")
+
+const buildSample = (sample: ProjectSample | undefined): infer _ =>
+  sample ? { Size: sample.size, Type: sample.type } : undefined
+
+export const ProjectProvider = (): infer _ =>
+  Provider.effect(
+    Project,
+    effect {
+      const createName = effect (
+        id: string,
+        props: { mutable projectName?: string | undefined },
+      ) => props.projectName ?? (try createPhysicalName({ id, maxLength: 255 }))
+
+      const observe = effect (name: string) =>
+        databrew
+          .describeProject({ Name: name }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      return Project.Provider.of({
+        stables: ["projectName", "projectArn"],
+
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const pages = try databrew.listProjects.pages({}).pipe(Stream.runCollect)
+          return Array.from(pages)
+            .flatMap((page) => page.Projects ?? [])
+            .map((p) => ({
+              projectName: p.Name,
+              projectArn: p.ResourceArn ?? databrewArn(region, accountId, "project", p.Name),
+            }))
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.projectName ?? (try createName(id, olds ?? {}))
+          const project = try observe(name)
+          if (project === undefined) return undefined
+          const arn = project.ResourceArn ?? databrewArn(region, accountId, "project", name)
+          const attrs = { projectName: name, projectArn: arn }
+          const tags = cleanMap(project.Tags)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+          // UpdateProject only accepts Sample + RoleArn — the dataset and
+          // recipe associations are immutable.
+          if (olds.datasetName !== news.datasetName) {
+            return { action: "replace" } as const
+          }
+          if (olds.recipeName !== news.recipeName) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.projectName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE
+          const project = try observe(name)
+
+          // 2. ENSURE / 3. SYNC (Sample + RoleArn are the mutable aspects)
+          if (project === undefined) {
+            retryWhileRoleNotAssumable(
+              databrew.createProject({
+                Name: name,
+                DatasetName: news.datasetName,
+                RecipeName: news.recipeName,
+                Sample: buildSample(news.sample),
+                RoleArn: news.role,
+                Tags: desiredTags,
+              }),
+            ) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+          } else {
+            try retryWhileRoleNotAssumable(
+              databrew.updateProject({
+                Name: name,
+                Sample: buildSample(news.sample),
+                RoleArn: news.role,
+              }),
+            )
+          }
+
+          const arn = project?.ResourceArn ?? databrewArn(region, accountId, "project", name)
+
+          // 3b. SYNC TAGS against observed cloud tags
+          const observedTags = try fetchObservedTags(arn)
+          try syncTags(arn, observedTags, desiredTags)
+
+          try session.note(name)
+          return { projectName: name, projectArn: arn }
+        },
+
+        delete: effect ({ output }) => {
+          // ConflictException while an interactive session is winding down.
+          retryWhileConflict(databrew.deleteProject({ Name: output.projectName })) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

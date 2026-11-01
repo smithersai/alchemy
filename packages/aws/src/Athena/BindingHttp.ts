@@ -2,8 +2,8 @@ import * as Output from "alchemy/Output";
 import type { Output as OutputType } from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as AWSBindings from "../AWSBindings.ts";
-import type { DataCatalog } from "./DataCatalog.ts";
-import type { WorkGroup } from "./WorkGroup.ts";
+import type { DataCatalog } from "./DataCatalog.vibe";
+import type { WorkGroup } from "./WorkGroup.vibe";
 
 /**
  * Shared scaffolding for Athena HTTP bindings.

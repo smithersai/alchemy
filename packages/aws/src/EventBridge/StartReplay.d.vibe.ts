@@ -1,7 +1,7 @@
 import type * as eventbridge from "@distilled.cloud/aws/eventbridge";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Archive } from "./Archive.js";
+import type { Archive } from "./Archive.vibe";
 export interface StartReplayRequest extends Omit<eventbridge.StartReplayRequest, "EventSourceArn" | "Destination"> {
     /**
      * Replay destination. Defaults to the archive's source event bus — the

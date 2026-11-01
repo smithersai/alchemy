@@ -75,7 +75,7 @@ export declare const Vinext: (id: string, propsIn?: InputProps<VinextProps, "ser
     bucket: Bucket;
     files: import("./AssetDeployment.js").AssetDeployment;
     distribution: import("../CloudFront/Distribution.js").Distribution | undefined;
-    invalidation: import("../CloudFront/Invalidation.js").Invalidation | undefined;
+    invalidation: import("../CloudFront/Invalidation.vibe").Invalidation | undefined;
     kvNamespace: string;
     url: import("alchemy").Input<string>;
     urls: import("alchemy").Input<string>[];
@@ -87,19 +87,19 @@ export declare const Vinext: (id: string, propsIn?: InputProps<VinextProps, "ser
     bucket: Bucket;
     files: import("./AssetDeployment.js").AssetDeployment;
     distribution: import("../CloudFront/Distribution.js").Distribution | undefined;
-    invalidation: import("../CloudFront/Invalidation.js").Invalidation | undefined;
+    invalidation: import("../CloudFront/Invalidation.vibe").Invalidation | undefined;
     kvNamespace: string;
     url: import("alchemy").Input<string>;
     urls: import("alchemy").Input<string>[];
     build: import("alchemy/Website/Server").Server;
-    server: import("../Lambda/WebFunction.js").WebFunction;
+    server: import("../Lambda/WebFunction.vibe").WebFunction;
     serverUrl: Output.Output<string, never>;
     cacheBucket: undefined;
 } | {
     bucket: Bucket;
     files: import("./AssetDeployment.js").AssetDeployment;
     distribution: import("../CloudFront/Distribution.js").Distribution | undefined;
-    invalidation: import("../CloudFront/Invalidation.js").Invalidation | undefined;
+    invalidation: import("../CloudFront/Invalidation.vibe").Invalidation | undefined;
     kvNamespace: string;
     url: import("alchemy").Input<string>;
     urls: import("alchemy").Input<string>[];
@@ -123,7 +123,7 @@ export declare const Vinext: (id: string, propsIn?: InputProps<VinextProps, "ser
     bucket: Bucket;
     files: import("./AssetDeployment.js").AssetDeployment;
     distribution: import("../CloudFront/Distribution.js").Distribution | undefined;
-    invalidation: import("../CloudFront/Invalidation.js").Invalidation | undefined;
+    invalidation: import("../CloudFront/Invalidation.vibe").Invalidation | undefined;
     kvNamespace: string;
     url: import("alchemy").Input<string>;
     urls: import("alchemy").Input<string>[];
@@ -135,19 +135,19 @@ export declare const Vinext: (id: string, propsIn?: InputProps<VinextProps, "ser
     bucket: Bucket;
     files: import("./AssetDeployment.js").AssetDeployment;
     distribution: import("../CloudFront/Distribution.js").Distribution | undefined;
-    invalidation: import("../CloudFront/Invalidation.js").Invalidation | undefined;
+    invalidation: import("../CloudFront/Invalidation.vibe").Invalidation | undefined;
     kvNamespace: string;
     url: import("alchemy").Input<string>;
     urls: import("alchemy").Input<string>[];
     build: import("alchemy/Website/Server").Server;
-    server: import("../Lambda/WebFunction.js").WebFunction;
+    server: import("../Lambda/WebFunction.vibe").WebFunction;
     serverUrl: Output.Output<string, never>;
     cacheBucket: Bucket;
 } | {
     bucket: Bucket;
     files: import("./AssetDeployment.js").AssetDeployment;
     distribution: import("../CloudFront/Distribution.js").Distribution | undefined;
-    invalidation: import("../CloudFront/Invalidation.js").Invalidation | undefined;
+    invalidation: import("../CloudFront/Invalidation.vibe").Invalidation | undefined;
     kvNamespace: string;
     url: import("alchemy").Input<string>;
     urls: import("alchemy").Input<string>[];
@@ -155,4 +155,4 @@ export declare const Vinext: (id: string, propsIn?: InputProps<VinextProps, "ser
     server: import("../Lambda/Function.js").Function;
     serverUrl: Output.Output<string | undefined, never>;
     cacheBucket: Bucket;
-}, never, AlchemyContext | import("alchemy").Provider<import("alchemy/Command/Build").Build> | import("alchemy").Provider<import("alchemy/Website/Server").Server> | import("../Providers.js").Providers | import("alchemy").Stack | import("alchemy").Stage>;
+}, never, AlchemyContext | import("alchemy").Provider<import("alchemy/Command/Build").Build> | import("alchemy").Provider<import("alchemy/Website/Server").Server> | import("../Providers.vibe").Providers | import("alchemy").Stack | import("alchemy").Stage>;

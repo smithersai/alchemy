@@ -1,0 +1,190 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Stage } from "./Stage.vibe"
+
+/**
+ * Shared scaffolding for Amazon IVS Real-Time HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, makeIvsRealtime…HttpBinding({ … }))` over one of the
+ * builders below. Everything except the operation, the IAM action list, and
+ * an optional request-shape mapper is boilerplate.
+ */
+
+/**
+ * Compositions are addressed by server-generated ARNs only known at runtime,
+ * so composition-plane grants use this wildcard.
+ */
+export const COMPOSITION_ARN_WILDCARD = "arn:aws:ivs:*:*:composition/*"
+
+/**
+ * Encoder configurations referenced by a composition's destinations are
+ * runtime data, so StartComposition grants include this wildcard.
+ */
+export const ENCODER_CONFIGURATION_ARN_WILDCARD = "arn:aws:ivs:*:*:encoder-configuration/*"
+
+/**
+ * Storage configurations referenced by a composition's S3 destinations are
+ * runtime data, so StartComposition grants include this wildcard.
+ */
+export const STORAGE_CONFIGURATION_ARN_WILDCARD = "arn:aws:ivs:*:*:storage-configuration/*"
+
+/**
+ * Build the impl Effect for an IVS Real-Time operation scoped to a
+ * {@link Stage}: the deploy-time half grants `actions` on the bound stage's
+ * ARN (plus any `extraResources`), and the runtime half injects the stage's
+ * ARN under `requestKey` (default `stageArn`; `ListParticipantReplicas`
+ * addresses the stage as `sourceStageArn`).
+ *
+ * `prepare` (optional) maps a friendlier public request shape onto the wire
+ * request — e.g. `CreateParticipantToken` converts a `Duration.Input` into
+ * the wire `duration` minutes. It defaults to identity.
+ */
+export const makeIvsRealtimeStageHttpBinding = effect <
+  I extends { [P in K]: string },
+  A,
+  E,
+  R,
+  K extends string = "stageArn",
+  Req = Omit<I, K>,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.IVSRealtime.CreateParticipantToken`. */
+  mutable tag: string
+  /** The distilled operation. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the stage ARN. */
+  mutable actions: readonly string[]
+  /** Request field carrying the bound stage's ARN. @default "stageArn" */
+  mutable requestKey?: K
+  /** Static IAM resources granted in addition to the stage ARN. */
+  mutable extraResources?: readonly string[]
+  /** Map the public request shape to the wire request (defaults to identity). */
+  mutable prepare?: (request: Req) => Omit<I, K>
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (stage: Stage) => {
+    // Output yields a DEFERRED effect — resolve again per invocation below.
+    const StageArn = try stage.stageArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${stage})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [stage.stageArn, ...(options.extraResources ?? [])],
+          },
+        ],
+      })
+    }
+    return effect (request?: Req | undefined) =>
+      try withSpan(
+        effect {
+          const stageArn = try StageArn
+          const wire = options.prepare
+            ? options.prepare((request ?? {}) as Req)
+            : ((request ?? {}) as unknown as Omit<I, K>)
+          return try op({
+            ...wire,
+            [options.requestKey ?? "stageArn"]: stageArn,
+          } as I)
+        },
+        `${options.tag}(${stage.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an IVS Real-Time participant-replication
+ * operation: the runtime callable is bound to a **source** and a
+ * **destination** {@link Stage}, injects both ARNs, and the deploy-time half
+ * grants `actions` on both stage ARNs.
+ */
+export const makeIvsRealtimeReplicationHttpBinding = effect <
+  I extends { mutable sourceStageArn: string; mutable destinationStageArn: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.IVSRealtime.StartParticipantReplication`. */
+  mutable tag: string
+  /** The distilled operation; both stage ARNs are injected. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on both stage ARNs. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (sourceStage: Stage, destinationStage: Stage) => {
+    const SourceStageArn = try sourceStage.stageArn.asEffect()
+    const DestinationStageArn = try destinationStage.stageArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${sourceStage}, ${destinationStage})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [sourceStage.stageArn, destinationStage.stageArn],
+          },
+        ],
+      })
+    }
+    return effect (request: Omit<I, "sourceStageArn" | "destinationStageArn">) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            sourceStageArn: try SourceStageArn,
+            destinationStageArn: try DestinationStageArn,
+          } as I)
+        },
+        `${options.tag}(${sourceStage.LogicalId}, ${destinationStage.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level IVS Real-Time operation
+ * (composition management — compositions are addressed by server-generated
+ * ARNs that are runtime data). The deploy-time half grants `actions` on
+ * `resources` (default `*`).
+ */
+export const makeIvsRealtimeAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.IVSRealtime.ListCompositions`. */
+  mutable tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted. */
+  mutable actions: readonly string[]
+  /**
+   * IAM resources the actions are granted on.
+   * @default ["*"]
+   */
+  mutable resources?: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [...(options.resources ?? ["*"])],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

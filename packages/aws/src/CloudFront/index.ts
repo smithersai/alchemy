@@ -1,4 +1,4 @@
-export { CachePolicy, CachePolicyProvider } from "./CachePolicy.ts";
+export { CachePolicy, CachePolicyProvider } from "./CachePolicy.vibe";
 export { CreateInvalidation, type CreateInvalidationRequest } from "./CreateInvalidation.vibe";
 export { CreateInvalidationHttp } from "./CreateInvalidationHttp.vibe";
 export { DeleteKey, type DeleteKeyRequest } from "./DeleteKey.vibe";
@@ -21,11 +21,11 @@ export { PutKey, type PutKeyRequest } from "./PutKey.vibe";
 export { PutKeyHttp } from "./PutKeyHttp.vibe";
 export { UpdateKeys, type UpdateKeysRequest } from "./UpdateKeys.vibe";
 export { UpdateKeysHttp } from "./UpdateKeysHttp.vibe";
-export { Function, FunctionProvider } from "./Function.ts";
-export { Invalidation, InvalidationProvider } from "./Invalidation.ts";
-export { KeyGroup, KeyGroupProvider } from "./KeyGroup.ts";
+export { Function, FunctionProvider } from "./Function.vibe";
+export { Invalidation, InvalidationProvider } from "./Invalidation.vibe";
+export { KeyGroup, KeyGroupProvider } from "./KeyGroup.vibe";
 export { KeyValueStore, KeyValueStoreProvider } from "./KeyValueStore.ts";
-export { KvEntries, KvEntriesProvider } from "./KvEntries.ts";
+export { KvEntries, KvEntriesProvider } from "./KvEntries.vibe";
 export { KvRoutesUpdate, KvRoutesUpdateProvider } from "./KvRoutesUpdate.ts";
 export {
   MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID,
@@ -33,13 +33,13 @@ export {
   MANAGED_CACHING_OPTIMIZED_POLICY_ID,
 } from "./ManagedPolicies.ts";
 export { OriginAccessControl, OriginAccessControlProvider } from "./OriginAccessControl.ts";
-export { OriginRequestPolicy, OriginRequestPolicyProvider } from "./OriginRequestPolicy.ts";
+export { OriginRequestPolicy, OriginRequestPolicyProvider } from "./OriginRequestPolicy.vibe";
 export { PublicKey, PublicKeyProvider } from "./PublicKey.ts";
 export {
   RealtimeLogConfig,
   RealtimeLogConfigProvider,
   type RealtimeLogConfigProps,
   type RealtimeLogEndpoint,
-} from "./RealtimeLogConfig.ts";
-export { ResponseHeadersPolicy, ResponseHeadersPolicyProvider } from "./ResponseHeadersPolicy.ts";
-export { VpcOrigin, VpcOriginProvider } from "./VpcOrigin.ts";
+} from "./RealtimeLogConfig.vibe";
+export { ResponseHeadersPolicy, ResponseHeadersPolicyProvider } from "./ResponseHeadersPolicy.vibe";
+export { VpcOrigin, VpcOriginProvider } from "./VpcOrigin.vibe";

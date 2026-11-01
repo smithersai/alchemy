@@ -1,0 +1,280 @@
+import * as schemas from "@distilled.cloud/aws/schemas"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { hasAlchemyTags } from "alchemy/Tags"
+import { normalizePolicyDocument, stringifyPolicyDocument, type PolicyDocument } from "../IAM/Policy.vibe"
+import type { Providers } from "../Providers.vibe"
+import { syncSchemasTags } from "./internal.ts"
+
+export interface RegistryProps {
+  /**
+   * Name of the registry. Must match `[a-zA-Z0-9-_.@]+` and be at most 64
+   * characters. If omitted, a unique name is generated. Changing it replaces
+   * the registry.
+   */
+  mutable registryName?: string
+
+  /**
+   * A description of the registry.
+   */
+  mutable description?: string
+
+  /**
+   * User tags to attach to the registry.
+   */
+  mutable tags?: Record<string, string>
+
+  /**
+   * Resource-based policy attached to the registry, granting other AWS
+   * accounts or principals access to the registry and its schemas. Provided
+   * as a structured {@link PolicyDocument} or a raw JSON string. Omitting it
+   * removes any existing resource policy.
+   */
+  mutable policy?: PolicyDocument | string
+}
+
+export interface Registry extends
+  Resource<
+    "AWS.Schemas.Registry",
+    RegistryProps,
+    {
+      /** The name of the registry. */
+      mutable registryName: string
+      /** The ARN of the registry. */
+      mutable registryArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An EventBridge Schema Registry — a named collection of event schemas.
+ * Custom registries hold your own OpenAPI 3 / JSONSchema Draft 4 schema
+ * documents; AWS also maintains the built-in `aws.events` and
+ * `discovered-schemas` registries.
+ *
+ * ### Creating a Registry
+ * **Example:** Basic Registry
+ * ```typescript
+ * const registry = yield* AWS.Schemas.Registry("app-events", {
+ *   description: "Schemas for application events",
+ * });
+ * ```
+ *
+ * **Example:** Registry with Tags
+ * ```typescript
+ * const registry = yield* AWS.Schemas.Registry("orders", {
+ *   description: "Order lifecycle events",
+ *   tags: { team: "payments" },
+ * });
+ * ```
+ *
+ * ### Sharing a Registry
+ * **Example:** Registry with a Resource Policy
+ * ```typescript
+ * const registry = yield* AWS.Schemas.Registry("shared-events", {
+ *   policy: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Allow",
+ *         Principal: { AWS: `arn:aws:iam::${otherAccountId}:root` },
+ *         Action: ["schemas:DescribeRegistry", "schemas:SearchSchemas"],
+ *         Resource: registryArn,
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * ### Adding Schemas
+ * **Example:** Registry with a Schema
+ * ```typescript
+ * const registry = yield* AWS.Schemas.Registry("app-events", {});
+ * const schema = yield* AWS.Schemas.Schema("OrderCreated", {
+ *   registryName: registry.registryName,
+ *   type: "OpenApi3",
+ *   content: JSON.stringify(openApiDocument),
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Registry = Resource<Registry>("AWS.Schemas.Registry")
+
+export const RegistryProvider = (): infer _ =>
+  Provider.effect(
+    Registry,
+    effect {
+      const createName = effect (id: string, props: RegistryProps) =>
+        props.registryName ?? (try createPhysicalName({ id, maxLength: 64 }))
+
+      const describe = effect (registryName: string) =>
+        schemas
+          .describeRegistry({ RegistryName: registryName }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      return Registry.Provider.of({
+        stables: ["registryName", "registryArn"],
+
+        // Top-level, account/region-scoped: enumerate every customer-owned
+        // registry. Scope LOCAL excludes the AWS-managed registries
+        // (aws.events, discovered-schemas).
+        list: effect () =>
+          Array.from(
+            try (schemas.listRegistries.pages({ Scope: "LOCAL" })
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.Registries ?? [])
+              .filter((r) => r.RegistryName != null && r.RegistryArn != null)
+              .map((r) => ({
+                registryName: r.RegistryName!,
+                registryArn: r.RegistryArn!,
+              }))
+          ),
+
+        read: effect ({ id, olds, output }) => {
+          const registryName = output?.registryName ?? (try createName(id, olds ?? {}))
+          const found = try describe(registryName)
+          if (!found) return undefined
+          const attrs = {
+            registryName,
+            registryArn: found.RegistryArn!,
+          }
+          return (try hasAlchemyTags(id, found.Tags)) ? attrs : Unowned(attrs)
+        },
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+          return undefined
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const registryName = output?.registryName ?? (try createName(id, news))
+
+          // OBSERVE
+          let live = try describe(registryName)
+
+          // ENSURE — tolerate the create race as "already exists".
+          if (live === undefined) {
+            schemas
+              .createRegistry({
+                RegistryName: registryName,
+                Description: news.description,
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            live = try schemas.describeRegistry({
+              RegistryName: registryName,
+            })
+          }
+
+          // SYNC description — diff observed against desired.
+          if ((news.description ?? "") !== (live.Description ?? "")) {
+            try schemas.updateRegistry({
+              RegistryName: registryName,
+              Description: news.description ?? "",
+            })
+          }
+
+          // SYNC resource policy — diff observed against desired, comparing
+          // canonicalized documents so a re-deploy of an equivalent policy
+          // (key order, whitespace) is a no-op.
+          const desiredPolicy = news.policy === undefined
+            ? undefined
+            : typeof news.policy === "string"
+            ? news.policy
+            : stringifyPolicyDocument(news.policy)
+          const currentPolicy = (try effect {
+            const r = try schemas
+              .getResourcePolicy({ RegistryName: registryName })
+            return (r.Policy ? r.Policy : undefined)
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+          const policyDrifted = desiredPolicy === undefined || currentPolicy === undefined
+            ? desiredPolicy !== currentPolicy
+            : normalizePolicyDocument(currentPolicy) !== normalizePolicyDocument(desiredPolicy)
+          if (policyDrifted) {
+            if (desiredPolicy === undefined) {
+              schemas
+                .deleteResourcePolicy({ RegistryName: registryName }) catch effect (e) => match (e) {
+                  when { _tag: "NotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            } else {
+              try schemas.putResourcePolicy({
+                RegistryName: registryName,
+                Policy: desiredPolicy,
+              })
+            }
+          }
+
+          // SYNC tags — diff against observed cloud tags.
+          try syncSchemasTags(live.RegistryArn!, id, news.tags)
+
+          try session.note(registryName)
+          return {
+            registryName,
+            registryArn: live.RegistryArn!,
+          }
+        },
+
+        delete: effect ({ output, force }) => {
+          const RegistryName = output.registryName
+          if (force !== true) {
+            schemas
+              .deleteRegistry({ RegistryName }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: try Effect.void;
+                default: throw e;
+              }
+            return
+          }
+
+          const purgeAndDelete = effect {
+            // Schemas are registry-scoped and globally invisible to nuke.
+            // Only its explicit operator-confirmed force path may remove them
+            // or an attached registry policy.
+            const childSchemas = Array.from(
+              try (schemas.listSchemas.items({ RegistryName })
+                |> Stream.runCollect(%)),
+            )
+            try Effect.forEach(
+              childSchemas,
+              effect (schema) => (schema.SchemaName === undefined ? try Effect.void : schemas
+                .deleteSchema({
+                  RegistryName,
+                  SchemaName: schema.SchemaName,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "NotFoundException" }: try Effect.void;
+                  default: throw e;
+                }),
+              { concurrency: 4, discard: true },
+            )
+            schemas
+              .deleteResourcePolicy({ RegistryName }) catch effect (e) => match (e) {
+                when { _tag: "NotFoundException" }: try Effect.void;
+                default: throw e;
+              }
+            try schemas.deleteRegistry({ RegistryName })
+          }
+          ;(try (purgeAndDelete
+            |> Effect.retry(%, {
+              while: (e) =>
+                e._tag === "BadRequestException"
+                || e._tag === "InternalServerErrorException"
+                || e._tag === "ServiceUnavailableException",
+              schedule: Schedule.max([Schedule.exponential(500), Schedule.recurs(8)]),
+            }))) catch effect (e) => match (e) { when { _tag: "NotFoundException" }: try Effect.void; default: throw e; }
+        },
+      })
+    },
+  )

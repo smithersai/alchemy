@@ -1,0 +1,239 @@
+import * as forecast from "@distilled.cloud/aws/forecast"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.vibe"
+import { readForecastTags, syncForecastTags, toForecastName } from "./internal.ts"
+
+export interface SchemaAttribute {
+  /** Name of the field in the dataset (e.g. `item_id`, `timestamp`). */
+  mutable attributeName: string
+  /** Type of the field: `string`, `integer`, `float`, `timestamp`, or `geolocation`. */
+  mutable attributeType: string
+}
+
+export interface DatasetSchema {
+  /** The ordered list of fields that make up the dataset. */
+  mutable attributes: SchemaAttribute[]
+}
+
+export interface DatasetEncryptionConfig {
+  /** ARN of the IAM role Forecast assumes to access the KMS key. */
+  mutable roleArn: string
+  /** ARN of the customer-managed KMS key. */
+  mutable kmsKeyArn: string
+}
+
+export interface DatasetProps {
+  /**
+   * Name of the dataset. If omitted, a unique name is generated from the app,
+   * stage, and logical ID. Changing the name replaces the dataset.
+   */
+  mutable datasetName?: string
+  /**
+   * The forecasting domain: `RETAIL`, `CUSTOM`, `INVENTORY_PLANNING`,
+   * `EC2_CAPACITY`, `WORK_FORCE`, `WEB_TRAFFIC`, or `METRICS`. Immutable —
+   * changing it replaces the dataset.
+   */
+  mutable domain: string
+  /**
+   * The dataset type: `TARGET_TIME_SERIES`, `RELATED_TIME_SERIES`, or
+   * `ITEM_METADATA`. Immutable — changing it replaces the dataset.
+   */
+  mutable datasetType: string
+  /**
+   * The frequency of data collection (e.g. `D` for daily, `H` for hourly).
+   * Required for time-series datasets. Immutable — changing it replaces the
+   * dataset.
+   */
+  mutable dataFrequency?: string
+  /**
+   * The schema describing the dataset's fields. Immutable — changing it
+   * replaces the dataset.
+   */
+  mutable schema: DatasetSchema
+  /**
+   * Customer-managed KMS encryption configuration. Immutable — changing it
+   * replaces the dataset.
+   */
+  mutable encryptionConfig?: DatasetEncryptionConfig
+  /**
+   * User-defined tags for the dataset.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Dataset extends
+  Resource<
+    "AWS.Forecast.Dataset",
+    DatasetProps,
+    {
+      /** The ARN of the dataset. */
+      mutable datasetArn: string
+      /** The name of the dataset. */
+      mutable datasetName: string
+      /** The forecasting domain of the dataset, e.g. `RETAIL` or `CUSTOM`. */
+      mutable domain: string
+      /** The dataset type, e.g. `TARGET_TIME_SERIES`. */
+      mutable datasetType: string
+      /** The dataset status, e.g. `ACTIVE`. */
+      mutable status: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Forecast dataset — a typed, domain-scoped collection of
+ * time-series (or metadata) records described by a schema. Creating the
+ * dataset is a cheap metadata operation; bulk imports and training happen
+ * through separate import jobs and predictors.
+ *
+ * ### Creating a Dataset
+ * **Example:** Target Time-Series Dataset
+ * ```typescript
+ * const dataset = yield* Forecast.Dataset("Demand", {
+ *   domain: "CUSTOM",
+ *   datasetType: "TARGET_TIME_SERIES",
+ *   dataFrequency: "D",
+ *   schema: {
+ *     attributes: [
+ *       { attributeName: "item_id", attributeType: "string" },
+ *       { attributeName: "timestamp", attributeType: "timestamp" },
+ *       { attributeName: "target_value", attributeType: "float" },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Dataset = Resource<Dataset>("AWS.Forecast.Dataset")
+
+export const DatasetProvider = (): infer _ =>
+  Provider.effect(
+    Dataset,
+    effect {
+      const createName = effect (id: string, props: DatasetProps) => (
+        props.datasetName ?? toForecastName(try createPhysicalName({ id, maxLength: 63 }))
+      )
+
+      const describe = effect (datasetArn: string) =>
+        forecast
+          .describeDataset({ DatasetArn: datasetArn }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      const toAttrs = (dataset: forecast.DescribeDatasetResponse): infer _ => ({
+        datasetArn: dataset.DatasetArn!,
+        datasetName: dataset.DatasetName!,
+        domain: dataset.Domain!,
+        datasetType: dataset.DatasetType!,
+        status: dataset.Status!,
+      })
+
+      return {
+        stables: ["datasetArn", "datasetName"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (
+            oldName !== newName
+            || (olds.domain ?? undefined) !== (news.domain ?? undefined)
+            || (olds.datasetType ?? undefined) !== (news.datasetType ?? undefined)
+            || (olds.dataFrequency ?? undefined) !== (news.dataFrequency ?? undefined)
+            || JSON.stringify(olds.schema ?? null) !== JSON.stringify(news.schema ?? null)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, output }) => {
+          if (!output?.datasetArn) return undefined
+          const dataset = try describe(output.datasetArn)
+          if (dataset === undefined) return undefined
+          const attrs = toAttrs(dataset)
+          const tags = try readForecastTags(dataset.DatasetArn!)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try createName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          let dataset = output?.datasetArn !== undefined ? try describe(output.datasetArn) : undefined
+
+          if (dataset === undefined) {
+            const created = try forecast.createDataset({
+              DatasetName: name,
+              Domain: news.domain,
+              DatasetType: news.datasetType,
+              DataFrequency: news.dataFrequency,
+              Schema: {
+                Attributes: news.schema.attributes.map((a) => ({
+                  AttributeName: a.attributeName,
+                  AttributeType: a.attributeType,
+                })),
+              },
+              EncryptionConfig: news.encryptionConfig
+                ? {
+                  RoleArn: news.encryptionConfig.roleArn,
+                  KMSKeyArn: news.encryptionConfig.kmsKeyArn,
+                }
+                : undefined,
+              Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                Key,
+                Value,
+              })),
+            })
+            dataset = try describe(created.DatasetArn!)
+          } else {
+            try syncForecastTags(dataset.DatasetArn!, desiredTags)
+          }
+
+          try session.note(dataset!.DatasetArn!)
+          return toAttrs(dataset!)
+        },
+
+        delete: effect ({ output }) => {
+          try (effect {
+            return forecast.deleteDataset({ DatasetArn: output.datasetArn }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          }
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "ResourceInUseException",
+              schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(20)]),
+            }))
+        },
+
+        list: effect () =>
+          (try (effect {
+            return Array.from(
+              try (forecast.listDatasets.pages({})
+                |> Stream.runCollect(%)),
+            ).flatMap((page) => page.Datasets ?? [])
+          }
+            |> Effect.flatMap(
+              %,
+              Effect.forEach(
+                effect (summary) =>
+                  try effect {
+                    const d = try describe(summary.DatasetArn!)
+                    return (d ? toAttrs(d) : undefined)
+                  },
+                { concurrency: 4 },
+              ),
+            ))).filter((item) => item !== undefined),
+      }
+    },
+  )

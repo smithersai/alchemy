@@ -1,6 +1,6 @@
-export * from "./Application.ts";
-export * from "./AttributeGroup.ts";
-export * from "./AttributeGroupAssociation.ts";
+export * from "./Application.vibe";
+export * from "./AttributeGroup.vibe";
+export * from "./AttributeGroupAssociation.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding — intentionally NOT exported.
 export * from "./GetApplication.vibe";
 export * from "./GetApplicationHttp.vibe";
@@ -18,6 +18,6 @@ export * from "./ListAttributeGroups.vibe";
 export * from "./ListAttributeGroupsHttp.vibe";
 export * from "./ListAttributeGroupsForApplication.vibe";
 export * from "./ListAttributeGroupsForApplicationHttp.vibe";
-export * from "./ResourceAssociation.ts";
+export * from "./ResourceAssociation.vibe";
 export * from "./SyncResource.vibe";
 export * from "./SyncResourceHttp.vibe";

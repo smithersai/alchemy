@@ -2,7 +2,7 @@ import * as Binding from "alchemy/Binding";
 import type { Input } from "alchemy/Input";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { SecurityGroupId } from "../EC2/SecurityGroup.js";
+import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
 import type { SubnetId } from "../EC2/Subnet.js";
 import type { CacheCluster } from "./CacheCluster.js";
 export interface CacheClusterConnectionInfo {

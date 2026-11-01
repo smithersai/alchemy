@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import { createInternalTags, createTagsList, diffTags, hasAlchemyTags } from "alchemy/Tags";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export interface AggregationAuthorizationProps {
   /**

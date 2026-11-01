@@ -1,7 +1,7 @@
 import type * as ssoAdmin from "@distilled.cloud/aws/sso-admin";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.vibe";
 /**
  * Runtime binding for the `DescribePermissionSet` operation (IAM action
  * `sso:DescribePermissionSet`), scoped to one {@link Instance}.

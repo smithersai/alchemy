@@ -1,7 +1,7 @@
 import type * as quicksight from "@distilled.cloud/aws/quicksight";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DataSet } from "./DataSet.js";
+import type { DataSet } from "./DataSet.vibe";
 /**
  * Runtime binding for `quicksight:CreateIngestion`.
  *
