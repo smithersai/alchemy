@@ -47,6 +47,12 @@ export const NODE_CONDITION_NAMES: readonly string[] = ["node", "module", "defau
 const loadRolldown = () => import("rolldown");
 
 /**
+ * VibeLang's Rolldown plugin compiles each `.vibe` module a bundle reaches
+ * and claims no other file. It loads lazily, like Rolldown.
+ */
+const loadVibeLang = () => import("vibelang-unplugin/rolldown");
+
+/**
  * Extra options accepted by {@link build} / {@link watch} on top of the
  * standard rolldown input/output options.
  */
@@ -603,7 +609,9 @@ export function bundleOutputFromRolldownOutputBundle(
  * `@alchemy.run/cloudflare-runtime/rolldown`.
  */
 async function builtInPlugins(extra?: BundleExtraOptions): Promise<rolldown.RolldownPluginOption> {
+  const { default: vibelang } = await loadVibeLang();
   return [
+    vibelang(),
     extra?.bundleAnalyzer
       ? await bundleAnalyzerPlugin(extra.bundleAnalyzer === true ? {} : extra.bundleAnalyzer)
       : undefined,

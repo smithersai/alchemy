@@ -1,4 +1,5 @@
 import { defineConfig } from "tsdown";
+import vibelang from "vibelang-unplugin/rolldown";
 
 export default defineConfig([
   {
@@ -104,6 +105,7 @@ export default defineConfig([
     dts: false,
     shims: false,
     sourcemap: true,
+    plugins: [vibelang()],
     deps: {
       alwaysBundle: [
         /^@astrojs\/internal-helpers(?:\/|$)/,
@@ -142,6 +144,7 @@ export default defineConfig([
     dts: false,
     shims: false,
     sourcemap: true,
+    plugins: [vibelang()],
     deps: { onlyBundle: [] },
     inputOptions: {
       external: [/^(?:astro|cloudflare):/, /^astro(?:\/|$)/],
@@ -164,6 +167,7 @@ export default defineConfig([
     dts: false,
     shims: false,
     sourcemap: true,
+    plugins: [vibelang()],
     deps: { onlyBundle: false },
     inputOptions: {
       external: [/^nitropack(?:\/|$)/],

@@ -122,6 +122,18 @@ const transformTypesFlags = (): Array<string> =>
     ? ["--experimental-transform-types", "--no-warnings=ExperimentalWarning"]
     : [];
 
+/**
+ * Flags that load `.vibe` modules from source in a child whose entry is a
+ * `src/` module: VibeLang's Bun preload, or its Node loader hooks. A built
+ * `dist/` entry is JavaScript and gets none.
+ */
+const vibeLangLoaderFlags = (entry: string, isBun: boolean): Array<string> =>
+  entry.endsWith(".ts")
+    ? isBun
+      ? ["--preload", fileURLToPath(import.meta.resolve("vibelang/bun"))]
+      : ["--import", import.meta.resolve("vibelang/register")]
+    : [];
+
 export interface DevChildOptions {
   /** Use Node from PATH for toolchains that cannot run under Bun. Requires native TypeScript support when running source modules. */
   readonly runtime?: "node" | undefined;
@@ -187,6 +199,7 @@ export const runDevChild = (
         : entry.endsWith(".ts") && options.runtime !== "node"
           ? transformTypesFlags()
           : []),
+      ...vibeLangLoaderFlags(entry, isBun),
       entry,
       JSON.stringify(payload),
     ];

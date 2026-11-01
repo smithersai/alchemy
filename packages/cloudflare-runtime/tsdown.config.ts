@@ -1,4 +1,5 @@
 import { defineConfig, type UserConfig } from "tsdown";
+import vibelang from "vibelang-unplugin/rolldown";
 import { DEFAULT_COMPATIBILITY_DATE } from "./src/core/internal/constants.ts";
 import {
   InternalWorkerExportPlugin,
@@ -31,6 +32,7 @@ const workerConfig = (
   // copy; the structural compare between the two plugin types blows tsc's
   // depth limit, so bridge through `unknown`.
   plugins: [
+    vibelang(),
     cloudflare({
       compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
       compatibilityFlags: options.compatibilityFlags,
@@ -57,6 +59,7 @@ export default defineConfig([
     unbundle: true,
     dts: { incremental: false },
     shims: false,
+    plugins: [vibelang()],
     sourcemap: true,
     target: "esnext",
     format: "esm",
@@ -100,6 +103,7 @@ export default defineConfig([
     unbundle: true,
     dts: { incremental: false },
     shims: false,
+    plugins: [vibelang()],
     target: "esnext",
     format: "esm",
     inputOptions: {
@@ -126,6 +130,7 @@ export default defineConfig([
       mangle: false,
     },
     plugins: [
+      vibelang(),
       cloudflare({
         compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
         // These workers are exported as single modules, so they cannot carry
@@ -152,7 +157,7 @@ export default defineConfig([
     shims: false,
     target: "esnext",
     format: "esm",
-    plugins: [RuntimeSubpathExportPlugin()],
+    plugins: [vibelang(), RuntimeSubpathExportPlugin()],
     deps: {
       // These are subpaths of this consolidated package. Keep them as public
       // imports so the Vite declaration bundle shares the core runtime types.
