@@ -2,7 +2,7 @@ import type { CheckpointInfo as FlyCheckpoint, CreateCheckpointError, GetCheckpo
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Sprite } from "./Sprite.js";
+import type { Sprite } from "./Sprite.vibe";
 export interface CheckpointClient {
     /**
      * Create a checkpoint of the Sprite filesystem. Returns NDJSON

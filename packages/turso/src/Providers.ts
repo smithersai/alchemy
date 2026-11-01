@@ -4,7 +4,7 @@ import * as Provider from "alchemy/Provider";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
 import { ApiToken, ApiTokenProvider } from "./ApiToken.ts";
-import { TursoAuth } from "./AuthProvider.ts";
+import { TursoAuth } from "./AuthProvider.vibe";
 import * as Credentials from "./Credentials.ts";
 import { Database, DatabaseProvider } from "./Database.ts";
 import { DatabaseToken, DatabaseTokenProvider } from "./DatabaseToken.ts";

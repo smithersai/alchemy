@@ -33,7 +33,7 @@ import { renderPlanning } from "./commands/render.ts";
 import { stackOutputsView } from "./components/view/StackOutputs.tsx";
 import { DEV_RELOAD_EXIT_CODE, DevOptions } from "./DevOptions.ts";
 import { ConsoleLogLive } from "./GlobalLog.ts";
-import { selectCliServices } from "./selectCli.ts";
+import { selectCliServices } from "./selectCli.vibe";
 
 // Interactive dev/deploy runs use the Sigil progress UI; CI, redirected output,
 // and other non-interactive terminals still select the append-only renderer.

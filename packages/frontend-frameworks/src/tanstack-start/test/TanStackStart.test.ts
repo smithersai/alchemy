@@ -10,8 +10,8 @@ import {
   LAMBDA_ENTRY_FILE_NAME,
   makeAwsTarget,
   SERVER_ENTRY_FILE_NAME,
-} from "../aws.ts";
-import { fromHarnessOptions } from "../index.ts";
+} from "../aws.vibe";
+import { fromHarnessOptions } from "../index.vibe";
 import {
   DEFAULT_TARGET_SPECIFIER,
   inlineBuildConfig,
@@ -19,7 +19,7 @@ import {
   readTanStackStartOutput,
   selectServerEntryName,
   type TanStackStartTarget,
-} from "../TanStackStart.ts";
+} from "../TanStackStart.vibe";
 
 const runWithNode = <A, E>(
   effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path | Scope.Scope>,

@@ -4,7 +4,7 @@ import { CurrentRuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { bindBackendEnvironment } from "./BackendConnection.ts";
-import type { Bucket } from "./Bucket.ts";
+import type { Bucket } from "./Bucket.vibe";
 import {
   ObjectDecodeError,
   serializeObjectValue,

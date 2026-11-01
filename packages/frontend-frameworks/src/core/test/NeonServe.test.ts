@@ -3,8 +3,8 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { describe, expect, it } from "vitest";
-import { makeNeonServeEntrySource } from "../NeonServe.ts";
-import type { NodeServeEntryOptions } from "../NodeServe.ts";
+import { makeNeonServeEntrySource } from "../NeonServe.vibe";
+import type { NodeServeEntryOptions } from "../NodeServe.vibe";
 
 type Entry = { default: { fetch(request: Request): Promise<Response> } };
 const entry = (options: NodeServeEntryOptions, files: Record<string, string> = {}) =>

@@ -11,7 +11,7 @@ import {
   makeAwsTarget,
   makeLambdaEntrySource,
   target,
-} from "../aws.ts";
+} from "../aws.vibe";
 import { loadPrerenderPairs, seedStoreFromPrerender } from "../cache/seed.ts";
 
 describe("makeAwsTarget", () => {

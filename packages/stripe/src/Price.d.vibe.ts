@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Product } from "./Product.js";
+import type { Product } from "./Product.vibe";
 import type { Providers } from "./Providers.js";
 export type PriceInterval = "day" | "month" | "week" | "year";
 export type PriceUsageType = "licensed" | "metered";

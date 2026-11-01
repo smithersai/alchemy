@@ -1,6 +1,6 @@
 import type { PrerenderRenderMetadata } from "astro";
 import { describe, expect, it } from "vitest";
-import { readFramedPrerenderResponse } from "../prerender-response.ts";
+import { readFramedPrerenderResponse } from "../prerender-response.vibe";
 import {
   createFramedPrerenderResponse,
   PRERENDER_RESPONSE_CONTENT_TYPE,

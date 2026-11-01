@@ -4,9 +4,9 @@ import * as NodePath from "node:path";
 import { WORKER_ENTRY_PREFIX } from "@alchemy.run/cloudflare-runtime/rolldown/plugins";
 import type * as ViteModule from "vite";
 import { afterEach, describe, expect, it } from "vitest";
-import { makeIntegrationPluginOptions, SERVER_ENTRYPOINT } from "../cloudflare.ts";
+import { makeIntegrationPluginOptions, SERVER_ENTRYPOINT } from "../cloudflare.vibe";
 import { createWorkerdPrerenderEnvironmentPlugin } from "../prerender-environment.ts";
-import { collectOutputModules, withAsyncLocalStorage } from "../prerenderer.ts";
+import { collectOutputModules, withAsyncLocalStorage } from "../prerenderer.vibe";
 
 describe("makeIntegrationPluginOptions (workerd prerendering)", () => {
   it("promotes prerender to a child worker environment during a workerd build", () => {

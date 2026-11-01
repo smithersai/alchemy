@@ -1,0 +1,102 @@
+import type * as Context from "effect/Context"
+import * as Effect from "effect/Effect"
+import * as Scope from "effect/Scope"
+import { AlchemyContext, AlchemyContextLive } from "./AlchemyContext.ts"
+import { provideFreshArtifactStore } from "./Artifacts.ts"
+import { CredentialsStoreLive } from "./Auth/Credentials.ts"
+import { ProfileStoreLive } from "./Auth/Profile.ts"
+import { type StackEffect, StateScope } from "./Stack.ts"
+import { Stage } from "./Stage.ts"
+import { loadConfigProvider } from "./Util/ConfigProvider.ts"
+import { PlatformServices } from "./Util/PlatformServices.ts"
+
+// TODO(unify stack builds): this is one of several ways to build a stack;
+// the others are `Alchemist/Operations.ts` (`buildStack`,
+// `buildWithoutProgram`) and the test harness's scratch stacks
+// (`alchemy-test/src/Core.ts`). They differ in config (this one reloads `.env`
+// and drops the caller's ConfigProvider), adopt/updateStateStore, and how
+// the state-store lease is scoped. Migrate everything to `Alchemist.plan` /
+// `Alchemist.apply`: give Alchemist this file's per-call lease scope
+// (`StateScope`), reimplement `Deploy.deploy` / `Destroy.destroy` on it,
+// move scratch stacks onto it, then delete this file.
+
+// Deploy-time only: kept out of `Stack.ts` because every runtime imports the
+// `Stack` tag, and this module's top-level platform layer (Node + Bun
+// platforms, `ws`, profile and credential stores) survives tree-shaking.
+
+const platform = Layer.mergeAll(
+  PlatformServices,
+  FetchHttpClient.layer,
+  Layer.provide(ProfileStoreLive, PlatformServices),
+  Layer.provide(CredentialsStoreLive, PlatformServices),
+)
+// override alchemy state store, CLI/reporting, state, and Config
+const alchemy = (overrides?: { mutable dev?: boolean }): infer _ =>
+  Layer.mergeAll(
+    // optional
+    overrides?.dev
+      ? Layer.provide(
+        Layer.effect(
+          AlchemyContext,
+          AlchemyContext.useSync((ctx) => ({ ...ctx, dev: overrides.dev! })),
+        ),
+        AlchemyContextLive,
+      )
+      : AlchemyContextLive,
+  )
+
+export const evalStack = effect <S extends { mutable services: Context.Context<any> }, B, StackErr, Err, Req>(
+  effect: StackEffect<S, StackErr, Stage | AlchemyContext>,
+  fn: (stack: S) => B!Err!Req,
+  options: {
+    mutable stage: string
+    mutable dev?: boolean
+    /**
+     * Optional caller-supplied scope. When provided, scoped resources
+     * (e.g. the dev sidecar process) live until the caller closes this
+     * scope instead of being torn down when `evalStack` resolves. Used
+     * by the test harness so the sidecar survives across `beforeAll`,
+     * tests, and `afterAll`. When omitted, behaves as before with a
+     * private scope closed on completion. The state store never outlives
+     * the call.
+     */
+    mutable scope?: Scope.Scope
+  },
+) => {
+  const body = effect {
+    return try effect {
+      provide Layer.succeed(Stage, options.stage).pipe(
+            Layer.provideMerge(Layer.provideMerge(alchemy({ dev: options.dev }), platform)),
+          ) {
+        return try effect {
+          const stack = try effect
+          const configProvider = try loadConfigProvider(Option.none())
+          return try effect {
+            provide Layer.succeedContext(stack.services).pipe(
+                  Layer.provideMerge(Layer.succeed(ConfigProvider.ConfigProvider, configProvider)),
+                ) {
+              return try (fn(stack)
+                |> provideFreshArtifactStore(%))
+            }
+          }
+        }
+      }
+    }
+  }
+
+  const scope = options.scope
+  return (scope === undefined
+    ? try Effect.scoped(body)
+    : try Effect.scopedWith(effect (stateScope) =>
+      try Scope.provide(
+        effect {
+          return try effect {
+            provide StateScope = stateScope {
+              return try body
+            }
+          }
+        },
+        scope,
+      )
+    ))
+}

@@ -3,7 +3,7 @@ export * from "./BranchProtection.ts";
 export * from "./Collaborator.ts";
 export * from "./Comment.ts";
 export { Credentials, fromEnv, fromToken } from "./Credentials.vibe";
-export * from "./Env.ts";
+export * from "./Env.vibe";
 export * from "./Environment.ts";
 export * from "./Label.ts";
 export * from "./Providers.ts";

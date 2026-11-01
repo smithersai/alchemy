@@ -5,15 +5,15 @@ import * as Path from "effect/Path";
 import * as ChildProcess from "effect/process/ChildProcess";
 import { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";
 import { describe, expect, it } from "vitest";
-import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.ts";
-import { resolveVinextCli } from "../cli.ts";
+import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.vibe";
+import { resolveVinextCli } from "../cli.vibe";
 import {
   SERVER_ENTRY_NAME,
   VINEXT_NODE_INSTALL,
   makeNodeTarget,
   makeVinextServeEntrySource,
   target,
-} from "../node.ts";
+} from "../node.vibe";
 
 describe("makeNodeTarget", () => {
   it.each([

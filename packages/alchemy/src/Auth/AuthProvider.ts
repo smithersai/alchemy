@@ -10,7 +10,7 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import { Interaction } from "../Interaction.ts";
 import { UserFacingError } from "../UserFacingError.ts";
-import { cachedFunction } from "../Util/cached-function.ts";
+import { cachedFunction } from "../Util/cached-function.vibe";
 import { globalLogs } from "../Util/LogRecord.ts";
 import { withProfileCredentialsLock } from "./Lock.ts";
 import { AuthProviders } from "./Registry.ts";

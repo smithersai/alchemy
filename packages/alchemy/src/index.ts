@@ -2,7 +2,7 @@ export { Action, isAction, type Action as ActionInstance, type ActionLike } from
 export * as AdoptPolicy from "./AdoptPolicy.ts";
 export * from "./AlchemyContext.ts";
 export * from "./Apply.ts";
-export * from "./Callback.ts";
+export * from "./Callback.vibe";
 export {
   Service as BindingService,
   type ServiceLike as BindingServiceLike,
@@ -20,11 +20,11 @@ export { ALCHEMY_DEV, ALCHEMY_PHASE, type AlchemyPhase } from "./Phase.ts";
 export * from "./PhysicalName.ts";
 export * as Plan from "./Plan.ts";
 export { Provider, ProviderCollection } from "./Provider.ts";
-export * as ProviderMode from "./ProviderMode.ts";
-export { remote } from "./ProviderMode.ts";
+export * as ProviderMode from "./ProviderMode.vibe";
+export { remote } from "./ProviderMode.vibe";
 export * from "./Random.ts";
 export * from "./Ref.ts";
-export * as RemovalPolicy from "./RemovalPolicy.ts";
+export * as RemovalPolicy from "./RemovalPolicy.vibe";
 export { renamedFrom } from "./Rename.ts";
 export * from "./Resource.ts";
 export * from "./ResourceContext.ts";

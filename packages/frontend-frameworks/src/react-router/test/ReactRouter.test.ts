@@ -10,8 +10,8 @@ import {
   LAMBDA_ENTRY_FILE_NAME,
   makeAwsTarget,
   SERVER_ENTRY_FILE_NAME,
-} from "../aws.ts";
-import { fromHarnessOptions } from "../index.ts";
+} from "../aws.vibe";
+import { fromHarnessOptions } from "../index.vibe";
 import {
   DEFAULT_BUILD_DIRECTORY,
   DEFAULT_SERVER_BUILD_FILE,
@@ -26,7 +26,7 @@ import {
   serverEntryPlugin,
   serverEntrySource,
   type ReactRouterTarget,
-} from "../ReactRouter.ts";
+} from "../ReactRouter.vibe";
 
 const runWithNode = <A, E>(
   effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path | Scope.Scope>,

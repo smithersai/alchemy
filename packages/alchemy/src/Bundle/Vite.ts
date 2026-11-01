@@ -4,7 +4,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type { PlatformError } from "effect/PlatformError";
 import type * as vite from "vite";
-import { cachedFunction } from "../Util/cached-function.ts";
+import { cachedFunction } from "../Util/cached-function.vibe";
 import { sha256 } from "../Util/index.ts";
 import {
   BundleError,

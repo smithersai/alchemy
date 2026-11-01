@@ -1,0 +1,57 @@
+import type { Url } from "@alchemy.run/redis"
+import * as Binding from "alchemy/Binding"
+import type { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import type { ServiceBinding } from "./MountVolume.vibe"
+import { REDIS_URL_ENV, RedisUrlMissing, type Redis } from "./Redis.vibe"
+
+/**
+ * Shared scaffolding for Upstash Redis bindings.
+ *
+ * Each `{Op}Http.ts` is a thin `Layer.effect` over {@link makeRedisBinding}.
+ * Deploy-time registers the Redis add-on on the host so Service reconcile
+ * can attach it. The URL travels as `yield* redis.url` (RuntimeContext
+ * set/get). `REDIS_URL` written as an App secret is a fallback, not the
+ * primary path.
+ *
+ * The RESP client lives in `@alchemy.run/redis`. This file only wires the
+ * Fly host binding.
+ *
+ * NOT exported from `index.ts`.
+ */
+
+const isFlyHost = (value: unknown): value is Resource<string, any, any, ServiceBinding> =>
+  typeof value === "object" &&
+  value !== null &&
+  ((value as { mutable Type?: string }).Type === "Fly.Service" ||
+    (value as { mutable Type?: string }).Type === "Fly.Machine");
+
+const asPlain = (value: unknown): string | undefined => {
+  if (typeof value === "string" && value.length > 0) return value;
+  if (Redacted.isRedacted(value)) return value.pipe(Redacted.value, asPlain);
+  return undefined;
+};
+
+const redisUrlFromEnv = effect { return Redacted.value((try Config.Redacted(REDIS_URL_ENV))) };
+
+export const makeRedisBinding = effect <Client>(options: { mutable makeClient: (url: Url) => Client }) => effect (redis: Redis) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        const host = try Binding.Host;
+        if (isFlyHost(host)) {
+          try host.bind`${redis}`({
+            redis: { name: redis.name, id: redis.redisId },
+          });
+        }
+      }
+
+      const urlFromResource = try redis.url.asEffect();
+      const missing = new RedisUrlMissing({
+        resourceName: asPlain(redis.name) ?? redis.LogicalId,
+      });
+      const url: Url = effect {
+        const fromOutput = asPlain(try urlFromResource);
+        if (fromOutput !== undefined) return fromOutput;
+        return (try redisUrlFromEnv) catch effect (e) => { throw missing };
+      };
+      return options.makeClient(url);
+    };

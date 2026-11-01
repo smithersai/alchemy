@@ -14,7 +14,7 @@ import type {
   ListOptions,
   ListResult,
   PresignGetOptions,
-} from "./BucketTypes.ts";
+} from "./BucketTypes.vibe";
 import {
   makeBucketAccess,
   objectBodyFrom,

@@ -10,7 +10,7 @@ import {
   type DevPlatformProxy,
   type OpenDevPlatformProxy,
   type OpenDevPlatformProxyOptions,
-} from "../cloudflare.ts";
+} from "../cloudflare.vibe";
 
 describe("generateWorkerShim", () => {
   const shim = generateWorkerShim({

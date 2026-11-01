@@ -2,7 +2,7 @@ import type { UpdateTerminalReaderError, UpdateTerminalReaderRequest as Distille
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { TerminalReader } from "./TerminalReader.js";
+import type { TerminalReader } from "./TerminalReader.vibe";
 export interface UpdateTerminalReaderRequest extends Omit<DistilledUpdateTerminalReaderRequest, "reader"> {
 }
 /**

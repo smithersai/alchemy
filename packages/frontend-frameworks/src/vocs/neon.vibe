@@ -1,0 +1,179 @@
+import { createRequire } from "node:module"
+import { pathToFileURL } from "node:url"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Layer from "effect/Layer"
+import * as Path from "effect/Path"
+import type { Plugin } from "vite"
+import { runBuildChild } from "../core/BuildChild.vibe"
+import type { BuildOutput } from "../core/BuildOutput.vibe"
+import { DeployTargetError } from "../core/DeployTarget.vibe"
+import { isInsideDevChild, runDevChild } from "../core/DevChild.vibe"
+import { FrameworkError, type FrameworkDevOptions } from "../core/Framework.vibe"
+import { Framework } from "../core/Framework.vibe"
+import { finishNeonOutput, makeNeonTarget } from "../core/NeonServe.vibe"
+import { makeNodeTarget, type VocsNodeFrameworkOptions } from "./node.vibe"
+import { make as makeVocsLayer } from "./Vocs.vibe"
+
+// Preserve config imports and closures; only the dev-only Vite loader is removed.
+const runtimeConfigPlugin = (): Plugin => ({
+  name: "alchemy:vocs-neon-runtime-config",
+  enforce: "post",
+  transform(code, id) {
+    const file = id.replaceAll("\\", "/").split("?")[0]
+    if (file?.endsWith("/vocs/dist/internal/mdx.js")) {
+      const logger = /const logger = createLogger\(undefined, \{ allowClearScreen: false, prefix: '\[vocs\]' \}\);/
+      if (!logger.test(code) || !code.includes("import { createLogger } from 'vite';")) {
+        throw new Error("Vocs MDX logger changed; update the Neon runtime bridge.")
+      }
+      return code
+        .replace("import { createLogger } from 'vite';", "")
+        .replace(
+          logger,
+          "const logger = { warn: (message) => console.warn(\"[vocs]\", message), error: (message) => console.error(\"[vocs]\", message) };",
+        )
+    }
+    if (!file?.endsWith("/vocs/dist/internal/config.js")) return
+    const pattern = /export async function resolve\(options = \{\}\) \{[\s\S]*?\n\}\n(?=export let global;)/
+    if (!pattern.test(code)) {
+      throw new Error("Vocs runtime config shape changed; update the Neon config bridge.")
+    }
+    return code.replace(
+      pattern,
+      "export async function resolve() {\n"
+        + "  const resolved = (await import(\"virtual:alchemy-vocs/user-config\")).default;\n"
+        + "  return define(resolved);\n}\n",
+    )
+  },
+})
+
+export const buildInChild = effect (config: { mutable root: string }) => {
+  const node = makeNodeTarget()
+  const framework = try effect {
+    provide makeVocsLayer({
+          root: config.root,
+          target: {
+            ...node,
+            build: undefined,
+            vitePlugins: effect (context) => [...(try node
+                .vitePlugins(context)), runtimeConfigPlugin()],
+          },
+        }) {
+      return try Framework
+    }
+  }
+  return try finishNeonOutput(try framework.build({ root: config.root }))
+}
+
+/** Vocs production output served by a Neon Fetch handler. */
+export const target = (config?: Parameters<typeof makeNodeTarget>[0]): infer _ => ({
+  ...makeNeonTarget(makeNodeTarget(config)),
+  build: effect (context: Parameters<NonNullable<ReturnType<typeof makeNodeTarget>["build"]>>[0]) =>
+    runBuildChild({
+      runtime: "node",
+      module: import.meta.url,
+      rootDir: context.root,
+      config: { root: context.root },
+      framework: "vocs",
+      env: context.env,
+    }) catch effect (cause) => {
+      throw new DeployTargetError({
+        platform: "neon",
+        message: cause.message,
+        cause,
+      })
+    },
+})
+export default target
+
+/** Native Vocs development with Neon-compatible production output. */
+export const make = effect (options: VocsNodeFrameworkOptions = {}) => {
+  const fs = try FileSystem.FileSystem
+  const path = try Path.Path
+  const services = Layer.mergeAll(
+    Layer.succeed(FileSystem.FileSystem)(fs),
+    Layer.succeed(Path.Path)(path),
+  )
+  return {
+    dev: effect (devOptions?: FrameworkDevOptions | undefined) => {
+      const root = try Effect.sync(() => path.resolve(devOptions?.root ?? options.root ?? process.cwd()))
+      if (isInsideDevChild()) {
+        const fail = (cause: unknown): infer _ =>
+          new FrameworkError({
+            framework: "vocs",
+            message: "Failed to start the native Vocs dev server",
+            cause,
+          })
+        const modules = try Effect.try({
+          try: (): infer _ => {
+            const project = createRequire(path.join(root, "package.json"))
+            const vocs = project.resolve("vocs/vite")
+            const require = createRequire(vocs)
+            return {
+              vocs: pathToFileURL(vocs).href,
+              vite: pathToFileURL(require.resolve("vite")).href,
+              react: pathToFileURL(require.resolve("@vitejs/plugin-react")).href,
+            }
+          },
+          catch: fail,
+        })
+        // All plugins must share Vocs's Vite instance for runnable SSR environments.
+        const vite = try Effect.tryPromise({
+          try: (): infer _ => import(modules.vite) as Promise<typeof import("vite")>,
+          catch: fail,
+        })
+        const react = try Effect.tryPromise({
+          try: (): infer _ => import(modules.react) as Promise<typeof import("@vitejs/plugin-react")>,
+          catch: fail,
+        })
+        const vocs = try Effect.tryPromise({
+          try: (): infer _ => import(modules.vocs) as Promise<typeof import("vocs/vite")>,
+          catch: fail,
+        })
+        const server = try Effect.acquireRelease(
+          Effect.tryPromise({
+            try: (): infer _ =>
+              vite.createServer({
+                root,
+                configFile: false,
+                plugins: [react.default(), vocs.vocs()],
+                server: {
+                  host: devOptions?.host,
+                  port: devOptions?.port,
+                  strictPort: devOptions?.port !== undefined,
+                },
+              }),
+            catch: fail,
+          }),
+          effect (server) => try Effect.promise(() => server.close()),
+        )
+        try Effect.tryPromise({ try: (): infer _ => server.listen(), catch: fail })
+        const url = server.resolvedUrls?.local[0] ?? server.resolvedUrls?.network[0]
+        if (!url) return try fail(new Error("Vocs did not report a dev URL"))
+        return { url }
+      }
+      return try runDevChild({
+        // Vocs's Vite dev server (like its build) exhausts memory under
+        // Bun; run the dev child under Node from PATH.
+        runtime: "node",
+        framework: "vocs",
+        module: import.meta.url,
+        callerUrl: import.meta.url,
+        rootDir: root,
+        makeOptions: { ...options, root },
+        devOptions: { ...devOptions, root },
+      })
+    },
+    build: effect (buildOptions?: {
+      readonly root?: string
+    }): Effect.Effect<BuildOutput, FrameworkError | DeployTargetError> =>
+      try effect {
+        provide services {
+          return try effect {
+            const root = try Effect.sync(() => path.resolve(buildOptions?.root ?? options.root ?? process.cwd()))
+            return try target().build({ root, framework: "vocs" })
+          }
+        }
+      },
+  }
+}

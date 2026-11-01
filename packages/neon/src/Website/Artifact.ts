@@ -20,8 +20,8 @@ import type { PlatformError } from "effect/PlatformError";
 import * as Stream from "effect/Stream";
 import { validateFunctionZip } from "../FunctionArtifact.ts";
 import { nativeArtifactError, neonRuntimeTarget as runtimeTarget } from "../NativeArtifact.ts";
-import { packageWebsiteInChild } from "./Package.ts";
-import { traceWebsiteFiles } from "./Trace.ts";
+import { packageWebsiteInChild } from "./Package.vibe";
+import { traceWebsiteFiles } from "./Trace.vibe";
 
 /** Build output staged after Website.Server finishes. */
 export interface WebsiteArtifactProps {

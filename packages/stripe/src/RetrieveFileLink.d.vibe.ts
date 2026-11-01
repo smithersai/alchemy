@@ -2,7 +2,7 @@ import type { FileLink as StripeFileLink, GetFileLinkError, GetFileLinkRequest }
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { FileLink } from "./FileLink.js";
+import type { FileLink } from "./FileLink.vibe";
 export interface RetrieveFileLinkRequest extends Omit<GetFileLinkRequest, "link"> {
 }
 /**

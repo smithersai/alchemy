@@ -6,7 +6,7 @@ import { isDeployTarget } from "../../core/index.ts";
 import cloudflareTargetFactory, {
   makeWakuCloudflareTarget,
   makeWakuPluginOptions,
-} from "../cloudflare.ts";
+} from "../cloudflare.vibe";
 import { WAKU_SERVER_ENTRY_PATH } from "../index.ts";
 
 const WAKU_DIR = "/project/node_modules/waku";

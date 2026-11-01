@@ -6,7 +6,7 @@ import { Credentials } from "../../../prisma/src/internal/Credentials.ts";
 import {
   getBuildLogsRequest,
   getDeploymentLogsRequest,
-} from "../../../prisma/src/internal/LogsClient.ts";
+} from "../../../prisma/src/internal/LogsClient.vibe";
 
 const provideEnv = Effect.provideService(
   Credentials,

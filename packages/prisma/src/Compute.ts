@@ -74,7 +74,7 @@ import {
   startDeploymentIdempotent,
   stopDeploymentIdempotent,
 } from "./internal/DeploymentActions.ts";
-import { ensureDeploymentMembership } from "./internal/DeploymentIdentity.ts";
+import { ensureDeploymentMembership } from "./internal/DeploymentIdentity.vibe";
 import { observeDeployment } from "./internal/DeploymentObserve.ts";
 import type {
   ObservedApp,

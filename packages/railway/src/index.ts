@@ -3,7 +3,7 @@ export * from "./Bind.ts";
 export { enableRailwayRpc, serveRailwayRpc } from "./rpc-server.ts";
 export * from "./LoginSession.ts";
 export * from "./Bucket.ts";
-export * from "./Catalog.ts";
+export * from "./Catalog.vibe";
 export * from "./CloudAgent.vibe";
 export * from "./DeleteObject.vibe";
 export * from "./DeleteObjectHttp.vibe";

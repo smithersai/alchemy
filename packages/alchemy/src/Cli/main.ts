@@ -32,7 +32,7 @@ import {
 import { handleCliErrors } from "./commands/errors.ts";
 import { VersionCheck } from "./commands/instrument.ts";
 import { GlobalLogLive, LogFormatFlag, LogLevelFlag } from "./GlobalLog.ts";
-import { selectCliServices } from "./selectCli.ts";
+import { selectCliServices } from "./selectCli.vibe";
 
 const commandMetadata = [
   ["provider", "Manage cloud provider prerequisites and utilities"],
@@ -85,9 +85,9 @@ const loadCommand = async (name: CommandName) => {
     case "state":
       return (await import("./commands/state.ts")).stateCommand;
     case "drift":
-      return (await import("./commands/drift.ts")).driftCommand;
+      return (await import("./commands/drift.vibe")).driftCommand;
     case "unsafe":
-      return (await import("./commands/nuke.ts")).unsafeCommand;
+      return (await import("./commands/nuke.vibe")).unsafeCommand;
   }
 };
 

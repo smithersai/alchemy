@@ -30,7 +30,7 @@ export {
 
 export type { ConfiguredStack } from "../Stack.ts";
 
-export * as Drift from "./Drift.ts";
+export * as Drift from "./Drift.vibe";
 export * as Logs from "./Logs.ts";
 export * as Nuke from "./Nuke.ts";
 export * as Profile from "./Profile.ts";

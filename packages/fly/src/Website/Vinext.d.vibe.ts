@@ -66,7 +66,7 @@ export declare const Vinext: (id: string, propsIn?: VinextProps) => Effect.Effec
 } | {
     url: string | import("alchemy/Output").Output<string, never>;
     app: import("../App.vibe").App;
-    service: import("../Service.js").Service;
+    service: import("../Service.vibe").Service;
     ip: import("../IpAssignment.vibe").IpAssignment;
     certificate: import("../Certificate.vibe").Certificate | undefined;
 }, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Provider").Provider<import("alchemy/Website/Server").Server> | import("../Providers.js").Providers>;

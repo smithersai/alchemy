@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.ts";
-import { NITRO_HANDLER_SPECIFIER, NITRO_PRESET, makeNodeTarget, target } from "../node.ts";
+import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.vibe";
+import { NITRO_HANDLER_SPECIFIER, NITRO_PRESET, makeNodeTarget, target } from "../node.vibe";
 import type { NitroConfigSlice } from "../UserConfig.ts";
 
 describe("makeNodeTarget", () => {

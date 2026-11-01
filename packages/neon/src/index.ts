@@ -4,7 +4,7 @@ export {
   InvalidManagedAuth,
   type AuthProps,
   type AuthAttributes,
-} from "./Auth.ts";
+} from "./Auth.vibe";
 export * from "./AuthOAuthProvider.vibe";
 export * from "./AuthTrustedDomain.vibe";
 export * from "./DataApi.vibe";
@@ -18,7 +18,7 @@ export * from "./Connect.vibe";
 export * from "./BranchScope.ts";
 export * from "./Credential.ts";
 export * from "./Role.vibe";
-export * from "./Bucket.ts";
+export * from "./Bucket.vibe";
 export * from "./Object.ts";
 export * from "./ReadBucket.vibe";
 export * from "./WriteBucket.vibe";
@@ -87,7 +87,7 @@ export * from "./CustomDomain.vibe";
 export * from "./CronEventSource.vibe";
 export * from "./CronEventSourceHttp.ts";
 export * from "./BucketEventSource.vibe";
-export * from "./BucketEventSourceHttp.ts";
+export * from "./BucketEventSourceHttp.vibe";
 export * from "./InvokeFunction.vibe";
 export * from "./InvokeFunctionHttp.vibe";
 export * from "./waitUntil.vibe";

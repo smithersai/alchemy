@@ -25,7 +25,7 @@ import {
   ensureArtifactStore,
   makeScopedArtifacts,
 } from "./Artifacts.ts";
-import { demandRemoteCredentials, failCredentialsRequired } from "./Auth/Demand.ts";
+import { demandRemoteCredentials, failCredentialsRequired } from "./Auth/Demand.vibe";
 import {
   dedupeBindings,
   diffBindings,
@@ -47,7 +47,7 @@ import {
   tryFindProviderByType,
   type ProviderService,
 } from "./Provider.ts";
-import { defaultProviderMode, stampedMode, type ProviderMode } from "./ProviderMode.ts";
+import { defaultProviderMode, stampedMode, type ProviderMode } from "./ProviderMode.vibe";
 import {
   isResource,
   missingImplementation,

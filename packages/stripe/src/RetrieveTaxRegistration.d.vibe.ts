@@ -2,7 +2,7 @@ import type { GetTaxRegistrationError, GetTaxRegistrationRequest, TaxRegistratio
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { TaxRegistration } from "./TaxRegistration.js";
+import type { TaxRegistration } from "./TaxRegistration.vibe";
 export interface RetrieveTaxRegistrationRequest extends Omit<GetTaxRegistrationRequest, "id"> {
 }
 /**

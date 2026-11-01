@@ -2,7 +2,7 @@ import type { EntitlementsFeature as StripeEntitlementsFeature, GetEntitlementsF
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { EntitlementsFeature } from "./EntitlementsFeature.js";
+import type { EntitlementsFeature } from "./EntitlementsFeature.vibe";
 export interface RetrieveEntitlementsFeatureRequest extends Omit<GetEntitlementsFeatureRequest, "id"> {
 }
 /**

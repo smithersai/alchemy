@@ -9,12 +9,12 @@ import * as Effect from "effect/Effect";
 import type * as FileSystem from "effect/FileSystem";
 import type * as Path from "effect/Path";
 import { afterEach, describe, expect, it } from "vitest";
-import { makeNeonServeEntrySource } from "../../core/NeonServe.ts";
-import { makeNodeServeEntrySource } from "../../core/NodeServe.ts";
-import { makeAwsTarget } from "../aws.ts";
-import { make, metadataReader, readFoldkitOutput, type BuildMetadata } from "../Foldkit.ts";
+import { makeNeonServeEntrySource } from "../../core/NeonServe.vibe";
+import { makeNodeServeEntrySource } from "../../core/NodeServe.vibe";
+import { makeAwsTarget } from "../aws.vibe";
+import { make, metadataReader, readFoldkitOutput, type BuildMetadata } from "../Foldkit.vibe";
 import { target as makeNeonTarget } from "../neon.ts";
-import { makeNodeTarget } from "../node.ts";
+import { makeNodeTarget } from "../node.vibe";
 
 const run = <A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path>) =>
   Effect.runPromise(effect.pipe(Effect.provide(NodeServices.layer)));

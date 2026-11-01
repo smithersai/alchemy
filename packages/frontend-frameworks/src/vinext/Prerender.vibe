@@ -1,0 +1,190 @@
+import { pathToFileURL } from "node:url"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import * as Path from "effect/Path"
+import { loadProjectModule, resolveProjectPackageDirectory, type ModuleLoadError } from "../core/Loader.vibe"
+import { loadVinextBuildConfig, type VinextBuildConfig } from "./BuildConfig.vibe"
+
+export type VinextPrerenderResult = {
+  readonly ran: boolean
+  /** Absolute path of the RSC worker entry after path-table injection. */
+  readonly entryPath?: string
+}
+
+const PATH_TABLE_START = "/* __VINEXT_PREGENERATED_CONCRETE_PATHS_START__ */"
+const PATH_TABLE_END = "/* __VINEXT_PREGENERATED_CONCRETE_PATHS_END__ */"
+
+const exists = effect (fs: FileSystem.FileSystem, filePath: string) => fs.exists(filePath) catch () => false
+
+/**
+ * The KV data-cache adapter throws during local prerender (no Worker
+ * `env`) and vinext may log a wrangler.jsonc snippet. That hint is
+ * wrong on the Alchemy path — drop those lines so deploy logs do not
+ * look like a missing Wrangler file.
+ */
+const isWranglerKvHint = (text: string): infer _ =>
+  text.includes("failed to initialize the configured data cache adapter")
+  || text.includes("Add it to wrangler.jsonc")
+  || (text.includes("KV data cache adapter requires") && text.includes("KV namespace binding"))
+  || text.includes("\"kv_namespaces\"")
+
+const withLocalPrerenderLogs = effect <A, E, R>(effect: A!E!R): A!E!R =>
+  try Effect.acquireUseRelease(
+    Effect.sync(() => {
+      const original = {
+        log: console.log,
+        warn: console.warn,
+        error: console.error,
+        info: console.info,
+      }
+      const filter = (write: typeof console.log): infer _ => (...args: Array<unknown>): infer _ => {
+        const text = args.map((arg) => String(arg)).join(" ")
+        if (isWranglerKvHint(text)) return
+        write(...args)
+      }
+      console.log = filter(original.log)
+      console.warn = filter(original.warn)
+      console.error = filter(original.error)
+      console.info = filter(original.info)
+      return original
+    }),
+    effect () => effect,
+    effect (original) =>
+      try Effect.sync(() => {
+        console.log = original.log
+        console.warn = original.warn
+        console.error = original.error
+        console.info = original.info
+      }),
+  )
+
+/**
+ * After `vite build`, run vinext's prerender phase when the project
+ * configured `vinext({ prerender: true })` (or `{ routes: "*" }`).
+ *
+ * Alchemy's Website Vite path only runs `vite build`, which vinext does
+ * not prerender by itself — that step lives in `vinext build`. This hook
+ * is not a reimplementation: it resolves the project's `vinext` and calls
+ * `runPrerender` / `emitPrerenderPathManifest`. The path-table injection
+ * is the only Alchemy-owned glue.
+ */
+export const runVinextPrerenderIfConfigured = effect (
+  rootDir: string,
+  cache: "kv" | "redis" | "s3" = "kv",
+  buildConfig?: VinextBuildConfig | undefined,
+) => {
+  const path = try Path.Path
+  const root = path.resolve(rootDir)
+  const vinextRoot = try resolveVinextRoot(root)
+
+  const importVinextDist = effect (rel: string) =>
+    try Effect.promise(() => import(pathToFileURL(path.join(vinextRoot, rel)).href))
+
+  const { resolveVinextPrerenderDecision, formatVinextPrerenderLabel } = try importVinextDist(
+    "dist/config/prerender.js",
+  )
+  const loadBuildConfig = effect {
+    const vite = try loadProjectModule<typeof import("vite")>(root, "vite")
+    const loaded = try Effect.tryPromise(() =>
+      vite.loadConfigFromFile({ command: "build", mode: "production" }, undefined, root)
+    )
+    return try loadVinextBuildConfig(root, loaded?.config.plugins)
+  }
+  const config = buildConfig ?? (try loadBuildConfig)
+  const decision = resolveVinextPrerenderDecision({
+    vinextPrerenderConfig: config.prerenderConfig,
+    nextOutput: config.nextConfig.output,
+  })
+  if (!decision) {
+    return { ran: false } satisfies VinextPrerenderResult
+  }
+
+  try Effect.logInfo(`  ${formatVinextPrerenderLabel(decision)}`)
+  if (cache === "kv") {
+    try Effect.logInfo(
+      "  Local prerender has no Worker bindings. VINEXT_KV_CACHE is provisioned and seeded on deploy; do not add wrangler.jsonc.",
+    )
+  }
+
+  const { runPrerender, assertNoFatalPrerenderRoutes } = (try importVinextDist(
+    "dist/build/run-prerender.js",
+  )) as {
+    mutable runPrerender: (options: {
+      mutable root: string
+      mutable concurrency?: number
+      mutable nextConfig: unknown
+      mutable routeRootConfig: unknown
+    }) => Promise<{ mutable routes?: readonly unknown[] } | null>
+    mutable assertNoFatalPrerenderRoutes: (routes: readonly unknown[]) => void
+  }
+  const prerenderResult = try withLocalPrerenderLogs(
+    Effect.promise(() =>
+      runPrerender({
+        root,
+        concurrency: config.prerenderConfig?.concurrency,
+        nextConfig: config.nextConfig,
+        routeRootConfig: config.routeRootConfig,
+      })
+    ),
+  )
+  if (prerenderResult?.routes) {
+    assertNoFatalPrerenderRoutes(prerenderResult.routes)
+  }
+
+  const { emitPrerenderPathManifest } = try importVinextDist("dist/build/prerender-paths.js")
+  try Effect.promise(() =>
+    emitPrerenderPathManifest({
+      root,
+      nextConfig: config.nextConfig,
+      routeRootConfig: config.routeRootConfig,
+      buildIdentity: config.buildIdentity,
+      responseVary: config.responseVary,
+      requestRouting: config.requestRouting,
+      isResponsePolicyHeader: config.isResponsePolicyHeader,
+    })
+  )
+  try injectPregeneratedConcretePaths(root)
+
+  const fs = try FileSystem.FileSystem
+  const entryPath = path.join(root, "dist", "server", "index.js")
+  return {
+    ran: true,
+    entryPath: (try exists(fs, entryPath)) ? entryPath : undefined,
+  } satisfies VinextPrerenderResult
+}
+
+/** Absolute path to the project's `vinext` package root. */
+export const resolveVinextRoot = effect (root: string): string!ModuleLoadError =>
+  try resolveProjectPackageDirectory(root, "vinext")
+
+const injectPregeneratedConcretePaths = effect (root: string) => {
+  const path = try Path.Path
+  const fs = try FileSystem.FileSystem
+  const workerEntry = path.join(root, "dist", "server", "index.js")
+  if (!(try exists(fs, workerEntry))) {
+    return
+  }
+
+  const escapedStart = PATH_TABLE_START.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const escapedEnd = PATH_TABLE_END.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  const re = new RegExp(`${escapedStart}[\\s\\S]*?${escapedEnd}\\n?`, "g")
+
+  let code = (try fs.readFileString(workerEntry)).replace(re, "")
+  const manifestPath = path.join(root, "dist", "server", "vinext-prerender.json")
+  if (!(try exists(fs, manifestPath))) {
+    try fs.writeFileString(workerEntry, code)
+    return
+  }
+
+  const manifest = JSON.parse(try fs.readFileString(manifestPath)) as {
+    mutable pregeneratedConcretePaths?: unknown
+  }
+  const table = manifest.pregeneratedConcretePaths ?? []
+  if (Array.isArray(table) && table.length > 0) {
+    code = `${PATH_TABLE_START}\n`
+      + `globalThis.__VINEXT_PREGENERATED_CONCRETE_PATHS = ${JSON.stringify(table)};\n`
+      + `${PATH_TABLE_END}\n`
+      + code
+  }
+  try fs.writeFileString(workerEntry, code)
+}

@@ -1,12 +1,12 @@
 import { fileURLToPath } from "node:url";
 import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vitest";
-import { loadProjectModule } from "../../core/Loader.ts";
+import { loadProjectModule } from "../../core/Loader.vibe";
 import { makeDataCacheHandler, type DataCacheStore } from "../cache/handler.ts";
 import { kvHttpNamespaceFromEnv } from "../cache/kv-http.ts";
 import createKvDataCacheAdapter from "../cache/kv-runtime.ts";
 import { kvAdapter } from "../cache/kv.ts";
-import { makeVinextCachePlugin } from "../cache/plugin.ts";
+import { makeVinextCachePlugin } from "../cache/plugin.vibe";
 import { redisAdapter } from "../cache/redis.ts";
 import { s3Adapter } from "../cache/s3.ts";
 import { seedPrerenderTo, type SeedSink } from "../cache/seed.ts";

@@ -35,7 +35,7 @@ import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
 import { WebSocketServer } from "ws";
-import { executeArtifactUpload } from "../../../prisma/src/internal/ArtifactUpload.ts";
+import { executeArtifactUpload } from "../../../prisma/src/internal/ArtifactUpload.vibe";
 import { Credentials } from "../../../prisma/src/internal/Credentials.ts";
 import {
   PrismaHttpClientLive,

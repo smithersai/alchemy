@@ -8,7 +8,7 @@ import { PlatformServices } from "../Util/PlatformServices.ts";
 import { renderPlanning } from "./commands/render.ts";
 import { renderNukeDelete, renderNukeScan, reviewNuke } from "./components/view/Nuke.tsx";
 import { stackOutputsView } from "./components/view/StackOutputs.tsx";
-import { selectCliServices } from "./selectCli.ts";
+import { selectCliServices } from "./selectCli.vibe";
 
 /**
  * The CLI's terminal UI for scripts that drive `alchemy/Alchemist`

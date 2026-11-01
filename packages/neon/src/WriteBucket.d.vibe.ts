@@ -1,6 +1,6 @@
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.vibe";
 import type { RuntimeStorageMethods, StorageBindingOptions } from "./StorageBinding.js";
 export interface WriteBucketClient extends RuntimeStorageMethods<"put" | "delete" | "deleteMany" | "createMultipartUpload" | "uploadPart" | "completeMultipartUpload" | "abortMultipartUpload" | "listMultipartUploads" | "listParts"> {
     /** Presign an upload; the uploader must send the signed content type. */

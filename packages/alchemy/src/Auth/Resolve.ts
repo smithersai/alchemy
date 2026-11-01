@@ -6,7 +6,7 @@ import * as Schema from "effect/Schema";
 import { UserFacingError } from "../UserFacingError.ts";
 import { loadConfigProvider } from "../Util/ConfigProvider.ts";
 import { AuthError, getAuthProvider, presentEnvironment } from "./AuthProvider.ts";
-import { cacheUntilExpiry } from "./CredentialsCache.ts";
+import { cacheUntilExpiry } from "./CredentialsCache.vibe";
 import { ProfileStore, reloadProviderConfig, SuppressMissingProviderConfig } from "./Profile.ts";
 
 /**

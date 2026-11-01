@@ -6,7 +6,7 @@ import {
   PRISMA_AUTH_PROVIDER_NAME,
   type PrismaAuthConfig,
   type PrismaResolvedCredentials,
-} from "./AuthProvider.ts";
+} from "./AuthProvider.vibe";
 import { resolveBaseUrl } from "./internal/BaseUrl.ts";
 
 export interface PrismaEnvironmentShape extends PrismaResolvedCredentials {

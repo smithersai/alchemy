@@ -1,5 +1,5 @@
 import type { CloudflareVitePluginOptions } from "@alchemy.run/cloudflare-runtime/vite";
-import { makeWakuCloudflareTarget } from "../waku/cloudflare.ts";
+import { makeWakuCloudflareTarget } from "../waku/cloudflare.vibe";
 import type { VocsTarget } from "./Target.ts";
 
 export type { CloudflareVitePluginOptions } from "@alchemy.run/cloudflare-runtime/vite";

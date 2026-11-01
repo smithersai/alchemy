@@ -2,7 +2,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import type { Scope } from "effect/Scope";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.vibe";
 import type { BucketEvent } from "./FunctionTriggerEvent.vibe";
 export interface BucketEventSourceProps {
     /** Unique trigger and route name. */ name: string;

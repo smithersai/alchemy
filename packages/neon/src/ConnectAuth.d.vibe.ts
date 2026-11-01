@@ -2,7 +2,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { Auth } from "./Auth.js";
+import type { Auth } from "./Auth.vibe";
 export interface ConnectAuthClient {
     /** Public managed Better Auth URL for the standard Neon auth client. */
     baseUrl: Effect.Effect<string, never, RuntimeContext>;

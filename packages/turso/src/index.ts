@@ -1,5 +1,5 @@
 export * from "./ApiToken.ts";
-export * from "./AuthProvider.ts";
+export * from "./AuthProvider.vibe";
 export * from "./Connect.ts";
 export {
   Credentials,

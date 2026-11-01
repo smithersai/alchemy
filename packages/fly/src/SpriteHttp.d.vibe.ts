@@ -3,7 +3,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import type { Sprite } from "./Sprite.js";
+import type { Sprite } from "./Sprite.vibe";
 /**
  * Shared scaffolding for HTTP-backed Fly Sprite bindings.
  *

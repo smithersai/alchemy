@@ -2,7 +2,7 @@ import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import type { EnvironmentVariable } from "../Auth/AuthProvider.ts";
-import { getEnv } from "../Auth/Env.ts";
+import { getEnv } from "../Auth/Env.vibe";
 import { resolveProfileName } from "../Auth/Resolve.ts";
 import { loadConfigProvider } from "../Util/ConfigProvider.ts";
 import { collectAuthProviders } from "./AuthRegistry.ts";

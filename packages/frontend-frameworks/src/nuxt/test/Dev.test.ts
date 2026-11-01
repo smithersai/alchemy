@@ -8,9 +8,9 @@ import {
   resolveClientModulePath,
   resolveDevPluginPath,
   type OpenDevProxy,
-} from "../dev/host.ts";
+} from "../dev/host.vibe";
 import { RUNTIME_CONFIG_KEY, type DevConnectInfo } from "../dev/shared.ts";
-import { fromHarnessOptions } from "../index.ts";
+import { fromHarnessOptions } from "../index.vibe";
 
 // The plugin runs inside nitro's dev SSR worker thread; in the test we stand
 // in for nitro: `defineNitroPlugin` is identity and `useRuntimeConfig`

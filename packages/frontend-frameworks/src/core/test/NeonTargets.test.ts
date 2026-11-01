@@ -5,9 +5,9 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { describe, expect, it } from "vitest";
 import { target as astro } from "../../astro/neon.ts";
-import { target as nextjs } from "../../nextjs/neon.ts";
+import { target as nextjs } from "../../nextjs/neon.vibe";
 import { target as vite } from "../../vite/neon.ts";
-import type { BuildOutput } from "../BuildOutput.ts";
+import type { BuildOutput } from "../BuildOutput.vibe";
 
 const fixture = (kind: "vite" | "astro" | "nextjs", files: Record<string, string>) =>
   Effect.gen(function* () {

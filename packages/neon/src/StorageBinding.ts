@@ -10,7 +10,7 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import { bindBackendEnvironment } from "./BackendConnection.ts";
-import type { Bucket } from "./Bucket.ts";
+import type { Bucket } from "./Bucket.vibe";
 import { Credential, validateCredential } from "./Credential.ts";
 import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.vibe";
 import { FunctionEnvironment } from "./FunctionEnvironment.ts";

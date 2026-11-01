@@ -2,7 +2,7 @@ import type { GetProductError, GetProductRequest, Product as StripeProduct } fro
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Product } from "./Product.js";
+import type { Product } from "./Product.vibe";
 export interface RetrieveProductRequest extends Omit<GetProductRequest, "id"> {
 }
 /**

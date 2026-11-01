@@ -2,7 +2,7 @@ import type { GetCustomerError, GetCustomerRequest, GetCustomerResponse } from "
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Customer } from "./Customer.js";
+import type { Customer } from "./Customer.vibe";
 export interface RetrieveCustomerRequest extends Omit<GetCustomerRequest, "customer"> {
 }
 /**

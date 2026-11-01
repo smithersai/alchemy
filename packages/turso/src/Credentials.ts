@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
-import { TURSO_AUTH_PROVIDER_NAME, type TursoResolvedCredentials } from "./AuthProvider.ts";
+import { TURSO_AUTH_PROVIDER_NAME, type TursoResolvedCredentials } from "./AuthProvider.vibe";
 
 export {
   Credentials,

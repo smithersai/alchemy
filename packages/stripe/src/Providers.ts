@@ -30,10 +30,10 @@ import { CreateIssuingCardHttp } from "./CreateIssuingCardHttp.vibe";
 import { CreateTerminalReaderHttp } from "./CreateTerminalReaderHttp.vibe";
 import * as Credentials from "./Credentials.vibe";
 import { CreditGrant, CreditGrantProvider } from "./CreditGrant.vibe";
-import { Customer, CustomerProvider } from "./Customer.ts";
+import { Customer, CustomerProvider } from "./Customer.vibe";
 import { CustomerTaxId, CustomerTaxIdProvider } from "./CustomerTaxId.vibe";
-import { EntitlementsFeature, EntitlementsFeatureProvider } from "./EntitlementsFeature.ts";
-import { FileLink, FileLinkProvider } from "./FileLink.ts";
+import { EntitlementsFeature, EntitlementsFeatureProvider } from "./EntitlementsFeature.vibe";
+import { FileLink, FileLinkProvider } from "./FileLink.vibe";
 import { IssuingCard, IssuingCardProvider } from "./IssuingCard.vibe";
 import { IssuingCardholder, IssuingCardholderProvider } from "./IssuingCardholder.vibe";
 import {
@@ -45,13 +45,13 @@ import {
   PaymentMethodConfiguration,
   PaymentMethodConfigurationProvider,
 } from "./PaymentMethodConfiguration.vibe";
-import { PaymentMethodDomain, PaymentMethodDomainProvider } from "./PaymentMethodDomain.ts";
+import { PaymentMethodDomain, PaymentMethodDomainProvider } from "./PaymentMethodDomain.vibe";
 import { Plan, PlanProvider } from "./Plan.vibe";
 import { Price, PriceProvider } from "./Price.vibe";
-import { Product, ProductProvider } from "./Product.ts";
+import { Product, ProductProvider } from "./Product.vibe";
 import { ProductFeature, ProductFeatureProvider } from "./ProductFeature.vibe";
 import { PromotionCode, PromotionCodeProvider } from "./PromotionCode.vibe";
-import { RadarValueList, RadarValueListProvider } from "./RadarValueList.ts";
+import { RadarValueList, RadarValueListProvider } from "./RadarValueList.vibe";
 import { RadarValueListItem, RadarValueListItemProvider } from "./RadarValueListItem.vibe";
 import { RestrictedApiKey, RestrictedApiKeyProvider } from "./RestrictedApiKey.vibe";
 import { RetrieveAccountExternalAccountHttp } from "./RetrieveAccountExternalAccountHttp.vibe";
@@ -91,11 +91,11 @@ import { RetrieveTerminalReaderHttp } from "./RetrieveTerminalReaderHttp.vibe";
 import { RetrieveWebhookEndpointHttp } from "./RetrieveWebhookEndpointHttp.vibe";
 import { ShippingRate, ShippingRateProvider } from "./ShippingRate.vibe";
 import { TaxRate, TaxRateProvider } from "./TaxRate.vibe";
-import { TaxRegistration, TaxRegistrationProvider } from "./TaxRegistration.ts";
+import { TaxRegistration, TaxRegistrationProvider } from "./TaxRegistration.vibe";
 import { TaxSettings, TaxSettingsProvider } from "./TaxSettings.ts";
 import { TerminalConfiguration, TerminalConfigurationProvider } from "./TerminalConfiguration.vibe";
 import { TerminalLocation, TerminalLocationProvider } from "./TerminalLocation.vibe";
-import { TerminalReader, TerminalReaderProvider } from "./TerminalReader.ts";
+import { TerminalReader, TerminalReaderProvider } from "./TerminalReader.vibe";
 import { UpdateAccountHttp } from "./UpdateAccountHttp.vibe";
 import { UpdateCreditGrantHttp } from "./UpdateCreditGrantHttp.vibe";
 import { UpdateCustomerHttp } from "./UpdateCustomerHttp.vibe";
@@ -104,7 +104,7 @@ import { UpdateIssuingCardholderHttp } from "./UpdateIssuingCardholderHttp.vibe"
 import { UpdateIssuingCardHttp } from "./UpdateIssuingCardHttp.vibe";
 import { UpdateTaxSettingsHttp } from "./UpdateTaxSettingsHttp.vibe";
 import { UpdateTerminalReaderHttp } from "./UpdateTerminalReaderHttp.vibe";
-import { WebhookEndpoint, WebhookEndpointProvider } from "./WebhookEndpoint.ts";
+import { WebhookEndpoint, WebhookEndpointProvider } from "./WebhookEndpoint.vibe";
 
 export class Providers extends Provider.ProviderCollection<Providers>()("Stripe") {}
 

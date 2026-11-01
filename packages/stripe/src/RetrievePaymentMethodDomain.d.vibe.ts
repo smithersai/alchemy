@@ -2,7 +2,7 @@ import type { GetPaymentMethodDomainError, GetPaymentMethodDomainRequest, Paymen
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { PaymentMethodDomain } from "./PaymentMethodDomain.js";
+import type { PaymentMethodDomain } from "./PaymentMethodDomain.vibe";
 export interface RetrievePaymentMethodDomainRequest extends Omit<GetPaymentMethodDomainRequest, "payment_method_domain"> {
 }
 /**

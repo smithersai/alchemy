@@ -6,8 +6,8 @@ import * as Path from "effect/Path";
 import type * as Scope from "effect/Scope";
 import { describe, expect, it } from "vitest";
 import { makeDeployTarget } from "../../core/index.ts";
-import { makeAwsTarget } from "../aws.ts";
-import { make, readViteOutput } from "../Vite.ts";
+import { makeAwsTarget } from "../aws.vibe";
+import { make, readViteOutput } from "../Vite.vibe";
 
 const runWithNode = <A, E>(
   effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path | Scope.Scope>,

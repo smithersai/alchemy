@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import type { Bucket } from "./Bucket.ts";
 import { BucketAccessKey } from "./BucketAccessKey.ts";
-import type { BucketCredentials } from "./BucketTypes.ts";
+import type { BucketCredentials } from "./BucketTypes.vibe";
 import type { BucketKeyRole } from "./Types.ts";
 
 /**

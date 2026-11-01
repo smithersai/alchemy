@@ -12,7 +12,7 @@ import type * as Redacted from "effect/Redacted";
 import { App } from "../App.vibe";
 import { Certificate } from "../Certificate.vibe";
 import { IpAssignment } from "../IpAssignment.vibe";
-import { Service, type ServiceProps } from "../Service.ts";
+import { Service, type ServiceProps } from "../Service.vibe";
 import {
   type FrameworkSite,
   publishWebsiteDomainDns,

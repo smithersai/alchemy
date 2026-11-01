@@ -12,7 +12,7 @@ import type * as HttpClientResponse from "effect/http/HttpClientResponse";
 import * as Redacted from "effect/Redacted";
 import type { BoundTarget, ServiceBinding } from "./MountVolume.vibe";
 import { RPC_TOKEN_HEADER } from "./rpc.ts";
-import type { Service } from "./Service.ts";
+import type { Service } from "./Service.vibe";
 
 /** The deployed caller has no address for the bound Service. */
 export class BoundServiceUnavailable extends Data.TaggedError("Fly.BoundServiceUnavailable")<{

@@ -4,7 +4,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type * as Scope from "effect/Scope";
 import { describe, expect, it } from "vitest";
-import { fromHarnessOptions } from "../index.ts";
+import { fromHarnessOptions } from "../index.vibe";
 import { make, readNitroOutput, SERVER_ENTRY_NAME } from "../Nuxt.ts";
 
 const runWithNode = <A, E>(

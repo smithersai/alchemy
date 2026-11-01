@@ -65,8 +65,6 @@ export declare const connectEnvKeys: (database: Pick<Branch | Project, "FQN">) =
 /** Redacted environment outputs for native hosts. No deployment credentials are included. */
 export declare const connectEnv: (database: Branch | Project) => {
     [x: string]: Output.ObjectExpr<{
-        "~effect/Hash": () => number;
-        "~effect/Equal": (that: import("effect/Equal").Equal) => boolean;
         pipe: {
             <A>(this: A): A;
             <A, B = never>(this: A, ab: (_: A) => B): B;
@@ -91,6 +89,8 @@ export declare const connectEnv: (database: Branch | Project) => {
             <A, B = never, C = never, D = never, E = never, F = never, G = never, H = never, I = never, J = never, K = never, L = never, M = never, N = never, O = never, P = never, Q = never, R = never, S = never, T = never, U = never>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O, op: (_: O) => P, pq: (_: P) => Q, qr: (_: Q) => R, rs: (_: R) => S, st: (_: S) => T, tu: (_: T) => U): U;
             <A, B = never, C = never, D = never, E = never, F = never, G = never, H = never, I = never, J = never, K = never, L = never, M = never, N = never, O = never, P = never, Q = never, R = never, S = never, T = never, U = never>(this: A, ab: (_: A) => B, bc: (_: B) => C, cd: (_: C) => D, de: (_: D) => E, ef: (_: E) => F, fg: (_: F) => G, gh: (_: G) => H, hi: (_: H) => I, ij: (_: I) => J, jk: (_: J) => K, kl: (_: K) => L, lm: (_: L) => M, mn: (_: M) => N, no: (_: N) => O, op: (_: O) => P, pq: (_: P) => Q, qr: (_: Q) => R, rs: (_: R) => S, st: (_: S) => T, tu: (_: T) => U): U;
         };
+        "~effect/Hash": () => number;
+        "~effect/Equal": (that: import("effect/Equal").Equal) => boolean;
         readonly label: string | undefined;
         readonly "~effect/Redacted": {
             readonly _A: import("effect/Types").Covariant<string>;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { viteSupportsPortZero } from "../DevPort.ts";
+import { viteSupportsPortZero } from "../DevPort.vibe";
 
 describe("viteSupportsPortZero", () => {
   it("accepts 8.2.1 and later", () => {
