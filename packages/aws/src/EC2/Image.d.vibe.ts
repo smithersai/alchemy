@@ -61,7 +61,7 @@ export interface FindImageOptions {
  * });
  * ```
  */
-export declare const image: (options: FindImageOptions) => Output.Output<string, import("./GetAmi.js").GetAmi>;
+export declare const image: (options: FindImageOptions) => Output.Output<string, import("./GetAmi.vibe").GetAmi>;
 /**
  * Resolve the latest Amazon Linux 2023 AMI ID for the current region as an
  * `Output<string>`.
@@ -77,14 +77,14 @@ export declare const image: (options: FindImageOptions) => Output.Output<string,
  */
 export declare const amazonLinux2023: (options?: {
     architecture?: ImageArchitecture;
-}) => Output.Output<string, import("./GetAmi.js").GetAmi>;
+}) => Output.Output<string, import("./GetAmi.vibe").GetAmi>;
 /**
  * Resolve the latest Amazon Linux 2 AMI ID for the current region as an
  * `Output<string>`.
  */
 export declare const amazonLinux2: (options?: {
     architecture?: ImageArchitecture;
-}) => Output.Output<string, import("./GetAmi.js").GetAmi>;
+}) => Output.Output<string, import("./GetAmi.vibe").GetAmi>;
 /**
  * Resolve the newest public Amazon Linux AMI as an `Output<string>`,
  * preferring Amazon Linux 2023 and falling back to Amazon Linux 2. Dies if
@@ -92,7 +92,7 @@ export declare const amazonLinux2: (options?: {
  */
 export declare const amazonLinux: (options?: {
     architecture?: ImageArchitecture;
-}) => Output.Output<string, import("./GetAmi.js").GetAmi>;
+}) => Output.Output<string, import("./GetAmi.vibe").GetAmi>;
 /**
  * Resolve the latest Canonical Ubuntu 24.04 LTS AMI ID for the current
  * region as an `Output<string>`.
@@ -108,11 +108,11 @@ export declare const amazonLinux: (options?: {
  */
 export declare const ubuntu2404: (options?: {
     architecture?: ImageArchitecture;
-}) => Output.Output<string, import("./GetAmi.js").GetAmi>;
+}) => Output.Output<string, import("./GetAmi.vibe").GetAmi>;
 /**
  * Resolve the latest Canonical Ubuntu 22.04 LTS AMI ID for the current
  * region as an `Output<string>`.
  */
 export declare const ubuntu2204: (options?: {
     architecture?: ImageArchitecture;
-}) => Output.Output<string, import("./GetAmi.js").GetAmi>;
+}) => Output.Output<string, import("./GetAmi.vibe").GetAmi>;

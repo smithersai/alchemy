@@ -20,7 +20,7 @@ import { tagListRecord } from "../internal/Observe.ts";
 import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
 import { getDefaultVpcEmrManagedSecurityGroupIds, getDefaultVpcScope } from "./defaultVpcScope.ts";
-import { retryWhileLingeringEnis } from "./LingeringEnis.ts";
+import { retryWhileLingeringEnis } from "./LingeringEnis.vibe";
 import {
   declaredSecurityGroupRuleIds,
   persistedSecurityGroupRuleIds,

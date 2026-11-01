@@ -4,7 +4,7 @@ import {
   consumeBusEvents,
   type EventRecord,
   type EventRouteProps,
-} from "../EventBridge/EventSource.ts";
+} from "../EventBridge/EventSource.vibe";
 
 /**
  * A package version state, as reported in the EventBridge event detail.

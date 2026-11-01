@@ -7,7 +7,7 @@ import * as AWSBindings from "../AWSBindings.ts";
 import {
   CreateWorkspaceServiceAccountToken,
   type CreateWorkspaceServiceAccountTokenRequest,
-} from "./CreateWorkspaceServiceAccountToken.ts";
+} from "./CreateWorkspaceServiceAccountToken.vibe";
 import type { Workspace } from "./Workspace.ts";
 
 /**

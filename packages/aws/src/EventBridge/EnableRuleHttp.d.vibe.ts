@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { EnableRule } from "./EnableRule.js";
+import { EnableRule } from "./EnableRule.vibe";
 /**
  * HTTP implementation of {@link EnableRule}. At deploy time it grants
  * `events:EnableRule` on the bound rule; at runtime it calls the EventBridge

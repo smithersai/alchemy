@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListTagsForResource } from "./ListTagsForResource.js";
+import { ListTagsForResource } from "./ListTagsForResource.vibe";
 /**
  * HTTP implementation of {@link ListTagsForResource}: grants
  * `cur:ListTagsForResource` on the bound report definition's ARN and calls

@@ -9,7 +9,7 @@ import {
   type DestinationEventSourceService,
   type WirelessUplinkHandlerFn,
   type WirelessUplinkMessage,
-} from "../IoTWireless/DestinationEventSource.ts";
+} from "../IoTWireless/DestinationEventSource.vibe";
 import * as Lambda from "./Function.ts";
 import { Permission as LambdaPermission } from "./Permission.ts";
 

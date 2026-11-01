@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { DescribeReportDefinitions } from "./DescribeReportDefinitions.js";
+import { DescribeReportDefinitions } from "./DescribeReportDefinitions.vibe";
 /**
  * HTTP implementation of {@link DescribeReportDefinitions}: grants
  * `cur:DescribeReportDefinitions` on `*` (the API enumerates every report

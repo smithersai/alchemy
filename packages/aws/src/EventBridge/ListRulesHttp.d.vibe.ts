@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListRules } from "./ListRules.js";
+import { ListRules } from "./ListRules.vibe";
 /**
  * HTTP implementation of {@link ListRules}. At deploy time it grants
  * `events:ListRules`; at runtime it calls the EventBridge API with the host

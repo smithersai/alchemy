@@ -1,7 +1,7 @@
 import * as emr from "@distilled.cloud/aws/emr";
 import * as Layer from "effect/Layer";
 import { makeEmrClusterHttpBinding } from "./BindingHttp.ts";
-import { GetPersistentAppUIPresignedURL } from "./GetPersistentAppUIPresignedURL.ts";
+import { GetPersistentAppUIPresignedURL } from "./GetPersistentAppUIPresignedURL.vibe";
 
 export const GetPersistentAppUIPresignedURLHttp = Layer.effect(
   GetPersistentAppUIPresignedURL,

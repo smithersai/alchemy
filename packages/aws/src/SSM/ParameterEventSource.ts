@@ -4,7 +4,7 @@ import {
   consumeBusEvents,
   type EventRecord,
   type EventRouteProps,
-} from "../EventBridge/EventSource.ts";
+} from "../EventBridge/EventSource.vibe";
 
 /**
  * The `detail` payload Systems Manager delivers to EventBridge when a

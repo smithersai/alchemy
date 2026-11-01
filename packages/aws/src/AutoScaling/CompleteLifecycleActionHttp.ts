@@ -7,7 +7,7 @@ import {
   CompleteLifecycleAction,
   type CompleteLifecycleActionRequest,
   type RecordLifecycleActionHeartbeatRequest,
-} from "./CompleteLifecycleAction.ts";
+} from "./CompleteLifecycleAction.vibe";
 
 export const CompleteLifecycleActionHttp = Layer.effect(
   CompleteLifecycleAction,

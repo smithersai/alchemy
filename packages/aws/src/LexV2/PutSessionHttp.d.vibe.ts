@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { PutSession } from "./PutSession.js";
+import { PutSession } from "./PutSession.vibe";
 /**
  * HTTP implementation of {@link PutSession} — calls the `lex-runtime-v2`
  * `PutSession` operation with the Lambda role's credentials and grants the

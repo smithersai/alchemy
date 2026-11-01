@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListEventPredictions } from "./ListEventPredictions.js";
+import { ListEventPredictions } from "./ListEventPredictions.vibe";
 /**
  * Bespoke implementation — unlike the other detector-scoped operations, the
  * detector is a `FilterCondition` (`{ value }`) rather than a plain

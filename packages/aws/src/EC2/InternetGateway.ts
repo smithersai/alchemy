@@ -19,7 +19,7 @@ import { tagListRecord } from "../internal/Observe.ts";
 import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
 import { getDefaultVpcScope } from "./defaultVpcScope.ts";
-import { retryWhileLingeringEnis } from "./LingeringEnis.ts";
+import { retryWhileLingeringEnis } from "./LingeringEnis.vibe";
 import type { VpcId } from "./Vpc.ts";
 
 export type InternetGatewayId<ID extends string = string> = `igw-${ID}`;

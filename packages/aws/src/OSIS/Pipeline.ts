@@ -14,7 +14,7 @@ import {
   readPipelineTags,
   retryWhilePipelineConflict,
   waitForPipelineSettled,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export class OSISPipelineUnexpectedResponse extends Data.TaggedError(
   "OSISPipelineUnexpectedResponse",

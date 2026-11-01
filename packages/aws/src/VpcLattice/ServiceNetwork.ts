@@ -9,7 +9,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { retryOnConflict, waitUntilAbsent } from "./internal.ts";
+import { retryOnConflict, waitUntilAbsent } from "./internal.vibe";
 
 export class ServiceNetworkUnexpectedResponse extends Data.TaggedError(
   "ServiceNetworkUnexpectedResponse",

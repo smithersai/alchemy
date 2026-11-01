@@ -9,7 +9,7 @@ import {
   type ListGroupsRequest,
   type ListUsersRequest,
   type UserPoolAdminClient,
-} from "./UserPoolAdmin.ts";
+} from "./UserPoolAdmin.vibe";
 
 /** The injected identifier field, in the distilled wire type. */
 type UserPoolIdField = Pick<cip.AdminGetUserRequest, "UserPoolId">;

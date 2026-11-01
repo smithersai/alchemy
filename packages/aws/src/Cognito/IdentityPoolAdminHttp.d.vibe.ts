@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { IdentityPoolAdmin } from "./IdentityPoolAdmin.js";
+import { IdentityPoolAdmin } from "./IdentityPoolAdmin.vibe";
 /**
  * HTTP implementation of {@link IdentityPoolAdmin}: grants the
  * `cognito-identity:*` identity-management actions on the bound pool's ARN

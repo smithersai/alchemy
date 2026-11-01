@@ -4,13 +4,13 @@ export {
   type AcceleratorProps,
   type FlowLogs,
 } from "./Accelerator.vibe";
-export { AddEndpoints } from "./AddEndpoints.ts";
+export { AddEndpoints } from "./AddEndpoints.vibe";
 export { AddEndpointsHttp } from "./AddEndpointsHttp.vibe";
-export { DescribeAccelerator } from "./DescribeAccelerator.ts";
+export { DescribeAccelerator } from "./DescribeAccelerator.vibe";
 export { DescribeAcceleratorHttp } from "./DescribeAcceleratorHttp.vibe";
-export { DescribeEndpointGroup } from "./DescribeEndpointGroup.ts";
+export { DescribeEndpointGroup } from "./DescribeEndpointGroup.vibe";
 export { DescribeEndpointGroupHttp } from "./DescribeEndpointGroupHttp.vibe";
-export { RemoveEndpoints } from "./RemoveEndpoints.ts";
+export { RemoveEndpoints } from "./RemoveEndpoints.vibe";
 export { RemoveEndpointsHttp } from "./RemoveEndpointsHttp.vibe";
 export {
   EndpointGroup,

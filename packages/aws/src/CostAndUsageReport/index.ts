@@ -1,5 +1,5 @@
-export * from "./DescribeReportDefinitions.ts";
+export * from "./DescribeReportDefinitions.vibe";
 export * from "./DescribeReportDefinitionsHttp.vibe";
-export * from "./ListTagsForResource.ts";
+export * from "./ListTagsForResource.vibe";
 export * from "./ListTagsForResourceHttp.vibe";
 export * from "./ReportDefinition.ts";

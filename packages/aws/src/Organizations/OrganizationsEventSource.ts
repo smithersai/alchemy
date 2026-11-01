@@ -4,7 +4,7 @@ import {
   consumeBusEvents,
   type EventRecord,
   type EventRouteProps,
-} from "../EventBridge/EventSource.ts";
+} from "../EventBridge/EventSource.vibe";
 
 /**
  * The commonly-consumed AWS Organizations event names. Organizations

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Connect } from "./Connect.js";
+import { Connect } from "./Connect.vibe";
 /**
  * IAM-token implementation of {@link Connect}. At deploy time it grants
  * `dsql:DbConnect` (or `dsql:DbConnectAdmin`) on the cluster to the host

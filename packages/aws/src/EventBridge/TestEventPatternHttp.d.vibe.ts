@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { TestEventPattern } from "./TestEventPattern.js";
+import { TestEventPattern } from "./TestEventPattern.vibe";
 /**
  * HTTP implementation of {@link TestEventPattern}. At deploy time it grants
  * `events:TestEventPattern`; at runtime it calls the EventBridge API with the

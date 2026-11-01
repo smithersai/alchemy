@@ -5,7 +5,7 @@ import * as AWSBindings from "../AWSBindings.ts";
 import {
   GenerateMacEmvPinChange,
   type GenerateMacEmvPinChangeRequest,
-} from "./GenerateMacEmvPinChange.ts";
+} from "./GenerateMacEmvPinChange.vibe";
 import type { Key } from "./Key.ts";
 
 /**

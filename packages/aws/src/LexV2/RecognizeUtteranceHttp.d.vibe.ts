@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RecognizeUtterance } from "./RecognizeUtterance.js";
+import { RecognizeUtterance } from "./RecognizeUtterance.vibe";
 /**
  * HTTP implementation of {@link RecognizeUtterance} — calls the
  * `lex-runtime-v2` `RecognizeUtterance` operation with the Lambda role's

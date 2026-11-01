@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetSession } from "./GetSession.js";
+import { GetSession } from "./GetSession.vibe";
 /**
  * HTTP implementation of {@link GetSession} — calls the `lex-runtime-v2`
  * `GetSession` operation with the Lambda role's credentials and grants the

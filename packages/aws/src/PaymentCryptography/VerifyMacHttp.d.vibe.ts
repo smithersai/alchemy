@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { VerifyMac } from "./VerifyMac.js";
+import { VerifyMac } from "./VerifyMac.vibe";
 /**
  * HTTP implementation of {@link VerifyMac} — grants the host Function
  * `payment-cryptography:VerifyMac` on the key and calls the

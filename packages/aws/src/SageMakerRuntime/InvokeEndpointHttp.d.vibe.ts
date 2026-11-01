@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { InvokeEndpoint } from "./InvokeEndpoint.js";
+import { InvokeEndpoint } from "./InvokeEndpoint.vibe";
 export declare const InvokeEndpointHttp: Layer.Layer<InvokeEndpoint, never, never>;

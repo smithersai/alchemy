@@ -4,7 +4,7 @@ import {
   consumeBusEvents,
   type EventRecord,
   type EventRouteProps,
-} from "../EventBridge/EventSource.ts";
+} from "../EventBridge/EventSource.vibe";
 
 /**
  * The documented AWS Control Tower lifecycle event names — one per

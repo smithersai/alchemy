@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { VerifyPinData } from "./VerifyPinData.js";
+import { VerifyPinData } from "./VerifyPinData.vibe";
 /**
  * HTTP implementation of {@link VerifyPinData} — grants the host Function
  * `payment-cryptography:VerifyPinData` on both the verification key (PVK)

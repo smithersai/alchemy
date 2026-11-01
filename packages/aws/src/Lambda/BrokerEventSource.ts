@@ -8,7 +8,7 @@ import {
   type BrokerEventSourceProps,
   type MQEvent,
   type MQMessage,
-} from "../MQ/BrokerEventSource.ts";
+} from "../MQ/BrokerEventSource.vibe";
 import { EventSourceMapping } from "./EventSourceMapping.ts";
 import * as Lambda from "./Function.ts";
 

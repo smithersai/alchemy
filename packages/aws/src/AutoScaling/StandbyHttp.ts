@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { AutoScalingGroup } from "./AutoScalingGroup.ts";
-import { Standby, type EnterStandbyRequest, type ExitStandbyRequest } from "./Standby.ts";
+import { Standby, type EnterStandbyRequest, type ExitStandbyRequest } from "./Standby.vibe";
 
 // Bespoke (not the shared scaffold): a multi-operation client over
 // `enterStandby` + `exitStandby` behind one IAM grant.

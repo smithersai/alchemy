@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Publish } from "./Publish.js";
+import { Publish } from "./Publish.vibe";
 /**
  * HTTP implementation of the {@link Publish} capability.
  *

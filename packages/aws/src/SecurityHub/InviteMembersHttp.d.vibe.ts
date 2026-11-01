@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { InviteMembers } from "./InviteMembers.js";
+import { InviteMembers } from "./InviteMembers.vibe";
 export declare const InviteMembersHttp: Layer.Layer<InviteMembers, never, never>;

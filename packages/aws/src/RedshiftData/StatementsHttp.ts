@@ -16,7 +16,7 @@ import {
   type ListTablesRequest,
   type StatementsClient,
   type StatementsOptions,
-} from "./Statements.ts";
+} from "./Statements.vibe";
 
 /** Statement statuses that mean the run is over. */
 const isTerminal = (status: string | undefined): boolean =>

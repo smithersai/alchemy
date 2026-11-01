@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { SendDirectMessage } from "./SendDirectMessage.js";
+import { SendDirectMessage } from "./SendDirectMessage.vibe";
 /**
  * HTTP implementation of the {@link SendDirectMessage} capability — grants
  * `iot:SendDirectMessage` on the bound client filter and calls the IoT

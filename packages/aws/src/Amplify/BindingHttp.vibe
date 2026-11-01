@@ -1,0 +1,66 @@
+import type * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { App } from "./App.ts"
+
+/**
+ * Shared scaffolding for Amplify's app-scoped HTTP bindings. Every Amplify
+ * data-plane operation takes the `appId` of the {@link App} it acts on and is
+ * authorized by a single `amplify:*` IAM action over an app-derived ARN — this
+ * factory captures that shape once so each `{Op}Http.ts` is a thin one-call
+ * export.
+ *
+ * NOT exported from `index.ts` — internal scaffolding only.
+ */
+export interface AmplifyHttpBindingOptions<I extends { mutable appId: string }, A, E, R> {
+  /** Capability name, e.g. `"StartJob"` — used for the bind sid and span name. */
+  mutable name: string
+  /** The distilled Amplify operation implementing the capability. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted to the host, e.g. `["amplify:StartJob"]`. */
+  mutable actions: string[]
+  /** IAM resource ARNs (derived from the bound app) the actions apply to. */
+  mutable resources: (app: App) => Array<string | Output.Output<string>>
+}
+
+/**
+ * Build the init Effect of an Amplify app-scoped HTTP binding: resolves the
+ * operation once at layer init, grants the IAM statement on the binding host
+ * at deploy time, and returns a runtime callable that injects the bound app's
+ * `appId` into every request.
+ */
+export const makeAmplifyHttpBinding = effect <I extends { mutable appId: string }, A, E, R>(
+  options: AmplifyHttpBindingOptions<I, A, E, R>,
+) => {
+  const bind = try AWSBindings.Bind
+  const operation = try AWSBindings.withCredentials(options.operation)
+
+  return effect (app: App) => {
+    const AppId = try app.appId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.Amplify.${options.name}(${app})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: options.actions,
+            Resource: options.resources(app),
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "appId">,
+    ) =>
+      try withSpan(
+        effect {
+          // Omit<I, "appId"> + the injected appId reconstructs I; TS cannot
+          // prove that for a generic I, hence the assertion.
+          return try operation({
+            ...request,
+            appId: try AppId,
+          } as unknown as I)
+        },
+        `AWS.Amplify.${options.name}(${app.LogicalId})`,
+      )
+  }
+}

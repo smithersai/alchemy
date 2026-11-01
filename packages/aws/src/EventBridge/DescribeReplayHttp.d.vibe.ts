@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { DescribeReplay } from "./DescribeReplay.js";
+import { DescribeReplay } from "./DescribeReplay.vibe";
 /**
  * HTTP implementation of {@link DescribeReplay}. At deploy time it grants
  * `events:DescribeReplay` on the account's replays; at runtime it calls the

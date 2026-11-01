@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListThings } from "./ListThings.js";
+import { ListThings } from "./ListThings.vibe";
 /**
  * HTTP implementation of the {@link ListThings} capability — grants
  * `iot:ListThings` on `*` and calls the IoT `ListThings` API.

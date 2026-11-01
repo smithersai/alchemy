@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { GetMediaAnalysisJob } from "./GetMediaAnalysisJob.js";
+import { GetMediaAnalysisJob } from "./GetMediaAnalysisJob.vibe";
 export declare const GetMediaAnalysisJobHttp: Layer.Layer<GetMediaAnalysisJob, never, never>;

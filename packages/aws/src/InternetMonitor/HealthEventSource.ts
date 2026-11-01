@@ -5,7 +5,7 @@ import {
   consumeBusEvents,
   type EventRecord,
   type EventRouteProps,
-} from "../EventBridge/EventSource.ts";
+} from "../EventBridge/EventSource.vibe";
 
 /**
  * The `detail` payload Amazon CloudWatch Internet Monitor delivers to

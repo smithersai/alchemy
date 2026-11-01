@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { canonicalizePolicy, retryWhileConflict, stringifyPolicy } from "./internal.ts";
+import { canonicalizePolicy, retryWhileConflict, stringifyPolicy } from "./internal.vibe";
 import type { SecurityPolicyDocument } from "./SecurityPolicy.ts";
 
 /** The kind of lifecycle policy. OpenSearch Serverless only defines `retention`. */

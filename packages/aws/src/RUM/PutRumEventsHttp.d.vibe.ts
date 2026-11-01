@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { PutRumEvents } from "./PutRumEvents.js";
+import { PutRumEvents } from "./PutRumEvents.vibe";
 /**
  * Bespoke (not `makeRumAppMonitorHttpBinding`): `PutRumEvents` addresses the
  * data-plane endpoint by monitor *id* (not name) and defaults the

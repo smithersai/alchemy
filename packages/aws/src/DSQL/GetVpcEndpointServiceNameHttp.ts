@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { Cluster } from "./Cluster.ts";
-import { GetVpcEndpointServiceName } from "./GetVpcEndpointServiceName.ts";
+import { GetVpcEndpointServiceName } from "./GetVpcEndpointServiceName.vibe";
 
 /**
  * HTTP implementation of {@link GetVpcEndpointServiceName}. At deploy time

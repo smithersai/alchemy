@@ -1,7 +1,7 @@
 import * as emr from "@distilled.cloud/aws/emr";
 import * as Layer from "effect/Layer";
 import { makeEmrClusterHttpBinding } from "./BindingHttp.ts";
-import { GetManagedScalingPolicy } from "./GetManagedScalingPolicy.ts";
+import { GetManagedScalingPolicy } from "./GetManagedScalingPolicy.vibe";
 
 export const GetManagedScalingPolicyHttp = Layer.effect(
   GetManagedScalingPolicy,

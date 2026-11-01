@@ -11,7 +11,7 @@ import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { retryOnConflict, waitUntilAbsent, waitUntilStable } from "./internal.ts";
+import { retryOnConflict, waitUntilAbsent, waitUntilStable } from "./internal.vibe";
 import type { ServiceNetworkAuthType } from "./ServiceNetwork.ts";
 
 export class VpcLatticeServiceUnexpectedResponse extends Data.TaggedError(

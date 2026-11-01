@@ -9,7 +9,7 @@ import {
   type EventRecord,
   type EventRouteProps,
   type EventSourceService,
-} from "../EventBridge/EventSource.ts";
+} from "../EventBridge/EventSource.vibe";
 import { toLambda as createLambdaRoute } from "../EventBridge/ToLambda.ts";
 import * as Lambda from "./Function.ts";
 

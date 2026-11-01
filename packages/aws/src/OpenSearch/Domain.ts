@@ -17,7 +17,7 @@ import {
   isDomainDeletable,
   readDomainTags,
   repeatUntilDomainState,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export class OpenSearchDomainUnexpectedResponse extends Data.TaggedError(
   "OpenSearchDomainUnexpectedResponse",

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { VerifyAuthRequestCryptogram } from "./VerifyAuthRequestCryptogram.js";
+import { VerifyAuthRequestCryptogram } from "./VerifyAuthRequestCryptogram.vibe";
 /**
  * HTTP implementation of {@link VerifyAuthRequestCryptogram} — grants the
  * host Function `payment-cryptography:VerifyAuthRequestCryptogram` on the

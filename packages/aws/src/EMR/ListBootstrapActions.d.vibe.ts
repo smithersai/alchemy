@@ -1,0 +1,19 @@
+import type * as SVC from "@distilled.cloud/aws/emr";
+import * as Binding from "alchemy/Binding";
+import type * as Effect from "effect/Effect";
+import type { Cluster } from "./Cluster.js";
+/**
+ * Runtime binding for `elasticmapreduce:ListBootstrapActions` — lists the bootstrap actions the bound cluster ran at launch.
+ * ### Inspecting the Cluster
+ * **Example:** List Bootstrap Actions
+ * ```typescript
+ * const listBootstrapActions = yield* AWS.EMR.ListBootstrapActions(cluster);
+ *
+ * const { BootstrapActions } = yield* listBootstrapActions();
+ * ```
+ *
+ * @binding
+ */
+export interface ListBootstrapActions extends Binding.Service<ListBootstrapActions, "AWS.EMR.ListBootstrapActions", <C extends Cluster>(cluster: C) => Effect.Effect<((request?: Omit<SVC.ListBootstrapActionsInput, "ClusterId">) => Effect.Effect<SVC.ListBootstrapActionsOutput, SVC.ListBootstrapActionsError>)>> {
+}
+export declare const ListBootstrapActions: ListBootstrapActions;

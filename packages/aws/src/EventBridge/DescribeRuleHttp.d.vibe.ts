@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { DescribeRule } from "./DescribeRule.js";
+import { DescribeRule } from "./DescribeRule.vibe";
 /**
  * HTTP implementation of {@link DescribeRule}. At deploy time it grants
  * `events:DescribeRule` on the bound rule; at runtime it calls the

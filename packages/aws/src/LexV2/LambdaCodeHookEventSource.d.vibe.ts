@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import * as Lambda from "../Lambda/Function.js";
-import { CodeHookEventSource, type CodeHookEvent } from "./CodeHookEventSource.js";
+import { CodeHookEventSource, type CodeHookEvent } from "./CodeHookEventSource.vibe";
 /**
  * An Amazon Lex V2 code hook invocation — the
  * `messageVersion`/`invocationSource`/`bot`/`sessionState` envelope Lex

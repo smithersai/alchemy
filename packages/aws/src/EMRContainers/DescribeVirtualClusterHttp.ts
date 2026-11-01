@@ -2,7 +2,7 @@ import * as emrc from "@distilled.cloud/aws/emr-containers";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { DescribeVirtualCluster } from "./DescribeVirtualCluster.ts";
+import { DescribeVirtualCluster } from "./DescribeVirtualCluster.vibe";
 import type { VirtualCluster } from "./VirtualCluster.ts";
 
 /**

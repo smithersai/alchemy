@@ -2,7 +2,7 @@ import * as r53r from "@distilled.cloud/aws/route53resolver";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { ListResolverRuleAssociations } from "./ListResolverRuleAssociations.ts";
+import { ListResolverRuleAssociations } from "./ListResolverRuleAssociations.vibe";
 import type { ResolverRule } from "./ResolverRule.ts";
 
 /**

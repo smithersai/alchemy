@@ -12,7 +12,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { retryOnConflict, waitUntilAbsent, waitUntilStable } from "./internal.ts";
+import { retryOnConflict, waitUntilAbsent, waitUntilStable } from "./internal.vibe";
 
 export class VpcLatticeTargetGroupUnexpectedResponse extends Data.TaggedError(
   "VpcLatticeTargetGroupUnexpectedResponse",

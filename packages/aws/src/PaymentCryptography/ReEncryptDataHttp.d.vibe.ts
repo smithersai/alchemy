@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReEncryptData } from "./ReEncryptData.js";
+import { ReEncryptData } from "./ReEncryptData.vibe";
 /**
  * HTTP implementation of {@link ReEncryptData} — grants the host Function
  * `payment-cryptography:ReEncryptData` on both the incoming and outgoing

@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import { virtualClusterPolicyStatement } from "./BindingHttp.ts";
-import { StartJobRun } from "./StartJobRun.ts";
+import { StartJobRun } from "./StartJobRun.vibe";
 import type { VirtualCluster } from "./VirtualCluster.ts";
 
 export const StartJobRunHttp = Layer.effect(

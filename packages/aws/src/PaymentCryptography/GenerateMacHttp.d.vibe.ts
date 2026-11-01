@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GenerateMac } from "./GenerateMac.js";
+import { GenerateMac } from "./GenerateMac.vibe";
 /**
  * HTTP implementation of {@link GenerateMac} — grants the host Function
  * `payment-cryptography:GenerateMac` on the key and calls the

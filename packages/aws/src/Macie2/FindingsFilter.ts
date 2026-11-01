@@ -7,7 +7,7 @@ import { createInternalTags, diffTags, hasAlchemyTags, tagRecord } from "alchemy
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { retryThroughEnablement } from "./common.ts";
+import { retryThroughEnablement } from "./common.vibe";
 
 /**
  * Action applied to findings that match the filter's criteria: `ARCHIVE`

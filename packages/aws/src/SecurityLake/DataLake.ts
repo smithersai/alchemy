@@ -9,7 +9,7 @@ import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { readSecurityLakeTags, retryWhileConflict, toTagList } from "./internal.ts";
+import { readSecurityLakeTags, retryWhileConflict, toTagList } from "./internal.vibe";
 
 /**
  * Encryption settings for a Security Lake Region.

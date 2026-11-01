@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { StartResourceEvaluation } from "./StartResourceEvaluation.js";
+import { StartResourceEvaluation } from "./StartResourceEvaluation.vibe";
 export declare const StartResourceEvaluationHttp: Layer.Layer<StartResourceEvaluation, never, never>;

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Connect } from "./Connect.js";
+import { Connect } from "./Connect.vibe";
 /**
  * Implementation of {@link Connect}. At deploy time it publishes the cluster
  * endpoint as `MEMORYDB_{LOGICAL_ID}_{HOST,PORT,TLS}` environment variables

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { DisableRule } from "./DisableRule.js";
+import { DisableRule } from "./DisableRule.vibe";
 /**
  * HTTP implementation of {@link DisableRule}. At deploy time it grants
  * `events:DisableRule` on the bound rule; at runtime it calls the EventBridge

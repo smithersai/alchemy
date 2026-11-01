@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { readSecurityLakeTags, retryWhileConflict, toTagList } from "./internal.ts";
+import { readSecurityLakeTags, retryWhileConflict, toTagList } from "./internal.vibe";
 
 /**
  * The AWS identity (principal + external ID) that a subscriber authenticates

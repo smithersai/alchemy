@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { DeleteSession } from "./DeleteSession.js";
+import { DeleteSession } from "./DeleteSession.vibe";
 /**
  * HTTP implementation of {@link DeleteSession} — calls the `lex-runtime-v2`
  * `DeleteSession` operation with the Lambda role's credentials and grants

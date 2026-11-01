@@ -6,7 +6,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { canonicalizePolicy, retryWhileConflict, stringifyPolicy } from "./internal.ts";
+import { canonicalizePolicy, retryWhileConflict, stringifyPolicy } from "./internal.vibe";
 
 /** The kind of security policy — encryption at rest or network access. */
 export type SecurityPolicyType = "encryption" | "network";

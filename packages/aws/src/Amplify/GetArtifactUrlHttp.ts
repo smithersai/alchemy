@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { App } from "./App.ts";
-import { GetArtifactUrl, type GetArtifactUrlRequest } from "./GetArtifactUrl.ts";
+import { GetArtifactUrl, type GetArtifactUrlRequest } from "./GetArtifactUrl.vibe";
 
 // Bespoke (not via makeAmplifyHttpBinding): GetArtifactUrl addresses the
 // artifact by its globally-unique `artifactId` alone — there is no `appId`

@@ -2,7 +2,7 @@ import * as amp from "@distilled.cloud/aws/amp";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { DescribeWorkspace } from "./DescribeWorkspace.ts";
+import { DescribeWorkspace } from "./DescribeWorkspace.vibe";
 import type { Workspace } from "./Workspace.ts";
 
 export const DescribeWorkspaceHttp = Layer.effect(

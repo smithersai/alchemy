@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetPublicKeyCertificate } from "./GetPublicKeyCertificate.js";
+import { GetPublicKeyCertificate } from "./GetPublicKeyCertificate.vibe";
 /**
  * HTTP implementation of {@link GetPublicKeyCertificate} — grants the host
  * Function `payment-cryptography:GetPublicKeyCertificate` on the key and

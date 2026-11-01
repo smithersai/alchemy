@@ -1,0 +1,136 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { PolicyStatement } from "../IAM/Policy.ts"
+import type { Accelerator } from "./Accelerator.vibe"
+import { withGaRegion } from "./common.vibe"
+import type { EndpointGroup } from "./EndpointGroup.vibe"
+
+/**
+ * Shared scaffolding for AWS Global Accelerator HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the two builders
+ * below. Everything except the operation and the IAM action list is
+ * boilerplate.
+ *
+ * The Global Accelerator control-plane API only exists in us-west-2, so the
+ * operation is resolved under {@link withGaRegion} — the binding works no
+ * matter which region the host Function is deployed to.
+ */
+
+/**
+ * Build the impl Effect for a Global Accelerator operation scoped to an
+ * {@link Accelerator}: the deploy-time half grants `actions` on the bound
+ * accelerator's ARN, and the runtime half injects the accelerator's
+ * `AcceleratorArn` into every request.
+ */
+export const makeGaAcceleratorHttpBinding = effect <
+  I extends { mutable AcceleratorArn: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.GlobalAccelerator.DescribeAccelerator`. */
+  mutable tag: string
+  /** The distilled operation. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the accelerator ARN. */
+  mutable actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try (options.operation
+    |> withGaRegion(%)
+    |> AWSBindings.withCredentials(%))
+
+  return effect (accelerator: Accelerator) => {
+    const AcceleratorArn = try accelerator.acceleratorArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${accelerator})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [accelerator.acceleratorArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "AcceleratorArn"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const acceleratorArn = try AcceleratorArn
+          // The region must also be pinned at the call site: the yield-time
+          // snapshot is only a fallback — the calling fiber's ambient Region
+          // (the host Function's own region) wins over it.
+          return try withGaRegion(op({ ...request, AcceleratorArn: acceleratorArn } as I))
+        },
+        `${options.tag}(${accelerator.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a Global Accelerator operation scoped to an
+ * {@link EndpointGroup}: the deploy-time half grants `actions` on the bound
+ * endpoint group's ARN, and the runtime half injects the group's
+ * `EndpointGroupArn` into every request.
+ */
+export const makeGaEndpointGroupHttpBinding = effect <
+  I extends { mutable EndpointGroupArn: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.GlobalAccelerator.AddEndpoints`. */
+  mutable tag: string
+  /** The distilled operation. */
+  mutable operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the endpoint group ARN. */
+  mutable actions: readonly string[]
+  /**
+   * Additional statements granted alongside the group-scoped one (e.g. the
+   * `ec2:Describe*` / `elasticloadbalancing:DescribeLoadBalancers` reads
+   * Global Accelerator performs on the caller's behalf when endpoints are
+   * added).
+   */
+  mutable extraStatements?: readonly PolicyStatement[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try (options.operation
+    |> withGaRegion(%)
+    |> AWSBindings.withCredentials(%))
+
+  return effect (endpointGroup: EndpointGroup) => {
+    const EndpointGroupArn = try endpointGroup.endpointGroupArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${endpointGroup})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [endpointGroup.endpointGroupArn],
+          },
+          ...(options.extraStatements ?? []),
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "EndpointGroupArn">,
+    ) =>
+      try withSpan(
+        effect {
+          const endpointGroupArn = try EndpointGroupArn
+          // Call-site region pin — see makeGaAcceleratorHttpBinding above.
+          return try withGaRegion(
+            op({
+              ...request,
+              EndpointGroupArn: endpointGroupArn,
+            } as I),
+          )
+        },
+        `${options.tag}(${endpointGroup.LogicalId})`,
+      )
+  }
+}

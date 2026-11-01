@@ -7,7 +7,7 @@ import { Resource } from "alchemy/Resource";
 import { createInternalTags, diffTags, hasAlchemyTags, tagRecord } from "alchemy/Tags";
 import * as Effect from "effect/Effect";
 import type { Providers } from "../Providers.ts";
-import { retryThroughEnablement } from "./common.ts";
+import { retryThroughEnablement } from "./common.vibe";
 
 /**
  * Whether the classification job runs once (`ONE_TIME`) or on a recurring

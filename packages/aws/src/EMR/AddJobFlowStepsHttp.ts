@@ -1,6 +1,6 @@
 import * as emr from "@distilled.cloud/aws/emr";
 import * as Layer from "effect/Layer";
-import { AddJobFlowSteps } from "./AddJobFlowSteps.ts";
+import { AddJobFlowSteps } from "./AddJobFlowSteps.vibe";
 import { makeEmrClusterHttpBinding } from "./BindingHttp.ts";
 
 export const AddJobFlowStepsHttp = Layer.effect(

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { VerifyCardValidationData } from "./VerifyCardValidationData.js";
+import { VerifyCardValidationData } from "./VerifyCardValidationData.vibe";
 /**
  * HTTP implementation of {@link VerifyCardValidationData} — grants the host
  * Function `payment-cryptography:VerifyCardValidationData` on the CVK and

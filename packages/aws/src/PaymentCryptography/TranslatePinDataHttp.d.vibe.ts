@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { TranslatePinData } from "./TranslatePinData.js";
+import { TranslatePinData } from "./TranslatePinData.vibe";
 /**
  * HTTP implementation of {@link TranslatePinData} — grants the host Function
  * `payment-cryptography:TranslatePinData` on both the incoming and outgoing

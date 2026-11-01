@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListRuleNamesByTarget } from "./ListRuleNamesByTarget.js";
+import { ListRuleNamesByTarget } from "./ListRuleNamesByTarget.vibe";
 /**
  * HTTP implementation of {@link ListRuleNamesByTarget}. At deploy time it
  * grants `events:ListRuleNamesByTarget` (the action does not support

@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { retryWhileConflict } from "./internal.ts";
+import { retryWhileConflict } from "./internal.vibe";
 
 /**
  * The kind of security configuration:

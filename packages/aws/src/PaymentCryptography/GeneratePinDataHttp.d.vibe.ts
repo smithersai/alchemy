@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GeneratePinData } from "./GeneratePinData.js";
+import { GeneratePinData } from "./GeneratePinData.vibe";
 /**
  * HTTP implementation of {@link GeneratePinData} — grants the host Function
  * `payment-cryptography:GeneratePinData` on both the generation key (PVK)

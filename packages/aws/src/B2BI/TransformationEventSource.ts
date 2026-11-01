@@ -4,7 +4,7 @@ import {
   consumeBusEvents,
   type EventRecord,
   type EventRouteProps,
-} from "../EventBridge/EventSource.ts";
+} from "../EventBridge/EventSource.vibe";
 
 /** S3 object attributes attached to B2BI EventBridge event details. */
 export interface TransformationFileS3Attributes {

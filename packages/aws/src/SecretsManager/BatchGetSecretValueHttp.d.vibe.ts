@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { BatchGetSecretValue } from "./BatchGetSecretValue.js";
+import { BatchGetSecretValue } from "./BatchGetSecretValue.vibe";
 /**
  * Bespoke (multi-secret) HTTP binding: `BatchGetSecretValue` targets a list
  * of secrets, so it can't reuse the single-secret scaffolding — the account

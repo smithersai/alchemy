@@ -7,7 +7,7 @@ import {
   type RotationEventSourceProps,
   type RotationEventSourceService,
   type SecretRotationEvent,
-} from "../SecretsManager/RotationEventSource.ts";
+} from "../SecretsManager/RotationEventSource.vibe";
 import { RotationSchedule } from "../SecretsManager/RotationSchedule.ts";
 import type { Secret } from "../SecretsManager/Secret.ts";
 import * as Lambda from "./Function.ts";

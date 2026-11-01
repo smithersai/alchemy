@@ -8,7 +8,7 @@ import {
   IdentityPoolAuth,
   type GetIdRequest,
   type IdentityPoolAuthClient,
-} from "./IdentityPoolAuth.ts";
+} from "./IdentityPoolAuth.vibe";
 
 /**
  * HTTP implementation of {@link IdentityPoolAuth}. The credentials-vending

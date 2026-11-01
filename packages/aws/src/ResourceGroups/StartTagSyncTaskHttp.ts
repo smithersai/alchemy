@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { Role } from "../IAM/Role.ts";
 import type { Group } from "./Group.ts";
-import { StartTagSyncTask, type StartTagSyncTaskRequest } from "./StartTagSyncTask.ts";
+import { StartTagSyncTask, type StartTagSyncTaskRequest } from "./StartTagSyncTask.vibe";
 
 // Bespoke (not on the shared scaffold): the only Resource Groups binding
 // that passes an IAM role to the service, so it needs the second

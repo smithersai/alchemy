@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { Key } from "./Key.ts";
-import { TranslateKeyMaterial, type TranslateKeyMaterialRequest } from "./TranslateKeyMaterial.ts";
+import { TranslateKeyMaterial, type TranslateKeyMaterialRequest } from "./TranslateKeyMaterial.vibe";
 
 /**
  * HTTP implementation of {@link TranslateKeyMaterial} — bespoke (not

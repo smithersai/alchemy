@@ -1,7 +1,7 @@
 import * as emr from "@distilled.cloud/aws/emr";
 import * as Layer from "effect/Layer";
 import { makeEmrClusterHttpBinding } from "./BindingHttp.ts";
-import { StartSession } from "./StartSession.ts";
+import { StartSession } from "./StartSession.vibe";
 
 export const StartSessionHttp = Layer.effect(
   StartSession,

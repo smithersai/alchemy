@@ -5,7 +5,7 @@ import { toWireDays } from "alchemy/Util/Duration";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import type { Providers } from "../Providers.ts";
-import { retryWhileConflict } from "./internal.ts";
+import { retryWhileConflict } from "./internal.vibe";
 
 export interface ExceptionSubscriptionProps {
   /**

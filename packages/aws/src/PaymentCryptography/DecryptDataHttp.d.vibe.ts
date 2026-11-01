@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { DecryptData } from "./DecryptData.js";
+import { DecryptData } from "./DecryptData.vibe";
 /**
  * HTTP implementation of {@link DecryptData} — grants the host Function
  * `payment-cryptography:DecryptData` on the key and calls the

@@ -5,7 +5,7 @@ import {
   consumeBusEvents,
   type EventRecord,
   type EventRouteProps,
-} from "../EventBridge/EventSource.ts";
+} from "../EventBridge/EventSource.vibe";
 import { EventIntegration } from "./EventIntegration.ts";
 
 /** A partner event delivered to the handler through an event integration. */

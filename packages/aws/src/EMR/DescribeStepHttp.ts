@@ -1,7 +1,7 @@
 import * as emr from "@distilled.cloud/aws/emr";
 import * as Layer from "effect/Layer";
 import { makeEmrClusterHttpBinding } from "./BindingHttp.ts";
-import { DescribeStep } from "./DescribeStep.ts";
+import { DescribeStep } from "./DescribeStep.vibe";
 
 export const DescribeStepHttp = Layer.effect(
   DescribeStep,

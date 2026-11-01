@@ -7,7 +7,7 @@ import { virtualClusterPolicyStatement } from "./BindingHttp.ts";
 import {
   GetManagedEndpointSessionCredentials,
   type GetManagedEndpointSessionCredentialsRequest,
-} from "./GetManagedEndpointSessionCredentials.ts";
+} from "./GetManagedEndpointSessionCredentials.vibe";
 import type { VirtualCluster } from "./VirtualCluster.ts";
 
 export const GetManagedEndpointSessionCredentialsHttp = Layer.effect(

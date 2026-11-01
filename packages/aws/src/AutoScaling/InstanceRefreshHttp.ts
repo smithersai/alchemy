@@ -8,7 +8,7 @@ import {
   type CancelInstanceRefreshRequest,
   type DescribeInstanceRefreshesRequest,
   type StartInstanceRefreshRequest,
-} from "./InstanceRefresh.ts";
+} from "./InstanceRefresh.vibe";
 
 // Bespoke (not the shared scaffold): a multi-operation client over the four
 // instance refresh operations behind one two-statement IAM grant (the write

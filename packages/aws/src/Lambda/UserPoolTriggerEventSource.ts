@@ -9,7 +9,7 @@ import {
   type UserPoolTriggerHandler,
   type UserPoolTriggerProps,
   userPoolTriggerSourcePrefixes,
-} from "../Cognito/UserPoolTriggerEventSource.ts";
+} from "../Cognito/UserPoolTriggerEventSource.vibe";
 import * as Lambda from "./Function.ts";
 import { Permission as LambdaPermission } from "./Permission.ts";
 

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ExecuteQuery } from "./ExecuteQuery.js";
+import { ExecuteQuery } from "./ExecuteQuery.vibe";
 /**
  * HTTP implementation of the {@link ExecuteQuery} binding — signs
  * `neptune-graph:ExecuteQuery` data-plane requests against the graph's HTTPS

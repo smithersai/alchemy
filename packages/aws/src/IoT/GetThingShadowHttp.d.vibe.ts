@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetThingShadow } from "./GetThingShadow.js";
+import { GetThingShadow } from "./GetThingShadow.vibe";
 /**
  * HTTP implementation of the {@link GetThingShadow} capability — grants
  * `iot:GetThingShadow` on the thing ARN and calls the IoT data-plane

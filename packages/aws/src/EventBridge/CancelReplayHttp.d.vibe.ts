@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CancelReplay } from "./CancelReplay.js";
+import { CancelReplay } from "./CancelReplay.vibe";
 /**
  * HTTP implementation of {@link CancelReplay}. At deploy time it grants
  * `events:CancelReplay` on the account's replays; at runtime it calls the

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListReplays } from "./ListReplays.js";
+import { ListReplays } from "./ListReplays.vibe";
 /**
  * HTTP implementation of {@link ListReplays}. At deploy time it grants
  * `events:ListReplays` (the action does not support resource-level

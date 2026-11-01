@@ -1,7 +1,7 @@
 import * as emr from "@distilled.cloud/aws/emr";
 import * as Layer from "effect/Layer";
 import { makeEmrClusterHttpBinding } from "./BindingHttp.ts";
-import { ListInstanceGroups } from "./ListInstanceGroups.ts";
+import { ListInstanceGroups } from "./ListInstanceGroups.vibe";
 
 export const ListInstanceGroupsHttp = Layer.effect(
   ListInstanceGroups,

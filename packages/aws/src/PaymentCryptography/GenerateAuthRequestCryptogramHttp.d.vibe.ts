@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GenerateAuthRequestCryptogram } from "./GenerateAuthRequestCryptogram.js";
+import { GenerateAuthRequestCryptogram } from "./GenerateAuthRequestCryptogram.vibe";
 /**
  * HTTP implementation of {@link GenerateAuthRequestCryptogram} — grants the
  * host Function `payment-cryptography:GenerateAuthRequestCryptogram` on the

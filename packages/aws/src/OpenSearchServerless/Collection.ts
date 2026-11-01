@@ -13,7 +13,7 @@ import {
   recordToTagList,
   retryWhileConflict,
   tagsToRecord,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 /**
  * The collection type, which determines the OpenSearch features available:

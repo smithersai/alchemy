@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { DescribeEventBus } from "./DescribeEventBus.js";
+import { DescribeEventBus } from "./DescribeEventBus.vibe";
 /**
  * HTTP implementation of {@link DescribeEventBus}. At deploy time it grants
  * `events:DescribeEventBus` on the bound bus; at runtime it calls the

@@ -1,7 +1,7 @@
 import * as emr from "@distilled.cloud/aws/emr";
 import * as Layer from "effect/Layer";
 import { makeEmrClusterHttpBinding } from "./BindingHttp.ts";
-import { TerminateSession } from "./TerminateSession.ts";
+import { TerminateSession } from "./TerminateSession.vibe";
 
 export const TerminateSessionHttp = Layer.effect(
   TerminateSession,

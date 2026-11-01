@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { ListEffectiveDeployments } from "./ListEffectiveDeployments.js";
+import { ListEffectiveDeployments } from "./ListEffectiveDeployments.vibe";
 export declare const ListEffectiveDeploymentsHttp: Layer.Layer<ListEffectiveDeployments, never, never>;
