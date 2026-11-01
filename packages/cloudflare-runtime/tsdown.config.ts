@@ -32,7 +32,6 @@ const workerConfig = (
   // copy; the structural compare between the two plugin types blows tsc's
   // depth limit, so bridge through `unknown`.
   plugins: [
-    vibelang(),
     cloudflare({
       compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
       compatibilityFlags: options.compatibilityFlags,
@@ -130,7 +129,6 @@ export default defineConfig([
       mangle: false,
     },
     plugins: [
-      vibelang(),
       cloudflare({
         compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
         // These workers are exported as single modules, so they cannot carry
