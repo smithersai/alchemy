@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Schema from "effect/Schema";
-import { Hyperdrive } from "./Db.ts";
+import { Hyperdrive } from "./Db.vibe";
 import { contract } from "./prisma/contract.ts";
 
 const schemas = makeSchemas(contract);

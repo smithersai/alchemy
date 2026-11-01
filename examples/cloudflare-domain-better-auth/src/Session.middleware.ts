@@ -1,6 +1,6 @@
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
 import * as Schema from "effect/Schema";
-import { CurrentUser } from "./CurrentUser.context.ts";
+import { CurrentUser } from "./CurrentUser.context.vibe";
 
 /** The request has no session. */
 export class Unauthorized extends Schema.TaggedError<Unauthorized>()("Unauthorized", {}) {}

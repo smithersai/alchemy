@@ -1,5 +1,5 @@
 import * as Domain from "@alchemy.run/domain";
-import { TransferId } from "./Transfer.id.ts";
+import { TransferId } from "./Transfer.id.vibe";
 
 export class TransferCompleted extends Domain.Event("TransferCompleted", {
   transferId: TransferId,

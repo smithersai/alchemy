@@ -1,9 +1,9 @@
 import * as Domain from "@alchemy.run/domain";
-import { Actor } from "../Actor.ts";
-import { Cents } from "../Money.ts";
-import { TransferId } from "../Transfer/Transfer.id.ts";
-import { AccountId } from "./Account.id.ts";
-import { Frozen } from "./Frozen.rejection.ts";
+import { Actor } from "../Actor.vibe";
+import { Cents } from "../Money.vibe";
+import { TransferId } from "../Transfer/Transfer.id.vibe";
+import { AccountId } from "./Account.id.vibe";
+import { Frozen } from "./Frozen.rejection.vibe";
 import { InsufficientFunds } from "./InsufficientFunds.rejection.ts";
 import { NotOpen } from "./NotOpen.rejection.ts";
 import { NotOwner } from "./NotOwner.rejection.ts";

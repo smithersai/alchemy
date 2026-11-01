@@ -7,7 +7,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Schedule from "effect/Schedule";
-import Stack from "../alchemy.run.ts";
+import Stack from "../alchemy.run.vibe";
 
 const { getWhenReady, executeWhenReady } = Test;
 

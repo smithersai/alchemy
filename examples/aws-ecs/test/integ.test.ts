@@ -15,7 +15,7 @@ import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Schedule from "effect/Schedule";
-import Stack from "../alchemy.run.ts";
+import Stack from "../alchemy.run.vibe";
 
 const { test, beforeAll, afterAll, deploy, destroy } = Test.make({
   providers: AWS.providers(),

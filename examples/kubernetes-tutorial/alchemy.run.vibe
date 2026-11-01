@@ -1,0 +1,42 @@
+import * as Kubernetes from "@alchemy.run/kubernetes"
+import * as Alchemy from "alchemy"
+import { Stage } from "alchemy"
+import * as Effect from "effect/Effect"
+import HealthCheck from "./src/HealthCheck.vibe"
+import { Cluster, Web } from "./src/infra.ts"
+import SmokeTest from "./src/SmokeTest.vibe"
+
+export default Alchemy.Stack(
+  "MyCluster",
+  {
+    providers: Kubernetes.providers(),
+    state: Alchemy.localState(),
+  },
+  effect {
+    const cluster = try Cluster
+    const web = try Web
+    const smokeTest = try SmokeTest
+    try HealthCheck
+
+    const stage = try Effect.service(Stage)
+    if (stage !== "prod") {
+      try Kubernetes.HelmChart("MetricsServer", {
+        cluster,
+        chart: "metrics-server",
+        repo: "https://kubernetes-sigs.github.io/metrics-server/",
+        version: "3.14.0",
+        releaseName: "metrics-server",
+        namespace: "kube-system",
+        values: {
+          args: ["--kubelet-insecure-tls"],
+        },
+      })
+    }
+
+    return {
+      namespace: web.namespace,
+      service: web.serviceName,
+      smokeTest: smokeTest.jobName,
+    }
+  },
+)

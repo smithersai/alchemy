@@ -9,7 +9,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import { Db } from "./Db.ts";
 import { LinkNotFound, newCode, type Link } from "./Link.ts";
-import { ShortyApi } from "./ShortyApi.ts";
+import { ShortyApi } from "./ShortyApi.vibe";
 
 export default class Api extends Cloudflare.Worker<Api>()(
   "Api",

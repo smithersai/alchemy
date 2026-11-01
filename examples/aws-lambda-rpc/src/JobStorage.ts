@@ -10,7 +10,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import type { Job } from "./Job.ts";
+import type { Job } from "./Job.vibe";
 
 export class PutJobError extends Data.TaggedError("PutJobError")<{
   readonly message: string;

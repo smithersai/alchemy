@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Schema from "effect/Schema";
-import { Hyperdrive } from "./Db.ts";
+import { Hyperdrive } from "./Db.vibe";
 import { makeDatabase } from "./prisma/generated/client.ts";
 import { schemas } from "./prisma/generated/schemas.ts";
 

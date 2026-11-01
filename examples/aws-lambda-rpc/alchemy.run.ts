@@ -3,7 +3,7 @@ import * as Alchemy from "alchemy";
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import JobFunction from "./src/JobFunction.ts";
+import JobFunction from "./src/JobFunction.vibe";
 
 const aws = AWS.providers();
 const dashboardRegion = process.env.AWS_REGION ?? "us-west-2";

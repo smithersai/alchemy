@@ -13,13 +13,13 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import { SiftFraudCheck } from "./Fraud/SiftFraudCheck.ts";
+import { SiftFraudCheck } from "./Fraud/SiftFraudCheck.vibe";
 import { D1LedgerStore } from "./Ledger/D1LedgerStore.ts";
 import { MfaChallengeLive } from "./MfaChallenge.ts";
-import { Observability } from "./Observability.ts";
+import { Observability } from "./Observability.vibe";
 import { actorOf, SessionKey, SessionKeyLive, SessionLive, sessionRoute } from "./Session.ts";
-import { StripePayments } from "./Settlement/StripePayments.ts";
-import { StripeSettlements } from "./Settlement/StripeSettlements.ts";
+import { StripePayments } from "./Settlement/StripePayments.vibe";
+import { StripeSettlements } from "./Settlement/StripeSettlements.vibe";
 
 /**
  * Everything the Worker serves: the middleware both Apis declare, and the

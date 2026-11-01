@@ -3,7 +3,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Test from "@alchemy.run/test/Bun";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
-import Stack from "../alchemy.run.ts";
+import Stack from "../alchemy.run.vibe";
 
 // Fresh `workers.dev` URLs transiently 404 while the route propagates.
 // `Test.getWhenReady` fails on that cold-start window and retries until the

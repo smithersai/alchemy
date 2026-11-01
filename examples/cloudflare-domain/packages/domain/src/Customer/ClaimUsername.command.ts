@@ -1,6 +1,6 @@
 import * as Domain from "@alchemy.run/domain";
-import { CustomerId } from "./Customer.id.ts";
-import { Username } from "./Username.ts";
+import { CustomerId } from "./Customer.id.vibe";
+import { Username } from "./Username.vibe";
 
 /** Someone else holds this username. */
 export class UsernameTaken extends Domain.Rejection("UsernameTaken") {}

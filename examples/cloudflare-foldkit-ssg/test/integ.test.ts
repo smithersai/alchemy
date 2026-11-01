@@ -3,7 +3,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Test from "@alchemy.run/test/Bun";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import Stack from "../alchemy.run.ts";
+import Stack from "../alchemy.run.vibe";
 
 const requestOnce = (url: string, init?: RequestInit) =>
   Effect.tryPromise(async () => {

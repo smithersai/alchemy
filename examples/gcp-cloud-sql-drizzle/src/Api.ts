@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Schema from "effect/Schema";
-import { database } from "./database.ts";
+import { database } from "./database.vibe";
 import { todos } from "./schema.ts";
 
 const Id = Schema.String.check(Schema.isUUID());

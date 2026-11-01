@@ -1,0 +1,61 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Alchemy from "alchemy"
+import * as Effect from "effect/Effect"
+import { Gateway } from "./src/AiGateway.ts"
+import Api from "./src/Api.ts"
+import { Bucket } from "./src/Bucket.ts"
+import SandboxLive from "./src/Sandbox.ts"
+import SecondaryApiLive, { SecondaryApi } from "./src/SecondaryApi.vibe"
+import WorkerTagLive, { WorkerTag } from "./src/WorkerTag.vibe"
+
+// Demo Action — runs at deploy time when its input (the resolved deployed
+// URL) changes. Logs the new URL and returns a tiny manifest used as the
+// stack output. Re-deploys with no changes skip the body.
+const AnnounceDeploy = Alchemy.Action(
+  "AnnounceDeploy",
+  effect (input: { mutable url: string; mutable bucket: string }) => {
+    try Effect.log(`Deployed ${input.url} (bucket: ${input.bucket})`)
+    return { deployedAt: new Date().toISOString(), url: input.url }
+  },
+)
+
+export default Alchemy.Stack(
+  "CloudflareWorkerExample",
+  {
+    providers: Cloudflare.providers(),
+    state: Cloudflare.state(),
+  },
+  effect {
+    return try effect {
+      provide WorkerTagLive, SecondaryApiLive, SandboxLive {
+        return try effect {
+          const api = try Api
+          const bucket = try Bucket
+          const gateway = try Gateway
+          const workerTag = try WorkerTag
+          // Two Workers binding the same Agent DO triggers the regression where
+          // a single Container DO namespace appears in multiple bindings on the
+          // Sandbox ContainerApplication. See SecondaryApi.ts for details.
+          const secondaryApi = try SecondaryApi
+          // The Queue consumer is wired automatically by
+          // `Cloudflare.Queues.consumeQueueMessages(Queue, handler)` inside src/Api.ts —
+          // no explicit `Cloudflare.Queues.Consumer(...)` is needed here.
+
+          const announcement = try AnnounceDeploy({
+            url: api.url.as<string>(),
+            bucket: bucket.bucketName,
+          })
+
+          return {
+            url: api.url.as<string>(),
+            bucket: bucket.bucketName,
+            gatewayId: gateway.gatewayId,
+            workerTagUrl: workerTag.url.as<string>(),
+            secondaryApiUrl: secondaryApi.url.as<string>(),
+            deployedAt: announcement.deployedAt,
+          }
+        }
+      }
+    }
+  },
+)

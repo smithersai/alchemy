@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as HttpApiClient from "effect/http-api/HttpApiClient";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
-import { ShortyApi } from "./ShortyApi.ts";
+import { ShortyApi } from "./ShortyApi.vibe";
 
 export const API_URL = import.meta.env.VITE_API_URL as string;
 

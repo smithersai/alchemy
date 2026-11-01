@@ -3,10 +3,10 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
-import { DatabaseLive } from "./Db.ts";
+import { DatabaseLive } from "./Db.vibe";
 import { Files, FilesR2 } from "./Files.ts";
 import { History, HistoryLive } from "./History.ts";
-import { ObservabilityLive } from "./Observability.ts";
+import { ObservabilityLive } from "./Observability.vibe";
 import Room from "./Room.ts";
 
 // #region show

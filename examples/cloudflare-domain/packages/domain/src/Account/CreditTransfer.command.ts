@@ -1,7 +1,7 @@
 import * as Domain from "@alchemy.run/domain";
-import { Cents } from "../Money.ts";
-import { TransferId } from "../Transfer/Transfer.id.ts";
-import { AccountId } from "./Account.id.ts";
+import { Cents } from "../Money.vibe";
+import { TransferId } from "../Transfer/Transfer.id.vibe";
+import { AccountId } from "./Account.id.vibe";
 import { NotOpen } from "./NotOpen.rejection.ts";
 
 export class TransferCredited extends Domain.Event("TransferCredited", {

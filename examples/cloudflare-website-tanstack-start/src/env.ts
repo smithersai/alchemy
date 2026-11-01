@@ -1,5 +1,5 @@
 import * as cf from "cloudflare:workers";
-import type { WebsiteEnv } from "../alchemy.run.ts";
+import type { WebsiteEnv } from "../alchemy.run.vibe";
 
 // In development mode with TanStack Start, `import { env } from "cloudflare:workers"` does not work at the top level.
 // As a workaround, we use a proxy to access the env object.

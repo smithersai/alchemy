@@ -1,0 +1,43 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as Redacted from "effect/Redacted"
+import { ApiKey } from "./ApiKey.vibe"
+
+export default class Api extends Cloudflare.Worker<Api>()(
+  "Api",
+  {
+    main: import.meta.url,
+  },
+  effect {
+    return try effect {
+      provide Cloudflare.SecretsStore.ReadSecretBinding {
+        return try effect {
+          const apiKey = try Cloudflare.SecretsStore.ReadSecret(ApiKey)
+
+          return {
+            fetch: effect {
+              return (try effect {
+                const request = try Effect.service(HttpServerRequest)
+
+                if (request.url === "/secret") {
+                  const value = Redacted.value(try apiKey)
+                  const masked = value.slice(0, 4) + "****"
+                  return HttpServerResponse.text(`Secret (masked): ${masked}`)
+                }
+
+                return HttpServerResponse.text("Hello from Cloudflare Secrets Store example!")
+              }) catch effect (err) => match (err) {
+                when { _tag: "SecretError" }: HttpServerResponse.text(`Failed to read secret: ${err.message}`, {
+                  status: 500,
+                });
+                default: throw err;
+              }
+            },
+          }
+        }
+      }
+    }
+  },
+) {}

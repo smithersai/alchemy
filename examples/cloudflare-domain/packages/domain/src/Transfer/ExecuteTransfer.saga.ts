@@ -4,21 +4,21 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Schema from "effect/Schema";
 import { Activity, DurableDeferred, Workflow } from "effect/workflow";
-import { Account } from "../Account/Account.aggregate.ts";
-import { AccountId } from "../Account/Account.id.ts";
+import { Account } from "../Account/Account.aggregate.vibe";
+import { AccountId } from "../Account/Account.id.vibe";
 import { CreditTransfer } from "../Account/CreditTransfer.command.ts";
 import { DebitTransfer } from "../Account/DebitTransfer.command.ts";
-import { Frozen } from "../Account/Frozen.rejection.ts";
+import { Frozen } from "../Account/Frozen.rejection.vibe";
 import { InsufficientFunds } from "../Account/InsufficientFunds.rejection.ts";
 import { NotOpen } from "../Account/NotOpen.rejection.ts";
 import { NotOwner } from "../Account/NotOwner.rejection.ts";
 import { RefundTransfer } from "../Account/RefundTransfer.command.ts";
-import { Actor } from "../Actor.ts";
-import { Cents } from "../Money.ts";
+import { Actor } from "../Actor.vibe";
+import { Cents } from "../Money.vibe";
 import { CompleteTransfer } from "./CompleteTransfer.command.ts";
-import { FailTransfer } from "./FailTransfer.command.ts";
-import { Transfer } from "./Transfer.aggregate.ts";
-import { TransferId } from "./Transfer.id.ts";
+import { FailTransfer } from "./FailTransfer.command.vibe";
+import { Transfer } from "./Transfer.aggregate.vibe";
+import { TransferId } from "./Transfer.id.vibe";
 
 /** The destination account isn't open, so the money can't arrive. */
 export class DestinationClosed extends Domain.Rejection("DestinationClosed") {}

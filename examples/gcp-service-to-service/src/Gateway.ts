@@ -2,7 +2,7 @@ import * as GCP from "@alchemy.run/gcp";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import Quotes from "./Quotes.ts";
+import Quotes from "./Quotes.vibe";
 
 /**
  * The public front door. It forwards `GET /quote` to the private

@@ -5,8 +5,8 @@ import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Schedule from "effect/Schedule";
-import Stack from "../alchemy.run.ts";
-import { USERS } from "../src/users.ts";
+import Stack from "../alchemy.run.vibe";
+import { USERS } from "../src/users.vibe";
 
 const { test, beforeAll, afterAll, deploy, destroy } = Test.make({
   providers: Fly.providers(),

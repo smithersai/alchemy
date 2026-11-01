@@ -1,6 +1,6 @@
 import "./styles/global.css";
 import { Runtime } from "foldkit";
-import { init, Model, update, view } from "./main.ts";
+import { init, Model, update, view } from "./main.vibe";
 
 const application = Runtime.makeApplication({
   Model,

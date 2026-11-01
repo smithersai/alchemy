@@ -11,7 +11,7 @@ import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as HttpApiClient from "effect/http-api/HttpApiClient";
 import * as HttpClient from "effect/http/HttpClient";
-import Stack from "../alchemy.run.ts";
+import Stack from "../alchemy.run.vibe";
 import { StoreApi } from "../src/Api.ts";
 
 const { test, beforeAll, afterAll, deploy, destroy } = Test.make({

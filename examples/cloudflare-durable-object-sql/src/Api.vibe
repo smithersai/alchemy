@@ -1,0 +1,59 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as Schema from "effect/Schema"
+import Users from "./Users.vibe"
+
+const CreateUser = Schema.Struct({ name: Schema.String })
+
+export default class Api extends Cloudflare.Worker<Api>()(
+  "Api",
+  { main: import.meta.url },
+  effect {
+    const users = try Users
+
+    return {
+      fetch: effect {
+        return (try effect {
+          const request = try Effect.service(HttpServerRequest)
+          const path = request.url.split("?")[0]
+          const match = /^\/objects\/([a-zA-Z0-9_-]+)\/users$/.exec(path)
+          if (!match) {
+            return try HttpServerResponse.json(
+              { error: "Use /objects/:name/users (letters, digits, _ or -)" },
+              { status: 404 },
+            )
+          }
+
+          const object = users.getByName(match[1])
+          if (request.method === "GET") {
+            const rows = try object.listUsers()
+            return try HttpServerResponse.json({ users: rows })
+          }
+          if (request.method === "POST") {
+            const body = (try (request.json
+              |> Effect.flatMap(%, Schema.decodeUnknownEffect(CreateUser)))) catch () => undefined
+            if (!body?.name.trim()) {
+              return try HttpServerResponse.json(
+                { error: "Expected JSON with a non-empty name" },
+                { status: 400 },
+              )
+            }
+            const [user] = try object.addUser(body.name.trim())
+            return try HttpServerResponse.json({ user }, { status: 201 })
+          }
+          return try HttpServerResponse.json(
+            { error: "Method not allowed" },
+            { status: 405, headers: { allow: "GET, POST" } },
+          )
+        }) catch effect (e) => match (e) {
+          when { _tag: "EffectDrizzleQueryError" }: try HttpServerResponse.json({ error: "Database query failed" }, {
+            status: 500,
+          });
+          default: throw e;
+        }
+      },
+    }
+  },
+) {}

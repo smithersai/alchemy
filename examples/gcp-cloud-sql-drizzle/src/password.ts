@@ -2,7 +2,7 @@ import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import { database } from "./database.ts";
+import { database } from "./database.vibe";
 
 /**
  * Writes the app user's password as the secret's latest version at deploy

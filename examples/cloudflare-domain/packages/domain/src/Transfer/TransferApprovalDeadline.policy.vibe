@@ -1,0 +1,31 @@
+import * as Domain from "@alchemy.run/domain"
+import * as Effect from "effect/Effect"
+import { ExpireTransfer } from "./ExpireTransfer.command.ts"
+import { TransferRequested } from "./RequestTransfer.command.vibe"
+import { Transfer } from "./Transfer.aggregate.vibe"
+
+/** How long a support agent has to approve a large transfer. */
+export const APPROVAL_WINDOW = "24 hours"
+
+/**
+ * Whenever a transfer needs approval, expire it if nobody approves it in time.
+ * The Transfer decides the race: approval and expiry are commands on the same
+ * instance, so exactly one of them wins.
+ */
+export class TransferApprovalDeadline extends Domain.Policy("TransferApprovalDeadline", {
+  from: Transfer,
+  on: [TransferRequested],
+}) {}
+
+export const TransferApprovalDeadlineLive = TransferApprovalDeadline.toLayer(
+  effect {
+    const transfers = try Effect.service(Transfer)
+    return effect ({ source, event }) => {
+      if (!event.needsApproval) return
+      transfers.schedule(source, new ExpireTransfer(), { after: APPROVAL_WINDOW }) catch effect (e) => match (e) {
+        when { _tag: "AlreadyExecuted" }: try Effect.void;
+        default: throw e;
+      }
+    }
+  },
+)

@@ -10,7 +10,7 @@ import * as Schema from "effect/Schema";
 import type * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { resources } from "../resources.ts";
-import { gateway } from "./resources.ts";
+import { gateway } from "./resources.vibe";
 
 /** Authenticated, opt-in text streaming backed by the bound Effect model. */
 export const chat = (

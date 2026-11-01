@@ -8,10 +8,10 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import { Clicks, type ClickEvent } from "./Clicks.ts";
-import LinkRoom from "./LinkRoom.ts";
+import LinkRoom from "./LinkRoom.vibe";
 import { Links, LinksSql } from "./Links.ts";
-import { Telemetry } from "./Observability.ts";
-import { ShortyApi } from "./ShortyApi.ts";
+import { Telemetry } from "./Observability.vibe";
+import { ShortyApi } from "./ShortyApi.vibe";
 import { NeonStorage } from "./Storage.ts";
 
 export default class Api extends Cloudflare.Worker<Api>()(

@@ -6,7 +6,7 @@ import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
-import { Job, JobId } from "./Job.ts";
+import { Job, JobId } from "./Job.vibe";
 import { JobNotifications, NotifyJobError } from "./JobNotifications.ts";
 import { GetJobError, JobStorage, PutJobError } from "./JobStorage.ts";
 

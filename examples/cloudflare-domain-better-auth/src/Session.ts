@@ -2,9 +2,9 @@ import { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Auth } from "./Auth.ts";
-import { CurrentUser } from "./CurrentUser.context.ts";
+import { CurrentUser } from "./CurrentUser.context.vibe";
 import { Session, Unauthorized } from "./Session.middleware.ts";
-import { UserId } from "./User.id.ts";
+import { UserId } from "./User.id.vibe";
 
 /** The {@link Session} middleware: the user better-auth signed in, or Unauthorized. */
 export const SessionLive = Layer.effect(

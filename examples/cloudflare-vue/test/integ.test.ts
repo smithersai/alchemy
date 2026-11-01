@@ -5,7 +5,7 @@ import * as Console from "effect/Console";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import Stack from "../alchemy.run.ts";
+import Stack from "../alchemy.run.vibe";
 
 // Fresh `workers.dev` URLs transiently 404 while the route propagates.
 // `Test.getWhenReady` fails on that cold-start window and retries until the

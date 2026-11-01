@@ -1,6 +1,6 @@
 import { Sfn, StateMachine } from "@alchemy.run/aws/StepFunctions";
 import * as Effect from "effect/Effect";
-import { SaveDigest, Summarize } from "./Summarize.ts";
+import { SaveDigest, Summarize } from "./Summarize.vibe";
 
 // #region show
 export const Digest = Effect.gen(function* () {

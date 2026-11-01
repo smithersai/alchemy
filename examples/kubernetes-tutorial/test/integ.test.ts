@@ -6,7 +6,7 @@ import * as Alchemy from "alchemy";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import Stack from "../alchemy.run.ts";
+import Stack from "../alchemy.run.vibe";
 
 const { test, beforeAll, afterAll, deploy, destroy } = Test.make({
   providers: Kubernetes.providers(),

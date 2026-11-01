@@ -10,12 +10,12 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
-import { BunMicrovm } from "./bun-image.ts";
-import { EffectfulBun } from "./effectful-bun.ts";
-import { EffectfulNode } from "./effectful-node.ts";
-import { ExternalMicrovm } from "./external-image.ts";
-import { NodeMicrovm } from "./node-image.ts";
-import { OpencodeMicrovm } from "./opencode-image.ts";
+import { BunMicrovm } from "./bun-image.vibe";
+import { EffectfulBun } from "./effectful-bun.vibe";
+import { EffectfulNode } from "./effectful-node.vibe";
+import { ExternalMicrovm } from "./external-image.vibe";
+import { NodeMicrovm } from "./node-image.vibe";
+import { OpencodeMicrovm } from "./opencode-image.vibe";
 
 /**
  * Lambda host for the MicroVM cold-start benchmark. Exposes a boot/shutdown

@@ -1,0 +1,107 @@
+import * as GCP from "@alchemy.run/gcp"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+
+// Gemini 2.5 Flash on the `global` endpoint — cheap, fast, and routed to
+// any region with capacity. Any Gemini model id works here; pass
+// `{ model, location: "us-central1" }` to pin a region instead.
+const MODEL = "gemini-2.5-flash"
+
+interface ChatRequest {
+  mutable prompt?: string
+  mutable system?: string
+  mutable temperature?: number
+  mutable maxOutputTokens?: number
+}
+
+/**
+ * A public chat endpoint on Cloud Run that answers with Gemini on
+ * Vertex AI.
+ *
+ * - `GET /` — health check.
+ * - `POST /chat` — `{ prompt, system?, temperature?, maxOutputTokens? }`
+ *   in, `{ text, finishReason, modelVersion, usage }` out.
+ *
+ * There is no API key anywhere: the container calls Vertex AI as its own
+ * runtime service account, which the binding grants
+ * `roles/aiplatform.user` at deploy time.
+ *
+ * `invokerIamDisabled: true` makes the service publicly reachable. Drop it
+ * and Cloud Run requires a signed Google identity token on every request —
+ * worth doing before this endpoint spends real money on strangers' prompts.
+ */
+export default class Chat extends GCP.Function<Chat>()(
+  "Chat",
+  {
+    main: import.meta.url,
+    invokerIamDisabled: true,
+  },
+  effect {
+    return try effect {
+      provide GCP.AIPlatform.GenerateContentHttp {
+        return try effect {
+          // Init: bind the model. Grants the runtime service account
+          // roles/aiplatform.user and returns a typed Gemini client.
+          const gemini = try GCP.AIPlatform.GenerateContent(MODEL)
+
+          return {
+            fetch: effect {
+              return try (effect {
+                return (try effect {
+                  const request = try Effect.service(HttpServerRequest)
+                  const url = new URL(request.originalUrl)
+
+                  if (request.method === "GET" && url.pathname === "/") {
+                    return HttpServerResponse.text("ok")
+                  }
+
+                  if (request.method !== "POST" || url.pathname !== "/chat") {
+                    return try HttpServerResponse.json({ error: "not found" }, { status: 404 })
+                  }
+
+                  const body = (try request.json) as ChatRequest
+                  if (!body.prompt) {
+                    return try HttpServerResponse.json({ error: "prompt is required" }, { status: 400 })
+                  }
+
+                  // Model access is bound at deploy time; generation settings are a
+                  // per-request decision.
+                  const response = try gemini.generate({
+                    contents: [{ role: "user", parts: [{ text: body.prompt }] }],
+                    ...(body.system ? { systemInstruction: { parts: [{ text: body.system }] } } : {}),
+                    generationConfig: {
+                      ...(body.temperature !== undefined ? { temperature: body.temperature } : {}),
+                      ...(body.maxOutputTokens !== undefined
+                        ? { maxOutputTokens: body.maxOutputTokens }
+                        : {}),
+                    },
+                  })
+
+                  const candidate = response.candidates?.[0]
+                  return try HttpServerResponse.json({
+                    // Gemini 2.5 may return "thought" parts; answer with the rest.
+                    text: (candidate?.content?.parts ?? [])
+                      .filter((part) => !part.thought)
+                      .map((part) => part.text ?? "")
+                      .join(""),
+                    finishReason: candidate?.finishReason,
+                    modelVersion: response.modelVersion,
+                    usage: {
+                      inputTokens: response.usageMetadata?.promptTokenCount,
+                      outputTokens: response.usageMetadata?.candidatesTokenCount,
+                    },
+                  })
+                }) catch effect (error) => match (error) {
+                  when { _tag: "BadRequest" }: try HttpServerResponse.json({ error: error.message }, { status: 400 });
+                  default: throw error;
+                }
+              }
+                |> Effect.orDie(%))
+            },
+          }
+        }
+      }
+    }
+  },
+) {}
