@@ -5,7 +5,7 @@ import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
-import Stack from "../alchemy.run.vibe";
+import Stack from "../alchemy.run.ts";
 import type { User } from "../src/schema.ts";
 
 const { test, beforeAll, afterAll, deploy, destroy } = Test.make({

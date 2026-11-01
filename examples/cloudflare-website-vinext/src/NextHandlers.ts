@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { BackendClient } from "./BackendClient";
 import { env } from "./Env";
-import { FrontendApi, Hello, KvOk, KvValue } from "./NextApi";
+import { FrontendApi, Hello, KvOk, KvValue } from "./NextApi.vibe";
 
 const kvGet = (key: string) =>
   Effect.tryPromise({

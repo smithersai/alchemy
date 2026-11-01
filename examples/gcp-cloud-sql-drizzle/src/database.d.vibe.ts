@@ -9,4 +9,4 @@ export declare const database: Effect.Effect<{
     password: Alchemy.Random;
     passwordSecret: GCP.SecretManager.LocationsSecret;
     schema: Drizzle.Schema;
-}, never, Alchemy.Provider<Alchemy.Random> | GCP.Providers | Drizzle.Providers>;
+}, never, Alchemy.Provider<Alchemy.Random> | Drizzle.Providers | GCP.Providers>;

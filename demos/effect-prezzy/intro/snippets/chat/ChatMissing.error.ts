@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
-import { DatabaseLive } from "./Db.vibe";
+import { DatabaseLive } from "./Db.ts";
 import { Files } from "./Files.ts";
 import { History, HistoryLive } from "./History.ts";
 import Room from "./Room.ts";

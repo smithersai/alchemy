@@ -6,7 +6,7 @@ import * as Console from "effect/Console";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import Stack from "../alchemy.run.vibe";
+import Stack from "../alchemy.run.ts";
 
 // A fresh Cloud Run revision can answer transient 404/5xx responses while
 // its URL starts serving. `Test.getWhenReady` retries through that

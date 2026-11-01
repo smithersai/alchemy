@@ -4,7 +4,7 @@ import * as Test from "@alchemy.run/test/Bun";
 import * as Alchemy from "alchemy";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
-import Stack from "../alchemy.run.vibe";
+import Stack from "../alchemy.run.ts";
 
 // A fresh Railway deployment (and the Railway Service behind it) can serve
 // transient 404/5xx responses while it propagates. `Test.getWhenReady`

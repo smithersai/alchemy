@@ -17,8 +17,8 @@ const source = Effect.fn(function* (file: string) {
 test("all three stack configurations import without running deployment effects", () =>
   Effect.runPromise(
     Effect.gen(function* () {
-      const effect = yield* Effect.tryPromise(() => import("../alchemy.run.vibe"));
-      const native = yield* Effect.tryPromise(() => import("../alchemy.native.vibe"));
+      const effect = yield* Effect.tryPromise(() => import("../alchemy.run.ts"));
+      const native = yield* Effect.tryPromise(() => import("../alchemy.native.ts"));
       const preview = yield* Effect.tryPromise(() => import("../alchemy.preview.ts"));
       expect(effect.default).toBeDefined();
       expect(native.default).toBeDefined();

@@ -3,7 +3,7 @@ import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import { resources } from "../resources.ts";
 import EffectApi from "./EffectApi.ts";
-import { gateway } from "./resources.vibe";
+import { gateway } from "./resources.ts";
 
 export const ai = Effect.gen(function* () {
   const { branch } = yield* resources;

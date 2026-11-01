@@ -12,7 +12,7 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
-import Stack from "../alchemy.run.vibe";
+import Stack from "../alchemy.run.ts";
 import { MAX_DELIVERY_ATTEMPTS } from "../src/Email.ts";
 import { emailObjectFor, type OrderEvent } from "../src/resources.ts";
 

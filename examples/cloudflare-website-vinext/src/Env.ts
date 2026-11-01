@@ -1,5 +1,5 @@
 import * as cf from "cloudflare:workers";
-import type { VinextEnv } from "../alchemy.run.vibe";
+import type { VinextEnv } from "../alchemy.run.ts";
 
 declare global {
   interface Env extends VinextEnv {}

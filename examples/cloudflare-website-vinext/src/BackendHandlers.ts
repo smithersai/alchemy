@@ -1,7 +1,7 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-import { BackendApi, Note, NotesList } from "./BackendApi";
+import { BackendApi, Note, NotesList } from "./BackendApi.vibe";
 import { DB } from "./Bindings";
 
 export const BackendHandlers = HttpApiBuilder.group(

@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Redacted from "effect/Redacted";
-import Stack from "../alchemy.run.vibe";
+import Stack from "../alchemy.run.ts";
 
 // Aurora provisioning/deletion is opt-in, as in the RDSData integration suite.
 describe.skipIf(!!process.env.FAST)("Drizzle + Aurora PostgreSQL", () => {

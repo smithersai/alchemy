@@ -10,7 +10,7 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
-import Stack from "../alchemy.run.vibe";
+import Stack from "../alchemy.run.ts";
 import { LIMIT, WINDOW_SECONDS } from "../src/Api.vibe";
 
 const { test, beforeAll, afterAll, deploy, destroy } = Test.make({

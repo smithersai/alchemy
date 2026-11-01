@@ -17,7 +17,7 @@ import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Socket from "effect/socket/Socket";
 import * as Stream from "effect/Stream";
-import Stack from "../alchemy.run.vibe";
+import Stack from "../alchemy.run.ts";
 import { CustomerId } from "../packages/domain/src/Customer/Customer.id.vibe";
 import { CustomerDashboard } from "../packages/domain/src/Customer/CustomerDashboard.view.vibe";
 import { CustomerApi } from "../packages/domain/src/CustomerApi.api.ts";

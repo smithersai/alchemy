@@ -3,7 +3,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Test from "@alchemy.run/test/Bun";
 import * as Effect from "effect/Effect";
 import * as HttpApiClient from "effect/http-api/HttpApiClient";
-import Stack from "../alchemy.run.vibe";
+import Stack from "../alchemy.run.ts";
 import { RepoApi } from "../src/Api.ts";
 
 const { test, beforeAll, afterAll, deploy, destroy } = Test.make({
