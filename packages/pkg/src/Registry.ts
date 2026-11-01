@@ -20,7 +20,14 @@ import {
 } from "./Registry/Bindings.vibe";
 import { handler } from "./Registry/Handler.ts";
 
-export { Bucket, Cache, Database, Policy, RegistryConfig, Settings } from "./Registry/Bindings.vibe";
+export {
+  Bucket,
+  Cache,
+  Database,
+  Policy,
+  RegistryConfig,
+  Settings,
+} from "./Registry/Bindings.vibe";
 
 export interface RegistryOptions {
   /**
