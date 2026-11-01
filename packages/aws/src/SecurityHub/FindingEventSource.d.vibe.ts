@@ -1,7 +1,7 @@
 import type * as securityhub from "@distilled.cloud/aws/securityhub";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Security Hub delivers to EventBridge — a batch of
  * findings in AWS Security Finding Format (ASFF).
@@ -77,7 +77,7 @@ export interface FindingEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeFindings: <StreamReq = never, Req = never>(props: FindingEventSourceProps, process: (events: Stream.Stream<FindingEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeFindings: <StreamReq = never, Req = never>(props: FindingEventSourceProps, process: (events: Stream.Stream<FindingEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
 export interface CustomActionEventSourceProps extends EventRouteProps {
     /**
      * Logical id for the backing EventBridge rule.
@@ -110,4 +110,4 @@ export interface CustomActionEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeCustomActions: <StreamReq = never, Req = never>(props: CustomActionEventSourceProps, process: (events: Stream.Stream<CustomActionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeCustomActions: <StreamReq = never, Req = never>(props: CustomActionEventSourceProps, process: (events: Stream.Stream<CustomActionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

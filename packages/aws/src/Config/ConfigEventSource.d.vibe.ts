@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload AWS Config delivers to EventBridge. Compliance-change
  * events carry `configRuleName` and the new/old evaluation results;
@@ -95,4 +95,4 @@ export interface ConfigEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeConfigEvents: <StreamReq = never, Req = never>(props: ConfigEventSourceProps, process: (events: Stream.Stream<ConfigEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeConfigEvents: <StreamReq = never, Req = never>(props: ConfigEventSourceProps, process: (events: Stream.Stream<ConfigEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

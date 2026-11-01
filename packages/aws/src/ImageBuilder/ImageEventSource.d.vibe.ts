@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload EC2 Image Builder delivers to EventBridge.
  * Image-state-change events report the build's new state (`BUILDING`,
@@ -77,4 +77,4 @@ export interface ImageEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeImageEvents: <StreamReq = never, Req = never>(props: ImageEventSourceProps, process: (events: Stream.Stream<ImageEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeImageEvents: <StreamReq = never, Req = never>(props: ImageEventSourceProps, process: (events: Stream.Stream<ImageEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

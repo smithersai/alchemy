@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload ECR delivers to EventBridge on every completed image
  * push or delete (`ECR Image Action`).
@@ -101,7 +101,7 @@ export interface ImageActionsProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeImageActions: <StreamReq = never, Req = never>(props: ImageActionsProps, process: (events: Stream.Stream<ImageActionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeImageActions: <StreamReq = never, Req = never>(props: ImageActionsProps, process: (events: Stream.Stream<ImageActionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
 export interface ImageScansProps extends EventRouteProps {
     /**
      * Logical id for the backing EventBridge rule.
@@ -134,4 +134,4 @@ export interface ImageScansProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeImageScans: <StreamReq = never, Req = never>(props: ImageScansProps, process: (events: Stream.Stream<ImageScanEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeImageScans: <StreamReq = never, Req = never>(props: ImageScansProps, process: (events: Stream.Stream<ImageScanEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload AWS HealthImaging delivers to EventBridge. Which
  * fields are present depends on the event kind — import job events carry
@@ -88,4 +88,4 @@ export interface ImagingEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeImagingEvents: <StreamReq = never, Req = never>(props: ImagingEventSourceProps, process: (events: Stream.Stream<MedicalImagingEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeImagingEvents: <StreamReq = never, Req = never>(props: ImagingEventSourceProps, process: (events: Stream.Stream<MedicalImagingEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

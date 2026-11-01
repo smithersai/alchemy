@@ -1,6 +1,6 @@
 import type lambda from "aws-lambda";
 import * as Layer from "effect/Layer";
-import { StreamEventSource as KinesisStreamEventSource } from "../Kinesis/StreamEventSource.js";
+import { StreamEventSource as KinesisStreamEventSource } from "../Kinesis/StreamEventSource.vibe";
 import * as Lambda from "./Function.js";
 export declare const isKinesisStreamEvent: (event: any) => event is lambda.KinesisStreamEvent;
 /** @binding */

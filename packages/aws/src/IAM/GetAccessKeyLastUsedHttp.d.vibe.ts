@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetAccessKeyLastUsed } from "./GetAccessKeyLastUsed.js";
+import { GetAccessKeyLastUsed } from "./GetAccessKeyLastUsed.vibe";
 /**
  * Bespoke (resource-bound) IAM HTTP binding: unlike the account-level
  * bindings built on `makeIamHttpBinding`, this one binds a canonical

@@ -1,0 +1,83 @@
+import * as Namespace from "alchemy/Namespace"
+import type lambda from "aws-lambda"
+import * as Layer from "effect/Layer"
+import { Subscription as SNSSubscription } from "../SNS/Subscription.vibe"
+import type { Topic } from "../SNS/Topic.vibe"
+import {
+  TopicEventSource as SNSTopicEventSource,
+  type TopicEventSourceProps,
+  type TopicEventSourceService,
+  type TopicNotification,
+} from "../SNS/TopicEventSource.vibe"
+import * as Lambda from "./Function.ts"
+import { Permission as LambdaPermission } from "./Permission.vibe"
+
+export const isSNSEvent = (event: any): event is lambda.SNSEvent =>
+  Array.isArray(event?.Records)
+  && event.Records.some((record: any) => record.EventSource === "aws:sns")
+
+/** @binding */
+export const TopicEventSource = Layer.effect(
+  SNSTopicEventSource,
+  effect {
+    const host = try Lambda.eventSourceHost("AWS.Lambda.TopicEventSource")
+    const Permission = try LambdaPermission
+    const Subscription = try SNSSubscription
+
+    return (effect <StreamReq = never, Req = never>(
+      topic: Topic,
+      props: TopicEventSourceProps,
+      process: (
+        stream: Stream<TopicNotification, never, StreamReq>,
+      ) => void!never!Req,
+    ) => {
+      const TopicArn = try topic.topicArn.asEffect()
+
+      // Deploy-time: grant invoke permission and create the SNS subscription.
+      // Skipped once running inside the deployed Function (the global guard),
+      // where the only work is registering the runtime handler below.
+      // Namespaced under the host so the sub-resources' logical identity matches
+      // the previous Binding.Policy.
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try Namespace.push(
+          host.LogicalId,
+          effect {
+            try Permission(`AWS.Lambda.InvokeFunction(${topic.LogicalId})`, {
+              action: "lambda:InvokeFunction",
+              functionName: Lambda.qualifiedNameOf(host),
+              principal: "sns.amazonaws.com",
+              sourceArn: topic.topicArn,
+            })
+
+            try Subscription(`AWS.SNS.Subscription(${topic.LogicalId}, ${host.LogicalId})`, {
+              topicArn: topic.topicArn,
+              protocol: "lambda",
+              endpoint: Lambda.qualifiedArnOf(host),
+              attributes: props.attributes,
+              returnSubscriptionArn: true,
+            })
+          },
+        )
+      }
+
+      try host.listen(
+        effect {
+          const topicArn = try TopicArn
+
+          return effect (event: any) => {
+            if (isSNSEvent(event)) {
+              const records = event.Records.filter((record) => record.Sns?.TopicArn === topicArn)
+
+              if (records.length > 0) {
+                return try (process(
+                  Stream.fromArray(records.map((record) => record.Sns as TopicNotification)),
+                )
+                  |> Effect.orDie(%))
+              }
+            }
+          }
+        },
+      )
+    }) as TopicEventSourceService
+  },
+)

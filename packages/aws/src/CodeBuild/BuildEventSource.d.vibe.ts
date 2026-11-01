@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload CodeBuild delivers to EventBridge when a build
  * changes state or completes a phase. CodeBuild uses hyphenated keys;
@@ -82,4 +82,4 @@ export interface BuildEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeBuildEvents: <StreamReq = never, Req = never>(props: BuildEventSourceProps, process: (events: Stream.Stream<BuildEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeBuildEvents: <StreamReq = never, Req = never>(props: BuildEventSourceProps, process: (events: Stream.Stream<BuildEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

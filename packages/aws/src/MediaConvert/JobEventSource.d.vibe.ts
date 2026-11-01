@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload AWS Elemental MediaConvert delivers to EventBridge
  * when a transcode job changes state (`MediaConvert Job State Change`).
@@ -80,4 +80,4 @@ export interface JobEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeJobEvents: <StreamReq = never, Req = never>(props: JobEventSourceProps, process: (events: Stream.Stream<MediaConvertJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeJobEvents: <StreamReq = never, Req = never>(props: JobEventSourceProps, process: (events: Stream.Stream<MediaConvertJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

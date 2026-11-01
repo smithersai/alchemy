@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload RDS delivers to EventBridge. Every field is optional
  * (the schema grows over time).
@@ -87,4 +87,4 @@ export interface RdsEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeRdsEvents: <StreamReq = never, Req = never>(props: RdsEventSourceProps, process: (events: Stream.Stream<RdsEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeRdsEvents: <StreamReq = never, Req = never>(props: RdsEventSourceProps, process: (events: Stream.Stream<RdsEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { DestinationEventSource as IoTWirelessDestinationEventSource, type WirelessUplinkMessage } from "../IoTWireless/DestinationEventSource.js";
+import { DestinationEventSource as IoTWirelessDestinationEventSource, type WirelessUplinkMessage } from "../IoTWireless/DestinationEventSource.vibe";
 import * as Lambda from "./Function.js";
 /**
  * An IoT Wireless uplink invocation — the envelope IoT Core for LoRaWAN

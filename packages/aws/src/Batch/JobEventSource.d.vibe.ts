@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload AWS Batch delivers to EventBridge when a job changes
  * state (`Batch Job State Change`) or a job queue becomes blocked
@@ -79,4 +79,4 @@ export interface JobEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeJobEvents: <StreamReq = never, Req = never>(props: JobEventSourceProps, process: (events: Stream.Stream<BatchJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeJobEvents: <StreamReq = never, Req = never>(props: JobEventSourceProps, process: (events: Stream.Stream<BatchJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

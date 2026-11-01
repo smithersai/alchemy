@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Amazon IVS delivers to EventBridge. Stream
  * state-change events describe the transition (`event_name` of
@@ -94,4 +94,4 @@ export interface StreamEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeStreamEvents: <StreamReq = never, Req = never>(props: StreamEventSourceProps, process: (events: Stream.Stream<IvsStreamEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeStreamEvents: <StreamReq = never, Req = never>(props: StreamEventSourceProps, process: (events: Stream.Stream<IvsStreamEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

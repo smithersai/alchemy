@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload DMS delivers to EventBridge when a replication
  * instance or replication task changes state (source `aws.dms`). Fields not
@@ -71,4 +71,4 @@ export interface ReplicationEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeReplicationEvents: <StreamReq = never, Req = never>(props: ReplicationEventSourceProps, process: (events: Stream.Stream<DmsReplicationEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeReplicationEvents: <StreamReq = never, Req = never>(props: ReplicationEventSourceProps, process: (events: Stream.Stream<DmsReplicationEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

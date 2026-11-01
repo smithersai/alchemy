@@ -1,0 +1,232 @@
+/**
+ * Network connector lifecycle shared by `AWS.Lambda.NetworkConnector` and
+ * `AWS.Lambda.WebFunction` (which manages a connector for its `vpc`).
+ *
+ * NOT exported from `index.ts`.
+ */
+import * as lambdacore from "@distilled.cloud/aws/lambda-core"
+import { deepEqual } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import type { ScopedPlanStatusSession } from "alchemy/Report"
+import { createInternalTags } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import type { NetworkConnectorProps } from "./NetworkConnector.vibe"
+
+// === Helpers ===============================================================
+
+export const resolveName = effect (
+  id: string,
+  name?: string,
+) => (name ? name : try createPhysicalName({ id, maxLength: 64, delimiter: "-" }))
+
+// A freshly-created IAM operator role (and its inline policies) takes a few
+// seconds to propagate before Lambda can assume it. A genuinely misconfigured
+// role still fails once the bounded retry window elapses.
+export const isOperatorRolePropagationError = (e: { mutable _tag: string }): infer _ =>
+  e._tag === "OperatorRoleNotAssumable"
+
+export const retryRolePropagation =
+  (session: ScopedPlanStatusSession): infer _ => effect <A, E extends { mutable _tag: string }, R>(self: A!E!R): A!E!R =>
+    try (self
+      |> Effect.tapError(
+        %,
+        effect (e) => (isOperatorRolePropagationError(e)
+          ? try session.note("Waiting for the operator role to become assumable by Lambda...")
+          : try Effect.void),
+      )
+      |> Effect.retry(%, {
+        while: (e) => isOperatorRolePropagationError(e),
+        schedule: Schedule.max([Schedule.fixed(1_000), Schedule.recurs(50)]),
+      }))
+
+export const getConnector = effect (identifier: string) =>
+  lambdacore
+    .getNetworkConnector({ Identifier: identifier }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const normalizeList = (values: readonly string[] | undefined): string[] => [...(values ?? [])].sort()
+
+export const desiredEgress = (
+  props: NetworkConnectorProps,
+): lambdacore.NetworkConnectorVpcEgressConfiguration => ({
+  SubnetIds: props.subnetIds,
+  SecurityGroupIds: props.securityGroupIds,
+  // The API rejects a VPC_EGRESS connector without a protocol, so apply the
+  // documented default.
+  NetworkProtocol: props.networkProtocol ?? "IPv4",
+  // The API requires AssociatedComputeResourceTypes for VPC_EGRESS connectors,
+  // so apply the documented default when the prop is omitted.
+  AssociatedComputeResourceTypes: props.associatedComputeResourceTypes ?? ["MicroVm"],
+})
+
+export const egressEqual = (
+  a: lambdacore.NetworkConnectorVpcEgressConfiguration | undefined,
+  b: lambdacore.NetworkConnectorVpcEgressConfiguration | undefined,
+): boolean =>
+  deepEqual(
+    {
+      SubnetIds: normalizeList(a?.SubnetIds),
+      SecurityGroupIds: normalizeList(a?.SecurityGroupIds),
+      NetworkProtocol: a?.NetworkProtocol,
+      AssociatedComputeResourceTypes: normalizeList(a?.AssociatedComputeResourceTypes),
+    },
+    {
+      SubnetIds: normalizeList(b?.SubnetIds),
+      SecurityGroupIds: normalizeList(b?.SecurityGroupIds),
+      NetworkProtocol: b?.NetworkProtocol,
+      AssociatedComputeResourceTypes: normalizeList(b?.AssociatedComputeResourceTypes),
+    },
+  )
+
+// Create the connector with ownership tags and wait for it to become ACTIVE.
+export const createConnector = effect (
+  name: string,
+  news: NetworkConnectorProps,
+  id: string,
+  session: ScopedPlanStatusSession,
+) => {
+  const internalTags = try createInternalTags(id)
+  try session.note(`Creating network connector ${name}...`)
+  const created = (try (lambdacore
+    .createNetworkConnector({
+      Name: name,
+      Configuration: { VpcEgressConfiguration: desiredEgress(news) },
+      OperatorRole: news.operatorRole,
+      Tags: { ...internalTags, ...news.tags },
+    })
+    |> retryRolePropagation(session)(%))) catch effect (e) => match (e) {
+      when { _tag: "ResourceConflictException" }: try effect {
+        const existing = try getConnector(name)
+        return (existing ? existing : try Effect.die(`Network connector ${name} conflicted but was not found.`))
+      };
+      default: throw e;
+    }
+  return try waitForActive(created.Id ?? created.Arn, session)
+}
+
+// Apply config / operator-role changes against observed state, waiting for the
+// update to settle; otherwise return the observed connector untouched.
+export const syncConnector = effect (
+  connector: lambdacore.GetNetworkConnectorResponse,
+  name: string,
+  news: NetworkConnectorProps,
+  session: ScopedPlanStatusSession,
+) => {
+  const observedEgress = connector.Configuration?.VpcEgressConfiguration
+  if (
+    egressEqual(observedEgress, desiredEgress(news))
+    && (connector.OperatorRole ?? undefined) === news.operatorRole
+  ) {
+    return connector
+  }
+  try session.note(`Updating network connector ${name}...`)
+  try (lambdacore
+    .updateNetworkConnector({
+      Identifier: connector.Id,
+      Configuration: { VpcEgressConfiguration: desiredEgress(news) },
+      OperatorRole: news.operatorRole,
+    })
+    |> retryRolePropagation(session)(%))
+  return try waitForUpdate(connector.Id, session)
+}
+
+export error ConnectorPending {
+  mutable identifier: string
+  mutable state: string
+}
+
+export error ConnectorFailed {
+  mutable identifier: string
+  mutable state: string
+  mutable reason?: string
+}
+
+export const waitForActive = effect (identifier: string, session: ScopedPlanStatusSession) =>
+  try (effect {
+    const connector = try lambdacore.getNetworkConnector({
+      Identifier: identifier,
+    })
+    switch (connector.State) {
+      case "ACTIVE":
+        return connector
+      case "FAILED":
+      case "DELETE_FAILED":
+        throw new ConnectorFailed({
+          identifier,
+          state: connector.State,
+          reason: connector.StateReason ?? connector.StateReasonCode,
+        })
+      default:
+        throw new ConnectorPending({
+          identifier,
+          state: connector.State ?? "PENDING",
+        })
+    }
+  }
+    |> Effect.retry(%, {
+      while: (e) => e._tag === "ConnectorPending",
+      schedule: Schedule.max([Schedule.fixed(10_000), Schedule.recurs(72)]).pipe(
+        Schedule.tap(({ attempt }) =>
+          session.note(`Waiting for network connector to become ACTIVE... (${attempt * 10}s)`)
+        ),
+      ),
+    }))
+
+export const waitForUpdate = effect (identifier: string, session: ScopedPlanStatusSession) =>
+  try (effect {
+    const connector = try lambdacore.getNetworkConnector({
+      Identifier: identifier,
+    })
+    switch (connector.LastUpdateStatus) {
+      case "Successful":
+      case undefined:
+        return connector
+      case "Failed":
+        throw new ConnectorFailed({
+          identifier,
+          state: connector.LastUpdateStatus,
+          reason: connector.LastUpdateStatusReason ?? connector.LastUpdateStatusReasonCode,
+        })
+      default:
+        throw new ConnectorPending({
+          identifier,
+          state: connector.LastUpdateStatus ?? "InProgress",
+        })
+    }
+  }
+    |> Effect.retry(%, {
+      while: (e) => e._tag === "ConnectorPending",
+      schedule: Schedule.max([Schedule.fixed(10_000), Schedule.recurs(72)]).pipe(
+        Schedule.tap(({ attempt }) => session.note(`Waiting for network connector update... (${attempt * 10}s)`)),
+      ),
+    }))
+
+export const waitForDeleted = effect (identifier: string, session: ScopedPlanStatusSession) =>
+  try (effect {
+    const connector = lambdacore
+      .getNetworkConnector({ Identifier: identifier }) catch effect (e) => match (e) {
+        when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+        default: throw e;
+      }
+    // A missing connector is the success signal — it has been deleted.
+    if (!connector) return
+    if (connector.State === "DELETE_FAILED") {
+      throw new ConnectorFailed({
+        identifier,
+        state: connector.State,
+        reason: connector.StateReason ?? connector.StateReasonCode,
+      })
+    }
+    throw new ConnectorPending({
+      identifier,
+      state: connector.State ?? "DELETING",
+    })
+  }
+    |> Effect.retry(%, {
+      while: (e) => e._tag === "ConnectorPending",
+      schedule: Schedule.max([Schedule.fixed(10_000), Schedule.recurs(72)]).pipe(
+        Schedule.tap(({ attempt }) => session.note(`Waiting for network connector deletion... (${attempt * 10}s)`)),
+      ),
+    }))

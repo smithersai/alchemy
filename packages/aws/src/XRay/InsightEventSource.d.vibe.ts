@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload X-Ray delivers to EventBridge when an insight is
  * created, updated, or closed. Delivery requires an X-Ray group with both
@@ -88,4 +88,4 @@ export interface InsightEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeInsightEvents: <StreamReq = never, Req = never>(props: InsightEventSourceProps, process: (events: Stream.Stream<InsightEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeInsightEvents: <StreamReq = never, Req = never>(props: InsightEventSourceProps, process: (events: Stream.Stream<InsightEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

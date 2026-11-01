@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Amazon Fraud Detector delivers to EventBridge when
  * event orchestration is enabled on an event type and a prediction is
@@ -85,4 +85,4 @@ export interface PredictionEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumePredictionEvents: <StreamReq = never, Req = never>(props: PredictionEventSourceProps, process: (events: Stream.Stream<PredictionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumePredictionEvents: <StreamReq = never, Req = never>(props: PredictionEventSourceProps, process: (events: Stream.Stream<PredictionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

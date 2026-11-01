@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { UserPoolTriggerEventSource as CognitoUserPoolTriggerEventSource } from "../Cognito/UserPoolTriggerEventSource.js";
+import { UserPoolTriggerEventSource as CognitoUserPoolTriggerEventSource } from "../Cognito/UserPoolTriggerEventSource.vibe";
 import * as Lambda from "./Function.js";
 /**
  * The `version`/`triggerSource`/`userPoolId`/`request`/`response` envelope

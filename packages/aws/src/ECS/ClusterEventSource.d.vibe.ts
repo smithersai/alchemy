@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Amazon ECS delivers to EventBridge. Task state-change
  * events carry the task's shape (`lastStatus`, `stoppedReason`, `containers`,
@@ -99,4 +99,4 @@ export interface ClusterEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeClusterEvents: <StreamReq = never, Req = never>(props: ClusterEventSourceProps, process: (events: Stream.Stream<ClusterEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeClusterEvents: <StreamReq = never, Req = never>(props: ClusterEventSourceProps, process: (events: Stream.Stream<ClusterEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

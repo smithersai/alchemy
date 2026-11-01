@@ -1,7 +1,7 @@
 import type { Input } from "alchemy/Input";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The detail-types CloudWatch Synthetics publishes to EventBridge:
  * canary lifecycle transitions and per-run pass/fail results.
@@ -100,4 +100,4 @@ export interface CanaryEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeCanaryEvents: <StreamReq = never, Req = never>(props: CanaryEventSourceProps, process: (events: Stream.Stream<CanaryEventRecord, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeCanaryEvents: <StreamReq = never, Req = never>(props: CanaryEventSourceProps, process: (events: Stream.Stream<CanaryEventRecord, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

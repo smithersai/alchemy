@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Systems Manager delivers to EventBridge when a
  * Parameter Store parameter changes (`Parameter Store Change`) or a
@@ -81,4 +81,4 @@ export interface ParameterEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeParameterEvents: <StreamReq = never, Req = never>(props: ParameterEventSourceProps, process: (events: Stream.Stream<ParameterEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeParameterEvents: <StreamReq = never, Req = never>(props: ParameterEventSourceProps, process: (events: Stream.Stream<ParameterEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Amazon HealthOmics delivers to EventBridge when a
  * workflow run changes state (`Run Status Change`, source `aws.omics`). Which
@@ -73,4 +73,4 @@ export interface RunStatusEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeRunEvents: <StreamReq = never, Req = never>(props: RunStatusEventSourceProps, process: (events: Stream.Stream<OmicsRunEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeRunEvents: <StreamReq = never, Req = never>(props: RunStatusEventSourceProps, process: (events: Stream.Stream<OmicsRunEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

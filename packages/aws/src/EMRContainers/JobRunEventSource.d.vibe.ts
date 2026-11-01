@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Amazon EMR on EKS delivers to EventBridge for job
  * run state changes. Fields not shared by every event are optional (the
@@ -78,4 +78,4 @@ export interface JobRunEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeJobRunEvents: <StreamReq = never, Req = never>(props: JobRunEventSourceProps, process: (events: Stream.Stream<JobRunEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeJobRunEvents: <StreamReq = never, Req = never>(props: JobRunEventSourceProps, process: (events: Stream.Stream<JobRunEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

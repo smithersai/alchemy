@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RoomMessageReviewEventSource as IVSChatRoomMessageReviewEventSource, type RoomMessageEvent } from "../IVSChat/RoomMessageReviewEventSource.js";
+import { RoomMessageReviewEventSource as IVSChatRoomMessageReviewEventSource, type RoomMessageEvent } from "../IVSChat/RoomMessageReviewEventSource.vibe";
 import * as Lambda from "./Function.js";
 /**
  * An IVS Chat message review invocation — the PascalCase

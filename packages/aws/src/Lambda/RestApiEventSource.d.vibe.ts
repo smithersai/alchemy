@@ -1,6 +1,6 @@
 import type lambda from "aws-lambda";
 import * as Layer from "effect/Layer";
-import { RestApiEventSource as AGRestApiEventSource } from "../ApiGateway/RestApiEventSource.js";
+import { RestApiEventSource as AGRestApiEventSource } from "../ApiGateway/RestApiEventSource.vibe";
 import * as Lambda from "./Function.js";
 export declare const isRestApiEvent: (event: any) => event is lambda.APIGatewayProxyEvent;
 /**

@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * A package version state, as reported in the EventBridge event detail.
  */
@@ -113,4 +113,4 @@ export interface PackageVersionStateChangesProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumePackageVersionStateChanges: <StreamReq = never, Req = never>(props: PackageVersionStateChangesProps, process: (events: Stream.Stream<PackageVersionStateChangeEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumePackageVersionStateChanges: <StreamReq = never, Req = never>(props: PackageVersionStateChangesProps, process: (events: Stream.Stream<PackageVersionStateChangeEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

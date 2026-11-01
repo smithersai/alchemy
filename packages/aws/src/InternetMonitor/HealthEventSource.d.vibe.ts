@@ -1,7 +1,7 @@
 import type { Input } from "alchemy/Input";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Amazon CloudWatch Internet Monitor delivers to
  * EventBridge when a monitor creates or resolves a health event. Fields not
@@ -100,4 +100,4 @@ export interface HealthEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeHealthEvents: <StreamReq = never, Req = never>(props: HealthEventSourceProps, process: (events: Stream.Stream<HealthEventRecord, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeHealthEvents: <StreamReq = never, Req = never>(props: HealthEventSourceProps, process: (events: Stream.Stream<HealthEventRecord, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

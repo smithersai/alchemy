@@ -9,5 +9,5 @@
  * [Cloudflare/Local.ts](../../Cloudflare/Local.ts).
  */
 import * as Layer from "effect/Layer";
-declare const _default: Layer.Layer<import("alchemy").Provider<import("../Lambda/Function.js").Function> | import("alchemy").Provider<import("../Lambda/MicrovmImage.js").MicrovmImage> | import("alchemy").Provider<import("../ECS/Service.js").Service> | import("alchemy").Provider<import("../ECS/Task.js").Task>, never, import("alchemy").AlchemyContext | import("alchemy/Artifacts").ArtifactStore | import("effect/process/ChildProcessSpawner").ChildProcessSpawner | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("effect/Scope").Scope | import("alchemy").Stack>;
+declare const _default: Layer.Layer<import("alchemy").Provider<import("../Lambda/Function.js").Function> | import("alchemy").Provider<import("../Lambda/MicrovmImage.vibe").MicrovmImage> | import("alchemy").Provider<import("../ECS/Service.js").Service> | import("alchemy").Provider<import("../ECS/Task.js").Task>, never, import("alchemy").AlchemyContext | import("alchemy/Artifacts").ArtifactStore | import("effect/process/ChildProcessSpawner").ChildProcessSpawner | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("effect/Scope").Scope | import("alchemy").Stack>;
 export default _default;

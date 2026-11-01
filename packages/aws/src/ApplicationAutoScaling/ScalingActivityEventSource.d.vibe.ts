@@ -1,7 +1,7 @@
 import type * as aas from "@distilled.cloud/aws/application-auto-scaling";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord } from "../EventBridge/EventSource.js";
+import { type EventRecord } from "../EventBridge/EventSource.vibe";
 import type { ScalableTarget } from "./ScalableTarget.vibe";
 /**
  * The `detail` payload Application Auto Scaling delivers to EventBridge for a
@@ -95,4 +95,4 @@ export interface ScalingActivityEventSourceProps {
  * );
  * ```
  */
-export declare const consumeScalingActivityEvents: <StreamReq = never, Req = never>(target: ScalableTarget, props: ScalingActivityEventSourceProps, process: (events: Stream.Stream<ScalingActivityEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeScalingActivityEvents: <StreamReq = never, Req = never>(target: ScalableTarget, props: ScalingActivityEventSourceProps, process: (events: Stream.Stream<ScalingActivityEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

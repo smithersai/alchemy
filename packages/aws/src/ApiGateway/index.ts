@@ -84,4 +84,4 @@ export {
   type RestApiEventSourceService,
   type RestApiResult,
   type RestApiRouteProps,
-} from "./RestApiEventSource.ts";
+} from "./RestApiEventSource.vibe";

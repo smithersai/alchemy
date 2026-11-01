@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload AWS Resource Groups delivers to EventBridge for
  * group lifecycle events. State-change events describe the group create/
@@ -89,4 +89,4 @@ export interface GroupEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeGroupEvents: <StreamReq = never, Req = never>(props: GroupEventSourceProps, process: (events: Stream.Stream<GroupEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeGroupEvents: <StreamReq = never, Req = never>(props: GroupEventSourceProps, process: (events: Stream.Stream<GroupEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

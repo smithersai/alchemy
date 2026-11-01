@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord } from "../EventBridge/EventSource.js";
+import { type EventRecord } from "../EventBridge/EventSource.vibe";
 import type { Instance } from "./Instance.js";
 /**
  * Lifecycle states EC2 reports through the
@@ -61,4 +61,4 @@ export interface InstanceStateEventSourceProps {
  * );
  * ```
  */
-export declare const consumeInstanceStateEvents: <StreamReq = never, Req = never>(instance: Instance, props: InstanceStateEventSourceProps, process: (events: Stream.Stream<InstanceStateChangeEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeInstanceStateEvents: <StreamReq = never, Req = never>(instance: Instance, props: InstanceStateEventSourceProps, process: (events: Stream.Stream<InstanceStateChangeEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

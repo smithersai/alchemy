@@ -10,7 +10,7 @@ export {
   CertificateValidation,
   CertificateValidationProvider,
   type CertificateValidationProps,
-} from "./CertificateValidation.ts";
+} from "./CertificateValidation.vibe";
 export * from "./DescribeCertificate.vibe";
 export * from "./DescribeCertificateHttp.vibe";
 export * from "./ExpiryEventSource.vibe";

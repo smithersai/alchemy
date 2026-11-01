@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { BrokerEventSource as MQBrokerEventSource, type MQEvent } from "../MQ/BrokerEventSource.js";
+import { BrokerEventSource as MQBrokerEventSource, type MQEvent } from "../MQ/BrokerEventSource.vibe";
 import * as Lambda from "./Function.js";
 /** Narrow an incoming Lambda event to an Amazon MQ (ActiveMQ/RabbitMQ) event. */
 export declare const isMQEvent: (event: any) => event is MQEvent;

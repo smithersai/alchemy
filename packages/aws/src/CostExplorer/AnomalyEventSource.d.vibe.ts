@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Cost Anomaly Detection delivers to EventBridge when
  * a monitor detects a cost anomaly. Fields mirror the `Anomaly` shape the
@@ -112,4 +112,4 @@ export interface AnomalyEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeAnomalyEvents: <StreamReq = never, Req = never>(props: AnomalyEventSourceProps, process: (events: Stream.Stream<AnomalyEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeAnomalyEvents: <StreamReq = never, Req = never>(props: AnomalyEventSourceProps, process: (events: Stream.Stream<AnomalyEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

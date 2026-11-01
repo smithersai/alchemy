@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload CodePipeline delivers to EventBridge when a pipeline,
  * stage, or action execution changes state. Fields not shared by every
@@ -83,4 +83,4 @@ export interface PipelineEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumePipelineEvents: <StreamReq = never, Req = never>(props: PipelineEventSourceProps, process: (events: Stream.Stream<PipelineEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumePipelineEvents: <StreamReq = never, Req = never>(props: PipelineEventSourceProps, process: (events: Stream.Stream<PipelineEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

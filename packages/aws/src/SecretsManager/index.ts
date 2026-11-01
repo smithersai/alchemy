@@ -14,7 +14,7 @@ export * from "./PutSecretValue.vibe";
 export * from "./PutSecretValueHttp.vibe";
 export * from "./RotateSecret.vibe";
 export * from "./RotateSecretHttp.vibe";
-export * from "./RotationEventSource.ts";
+export * from "./RotationEventSource.vibe";
 export * from "./RotationSchedule.vibe";
 export * from "./Secret.ts";
 export * from "./UpdateSecretVersionStage.vibe";

@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Neptune delivers to EventBridge. Neptune publishes
  * through the shared RDS eventing plane, so the shape is the RDS event
@@ -90,4 +90,4 @@ export interface NeptuneEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeNeptuneEvents: <StreamReq = never, Req = never>(props: NeptuneEventSourceProps, process: (events: Stream.Stream<NeptuneEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeNeptuneEvents: <StreamReq = never, Req = never>(props: NeptuneEventSourceProps, process: (events: Stream.Stream<NeptuneEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

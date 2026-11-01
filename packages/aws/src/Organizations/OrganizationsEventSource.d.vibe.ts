@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The commonly-consumed AWS Organizations event names. Organizations
  * publishes CloudTrail-backed events — `CreateAccountResult` arrives as an
@@ -92,4 +92,4 @@ export interface OrganizationsEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeOrganizationsEvents: <StreamReq = never, Req = never>(props: OrganizationsEventSourceProps, process: (events: Stream.Stream<OrganizationsEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeOrganizationsEvents: <StreamReq = never, Req = never>(props: OrganizationsEventSourceProps, process: (events: Stream.Stream<OrganizationsEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

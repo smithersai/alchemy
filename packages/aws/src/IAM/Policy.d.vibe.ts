@@ -13,7 +13,7 @@ export declare class PolicyConflict extends PolicyConflict_base<{
 }> {
 }
 export type { IamAction } from "./actions.generated.js";
-export { stringifyPolicyDocument } from "./common.js";
+export { stringifyPolicyDocument } from "./common.vibe";
 export interface PolicyDocument {
     Version: "2012-10-17";
     Statement: PolicyStatement[];

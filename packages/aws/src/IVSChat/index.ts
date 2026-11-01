@@ -6,6 +6,6 @@ export * from "./DisconnectUser.vibe";
 export * from "./DisconnectUserHttp.vibe";
 export * from "./LoggingConfiguration.vibe";
 export * from "./Room.vibe";
-export * from "./RoomMessageReviewEventSource.ts";
+export * from "./RoomMessageReviewEventSource.vibe";
 export * from "./SendEvent.vibe";
 export * from "./SendEventHttp.vibe";

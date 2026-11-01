@@ -1,5 +1,5 @@
 export * from "./Broker.vibe";
-export * from "./BrokerEventSource.ts";
+export * from "./BrokerEventSource.vibe";
 export * from "./Configuration.vibe";
 export * from "./CreateUser.vibe";
 export * from "./CreateUserHttp.vibe";

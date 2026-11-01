@@ -32,7 +32,7 @@ export * from "./SplitShard.vibe";
 export * from "./SplitShardHttp.ts";
 export * from "./Stream.vibe";
 export * from "./StreamConsumer.vibe";
-export * from "./StreamEventSource.ts";
+export * from "./StreamEventSource.vibe";
 export * from "./StreamSink.vibe";
 export * from "./StreamSinkHttp.vibe";
 export * from "./SubscribeToShard.vibe";

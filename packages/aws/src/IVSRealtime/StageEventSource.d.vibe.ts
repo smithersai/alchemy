@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Amazon IVS Real-Time Streaming delivers to
  * EventBridge. Stage-update events describe participant activity
@@ -84,4 +84,4 @@ export interface StageEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeStageEvents: <StreamReq = never, Req = never>(props: StageEventSourceProps, process: (events: Stream.Stream<StageEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeStageEvents: <StreamReq = never, Req = never>(props: StageEventSourceProps, process: (events: Stream.Stream<StageEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

@@ -20,7 +20,7 @@ import type * as rolldown from "rolldown";
 import { DEFAULT_LOCAL_ENDPOINT } from "./AuthProvider.ts";
 import { Credentials, makeAssumeRoleResolver } from "./Credentials.ts";
 import { AWSEnvironment } from "./Environment.ts";
-import { AccessKey } from "./IAM/AccessKey.ts";
+import { AccessKey } from "./IAM/AccessKey.vibe";
 import type { PolicyStatement } from "./IAM/Policy.vibe";
 import { Role } from "./IAM/Role.ts";
 import { User } from "./IAM/User.vibe";

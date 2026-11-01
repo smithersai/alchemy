@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload SES delivers to EventBridge for an email sending
  * event. Every event carries `eventType` and `mail`; the event-specific
@@ -84,4 +84,4 @@ export interface EmailEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeEmailEvents: <StreamReq = never, Req = never>(props: EmailEventSourceProps, process: (events: Stream.Stream<EmailEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeEmailEvents: <StreamReq = never, Req = never>(props: EmailEventSourceProps, process: (events: Stream.Stream<EmailEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

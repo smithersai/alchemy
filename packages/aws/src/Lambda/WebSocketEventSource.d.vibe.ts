@@ -1,6 +1,6 @@
 import type lambda from "aws-lambda";
 import * as Layer from "effect/Layer";
-import { WebSocketEventSource as AGW2WebSocketEventSource } from "../ApiGatewayV2/WebSocketEventSource.js";
+import { WebSocketEventSource as AGW2WebSocketEventSource } from "../ApiGatewayV2/WebSocketEventSource.vibe";
 import * as Lambda from "./Function.js";
 export declare const isWebSocketEvent: (event: any) => event is lambda.APIGatewayProxyWebsocketEventV2;
 /**

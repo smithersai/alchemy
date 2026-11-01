@@ -18,7 +18,7 @@ export * from "./GetQueryResultsHttp.vibe";
 export * from "./LogEventSink.vibe";
 export * from "./LogEventSinkHttp.vibe";
 export { LogGroup, LogGroupProvider, type LogGroupClass } from "./LogGroup.ts";
-export * from "./LogGroupEventSource.ts";
+export * from "./LogGroupEventSource.vibe";
 export * from "./LogStream.vibe";
 export * from "./MetricFilter.vibe";
 export * from "./PutLogEvents.vibe";

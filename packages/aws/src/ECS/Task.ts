@@ -29,7 +29,7 @@ import {
   type DockerfileImageSource,
   type ImageSourceLike,
   type RegistryImageSource,
-} from "../ECR/ImageSource.ts";
+} from "../ECR/ImageSource.vibe";
 import { AWSEnvironment } from "../Environment.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.ts";

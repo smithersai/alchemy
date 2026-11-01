@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Amazon DataZone delivers to EventBridge. Every
  * DataZone event carries `metadata` (the entity's id/version) and a
@@ -94,4 +94,4 @@ export interface DataZoneEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeDataZoneEvents: <StreamReq = never, Req = never>(props: DataZoneEventSourceProps, process: (events: Stream.Stream<DataZoneEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumeDataZoneEvents: <StreamReq = never, Req = never>(props: DataZoneEventSourceProps, process: (events: Stream.Stream<DataZoneEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

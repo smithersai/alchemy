@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Amazon Data Lifecycle Manager delivers to
  * EventBridge. State-change events describe the transition (`state`,
@@ -80,4 +80,4 @@ export interface LifecyclePolicyEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumePolicyEvents: <StreamReq = never, Req = never>(props: LifecyclePolicyEventSourceProps, process: (events: Stream.Stream<LifecyclePolicyEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
+export declare const consumePolicyEvents: <StreamReq = never, Req = never>(props: LifecyclePolicyEventSourceProps, process: (events: Stream.Stream<LifecyclePolicyEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
