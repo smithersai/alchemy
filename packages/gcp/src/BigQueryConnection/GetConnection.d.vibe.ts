@@ -2,7 +2,7 @@ import type * as bigqueryconnection from "@distilled.cloud/gcp/bigqueryconnectio
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Connection } from "./Connection.js";
+import type { Connection } from "./Connection.vibe";
 export interface GetConnectionRequest extends Omit<bigqueryconnection.GetProjectsLocationsConnectionsRequest, "name"> {
 }
 /**

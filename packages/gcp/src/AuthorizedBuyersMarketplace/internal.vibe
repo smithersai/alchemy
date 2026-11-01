@@ -1,0 +1,122 @@
+import * as marketplace from "@distilled.cloud/gcp/authorizedbuyersmarketplace_v1"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Effect from "effect/Effect"
+
+export const PROBE_PARENT = "buyers/1/clients/1"
+export const PROBE_NAME = `${PROBE_PARENT}/users/0`
+
+export type ClientUserState = marketplace.ClientUserStateEnum
+
+export const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+export const normalizeResourceName = (value: string): infer _ => value.replace(/\/+$/, "").trim()
+
+export const expandParent = (value: string): infer _ => {
+  const trimmed = normalizeResourceName(value)
+  if (trimmed.length === 0) return trimmed
+  if (trimmed.includes("/clients/")) {
+    return trimmed.startsWith("buyers/") ? trimmed : `buyers/${trimmed}`
+  }
+  return trimmed
+}
+
+export const parentOfName = (name: string): infer _ => {
+  const parts = name.split("/").filter((part) => part.length > 0)
+  const usersIndex = parts.lastIndexOf("users")
+  if (usersIndex > 0) return parts.slice(0, usersIndex).join("/")
+  const clientUsersIndex = parts.lastIndexOf("clientUsers")
+  if (clientUsersIndex > 0) return parts.slice(0, clientUsersIndex).join("/")
+  return ""
+}
+
+export const resourceName = (parent: string, userId: string): infer _ => `${expandParent(parent)}/users/${userId}`
+
+export const userIdOf = (name: string): infer _ => lastSegment(name)
+
+export const sameText = (left: string | undefined, right: string | undefined): infer _ => (left ?? "") === (right ?? "")
+
+export const normalizeEmail = (email: string | undefined): infer _ => (email ?? "").trim().toLowerCase()
+
+export const replaceOnIdentity = (input: {
+  mutable previousParent?: string
+  mutable nextParent: string
+  mutable previousEmail?: string
+  mutable nextEmail?: string
+  mutable previousUserId?: string
+  mutable nextUserId?: string
+}): infer _ => {
+  if (
+    input.previousParent !== undefined
+    && input.previousParent.length > 0
+    && input.previousParent !== input.nextParent
+  ) {
+    return { action: "replace" as const, deleteFirst: false }
+  }
+  if (
+    input.previousEmail !== undefined
+    && input.nextEmail !== undefined
+    && normalizeEmail(input.previousEmail) !== normalizeEmail(input.nextEmail)
+  ) {
+    return { action: "replace" as const, deleteFirst: false }
+  }
+  if (
+    input.previousUserId !== undefined
+    && input.nextUserId !== undefined
+    && input.previousUserId !== input.nextUserId
+  ) {
+    return { action: "replace" as const, deleteFirst: true }
+  }
+  return undefined
+}
+
+export const toEmail = effect (id: string, requested: string | undefined, existing: string | undefined) => {
+  if (requested !== undefined && requested.length > 0) return requested
+  if (existing !== undefined && existing.length > 0) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: 32,
+    lowercase: true,
+  })
+  const local = generated.replace(/[^a-z0-9]/g, "").slice(0, 32) || "alchemy"
+  return `${local}@example.com`
+}
+
+export type ClientUserAttrs = {
+  mutable name: string
+  mutable userId: string
+  mutable parent: string
+  mutable project: string
+  mutable email: string
+  mutable state: string | undefined
+}
+
+export const toAttrs = (
+  user: marketplace.ClientUser,
+  parent: string,
+  project: string,
+): ClientUserAttrs => {
+  const name = user.name ?? ""
+  return {
+    name,
+    userId: userIdOf(name),
+    parent: parentOfName(name) || parent,
+    project,
+    email: user.email ?? "",
+    state: user.state,
+  }
+}
+
+/** Email is unique per client, so it identifies the user. */
+export const findUserByEmail = (users: readonly marketplace.ClientUser[], email: string): infer _ =>
+  users.find((user) => normalizeEmail(user.email) === normalizeEmail(email))
+
+export const listUsers = effect (parent: string) =>
+  Array.from(
+    try (marketplace.listBuyersClientsUsers.pages({ parent, pageSize: 200 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.clientUsers ?? []))
+      |> Stream.runCollect(%)),
+  )

@@ -1,0 +1,372 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { lastSegment, orgParent, organizationFromName, sameJson, toResourceId } from "./names.vibe"
+import {
+  createInternalLabels,
+  encodeOwnership,
+  hasAlchemyLabels,
+  hasOwnershipMarker,
+  parseOwnership,
+} from "./ownership.ts"
+
+const MAX_NAME_LENGTH = 63
+
+export type ProfileConfigCategory = {
+  /** Include mediation scoring. */
+  mutable mediation?: boolean
+  /** Include abuse scoring. */
+  mutable abuse?: boolean
+  /** Include authorization scoring. */
+  mutable authorization?: boolean
+  /** Include mTLS scoring. */
+  mutable mtls?: boolean
+  /** Include CORS scoring. */
+  mutable cors?: boolean
+  /** Include threat-protection scoring. */
+  mutable threat?: boolean
+}
+
+export type ProfileConfig = {
+  /** Scoring categories enabled on this profile. */
+  mutable categories?: ProfileConfigCategory[]
+}
+
+export type ScoringConfig = {
+  /** Description of the scoring config. */
+  mutable description?: string
+  /** Path of the component config used for scoring. */
+  mutable scorePath?: string
+  /** Title of the config. */
+  mutable title?: string
+}
+
+export type SecurityProfileProps = {
+  /**
+   * Apigee organization id. Defaults to the current GCP project id.
+   * Immutable — changing it replaces the profile.
+   */
+  mutable organization?: string
+  /**
+   * Profile id (the `{profile}` segment of
+   * `organizations/{org}/securityProfiles/{profile}`). If omitted, a
+   * unique name is generated from the stack, stage, and logical id.
+   * 1–63 characters matching `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`.
+   * Immutable — changing it replaces the profile.
+   */
+  mutable securityProfileId?: string
+  /**
+   * Human-readable description. Alchemy ownership is stored in a
+   * `[alchemy …]` prefix and stripped from attributes. Profiles have no
+   * labels field.
+   */
+  mutable description?: string
+  /**
+   * Deprecated display name.
+   */
+  mutable displayName?: string
+  /**
+   * Profile configuration used to compute the security score.
+   * @default `{ categories: [{ authorization: true, threat: true }] }`
+   */
+  mutable profileConfig?: ProfileConfig
+  /**
+   * Scoring configs in this revision.
+   */
+  mutable scoringConfigs?: ScoringConfig[]
+}
+
+export type SecurityProfile = Resource<
+  "GCP.Apigee.SecurityProfile",
+  SecurityProfileProps,
+  {
+    /** Full resource name `organizations/{org}/securityProfiles/{profile}`. */
+    mutable name: string
+    /** Profile id (last path segment). */
+    mutable securityProfileId: string
+    /** Apigee organization id. */
+    mutable organization: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Deprecated display name. */
+    mutable displayName: string | undefined
+    /** Profile configuration. */
+    mutable profileConfig: ProfileConfig | undefined
+    /** Scoring configs. */
+    mutable scoringConfigs: ScoringConfig[]
+    /** Attached environments. */
+    mutable environments: Array<{
+      mutable environment: string | undefined
+      mutable attachTime: string | undefined
+    }>
+    /** Minimum score this profile can generate. */
+    mutable minScore: number | undefined
+    /** Maximum score this profile can generate. */
+    mutable maxScore: number | undefined
+    /** Revision id. */
+    mutable revisionId: string | undefined
+    /** Revision create time. */
+    mutable revisionCreateTime: string | undefined
+    /** Revision update time. */
+    mutable revisionUpdateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Advanced API Security profile (v1).
+ *
+ * Profiles have no labels field, so Alchemy stamps ownership into the
+ * description for `list` / nuke. Name and organization are identity —
+ * changing them replaces the profile. Description and profile config
+ * update in place (each update creates a new revision).
+ *
+ * ### Creating a Profile
+ * **Example:** Generated name with authorization and threat categories
+ * ```typescript
+ * const profile = yield* GCP.Apigee.SecurityProfile("Baseline", {
+ *   profileConfig: {
+ *     categories: [{ authorization: true, threat: true }],
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Named profile
+ * ```typescript
+ * const profile = yield* GCP.Apigee.SecurityProfile("Baseline", {
+ *   securityProfileId: "app-baseline",
+ *   description: "default scoring",
+ *   profileConfig: {
+ *     categories: [{ authorization: true, cors: true, threat: true }],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const SecurityProfile = Resource<SecurityProfile>("GCP.Apigee.SecurityProfile")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SecurityProfileNotResolved extends Data.TaggedError(
+  "GCP.Apigee.SecurityProfileNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const DEFAULT_PROFILE_CONFIG: ProfileConfig = {
+  categories: [{ authorization: true, threat: true }],
+}
+
+const resourceName = (organization: string, profileId: string): infer _ =>
+  `${orgParent(organization)}/securityProfiles/${profileId}`
+
+const profileIdOf = (profile: apigee.GoogleCloudApigeeV1SecurityProfile): infer _ => lastSegment(profile.name ?? "")
+
+const flag = (value: unknown): infer _ => value !== undefined && value !== false
+
+const categoryOf = (
+  category: apigee.GoogleCloudApigeeV1ProfileConfigCategory | ProfileConfigCategory,
+): ProfileConfigCategory => ({
+  mediation: flag(category.mediation) ? true : undefined,
+  abuse: flag(category.abuse) ? true : undefined,
+  authorization: flag(category.authorization) ? true : undefined,
+  mtls: flag(category.mtls) ? true : undefined,
+  cors: flag(category.cors) ? true : undefined,
+  threat: flag(category.threat) ? true : undefined,
+})
+
+const profileConfigOf = (
+  config: apigee.GoogleCloudApigeeV1ProfileConfig | ProfileConfig | undefined,
+): ProfileConfig => ({
+  categories: (config?.categories ?? DEFAULT_PROFILE_CONFIG.categories ?? []).map(categoryOf),
+})
+
+const toApiCategory = (
+  category: ProfileConfigCategory,
+): apigee.GoogleCloudApigeeV1ProfileConfigCategory => ({
+  mediation: category.mediation === true ? {} : undefined,
+  abuse: category.abuse === true ? {} : undefined,
+  authorization: category.authorization === true ? {} : undefined,
+  mtls: category.mtls === true ? {} : undefined,
+  cors: category.cors === true ? {} : undefined,
+  threat: category.threat === true ? {} : undefined,
+})
+
+const toAttrs = (profile: apigee.GoogleCloudApigeeV1SecurityProfile, organization: string): infer _ => {
+  const securityProfileId = profileIdOf(profile)
+  const name = profile.name?.includes("/")
+    ? profile.name
+    : resourceName(organization, securityProfileId)
+  const parsed = parseOwnership(profile.description)
+  return {
+    name,
+    securityProfileId,
+    organization: organizationFromName(name) ?? organization,
+    description: parsed.text,
+    displayName: profile.displayName,
+    profileConfig: profile.profileConfig ? profileConfigOf(profile.profileConfig) : undefined,
+    scoringConfigs: (profile.scoringConfigs ?? []).map((config) => ({
+      description: config.description,
+      scorePath: config.scorePath,
+      title: config.title,
+    })),
+    environments: (profile.environments ?? []).map((environment) => ({
+      environment: environment.environment,
+      attachTime: environment.attachTime,
+    })),
+    minScore: profile.minScore,
+    maxScore: profile.maxScore,
+    revisionId: profile.revisionId,
+    revisionCreateTime: profile.revisionCreateTime,
+    revisionUpdateTime: profile.revisionUpdateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsSecurityProfiles({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const toBody = (
+  news: SecurityProfileProps,
+  description: string,
+): apigee.GoogleCloudApigeeV1SecurityProfile => {
+  const config = profileConfigOf(news.profileConfig ?? DEFAULT_PROFILE_CONFIG)
+  return {
+    description,
+    displayName: news.displayName,
+    profileConfig: {
+      categories: (config.categories ?? []).map(toApiCategory),
+    },
+    scoringConfigs: news.scoringConfigs,
+  }
+}
+
+export const SecurityProfileProvider = (): infer _ =>
+  Provider.succeed(SecurityProfile, {
+    stables: ["name", "securityProfileId", "organization"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.securityProfileId ?? output?.securityProfileId
+      const previousOrg = olds?.organization ?? output?.organization
+      if (
+        (previousId !== undefined
+          && news.securityProfileId !== undefined
+          && news.securityProfileId !== previousId)
+        || (previousOrg !== undefined
+          && news.organization !== undefined
+          && news.organization !== previousOrg)
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = organizationFromName(output?.name) ?? olds?.organization ?? env.project
+      const securityProfileId = try toResourceId(
+        id,
+        olds?.securityProfileId,
+        output?.securityProfileId,
+        MAX_NAME_LENGTH,
+      )
+      const name = output?.name ?? resourceName(organization, securityProfileId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization)
+      const { labels } = parseOwnership(existing.description)
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return (Array.from(
+        try (apigee.listOrganizationsSecurityProfiles
+          .pages({
+            parent: orgParent(env.project),
+            pageSize: 50,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityProfiles ?? []))
+          |> Stream.filter(%, (profile) => hasOwnershipMarker(profile.description))
+          |> Stream.map(%, (profile) => toAttrs(profile, env.project))
+          |> Stream.runCollect(%)),
+      )) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as SecurityProfile["Attributes"][];
+        default: throw e;
+      }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = news.organization ?? output?.organization ?? env.project
+      const securityProfileId = try toResourceId(
+        id,
+        news.securityProfileId,
+        output?.securityProfileId,
+        MAX_NAME_LENGTH,
+      )
+      const name = resourceName(organization, securityProfileId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeOwnership(ownership, news.description)
+      const desiredConfig = profileConfigOf(news.profileConfig ?? DEFAULT_PROFILE_CONFIG)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsSecurityProfiles({
+            parent: orgParent(organization),
+            securityProfileId,
+            body: toBody(news, desiredDescription),
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SecurityProfileNotResolved({ resourceName: name })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const displayChanged = (current.displayName ?? "") !== (news.displayName ?? "")
+      const configChanged = !sameJson(profileConfigOf(current.profileConfig), desiredConfig)
+      const scoringChanged = !sameJson(
+        current.scoringConfigs ?? [],
+        news.scoringConfigs ?? current.scoringConfigs ?? [],
+      )
+
+      const updateMask = [
+        descriptionChanged ? "description" : undefined,
+        displayChanged ? "displayName" : undefined,
+        configChanged ? "profileConfig" : undefined,
+        scoringChanged ? "scoringConfigs" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        current = try apigee.patchOrganizationsSecurityProfiles({
+          name: current.name?.includes("/") ? current.name : name,
+          updateMask: updateMask.join(","),
+          body: toBody(news, desiredDescription),
+        })
+      }
+
+      return toAttrs(current, organization)
+    },
+
+    delete: effect ({ output }) => {
+      apigee
+        .deleteOrganizationsSecurityProfiles({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

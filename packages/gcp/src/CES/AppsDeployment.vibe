@@ -1,0 +1,275 @@
+import * as ces from "@distilled.cloud/gcp/ces_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  collectPages,
+  DEFAULT_CHANNEL_PROFILE,
+  encodeOwnershipLine,
+  expandApp,
+  forEachApp,
+  hasOwnershipMarker,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  replaceOnIdentity,
+  retryTransient,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+  waitUntilGone,
+} from "./internal.ts"
+
+export type AppsDeploymentProps = {
+  /**
+   * Parent CES app. Full name
+   * `projects/{project}/locations/{location}/apps/{app}` or the app id
+   * (combined with `location`). Immutable — changing it replaces the
+   * deployment.
+   */
+  mutable app: string
+  /**
+   * Region used when `app` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Deployment id. If omitted, a unique name is generated. Immutable —
+   * changing it replaces the deployment.
+   */
+  mutable deploymentId?: string
+  /**
+   * Human-readable name. Deployments have no description or labels
+   * field, so Alchemy stamps ownership into `displayName`.
+   */
+  mutable displayName?: string
+  /**
+   * Channel profile used by the deployment. Defaults to an API channel.
+   */
+  mutable channelProfile?: ces.ChannelProfile
+  /**
+   * App version to deploy (`.../apps/{app}/versions/{version}`). The API
+   * rejects the `-` draft alias, so pin a snapshot from `GCP.CES.AppsVersion`.
+   */
+  mutable appVersion: string
+  /**
+   * Experiment configuration.
+   */
+  mutable experimentConfig?: ces.ExperimentConfig
+}
+
+export type AppsDeployment = Resource<
+  "GCP.CES.AppsDeployment",
+  AppsDeploymentProps,
+  {
+    /** Full resource name `.../apps/{app}/deployments/{deployment}`. */
+    mutable name: string
+    /** Deployment id (last path segment). */
+    mutable deploymentId: string
+    /** Parent app resource name. */
+    mutable app: string
+    /** Location id. */
+    mutable location: string
+    /** Project id. */
+    mutable project: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    mutable displayName: string | undefined
+    /** Channel profile. */
+    mutable channelProfile: ces.ChannelProfile | undefined
+    /** Deployed app version. */
+    mutable appVersion: string | undefined
+    /** Experiment configuration. */
+    mutable experimentConfig: ces.ExperimentConfig | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+    /** Server-assigned etag. */
+    mutable etag: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Customer Engagement Suite deployment — an immutable, queryable
+ * channel binding of an app version.
+ *
+ * Deployments have no labels or description field — Alchemy stamps
+ * ownership into `displayName` so `list` / nuke can find them. Parent
+ * app, location, and deployment id are immutable.
+ *
+ * ### Creating a Deployment
+ * **Example:** App version on the API channel
+ * ```typescript
+ * const version = yield* GCP.CES.AppsVersion("V1", { app: app.name });
+ * const deployment = yield* GCP.CES.AppsDeployment("Prod", {
+ *   app: app.name,
+ *   appVersion: version.name,
+ *   displayName: "prod",
+ *   channelProfile: { channelType: "API", profileId: "api" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category CES
+ */
+export const AppsDeployment = Resource<AppsDeployment>("GCP.CES.AppsDeployment")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AppsDeploymentNotResolved extends Data.TaggedError(
+  "GCP.CES.AppsDeploymentNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (app: string, deploymentId: string): infer _ => `${app}/deployments/${deploymentId}`
+
+const toAttrs = (deployment: ces.Deployment, project: string, region: string, appHint?: string): infer _ => {
+  const name = deployment.name ?? ""
+  const parsed = parseResourceName(name, "deployments", region)
+  return {
+    name,
+    deploymentId: parsed.id,
+    app: name.includes("/deployments/") ? parsed.app : (appHint ?? parsed.parent),
+    location: parsed.location,
+    project: parsed.project || project,
+    displayName: parseOwnership(deployment.displayName).text,
+    channelProfile: deployment.channelProfile,
+    appVersion: deployment.appVersion,
+    experimentConfig: deployment.experimentConfig,
+    createTime: deployment.createTime,
+    updateTime: deployment.updateTime,
+    etag: deployment.etag,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : ces
+  .getProjectsLocationsAppsDeployments({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string, region: string) =>
+  (try collectPages(
+    ces.listProjectsLocationsAppsDeployments.pages({
+      parent,
+      pageSize: 100,
+    }),
+    (page) => page.deployments,
+  ))
+    .filter((deployment) => hasOwnershipMarker(deployment.displayName))
+    .map((deployment) => toAttrs(deployment, project, region, parent))
+
+export const AppsDeploymentProvider = (): infer _ =>
+  Provider.succeed(AppsDeployment, {
+    stables: ["name", "deploymentId", "app", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      return replaceOnIdentity({
+        previousId: olds?.deploymentId ?? output?.deploymentId,
+        nextId: news.deploymentId,
+        previousParent: olds?.app ?? output?.app,
+        nextParent: news.app,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const app = olds?.app ? expandApp(olds.app, env.project, location) : output?.app
+      const deploymentId = try toPhysicalId(id, olds?.deploymentId, output?.deploymentId)
+      const name = output?.name ?? (app !== undefined ? resourceName(app, deploymentId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region, app)
+      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try forEachApp(
+        env.project,
+        effect (parent) => try listAt(parent, env.project, env.region),
+        env.region,
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const app = expandApp(news.app, env.project, location)
+      const deploymentId = try toPhysicalId(id, news.deploymentId, output?.deploymentId)
+      const name = output?.name ?? resourceName(app, deploymentId)
+      const ownership = try createInternalLabels(id)
+      const displayName = encodeOwnershipLine(ownership, news.displayName)
+      const channelProfile = news.channelProfile ?? DEFAULT_CHANNEL_PROFILE
+      const appVersion = news.appVersion
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          ces.createProjectsLocationsAppsDeployments({
+            parent: app,
+            deploymentId,
+            body: {
+              displayName,
+              channelProfile,
+              appVersion,
+              experimentConfig: news.experimentConfig,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AppsDeploymentNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const channelChanged = !sameJson(current.channelProfile, channelProfile)
+      const versionChanged = !sameText(current.appVersion, appVersion)
+      const experimentChanged = !sameJson(current.experimentConfig, news.experimentConfig)
+
+      if (displayChanged || channelChanged || versionChanged || experimentChanged) {
+        current = try retryTransient(
+          ces.patchProjectsLocationsAppsDeployments({
+            name: currentName,
+            updateMask: updateMaskOf(
+              displayChanged ? "display_name" : undefined,
+              channelChanged ? "channel_profile" : undefined,
+              versionChanged ? "app_version" : undefined,
+              experimentChanged ? "experiment_config" : undefined,
+            ),
+            body: {
+              displayName,
+              channelProfile,
+              appVersion,
+              experimentConfig: news.experimentConfig,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project, env.region, app)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      retryTransient(ces.deleteProjectsLocationsAppsDeployments({ name: output.name })) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.void;
+        default: throw e;
+      }
+      try waitUntilGone(getByName(output.name))
+    },
+  })

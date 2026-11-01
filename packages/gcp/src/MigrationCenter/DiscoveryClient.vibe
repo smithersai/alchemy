@@ -1,0 +1,343 @@
+import * as mc from "@distilled.cloud/gcp/migrationcenter_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  expandParent,
+  fieldMask,
+  hasAlchemyLabelMap,
+  locationParent,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type DiscoveryClientState = mc.DiscoveryClientStateEnum | (string & {})
+
+export type DiscoveryClientProps = {
+  /**
+   * Discovery client id (the `{discoveryClient}` segment of
+   * `projects/{project}/locations/{location}/discoveryClients/{discoveryClient}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable — changing
+   * it replaces the client.
+   */
+  mutable discoveryClientId?: string
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the
+   * client. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Full name of the associated source, or the source id (combined with
+   * `location`). Immutable — changing it replaces the client.
+   */
+  mutable source: string
+  /**
+   * Service account used by the discovery client
+   * (`user@project.iam.gserviceaccount.com` or
+   * `projects/{project}/serviceAccounts/{email}`).
+   */
+  mutable serviceAccount: string
+  /**
+   * User-friendly display name. Maximum length is 63 characters.
+   */
+  mutable displayName?: string
+  /**
+   * Free-text description. Maximum length is 1000 characters.
+   */
+  mutable description?: string
+  /**
+   * Client time-to-live (input only), e.g. `"2592000s"`.
+   */
+  mutable ttl?: string
+  /**
+   * Client expiration time in UTC. The backend stops accepting frames
+   * after this time.
+   */
+  mutable expireTime?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type DiscoveryClient = Resource<
+  "GCP.MigrationCenter.DiscoveryClient",
+  DiscoveryClientProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Discovery client id (last path segment). */
+    mutable discoveryClientId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Associated source resource name. */
+    mutable source: string | undefined
+    /** Service account used by the client. */
+    mutable serviceAccount: string | undefined
+    /** User-friendly display name. */
+    mutable displayName: string | undefined
+    /** Free-text description. */
+    mutable description: string | undefined
+    /** Expiration timestamp. */
+    mutable expireTime: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Server-reported state. */
+    mutable state: string | undefined
+    /** Client version from the last heartbeat. */
+    mutable version: string | undefined
+    /** Signals endpoint. */
+    mutable signalsEndpoint: string | undefined
+    /** Last heartbeat timestamp. */
+    mutable heartbeatTime: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Migration Center discovery client that reports on-prem asset frames
+ * for a source.
+ *
+ * `discoveryClientId`, `location`, and `source` are immutable. Display
+ * name, description, service account, expiration, and labels update in
+ * place.
+ *
+ * ### Creating a Discovery Client
+ * **Example:** Bind a scanner to a source
+ * ```typescript
+ * const source = yield* GCP.MigrationCenter.Source("Scanner", {
+ *   type: "SOURCE_TYPE_DISCOVERY_CLIENT",
+ * });
+ * const client = yield* GCP.MigrationCenter.DiscoveryClient("Agent", {
+ *   source: source.name,
+ *   serviceAccount: "scanner@my-project.iam.gserviceaccount.com",
+ *   displayName: "on-prem-agent",
+ * });
+ * ```
+ *
+ * @resource
+ * @category MigrationCenter
+ */
+export const DiscoveryClient = Resource<DiscoveryClient>("GCP.MigrationCenter.DiscoveryClient")
+
+const resourceName = (project: string, location: string, discoveryClientId: string): infer _ =>
+  `${locationParent(project, location)}/discoveryClients/${discoveryClientId}`
+
+const sourceOf = (value: string, project: string, location: string): infer _ =>
+  expandParent(value, project, location, "sources")
+
+const toAttrs = (item: mc.DiscoveryClient, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "discoveryClients", region)
+  return {
+    name,
+    discoveryClientId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    source: item.source,
+    serviceAccount: item.serviceAccount,
+    displayName: item.displayName,
+    description: item.description,
+    expireTime: item.expireTime,
+    labels: userLabels(item.labels),
+    state: item.state,
+    version: item.version,
+    signalsEndpoint: item.signalsEndpoint,
+    heartbeatTime: item.heartbeatTime,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : mc
+  .getProjectsLocationsDiscoveryClients({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string, region: string) =>
+  (Array.from(
+    try (mc.listProjectsLocationsDiscoveryClients
+      .pages({
+        parent: `projects/${project}/locations/-`,
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.discoveryClients ?? []))
+      |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (Array.from(
+      try (mc.listProjectsLocationsDiscoveryClients
+        .pages({
+          parent: locationParent(project, region),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.discoveryClients ?? []))
+        |> Stream.filter(%, (item) => hasAlchemyLabelMap(item.labels))
+        |> Stream.runCollect(%)),
+    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.DiscoveryClient[]; default: throw e; };
+    default: throw e;
+  }
+
+export const DiscoveryClientProvider = (): infer _ =>
+  Provider.succeed(DiscoveryClient, {
+    stables: ["name", "discoveryClientId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousSource = olds?.source ?? output?.source
+      const nextSource = news.source
+      const sourceChanged = previousSource !== undefined
+        && nextSource !== undefined
+        && previousSource !== nextSource
+        && !previousSource.endsWith(`/${nextSource}`)
+        && !nextSource.endsWith(`/${previousSource}`)
+      return replaceOnIdentity({
+        previousId: olds?.discoveryClientId ?? output?.discoveryClientId,
+        nextId: news.discoveryClientId ?? olds?.discoveryClientId ?? output?.discoveryClientId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: sourceChanged,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const discoveryClientId = try toPhysicalId(
+        id,
+        olds?.discoveryClientId,
+        output?.discoveryClientId,
+        "discclient",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, discoveryClientId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const discoveryClientId = try toPhysicalId(
+        id,
+        news.discoveryClientId,
+        output?.discoveryClientId,
+        "discclient",
+      )
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, discoveryClientId)
+      const source = sourceOf(news.source, env.project, location)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const displayName = news.displayName ?? discoveryClientId
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = mc
+          .createProjectsLocationsDiscoveryClients({
+            parent: locationParent(env.project, location),
+            discoveryClientId,
+            body: {
+              source,
+              serviceAccount: news.serviceAccount,
+              displayName,
+              description: news.description,
+              ttl: news.ttl,
+              expireTime: news.expireTime,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const displayNameChanged = (current.displayName ?? "") !== displayName
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const serviceAccountChanged = (current.serviceAccount ?? "") !== news.serviceAccount
+      const expireTimeChanged = (current.expireTime ?? "") !== (news.expireTime ?? "")
+      const mask = fieldMask([
+        labelsChanged && "labels",
+        displayNameChanged && "displayName",
+        descriptionChanged && "description",
+        serviceAccountChanged && "serviceAccount",
+        expireTimeChanged && "expireTime",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try mc.patchProjectsLocationsDiscoveryClients({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            displayName,
+            description: news.description,
+            serviceAccount: news.serviceAccount,
+            expireTime: news.expireTime,
+            labels: desiredLabels,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (mc
+        .deleteProjectsLocationsDiscoveryClients({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

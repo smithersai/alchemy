@@ -1,0 +1,255 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { hasOwnershipMarker, lastSegment, locationOf, locationParent, parentOf, toResourceId } from "./ownership.vibe"
+
+export type QaScorecardsRevisionProps = {
+  /**
+   * Parent QaScorecard resource name
+   * (`projects/{project}/locations/{location}/qaScorecards/{qa_scorecard}`).
+   * Immutable — changing it replaces the revision.
+   */
+  mutable parent: string
+  /**
+   * Revision id (the `{revision}` segment). If omitted, a unique id is
+   * generated. Must match `^[a-z0-9-]{4,64}$`. Immutable — changing it
+   * replaces the revision.
+   */
+  mutable qaScorecardRevisionId?: string
+}
+
+export type QaScorecardsRevision = Resource<
+  "GCP.ContactCenterInsights.QaScorecardsRevision",
+  QaScorecardsRevisionProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Revision id (last path segment). */
+    mutable qaScorecardRevisionId: string
+    /** Parent scorecard resource name. */
+    mutable parent: string
+    /** Location id. */
+    mutable location: string
+    /** Project id. */
+    mutable project: string
+    /** Server-reported revision state (`EDITABLE`, `READY`, …). */
+    mutable state: string | undefined
+    /** Alternate ids such as `latest`. */
+    mutable alternateIds: string[]
+    /** Scorecard snapshot captured at revision creation. */
+    mutable snapshot: cci.GoogleCloudContactcenterinsightsV1QaScorecard | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A revision of a Contact Center AI Insights QA scorecard. Changing a
+ * published scorecard invalidates existing results, so updates create a
+ * new revision instead of mutating the current one.
+ *
+ * Parent scorecard and revision id are immutable. Revisions have no
+ * labels or display name — Alchemy stamps ownership into
+ * `snapshot.description` on create (and list also matches revisions whose
+ * parent scorecard snapshot already carries an Alchemy marker). There is
+ * no update API; reconcile is observe-ensure only. A `READY` revision is
+ * undeployed before delete.
+ *
+ * ### Creating a Scorecard Revision
+ * **Example:** Editable revision under a scorecard
+ * ```typescript
+ * const revision = yield* GCP.ContactCenterInsights.QaScorecardsRevision(
+ *   "V1",
+ *   { parent: card.name },
+ * );
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const QaScorecardsRevision = Resource<QaScorecardsRevision>(
+  "GCP.ContactCenterInsights.QaScorecardsRevision",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class QaScorecardsRevisionNotResolved extends Data.TaggedError(
+  "GCP.ContactCenterInsights.QaScorecardsRevisionNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (parent: string, qaScorecardRevisionId: string): infer _ =>
+  `${parent}/revisions/${qaScorecardRevisionId}`
+
+const toAttrs = (
+  revision: cci.GoogleCloudContactcenterinsightsV1QaScorecardRevision,
+  project: string,
+): infer _ => {
+  const name = revision.name ?? ""
+  return {
+    name,
+    qaScorecardRevisionId: lastSegment(name),
+    parent: parentOf(name),
+    location: locationOf(name),
+    project,
+    state: revision.state,
+    alternateIds: revision.alternateIds ?? [],
+    snapshot: revision.snapshot,
+    createTime: revision.createTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+  .getProjectsLocationsQaScorecardsRevisions({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listScorecards = effect (parent: string) =>
+  (Array.from(
+    try (cci.listProjectsLocationsQaScorecards.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.qaScorecards ?? []))
+      |> Stream.filter(%, (card) => hasOwnershipMarker(card.description))
+      |> Stream.map(%, (card) => card.name ?? "")
+      |> Stream.filter(%, (name) => name.length > 0)
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+
+const listRaw = effect (parent: string) =>
+  (Array.from(
+    try (cci.listProjectsLocationsQaScorecardsRevisions.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.qaScorecardRevisions ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findExisting = effect (parent: string, qaScorecardRevisionId: string) =>
+  try effect {
+    const revisions = try listRaw(parent)
+    return revisions.find((revision) => lastSegment(revision.name ?? "") === qaScorecardRevisionId)
+      ?? revisions.find((revision) => (revision.alternateIds ?? []).includes("latest"))
+      ?? revisions[0]
+  }
+
+const listAtParent = effect (parent: string, project: string) =>
+  (try listRaw(parent)).map((revision) => toAttrs(revision, project))
+
+export const QaScorecardsRevisionProvider = (): infer _ =>
+  Provider.succeed(QaScorecardsRevision, {
+    stables: ["name", "qaScorecardRevisionId", "parent", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (previousParent !== undefined && news.parent !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.qaScorecardRevisionId ?? output?.qaScorecardRevisionId
+      if (
+        previousId !== undefined
+        && news.qaScorecardRevisionId !== undefined
+        && news.qaScorecardRevisionId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const qaScorecardRevisionId = try toResourceId(
+        id,
+        olds?.qaScorecardRevisionId,
+        output?.qaScorecardRevisionId,
+      )
+      const name = output?.name
+        ?? (olds?.parent !== undefined ? resourceName(olds.parent, qaScorecardRevisionId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return hasOwnershipMarker(existing.snapshot?.description) || output?.name === existing.name
+        ? attrs
+        : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const scorecards = try listScorecards(locationParent(env.project, env.region))
+      const pages = try Effect.forEach(
+        scorecards,
+        effect (parent) => try listAtParent(parent, env.project),
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const qaScorecardRevisionId = try toResourceId(
+        id,
+        news.qaScorecardRevisionId,
+        output?.qaScorecardRevisionId,
+      )
+      const name = resourceName(news.parent, qaScorecardRevisionId)
+
+      let current = try getByName(output?.name ?? name)
+      if (current === undefined) {
+        current = try findExisting(news.parent, qaScorecardRevisionId)
+      }
+
+      if (current === undefined) {
+        const created = (try (cci
+          .createProjectsLocationsQaScorecardsRevisions({
+            parent: news.parent,
+            qaScorecardRevisionId,
+            body: {},
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "QaScorecardPreconditionFailed",
+            times: 5,
+            schedule: Schedule.exponential("250 millis"),
+          }))) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try getByName(name);
+            when { _tag: "QaScorecardPreconditionFailed" }: try findExisting(news.parent, qaScorecardRevisionId);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new QaScorecardsRevisionNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const existing = try getByName(output.name)
+      if (existing === undefined) return
+      if (existing.state === "READY") {
+        cci
+          .undeployProjectsLocationsQaScorecardsRevisions({
+            name: output.name,
+            body: {},
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.undefined;
+            when { _tag: "BadRequest" }: try Effect.undefined;
+            default: throw e;
+          }
+      }
+      cci
+        .deleteProjectsLocationsQaScorecardsRevisions({
+          name: output.name,
+          force: true,
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          when { _tag: "QaScorecardOnlyRevision" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

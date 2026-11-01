@@ -1,0 +1,249 @@
+import * as discoveryengine from "@distilled.cloud/gcp/discoveryengine_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  identityMappingStoreIdOf,
+  LIST_LOCATIONS,
+  locationParent,
+  normalizeLocation,
+  parseResourceName,
+  toPhysical,
+} from "./internal.vibe"
+import { waitForOperation } from "./operations.vibe"
+
+export type IdentityMappingStoreProps = {
+  /**
+   * Identity Mapping Store id (the last path segment). If omitted, a
+   * unique id is generated from the stack, stage, and logical id.
+   * Immutable — changing it replaces the store. Generated ids are
+   * prefixed with `alch` so `list` / nuke can find them.
+   */
+  mutable identityMappingStoreId?: string
+  /**
+   * Location (`global`, `us`, `eu`). Immutable — changing it replaces
+   * the store.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Cloud KMS key that protects this store at creation time. Immutable.
+   */
+  mutable kmsKeyName?: string
+  /**
+   * CMEK config resource name used to protect this store.
+   */
+  mutable cmekConfigName?: string
+  /**
+   * When true, skip CMEK even if the project has a default CmekConfig.
+   * @default false
+   */
+  mutable disableCmek?: boolean
+}
+
+export type IdentityMappingStore = Resource<
+  "GCP.DiscoveryEngine.IdentityMappingStore",
+  IdentityMappingStoreProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/identityMappingStores/{id}`. */
+    mutable name: string
+    /** Store id (last path segment). */
+    mutable identityMappingStoreId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** CMEK KMS key, if configured. */
+    mutable kmsKey: string | undefined
+    /** CMEK config resource name, if configured. */
+    mutable cmekConfigName: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex AI Search Identity Mapping Store.
+ *
+ * Stores have no labels or display name, so generated ids are prefixed
+ * with `alch` for `list` / nuke. Location, id, and CMEK are identity —
+ * changing them replaces the store. There is nothing mutable to sync.
+ *
+ * ### Creating an Identity Mapping Store
+ * **Example:** Generated id
+ * ```typescript
+ * const store = yield* GCP.DiscoveryEngine.IdentityMappingStore("Users", {
+ *   disableCmek: true,
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and location
+ * ```typescript
+ * const store = yield* GCP.DiscoveryEngine.IdentityMappingStore("Users", {
+ *   identityMappingStoreId: "app-users",
+ *   location: "global",
+ *   disableCmek: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category DiscoveryEngine
+ */
+export const IdentityMappingStore = Resource<IdentityMappingStore>(
+  "GCP.DiscoveryEngine.IdentityMappingStore",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class IdentityMappingStoreNotResolved extends Data.TaggedError(
+  "GCP.DiscoveryEngine.IdentityMappingStoreNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (project: string, location: string, storeId: string): infer _ =>
+  `${locationParent(project, location)}/identityMappingStores/${storeId}`
+
+const toAttrs = (
+  store: discoveryengine.GoogleCloudDiscoveryengineV1IdentityMappingStore,
+  project: string,
+): infer _ => {
+  const name = store.name ?? ""
+  const parsed = parseResourceName(name, "identityMappingStores")
+  return {
+    name,
+    identityMappingStoreId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    kmsKey: store.cmekConfig?.kmsKey ?? store.kmsKeyName,
+    cmekConfigName: store.cmekConfig?.name,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : discoveryengine
+  .getProjectsLocationsIdentityMappingStores({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const isAlchemyId = (storeId: string): infer _ => storeId.startsWith("alch")
+
+const listStores = effect (project: string) =>
+  (try Effect.forEach(
+    LIST_LOCATIONS,
+    effect (location) =>
+      (Array.from(
+        try (discoveryengine.listProjectsLocationsIdentityMappingStores
+          .pages({
+            parent: locationParent(project, location),
+            pageSize: 100,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.identityMappingStores ?? []))
+          |> Stream.filter(%, (store) => isAlchemyId(lastId(store.name)))
+          |> Stream.runCollect(%)),
+      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
+    { concurrency: 2 },
+  )).flat()
+
+const lastId = (name: string | undefined): infer _ =>
+  name
+    ? (name
+      .split("/")
+      .filter((part) => part.length > 0)
+      .at(-1) ?? "")
+    : ""
+
+export const IdentityMappingStoreProvider = (): infer _ =>
+  Provider.succeed(IdentityMappingStore, {
+    stables: ["name", "identityMappingStoreId", "project", "location", "kmsKey", "cmekConfigName"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.identityMappingStoreId ?? output?.identityMappingStoreId
+      const nextId = news.identityMappingStoreId ?? previousId
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location)
+      const nextLocation = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      const previousKey = olds?.kmsKeyName ?? output?.kmsKey ?? ""
+      const nextKey = news.kmsKeyName ?? previousKey
+      const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+        || previousKey !== nextKey
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousLocation === nextLocation && previousId !== undefined && nextId === previousId,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const storeId = try toPhysical(
+        id,
+        olds?.identityMappingStoreId,
+        output?.identityMappingStoreId,
+        identityMappingStoreIdOf,
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const name = output?.name ?? resourceName(env.project, location, storeId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return isAlchemyId(attrs.identityMappingStoreId) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const stores = try listStores(env.project)
+      return stores.map((store) => toAttrs(store, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location)
+      const storeId = try toPhysical(
+        id,
+        news.identityMappingStoreId,
+        output?.identityMappingStoreId,
+        identityMappingStoreIdOf,
+      )
+      const name = resourceName(env.project, location, storeId)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = discoveryengine
+          .createProjectsLocationsIdentityMappingStores({
+            parent: locationParent(env.project, location),
+            identityMappingStoreId: storeId,
+            cmekConfigName: news.cmekConfigName,
+            disableCmek: news.disableCmek === true ? true : undefined,
+            body: {
+              name,
+              kmsKeyName: news.kmsKeyName,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new IdentityMappingStoreNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const existing = try getByName(output.name)
+      if (existing === undefined) return
+      const operation = discoveryengine
+        .deleteProjectsLocationsIdentityMappingStores({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+    },
+  })

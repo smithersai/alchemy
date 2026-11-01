@@ -11,7 +11,7 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { createInternalLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { listLocations } from "./names.ts";
+import { listLocations } from "./names.vibe";
 import { lastSegment, locationOf, locationParent } from "./ownership.vibe";
 
 export type StudyMetricSpec = {

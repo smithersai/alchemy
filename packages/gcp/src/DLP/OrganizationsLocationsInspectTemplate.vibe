@@ -1,0 +1,304 @@
+import * as dlp from "@distilled.cloud/gcp/dlp_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_LOCATION,
+  DlpNotResolved,
+  encodeDescription,
+  fingerprint,
+  hasOwnershipMarker,
+  lastSegment,
+  locationParentsOf,
+  organizationLocationParent,
+  normalizeLocation,
+  organizationIdOf,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOn,
+  resolveOrganization,
+  sameText,
+  toPhysicalId,
+  tryResolveOrganization,
+  updateMaskOf,
+} from "./internal.ts"
+
+type InspectConfig = dlp.GooglePrivacyDlpV2InspectConfig
+
+export type OrganizationsLocationsInspectTemplateProps = {
+  /**
+   * Template id (the `{inspectTemplate}` segment of
+   * `organizations/{organization}/locations/{location}/inspectTemplates/{inspectTemplate}`).
+   * If omitted, a unique id is generated. Letters, digits, hyphens, and
+   * underscores; max 100 characters. Immutable — changing it replaces
+   * the template.
+   */
+  mutable templateId?: string
+  /**
+   * Parent organization (`organizations/{organization}` or the numeric
+   * id). Defaults to `GOOGLE_ORGANIZATION_ID` or the project's Resource
+   * Manager ancestor. Immutable — changing it replaces the template.
+   */
+  mutable organization?: string
+  /**
+   * Processing location (`us-central1`, `global`, `us`, …). Immutable —
+   * changing it replaces the template.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Human-readable display name (max 256 characters).
+   */
+  mutable displayName?: string
+  /**
+   * Human-readable description (max 256 characters). Inspect templates
+   * have no labels field, so Alchemy ownership is stored in a
+   * `[alchemy …]` prefix and stripped from attributes.
+   */
+  mutable description?: string
+  /**
+   * Inspection configuration applied when this template is used.
+   */
+  mutable inspectConfig: InspectConfig
+  /**
+   * Allow limited-availability built-in infoTypes in `inspectConfig`.
+   * @default false
+   */
+  mutable allowLimitedAvailabilityInfoTypes?: boolean
+}
+
+export type OrganizationsLocationsInspectTemplate = Resource<
+  "GCP.DLP.OrganizationsLocationsInspectTemplate",
+  OrganizationsLocationsInspectTemplateProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Template id (last path segment). */
+    mutable templateId: string
+    /** Organization resource name. */
+    mutable organization: string
+    /** Organization id. */
+    mutable organizationId: string
+    /** Location id. */
+    mutable location: string
+    /** Project id of the deploying stack. */
+    mutable project: string
+    /** User display name. */
+    mutable displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Inspection configuration. */
+    mutable inspectConfig: InspectConfig | undefined
+    /** Whether limited-availability infoTypes are allowed. */
+    mutable allowLimitedAvailabilityInfoTypes: boolean
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A location-scoped Sensitive Data Protection inspect template on an
+ * organization.
+ *
+ * Templates have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. Template id, organization,
+ * and location are identity. Display name, description, and inspect
+ * config update in place.
+ *
+ * ### Creating a Location Inspect Template
+ * **Example:** Detect phone numbers in us-central1
+ * ```typescript
+ * const template = yield* GCP.DLP.OrganizationsLocationsInspectTemplate(
+ *   "Phones",
+ *   {
+ *     location: "us-central1",
+ *     inspectConfig: {
+ *       infoTypes: [{ name: "PHONE_NUMBER" }],
+ *       includeQuote: true,
+ *     },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category DLP
+ */
+export const OrganizationsLocationsInspectTemplate = Resource<OrganizationsLocationsInspectTemplate>(
+  "GCP.DLP.OrganizationsLocationsInspectTemplate",
+)
+
+const resourceName = (organization: string, location: string, templateId: string): infer _ =>
+  `${organizationLocationParent(organization, location)}/inspectTemplates/${templateId}`
+
+const toAttrs = (
+  template: dlp.GooglePrivacyDlpV2InspectTemplate,
+  organization: string,
+  project: string,
+): infer _ => {
+  const name = template.name ?? ""
+  const parsed = parseName(name, "inspectTemplates")
+  const ownership = parseOwnership(template.description)
+  return {
+    name,
+    templateId: parsed.id || lastSegment(name),
+    organization,
+    organizationId: organizationIdOf(organization),
+    location: parsed.location || DEFAULT_LOCATION,
+    project,
+    displayName: template.displayName,
+    description: ownership.text,
+    inspectConfig: template.inspectConfig,
+    allowLimitedAvailabilityInfoTypes: template.allowLimitedAvailabilityInfoTypes === true,
+    createTime: template.createTime,
+    updateTime: template.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dlp
+  .getOrganizationsLocationsInspectTemplates({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, organization: string, project: string) =>
+  (Array.from(
+    try (dlp.listOrganizationsLocationsInspectTemplates.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.inspectTemplates ?? []))
+      |> Stream.filter(%, (template) => hasOwnershipMarker(template.description))
+      |> Stream.map(%, (template) => toAttrs(template, organization, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const OrganizationsLocationsInspectTemplateProvider = (): infer _ =>
+  Provider.succeed(OrganizationsLocationsInspectTemplate, {
+    stables: [
+      "name",
+      "templateId",
+      "organization",
+      "organizationId",
+      "location",
+      "project",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location)
+      const nextLocation = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      return (
+        replaceOn(olds?.templateId ?? output?.templateId, news.templateId)
+          ?? replaceOn(olds?.organization ?? output?.organization, news.organization)
+          ?? replaceOn(previousLocation, nextLocation)
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(
+        olds?.organization ?? output?.organization,
+        output?.organization,
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const templateId = try toPhysicalId(id, olds?.templateId, output?.templateId)
+      const name = output?.name ?? resourceName(organization, location, templateId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organization = try tryResolveOrganization()
+      if (organization === undefined) return []
+      const pages = try Effect.forEach(
+        locationParentsOf(organization, env.region),
+        effect (parent) => try listAt(parent, organization, env.project),
+        { concurrency: 3 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(news.organization, output?.organization)
+      const location = normalizeLocation(news.location ?? output?.location)
+      const templateId = try toPhysicalId(id, news.templateId, output?.templateId)
+      const parent = organizationLocationParent(organization, location)
+      const name = resourceName(organization, location, templateId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeDescription(ownership, news.description)
+      const displayName = news.displayName
+      const inspectConfig = news.inspectConfig
+      const allowLimitedAvailabilityInfoTypes = news.allowLimitedAvailabilityInfoTypes === true
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = dlp
+          .createOrganizationsLocationsInspectTemplates({
+            parent,
+            body: {
+              templateId,
+              inspectTemplate: {
+                displayName,
+                description,
+                inspectConfig,
+                allowLimitedAvailabilityInfoTypes,
+              },
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DlpNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = !sameText(current.description, description)
+      const configChanged = fingerprint(current.inspectConfig) !== fingerprint(inspectConfig)
+      const limitedChanged = (current.allowLimitedAvailabilityInfoTypes === true) !== allowLimitedAvailabilityInfoTypes
+      const updateMask = updateMaskOf(
+        displayChanged ? "displayName" : undefined,
+        descriptionChanged ? "description" : undefined,
+        configChanged ? "inspectConfig" : undefined,
+        limitedChanged ? "allowLimitedAvailabilityInfoTypes" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try dlp.patchOrganizationsLocationsInspectTemplates({
+          name: currentName,
+          body: {
+            updateMask,
+            inspectTemplate: {
+              displayName,
+              description,
+              inspectConfig,
+              allowLimitedAvailabilityInfoTypes,
+            },
+          },
+        })
+      }
+
+      return toAttrs(current, organization, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      dlp
+        .deleteOrganizationsLocationsInspectTemplates({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

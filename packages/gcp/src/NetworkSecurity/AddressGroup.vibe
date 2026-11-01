@@ -1,0 +1,344 @@
+import * as networksecurity from "@distilled.cloud/gcp/networksecurity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  normalizeLocation,
+  parseResourceName,
+  projectParent,
+  ResourceNotResolved,
+  sameStringList,
+  sortedStrings,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./operations.ts"
+
+const DEFAULT_TYPE = "IPV4" satisfies networksecurity.AddressGroupTypeEnum
+const DEFAULT_CAPACITY = 100
+
+export type AddressGroupType = networksecurity.AddressGroupTypeEnum | (string & {})
+
+export type AddressGroupPurpose = networksecurity.AddressGroupPurposeItemEnum | (string & {})
+
+export type AddressGroupProps = {
+  /**
+   * Address group id (the `{addressGroup}` segment of
+   * `projects/{project}/locations/{location}/addressGroups/{addressGroup}`).
+   * If omitted, a unique RFC1035 name is generated from the stack, stage,
+   * and logical id. Must be 1-63 characters and match
+   * `[a-z]([a-z0-9-]*[a-z0-9])?`. Immutable — changing it replaces the
+   * group.
+   */
+  mutable addressGroupId?: string
+  /**
+   * Location (`global`, `us-central1`, …). Immutable — changing it
+   * replaces the group. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Address type. Immutable — changing it replaces the group.
+   * @default "IPV4"
+   */
+  mutable type?: AddressGroupType
+  /**
+   * Maximum number of items. Immutable — changing it replaces the group.
+   * @default 100
+   */
+  mutable capacity?: number
+  /**
+   * IP addresses or CIDR ranges stored in the group.
+   */
+  mutable items?: string[]
+  /**
+   * Supported purposes (`DEFAULT`, `CLOUD_ARMOR`). Immutable — changing
+   * them replaces the group.
+   */
+  mutable purpose?: AddressGroupPurpose[]
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type AddressGroup = Resource<
+  "GCP.NetworkSecurity.AddressGroup",
+  AddressGroupProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/addressGroups/{addressGroup}`. */
+    mutable name: string
+    /** Address group id (last path segment). */
+    mutable addressGroupId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id (`global`, `us-central1`, …). */
+    mutable location: string
+    /** Address type (`IPV4` or `IPV6`). */
+    mutable type: string
+    /** Maximum number of items. */
+    mutable capacity: number
+    /** IP addresses or CIDR ranges. */
+    mutable items: string[]
+    /** Supported purposes. */
+    mutable purpose: string[]
+    /** User-provided description. */
+    mutable description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Server-defined URL for this resource. */
+    mutable selfLink: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Network Security address group — a named collection of IP addresses
+ * or CIDR ranges used by firewall policies and Cloud Armor.
+ *
+ * Changing `addressGroupId`, `location`, `type`, `capacity`, or `purpose`
+ * replaces the group. Description, labels, and items update in place.
+ *
+ * ### Creating an Address Group
+ * **Example:** Generated name
+ * ```typescript
+ * const group = yield* GCP.NetworkSecurity.AddressGroup("Allowlist", {
+ *   items: ["10.0.0.1"],
+ * });
+ * ```
+ *
+ * **Example:** Named group with labels
+ * ```typescript
+ * const group = yield* GCP.NetworkSecurity.AddressGroup("Allowlist", {
+ *   addressGroupId: "app-allowlist",
+ *   type: "IPV4",
+ *   capacity: 100,
+ *   items: ["10.0.0.0/24"],
+ *   description: "prod allowlist",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating an Address Group
+ * **Example:** Change items and description
+ * ```typescript
+ * const group = yield* GCP.NetworkSecurity.AddressGroup("Allowlist", {
+ *   addressGroupId: "app-allowlist",
+ *   items: ["10.0.0.0/24", "10.1.0.1"],
+ *   description: "prod allowlist v2",
+ *   labels: { env: "prod", role: "allowlist" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category NetworkSecurity
+ */
+export const AddressGroup = Resource<AddressGroup>("GCP.NetworkSecurity.AddressGroup")
+
+const resourceName = (project: string, location: string, addressGroupId: string): infer _ =>
+  `projects/${project}/locations/${location}/addressGroups/${addressGroupId}`
+
+const typeOf = (value: string | undefined): infer _ => (value ?? DEFAULT_TYPE).toUpperCase()
+
+const capacityOf = (value: number | undefined): infer _ => value ?? DEFAULT_CAPACITY
+
+const toAttrs = (group: networksecurity.AddressGroup, project: string): infer _ => {
+  const name = group.name ?? ""
+  const parsed = parseResourceName(name)
+  return {
+    name,
+    addressGroupId: parsed.id,
+    project: parsed.parentId || project,
+    location: parsed.location,
+    type: group.type ?? DEFAULT_TYPE,
+    capacity: group.capacity ?? DEFAULT_CAPACITY,
+    items: group.items ?? [],
+    purpose: (group.purpose ?? []) as string[],
+    description: group.description,
+    labels: userLabels(group.labels),
+    selfLink: group.selfLink,
+    createTime: group.createTime,
+    updateTime: group.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networksecurity
+    .getProjectsLocationsAddressGroups({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwned = effect (project: string) =>
+  (Array.from(
+    try (networksecurity.listProjectsLocationsAddressGroups
+      .pages({
+        parent: projectParent(project, "-"),
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.addressGroups ?? []))
+      |> Stream.filter(%, (group) => Object.keys(group.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+      |> Stream.map(%, (group) => toAttrs(group, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const AddressGroupProvider = (): infer _ =>
+  Provider.succeed(AddressGroup, {
+    stables: ["name", "addressGroupId", "project", "location", "type", "capacity", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.addressGroupId ?? output?.addressGroupId
+      const nextId = news.addressGroupId ?? previousId
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location)
+      const nextLocation = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      const previousType = typeOf(olds?.type ?? output?.type)
+      const nextType = typeOf(news.type ?? olds?.type ?? output?.type)
+      const previousCapacity = capacityOf(olds?.capacity ?? output?.capacity)
+      const nextCapacity = capacityOf(news.capacity ?? olds?.capacity ?? output?.capacity)
+      const previousPurpose = sortedStrings(olds?.purpose ?? output?.purpose)
+      const nextPurpose = sortedStrings(news.purpose ?? olds?.purpose ?? output?.purpose)
+      const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+        || previousType !== nextType
+        || previousCapacity !== nextCapacity
+        || JSON.stringify(previousPurpose) !== JSON.stringify(nextPurpose)
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousLocation === nextLocation && previousId !== undefined && nextId === previousId,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const addressGroupId = try toPhysicalId(
+        id,
+        olds?.addressGroupId,
+        output?.addressGroupId,
+        "addressgroup",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const name = output?.name ?? resourceName(env.project, location, addressGroupId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listOwned(env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const addressGroupId = try toPhysicalId(
+        id,
+        news.addressGroupId,
+        output?.addressGroupId,
+        "addressgroup",
+      )
+      const location = normalizeLocation(news.location ?? output?.location)
+      const name = resourceName(env.project, location, addressGroupId)
+      const type = typeOf(news.type)
+      const capacity = capacityOf(news.capacity)
+      const items = news.items ?? []
+      const purpose = news.purpose
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (try (networksecurity
+          .createProjectsLocationsAddressGroups({
+            parent: projectParent(env.project, location),
+            addressGroupId,
+            body: {
+              type,
+              capacity,
+              items,
+              purpose,
+              description: news.description,
+              labels: desiredLabels,
+            },
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 5,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const itemsChanged = !sameStringList(current.items, items)
+
+      if (labelsChanged || descriptionChanged || itemsChanged) {
+        const updateMask = [
+          labelsChanged ? "labels" : undefined,
+          descriptionChanged ? "description" : undefined,
+          itemsChanged ? "items" : undefined,
+        ].filter((field): field is string => field !== undefined)
+
+        const operation = try networksecurity.patchProjectsLocationsAddressGroups({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+            items,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (networksecurity
+        .deleteProjectsLocationsAddressGroups({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

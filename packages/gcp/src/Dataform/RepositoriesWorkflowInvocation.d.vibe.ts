@@ -1,0 +1,101 @@
+import * as dataform from "@distilled.cloud/gcp/dataform_v1";
+import * as Provider from "alchemy/Provider";
+import { Resource } from "alchemy/Resource";
+import { GcpEnvironment } from "../Environment.js";
+import type { Providers } from "../Providers.js";
+import type { InvocationConfig } from "./RepositoriesWorkflowConfig.vibe";
+export type RepositoriesWorkflowInvocationProps = {
+    /**
+     * Parent repository. Full name
+     * `projects/{project}/locations/{location}/repositories/{repository}`
+     * or the repository id (combined with `location`). Immutable —
+     * changing it replaces the invocation.
+     */
+    repository: string;
+    /**
+     * Region used when `repository` is a bare id.
+     * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+     */
+    location?: string;
+    /**
+     * Compilation result to invoke
+     * (`.../repositories/{repository}/compilationResults/{result}`).
+     * Mutually exclusive with `workflowConfig`. Immutable.
+     */
+    compilationResult?: string;
+    /**
+     * Workflow config to invoke
+     * (`.../repositories/{repository}/workflowConfigs/{workflowConfig}`).
+     * Mutually exclusive with `compilationResult`. Immutable.
+     */
+    workflowConfig?: string;
+    /**
+     * Invocation options. Immutable — changing them replaces the
+     * invocation.
+     */
+    invocationConfig?: InvocationConfig;
+};
+export type RepositoriesWorkflowInvocation = Resource<"GCP.Dataform.RepositoriesWorkflowInvocation", RepositoriesWorkflowInvocationProps, {
+    /** Full resource name `.../repositories/{repository}/workflowInvocations/{invocation}`. */
+    name: string;
+    /** Workflow invocation id (last path segment). */
+    workflowInvocationId: string;
+    /** Parent repository resource name. */
+    repository: string;
+    /** Project id. */
+    project: string;
+    /** Location id. */
+    location: string;
+    /** Compilation result used, if any. */
+    compilationResult: string | undefined;
+    /** Workflow config used, if any. */
+    workflowConfig: string | undefined;
+    /** Resolved compilation result. */
+    resolvedCompilationResult: string | undefined;
+    /** Current state (`RUNNING`, `SUCCEEDED`, `FAILED`, …). */
+    state: string | undefined;
+    /** Inclusive start of the invocation. */
+    startTime: string | undefined;
+    /** Exclusive end of the invocation. */
+    endTime: string | undefined;
+}, never, Providers>;
+/**
+ * A Dataform workflow invocation — a single run of a compilation
+ * result (directly or via a workflow config).
+ *
+ * Invocations have no update API and no labels. Identity is
+ * server-assigned; changing `repository`, `compilationResult`,
+ * `workflowConfig`, or `invocationConfig` replaces the invocation.
+ * `list` / nuke finds invocations under Alchemy-labeled repositories.
+ * A running invocation is cancelled before delete.
+ *
+ * ### Creating a Workflow Invocation
+ * **Example:** Invoke a compilation result
+ * ```typescript
+ * const run = yield* GCP.Dataform.RepositoriesWorkflowInvocation("Run", {
+ *   repository: repo.name,
+ *   compilationResult: compilation.name,
+ * });
+ * ```
+ *
+ * **Example:** Invoke a workflow config
+ * ```typescript
+ * const run = yield* GCP.Dataform.RepositoriesWorkflowInvocation("Run", {
+ *   repository: repo.name,
+ *   workflowConfig: workflow.name,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataform
+ */
+export declare const RepositoriesWorkflowInvocation: import("alchemy/Resource").ResourceClass<RepositoriesWorkflowInvocation>;
+declare const RepositoriesWorkflowInvocationNotResolved_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
+    readonly _tag: "GCP.Dataform.RepositoriesWorkflowInvocationNotResolved";
+} & Readonly<A>;
+export declare class RepositoriesWorkflowInvocationNotResolved extends RepositoriesWorkflowInvocationNotResolved_base<{
+    resourceName: string;
+}> {
+}
+export declare const RepositoriesWorkflowInvocationProvider: () => import("effect/Layer").Layer<Provider.Provider<RepositoriesWorkflowInvocation>, never, GcpEnvironment | dataform.GcpOpContext>;
+export {};

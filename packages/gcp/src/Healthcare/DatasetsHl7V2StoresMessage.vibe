@@ -1,0 +1,328 @@
+import * as healthcare from "@distilled.cloud/gcp/healthcare_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  decodeHl7,
+  encodeHl7,
+  hasAlchemyLabelMap,
+  lastSegment,
+  listRegionDatasets,
+  listHl7V2Stores,
+  listMessages,
+  parentOf,
+  retryTransient,
+  sameText,
+} from "./internal.ts"
+
+export type PatientId = {
+  /** Patient identifier value (PID-2/3/4). */
+  mutable value?: string
+  /** Identifier type, for example `MRN`. */
+  mutable type?: string
+}
+
+export type DatasetsHl7V2StoresMessageProps = {
+  /**
+   * Parent HL7v2 store resource name
+   * `projects/{project}/locations/{location}/datasets/{dataset}/hl7V2Stores/{store}`.
+   * Immutable — changing it replaces the message.
+   */
+  mutable parent: string
+  /**
+   * Raw HL7v2 message text. Segment terminator is CR. Alchemy
+   * base64-encodes this for the Healthcare API. Immutable — changing it
+   * replaces the message.
+   */
+  mutable data: string
+  /**
+   * Server-assigned message id. Set on create. Immutable — changing it
+   * replaces the message.
+   */
+  mutable messageId?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type DatasetsHl7V2StoresMessage = Resource<
+  "GCP.Healthcare.DatasetsHl7V2StoresMessage",
+  DatasetsHl7V2StoresMessageProps,
+  {
+    /**
+     * Full resource name
+     * `projects/{project}/locations/{location}/datasets/{dataset}/hl7V2Stores/{store}/messages/{message}`.
+     */
+    mutable name: string
+    /** Server-assigned message id. */
+    mutable messageId: string
+    /** Parent HL7v2 store resource name. */
+    mutable parent: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Raw HL7v2 message text (decoded from the API bytes). */
+    mutable data: string
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Message type from MSH-9.1. */
+    mutable messageType: string | undefined
+    /** Sending facility from MSH-4. */
+    mutable sendFacility: string | undefined
+    /** Datetime the sending application sent this message (MSH-7). */
+    mutable sendTime: string | undefined
+    /** Patient ids parsed from PID-2, PID-3, and PID-4. */
+    mutable patientIds: PatientId[]
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An HL7v2 message stored in a Cloud Healthcare HL7v2 store.
+ *
+ * Message ids are server-assigned. Parent store and raw `data` are
+ * identity — changing either replaces the message. Labels update in
+ * place (`updateMask=labels`).
+ *
+ * ### Creating a Message
+ * **Example:** ADT^A01 into an existing store
+ * ```typescript
+ * const message = yield* GCP.Healthcare.DatasetsHl7V2StoresMessage("Adt", {
+ *   parent: store.name,
+ *   data: [
+ *     "MSH|^~\\&|APP|FACILITY|DEST|DESTFAC|20240101120000||ADT^A01|MSG00001|P|2.5",
+ *     "PID|1||PAT001^^^MR||DOE^JOHN",
+ *   ].join("\r"),
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * ### Updating a Message
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Relabel an existing message
+ * ```typescript
+ * const message = yield* GCP.Healthcare.DatasetsHl7V2StoresMessage("Adt", {
+ *   parent: store.name,
+ *   data: [
+ *     "MSH|^~\\&|APP|FACILITY|DEST|DESTFAC|20240101120000||ADT^A01|MSG00001|P|2.5",
+ *     "PID|1||PAT001^^^MR||DOE^JOHN",
+ *   ].join("\r"),
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Healthcare
+ */
+export const DatasetsHl7V2StoresMessage = Resource<DatasetsHl7V2StoresMessage>(
+  "GCP.Healthcare.DatasetsHl7V2StoresMessage",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DatasetsHl7V2StoresMessageNotResolved extends Data.TaggedError(
+  "GCP.Healthcare.DatasetsHl7V2StoresMessageNotResolved",
+)<{
+  mutable parent: string
+  mutable messageId: string
+}> {}
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const resourceNameOf = (parent: string, messageId: string): infer _ => `${parent}/messages/${messageId}`
+
+const locationOf = (name: string, fallback: string): infer _ => {
+  const parts = name.split("/")
+  const index = parts.indexOf("locations")
+  return index >= 0 ? (parts[index + 1] ?? fallback) : fallback
+}
+
+const projectOf = (name: string, fallback: string): infer _ => {
+  const parts = name.split("/")
+  const index = parts.indexOf("projects")
+  return index >= 0 ? (parts[index + 1] ?? fallback) : fallback
+}
+
+const toAttrs = (message: healthcare.Message, project: string, data: string, region: string): infer _ => {
+  const name = message.name ?? ""
+  return {
+    name,
+    messageId: lastSegment(name),
+    parent: parentOf(name),
+    project: projectOf(name, project),
+    location: locationOf(name, region),
+    data,
+    labels: userLabels(message.labels),
+    messageType: message.messageType,
+    sendFacility: message.sendFacility,
+    sendTime: message.sendTime,
+    patientIds: (message.patientIds ?? []).map((id) => ({
+      value: id.value,
+      type: id.type,
+    })),
+    createTime: message.createTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : healthcare
+  .getProjectsLocationsDatasetsHl7V2StoresMessages({
+    name,
+    view: "FULL",
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; })
+
+const findOwned = effect (parent: string, id: string) => {
+  const items = try listMessages(parent)
+  for (const item of items) {
+    if (try hasAlchemyLabels(id, tagRecord(item.labels))) {
+      return item
+    }
+  }
+  return undefined
+}
+
+const listOwnedMessages = effect (project: string, region: string) => {
+  const datasets = try listRegionDatasets(project, region)
+  const named = datasets.filter((dataset) => (dataset.name ?? "").length > 0)
+  const stores = try Effect.forEach(named, effect (dataset) => try listHl7V2Stores(dataset.name!), {
+    concurrency: 4,
+  })
+  const storeNames = stores
+    .flat()
+    .map((store) => store.name)
+    .filter((name): name is string => (name ?? "").length > 0)
+  const pages = try Effect.forEach(storeNames, listMessages, {
+    concurrency: 4,
+  })
+  return pages.flat().filter((message) => hasAlchemyLabelMap(message.labels))
+}
+
+export const DatasetsHl7V2StoresMessageProvider = (): infer _ =>
+  Provider.succeed(DatasetsHl7V2StoresMessage, {
+    stables: ["name", "messageId", "parent", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (previousParent !== undefined && news.parent !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.messageId ?? output?.messageId
+      if (
+        previousId !== undefined
+        && news.messageId !== undefined
+        && news.messageId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousData = olds?.data ?? output?.data
+      if (previousData !== undefined && news.data !== previousData) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = olds?.parent ?? output?.parent ?? ""
+      const messageId = olds?.messageId ?? output?.messageId
+      const name = output?.name
+        ?? (messageId !== undefined && parent.length > 0 ? resourceNameOf(parent, messageId) : "")
+      let existing = try getByName(name)
+      if (existing === undefined) {
+        existing = try findOwned(parent, id)
+      }
+      if (existing === undefined) return undefined
+      const data = try decodeHl7(existing.data)
+      const attrs = toAttrs(existing, env.project, data, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const messages = try listOwnedMessages(env.project, env.region)
+      return try Effect.forEach(messages, effect (message) => {
+        const data = try decodeHl7(message.data)
+        return toAttrs(message, env.project, data, env.region)
+      })
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = news.parent
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const encoded = try encodeHl7(news.data)
+      const name = output?.name
+        ?? (news.messageId !== undefined ? resourceNameOf(parent, news.messageId) : "")
+
+      let current = try getByName(name)
+      if (current === undefined) {
+        current = try findOwned(parent, id)
+      }
+
+      if (current === undefined) {
+        const created = retryTransient(
+          healthcare.createProjectsLocationsDatasetsHl7V2StoresMessages({
+            parent,
+            body: {
+              message: {
+                data: encoded,
+                labels: desiredLabels,
+              },
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try findOwned(parent, id); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DatasetsHl7V2StoresMessageNotResolved({
+          parent,
+          messageId: news.messageId ?? output?.messageId ?? "",
+        })
+      }
+
+      const currentName = current.name ?? name
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+
+      if (labelsChanged) {
+        current = try retryTransient(
+          healthcare.patchProjectsLocationsDatasetsHl7V2StoresMessages({
+            name: currentName,
+            updateMask: "labels",
+            body: {
+              labels: desiredLabels,
+            },
+          }),
+        )
+      }
+
+      const data = sameText(current.data, encoded) ? news.data : try decodeHl7(current.data)
+      return toAttrs(current, env.project, data, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      if (output.name.length === 0) return
+      retryTransient(
+        healthcare.deleteProjectsLocationsDatasetsHl7V2StoresMessages({
+          name: output.name,
+        }),
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

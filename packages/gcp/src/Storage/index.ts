@@ -1,4 +1,4 @@
-export * from "./Bucket.ts";
+export * from "./Bucket.vibe";
 export * from "./BucketAccessControl.vibe";
 export * from "./DefaultObjectAccessControl.vibe";
 export * from "./Folder.vibe";

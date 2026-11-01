@@ -2,7 +2,7 @@ import type * as translate from "@distilled.cloud/gcp/translate_v3";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { AdaptiveMtDataset } from "./AdaptiveMtDataset.js";
+import type { AdaptiveMtDataset } from "./AdaptiveMtDataset.vibe";
 export interface AdaptiveMtTranslateRequest {
     /**
      * Request body. `dataset` is filled from the bound Adaptive MT

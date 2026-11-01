@@ -1,4 +1,4 @@
-export * from "./Collector.ts";
+export * from "./Collector.vibe";
 export * from "./PauseCollector.vibe";
 export * from "./PauseCollectorHttp.vibe";
 export * from "./RegisterCollector.vibe";

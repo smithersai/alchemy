@@ -1,0 +1,293 @@
+import * as scc from "@distilled.cloud/gcp/securitycenter_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_CLOUD_PROVIDER,
+  DEFAULT_ENABLEMENT,
+  defaultShaCustomConfig,
+  encodeDescription,
+  fingerprint,
+  folderIdOf,
+  folderParent,
+  hasOwnershipMarker,
+  lastSegment,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOn,
+  resolveFolder,
+  sameText,
+  SecuritycenterNotResolved,
+  shaSettingsParent,
+  toShaDisplayName,
+  tryResolveFolder,
+  updateMaskOf,
+} from "./internal.ts"
+
+export type FolderSecurityHealthAnalyticsSettingsCustomModuleProps = {
+  /**
+   * Parent folder (`folders/{folder}` or the numeric id). Defaults to
+   * the project's Resource Manager folder ancestor.
+   * Immutable — changing it replaces the module.
+   */
+  mutable folder?: string
+  /**
+   * Display name. Must start with a lowercase letter and contain only
+   * letters, digits, and underscores (max 128). Unique under the parent.
+   * If omitted, a unique name is generated. Custom modules have no labels
+   * field, so Alchemy ownership is stored in `customConfig.description`.
+   */
+  mutable displayName?: string
+  /**
+   * Detector configuration. When omitted, Alchemy uses a never-matching
+   * CEL predicate so the module stays inert.
+   */
+  mutable customConfig?: scc.GoogleCloudSecuritycenterV1CustomConfig
+  /**
+   * Enablement state.
+   * @default "ENABLED"
+   */
+  mutable enablementState?:
+    | scc.GoogleCloudSecuritycenterV1SecurityHealthAnalyticsCustomModuleEnablementStateEnum
+    | (string & {})
+  /**
+   * Cloud provider this module applies to.
+   * @default "GOOGLE_CLOUD_PLATFORM"
+   */
+  mutable cloudProvider?:
+    | scc.GoogleCloudSecuritycenterV1SecurityHealthAnalyticsCustomModuleCloudProviderEnum
+    | (string & {})
+}
+
+export type FolderSecurityHealthAnalyticsSettingsCustomModule = Resource<
+  "GCP.SecurityCenter.FolderSecurityHealthAnalyticsSettingsCustomModule",
+  FolderSecurityHealthAnalyticsSettingsCustomModuleProps,
+  {
+    /** Full resource name `{folder}/securityHealthAnalyticsSettings/customModules/{module}`. */
+    mutable name: string
+    /** Module id (last path segment; server assigned). */
+    mutable moduleId: string
+    /** Folder resource name. */
+    mutable folder: string
+    /** Folder id. */
+    mutable folderId: string
+    /** Project id of the deploying stack. */
+    mutable project: string
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** Detector configuration with the Alchemy ownership prefix stripped from description. */
+    mutable customConfig: scc.GoogleCloudSecuritycenterV1CustomConfig | undefined
+    /** Enablement state. */
+    mutable enablementState: string | undefined
+    /** Cloud provider. */
+    mutable cloudProvider: string | undefined
+    /** Ancestor module this one inherits from, if any. */
+    mutable ancestorModule: string | undefined
+    /** Last editor of the module. */
+    mutable lastEditor: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A folder-scoped Security Health Analytics custom module.
+ *
+ * Custom modules have no labels field — Alchemy stamps ownership into
+ * `customConfig.description` so `list` / nuke can find them. The module id
+ * is assigned by the API. Folder is identity. Display name, custom config,
+ * and enablement update in place.
+ *
+ * ### Creating a Custom Module
+ * **Example:** Never-matching detector
+ * ```typescript
+ * const module = yield* GCP.SecurityCenter.FolderSecurityHealthAnalyticsSettingsCustomModule(
+ *   "Unused",
+ *   {
+ *     customConfig: {
+ *       predicate: { expression: 'resource.name == "alchemy-nonexistent"' },
+ *       resourceSelector: {
+ *         resourceTypes: ["compute.googleapis.com/Instance"],
+ *       },
+ *       severity: "LOW",
+ *       recommendation: "No action required.",
+ *     },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category SecurityCenter
+ */
+export const FolderSecurityHealthAnalyticsSettingsCustomModule = Resource<
+  FolderSecurityHealthAnalyticsSettingsCustomModule
+>(
+  "GCP.SecurityCenter.FolderSecurityHealthAnalyticsSettingsCustomModule",
+)
+
+const desiredCustomConfig = (
+  ownership: Record<string, string>,
+  customConfig: scc.GoogleCloudSecuritycenterV1CustomConfig | undefined,
+): scc.GoogleCloudSecuritycenterV1CustomConfig => {
+  const base = customConfig ?? defaultShaCustomConfig
+  return {
+    ...base,
+    description: encodeDescription(ownership, base.description),
+  }
+}
+
+const toAttrs = (
+  module: scc.GoogleCloudSecuritycenterV1SecurityHealthAnalyticsCustomModule,
+  folder: string,
+  project: string,
+): infer _ => {
+  const name = module.name ?? ""
+  const parsed = parseName(name, "customModules")
+  const ownership = parseOwnership(module.customConfig?.description)
+  const customConfig = module.customConfig
+    ? { ...module.customConfig, description: ownership.text }
+    : undefined
+  return {
+    name,
+    moduleId: parsed.id || lastSegment(name),
+    folder,
+    folderId: folderIdOf(folder),
+    project,
+    displayName: module.displayName,
+    customConfig,
+    enablementState: module.enablementState,
+    cloudProvider: module.cloudProvider,
+    ancestorModule: module.ancestorModule,
+    lastEditor: module.lastEditor,
+    updateTime: module.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : scc
+  .getFoldersSecurityHealthAnalyticsSettingsCustomModules({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string) =>
+  (Array.from(
+    try (scc.listFoldersSecurityHealthAnalyticsSettingsCustomModules.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityHealthAnalyticsCustomModules ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findOwned = effect (parent: string, id: string) => {
+  const modules = try listAt(parent)
+  for (const module of modules) {
+    if (try ownedByAlchemy(id, module.customConfig?.description)) {
+      return module
+    }
+  }
+  return undefined
+}
+
+export const FolderSecurityHealthAnalyticsSettingsCustomModuleProvider = (): infer _ =>
+  Provider.succeed(FolderSecurityHealthAnalyticsSettingsCustomModule, {
+    stables: ["name", "moduleId", "folder", "folderId", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      return replaceOn(
+        olds?.folder ?? output?.folder,
+        news.folder !== undefined ? folderParent(news.folder) : undefined,
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const folder = try resolveFolder(olds?.folder ?? output?.folder, output?.folder)
+      let existing = try getByName(output?.name ?? "")
+      if (existing === undefined) {
+        existing = try findOwned(shaSettingsParent(folder), id)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, folder, env.project)
+      return (try ownedByAlchemy(id, existing.customConfig?.description))
+        ? attrs
+        : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const folder = try tryResolveFolder()
+      if (folder === undefined) return []
+      const modules = try listAt(shaSettingsParent(folder))
+      return modules
+        .filter((module) => hasOwnershipMarker(module.customConfig?.description))
+        .map((module) => toAttrs(module, folder, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const folder = try resolveFolder(news.folder, output?.folder)
+      const parent = shaSettingsParent(folder)
+      const ownership = try createInternalLabels(id)
+      const displayName = try toShaDisplayName(id, news.displayName, output?.displayName)
+      const customConfig = desiredCustomConfig(ownership, news.customConfig)
+      const enablementState = news.enablementState ?? DEFAULT_ENABLEMENT
+      const cloudProvider = news.cloudProvider ?? DEFAULT_CLOUD_PROVIDER
+
+      let current = try getByName(output?.name ?? "")
+      if (current === undefined) {
+        current = try findOwned(parent, id)
+      }
+
+      if (current === undefined) {
+        const created = scc
+          .createFoldersSecurityHealthAnalyticsSettingsCustomModules({
+            parent,
+            body: {
+              displayName,
+              customConfig,
+              enablementState,
+              cloudProvider,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try findOwned(parent, id); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SecuritycenterNotResolved({
+          resourceName: `${parent}/customModules`,
+        })
+      }
+
+      const currentName = current.name ?? ""
+      const updateMask = updateMaskOf(
+        !sameText(current.displayName, displayName) ? "displayName" : undefined,
+        fingerprint(current.customConfig) !== fingerprint(customConfig)
+          ? "customConfig"
+          : undefined,
+        !sameText(current.enablementState, enablementState) ? "enablementState" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try scc.patchFoldersSecurityHealthAnalyticsSettingsCustomModules({
+          name: currentName,
+          updateMask,
+          body: { displayName, customConfig, enablementState },
+        })
+      }
+
+      return toAttrs(current, folder, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      scc
+        .deleteFoldersSecurityHealthAnalyticsSettingsCustomModules({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

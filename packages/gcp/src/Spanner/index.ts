@@ -8,5 +8,5 @@ export * from "./GetInstanceHttp.vibe";
 export * from "./Instance.ts";
 export * from "./InstanceConfig.ts";
 export * from "./InstancesBackup.ts";
-export * from "./InstancesDatabasesBackupSchedule.ts";
+export * from "./InstancesDatabasesBackupSchedule.vibe";
 export * from "./InstancesInstancePartition.ts";

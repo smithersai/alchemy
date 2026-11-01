@@ -11,7 +11,7 @@ import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import { CustomDomain } from "../CustomDomain.vibe";
 import { Project, type Project as ProjectResource } from "../Project.js";
-import type { Environment as EnvironmentResource } from "../ProjectEnvironment.js";
+import type { Environment as EnvironmentResource } from "../ProjectEnvironment.vibe";
 import type { Providers } from "../Providers.js";
 import { Service, type Service as ServiceResource } from "../Service.js";
 /** Port the generated Node serve entry and Railway Service listen on. */

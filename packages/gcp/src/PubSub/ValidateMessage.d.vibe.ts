@@ -2,7 +2,7 @@ import type * as pubsub from "@distilled.cloud/gcp/pubsub_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Schema } from "./Schema.js";
+import type { Schema } from "./Schema.vibe";
 export interface ValidateMessageRequest extends Omit<pubsub.ValidateMessageRequest, "name" | "schema"> {
 }
 /**

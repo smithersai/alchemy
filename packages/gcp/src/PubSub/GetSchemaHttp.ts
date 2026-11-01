@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
 import { GetSchema, type GetSchemaRequest } from "./GetSchema.vibe";
-import type { Schema } from "./Schema.ts";
+import type { Schema } from "./Schema.vibe";
 
 /**
  * HTTP implementation of {@link GetSchema}.

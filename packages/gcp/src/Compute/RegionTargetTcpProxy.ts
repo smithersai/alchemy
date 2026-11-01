@@ -15,7 +15,7 @@ import { waitRegionOperation } from "./operations.vibe";
 import type {
   TargetTcpProxyLoadBalancingScheme,
   TargetTcpProxyProxyHeader,
-} from "./TargetTcpProxy.ts";
+} from "./TargetTcpProxy.vibe";
 
 const DEFAULT_PROXY_HEADER: TargetTcpProxyProxyHeader = "NONE";
 

@@ -1,0 +1,318 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnership,
+  encodeOwnershipLine,
+  hasOwnershipMarker,
+  jsonEqual,
+  lastSegment,
+  locationOf,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./ownership.vibe"
+
+export type LabelingCondition = {
+  /** CEL expression evaluated as the label value. */
+  mutable value?: string
+  /**
+   * Optional CEL predicate. When true (or empty), `value` is used. The
+   * first matching condition wins.
+   */
+  mutable condition?: string
+}
+
+export type AutoLabelingRuleProps = {
+  /**
+   * Auto-labeling rule id (the `{auto_labeling_rule}` segment of
+   * `projects/{project}/locations/{location}/autoLabelingRules/{auto_labeling_rule}`).
+   * If omitted, a unique id is generated. Immutable — changing it replaces
+   * the rule. Also used as `labelKey` when `labelKeyType` is
+   * `LABEL_KEY_TYPE_CUSTOM`.
+   */
+  mutable autoLabelingRuleId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the rule.
+   * `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * User-facing display name.
+   */
+  mutable displayName?: string
+  /**
+   * Human-readable description. Auto-labeling rules have no labels field,
+   * so Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  mutable description?: string
+  /**
+   * When true, the rule is applied to conversations.
+   * @default false
+   */
+  mutable active?: boolean
+  /**
+   * Label key written onto matching conversations. Defaults to
+   * `autoLabelingRuleId`. Only settable when `labelKeyType` is
+   * `LABEL_KEY_TYPE_CUSTOM`.
+   */
+  mutable labelKey?: string
+  /**
+   * Label key type.
+   * @default "LABEL_KEY_TYPE_CUSTOM"
+   */
+  mutable labelKeyType?: "LABEL_KEY_TYPE_UNSPECIFIED" | "LABEL_KEY_TYPE_CUSTOM" | (string & {})
+  /**
+   * Sequential if / else-if conditions. The value of the first matching
+   * condition is used.
+   */
+  mutable conditions?: LabelingCondition[]
+}
+
+export type AutoLabelingRule = Resource<
+  "GCP.ContactCenterInsights.AutoLabelingRule",
+  AutoLabelingRuleProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/autoLabelingRules/{auto_labeling_rule}`. */
+    mutable name: string
+    /** Auto-labeling rule id (last path segment). */
+    mutable autoLabelingRuleId: string
+    /** Location id. */
+    mutable location: string
+    /** Project id. */
+    mutable project: string
+    /** User-facing display name. */
+    mutable displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Whether the rule is active. */
+    mutable active: boolean
+    /** Label key. */
+    mutable labelKey: string | undefined
+    /** Label key type. */
+    mutable labelKeyType: string | undefined
+    /** Labeling conditions. */
+    mutable conditions: LabelingCondition[]
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Contact Center AI Insights auto-labeling rule that writes a custom
+ * label onto matching conversations.
+ *
+ * Auto-labeling rules have no labels field — Alchemy stamps ownership into
+ * the description. Location and id are immutable. Display name,
+ * description, active flag, and conditions update in place.
+ *
+ * ### Creating an Auto-Labeling Rule
+ * **Example:** Inactive custom label
+ * ```typescript
+ * const rule = yield* GCP.ContactCenterInsights.AutoLabelingRule("Topic", {
+ *   displayName: "billing-topic",
+ *   active: false,
+ *   conditions: [{ value: '"billing"', condition: "true" }],
+ * });
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const AutoLabelingRule = Resource<AutoLabelingRule>(
+  "GCP.ContactCenterInsights.AutoLabelingRule",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AutoLabelingRuleNotResolved extends Data.TaggedError(
+  "GCP.ContactCenterInsights.AutoLabelingRuleNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const DEFAULT_LABEL_KEY_TYPE = "LABEL_KEY_TYPE_CUSTOM"
+
+const resourceName = (project: string, location: string, autoLabelingRuleId: string): infer _ =>
+  `${locationParent(project, location)}/autoLabelingRules/${autoLabelingRuleId}`
+
+const conditionsOf = (
+  list:
+    | readonly cci.GoogleCloudContactcenterinsightsV1AutoLabelingRuleLabelingCondition[]
+    | undefined,
+): LabelingCondition[] =>
+  (list ?? []).map((condition) => ({
+    value: condition.value,
+    condition: condition.condition,
+  }))
+
+const toAttrs = (rule: cci.GoogleCloudContactcenterinsightsV1AutoLabelingRule, project: string): infer _ => {
+  const name = rule.name ?? ""
+  const parsed = parseOwnership(rule.description)
+  return {
+    name,
+    autoLabelingRuleId: lastSegment(name),
+    location: locationOf(name),
+    project,
+    displayName: rule.displayName,
+    description: parsed.text,
+    active: rule.active === true,
+    labelKey: rule.labelKey,
+    labelKeyType: rule.labelKeyType,
+    conditions: conditionsOf(rule.conditions),
+    createTime: rule.createTime,
+    updateTime: rule.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+  .getProjectsLocationsAutoLabelingRules({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string) =>
+  (Array.from(
+    try (cci.listProjectsLocationsAutoLabelingRules.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.autoLabelingRules ?? []))
+      |> Stream.filter(%, (rule) => hasOwnershipMarker(rule.description))
+      |> Stream.map(%, (rule) => toAttrs(rule, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const AutoLabelingRuleProvider = (): infer _ =>
+  Provider.succeed(AutoLabelingRule, {
+    stables: ["name", "autoLabelingRuleId", "location", "project", "labelKey", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousLocation = olds?.location ?? output?.location
+      if (
+        previousLocation !== undefined
+        && news.location !== undefined
+        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.autoLabelingRuleId ?? output?.autoLabelingRuleId
+      if (
+        previousId !== undefined
+        && news.autoLabelingRuleId !== undefined
+        && news.autoLabelingRuleId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const autoLabelingRuleId = try toResourceId(
+        id,
+        olds?.autoLabelingRuleId,
+        output?.autoLabelingRuleId,
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const name = output?.name ?? resourceName(env.project, location, autoLabelingRuleId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAt(locationParent(env.project, env.region), env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const parent = locationParent(env.project, location)
+      const autoLabelingRuleId = try toResourceId(
+        id,
+        news.autoLabelingRuleId,
+        output?.autoLabelingRuleId,
+      )
+      const name = resourceName(env.project, location, autoLabelingRuleId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? encodeOwnershipLine(ownership, undefined)
+      const active = news.active === true
+      const labelKeyType = news.labelKeyType ?? DEFAULT_LABEL_KEY_TYPE
+      const labelKey = news.labelKey ?? autoLabelingRuleId
+      const conditions = news.conditions ?? []
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = cci
+          .createProjectsLocationsAutoLabelingRules({
+            parent,
+            autoLabelingRuleId,
+            body: {
+              displayName,
+              description,
+              active,
+              labelKey,
+              labelKeyType,
+              conditions,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AutoLabelingRuleNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = !sameText(current.description, description)
+      const activeChanged = (current.active === true) !== active
+      const conditionsChanged = !jsonEqual(conditionsOf(current.conditions), conditions)
+
+      if (displayChanged || descriptionChanged || activeChanged || conditionsChanged) {
+        current = try cci.patchProjectsLocationsAutoLabelingRules({
+          name: currentName,
+          updateMask: updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            descriptionChanged ? "description" : undefined,
+            activeChanged ? "active" : undefined,
+            conditionsChanged ? "conditions" : undefined,
+          ),
+          body: {
+            name: currentName,
+            displayName,
+            description,
+            active,
+            conditions,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      cci
+        .deleteProjectsLocationsAutoLabelingRules({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

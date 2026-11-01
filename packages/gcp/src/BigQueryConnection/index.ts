@@ -1,3 +1,3 @@
-export * from "./Connection.ts";
+export * from "./Connection.vibe";
 export * from "./GetConnection.vibe";
 export * from "./GetConnectionHttp.vibe";

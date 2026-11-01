@@ -1,4 +1,4 @@
 export * from "./Assignment.vibe";
-export * from "./CapacityCommitment.ts";
-export * from "./Reservation.ts";
-export * from "./ReservationGroup.ts";
+export * from "./CapacityCommitment.vibe";
+export * from "./Reservation.vibe";
+export * from "./ReservationGroup.vibe";

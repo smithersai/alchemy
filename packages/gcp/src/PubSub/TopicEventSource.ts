@@ -2,7 +2,7 @@ import type * as pubsub from "@distilled.cloud/gcp/pubsub_v1";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import type { Topic } from "./Topic.ts";
+import type { Topic } from "./Topic.vibe";
 
 /** One delivered Pub/Sub message, as push and pull deliver it. */
 export interface TopicMessage {

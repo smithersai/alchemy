@@ -21,7 +21,7 @@ import {
   toPhysicalRfc1035,
   userLabels,
 } from "./helpers.vibe";
-import { listLocations } from "./names.ts";
+import { listLocations } from "./names.vibe";
 import { settlePendingCreates, waitForOperation } from "./operations.ts";
 import type { EncryptionSpec } from "./shared.vibe";
 

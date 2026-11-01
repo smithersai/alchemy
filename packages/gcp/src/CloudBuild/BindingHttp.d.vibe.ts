@@ -1,0 +1,14 @@
+import * as Effect from "effect/Effect";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
+import type { Repository } from "./Repository.js";
+/**
+ * Shared HTTP scaffolding for Cloud Build v2 repository bindings.
+ * NOT exported from index.ts.
+ */
+export declare const makeRepositoryHttpBinding: <I extends {
+    repository: string;
+}, A, E>(options: {
+    tag: string;
+    iam: BindingIam;
+    operation: GcpHttpOp<I, A, E> | ((input: I) => Effect.Effect<A, E>);
+}) => Effect.Effect<<T extends Repository>(repository: T) => Effect.Effect<(request?: Omit<I, "repository"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, import("@distilled.cloud/gcp/Protocol").GcpOpContext>;

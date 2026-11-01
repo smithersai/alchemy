@@ -1,0 +1,370 @@
+import * as cnr from "@distilled.cloud/gcp/cloudnumberregistry_v1alpha"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_LOCATION,
+  ResourceNotResolved,
+  expandName,
+  fieldMask,
+  fingerprint,
+  listAtLocation,
+  listLabeledPages,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  resourceName,
+  sameRef,
+  sameText,
+  toPhysicalId,
+  userLabels,
+  waitForDeleteOperation,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+const COLLECTION = "customRanges"
+
+export type CustomRangeAttribute = {
+  /** Attribute key. */
+  mutable key?: string
+  /** Attribute value. */
+  mutable value?: string
+}
+
+export type CustomRangeProps = {
+  /**
+   * Custom range id (the `{customRange}` segment of
+   * `projects/{project}/locations/{location}/customRanges/{customRange}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable —
+   * changing it replaces the range.
+   */
+  mutable customRangeId?: string
+  /**
+   * Location of the range. Cloud Number Registry is global — `global`
+   * is the only supported value. Immutable — changing it replaces the
+   * range.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Parent realm. Accepts a realm id or a full resource name. Mutually
+   * exclusive with `parentRange`. Immutable — changing it replaces the
+   * range.
+   */
+  mutable realm?: string
+  /**
+   * Parent custom range. Accepts a range id or a full resource name.
+   * Mutually exclusive with `realm` — the child inherits the parent's
+   * realm. Immutable — changing it replaces the range.
+   */
+  mutable parentRange?: string
+  /**
+   * IPv4 CIDR (for example `10.0.0.0/22`). Mutually exclusive with
+   * `ipv6CidrRange`. Immutable — changing it replaces the range.
+   */
+  mutable ipv4CidrRange?: string
+  /**
+   * IPv6 CIDR. Mutually exclusive with `ipv4CidrRange`. Immutable —
+   * changing it replaces the range.
+   */
+  mutable ipv6CidrRange?: string
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string
+  /**
+   * Searchable attributes (`key` / `value` pairs).
+   */
+  mutable attributes?: CustomRangeAttribute[]
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type CustomRange = Resource<
+  "GCP.CloudNumberRegistry.CustomRange",
+  CustomRangeProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/customRanges/{customRange}`. */
+    mutable name: string
+    /** Custom range id (last path segment). */
+    mutable customRangeId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id of the resource. */
+    mutable location: string
+    /** Parent realm, if this range is attached directly to a realm. */
+    mutable realm: string | undefined
+    /** Parent custom range, if this is a child range. */
+    mutable parentRange: string | undefined
+    /** Inherited registry book. */
+    mutable registryBook: string | undefined
+    /** IPv4 CIDR, if this is an IPv4 range. */
+    mutable ipv4CidrRange: string | undefined
+    /** IPv6 CIDR, if this is an IPv6 range. */
+    mutable ipv6CidrRange: string | undefined
+    /** Human-readable description. */
+    mutable description: string | undefined
+    /** Searchable attributes. */
+    mutable attributes: CustomRangeAttribute[]
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+  },
+  never,
+  Providers
+>
+
+/**
+ * A user-defined Cloud Number Registry IP range. Custom ranges track
+ * address space that discovery does not cover (on-prem subnets, and so
+ * on) and can only be added to user-managed realms.
+ *
+ * `customRangeId`, `location`, `realm`, `parentRange`, and the CIDR
+ * replace the resource. Description, attributes, and labels update in
+ * place.
+ *
+ * ### Creating a Custom Range
+ * **Example:** Range in a realm
+ * ```typescript
+ * const book = yield* GCP.CloudNumberRegistry.RegistryBook("Inventory", {});
+ * const realm = yield* GCP.CloudNumberRegistry.Realm("Private", {
+ *   registryBook: book.name,
+ * });
+ * const range = yield* GCP.CloudNumberRegistry.CustomRange("OnPrem", {
+ *   realm: realm.name,
+ *   ipv4CidrRange: "10.0.0.0/22",
+ *   description: "on-prem campus",
+ * });
+ * ```
+ *
+ * **Example:** Child range
+ * ```typescript
+ * const child = yield* GCP.CloudNumberRegistry.CustomRange("Building", {
+ *   parentRange: parent.name,
+ *   ipv4CidrRange: "10.0.0.0/24",
+ * });
+ * ```
+ *
+ * ### Updating a Custom Range
+ * **Example:** Description and labels
+ * ```typescript
+ * const range = yield* GCP.CloudNumberRegistry.CustomRange("OnPrem", {
+ *   realm: realm.name,
+ *   ipv4CidrRange: "10.0.0.0/22",
+ *   description: "on-prem campus v2",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category CloudNumberRegistry
+ */
+export const CustomRange = Resource<CustomRange>("GCP.CloudNumberRegistry.CustomRange")
+
+const toAttributes = (attributes: readonly cnr.Attribute[] | undefined): CustomRangeAttribute[] =>
+  (attributes ?? []).map((attribute) => ({
+    key: attribute.key,
+    value: attribute.value,
+  }))
+
+const toAttrs = (item: cnr.CustomRange, project: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, COLLECTION)
+  return {
+    name,
+    customRangeId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || DEFAULT_LOCATION,
+    realm: item.realm,
+    parentRange: item.parentRange,
+    registryBook: item.registryBook,
+    ipv4CidrRange: item.ipv4CidrRange,
+    ipv6CidrRange: item.ipv6CidrRange,
+    description: item.description,
+    attributes: toAttributes(item.attributes),
+    labels: userLabels(item.labels),
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cnr
+  .getProjectsLocationsCustomRanges({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string) =>
+  try listAtLocation(project, effect (parent) =>
+    try listLabeledPages(
+      cnr.listProjectsLocationsCustomRanges.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.customRanges,
+      (item) => item.labels,
+    ))
+
+export const CustomRangeProvider = (): infer _ =>
+  Provider.succeed(CustomRange, {
+    stables: [
+      "name",
+      "customRangeId",
+      "project",
+      "location",
+      "realm",
+      "parentRange",
+      "registryBook",
+      "ipv4CidrRange",
+      "ipv6CidrRange",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousRealm = olds?.realm ?? output?.realm
+      const previousParent = olds?.parentRange ?? output?.parentRange
+      const previousV4 = olds?.ipv4CidrRange ?? output?.ipv4CidrRange
+      const nextV4 = news.ipv4CidrRange ?? previousV4
+      const previousV6 = olds?.ipv6CidrRange ?? output?.ipv6CidrRange
+      const nextV6 = news.ipv6CidrRange ?? previousV6
+      return replaceOnIdentity({
+        previousId: olds?.customRangeId ?? output?.customRangeId,
+        nextId: news.customRangeId ?? olds?.customRangeId ?? output?.customRangeId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location),
+        nextLocation: normalizeLocation(news.location ?? olds?.location ?? output?.location),
+        extra: (news.realm !== undefined
+          && previousRealm !== undefined
+          && !sameRef(previousRealm, news.realm))
+          || (news.parentRange !== undefined
+            && previousParent !== undefined
+            && !sameRef(previousParent, news.parentRange))
+          || (news.realm !== undefined && previousParent !== undefined)
+          || (news.parentRange !== undefined && previousRealm !== undefined)
+          || (previousV4 !== undefined && nextV4 !== undefined && previousV4 !== nextV4)
+          || (previousV6 !== undefined && nextV6 !== undefined && previousV6 !== nextV6),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const customRangeId = try toPhysicalId(
+        id,
+        olds?.customRangeId,
+        output?.customRangeId,
+        "range",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const name = output?.name ?? resourceName(env.project, location, COLLECTION, customRangeId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const customRangeId = try toPhysicalId(
+        id,
+        news.customRangeId,
+        output?.customRangeId,
+        "range",
+      )
+      const location = normalizeLocation(news.location ?? output?.location)
+      const name = resourceName(env.project, location, COLLECTION, customRangeId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const realm = news.parentRange === undefined && news.realm !== undefined
+        ? expandName(news.realm, env.project, location, "realms")
+        : undefined
+      const parentRange = news.parentRange !== undefined
+        ? expandName(news.parentRange, env.project, location, COLLECTION)
+        : undefined
+      const attributes = news.attributes
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = cnr
+          .createProjectsLocationsCustomRanges({
+            parent: parentOf(env.project, location),
+            customRangeId,
+            body: {
+              realm,
+              parentRange,
+              ipv4CidrRange: news.ipv4CidrRange,
+              ipv6CidrRange: news.ipv6CidrRange,
+              description: news.description,
+              attributes,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const mask = fieldMask([
+        (upsert.length > 0 || removed.length > 0) && "labels",
+        !sameText(current.description, news.description) && "description",
+        attributes !== undefined
+        && fingerprint(toAttributes(current.attributes)) !== fingerprint(attributes)
+        && "attributes",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try cnr.patchProjectsLocationsCustomRanges({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+            attributes,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (cnr
+        .deleteProjectsLocationsCustomRanges({
+          name: output.name,
+          force: true,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForDeleteOperation(operation)
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

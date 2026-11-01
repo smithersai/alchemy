@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.js";
 import type { Providers } from "../Providers.js";
-import { type RulesetFile, type RulesetSource } from "./internal.js";
+import { type RulesetFile, type RulesetSource } from "./internal.vibe";
 export type { RulesetFile, RulesetSource };
 export type RulesetProps = {
     /**

@@ -1,5 +1,5 @@
 import type * as Binding from "../Workers/Binding.js";
-import { Stream, type StreamClient } from "./Stream.js";
+import { Stream, type StreamClient } from "./Stream.vibe";
 /** The binding value produced by calling {@link Stream} (declared on `env` or `yield*`-ed). */
 export type StreamBinding = Binding.Binding<Stream["key"], StreamClient, Stream>;
 /**

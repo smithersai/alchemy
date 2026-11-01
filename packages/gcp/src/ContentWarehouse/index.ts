@@ -1,4 +1,4 @@
-export * from "./Document.ts";
+export * from "./Document.vibe";
 export * from "./DocumentSchema.ts";
 export * from "./GetDocument.vibe";
 export * from "./GetDocumentHttp.vibe";
@@ -9,4 +9,4 @@ export * from "./GetRuleSetHttp.vibe";
 export * from "./GetSynonymSet.vibe";
 export * from "./GetSynonymSetHttp.vibe";
 export * from "./RuleSet.ts";
-export * from "./SynonymSet.ts";
+export * from "./SynonymSet.vibe";

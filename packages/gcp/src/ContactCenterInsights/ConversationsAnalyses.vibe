@@ -1,0 +1,252 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import type { AnnotatorSelector } from "./AnalysisRule.vibe"
+import { resourceNameFromOperation, waitForOperation } from "./operations.ts"
+import { lastSegment, locationOf, locationParent, parentOf, sameJson } from "./ownership.vibe"
+
+type AnalysisAnnotatorSelector = AnnotatorSelector & {
+  /** Summarization annotator configuration. */
+  mutable summarizationConfig?: cci.GoogleCloudContactcenterinsightsV1AnnotatorSelectorSummarizationConfig
+  /** QA annotator configuration. */
+  mutable qaConfig?: cci.GoogleCloudContactcenterinsightsV1AnnotatorSelectorQaConfig
+}
+
+export type ConversationsAnalysesProps = {
+  /**
+   * Parent Conversation resource name
+   * (`projects/{project}/locations/{location}/conversations/{conversation}`).
+   * Immutable — changing it replaces the analysis.
+   */
+  mutable parent: string
+  /**
+   * Annotators to run. Analyses have no update RPC; changing the selector
+   * replaces the analysis. Analyses have no labels or description field —
+   * nuke finds them by walking alchemy-labeled parent conversations.
+   */
+  mutable annotatorSelector?: AnalysisAnnotatorSelector
+}
+
+export type ConversationsAnalyses = Resource<
+  "GCP.ContactCenterInsights.ConversationsAnalyses",
+  ConversationsAnalysesProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Analysis id (last path segment). */
+    mutable analysisId: string
+    /** Parent conversation resource name. */
+    mutable parent: string
+    /** Region id. */
+    mutable location: string
+    /** Project id. */
+    mutable project: string
+    /** Annotators that were selected. */
+    mutable annotatorSelector: AnalysisAnnotatorSelector | undefined
+    /** RFC3339 time the analysis was requested. */
+    mutable requestTime: string | undefined
+    /** RFC3339 creation timestamp (when the LRO completed). */
+    mutable createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An analysis of a Contact Center Insights conversation.
+ *
+ * Parent conversation and annotator selector are immutable — there is no
+ * update RPC, so changing either replaces the analysis. Create is a
+ * long-running operation that completes when the analysis finishes.
+ * Analyses have no labels field; `list` walks alchemy-labeled parent
+ * conversations.
+ *
+ * ### Creating an Analysis
+ * **Example:** Silence-only analysis
+ * ```typescript
+ * const analysis = yield* GCP.ContactCenterInsights.ConversationsAnalyses(
+ *   "Silence",
+ *   {
+ *     parent: conversation.name,
+ *     annotatorSelector: { runSilenceAnnotator: true },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const ConversationsAnalyses = Resource<ConversationsAnalyses>(
+  "GCP.ContactCenterInsights.ConversationsAnalyses",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ConversationsAnalysesNotResolved extends Data.TaggedError(
+  "GCP.ContactCenterInsights.ConversationsAnalysesNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const toSelector = (
+  selector:
+    | cci.GoogleCloudContactcenterinsightsV1AnnotatorSelector
+    | AnalysisAnnotatorSelector
+    | undefined,
+): AnalysisAnnotatorSelector | undefined => {
+  if (selector === undefined) return undefined
+  return {
+    runSentimentAnnotator: selector.runSentimentAnnotator,
+    runSummarizationAnnotator: selector.runSummarizationAnnotator,
+    runQaAnnotator: selector.runQaAnnotator,
+    runAutoLabelingAnnotator: selector.runAutoLabelingAnnotator,
+    runIssueModelAnnotator: selector.runIssueModelAnnotator,
+    runSilenceAnnotator: selector.runSilenceAnnotator,
+    runPhraseMatcherAnnotator: selector.runPhraseMatcherAnnotator,
+    runEntityAnnotator: selector.runEntityAnnotator,
+    runIntentAnnotator: selector.runIntentAnnotator,
+    runInterruptionAnnotator: selector.runInterruptionAnnotator,
+    issueModels: selector.issueModels,
+    phraseMatchers: selector.phraseMatchers,
+    summarizationConfig: selector.summarizationConfig,
+    qaConfig: selector.qaConfig,
+  }
+}
+
+const toAttrs = (analysis: cci.GoogleCloudContactcenterinsightsV1Analysis, project: string): infer _ => {
+  const name = analysis.name ?? ""
+  return {
+    name,
+    analysisId: lastSegment(name),
+    parent: parentOf(name),
+    location: locationOf(name),
+    project,
+    annotatorSelector: toSelector(analysis.annotatorSelector),
+    requestTime: analysis.requestTime,
+    createTime: analysis.createTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+  .getProjectsLocationsConversationsAnalyses({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const waitUntilExists = effect (name: string) =>
+  try (effect {
+    return try effect {
+      const analysis = try getByName(name)
+      return (analysis ? analysis : throw new ConversationsAnalysesNotResolved({ resourceName: name }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.ContactCenterInsights.ConversationsAnalysesNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+const listConversations = effect (parent: string) =>
+  (Array.from(
+    try (cci.listProjectsLocationsConversations.pages({ parent, pageSize: 100, view: "BASIC" })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.conversations ?? []))
+      |> Stream.filter(%, (conversation) =>
+        Object.keys(conversation.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+      |> Stream.map(%, (conversation) =>
+        conversation.name ?? "")
+      |> Stream.filter(%, (name) => name.length > 0)
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+
+const listAtParent = effect (parent: string, project: string) =>
+  (Array.from(
+    try (cci.listProjectsLocationsConversationsAnalyses.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.analyses ?? []))
+      |> Stream.map(%, (analysis) => toAttrs(analysis, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const ConversationsAnalysesProvider = (): infer _ =>
+  Provider.succeed(ConversationsAnalyses, {
+    stables: ["name", "analysisId", "parent", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (previousParent !== undefined && news.parent !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousSelector = olds?.annotatorSelector ?? output?.annotatorSelector
+      if (
+        previousSelector !== undefined
+        && !sameJson(toSelector(previousSelector), toSelector(news.annotatorSelector))
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ output }) => {
+      const env = try GcpEnvironment.current
+      const existing = try getByName(output?.name ?? "")
+      if (existing === undefined) return undefined
+      return toAttrs(existing, env.project)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const parent = locationParent(env.project, env.region)
+      const conversations = try listConversations(parent)
+      const pages = try Effect.forEach(
+        conversations,
+        effect (conversation) => try listAtParent(conversation, env.project),
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ news, output }) => {
+      const env = try GcpEnvironment.current
+      let current = try getByName(output?.name ?? "")
+
+      if (current === undefined) {
+        const created = cci
+          .createProjectsLocationsConversationsAnalyses({
+            parent: news.parent,
+            body: {
+              annotatorSelector: news.annotatorSelector,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          const done = try waitForOperation(created)
+          const createdName = resourceNameFromOperation(done) ?? ""
+          if (createdName.length > 0) {
+            current = try waitUntilExists(createdName)
+          }
+        }
+      }
+
+      if (current === undefined) {
+        const listed = try listAtParent(news.parent, env.project)
+        current = listed[0] ? try getByName(listed[0].name) : undefined
+      }
+
+      if (current === undefined) {
+        throw new ConversationsAnalysesNotResolved({
+          resourceName: output?.name ?? `${news.parent}/analyses/-`,
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      cci
+        .deleteProjectsLocationsConversationsAnalyses({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

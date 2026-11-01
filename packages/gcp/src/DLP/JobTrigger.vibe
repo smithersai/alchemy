@@ -1,0 +1,277 @@
+import * as dlp from "@distilled.cloud/gcp/dlp_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  collectPages,
+  encodeOwnership,
+  hasOwnershipMarker,
+  jsonEqual,
+  lastSegment,
+  ownedByAlchemy,
+  parseOwnership,
+  projectOf,
+  replaceOnIdentity,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./internal.ts"
+
+type InspectJobConfig = dlp.GooglePrivacyDlpV2InspectJobConfig
+type JobTriggerTrigger = dlp.GooglePrivacyDlpV2Trigger
+type JobTriggerStatus = dlp.GooglePrivacyDlpV2JobTriggerStatusEnum
+
+export type JobTriggerProps = {
+  /**
+   * Trigger id (the `{jobTrigger}` segment of
+   * `projects/{project}/jobTriggers/{jobTrigger}`). If omitted, a unique
+   * name is generated. Must match `[a-zA-Z0-9_-]+` and is at most 100
+   * characters. Immutable — changing it replaces the trigger.
+   */
+  mutable triggerId?: string
+  /**
+   * Display name (max 100 characters).
+   */
+  mutable displayName?: string
+  /**
+   * Human-readable description (max 256 characters). Job triggers have no
+   * labels field, so Alchemy ownership is stored in a `[alchemy …]`
+   * prefix and stripped from attributes.
+   */
+  mutable description?: string
+  /**
+   * Trigger status. `PAUSED` stores the trigger without starting jobs.
+   * @default "PAUSED"
+   */
+  mutable status?: JobTriggerStatus | (string & {})
+  /**
+   * Inspect-job configuration run when the trigger fires.
+   */
+  mutable inspectJob?: InspectJobConfig
+  /**
+   * Triggers OR'ed together. At least one is required; typically a
+   * schedule with `recurrencePeriodDuration` of at least one day.
+   */
+  mutable triggers?: JobTriggerTrigger[]
+}
+
+export type JobTrigger = Resource<
+  "GCP.DLP.JobTrigger",
+  JobTriggerProps,
+  {
+    /** Full resource name `projects/{project}/jobTriggers/{id}`. */
+    mutable name: string
+    /** Trigger id (last path segment). */
+    mutable triggerId: string
+    /** Project id. */
+    mutable project: string
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Trigger status. */
+    mutable status: string | undefined
+    /** Inspect-job configuration. */
+    mutable inspectJob: InspectJobConfig | undefined
+    /** Trigger list. */
+    mutable triggers: JobTriggerTrigger[]
+    /** RFC3339 last-run timestamp. */
+    mutable lastRunTime: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A project-scoped Cloud DLP job trigger.
+ *
+ * Job triggers have no labels field, so Alchemy stamps ownership into
+ * the description for `list` / nuke. Trigger id is identity — changing
+ * it replaces the trigger. Display name, description, status, inspect
+ * job, and schedule update in place.
+ *
+ * ### Creating a Job Trigger
+ * **Example:** Paused daily hybrid inspect
+ * ```typescript
+ * const trigger = yield* GCP.DLP.JobTrigger("Nightly", {
+ *   displayName: "nightly hybrid",
+ *   status: "PAUSED",
+ *   inspectJob: {
+ *     inspectConfig: { infoTypes: [{ name: "EMAIL_ADDRESS" }] },
+ *     storageConfig: { hybridOptions: { description: "hybrid" } },
+ *   },
+ *   triggers: [{ manual: {} }],
+ * });
+ * ```
+ *
+ * ### Updating a Job Trigger
+ * **Example:** Change the display name
+ * ```typescript
+ * const trigger = yield* GCP.DLP.JobTrigger("Nightly", {
+ *   displayName: "nightly hybrid v2",
+ *   status: "PAUSED",
+ *   inspectJob: {
+ *     inspectConfig: { infoTypes: [{ name: "EMAIL_ADDRESS" }] },
+ *     storageConfig: { hybridOptions: { description: "hybrid" } },
+ *   },
+ *   triggers: [{ manual: {} }],
+ * });
+ * ```
+ *
+ * @resource
+ * @category DLP
+ */
+export const JobTrigger = Resource<JobTrigger>("GCP.DLP.JobTrigger")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class JobTriggerNotResolved extends Data.TaggedError("GCP.DLP.JobTriggerNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+const DEFAULT_STATUS: JobTriggerStatus = "PAUSED"
+
+const resourceName = (project: string, triggerId: string): infer _ => `projects/${project}/jobTriggers/${triggerId}`
+
+const toAttrs = (trigger: dlp.GooglePrivacyDlpV2JobTrigger, project: string): infer _ => {
+  const name = trigger.name ?? ""
+  const parsed = parseOwnership(trigger.description)
+  return {
+    name,
+    triggerId: lastSegment(name),
+    project: projectOf(name) || project,
+    displayName: trigger.displayName,
+    description: parsed.text,
+    status: trigger.status,
+    inspectJob: trigger.inspectJob,
+    triggers: trigger.triggers ?? [],
+    lastRunTime: trigger.lastRunTime,
+    createTime: trigger.createTime,
+    updateTime: trigger.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dlp
+  .getProjectsJobTriggers({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const JobTriggerProvider = (): infer _ =>
+  Provider.succeed(JobTrigger, {
+    stables: ["name", "triggerId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previous = olds?.triggerId ?? output?.triggerId
+      return replaceOnIdentity(
+        previous !== undefined && news.triggerId !== undefined && news.triggerId !== previous,
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const triggerId = try toResourceId(id, olds?.triggerId, output?.triggerId)
+      const name = output?.name ?? resourceName(env.project, triggerId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = collectPages(
+        dlp.listProjectsJobTriggers.pages({
+          parent: `projects/${env.project}`,
+          pageSize: 100,
+        }),
+        (page) => page.jobTriggers,
+      ) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: [] as dlp.GooglePrivacyDlpV2JobTrigger[];
+        default: throw e;
+      }
+      return items
+        .filter((trigger) => hasOwnershipMarker(trigger.description))
+        .map((trigger) => toAttrs(trigger, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const triggerId = try toResourceId(id, news.triggerId, output?.triggerId)
+      const name = resourceName(env.project, triggerId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const status = news.status ?? DEFAULT_STATUS
+      const body: dlp.GooglePrivacyDlpV2JobTrigger = {
+        displayName: news.displayName,
+        description,
+        status,
+        inspectJob: news.inspectJob,
+        triggers: news.triggers,
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = dlp
+          .createProjectsJobTriggers({
+            parent: `projects/${env.project}`,
+            body: {
+              triggerId,
+              jobTrigger: body,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new JobTriggerNotResolved({ resourceName: name })
+      }
+
+      const displayChanged = !sameText(current.displayName, news.displayName)
+      const descriptionChanged = (current.description ?? "") !== description
+      const statusChanged = (current.status ?? "") !== status
+      const inspectChanged = !jsonEqual(current.inspectJob, news.inspectJob)
+      const triggersChanged = !jsonEqual(current.triggers, news.triggers)
+
+      if (
+        displayChanged
+        || descriptionChanged
+        || statusChanged
+        || inspectChanged
+        || triggersChanged
+      ) {
+        current = try dlp.patchProjectsJobTriggers({
+          name: current.name ?? name,
+          body: {
+            jobTrigger: body,
+            updateMask: updateMaskOf(
+              displayChanged ? "displayName" : undefined,
+              descriptionChanged ? "description" : undefined,
+              statusChanged ? "status" : undefined,
+              inspectChanged ? "inspectJob" : undefined,
+              triggersChanged ? "triggers" : undefined,
+            ),
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      dlp
+        .deleteProjectsJobTriggers({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

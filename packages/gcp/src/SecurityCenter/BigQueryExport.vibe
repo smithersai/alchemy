@@ -1,0 +1,242 @@
+import * as scc from "@distilled.cloud/gcp/securitycenter_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  collectPages,
+  encodeOwnership,
+  hasOwnershipMarker,
+  lastSegment,
+  ownedByAlchemy,
+  parseOwnership,
+  projectOf,
+  replaceOn,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./internal.ts"
+
+export type BigQueryExportProps = {
+  /**
+   * Export id (the `{export}` segment of
+   * `projects/{project}/bigQueryExports/{export}`). If omitted, a unique
+   * id is generated. Lowercase letters, digits, and hyphens; must start
+   * with a letter; max 63 characters. Immutable — changing it replaces
+   * the export.
+   */
+  mutable exportId?: string
+  /**
+   * Destination dataset, as `projects/{project}/datasets/{dataset}`.
+   */
+  mutable dataset: string
+  /**
+   * Finding filter. Empty exports every finding in the parent.
+   */
+  mutable filter?: string
+  /**
+   * Human-readable description (max 1024 characters). BigQuery exports
+   * have no labels field, so Alchemy ownership is stored in a
+   * `[alchemy …]` prefix and stripped from attributes.
+   */
+  mutable description?: string
+}
+
+export type BigQueryExport = Resource<
+  "GCP.SecurityCenter.BigQueryExport",
+  BigQueryExportProps,
+  {
+    /** Full resource name `projects/{project}/bigQueryExports/{export}`. */
+    mutable name: string
+    /** Export id (last path segment). */
+    mutable exportId: string
+    /** Project id. */
+    mutable project: string
+    /** Destination dataset. */
+    mutable dataset: string | undefined
+    /** Finding filter. */
+    mutable filter: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Service account SCC uses to write rows. */
+    mutable principal: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+    /** Last editor email. */
+    mutable mostRecentEditor: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A project-scoped Security Command Center BigQuery export that writes
+ * findings to a dataset.
+ *
+ * Exports have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. Export id is identity.
+ * Dataset, filter, and description update in place.
+ *
+ * ### Creating a BigQuery Export
+ * **Example:** Export high-severity findings
+ * ```typescript
+ * const dataset = yield* GCP.BigQuery.Dataset("SccFindings", {
+ *   location: "US",
+ *   forceDestroy: true,
+ * });
+ * const exp = yield* GCP.SecurityCenter.BigQueryExport("High", {
+ *   dataset: dataset.name,
+ *   description: "high severity",
+ *   filter: 'severity="HIGH"',
+ * });
+ * ```
+ *
+ * ### Updating a BigQuery Export
+ * **Example:** Also export critical findings
+ * ```typescript
+ * const exp = yield* GCP.SecurityCenter.BigQueryExport("High", {
+ *   dataset: dataset.name,
+ *   description: "high and critical",
+ *   filter: 'severity="HIGH" OR severity="CRITICAL"',
+ * });
+ * ```
+ *
+ * @resource
+ * @category SecurityCenter
+ */
+export const BigQueryExport = Resource<BigQueryExport>("GCP.SecurityCenter.BigQueryExport")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class BigQueryExportNotResolved extends Data.TaggedError(
+  "GCP.SecurityCenter.BigQueryExportNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (project: string, exportId: string): infer _ => `projects/${project}/bigQueryExports/${exportId}`
+
+const toAttrs = (exp: scc.GoogleCloudSecuritycenterV1BigQueryExport, project: string): infer _ => {
+  const name = exp.name ?? ""
+  const parsed = parseOwnership(exp.description)
+  return {
+    name,
+    exportId: lastSegment(name),
+    project: projectOf(name) || project,
+    dataset: exp.dataset,
+    filter: exp.filter,
+    description: parsed.text,
+    principal: exp.principal,
+    createTime: exp.createTime,
+    updateTime: exp.updateTime,
+    mostRecentEditor: exp.mostRecentEditor,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : scc
+  .getProjectsBigQueryExports({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const BigQueryExportProvider = (): infer _ =>
+  Provider.succeed(BigQueryExport, {
+    stables: ["name", "exportId", "project", "principal", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      return replaceOn(olds?.exportId ?? output?.exportId, news.exportId)
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const exportId = try toResourceId(id, olds?.exportId, output?.exportId, "e")
+      const name = output?.name ?? resourceName(env.project, exportId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = collectPages(
+        scc.listProjectsBigQueryExports.pages({
+          parent: `projects/${env.project}`,
+          pageSize: 100,
+        }),
+        (page) => page.bigQueryExports,
+      ) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: [] as scc.GoogleCloudSecuritycenterV1BigQueryExport[];
+        default: throw e;
+      }
+      return items
+        .filter((exp) => hasOwnershipMarker(exp.description))
+        .map((exp) => toAttrs(exp, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const exportId = try toResourceId(id, news.exportId, output?.exportId, "e")
+      const name = resourceName(env.project, exportId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const filter = news.filter ?? ""
+      const body: scc.GoogleCloudSecuritycenterV1BigQueryExport = {
+        dataset: news.dataset,
+        filter,
+        description,
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = scc
+          .createProjectsBigQueryExports({
+            parent: `projects/${env.project}`,
+            bigQueryExportId: exportId,
+            body,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new BigQueryExportNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const datasetChanged = !sameText(current.dataset, news.dataset)
+      const filterChanged = !sameText(current.filter, filter)
+      const descriptionChanged = !sameText(current.description, description)
+      const updateMask = updateMaskOf(
+        datasetChanged ? "dataset" : undefined,
+        filterChanged ? "filter" : undefined,
+        descriptionChanged ? "description" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try scc.patchProjectsBigQueryExports({
+          name: currentName,
+          updateMask,
+          body: {
+            ...body,
+            name: currentName,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      scc
+        .deleteProjectsBigQueryExports({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

@@ -1,0 +1,369 @@
+import * as vm from "@distilled.cloud/gcp/vmmigration_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  collectPages,
+  fieldMask,
+  fingerprint,
+  forEachSource,
+  hasAlchemyLabelMap,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  sourceOf,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type SchedulePolicy = vm.SchedulePolicy
+export type ComputeEngineTargetDefaults = vm.ComputeEngineTargetDefaults
+export type ComputeEngineDisksTargetDefaults = vm.ComputeEngineDisksTargetDefaults
+export type MigratingVmState = vm.MigratingVmStateEnum | (string & {})
+
+export type SourcesMigratingVmProps = {
+  /**
+   * Parent source. Full name
+   * `projects/{project}/locations/{location}/sources/{source}` or the
+   * source id (combined with `location`). Immutable — changing it
+   * replaces the migrating VM.
+   */
+  mutable source: string
+  /**
+   * Region used when `source` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Migrating VM id. If omitted, a unique RFC1035 name is generated.
+   * Immutable — changing it replaces the migrating VM.
+   */
+  mutable migratingVmId?: string
+  /**
+   * Unique VM id in the source (vSphere moRef `vm-…`, AWS instance id,
+   * Azure VM id). Immutable — changing it replaces the migrating VM.
+   */
+  mutable sourceVmId: string
+  /**
+   * User-friendly display name.
+   */
+  mutable displayName?: string
+  /**
+   * Free-text description.
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Replication schedule policy.
+   */
+  mutable policy?: SchedulePolicy
+  /**
+   * Target VM defaults in Compute Engine. Mutually exclusive with
+   * `computeEngineDisksTargetDefaults`.
+   */
+  mutable computeEngineTargetDefaults?: ComputeEngineTargetDefaults
+  /**
+   * Target persistent-disk defaults. Mutually exclusive with
+   * `computeEngineTargetDefaults`.
+   */
+  mutable computeEngineDisksTargetDefaults?: ComputeEngineDisksTargetDefaults
+}
+
+export type SourcesMigratingVm = Resource<
+  "GCP.VMMigration.SourcesMigratingVm",
+  SourcesMigratingVmProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Migrating VM id (last path segment). */
+    mutable migratingVmId: string
+    /** Parent source resource name. */
+    mutable source: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Unique VM id in the source. */
+    mutable sourceVmId: string | undefined
+    /** User-friendly display name. */
+    mutable displayName: string | undefined
+    /** Free-text description. */
+    mutable description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Replication schedule policy. */
+    mutable policy: SchedulePolicy | undefined
+    /** Compute Engine VM target defaults. */
+    mutable computeEngineTargetDefaults: ComputeEngineTargetDefaults | undefined
+    /** Compute Engine disk target defaults. */
+    mutable computeEngineDisksTargetDefaults: ComputeEngineDisksTargetDefaults | undefined
+    /** Group this migrating VM belongs to. */
+    mutable group: string | undefined
+    /** Replication state. */
+    mutable state: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A VM Migration migrating VM: a source VM plus the replication and
+ * target defaults used to clone or cut over into Compute Engine.
+ *
+ * Source, migrating VM id, and `sourceVmId` are immutable. Display
+ * name, description, labels, policy, and target defaults update in
+ * place.
+ *
+ * ### Creating a Migrating VM
+ * **Example:** Compute Engine VM target
+ * ```typescript
+ * const vm = yield* GCP.VMMigration.SourcesMigratingVm("Web", {
+ *   source: source.name,
+ *   sourceVmId: "vm-123",
+ *   displayName: "web-1",
+ *   computeEngineTargetDefaults: {
+ *     vmName: "web-1",
+ *     machineType: "n2-standard-4",
+ *     zone: "us-central1-a",
+ *     targetProject: target.name,
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category VMMigration
+ */
+export const SourcesMigratingVm = Resource<SourcesMigratingVm>(
+  "GCP.VMMigration.SourcesMigratingVm",
+)
+
+const resourceName = (source: string, migratingVmId: string): infer _ => `${source}/migratingVms/${migratingVmId}`
+
+const userVmTarget = (target: ComputeEngineTargetDefaults | undefined): infer _ => {
+  if (target === undefined) return undefined
+  const { appliedLicense: _applied, bootOption: _boot, ...rest } = target
+  return rest
+}
+
+const userDisksTarget = (target: ComputeEngineDisksTargetDefaults | undefined): infer _ => {
+  if (target === undefined) return undefined
+  return {
+    targetProject: target.targetProject,
+    zone: target.zone,
+    disks: target.disks,
+    vmTargetDefaults: target.vmTargetDefaults,
+  }
+}
+
+const toAttrs = (migrating: vm.MigratingVm, project: string, region: string): infer _ => {
+  const name = migrating.name ?? ""
+  const parsed = parseName(name, "migratingVms", region)
+  return {
+    name,
+    migratingVmId: parsed.id,
+    source: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    sourceVmId: migrating.sourceVmId,
+    displayName: migrating.displayName,
+    description: migrating.description,
+    labels: userLabels(migrating.labels),
+    policy: migrating.policy,
+    computeEngineTargetDefaults: migrating.computeEngineTargetDefaults,
+    computeEngineDisksTargetDefaults: migrating.computeEngineDisksTargetDefaults,
+    group: migrating.group,
+    state: migrating.state,
+    createTime: migrating.createTime,
+    updateTime: migrating.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : vm
+  .getProjectsLocationsSourcesMigratingVms({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listChildren = effect (parent: string) =>
+  collectPages(
+    vm.listProjectsLocationsSourcesMigratingVms.pages({
+      parent,
+      pageSize: 1000,
+      view: "MIGRATING_VM_VIEW_BASIC",
+    }),
+    (page) => page.migratingVms,
+  ) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as vm.MigratingVm[]; default: throw e; }
+
+export const SourcesMigratingVmProvider = (): infer _ =>
+  Provider.succeed(SourcesMigratingVm, {
+    stables: ["name", "migratingVmId", "source", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousSource = olds?.source ?? output?.source
+      const previousVm = olds?.sourceVmId ?? output?.sourceVmId
+      const nextVm = news.sourceVmId ?? previousVm
+      return replaceOnIdentity({
+        previousId: olds?.migratingVmId ?? output?.migratingVmId,
+        nextId: news.migratingVmId ?? olds?.migratingVmId ?? output?.migratingVmId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        previousParent: previousSource,
+        nextParent: news.source ?? previousSource,
+        extra: previousVm !== nextVm,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const migratingVmId = try toPhysicalId(
+        id,
+        olds?.migratingVmId,
+        output?.migratingVmId,
+        "migratingvm",
+      )
+      const source = olds?.source !== undefined
+        ? sourceOf(olds.source, env.project, location)
+        : (output?.source ?? "")
+      const name = output?.name ?? (source.length > 0 ? resourceName(source, migratingVmId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try forEachSource(env.project, listChildren, env.region)
+      return items
+        .filter((item) => hasAlchemyLabelMap(item.labels))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const source = sourceOf(news.source, env.project, location)
+      const migratingVmId = try toPhysicalId(
+        id,
+        news.migratingVmId,
+        output?.migratingVmId,
+        "migratingvm",
+      )
+      const name = resourceName(source, migratingVmId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const displayName = news.displayName ?? migratingVmId
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = vm
+          .createProjectsLocationsSourcesMigratingVms({
+            parent: source,
+            migratingVmId,
+            body: {
+              sourceVmId: news.sourceVmId,
+              displayName,
+              description: news.description,
+              labels: desiredLabels,
+              policy: news.policy,
+              computeEngineTargetDefaults: news.computeEngineTargetDefaults,
+              computeEngineDisksTargetDefaults: news.computeEngineDisksTargetDefaults,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          // ALREADY_EXISTS (6): a concurrent create won the race.
+          waitForOperation(created) catch effect (error) => match (error) {
+            when { _tag: "GCP.OperationFailed" }: try (error.code === 6 ? Effect.void : throw error);
+            default: throw error;
+          }
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const displayNameChanged = (current.displayName ?? "") !== displayName
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const policyChanged = fingerprint(current.policy) !== fingerprint(news.policy)
+      const vmTargetChanged = fingerprint(userVmTarget(current.computeEngineTargetDefaults))
+        !== fingerprint(userVmTarget(news.computeEngineTargetDefaults))
+      const disksTargetChanged = fingerprint(userDisksTarget(current.computeEngineDisksTargetDefaults))
+        !== fingerprint(userDisksTarget(news.computeEngineDisksTargetDefaults))
+      const mask = fieldMask([
+        labelsChanged && "labels",
+        displayNameChanged && "displayName",
+        descriptionChanged && "description",
+        policyChanged && "policy",
+        vmTargetChanged && "computeEngineTargetDefaults",
+        disksTargetChanged && "computeEngineDisksTargetDefaults",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try vm.patchProjectsLocationsSourcesMigratingVms({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            displayName,
+            description: news.description,
+            labels: desiredLabels,
+            policy: news.policy,
+            computeEngineTargetDefaults: news.computeEngineTargetDefaults,
+            computeEngineDisksTargetDefaults: news.computeEngineDisksTargetDefaults,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (vm
+        .deleteProjectsLocationsSourcesMigratingVms({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        // NOT_FOUND (5): already gone.
+        waitForOperation(operation) catch effect (error) => match (error) {
+          when { _tag: "GCP.OperationFailed" }: try (error.code === 5 ? Effect.void : throw error);
+          default: throw error;
+        }
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

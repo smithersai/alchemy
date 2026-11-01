@@ -1,0 +1,34 @@
+import { AlchemyContext } from "alchemy/AlchemyContext";
+import * as Provider from "alchemy/Provider";
+import { Stack } from "alchemy/Stack";
+import type * as Types from "effect/Types";
+import { Service } from "./Service.js";
+export { ServiceRegionNotApplied } from "./ServiceRegion.js";
+export { ServiceContextPathInvalid, ServiceContextPathUnsupported, ServiceContextSymlinkUnsupported, ServiceContextTooLarge, ServiceDockerfileOutsideContext, ServiceDockerfilePathInvalid, ServiceImageOrMainRequired, ServiceSourceInvalid, } from "./local-context.js";
+declare const ServiceNotCreated_base: new <A extends Record<string, any> = {}>(args: Types.VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
+    readonly _tag: "Railway.ServiceNotCreated";
+} & Readonly<A>;
+export declare class ServiceNotCreated extends ServiceNotCreated_base<{
+    resourceName: string;
+    projectId: string;
+}> {
+}
+declare const ServiceProjectRequired_base: new <A extends Record<string, any> = {}>(args: Types.VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
+    readonly _tag: "Railway.ServiceProjectRequired";
+} & Readonly<A>;
+export declare class ServiceProjectRequired extends ServiceProjectRequired_base<{
+    message: string;
+}> {
+}
+declare const ServiceDeployFailed_base: new <A extends Record<string, any> = {}>(args: Types.VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
+    readonly _tag: "Railway.ServiceDeployFailed";
+} & Readonly<A>;
+export declare class ServiceDeployFailed extends ServiceDeployFailed_base<{
+    serviceId: string;
+    status: string;
+    deploymentId: string | undefined;
+    logs: string;
+}> {
+    get message(): string;
+}
+export declare const ServiceProvider: () => import("effect/Layer").Layer<Provider.Provider<Service>, never, AlchemyContext | import("effect/process/ChildProcessSpawner").ChildProcessSpawner | import("effect/FileSystem").FileSystem | import("@distilled.cloud/railway").GqlTransport | import("effect/http/HttpClient").HttpClient | import("effect/Path").Path | import("./Environment.js").RailwayEnvironment | import("effect/Scope").Scope | Stack | import("alchemy/Stage").Stage>;

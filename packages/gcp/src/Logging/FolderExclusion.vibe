@@ -1,0 +1,273 @@
+import * as logging from "@distilled.cloud/gcp/logging_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeDescription,
+  folderParent,
+  hasOwnershipMarker,
+  lastSegment,
+  lookupProjectFolderId,
+  parseDescription,
+  resolveFolderId,
+  toPhysicalId,
+} from "./internal.ts"
+
+export type FolderExclusionProps = {
+  /**
+   * Exclusion id (the `{exclusion}` segment of
+   * `folders/{folder}/exclusions/{exclusion}`). If omitted, a unique name
+   * is generated from the stack, stage, and logical id. Limited to 100
+   * characters: letters, digits, underscores, hyphens, periods; first
+   * character must be alphanumeric. Immutable — changing it replaces the
+   * exclusion.
+   */
+  mutable exclusionId?: string
+  /**
+   * Folder id (`123456789` or `folders/{id}`). If omitted, Alchemy uses
+   * the parent folder of the current project. Immutable — changing it
+   * replaces the exclusion.
+   */
+  mutable folderId?: string
+  /**
+   * Advanced logs filter matching entries to exclude from the `_Default`
+   * sink. Required.
+   */
+  mutable filter: string
+  /**
+   * Human-readable description. Logging exclusions have no labels field,
+   * so Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  mutable description?: string
+  /**
+   * When true, the exclusion exists but does not exclude any entries.
+   * @default false
+   */
+  mutable disabled?: boolean
+}
+
+export type FolderExclusion = Resource<
+  "GCP.Logging.FolderExclusion",
+  FolderExclusionProps,
+  {
+    /** Full resource name `folders/{folder}/exclusions/{exclusionId}`. */
+    mutable name: string
+    /** Exclusion id (last path segment). */
+    mutable exclusionId: string
+    /** Folder id. */
+    mutable folderId: string
+    /** Advanced logs filter. */
+    mutable filter: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Whether the exclusion is disabled. */
+    mutable disabled: boolean
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Logging exclusion on a folder `_Default` sink.
+ *
+ * Exclusions drop matching log entries before they are stored in the
+ * `_Default` bucket (they do not apply to `_Required`). Folder exclusions
+ * do not apply to child projects. Logging exclusions have no labels field,
+ * so Alchemy stamps ownership into the description for `list` / nuke.
+ * Name is identity — changing `exclusionId` or `folderId` replaces the
+ * exclusion.
+ *
+ * ### Creating a Folder Exclusion
+ * **Example:** Generated name, drop debug logs
+ * ```typescript
+ * const exclusion = yield* GCP.Logging.FolderExclusion("DropDebug", {
+ *   filter: "severity=DEBUG",
+ *   description: "drop debug entries",
+ * });
+ * ```
+ *
+ * **Example:** Named exclusion on an explicit folder
+ * ```typescript
+ * const exclusion = yield* GCP.Logging.FolderExclusion("DropDebug", {
+ *   folderId: "123456789",
+ *   exclusionId: "drop-debug",
+ *   filter: "severity=DEBUG",
+ * });
+ * ```
+ *
+ * ### Updating a Folder Exclusion
+ * **Example:** Change the filter and disable
+ * ```typescript
+ * const exclusion = yield* GCP.Logging.FolderExclusion("DropDebug", {
+ *   filter: "severity<ERROR",
+ *   description: "drop non-errors",
+ *   disabled: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Logging
+ */
+export const FolderExclusion = Resource<FolderExclusion>("GCP.Logging.FolderExclusion")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class FolderExclusionNotResolved extends Data.TaggedError(
+  "GCP.Logging.FolderExclusionNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (folderId: string, exclusionId: string): infer _ =>
+  `${folderParent(folderId)}/exclusions/${exclusionId}`
+
+const exclusionIdOf = (exclusion: logging.LogExclusion): infer _ => {
+  const raw = exclusion.name ?? ""
+  return raw.includes("/") ? lastSegment(raw) : raw
+}
+
+const folderIdOfName = (name: string, fallback: string): infer _ => {
+  const match = name.match(/^folders\/([^/]+)\//)
+  return match?.[1] ?? fallback
+}
+
+const toAttrs = (exclusion: logging.LogExclusion, folderId: string): infer _ => {
+  const exclusionId = exclusionIdOf(exclusion)
+  const parsed = parseDescription(exclusion.description)
+  const folder = folderIdOfName(exclusion.name ?? "", folderId)
+  return {
+    name: exclusion.name?.includes("/") === true ? exclusion.name : resourceName(folder, exclusionId),
+    exclusionId,
+    folderId: folder,
+    filter: exclusion.filter ?? "",
+    description: parsed.description,
+    disabled: exclusion.disabled === true,
+    createTime: exclusion.createTime,
+    updateTime: exclusion.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  logging.getFoldersExclusions({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+export const FolderExclusionProvider = (): infer _ =>
+  Provider.succeed(FolderExclusion, {
+    stables: ["name", "exclusionId", "folderId", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.exclusionId ?? output?.exclusionId
+      const idChanged = previousId !== undefined
+        && news.exclusionId !== undefined
+        && news.exclusionId !== previousId
+      const previousFolder = olds?.folderId ?? output?.folderId
+      const folderChanged = previousFolder !== undefined
+        && news.folderId !== undefined
+        && lastSegment(news.folderId) !== lastSegment(previousFolder)
+      if (!idChanged && !folderChanged) return undefined
+      return { action: "replace" as const, deleteFirst: false }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const folderId = try resolveFolderId(olds?.folderId, output?.folderId)
+      const exclusionId = try toPhysicalId(id, olds?.exclusionId, output?.exclusionId, "e")
+      const name = output?.name ?? resourceName(folderId, exclusionId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, folderId)
+      const { labels } = parseDescription(existing.description)
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const folderId = try lookupProjectFolderId(env.project)
+      if (folderId === undefined) return []
+      return (Array.from(
+        try (logging.listFoldersExclusions
+          .pages({
+            parent: folderParent(folderId),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.exclusions ?? []))
+          |> Stream.filter(%, (exclusion) => hasOwnershipMarker(exclusion.description))
+          |> Stream.map(%, (exclusion) => toAttrs(exclusion, folderId))
+          |> Stream.runCollect(%)),
+      )) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: [] as FolderExclusion["Attributes"][];
+        default: throw e;
+      }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const folderId = try resolveFolderId(news.folderId, output?.folderId)
+      const exclusionId = try toPhysicalId(id, news.exclusionId, output?.exclusionId, "e")
+      const name = resourceName(folderId, exclusionId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeDescription(ownership, news.description)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = logging
+          .createFoldersExclusions({
+            parent: folderParent(folderId),
+            body: {
+              name: exclusionId,
+              filter: news.filter,
+              description: desiredDescription,
+              disabled: news.disabled === true ? true : undefined,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new FolderExclusionNotResolved({ resourceName: name })
+      }
+
+      const desiredDisabled = news.disabled === true
+      const filterChanged = (current.filter ?? "") !== news.filter
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const disabledChanged = (current.disabled === true) !== desiredDisabled
+
+      const updateMask = [
+        filterChanged ? "filter" : undefined,
+        descriptionChanged ? "description" : undefined,
+        disabledChanged ? "disabled" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        current = try logging.patchFoldersExclusions({
+          name: current.name?.includes("/") ? current.name : name,
+          updateMask: updateMask.join(","),
+          body: {
+            filter: news.filter,
+            description: desiredDescription,
+            disabled: desiredDisabled,
+          },
+        })
+      }
+
+      return toAttrs(current, folderId)
+    },
+
+    delete: effect ({ output }) => {
+      logging
+        .deleteFoldersExclusions({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

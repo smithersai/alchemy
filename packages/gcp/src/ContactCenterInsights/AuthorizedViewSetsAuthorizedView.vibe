@@ -1,0 +1,254 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnershipLine,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  MAX_VIEW_DISPLAY_NAME_LENGTH,
+  ownedByAlchemy,
+  parentOf,
+  parseOwnership,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./ownership.vibe"
+
+export type AuthorizedViewSetsAuthorizedViewProps = {
+  /**
+   * Parent AuthorizedViewSet resource name
+   * (`projects/{project}/locations/{location}/authorizedViewSets/{authorized_view_set}`).
+   * Immutable — changing it replaces the view.
+   */
+  mutable parent: string
+  /**
+   * AuthorizedView id (the `{authorized_view}` segment). If omitted, a
+   * unique id is generated. Must match
+   * `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`. Immutable — changing it replaces
+   * the view.
+   */
+  mutable authorizedViewId?: string
+  /**
+   * Display name (max 64 characters including Alchemy's ownership
+   * marker, which takes at least 55). AuthorizedViews have no labels
+   * field, so ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes; longer names are truncated.
+   */
+  mutable displayName?: string
+  /**
+   * Filter restricting which conversations this view can access. Empty
+   * means no restriction.
+   */
+  mutable conversationFilter?: string
+}
+
+export type AuthorizedViewSetsAuthorizedView = Resource<
+  "GCP.ContactCenterInsights.AuthorizedViewSetsAuthorizedView",
+  AuthorizedViewSetsAuthorizedViewProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/authorizedViewSets/{set}/authorizedViews/{view}`. */
+    mutable name: string
+    /** AuthorizedView id (last path segment). */
+    mutable authorizedViewId: string
+    /** Parent AuthorizedViewSet resource name. */
+    mutable parent: string
+    /** Location id. */
+    mutable location: string
+    /** Project id. */
+    mutable project: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    mutable displayName: string | undefined
+    /** Conversation filter. */
+    mutable conversationFilter: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Contact Center AI Insights AuthorizedView, a filtered view of
+ * conversations and related Insights resources.
+ *
+ * AuthorizedViews have no labels field — Alchemy stamps ownership into
+ * the display name. Parent set and id are immutable. Display name and
+ * conversation filter update in place.
+ *
+ * ### Creating an AuthorizedView
+ * **Example:** View under a set
+ * ```typescript
+ * const view = yield* GCP.ContactCenterInsights.AuthorizedViewSetsAuthorizedView(
+ *   "Reviewers",
+ *   {
+ *     parent: set.name,
+ *     displayName: "reviewers",
+ *     conversationFilter: 'language_code="en-US"',
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const AuthorizedViewSetsAuthorizedView = Resource<AuthorizedViewSetsAuthorizedView>(
+  "GCP.ContactCenterInsights.AuthorizedViewSetsAuthorizedView",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AuthorizedViewSetsAuthorizedViewNotResolved extends Data.TaggedError(
+  "GCP.ContactCenterInsights.AuthorizedViewSetsAuthorizedViewNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (parent: string, authorizedViewId: string): infer _ =>
+  `${parent}/authorizedViews/${authorizedViewId}`
+
+const toAttrs = (view: cci.GoogleCloudContactcenterinsightsV1AuthorizedView, project: string): infer _ => {
+  const name = view.name ?? ""
+  const parsed = parseOwnership(view.displayName)
+  return {
+    name,
+    authorizedViewId: lastSegment(name),
+    parent: parentOf(name),
+    location: locationOf(name),
+    project,
+    displayName: parsed.text,
+    conversationFilter: view.conversationFilter,
+    createTime: view.createTime,
+    updateTime: view.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+  .getProjectsLocationsAuthorizedViewSetsAuthorizedViews({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAtParent = effect (parent: string, project: string) =>
+  (Array.from(
+    try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViews.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authorizedViews ?? []))
+      |> Stream.filter(%, (view) => hasOwnershipMarker(view.displayName))
+      |> Stream.map(%, (view) => toAttrs(view, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const AuthorizedViewSetsAuthorizedViewProvider = (): infer _ =>
+  Provider.succeed(AuthorizedViewSetsAuthorizedView, {
+    stables: ["name", "authorizedViewId", "parent", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (previousParent !== undefined && news.parent !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.authorizedViewId ?? output?.authorizedViewId
+      if (
+        previousId !== undefined
+        && news.authorizedViewId !== undefined
+        && news.authorizedViewId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const authorizedViewId = try toResourceId(
+        id,
+        olds?.authorizedViewId,
+        output?.authorizedViewId,
+      )
+      const name = output?.name
+        ?? (olds?.parent !== undefined ? resourceName(olds.parent, authorizedViewId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const parent = `${locationParent(env.project, env.region)}/authorizedViewSets/-`
+      return try listAtParent(parent, env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const authorizedViewId = try toResourceId(
+        id,
+        news.authorizedViewId,
+        output?.authorizedViewId,
+      )
+      const name = resourceName(news.parent, authorizedViewId)
+      const ownership = try createInternalLabels(id)
+      const displayName = encodeOwnershipLine(
+        ownership,
+        news.displayName,
+        MAX_VIEW_DISPLAY_NAME_LENGTH,
+      )
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = cci
+          .createProjectsLocationsAuthorizedViewSetsAuthorizedViews({
+            parent: news.parent,
+            authorizedViewId,
+            body: {
+              displayName,
+              conversationFilter: news.conversationFilter,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AuthorizedViewSetsAuthorizedViewNotResolved({
+          resourceName: name,
+        })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = (current.displayName ?? "") !== displayName
+      const filterChanged = !sameText(current.conversationFilter, news.conversationFilter)
+
+      if (displayChanged || filterChanged) {
+        current = try cci.patchProjectsLocationsAuthorizedViewSetsAuthorizedViews({
+          name: currentName,
+          updateMask: updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            filterChanged ? "conversation_filter" : undefined,
+          ),
+          body: {
+            name: currentName,
+            displayName,
+            conversationFilter: news.conversationFilter,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      cci
+        .deleteProjectsLocationsAuthorizedViewSetsAuthorizedViews({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

@@ -22,7 +22,7 @@ import { DeleteObjectHttp } from "./DeleteObjectHttp.vibe";
 import { fromCredentials } from "./Environment.ts";
 import { Function, FunctionProvider } from "./Function.ts";
 import { GetObjectHttp } from "./GetObjectHttp.vibe";
-import { Group, GroupProvider } from "./Group.ts";
+import { Group, GroupProvider } from "./Group.vibe";
 import { HeadObjectHttp } from "./HeadObjectHttp.vibe";
 import { ListObjectsV2Http } from "./ListObjectsV2Http.vibe";
 import { Mongo, MongoProvider } from "./Mongo.ts";
@@ -36,7 +36,7 @@ import {
   PrivateNetworkProvider,
 } from "./PrivateNetwork.ts";
 import { Project, ProjectProvider } from "./Project.ts";
-import { Environment, EnvironmentProvider } from "./ProjectEnvironment.ts";
+import { Environment, EnvironmentProvider } from "./ProjectEnvironment.vibe";
 import { PutObjectHttp } from "./PutObjectHttp.vibe";
 import { ReadRedisHttp } from "./ReadRedisHttp.vibe";
 import { ReadWriteRedisHttp } from "./ReadWriteRedisHttp.vibe";
@@ -44,7 +44,7 @@ import { Redis, RedisProvider } from "./Redis.ts";
 import { ExecHttp, Sandbox, SandboxProvider } from "./Sandbox.ts";
 import { SandboxCheckpoint, SandboxCheckpointProvider } from "./SandboxCheckpoint.vibe";
 import { Service } from "./Service.ts";
-import { ServiceProvider } from "./ServiceProvider.ts";
+import { ServiceProvider } from "./ServiceProvider.vibe";
 import { TcpProxy, TcpProxyProvider } from "./TcpProxy.vibe";
 import { Template, TemplateProvider } from "./Template.ts";
 import { UsageLimit, UsageLimitProvider } from "./Usage.ts";

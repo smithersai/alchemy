@@ -19,7 +19,7 @@ import {
   toPhysicalSnake,
   userLabels,
 } from "./helpers.vibe";
-import { listLocations } from "./names.ts";
+import { listLocations } from "./names.vibe";
 import { waitForOperation } from "./operations.ts";
 
 const MAX_NAME_LENGTH = 60;

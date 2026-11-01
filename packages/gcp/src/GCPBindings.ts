@@ -19,7 +19,7 @@ import type { GcpIamGrant } from "./Host.ts";
 import { Member } from "./IAM/Member.vibe";
 import { ServiceAccount } from "./IAM/ServiceAccount.ts";
 import { ServiceAccountKey } from "./IAM/ServiceAccountKey.vibe";
-import { WorkloadIdentityPool } from "./IAM/WorkloadIdentityPool.ts";
+import { WorkloadIdentityPool } from "./IAM/WorkloadIdentityPool.vibe";
 import { WorkloadIdentityProvider } from "./IAM/WorkloadIdentityProvider.vibe";
 
 /**

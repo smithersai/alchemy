@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadDns } from "./ReadDns.js";
+import { ReadDns } from "./ReadDns.vibe";
 /**
  * Local implementation of the {@link ReadDns} binding — reads Cloudflare DNS
  * records over the HTTP API using the **current credentials** instead of a

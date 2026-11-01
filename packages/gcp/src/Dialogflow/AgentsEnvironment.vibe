@@ -1,0 +1,307 @@
+import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnership,
+  expandName,
+  listAgents,
+  listEnvironments,
+  normalizeLocation,
+  ownedByAlchemy,
+  ownershipLabels,
+  ownershipText,
+  parseOwnership,
+  parseResourceName,
+  resourceNameFromOperation,
+  sameJson,
+  sameText,
+  updateMaskOf,
+  waitForOperation,
+  retryQuota,
+} from "./internal.ts"
+
+export type EnvironmentVersionConfig = {
+  /**
+   * Flow version resource name
+   * `projects/{project}/locations/{location}/agents/{agent}/flows/{flow}/versions/{version}`.
+   */
+  mutable version: string
+}
+
+export type AgentsEnvironmentProps = {
+  /**
+   * Parent agent resource name
+   * `projects/{project}/locations/{location}/agents/{agent}`. Immutable —
+   * changing it replaces the environment.
+   */
+  mutable agent: string
+  /**
+   * Environment id (the `{environment}` segment). Server-assigned on
+   * create. Immutable — changing it replaces the environment.
+   */
+  mutable environmentId?: string
+  /**
+   * Location used when `agent` is a bare id.
+   * @default "global"
+   */
+  mutable location?: string
+  /** Human-readable name, unique within the agent. */
+  mutable displayName?: string
+  /**
+   * Description. Environments have no labels field, so Alchemy stamps
+   * ownership into this field for `list` / nuke.
+   */
+  mutable description?: string
+  /**
+   * Flow versions served by this environment. Must include a version of
+   * every flow reachable from the start flow.
+   */
+  mutable versionConfigs: EnvironmentVersionConfig[]
+}
+
+export type AgentsEnvironment = Resource<
+  "GCP.Dialogflow.AgentsEnvironment",
+  AgentsEnvironmentProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Environment id (last path segment). */
+    mutable environmentId: string
+    /** Parent agent resource name. */
+    mutable agent: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Served flow versions. */
+    mutable versionConfigs: EnvironmentVersionConfig[]
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dialogflow CX environment under an agent.
+ *
+ * Environments have no labels field, so Alchemy stamps ownership into
+ * `description` for `list` / nuke. Parent agent and environment id are
+ * immutable. Display name, description, and version configs update in
+ * place. Create and update are long-running operations.
+ *
+ * ### Creating an Environment
+ * **Example:** Serve a flow version
+ * ```typescript
+ * const version = yield* GCP.Dialogflow.AgentsFlowsVersion("V1", {
+ *   flow: agent.startFlow,
+ *   displayName: "v1",
+ * });
+ * const environment = yield* GCP.Dialogflow.AgentsEnvironment("Prod", {
+ *   agent: agent.name,
+ *   displayName: "prod",
+ *   versionConfigs: [{ version: version.name }],
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dialogflow
+ */
+export const AgentsEnvironment = Resource<AgentsEnvironment>("GCP.Dialogflow.AgentsEnvironment")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AgentsEnvironmentNotResolved extends Data.TaggedError(
+  "GCP.Dialogflow.AgentsEnvironmentNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const configsOf = (
+  list: readonly dialogflow.GoogleCloudDialogflowCxV3EnvironmentVersionConfig[] | undefined,
+): EnvironmentVersionConfig[] =>
+  (list ?? [])
+    .filter((config) => (config.version ?? "").length > 0)
+    .map((config) => ({ version: config.version ?? "" }))
+
+const toAttrs = (environment: dialogflow.GoogleCloudDialogflowCxV3Environment, project: string): infer _ => {
+  const name = environment.name ?? ""
+  const parsed = parseResourceName(name, "environments")
+  return {
+    name,
+    environmentId: parsed.id,
+    agent: parsed.agent,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: environment.displayName,
+    description: parseOwnership(environment.description).text,
+    versionConfigs: configsOf(environment.versionConfigs),
+    updateTime: environment.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dialogflow
+  .getProjectsLocationsAgentsEnvironments({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const findOwned = effect (id: string, agent: string, hinted?: string) => {
+  if (hinted !== undefined && hinted.length > 0) {
+    const existing = try getByName(hinted)
+    if (existing !== undefined) return existing
+  }
+  const environments = try listEnvironments(agent)
+  for (const environment of environments) {
+    if (try ownedByAlchemy(id, ownershipText(environment))) {
+      return environment
+    }
+  }
+  return undefined as dialogflow.GoogleCloudDialogflowCxV3Environment | undefined
+}
+
+const resolveFromOperation = effect (operation: dialogflow.GoogleLongrunningOperation) => {
+  const done = try waitForOperation(operation)
+  const name = resourceNameFromOperation(done) ?? resourceNameFromOperation(operation)
+  if (name === undefined) return undefined
+  return try getByName(name)
+}
+
+export const AgentsEnvironmentProvider = (): infer _ =>
+  Provider.succeed(AgentsEnvironment, {
+    stables: ["name", "environmentId", "agent", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousAgent = olds?.agent ?? output?.agent
+      const previousId = olds?.environmentId ?? output?.environmentId
+      if (
+        (previousAgent !== undefined && news.agent !== previousAgent)
+        || (previousId !== undefined
+          && news.environmentId !== undefined
+          && news.environmentId !== previousId)
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst: previousAgent === news.agent
+            && previousId !== undefined
+            && news.environmentId === previousId,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const agent = olds?.agent ?? output?.agent
+      const existing = output?.name !== undefined
+        ? try getByName(output.name)
+        : agent !== undefined
+        ? try findOwned(id, agent)
+        : undefined
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, ownershipText(existing))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const agents = try listAgents(env.project)
+      const pages = try Effect.forEach(
+        agents,
+        effect (agent) => (agent.name
+          ? (try listEnvironments(agent.name))
+            .filter(
+              (environment) =>
+                parseOwnership(environment.description).labels["alchemy-id"]
+                  !== undefined
+                || parseOwnership(environment.displayName).labels["alchemy-id"]
+                  !== undefined,
+            )
+            .map((environment) => toAttrs(environment, env.project))
+          : []),
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) =>
+      try (effect {
+        const env = try GcpEnvironment.current
+        const location = normalizeLocation(news.location ?? output?.location)
+        const agent = expandName(news.agent, env.project, location, "agents")
+        const ownership = try ownershipLabels(id)
+        const description = encodeOwnership(ownership, news.description)
+        const displayName = news.displayName ?? "environment"
+        const versionConfigs = news.versionConfigs
+        const body: dialogflow.GoogleCloudDialogflowCxV3Environment = {
+          displayName,
+          description,
+          versionConfigs,
+        }
+
+        let current = try findOwned(id, agent, output?.name)
+
+        if (current === undefined) {
+          const operation = dialogflow
+            .createProjectsLocationsAgentsEnvironments({
+              parent: agent,
+              body,
+            }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+          if (operation !== undefined) {
+            current = try resolveFromOperation(operation)
+          }
+          if (current === undefined) {
+            current = try findOwned(id, agent, output?.name)
+          }
+        }
+
+        if (current === undefined) {
+          throw new AgentsEnvironmentNotResolved({
+            resourceName: output?.name ?? `${agent}/environments/${news.environmentId ?? "unknown"}`,
+          })
+        }
+
+        const currentName = current.name ?? output?.name ?? ""
+        const displayChanged = !sameText(current.displayName, displayName)
+        const descriptionChanged = !sameText(current.description, description)
+        const versionsChanged = !sameJson(
+          configsOf(current.versionConfigs),
+          configsOf(versionConfigs),
+        )
+
+        if (displayChanged || descriptionChanged || versionsChanged) {
+          const operation = try dialogflow.patchProjectsLocationsAgentsEnvironments({
+            name: currentName,
+            updateMask: updateMaskOf(
+              displayChanged ? "display_name" : undefined,
+              descriptionChanged ? "description" : undefined,
+              versionsChanged ? "version_configs" : undefined,
+            ),
+            body: { ...body, name: currentName },
+          })
+          const patched = try resolveFromOperation(operation)
+          current = patched ?? (try getByName(currentName)) ?? current
+        }
+
+        return toAttrs(current, env.project)
+      }
+        |> retryQuota(%)),
+
+    delete: effect ({ output }) =>
+      try (effect {
+        dialogflow
+          .deleteProjectsLocationsAgentsEnvironments({ name: output.name }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.void;
+            default: throw e;
+          }
+      }
+        |> retryQuota(%)),
+  })

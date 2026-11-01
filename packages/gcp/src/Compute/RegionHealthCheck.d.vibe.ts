@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.js";
 import type { Providers } from "../Providers.js";
-import type { GrpcHealthCheck, HealthCheckLogConfig, HealthCheckType, Http2HealthCheck, HttpHealthCheck, HttpsHealthCheck, SslHealthCheck, TcpHealthCheck } from "./HealthCheck.js";
+import type { GrpcHealthCheck, HealthCheckLogConfig, HealthCheckType, Http2HealthCheck, HttpHealthCheck, HttpsHealthCheck, SslHealthCheck, TcpHealthCheck } from "./HealthCheck.vibe";
 export type RegionHealthCheckProps = {
     /**
      * Health check name (RFC1035, 1-63 chars). If omitted, a unique name is

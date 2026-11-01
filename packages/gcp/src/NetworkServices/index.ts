@@ -15,4 +15,4 @@ export * from "./ServiceLbPolicy.vibe";
 export * from "./TcpRoute.vibe";
 export * from "./TlsRoute.vibe";
 export * from "./WasmPlugin.vibe";
-export * from "./WasmPluginsVersion.ts";
+export * from "./WasmPluginsVersion.vibe";

@@ -1,0 +1,323 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import { resourceNameFromOperation, waitForOperation } from "./operations.ts"
+import {
+  encodeOwnershipLine,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  ownedByAlchemy,
+  parseOwnership,
+  sameJson,
+} from "./ownership.vibe"
+
+export type IssueModelInputDataConfig = {
+  /**
+   * Medium of training conversations (`PHONE_CALL` or `CHAT`). Deprecated
+   * in favor of `filter`.
+   */
+  mutable medium?: "MEDIUM_UNSPECIFIED" | "PHONE_CALL" | "CHAT"
+  /**
+   * Filter reducing conversations used to train the model.
+   */
+  mutable filter?: string
+}
+
+export type IssueModelProps = {
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the model.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Representative name. Issue models have no labels field, so Alchemy
+   * ownership is stored in a `[alchemy …]` prefix and stripped from
+   * attributes.
+   */
+  mutable displayName?: string
+  /**
+   * Model language (`en-US`, …).
+   */
+  mutable languageCode?: string
+  /**
+   * Model type (`TYPE_V1` or `TYPE_V2`).
+   */
+  mutable modelType?: "MODEL_TYPE_UNSPECIFIED" | "TYPE_V1" | "TYPE_V2"
+  /**
+   * Training-data configuration.
+   */
+  mutable inputDataConfig?: IssueModelInputDataConfig
+}
+
+export type IssueModel = Resource<
+  "GCP.ContactCenterInsights.IssueModel",
+  IssueModelProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Issue model id (last path segment). */
+    mutable issueModelId: string
+    /** Region id. */
+    mutable location: string
+    /** Project id. */
+    mutable project: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    mutable displayName: string | undefined
+    /** Model language. */
+    mutable languageCode: string | undefined
+    /** Model type. */
+    mutable modelType: string | undefined
+    /** Training-data configuration. */
+    mutable inputDataConfig: IssueModelInputDataConfig | undefined
+    /** Server-reported model state. */
+    mutable state: string | undefined
+    /** Number of issues. */
+    mutable issueCount: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Contact Center Insights issue model for topic modeling.
+ *
+ * Issue models have no labels field — Alchemy stamps ownership into the
+ * display name. Location is immutable. Display name, language, model type,
+ * and input data config update in place. Create and delete are
+ * long-running; a deployed model is undeployed before delete.
+ *
+ * ### Creating an Issue Model
+ * **Example:** V2 model over chat transcripts
+ * ```typescript
+ * const model = yield* GCP.ContactCenterInsights.IssueModel("Topics", {
+ *   displayName: "billing-topics",
+ *   modelType: "TYPE_V2",
+ *   inputDataConfig: { medium: "CHAT" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const IssueModel = Resource<IssueModel>("GCP.ContactCenterInsights.IssueModel")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class IssueModelNotResolved extends Data.TaggedError(
+  "GCP.ContactCenterInsights.IssueModelNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const toAttrs = (model: cci.GoogleCloudContactcenterinsightsV1IssueModel, project: string): infer _ => {
+  const name = model.name ?? ""
+  const parsed = parseOwnership(model.displayName)
+  return {
+    name,
+    issueModelId: lastSegment(name),
+    location: locationOf(name),
+    project,
+    displayName: parsed.text,
+    languageCode: model.languageCode,
+    modelType: model.modelType,
+    inputDataConfig: model.inputDataConfig
+      ? {
+        medium: model.inputDataConfig.medium as IssueModelInputDataConfig["medium"] | undefined,
+        filter: model.inputDataConfig.filter,
+      }
+      : undefined,
+    state: model.state,
+    issueCount: model.issueCount,
+    createTime: model.createTime,
+    updateTime: model.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+  .getProjectsLocationsIssueModels({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const waitUntilExists = effect (name: string) =>
+  try (effect {
+    return try effect {
+      const model = try getByName(name)
+      return (model ? model : throw new IssueModelNotResolved({ resourceName: name }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.ContactCenterInsights.IssueModelNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+const listAt = effect (parent: string, project: string) =>
+  (((try cci.listProjectsLocationsIssueModels({ parent })).issueModels ?? [])
+    .filter((model) => hasOwnershipMarker(model.displayName))
+    .map((model) => toAttrs(model, project))) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: [];
+      default: throw e;
+    }
+
+const findByDisplayName = effect (parent: string, displayName: string) =>
+  (((try cci.listProjectsLocationsIssueModels({ parent })).issueModels ?? []).find((model) =>
+    model.displayName === displayName
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+export const IssueModelProvider = (): infer _ =>
+  Provider.succeed(IssueModel, {
+    stables: ["name", "issueModelId", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousLocation = olds?.location ?? output?.location
+      const nextLocation = news.location
+      if (
+        previousLocation !== undefined
+        && nextLocation !== undefined
+        && previousLocation !== nextLocation
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const existing = try getByName(output?.name ?? "")
+      if (existing !== undefined) {
+        const attrs = toAttrs(existing, env.project)
+        return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+      }
+      const location = olds?.location ?? env.region
+      const parent = locationParent(env.project, location)
+      const ownership = try createInternalLabels(id)
+      const displayName = encodeOwnershipLine(ownership, olds?.displayName)
+      const found = try findByDisplayName(parent, displayName)
+      if (found === undefined) return undefined
+      const attrs = toAttrs(found, env.project)
+      return (try ownedByAlchemy(id, found.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAt(locationParent(env.project, env.region), env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = news.location ?? output?.location ?? env.region
+      const parent = locationParent(env.project, location)
+      const ownership = try createInternalLabels(id)
+      const displayName = encodeOwnershipLine(ownership, news.displayName)
+
+      let current = try getByName(output?.name ?? "")
+      if (current === undefined) {
+        current = try findByDisplayName(parent, displayName)
+      }
+
+      if (current === undefined) {
+        const created = cci
+          .createProjectsLocationsIssueModels({
+            parent,
+            body: {
+              displayName,
+              languageCode: news.languageCode,
+              modelType: news.modelType,
+              inputDataConfig: news.inputDataConfig,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          const done = try waitForOperation(created)
+          const createdName = resourceNameFromOperation(done) ?? ""
+          if (createdName.length > 0) {
+            current = try waitUntilExists(createdName)
+          }
+        }
+        if (current === undefined) {
+          current = try findByDisplayName(parent, displayName)
+        }
+      }
+
+      if (current === undefined) {
+        throw new IssueModelNotResolved({
+          resourceName: output?.name ?? `${parent}/issueModels/-`,
+        })
+      }
+
+      const name = current.name ?? ""
+      const displayChanged = (current.displayName ?? "") !== displayName
+      const languageChanged = (current.languageCode ?? "") !== (news.languageCode ?? "")
+      const typeChanged = (current.modelType ?? "") !== (news.modelType ?? "")
+      const inputChanged = !sameJson(
+        current.inputDataConfig
+          ? {
+            medium: current.inputDataConfig.medium,
+            filter: current.inputDataConfig.filter,
+          }
+          : undefined,
+        news.inputDataConfig,
+      )
+
+      if (displayChanged || languageChanged || typeChanged || inputChanged) {
+        current = try cci.patchProjectsLocationsIssueModels({
+          name,
+          updateMask: [
+            displayChanged ? "display_name" : undefined,
+            languageChanged ? "language_code" : undefined,
+            typeChanged ? "model_type" : undefined,
+            inputChanged ? "input_data_config" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name,
+            displayName,
+            languageCode: news.languageCode,
+            modelType: news.modelType,
+            inputDataConfig: news.inputDataConfig,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const existing = try getByName(output.name)
+      if (existing === undefined) return
+      if (existing.state === "DEPLOYED" || existing.state === "DEPLOYING") {
+        const undeploy = cci
+          .undeployProjectsLocationsIssueModels({
+            name: output.name,
+            body: { name: output.name },
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.undefined;
+            when { _tag: "BadRequest" }: try Effect.undefined;
+            default: throw e;
+          }
+        if (undeploy !== undefined) {
+          try waitForOperation(undeploy, { notFoundOk: true })
+        }
+      }
+      const operation = cci
+        .deleteProjectsLocationsIssueModels({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+    },
+  })

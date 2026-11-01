@@ -130,14 +130,54 @@ export interface EcsTaskTargetProps {
     /** Dead-letter queue for undeliverable invocations. */
     deadLetterConfig?: scheduler.DeadLetterConfig;
 }
-export declare const every: any;
-export declare const cron: any;
-export declare const at: any;
+export declare const every: (value: string, options?: ScheduleOptions) => {
+    /**
+     * The accumulated builder state (expression, name, group, ...). Read by
+     * `consumeSchedule` to materialize the schedule against the host Function.
+     */
+    state: ScheduleBuilderState;
+    named: (name: string) => /*elided*/ any;
+    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+};
+export declare const cron: (expression: string, options?: ScheduleOptions) => {
+    /**
+     * The accumulated builder state (expression, name, group, ...). Read by
+     * `consumeSchedule` to materialize the schedule against the host Function.
+     */
+    state: ScheduleBuilderState;
+    named: (name: string) => /*elided*/ any;
+    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+};
+export declare const at: (date: Date, options?: ScheduleOptions) => {
+    /**
+     * The accumulated builder state (expression, name, group, ...). Read by
+     * `consumeSchedule` to materialize the schedule against the host Function.
+     */
+    state: ScheduleBuilderState;
+    named: (name: string) => /*elided*/ any;
+    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+};
 /**
  * The fluent schedule builder returned by `every`/`cron`/`at`. Route it to a
  * target with `.toLambda`/`.toQueue`/`.toEcsTask`, or consume it on the host
  * Function with `consumeSchedule(builder, handler)`.
  */
 export type ScheduleBuilder = ReturnType<typeof makeBuilder>;
-declare const makeBuilder: any;
+declare const makeBuilder: (state: ScheduleBuilderState) => {
+    /**
+     * The accumulated builder state (expression, name, group, ...). Read by
+     * `consumeSchedule` to materialize the schedule against the host Function.
+     */
+    state: ScheduleBuilderState;
+    named: (name: string) => /*elided*/ any;
+    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+};
 export {};

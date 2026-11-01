@@ -8,7 +8,7 @@ import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { HOST_SERVICE_ACCOUNT } from "../Host.ts";
 import { grantFor } from "../HttpBinding.ts";
-import type { Bucket } from "./Bucket.ts";
+import type { Bucket } from "./Bucket.vibe";
 import {
   SignedUrlFailed,
   SignGetObjectUrl,

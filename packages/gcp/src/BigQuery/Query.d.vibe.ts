@@ -2,7 +2,7 @@ import type * as bigquery from "@distilled.cloud/gcp/bigquery_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Dataset } from "./Dataset.js";
+import type { Dataset } from "./Dataset.vibe";
 export interface QueryRequest extends bigquery.QueryRequest {
 }
 /**

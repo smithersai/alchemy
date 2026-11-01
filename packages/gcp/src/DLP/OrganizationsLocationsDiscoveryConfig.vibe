@@ -1,0 +1,361 @@
+import * as dlp from "@distilled.cloud/gcp/dlp_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_LOCATION,
+  DlpNotResolved,
+  encodeDisplayName,
+  fingerprint,
+  hasOwnershipMarker,
+  lastSegment,
+  locationParentsOf,
+  organizationLocationParent,
+  normalizeLocation,
+  organizationIdOf,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOn,
+  resolveOrganization,
+  sameText,
+  toPhysicalId,
+  tryResolveOrganization,
+  updateMaskOf,
+} from "./internal.ts"
+
+export type DiscoveryTarget = dlp.GooglePrivacyDlpV2DiscoveryTarget
+export type OrgConfig = dlp.GooglePrivacyDlpV2OrgConfig
+export type ProcessingLocation = dlp.GooglePrivacyDlpV2ProcessingLocation
+export type OtherCloudDiscoveryStartingLocation = dlp.GooglePrivacyDlpV2OtherCloudDiscoveryStartingLocation
+export type DiscoveryConfigStatus = dlp.GooglePrivacyDlpV2DiscoveryConfigStatusEnum | (string & {})
+
+export type OrganizationsLocationsDiscoveryConfigProps = {
+  /**
+   * Config id (the `{discoveryConfig}` segment of
+   * `organizations/{organization}/locations/{location}/discoveryConfigs/{discoveryConfig}`).
+   * If omitted, a unique id is generated. Letters, digits, hyphens, and
+   * underscores; max 100 characters. Immutable — changing it replaces
+   * the config.
+   */
+  mutable configId?: string
+  /**
+   * Parent organization (`organizations/{organization}` or the numeric
+   * id). Defaults to `GOOGLE_ORGANIZATION_ID` or the project's Resource
+   * Manager ancestor. Immutable — changing it replaces the config.
+   */
+  mutable organization?: string
+  /**
+   * Processing location (`us-central1`, `global`, `us`, …). Immutable —
+   * changing it replaces the config.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Display name (max 100 characters). Discovery configs have no labels
+   * field, so Alchemy ownership is stored in a `[alchemy …]` prefix and
+   * stripped from attributes.
+   */
+  mutable displayName?: string
+  /**
+   * Config status. Prefer `PAUSED` unless the org should be scanned.
+   * @default "PAUSED"
+   */
+  mutable status?: DiscoveryConfigStatus
+  /**
+   * Organization scan location and the project that runs discovery.
+   * Required for organization-parented configs.
+   */
+  mutable orgConfig: OrgConfig
+  /**
+   * Targets that decide what to scan and how often.
+   */
+  mutable targets: DiscoveryTarget[]
+  /**
+   * Inspect templates used for profile generation.
+   */
+  mutable inspectTemplates?: string[]
+  /**
+   * Processing location configuration.
+   */
+  mutable processingLocation?: ProcessingLocation
+  /**
+   * Starting location when scanning other clouds.
+   */
+  mutable otherCloudStartingLocation?: OtherCloudDiscoveryStartingLocation
+}
+
+export type OrganizationsLocationsDiscoveryConfig = Resource<
+  "GCP.DLP.OrganizationsLocationsDiscoveryConfig",
+  OrganizationsLocationsDiscoveryConfigProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Config id (last path segment). */
+    mutable configId: string
+    /** Organization resource name. */
+    mutable organization: string
+    /** Organization id. */
+    mutable organizationId: string
+    /** Location id. */
+    mutable location: string
+    /** Project id of the deploying stack. */
+    mutable project: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    mutable displayName: string | undefined
+    /** Config status. */
+    mutable status: string
+    /** Organization scan configuration. */
+    mutable orgConfig: OrgConfig | undefined
+    /** Discovery targets. */
+    mutable targets: DiscoveryTarget[]
+    /** Inspect templates. */
+    mutable inspectTemplates: string[]
+    /** Processing location, if set. */
+    mutable processingLocation: ProcessingLocation | undefined
+    /** Other-cloud starting location, if set. */
+    mutable otherCloudStartingLocation: OtherCloudDiscoveryStartingLocation | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+    /** RFC3339 last-run timestamp. */
+    mutable lastRunTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An organization-scoped Sensitive Data Protection discovery config that
+ * scans storage and builds data profiles.
+ *
+ * Discovery configs have no labels field — Alchemy stamps ownership into
+ * the display name so `list` / nuke can find them. Config id, organization,
+ * and location are identity. Status, targets, and org config update in
+ * place. Keep `status` as `PAUSED` unless the organization should be
+ * scanned.
+ *
+ * ### Creating a Discovery Config
+ * **Example:** Paused BigQuery catch-all
+ * ```typescript
+ * const config = yield* GCP.DLP.OrganizationsLocationsDiscoveryConfig(
+ *   "OrgProfiles",
+ *   {
+ *     status: "PAUSED",
+ *     orgConfig: {
+ *       projectId: "my-project",
+ *       location: { organizationId: "123456789" },
+ *     },
+ *     targets: [
+ *       {
+ *         bigQueryTarget: {
+ *           filter: { otherTables: {} },
+ *           disabled: {},
+ *         },
+ *       },
+ *     ],
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category DLP
+ */
+export const OrganizationsLocationsDiscoveryConfig = Resource<OrganizationsLocationsDiscoveryConfig>(
+  "GCP.DLP.OrganizationsLocationsDiscoveryConfig",
+)
+
+const DEFAULT_STATUS = "PAUSED" satisfies DiscoveryConfigStatus
+
+const resourceName = (organization: string, location: string, configId: string): infer _ =>
+  `${organizationLocationParent(organization, location)}/discoveryConfigs/${configId}`
+
+const toAttrs = (
+  config: dlp.GooglePrivacyDlpV2DiscoveryConfig,
+  organization: string,
+  project: string,
+): infer _ => {
+  const name = config.name ?? ""
+  const parsed = parseName(name, "discoveryConfigs")
+  const ownership = parseOwnership(config.displayName)
+  return {
+    name,
+    configId: parsed.id || lastSegment(name),
+    organization,
+    organizationId: organizationIdOf(organization),
+    location: parsed.location || DEFAULT_LOCATION,
+    project,
+    displayName: ownership.text,
+    status: config.status ?? DEFAULT_STATUS,
+    orgConfig: config.orgConfig,
+    targets: config.targets ?? [],
+    inspectTemplates: config.inspectTemplates ?? [],
+    processingLocation: config.processingLocation,
+    otherCloudStartingLocation: config.otherCloudStartingLocation,
+    createTime: config.createTime,
+    updateTime: config.updateTime,
+    lastRunTime: config.lastRunTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dlp
+  .getOrganizationsLocationsDiscoveryConfigs({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, organization: string, project: string) =>
+  (Array.from(
+    try (dlp.listOrganizationsLocationsDiscoveryConfigs.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.discoveryConfigs ?? []))
+      |> Stream.filter(%, (config) => hasOwnershipMarker(config.displayName))
+      |> Stream.map(%, (config) => toAttrs(config, organization, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const statusOf = (value: string | undefined): infer _ => value ?? DEFAULT_STATUS
+
+export const OrganizationsLocationsDiscoveryConfigProvider = (): infer _ =>
+  Provider.succeed(OrganizationsLocationsDiscoveryConfig, {
+    stables: [
+      "name",
+      "configId",
+      "organization",
+      "organizationId",
+      "location",
+      "project",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location)
+      const nextLocation = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      return (
+        replaceOn(olds?.configId ?? output?.configId, news.configId)
+          ?? replaceOn(olds?.organization ?? output?.organization, news.organization)
+          ?? replaceOn(previousLocation, nextLocation)
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(
+        olds?.organization ?? output?.organization,
+        output?.organization,
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const configId = try toPhysicalId(id, olds?.configId, output?.configId)
+      const name = output?.name ?? resourceName(organization, location, configId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization, env.project)
+      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organization = try tryResolveOrganization()
+      if (organization === undefined) return []
+      const pages = try Effect.forEach(
+        locationParentsOf(organization, env.region),
+        effect (parent) => try listAt(parent, organization, env.project),
+        { concurrency: 3 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(news.organization, output?.organization)
+      const location = normalizeLocation(news.location ?? output?.location)
+      const configId = try toPhysicalId(id, news.configId, output?.configId)
+      const parent = organizationLocationParent(organization, location)
+      const name = resourceName(organization, location, configId)
+      const ownership = try createInternalLabels(id)
+      const displayName = encodeDisplayName(ownership, news.displayName)
+      const status = statusOf(news.status)
+      const orgConfig = news.orgConfig
+      const targets = news.targets
+      const inspectTemplates = news.inspectTemplates
+      const processingLocation = news.processingLocation
+      const otherCloudStartingLocation = news.otherCloudStartingLocation
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = dlp
+          .createOrganizationsLocationsDiscoveryConfigs({
+            parent,
+            body: {
+              configId,
+              discoveryConfig: {
+                displayName,
+                status,
+                orgConfig,
+                targets,
+                inspectTemplates,
+                processingLocation,
+                otherCloudStartingLocation,
+              },
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DlpNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const statusChanged = !sameText(current.status, status)
+      const orgChanged = fingerprint(current.orgConfig) !== fingerprint(orgConfig)
+      const targetsChanged = fingerprint(current.targets) !== fingerprint(targets)
+      const templatesChanged = fingerprint(current.inspectTemplates) !== fingerprint(inspectTemplates)
+      const processingChanged = fingerprint(current.processingLocation) !== fingerprint(processingLocation)
+      const otherChanged = fingerprint(current.otherCloudStartingLocation) !== fingerprint(otherCloudStartingLocation)
+      const updateMask = updateMaskOf(
+        displayChanged ? "displayName" : undefined,
+        statusChanged ? "status" : undefined,
+        orgChanged ? "orgConfig" : undefined,
+        targetsChanged ? "targets" : undefined,
+        templatesChanged ? "inspectTemplates" : undefined,
+        processingChanged ? "processingLocation" : undefined,
+        otherChanged ? "otherCloudStartingLocation" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try dlp.patchOrganizationsLocationsDiscoveryConfigs({
+          name: currentName,
+          body: {
+            updateMask,
+            discoveryConfig: {
+              displayName,
+              status,
+              orgConfig,
+              targets,
+              inspectTemplates,
+              processingLocation,
+              otherCloudStartingLocation,
+            },
+          },
+        })
+      }
+
+      return toAttrs(current, organization, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      dlp
+        .deleteOrganizationsLocationsDiscoveryConfigs({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

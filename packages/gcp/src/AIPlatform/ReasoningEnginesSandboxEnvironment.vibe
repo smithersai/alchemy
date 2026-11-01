@@ -1,0 +1,357 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import * as GcpRetry from "@distilled.cloud/gcp/Retry"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import { listLocations } from "./names.vibe"
+import { resourceNameFromOperation, waitForOperation } from "./operations.ts"
+import { listAlchemyReasoningEngines } from "./ReasoningEngine.ts"
+import {
+  AiPlatformNotResolved,
+  AiPlatformStillExists,
+  collectPages,
+  encodeDisplayName,
+  hasDisplayNameOwnership,
+  lastSegment,
+  locationParent,
+  normalizeLocation,
+  ownedById,
+  parentBefore,
+  parseDisplayName,
+  parseResourceName,
+} from "./shared.vibe"
+
+const COLLECTION = "sandboxEnvironments"
+
+export type SandboxEnvironmentSpec = {
+  /** Code execution environment. */
+  mutable codeExecutionEnvironment?: {
+    mutable machineConfig?: string
+    mutable codeLanguage?: string
+  }
+}
+
+export type ReasoningEnginesSandboxEnvironmentProps = {
+  /**
+   * Parent Reasoning Engine. Full name or engine id. Immutable —
+   * changing it replaces the sandbox.
+   */
+  mutable reasoningEngine: string
+  /**
+   * Vertex AI location. Used when `reasoningEngine` is a bare id.
+   * Immutable. @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Display name. Required by the API. SandboxEnvironment has no labels
+   * field, so Alchemy ownership is stored in a compact `[alc …]`
+   * displayName prefix for `list` / nuke.
+   */
+  mutable displayName?: string
+  /**
+   * Template name (id under the parent engine) to create from.
+   */
+  mutable sandboxEnvironmentTemplate?: string
+  /**
+   * Snapshot resource name to restore from.
+   */
+  mutable sandboxEnvironmentSnapshot?: string
+  /**
+   * Sandbox spec (code execution environment).
+   */
+  mutable spec?: SandboxEnvironmentSpec
+  /**
+   * TTL (e.g. `"3600s"`). Input only.
+   */
+  mutable ttl?: string
+  /**
+   * Owner identity. A sandbox can only restore snapshots of the same owner.
+   */
+  mutable owner?: string
+}
+
+export type ReasoningEnginesSandboxEnvironment = Resource<
+  "GCP.AIPlatform.ReasoningEnginesSandboxEnvironment",
+  ReasoningEnginesSandboxEnvironmentProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Sandbox id (last path segment). */
+    mutable sandboxEnvironmentId: string
+    /** Parent Reasoning Engine resource name. */
+    mutable reasoningEngine: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    mutable displayName: string | undefined
+    /** Runtime state. */
+    mutable state: string | undefined
+    /** Template name, if created from a template. */
+    mutable sandboxEnvironmentTemplate: string | undefined
+    /** Latest snapshot resource name. */
+    mutable latestSandboxEnvironmentSnapshot: string | undefined
+    /** Load-balancer hostname. */
+    mutable loadBalancerHostname: string | undefined
+    /** RFC3339 expire time. */
+    mutable expireTime: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex AI sandbox environment — a containerized secure execution
+ * runtime for Agent Engine workloads.
+ *
+ * There is no update API. Changing parent or location replaces the
+ * sandbox. Ownership is stamped into the display name.
+ *
+ * ### Creating a Sandbox
+ * **Example:** From a template
+ * ```typescript
+ * const sandbox = yield* GCP.AIPlatform.ReasoningEnginesSandboxEnvironment(
+ *   "Box",
+ *   {
+ *     reasoningEngine: engine.name,
+ *     displayName: "dev-box",
+ *     sandboxEnvironmentTemplate: template.sandboxEnvironmentTemplateId,
+ *     ttl: "3600s",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const ReasoningEnginesSandboxEnvironment = Resource<ReasoningEnginesSandboxEnvironment>(
+  "GCP.AIPlatform.ReasoningEnginesSandboxEnvironment",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ReasoningEnginesSandboxEnvironmentNotResolved extends Data.TaggedError(
+  "GCP.AIPlatform.ReasoningEnginesSandboxEnvironmentNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const engineNameOf = (project: string, location: string, reasoningEngine: string): infer _ =>
+  reasoningEngine.includes("/")
+    ? reasoningEngine
+    : `${locationParent(project, location)}/reasoningEngines/${reasoningEngine}`
+
+const toAttrs = (
+  sandbox: aiplatform.GoogleCloudAiplatformV1SandboxEnvironment,
+  project: string,
+): infer _ => {
+  const name = sandbox.name ?? ""
+  const parsed = parseResourceName(name, COLLECTION)
+  const display = parseDisplayName(sandbox.displayName)
+  return {
+    name,
+    sandboxEnvironmentId: parsed.id,
+    reasoningEngine: parentBefore(name, COLLECTION),
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: display.displayName,
+    state: sandbox.state,
+    sandboxEnvironmentTemplate: sandbox.sandboxEnvironmentTemplate,
+    latestSandboxEnvironmentSnapshot: sandbox.latestSandboxEnvironmentSnapshot,
+    loadBalancerHostname: sandbox.connectionInfo?.loadBalancerHostname,
+    expireTime: sandbox.expireTime,
+    createTime: sandbox.createTime,
+    updateTime: sandbox.updateTime,
+  }
+}
+
+const getByName = effect (
+  name: string,
+) => (name.length === 0
+  ? try Effect.undefined
+  : aiplatform.getReasoningEnginesSandboxEnvironments({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    when { _tag: "SandboxEnvironmentsNotEnabled" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const waitUntilExists = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(%, (sandbox): sandbox is aiplatform.GoogleCloudAiplatformV1SandboxEnvironment =>
+      sandbox !== undefined, () =>
+      new AiPlatformNotResolved({ resourceName: name }))
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.AIPlatform.NotResolved",
+      times: 8,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+const waitUntilGone = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(%, (sandbox) =>
+      sandbox === undefined, () =>
+      new AiPlatformStillExists({ resourceName: name }))
+    |> Effect.asVoid(%)
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.AIPlatform.StillExists",
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+const listSandboxes = effect (parent: string) =>
+  ((try collectPages(
+    aiplatform.listReasoningEnginesSandboxEnvironments.pages({
+      parent,
+      pageSize: 100,
+    }),
+  )).flatMap((page) => page.sandboxEnvironments ?? [])) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
+
+const findOwned = effect (parent: string, id: string) => {
+  const sandboxes = try listSandboxes(parent)
+  for (const sandbox of sandboxes) {
+    const parsed = parseDisplayName(sandbox.displayName)
+    if (try ownedById(id, parsed.labels)) {
+      return sandbox
+    }
+  }
+  return undefined
+}
+
+export const ReasoningEnginesSandboxEnvironmentProvider = (): infer _ =>
+  Provider.succeed(ReasoningEnginesSandboxEnvironment, {
+    stables: [
+      "name",
+      "sandboxEnvironmentId",
+      "reasoningEngine",
+      "project",
+      "location",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      const env = try GcpEnvironment.current
+      if (!isResolved(news)) return undefined
+      const previousParent = lastSegment(olds?.reasoningEngine ?? output?.reasoningEngine ?? "")
+      const nextParent = lastSegment(news.reasoningEngine)
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
+      const templateChanged = (news.sandboxEnvironmentTemplate ?? "") !== (olds?.sandboxEnvironmentTemplate ?? "")
+      const replace = (previousParent.length > 0 && previousParent !== nextParent)
+        || previousLocation !== nextLocation
+        || (olds !== undefined && templateChanged)
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousLocation === nextLocation && previousParent === nextParent,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const parentRef = olds?.reasoningEngine ?? output?.reasoningEngine
+      // A create interrupted before its parent resolved has nothing to find.
+      if (output?.name === undefined && typeof parentRef !== "string") {
+        return undefined
+      }
+      const parent = engineNameOf(env.project, location, parentRef ?? "")
+      const existing = output?.name !== undefined ? try getByName(output.name) : try findOwned(parent, id)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      const parsed = parseDisplayName(existing.displayName)
+      return (try ownedById(id, parsed.labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const engines = (try Effect.forEach(listLocations(env.region), effect (location) =>
+        try listAlchemyReasoningEngines(env.project, location))).flat()
+      const sandboxes = try Effect.forEach(
+        engines,
+        effect (engine) => (engine.name ? try listSandboxes(engine.name) : []),
+        { concurrency: 4 },
+      )
+      return sandboxes
+        .flat()
+        .filter((sandbox) =>
+          hasDisplayNameOwnership(sandbox.displayName)
+        )
+        .map((sandbox) =>
+          toAttrs(sandbox, env.project)
+        )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const parent = engineNameOf(env.project, location, news.reasoningEngine)
+      const internal = try createInternalLabels(id)
+      const displayName = encodeDisplayName(internal, news.displayName ?? "sandbox")
+
+      let current = output?.name !== undefined ? try getByName(output.name) : try findOwned(parent, id)
+
+      if (current === undefined) {
+        const created = try (effect {
+          return (try (aiplatform
+            .createReasoningEnginesSandboxEnvironments({
+              parent,
+              body: {
+                displayName,
+                sandboxEnvironmentTemplate: news.sandboxEnvironmentTemplate,
+                sandboxEnvironmentSnapshot: news.sandboxEnvironmentSnapshot,
+                spec: news.spec,
+                ttl: news.ttl,
+                owner: news.owner,
+              },
+            })
+            |> GcpRetry.none(%))) catch effect (e) => match (e) {
+              when { _tag: "SandboxEnvironmentsNotEnabled" }: try Effect.undefined;
+              when { _tag: "BadRequest" }: try Effect.undefined;
+              when { _tag: "Conflict" }: try Effect.undefined;
+              default: throw e;
+            }
+        }
+          |> Effect.timeoutOption(%, "20 seconds"))
+        const createdOp = Option.getOrUndefined(created)
+        if (createdOp !== undefined) {
+          try waitForOperation(createdOp, { alreadyExistsOk: true })
+        }
+        const createdName = createdOp !== undefined ? resourceNameFromOperation(createdOp) : undefined
+        current = createdName !== undefined
+          ? try waitUntilExists(createdName)
+          : try findOwned(parent, id)
+      }
+
+      if (current === undefined || current.name === undefined) {
+        throw new ReasoningEnginesSandboxEnvironmentNotResolved({
+          resourceName: output?.name ?? parent,
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = aiplatform
+        .deleteReasoningEnginesSandboxEnvironments({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(output.name)
+    },
+  })

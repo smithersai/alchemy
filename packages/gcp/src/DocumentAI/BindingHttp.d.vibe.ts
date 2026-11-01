@@ -1,9 +1,9 @@
 import type { GcpOpContext } from "@distilled.cloud/gcp/documentai_v1";
 import * as Effect from "effect/Effect";
 import { type BindingIam } from "../HttpBinding.js";
-import type { Processor } from "./Processor.js";
-import type { Schema } from "./Schema.js";
-import type { SchemasSchemaVersion } from "./SchemasSchemaVersion.js";
+import type { Processor } from "./Processor.vibe";
+import type { Schema } from "./Schema.vibe";
+import type { SchemasSchemaVersion } from "./SchemasSchemaVersion.vibe";
 /**
  * Distilled ops are OperationMethods: yield them once at Layer construction
  * (after providing Credentials + HttpClient) so the inner runtime Effect is

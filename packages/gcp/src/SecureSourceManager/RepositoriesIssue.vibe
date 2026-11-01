@@ -1,0 +1,320 @@
+import * as ssm from "@distilled.cloud/gcp/securesourcemanager_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  catchMissing,
+  collectPages,
+  expandName,
+  fieldMask,
+  forEachRepository,
+  hasOwnershipMarker,
+  nameFromOperation,
+  normalizeLocation,
+  ownedByAlchemy,
+  PAGE_SIZE,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  retryConflict,
+  sameText,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.ts"
+
+export type RepositoriesIssueProps = {
+  /**
+   * Parent repository. Full name
+   * `projects/{project}/locations/{location}/repositories/{repository}`
+   * or the repository id (combined with `location`). Immutable —
+   * changing it replaces the issue.
+   */
+  mutable repository: string
+  /**
+   * Region used when `repository` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Server-assigned issue id. Set after create. Immutable — changing it
+   * replaces the issue.
+   */
+  mutable issueId?: string
+  /**
+   * Issue title.
+   */
+  mutable title: string
+  /**
+   * Issue body, posted as given. Issues have no labels, so Alchemy tracks
+   * the issue by its server-assigned id.
+   */
+  mutable body?: string
+}
+
+export type RepositoriesIssue = Resource<
+  "GCP.SecureSourceManager.RepositoriesIssue",
+  RepositoriesIssueProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Server-assigned issue id. */
+    mutable issueId: string
+    /** Parent repository resource name. */
+    mutable repository: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Issue title. */
+    mutable title: string
+    /** Issue body with the Alchemy ownership prefix stripped. */
+    mutable body: string | undefined
+    /** Server-reported state (`OPEN` or `CLOSED`). */
+    mutable state: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+    /** RFC3339 close timestamp, if closed. */
+    mutable closeTime: string | undefined
+    /** Server etag. */
+    mutable etag: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Secure Source Manager issue.
+ *
+ * Issue ids are server-assigned. Changing `issueId` or `repository`
+ * replaces the issue. Title and body update in place. Ownership for
+ * `list` / nuke is stamped into the body (issues have no labels field).
+ *
+ * ### Creating an Issue
+ * **Example:** Open an issue
+ * ```typescript
+ * const issue = yield* GCP.SecureSourceManager.RepositoriesIssue("Bug", {
+ *   repository: repo.name,
+ *   title: "webhook retries 500s",
+ *   body: "hooks retry forever on 500",
+ * });
+ * ```
+ *
+ * ### Updating an Issue
+ * Re-declare the same logical id with changed props; the engine keeps the
+ * physical resource and updates it in place.
+ *
+ * **Example:** Edit title and body
+ * ```typescript
+ * const issue = yield* GCP.SecureSourceManager.RepositoriesIssue("Bug", {
+ *   repository: repo.name,
+ *   title: "webhook retries 5xx",
+ *   body: "cap retries at 8",
+ * });
+ * ```
+ *
+ * @resource
+ * @category SecureSourceManager
+ */
+export const RepositoriesIssue = Resource<RepositoriesIssue>(
+  "GCP.SecureSourceManager.RepositoriesIssue",
+)
+
+const resourceName = (repository: string, issueId: string): infer _ => `${repository}/issues/${issueId}`
+
+const toAttrs = (item: ssm.Issue, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "issues", region)
+  const body = parseOwnership(item.body)
+  return {
+    name,
+    issueId: parsed.id,
+    repository: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    title: item.title ?? "",
+    body: body.text,
+    state: item.state,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+    closeTime: item.closeTime,
+    etag: item.etag,
+  }
+}
+
+const getByName = effect (
+  name: string,
+) => (name.length === 0
+  ? try Effect.undefined
+  : try catchMissing(ssm.getProjectsLocationsRepositoriesIssues({ name })))
+
+const listOnRepository = effect (repository: string) =>
+  try collectPages(
+    ssm.listProjectsLocationsRepositoriesIssues.pages({
+      parent: repository,
+      pageSize: PAGE_SIZE,
+    }),
+    (page) => page.issues,
+  )
+
+/**
+ * An issue on the repository with this title and body (or one carrying a
+ * legacy ownership marker for `id`). Recovers an issue whose create
+ * succeeded but was never recorded.
+ */
+const findMatching = effect (repository: string, id: string, title: string, body: string | undefined) => {
+  if (repository.length === 0) return undefined
+  const items = try listOnRepository(repository)
+  for (const item of items) {
+    if (try ownedByAlchemy(id, item.body)) return item
+    if (sameText(item.title, title) && sameText(item.body, body)) {
+      return item
+    }
+  }
+  return undefined
+}
+
+const listOwned = effect (project: string, region: string) =>
+  try forEachRepository(
+    project,
+    region,
+    effect (repository) => (try listOnRepository(repository)).filter((item) => hasOwnershipMarker(item.body)),
+  )
+
+export const RepositoriesIssueProvider = (): infer _ =>
+  Provider.succeed(RepositoriesIssue, {
+    stables: ["name", "issueId", "repository", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      return replaceOnIdentity({
+        previousId: olds?.issueId ?? output?.issueId,
+        nextId: news.issueId ?? olds?.issueId ?? output?.issueId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: location,
+        previousParent: olds?.repository ?? output?.repository,
+        nextParent: expandName(news.repository, env.project, location, "repositories"),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const repository = expandName(
+        olds?.repository ?? output?.repository ?? "",
+        env.project,
+        location,
+        "repositories",
+      )
+      const issueId = olds?.issueId ?? output?.issueId
+      const name = output?.name
+        ?? (issueId !== undefined && repository.length > 0 ? resourceName(repository, issueId) : "")
+      let existing = try getByName(name)
+      const recorded = existing !== undefined && output !== undefined
+      if (existing === undefined && olds !== undefined) {
+        existing = try findMatching(repository, id, olds.title, olds.body)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      const { labels } = parseOwnership(existing.body)
+      // A matching issue found without a recorded id could be anyone's.
+      return recorded || (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item: ssm.Issue) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const repository = expandName(news.repository, env.project, location, "repositories")
+      const body = news.body
+      const name = output?.name ?? (news.issueId !== undefined ? resourceName(repository, news.issueId) : "")
+
+      let current = try getByName(name)
+      if (current === undefined) {
+        current = try findMatching(repository, id, news.title, body)
+      }
+
+      if (current === undefined) {
+        const created = ssm
+          .createProjectsLocationsRepositoriesIssues({
+            parent: repository,
+            body: {
+              title: news.title,
+              body,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          const operation = try waitForOperation(created)
+          const createdName = nameFromOperation(operation)
+          if (createdName !== undefined) {
+            current = try waitUntilExists(getByName(createdName), createdName)
+          }
+        }
+        if (current === undefined) {
+          current = try findMatching(repository, id, news.title, body)
+        }
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({
+          resourceName: name || repository,
+        })
+      }
+
+      const currentName = current.name ?? name
+      // Raw body: also rewrites a legacy ownership marker away.
+      const mask = fieldMask([
+        !sameText(current.title, news.title) && "title",
+        !sameText(current.body, body) && "body",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try ssm.patchProjectsLocationsRepositoriesIssues({
+          name: currentName,
+          updateMask: mask,
+          body: {
+            etag: current.etag,
+            title: news.title,
+            body,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(currentName), currentName)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = try retryConflict(
+        effect {
+          return ssm
+            .deleteProjectsLocationsRepositoriesIssues({
+              name: output.name,
+              etag: output.etag,
+            }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        },
+      )
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

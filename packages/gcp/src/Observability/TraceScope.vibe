@@ -1,0 +1,263 @@
+import * as observability from "@distilled.cloud/gcp/observability_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_TRACE_LOCATION,
+  encodeDescription,
+  expandResourceNames,
+  hasOwnershipMarker,
+  parseDescription,
+  parseScopeName,
+  sameStringList,
+  scopeResourceName,
+  toScopeId,
+} from "./internal.vibe"
+
+export type TraceScopeProps = {
+  /**
+   * Trace scope id (the `{traceScope}` segment of
+   * `projects/{project}/locations/{location}/traceScopes/{traceScope}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Limited to 100 characters: letters, digits, underscores,
+   * hyphens, periods; first character must be alphanumeric. Immutable —
+   * changing it replaces the scope. The system-managed `_Default` scope
+   * cannot be deleted.
+   */
+  mutable traceScopeId?: string
+  /**
+   * Location. Trace scopes are only available in `global`. Immutable —
+   * changing it replaces the scope.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Projects whose traces this scope queries together. Each entry is
+   * `projects/{project}`. At most 20 projects. Bare project ids are
+   * expanded. If omitted, the current project is used.
+   */
+  mutable resourceNames?: string[]
+  /**
+   * Human-readable description (max 8000 characters). Trace scopes have
+   * no labels field, so Alchemy ownership is stored in a `[alchemy …]`
+   * prefix and stripped from attributes.
+   */
+  mutable description?: string
+}
+
+export type TraceScope = Resource<
+  "GCP.Observability.TraceScope",
+  TraceScopeProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/traceScopes/{traceScopeId}`. */
+    mutable name: string
+    /** Trace scope id (last path segment). */
+    mutable traceScopeId: string
+    /** Project id. */
+    mutable project: string
+    /** Location (`global`). */
+    mutable location: string
+    /** Covered projects (`projects/{project}`). */
+    mutable resourceNames: string[]
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Observability trace scope — a named collection of projects
+ * whose traces are queried together in Trace Explorer.
+ *
+ * Trace scopes exist only in the `global` location. They have no labels
+ * field, so Alchemy stamps ownership into the description for `list` /
+ * nuke. `traceScopeId` and `location` are identity — changing either
+ * replaces the scope. `resourceNames` and description update in place.
+ * The system-managed `_Default` scope cannot be deleted.
+ *
+ * ### Creating a Trace Scope
+ * **Example:** Generated name covering this project
+ * ```typescript
+ * const scope = yield* GCP.Observability.TraceScope("App", {
+ *   resourceNames: ["projects/my-project"],
+ *   description: "application traces",
+ * });
+ * ```
+ *
+ * **Example:** Named scope
+ * ```typescript
+ * const scope = yield* GCP.Observability.TraceScope("App", {
+ *   traceScopeId: "app-traces",
+ *   resourceNames: ["projects/my-project"],
+ * });
+ * ```
+ *
+ * ### Updating a Trace Scope
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Change the description
+ * ```typescript
+ * const scope = yield* GCP.Observability.TraceScope("App", {
+ *   resourceNames: ["projects/my-project"],
+ *   description: "all application traces",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Observability
+ */
+export const TraceScope = Resource<TraceScope>("GCP.Observability.TraceScope")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class TraceScopeNotResolved extends Data.TaggedError(
+  "GCP.Observability.TraceScopeNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const traceScopeIdOf = (scope: observability.TraceScope, fallback?: string): infer _ => {
+  const parsed = parseScopeName(scope.name ?? "")
+  return parsed?.traceScopeId ?? fallback ?? (scope.name ?? "").split("/").pop() ?? ""
+}
+
+const toAttrs = (scope: observability.TraceScope, project: string, location: string): infer _ => {
+  const traceScopeId = traceScopeIdOf(scope)
+  const parsed = parseDescription(scope.description)
+  const parsedName = parseScopeName(scope.name ?? "")
+  const resolvedLocation = parsedName?.location ?? location
+  const resolvedProject = parsedName?.project ?? project
+  return {
+    name: scope.name
+      ?? (traceScopeId ? scopeResourceName(resolvedProject, resolvedLocation, traceScopeId) : ""),
+    traceScopeId,
+    project: resolvedProject,
+    location: resolvedLocation,
+    resourceNames: [...(scope.resourceNames ?? [])],
+    description: parsed.description,
+    createTime: scope.createTime,
+    updateTime: scope.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  observability
+    .getProjectsLocationsTraceScopes({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const TraceScopeProvider = (): infer _ =>
+  Provider.succeed(TraceScope, {
+    stables: ["name", "traceScopeId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.traceScopeId ?? output?.traceScopeId
+      const idChanged = previousId !== undefined
+        && news.traceScopeId !== undefined
+        && news.traceScopeId !== previousId
+      const previousLocation = olds?.location ?? output?.location
+      const locationChanged = previousLocation !== undefined
+        && news.location !== undefined
+        && news.location !== previousLocation
+      if (!idChanged && !locationChanged) return undefined
+      return { action: "replace" as const, deleteFirst: false }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = olds?.location ?? output?.location ?? DEFAULT_TRACE_LOCATION
+      const traceScopeId = try toScopeId(id, olds?.traceScopeId, output?.traceScopeId)
+      const name = output?.name ?? scopeResourceName(env.project, location, traceScopeId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, location)
+      const { labels } = parseDescription(existing.description)
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return (Array.from(
+        try (observability.listProjectsLocationsTraceScopes
+          .pages({
+            parent: `projects/${env.project}/locations/${DEFAULT_TRACE_LOCATION}`,
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.traceScopes ?? []))
+          |> Stream.filter(%, (scope) => hasOwnershipMarker(scope.description))
+          |> Stream.map(%, (scope) => toAttrs(scope, env.project, DEFAULT_TRACE_LOCATION))
+          |> Stream.runCollect(%)),
+      )) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[];
+        default: throw e;
+      }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = news.location ?? output?.location ?? DEFAULT_TRACE_LOCATION
+      const traceScopeId = try toScopeId(id, news.traceScopeId, output?.traceScopeId)
+      const name = scopeResourceName(env.project, location, traceScopeId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeDescription(ownership, news.description)
+      const desiredResources = expandResourceNames(news.resourceNames, env.project)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = observability
+          .createProjectsLocationsTraceScopes({
+            parent: `projects/${env.project}/locations/${location}`,
+            traceScopeId,
+            body: {
+              resourceNames: desiredResources,
+              description: desiredDescription,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new TraceScopeNotResolved({ resourceName: name })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const resourcesChanged = !sameStringList(current.resourceNames, desiredResources)
+      const updateMask = [
+        descriptionChanged ? "description" : undefined,
+        resourcesChanged ? "resourceNames" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        current = try observability.patchProjectsLocationsTraceScopes({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            resourceNames: desiredResources,
+            description: desiredDescription,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, location)
+    },
+
+    delete: effect ({ output }) => {
+      if (output.traceScopeId === "_Default") return
+      observability
+        .deleteProjectsLocationsTraceScopes({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

@@ -1,0 +1,521 @@
+import * as ccaip from "@distilled.cloud/gcp/contactcenteraiplatform_v1alpha1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  ContactCenterNotResolved,
+  DEFAULT_INSTANCE_SIZE,
+  fingerprint,
+  isTerminated,
+  listOwnedContactCenters,
+  locationParent,
+  normalizeLocation,
+  parseName,
+  releaseChannelOf,
+  replaceOnIdentity,
+  retryTransient,
+  sameBool,
+  sameJson,
+  sameText,
+  toDomainPrefix,
+  toPhysicalId,
+  updateMaskOf,
+  userLabels,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.ts"
+import { waitForDeleteOperation, waitForOperation } from "./operations.vibe"
+
+export type ContactCenterProps = {
+  /**
+   * Contact Center id (the `{contactCenter}` segment of
+   * `projects/{project}/locations/{location}/contactCenters/{contactCenter}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable — changing
+   * it replaces the instance.
+   */
+  mutable contactCenterId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * instance. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * User-facing display name. Required by the API; Alchemy falls back to
+   * the generated contact center id.
+   */
+  mutable displayName?: string
+  /**
+   * Customer domain prefix (2–16 RFC1035 characters). Used as the
+   * instance subdomain. Immutable — changing it replaces the instance.
+   * If omitted, a unique prefix is generated.
+   */
+  mutable customerDomainPrefix?: string
+  /**
+   * Instance size (`DEV_SMALL`, `STANDARD_SMALL`, `TRIAL_SMALL`, …).
+   * Immutable — changing it replaces the instance.
+   * @default "DEV_SMALL"
+   */
+  mutable instanceSize?: ccaip.InstanceConfigInstanceSizeEnum | (string & {})
+  /**
+   * Full instance configuration. Wins over `instanceSize` when set.
+   * Immutable — changing it replaces the instance.
+   */
+  mutable instanceConfig?: ccaip.InstanceConfig
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Email of the first admin user.
+   */
+  mutable userEmail?: string
+  /**
+   * First admin given/family name.
+   */
+  mutable adminUser?: ccaip.AdminUser
+  /**
+   * Customer-managed KMS key that encrypts user input. Immutable —
+   * changing it replaces the instance.
+   */
+  mutable kmsKey?: string
+  /**
+   * When true, users can be created in the CCAIP instance in addition to
+   * Cloud Identity.
+   * @default false
+   */
+  mutable ccaipManagedUsers?: boolean
+  /**
+   * SAML parameters that set up Google as IdP.
+   */
+  mutable samlParams?: ccaip.SAMLParams
+  /**
+   * Feature flags (for example agent desktop).
+   */
+  mutable featureConfig?: ccaip.FeatureConfig
+  /**
+   * VPC-SC private ingress/egress settings.
+   */
+  mutable privateAccess?: ccaip.PrivateAccess
+  /**
+   * Whether advanced reporting is enabled.
+   * @default false
+   */
+  mutable advancedReportingEnabled?: boolean
+  /**
+   * Release channel. `early` is for test instances, `normal` lags early
+   * by two days, `critical` only updates outside `critical.peakHours`.
+   */
+  mutable releaseChannel?: "early" | "normal" | "critical"
+  /**
+   * Peak hours used when `releaseChannel` is `critical`.
+   */
+  mutable critical?: ccaip.Critical
+}
+
+export type ContactCenter = Resource<
+  "GCP.ContactCenterAIPlatform.ContactCenter",
+  ContactCenterProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/contactCenters/{contactCenter}`. */
+    mutable name: string
+    /** Contact Center id (last path segment). */
+    mutable contactCenterId: string
+    /** Location id. */
+    mutable location: string
+    /** Project id. */
+    mutable project: string
+    /** User-facing display name. */
+    mutable displayName: string | undefined
+    /** Customer domain prefix. */
+    mutable customerDomainPrefix: string | undefined
+    /** Instance size. */
+    mutable instanceSize: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** First admin email. */
+    mutable userEmail: string | undefined
+    /** First admin given/family name. */
+    mutable adminUser: ccaip.AdminUser | undefined
+    /** Customer-managed KMS key. */
+    mutable kmsKey: string | undefined
+    /** Whether CCAIP-managed users are enabled. */
+    mutable ccaipManagedUsers: boolean
+    /** SAML IdP parameters. */
+    mutable samlParams: ccaip.SAMLParams | undefined
+    /** Feature flags. */
+    mutable featureConfig: ccaip.FeatureConfig | undefined
+    /** Private networking settings. */
+    mutable privateAccess: ccaip.PrivateAccess | undefined
+    /** Whether advanced reporting is enabled. */
+    mutable advancedReportingEnabled: boolean
+    /** Release channel currently applied. */
+    mutable releaseChannel: "early" | "normal" | "critical" | undefined
+    /** Peak hours for the critical channel. */
+    mutable critical: ccaip.Critical | undefined
+    /** Server-reported state (`STATE_DEPLOYED`, …). */
+    mutable state: string | undefined
+    /** UJET release version. */
+    mutable releaseVersion: string | undefined
+    /** Access URIs for the deployed instance. */
+    mutable uris: ccaip.URIs | undefined
+    /** Private-path component names. */
+    mutable privateComponents: string[] | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+    /** RFC3339 soft-delete timestamp. */
+    mutable deleteTime: string | undefined
+    /** RFC3339 expiry timestamp. */
+    mutable expireTime: string | undefined
+    /** RFC3339 hard-delete timestamp. */
+    mutable purgeTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Contact Center AI Platform (CCAIP) instance.
+ *
+ * Create, update, and delete are long-running operations. Location,
+ * contact center id, `customerDomainPrefix`, `instanceConfig`, and
+ * `kmsKey` are immutable. Display name, labels, admin user, SAML, feature
+ * flags, private access, advanced reporting, and release channel update
+ * in place.
+ *
+ * Provisioning is entitlement-gated and typically takes several minutes.
+ *
+ * ### Creating a Contact Center
+ * **Example:** Generated name
+ * ```typescript
+ * const center = yield* GCP.ContactCenterAIPlatform.ContactCenter("Support", {
+ *   displayName: "support",
+ *   instanceSize: "DEV_SMALL",
+ * });
+ * ```
+ *
+ * **Example:** Explicit id, domain prefix, and labels
+ * ```typescript
+ * const center = yield* GCP.ContactCenterAIPlatform.ContactCenter("Support", {
+ *   contactCenterId: "support-desk",
+ *   location: "us-central1",
+ *   displayName: "Support desk",
+ *   customerDomainPrefix: "supdesk",
+ *   instanceSize: "DEV_SMALL",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating a Contact Center
+ * **Example:** Display name and labels
+ * ```typescript
+ * const center = yield* GCP.ContactCenterAIPlatform.ContactCenter("Support", {
+ *   customerDomainPrefix: "supdesk",
+ *   displayName: "Support desk v2",
+ *   labels: { env: "prod", team: "cx" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category ContactCenterAIPlatform
+ */
+export const ContactCenter = Resource<ContactCenter>("GCP.ContactCenterAIPlatform.ContactCenter")
+
+const resourceName = (project: string, location: string, contactCenterId: string): infer _ =>
+  `${locationParent(project, location)}/contactCenters/${contactCenterId}`
+
+const instanceConfigOf = (news: ContactCenterProps): ccaip.InstanceConfig =>
+  news.instanceConfig ?? {
+    instanceSize: news.instanceSize ?? DEFAULT_INSTANCE_SIZE,
+  }
+
+const channelBody = (news: ContactCenterProps): infer _ => {
+  const channel = news.releaseChannel ?? (news.critical !== undefined ? "critical" : undefined)
+  return {
+    early: channel === "early" ? {} : undefined,
+    normal: channel === "normal" ? {} : undefined,
+    critical: channel === "critical" ? (news.critical ?? {}) : news.critical,
+  }
+}
+
+const toAttrs = (item: ccaip.ContactCenter, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, region)
+  return {
+    name,
+    contactCenterId: parsed.id,
+    location: parsed.location,
+    project: parsed.project || project,
+    displayName: item.displayName,
+    customerDomainPrefix: item.customerDomainPrefix,
+    instanceSize: item.instanceConfig?.instanceSize,
+    labels: userLabels(item.labels),
+    userEmail: item.userEmail,
+    adminUser: item.adminUser,
+    kmsKey: item.kmsKey,
+    ccaipManagedUsers: item.ccaipManagedUsers === true,
+    samlParams: item.samlParams,
+    featureConfig: item.featureConfig,
+    privateAccess: item.privateAccess,
+    advancedReportingEnabled: item.advancedReportingEnabled === true,
+    releaseChannel: releaseChannelOf(item),
+    critical: item.critical,
+    state: item.state,
+    releaseVersion: item.releaseVersion,
+    uris: item.uris,
+    privateComponents: item.privateComponents,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+    deleteTime: item.deleteTime,
+    expireTime: item.expireTime,
+    purgeTime: item.purgeTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : ccaip
+  .getProjectsLocationsContactCenters({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const getLive = effect (name: string) =>
+  try effect {
+    const item = try getByName(name)
+    return (item === undefined || isTerminated(item.state) ? undefined : item)
+  }
+
+export const ContactCenterProvider = (): infer _ =>
+  Provider.succeed(ContactCenter, {
+    stables: [
+      "name",
+      "contactCenterId",
+      "location",
+      "project",
+      "customerDomainPrefix",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      const previousSize = olds?.instanceConfig?.instanceSize ?? olds?.instanceSize ?? output?.instanceSize
+      const nextSize = news.instanceConfig?.instanceSize ?? news.instanceSize
+      const previousPrefix = olds?.customerDomainPrefix ?? output?.customerDomainPrefix
+      const previousKms = olds?.kmsKey ?? output?.kmsKey
+      return replaceOnIdentity({
+        previousId: olds?.contactCenterId ?? output?.contactCenterId,
+        nextId: news.contactCenterId,
+        previousLocation,
+        nextLocation,
+        extra: (previousPrefix !== undefined
+          && news.customerDomainPrefix !== undefined
+          && previousPrefix !== news.customerDomainPrefix)
+          || (previousSize !== undefined && nextSize !== undefined && previousSize !== nextSize)
+          || (previousKms !== undefined && news.kmsKey !== undefined && previousKms !== news.kmsKey)
+          || (olds?.instanceConfig !== undefined
+            && news.instanceConfig !== undefined
+            && fingerprint(olds.instanceConfig) !== fingerprint(news.instanceConfig)),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const contactCenterId = try toPhysicalId(
+        id,
+        olds?.contactCenterId,
+        output?.contactCenterId,
+      )
+      const name = output?.name ?? resourceName(env.project, location, contactCenterId)
+      const existing = try getLive(name)
+      if (existing === undefined) {
+        return undefined
+      }
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items: ccaip.ContactCenter[] = try listOwnedContactCenters(
+        env.project,
+        env.region,
+      )
+      return items
+        .filter((item) => !isTerminated(item.state))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const contactCenterId = try toPhysicalId(
+        id,
+        news.contactCenterId,
+        output?.contactCenterId,
+      )
+      const name = output?.name ?? resourceName(env.project, location, contactCenterId)
+      const parent = locationParent(env.project, location)
+      const customerDomainPrefix = try toDomainPrefix(
+        news.customerDomainPrefix,
+        output?.customerDomainPrefix,
+        id,
+      )
+      const displayName = news.displayName ?? contactCenterId
+      const instanceConfig = instanceConfigOf(news)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const channel = channelBody(news)
+
+      let current = try getLive(name)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          ccaip.createProjectsLocationsContactCenters({
+            parent,
+            contactCenterId,
+            body: {
+              displayName,
+              customerDomainPrefix,
+              instanceConfig,
+              labels: desiredLabels,
+              userEmail: news.userEmail,
+              adminUser: news.adminUser,
+              kmsKey: news.kmsKey,
+              ccaipManagedUsers: news.ccaipManagedUsers,
+              samlParams: news.samlParams,
+              featureConfig: news.featureConfig,
+              privateAccess: news.privateAccess,
+              advancedReportingEnabled: news.advancedReportingEnabled,
+              early: channel.early,
+              normal: channel.normal,
+              critical: channel.critical,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getLive(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ContactCenterNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      let live: ccaip.ContactCenter = waitUntilReady(
+        getLive(currentName),
+        currentName,
+        (item) => item.state,
+      ) catch effect (e) => match (e) {
+        when { _tag: "GCP.ContactCenterAIPlatform.ContactCenterNotReady" }: try waitUntilExists(
+          getLive(currentName),
+          currentName,
+        );
+        default: throw e;
+      }
+
+      const observedLabels = tagRecord(live.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const displayChanged = !sameText(live.displayName, displayName)
+      const emailChanged = !sameText(live.userEmail, news.userEmail)
+      const adminChanged = !sameJson(live.adminUser, news.adminUser)
+      const managedChanged = !sameBool(live.ccaipManagedUsers, news.ccaipManagedUsers)
+      const samlChanged = news.samlParams !== undefined && !sameJson(live.samlParams, news.samlParams)
+      const featureChanged = news.featureConfig !== undefined && !sameJson(live.featureConfig, news.featureConfig)
+      const privateChanged = news.privateAccess !== undefined && !sameJson(live.privateAccess, news.privateAccess)
+      const reportingChanged = !sameBool(
+        live.advancedReportingEnabled,
+        news.advancedReportingEnabled,
+      )
+      const desiredChannel = news.releaseChannel ?? (news.critical !== undefined ? "critical" : undefined)
+      const channelChanged = desiredChannel !== undefined && releaseChannelOf(live) !== desiredChannel
+      const criticalChanged = news.critical !== undefined && !sameJson(live.critical, news.critical)
+
+      const mask = updateMaskOf(
+        labelsChanged && "labels",
+        displayChanged && "displayName",
+        emailChanged && "userEmail",
+        adminChanged && "adminUser",
+        managedChanged && "ccaipManagedUsers",
+        samlChanged && "samlParams",
+        featureChanged && "featureConfig",
+        privateChanged && "privateAccess",
+        reportingChanged && "advancedReportingEnabled",
+        channelChanged && desiredChannel === "early" && "early",
+        channelChanged && desiredChannel === "normal" && "normal",
+        (channelChanged && desiredChannel === "critical") || criticalChanged
+          ? "critical"
+          : undefined,
+      )
+
+      if (mask.length > 0) {
+        const patched = try (retryTransient(
+          ccaip.patchProjectsLocationsContactCenters({
+            name: currentName,
+            updateMask: mask,
+            body: {
+              labels: desiredLabels,
+              displayName,
+              userEmail: news.userEmail,
+              adminUser: news.adminUser,
+              ccaipManagedUsers: news.ccaipManagedUsers,
+              samlParams: news.samlParams,
+              featureConfig: news.featureConfig,
+              privateAccess: news.privateAccess,
+              advancedReportingEnabled: news.advancedReportingEnabled,
+              early: channel.early,
+              normal: channel.normal,
+              critical: channel.critical,
+            },
+          }),
+        )
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          }))
+        try waitForOperation(patched)
+        live = try waitUntilExists(getLive(currentName), currentName)
+      }
+
+      return toAttrs(live, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      const deleted = try (effect {
+        return retryTransient(
+          ccaip.deleteProjectsLocationsContactCenters({ name: output.name }),
+        ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      }
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("5 seconds"),
+        }))
+      if (deleted !== undefined) {
+        try waitForDeleteOperation(deleted)
+      }
+      try waitUntilGone(getLive(output.name), output.name)
+    },
+  })
+
+export { ContactCenterFailed, ContactCenterNotResolved } from "./internal.ts"

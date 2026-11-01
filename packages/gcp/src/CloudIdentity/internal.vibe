@@ -1,0 +1,446 @@
+import * as cloudidentity from "@distilled.cloud/gcp/cloudidentity_v1"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Effect from "effect/Effect"
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts"
+
+export const DEFAULT_CUSTOMER = "customers/my_customer"
+export const DISCUSSION_FORUM_LABEL = "cloudidentity.googleapis.com/groups.discussion_forum"
+export const MAX_DISPLAY_NAME_LENGTH = 128
+export const MAX_DESCRIPTION_LENGTH = 4096
+export const MAX_ASSET_TAG_LENGTH = 100
+export const MAX_GROUP_KEY_LOCAL_LENGTH = 32
+
+export const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+export const sameText = (left: string | undefined, right: string | undefined): infer _ => (left ?? "") === (right ?? "")
+
+export const sameJson = (left: unknown, right: unknown): infer _ =>
+  JSON.stringify(left ?? null) === JSON.stringify(right ?? null)
+
+export const updateMaskOf = (...fields: Array<string | undefined>): infer _ =>
+  fields.filter((field): field is string => field !== undefined).join(",")
+
+export const normalizeCustomer = (value: string | undefined): infer _ => {
+  const trimmed = value?.trim()
+  if (trimmed === undefined || trimmed.length === 0) {
+    return DEFAULT_CUSTOMER
+  }
+  if (trimmed.startsWith("customers/") || trimmed.startsWith("identitysources/")) {
+    return trimmed
+  }
+  return `customers/${trimmed}`
+}
+
+export const expandName = (value: string, collection: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  if (trimmed.includes("/")) return trimmed
+  return `${collection}/${trimmed}`
+}
+
+export const expandGroup = (value: string): infer _ => expandName(value, "groups")
+
+export const replaceOnIdentity = (input: {
+  mutable previousId?: string
+  mutable nextId?: string
+  mutable previousParent?: string
+  mutable nextParent?: string
+  mutable extra?: boolean
+}): infer _ => {
+  if (input.extra === true) {
+    return { action: "replace" as const, deleteFirst: false }
+  }
+  if (
+    input.previousId !== undefined
+    && input.nextId !== undefined
+    && input.previousId !== input.nextId
+  ) {
+    return { action: "replace" as const, deleteFirst: false }
+  }
+  if (
+    input.previousParent !== undefined
+    && input.nextParent !== undefined
+    && input.previousParent !== input.nextParent
+  ) {
+    return { action: "replace" as const, deleteFirst: false }
+  }
+  return undefined
+}
+
+const markerOf = (_labels: Record<string, string>, stack: string, stage: string, id: string): infer _ =>
+  `[alchemy ${alchemyLabelKeys.stack}=${stack} ${alchemyLabelKeys.stage}=${stage} ${alchemyLabelKeys.id}=${id}]`
+
+const fitMarker = (labels: Record<string, string>, maxLength: number): infer _ => {
+  let stack = labels[alchemyLabelKeys.stack] ?? "x"
+  let stage = labels[alchemyLabelKeys.stage] ?? "x"
+  let id = labels[alchemyLabelKeys.id] ?? "x"
+  let marker = markerOf(labels, stack, stage, id)
+  while (marker.length > maxLength && (stack.length > 1 || stage.length > 1 || id.length > 1)) {
+    if (stack.length >= stage.length && stack.length >= id.length) {
+      stack = stack.slice(0, -1)
+    } else if (stage.length >= id.length) {
+      stage = stage.slice(0, -1)
+    } else {
+      id = id.slice(0, -1)
+    }
+    marker = markerOf(labels, stack, stage, id)
+  }
+  return marker.slice(0, maxLength)
+}
+
+export const encodeOwnership = (
+  labels: Record<string, string>,
+  text: string | undefined,
+): string => {
+  const marker = fitMarker(labels, Math.min(8000, MAX_DESCRIPTION_LENGTH))
+  const trimmed = text?.trim()
+  const combined = trimmed && trimmed.length > 0 ? `${marker}\n${trimmed}` : marker
+  return combined.slice(0, MAX_DESCRIPTION_LENGTH)
+}
+
+export const encodeOwnershipLine = (
+  labels: Record<string, string>,
+  text: string | undefined,
+  maxLength = MAX_DISPLAY_NAME_LENGTH,
+): string => {
+  const trimmed = text?.replace(/[\r\n]+/g, " ").trim()
+  if (!trimmed) return fitMarker(labels, maxLength)
+  const minMarker = 24
+  const reserved = Math.min(trimmed.length + 1, Math.max(0, maxLength - minMarker))
+  const marker = fitMarker(labels, maxLength - reserved)
+  return `${marker} ${trimmed}`.slice(0, maxLength)
+}
+
+export const parseOwnership = (
+  text: string | undefined,
+): {
+  mutable labels: Record<string, string>
+  mutable text: string | undefined
+} => {
+  if (!text?.startsWith("[alchemy ")) {
+    return { labels: {}, text }
+  }
+  const end = text.indexOf("]")
+  if (end < 0) return { labels: {}, text }
+  const labels: Record<string, string> = {}
+  for (const part of text.slice("[alchemy ".length, end).split(/\s+/)) {
+    const eq = part.indexOf("=")
+    if (eq > 0) {
+      labels[part.slice(0, eq)] = part.slice(eq + 1)
+    }
+  }
+  const rest = text.slice(end + 1).replace(/^[\s\n]+/, "")
+  return { labels, text: rest.length > 0 ? rest : undefined }
+}
+
+export const hasOwnershipMarker = (text: string | undefined): infer _ => {
+  if (Object.keys(parseOwnership(text).labels).some((key) => key.startsWith("alchemy-"))) {
+    return true
+  }
+  return (text ?? "").toLowerCase().includes("alchemy-")
+}
+
+const prefixMatch = (expected: string, observed: string): infer _ =>
+  expected === observed || expected.startsWith(observed) || observed.startsWith(expected)
+
+export const ownedByAlchemy = effect (id: string, text: string | undefined) => {
+  const expected = try createInternalLabels(id)
+  const { labels } = parseOwnership(text)
+  if (!hasOwnershipMarker(text)) return false
+  const exact = try hasAlchemyLabels(id, labels)
+  if (exact) return true
+  return (
+    prefixMatch(expected[alchemyLabelKeys.stack] ?? "", labels[alchemyLabelKeys.stack] ?? "")
+    && prefixMatch(expected[alchemyLabelKeys.stage] ?? "", labels[alchemyLabelKeys.stage] ?? "")
+    && prefixMatch(expected[alchemyLabelKeys.id] ?? "", labels[alchemyLabelKeys.id] ?? "")
+  )
+}
+
+export const ownershipLabels = effect (id: string) => try createInternalLabels(id)
+
+export const toPhysicalId = effect (
+  id: string,
+  requested: string | undefined,
+  existing: string | undefined,
+  maxLength = MAX_GROUP_KEY_LOCAL_LENGTH,
+) => {
+  if (requested !== undefined && requested.length > 0) return requested
+  if (existing !== undefined && existing.length > 0) return existing
+  return try createPhysicalName({
+    id,
+    maxLength,
+    lowercase: true,
+  })
+}
+
+export const toGroupKeyId = effect (
+  id: string,
+  requested: string | undefined,
+  existing: string | undefined,
+  domain: string | undefined,
+) => {
+  if (requested !== undefined && requested.length > 0) return requested
+  if (existing !== undefined && existing.length > 0) return existing
+  const local = try createPhysicalName({
+    id,
+    maxLength: MAX_GROUP_KEY_LOCAL_LENGTH,
+    lowercase: true,
+  })
+  const host = domain?.trim()
+  return host && host.length > 0 ? `${local}@${host}` : local
+}
+
+export const typeLabels = (labels: Record<string, string> | undefined): Record<string, string> => {
+  const next = { ...labels }
+  if (Object.keys(next).length === 0) {
+    next[DISCUSSION_FORUM_LABEL] = ""
+  }
+  return next
+}
+
+export const compactStringMap = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(labels ?? {}).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string" && entry[1] !== undefined,
+    ),
+  )
+
+const emptyList = effect <A>() => [] as A[]
+
+export const getGroup = effect (name: string) => (name.length === 0 ? try Effect.undefined : cloudidentity
+  .getGroups({ name: expandGroup(name) }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const lookupGroupName = effect (
+  groupKeyId: string,
+  namespace: string | undefined,
+) => (groupKeyId.length === 0 ? try Effect.undefined : (try cloudidentity
+  .lookupGroups({
+    "groupKey.id": groupKeyId,
+    "groupKey.namespace": namespace,
+  })).name catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; })
+
+export const getGroupByKey = effect (groupKeyId: string, namespace: string | undefined) => {
+  const name = try lookupGroupName(groupKeyId, namespace)
+  if (name === undefined) return undefined
+  return try getGroup(name)
+}
+
+export const listGroups = effect (parent?: string) =>
+  (Array.from(
+    try (cloudidentity.listGroups
+      .pages({
+        parent: normalizeCustomer(parent),
+        view: "FULL",
+        pageSize: 200,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.groups ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try emptyList<cloudidentity.Group>(); default: throw e; }
+
+export const isOwnedGroup = (group: cloudidentity.Group): infer _ =>
+  hasOwnershipMarker(group.description) || hasOwnershipMarker(group.displayName)
+
+export const listOwnedGroups = effect (parent?: string) => (try listGroups(parent)).filter(isOwnedGroup)
+
+export const findOwnedGroup = effect (id: string, parent?: string) => {
+  const groups = try listGroups(parent)
+  for (const group of groups) {
+    if (
+      (try ownedByAlchemy(id, group.description))
+      || (try ownedByAlchemy(id, group.displayName))
+    ) {
+      return group
+    }
+  }
+  return undefined
+}
+
+export const getMembership = effect (name: string) => (name.length === 0 ? try Effect.undefined : cloudidentity
+  .getGroupsMemberships({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const lookupMembershipName = effect (
+  parent: string,
+  memberKeyId: string,
+  namespace: string | undefined,
+) => (parent.length === 0 || memberKeyId.length === 0 ? try Effect.undefined : (try cloudidentity
+  .lookupGroupsMemberships({
+    parent: expandGroup(parent),
+    "memberKey.id": memberKeyId,
+    "memberKey.namespace": namespace,
+  })).name catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; })
+
+export const getMembershipByKey = effect (
+  parent: string,
+  memberKeyId: string,
+  namespace: string | undefined,
+) => {
+  const name = try lookupMembershipName(parent, memberKeyId, namespace)
+  if (name === undefined) return undefined
+  return try getMembership(name)
+}
+
+export const listMemberships = effect (
+  parent: string,
+) => (parent.length === 0
+  ? try emptyList<cloudidentity.Membership>()
+  : (Array.from(
+    try (cloudidentity.listGroupsMemberships
+      .pages({
+        parent: expandGroup(parent),
+        view: "FULL",
+        pageSize: 200,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.memberships ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try emptyList<cloudidentity.Membership>();
+    default: throw e;
+  })
+
+export const getDevice = effect (
+  name: string,
+  customer?: string,
+) => (name.length === 0 ? try Effect.undefined : cloudidentity
+  .getDevices({
+    name: expandName(name, "devices"),
+    customer: customer ? normalizeCustomer(customer) : undefined,
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; })
+
+export const listDevices = effect (customer?: string) =>
+  (Array.from(
+    try (cloudidentity.listDevices
+      .pages({
+        customer: normalizeCustomer(customer),
+        view: "COMPANY_INVENTORY",
+        pageSize: 100,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.devices ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try emptyList<cloudidentity.GoogleAppsCloudidentityDevicesV1Device>();
+    default: throw e;
+  }
+
+export const findOwnedDevice = effect (id: string, serialNumber: string | undefined, customer?: string) => {
+  const devices = try listDevices(customer)
+  for (const device of devices) {
+    if (
+      serialNumber !== undefined
+      && serialNumber.length > 0
+      && sameText(device.serialNumber, serialNumber)
+    ) {
+      return device
+    }
+    if (try ownedByAlchemy(id, device.assetTag)) {
+      return device
+    }
+  }
+  return undefined
+}
+
+export const getOidcProfile = effect (name: string) => (name.length === 0 ? try Effect.undefined : cloudidentity
+  .getInboundOidcSsoProfiles({
+    name: expandName(name, "inboundOidcSsoProfiles"),
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; })
+
+export const listOidcProfiles = effect () =>
+  (Array.from(
+    try (cloudidentity.listInboundOidcSsoProfiles.pages({ pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.inboundOidcSsoProfiles ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try emptyList<cloudidentity.InboundOidcSsoProfile>();
+    default: throw e;
+  }
+
+export const findOwnedOidcProfile = effect (id: string) => {
+  const profiles = try listOidcProfiles()
+  for (const profile of profiles) {
+    if (try ownedByAlchemy(id, profile.displayName)) {
+      return profile
+    }
+  }
+  return undefined
+}
+
+export const getSamlProfile = effect (name: string) => (name.length === 0 ? try Effect.undefined : cloudidentity
+  .getInboundSamlSsoProfiles({
+    name: expandName(name, "inboundSamlSsoProfiles"),
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; })
+
+export const listSamlProfiles = effect () =>
+  (Array.from(
+    try (cloudidentity.listInboundSamlSsoProfiles.pages({ pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.inboundSamlSsoProfiles ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try emptyList<cloudidentity.InboundSamlSsoProfile>();
+    default: throw e;
+  }
+
+export const findOwnedSamlProfile = effect (id: string) => {
+  const profiles = try listSamlProfiles()
+  for (const profile of profiles) {
+    if (try ownedByAlchemy(id, profile.displayName)) {
+      return profile
+    }
+  }
+  return undefined
+}
+
+export const getSsoAssignment = effect (name: string) => (name.length === 0 ? try Effect.undefined : cloudidentity
+  .getInboundSsoAssignments({
+    name: expandName(name, "inboundSsoAssignments"),
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; })
+
+export const listSsoAssignments = effect () =>
+  (Array.from(
+    try (cloudidentity.listInboundSsoAssignments.pages({ pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.inboundSsoAssignments ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try emptyList<cloudidentity.InboundSsoAssignment>();
+    default: throw e;
+  }
+
+export const findSsoAssignment = effect (input: {
+  mutable name?: string
+  mutable targetGroup?: string
+  mutable targetOrgUnit?: string
+  mutable ssoMode?: string
+}) => {
+  if (input.name !== undefined && input.name.length > 0) {
+    const existing = try getSsoAssignment(input.name)
+    if (existing !== undefined) return existing
+  }
+  const assignments = try listSsoAssignments()
+  return assignments.find((assignment) => {
+    if (
+      input.targetGroup !== undefined
+      && !sameText(assignment.targetGroup, expandGroup(input.targetGroup))
+    ) {
+      return false
+    }
+    if (
+      input.targetOrgUnit !== undefined
+      && !sameText(assignment.targetOrgUnit, input.targetOrgUnit)
+    ) {
+      return false
+    }
+    if (input.ssoMode !== undefined && !sameText(assignment.ssoMode, input.ssoMode)) {
+      return false
+    }
+    return input.targetGroup !== undefined || input.targetOrgUnit !== undefined
+  })
+}

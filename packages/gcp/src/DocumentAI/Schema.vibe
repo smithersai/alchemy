@@ -1,0 +1,262 @@
+import * as documentai from "@distilled.cloud/gcp/documentai_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_LOCATION,
+  ResourceNotResolved,
+  findOwnedByLabels,
+  hasAlchemyLabelMap,
+  listProjectSchemas,
+  listSchemasAt,
+  locationParent,
+  normalizeLocation,
+  parseResourceName,
+  replaceOnIdentity,
+  retryTransient,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+  userLabels,
+  waitUntilGone,
+} from "./internal.vibe"
+import { waitForOperation } from "./operations.ts"
+
+export type SchemaProps = {
+  /**
+   * Schema id (the `{schema}` segment of
+   * `projects/{project}/locations/{location}/schemas/{schema}`). Assigned
+   * by the API on create. Immutable — changing it replaces the schema.
+   * Supply it to adopt an existing schema.
+   */
+  mutable schemaId?: string
+  /**
+   * Multi-region location (`us` or `eu`). Immutable — changing it
+   * replaces the schema.
+   * @default "us"
+   */
+  mutable location?: string
+  /**
+   * User-defined display name. Defaults to a generated id.
+   */
+  mutable displayName?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type Schema = Resource<
+  "GCP.DocumentAI.Schema",
+  SchemaProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/schemas/{schema}`. */
+    mutable name: string
+    /** Schema id (last path segment). */
+    mutable schemaId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** User-defined display name. */
+    mutable displayName: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Document AI schema — a collection of schema versions describing
+ * extraction output.
+ *
+ * Schemas are location-scoped. The API assigns the schema id. Location is
+ * immutable; display name and labels update in place.
+ *
+ * ### Creating a Schema
+ * **Example:** Generated id
+ * ```typescript
+ * const schema = yield* GCP.DocumentAI.Schema("Invoice", {
+ *   displayName: "invoice",
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * ### Updating a Schema
+ * **Example:** Rename and relabel
+ * ```typescript
+ * // Same logical id, changed props: the engine updates it in place.
+ * const schema = yield* GCP.DocumentAI.Schema("Invoice", {
+ *   displayName: "invoice-v2",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category DocumentAI
+ */
+export const Schema = Resource<Schema>("GCP.DocumentAI.Schema")
+
+const resourceName = (project: string, location: string, schemaId: string): infer _ =>
+  `${locationParent(project, location)}/schemas/${schemaId}`
+
+const toAttrs = (schema: documentai.GoogleCloudDocumentaiV1NextSchema, project: string): infer _ => {
+  const name = schema.name ?? ""
+  const parsed = parseResourceName(name, "schemas")
+  return {
+    name,
+    schemaId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: schema.displayName,
+    labels: userLabels(schema.labels),
+    createTime: schema.createTime,
+    updateTime: schema.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : documentai
+  .getProjectsLocationsSchemas({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const findOwned = effect (id: string, project: string, parent: string, hinted?: string) => {
+  if (hinted !== undefined && hinted.length > 0) {
+    const existing = try getByName(hinted)
+    if (existing !== undefined) return existing
+  }
+  const local = try findOwnedByLabels(id, try listSchemasAt(parent))
+  if (local !== undefined) return local
+  return try findOwnedByLabels(id, try listProjectSchemas(project))
+}
+
+export const SchemaProvider = (): infer _ =>
+  Provider.succeed(Schema, {
+    stables: ["name", "schemaId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      return replaceOnIdentity({
+        previousId: olds?.schemaId ?? output?.schemaId,
+        nextId: news.schemaId,
+        previousLocation: olds?.location ?? output?.location,
+        nextLocation: news.location ?? olds?.location ?? output?.location,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const schemaId = olds?.schemaId ?? output?.schemaId
+      const name = output?.name ?? (schemaId ? resourceName(env.project, location, schemaId) : "")
+      const parent = locationParent(env.project, location)
+      const existing = try findOwned(id, env.project, parent, name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const schemas = try listProjectSchemas(env.project)
+      return schemas
+        .filter((schema) => hasAlchemyLabelMap(schema.labels))
+        .map((schema) => toAttrs(schema, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
+      const parent = locationParent(env.project, location)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const fallbackName = try toPhysicalId(
+        id,
+        undefined,
+        output?.displayName ?? output?.schemaId,
+      )
+      const displayName = news.displayName ?? fallbackName
+      const hinted = output?.name ?? (news.schemaId ? resourceName(env.project, location, news.schemaId) : "")
+
+      let current = try findOwned(id, env.project, parent, hinted)
+
+      if (current === undefined) {
+        current = retryTransient(
+          documentai.createProjectsLocationsSchemas({
+            parent,
+            body: {
+              displayName,
+              labels: desiredLabels,
+            },
+          }),
+        ) catch effect (error) => match (error) {
+          when { _tag: "Conflict" }: try effect {
+            const found = try findOwned(id, env.project, parent, hinted)
+            return (found !== undefined ? found : throw error)
+          };
+          default: throw error;
+        }
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({
+          resourceName: hinted || `${parent}/schemas`,
+        })
+      }
+
+      const currentName = current.name ?? hinted
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const displayChanged = !sameText(current.displayName, displayName)
+
+      if (labelsChanged || displayChanged) {
+        current = try retryTransient(
+          documentai.patchProjectsLocationsSchemas({
+            name: currentName,
+            updateMask: updateMaskOf(
+              displayChanged ? "displayName" : undefined,
+              labelsChanged ? "labels" : undefined,
+            ),
+            body: {
+              displayName,
+              labels: desiredLabels,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      const operation = retryTransient(
+        documentai.deleteProjectsLocationsSchemas({
+          name: output.name,
+          force: true,
+        }),
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        // NOT_FOUND (5): already gone.
+        waitForOperation(operation) catch effect (error) => match (error) {
+          when { _tag: "GCP.OperationFailed" }: try (error.code === 5 ? Effect.void : throw error);
+          default: throw error;
+        }
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

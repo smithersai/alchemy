@@ -1,0 +1,457 @@
+import * as saasservicemgmt from "@distilled.cloud/gcp/saasservicemgmt_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  ResourceNotResolved,
+  collectPages,
+  expandName,
+  fieldMask,
+  fingerprint,
+  hasAlchemyLabelKeys,
+  lastSegment,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  resourceName,
+  sameRef,
+  toPhysicalId,
+  userAnnotations,
+  userLabels,
+  waitUntilGone,
+} from "./internal.vibe"
+
+const COLLECTION = "unitOperations"
+
+export type UnitOperationVariable = {
+  mutable type?: saasservicemgmt.UnitVariableTypeEnum | (string & {})
+  mutable value?: string
+  mutable variable?: string
+}
+
+export type UnitOperationProvision = {
+  /** Release to provision. Accepts a release id or full resource name. */
+  mutable release?: string
+  /** Input variables. Maximum 100. */
+  mutable inputVariables?: UnitOperationVariable[]
+}
+
+export type UnitOperationFlagUpdate = {
+  /** Flag release to apply. */
+  mutable flagRelease?: string
+}
+
+export type UnitOperationSchedule = {
+  /** RFC3339 start time. If omitted, the next maintenance window is used. */
+  mutable startTime?: string
+}
+
+export type UnitOperationCondition = {
+  mutable status: string | undefined
+  mutable type: string | undefined
+  mutable message: string | undefined
+  mutable reason: string | undefined
+  mutable lastTransitionTime: string | undefined
+}
+
+export type UnitOperationProps = {
+  /**
+   * UnitOperation id (the `{unitOperation}` segment of
+   * `projects/{project}/locations/{location}/unitOperations/{unitOperation}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable —
+   * changing it replaces the operation.
+   */
+  mutable unitOperationId?: string
+  /**
+   * Region of the operation (`us-central1`, …). Immutable — changing it
+   * replaces the operation. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Unit this operation acts on. Accepts a unit id or a full resource
+   * name. Immutable — changing it replaces the operation.
+   */
+  mutable unit: string
+  /**
+   * Provision the unit. Mutually exclusive with `upgrade`,
+   * `deprovision`, and `flagUpdate`. Immutable.
+   */
+  mutable provision?: UnitOperationProvision
+  /**
+   * Upgrade a provisioned unit. Mutually exclusive with the other
+   * operation types. Immutable.
+   */
+  mutable upgrade?: UnitOperationProvision
+  /**
+   * Deprovision a provisioned unit. Mutually exclusive with the other
+   * operation types. Immutable.
+   */
+  mutable deprovision?: boolean
+  /**
+   * Push a flag release. Mutually exclusive with the other operation
+   * types. Immutable.
+   */
+  mutable flagUpdate?: UnitOperationFlagUpdate
+  /**
+   * Parent unit operation, for tracing child work.
+   */
+  mutable parentUnitOperation?: string
+  /**
+   * Rollout that created this operation. Filtering only.
+   */
+  mutable rollout?: string
+  /**
+   * When to run the operation.
+   */
+  mutable schedule?: UnitOperationSchedule
+  /**
+   * Request cancellation. May fail if the operation is already
+   * executing.
+   */
+  mutable cancel?: boolean
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Unstructured annotations preserved across updates.
+   */
+  mutable annotations?: Record<string, string>
+}
+
+export type UnitOperation = Resource<
+  "GCP.SaasServiceManagement.UnitOperation",
+  UnitOperationProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/unitOperations/{unitOperation}`. */
+    mutable name: string
+    /** UnitOperation id (last path segment). */
+    mutable unitOperationId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Unit resource name. */
+    mutable unit: string | undefined
+    /** Unit id (last path segment). */
+    mutable unitId: string | undefined
+    /** Provision payload, if this is a provision. */
+    mutable provision: UnitOperationProvision | undefined
+    /** Upgrade payload, if this is an upgrade. */
+    mutable upgrade: UnitOperationProvision | undefined
+    /** Whether this is a deprovision. */
+    mutable deprovision: boolean
+    /** Flag-update payload, if this is a flag update. */
+    mutable flagUpdate: UnitOperationFlagUpdate | undefined
+    /** Parent unit operation. */
+    mutable parentUnitOperation: string | undefined
+    /** Creating rollout. */
+    mutable rollout: string | undefined
+    /** Scheduled start. */
+    mutable schedule: UnitOperationSchedule | undefined
+    /** Cancellation requested. */
+    mutable cancel: boolean
+    /** Lifecycle state. */
+    mutable state: string | undefined
+    /** Engine state (opaque). */
+    mutable engineState: string | undefined
+    /** Error category. */
+    mutable errorCategory: string | undefined
+    /** Conditions. */
+    mutable conditions: UnitOperationCondition[]
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** User annotations. */
+    mutable annotations: Record<string, string>
+    /** Server UUID. */
+    mutable uid: string | undefined
+    /** Server etag. */
+    mutable etag: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An App Lifecycle Manager unit operation — one provision, upgrade,
+ * deprovision, or flag-update of a Unit.
+ *
+ * `unitOperationId`, `location`, `unit`, and the chosen operation type
+ * replace the resource. `cancel`, labels, and annotations update in
+ * place. Only one mutating unit operation runs on a unit at a time.
+ *
+ * ### Creating a UnitOperation
+ * **Example:** Provision a unit
+ * ```typescript
+ * const op = yield* GCP.SaasServiceManagement.UnitOperation("Provision", {
+ *   unit: unit.name,
+ *   provision: { release: release.name },
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * **Example:** Deprovision
+ * ```typescript
+ * const op = yield* GCP.SaasServiceManagement.UnitOperation("Teardown", {
+ *   unit: unit.name,
+ *   deprovision: true,
+ * });
+ * ```
+ *
+ * ### Updating a UnitOperation
+ * **Example:** Cancel
+ * ```typescript
+ * const op = yield* GCP.SaasServiceManagement.UnitOperation("Provision", {
+ *   unitOperationId: op.unitOperationId,
+ *   unit: unit.name,
+ *   provision: { release: release.name },
+ *   cancel: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category SaasServiceManagement
+ */
+export const UnitOperation = Resource<UnitOperation>("GCP.SaasServiceManagement.UnitOperation")
+
+const operationKind = (props: {
+  mutable provision?: UnitOperationProvision
+  mutable upgrade?: UnitOperationProvision
+  mutable deprovision?: boolean
+  mutable flagUpdate?: UnitOperationFlagUpdate
+}): infer _ => {
+  if (props.provision !== undefined) return "provision"
+  if (props.upgrade !== undefined) return "upgrade"
+  if (props.deprovision === true) return "deprovision"
+  if (props.flagUpdate !== undefined) return "flagUpdate"
+  return ""
+}
+
+const expandProvision = (
+  provision: UnitOperationProvision | undefined,
+  project: string,
+  location: string,
+): saasservicemgmt.Provision | undefined => {
+  if (provision === undefined) return undefined
+  return {
+    release: provision.release === undefined
+      ? undefined
+      : expandName(provision.release, project, location, "releases"),
+    inputVariables: provision.inputVariables,
+  }
+}
+
+const toAttrs = (item: saasservicemgmt.UnitOperation, project: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, COLLECTION)
+  return {
+    name,
+    unitOperationId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    unit: item.unit,
+    unitId: item.unit ? lastSegment(item.unit) : undefined,
+    provision: item.provision,
+    upgrade: item.upgrade,
+    deprovision: item.deprovision !== undefined,
+    flagUpdate: item.flagUpdate,
+    parentUnitOperation: item.parentUnitOperation,
+    rollout: item.rollout,
+    schedule: item.schedule,
+    cancel: item.cancel === true,
+    state: item.state,
+    engineState: item.engineState,
+    errorCategory: item.errorCategory,
+    conditions: (item.conditions ?? []).map((condition) => ({
+      status: condition.status,
+      type: condition.type,
+      message: condition.message,
+      reason: condition.reason,
+      lastTransitionTime: condition.lastTransitionTime,
+    })),
+    labels: userLabels(item.labels),
+    annotations: userAnnotations(item.annotations),
+    uid: item.uid,
+    etag: item.etag,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : saasservicemgmt
+  .getProjectsLocationsUnitOperations({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string, location: string) =>
+  try effect {
+    const items = (try collectPages(
+      saasservicemgmt.listProjectsLocationsUnitOperations.pages({
+        parent: parentOf(project, "-"),
+        pageSize: 1000,
+      }),
+      (page) => page.unitOperations,
+    )).filter((item) => hasAlchemyLabelKeys(item.labels))
+    return (items.length > 0 ? items : (try collectPages(
+      saasservicemgmt.listProjectsLocationsUnitOperations.pages({
+        parent: parentOf(project, location),
+        pageSize: 1000,
+      }),
+      (page) => page.unitOperations,
+    )).filter((item) => hasAlchemyLabelKeys(item.labels)))
+  }
+
+export const UnitOperationProvider = (): infer _ =>
+  Provider.succeed(UnitOperation, {
+    stables: ["name", "unitOperationId", "project", "location", "unitId", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousKind = operationKind({
+        provision: olds?.provision ?? output?.provision,
+        upgrade: olds?.upgrade ?? output?.upgrade,
+        deprovision: olds?.deprovision ?? output?.deprovision,
+        flagUpdate: olds?.flagUpdate ?? output?.flagUpdate,
+      })
+      const nextKind = operationKind(news) || previousKind
+      return replaceOnIdentity({
+        previousId: olds?.unitOperationId ?? output?.unitOperationId,
+        nextId: news.unitOperationId ?? olds?.unitOperationId ?? output?.unitOperationId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location ?? env.region,
+        ),
+        extra: !sameRef(olds?.unit ?? output?.unit, news.unit)
+          || (previousKind.length > 0 && nextKind.length > 0 && previousKind !== nextKind),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const unitOperationId = try toPhysicalId(
+        id,
+        olds?.unitOperationId,
+        output?.unitOperationId,
+        "uop",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const name = output?.name ?? resourceName(env.project, location, COLLECTION, unitOperationId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const unitOperationId = try toPhysicalId(
+        id,
+        news.unitOperationId,
+        output?.unitOperationId,
+        "uop",
+      )
+      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const name = resourceName(env.project, location, COLLECTION, unitOperationId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const unit = expandName(news.unit, env.project, location, "units")
+      const provision = expandProvision(news.provision, env.project, location)
+      const upgrade = expandProvision(news.upgrade, env.project, location)
+      const parentUnitOperation = news.parentUnitOperation === undefined
+        ? undefined
+        : expandName(news.parentUnitOperation, env.project, location, COLLECTION)
+      const annotations = news.annotations
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = saasservicemgmt
+          .createProjectsLocationsUnitOperations({
+            parent: parentOf(env.project, location),
+            unitOperationId,
+            body: {
+              unit,
+              provision,
+              upgrade,
+              deprovision: news.deprovision === true ? {} : undefined,
+              flagUpdate: news.flagUpdate,
+              parentUnitOperation,
+              rollout: news.rollout,
+              schedule: news.schedule,
+              cancel: news.cancel,
+              labels: desiredLabels,
+              annotations,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const annotationsChanged = annotations !== undefined
+        && fingerprint(userAnnotations(current.annotations)) !== fingerprint(annotations)
+      const cancelChanged = news.cancel !== undefined && (current.cancel === true) !== news.cancel
+      const scheduleChanged = news.schedule !== undefined
+        && fingerprint(current.schedule) !== fingerprint(news.schedule)
+      const mask = fieldMask([
+        labelsChanged && "labels",
+        annotationsChanged && "annotations",
+        cancelChanged && "cancel",
+        scheduleChanged && "schedule",
+      ])
+
+      if (mask.length > 0) {
+        current = try saasservicemgmt.patchProjectsLocationsUnitOperations({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            etag: current.etag,
+            cancel: news.cancel,
+            schedule: news.schedule,
+            labels: desiredLabels,
+            annotations,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      ;(try (saasservicemgmt.deleteProjectsLocationsUnitOperations({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

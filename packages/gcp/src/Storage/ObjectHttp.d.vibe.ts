@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import { type GcpHttpOp } from "../HttpBinding.js";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.vibe";
 /**
  * Grant `role` on the bound bucket's own IAM policy (not the project), the
  * way AWS S3 bindings scope statements to the bucket ARN.

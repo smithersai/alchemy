@@ -1,0 +1,490 @@
+import * as bigquery from "@distilled.cloud/gcp/bigquery_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+
+const MAX_JOB_ID_LENGTH = 1024
+
+export type JobQuery = bigquery.JobConfigurationQuery
+export type JobLoad = bigquery.JobConfigurationLoad
+export type JobCopy = bigquery.JobConfigurationTableCopy
+export type JobExtract = bigquery.JobConfigurationExtract
+export type JobError = bigquery.ErrorProto
+
+export type JobProps = {
+  /**
+   * Job id (the `{jobId}` segment of `projects/{project}/jobs/{jobId}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Letters, numbers, underscores, and dashes; max 1,024
+   * characters. Immutable — changing it replaces the job.
+   */
+  mutable jobId?: string
+  /**
+   * Geographic location (`US`, `EU`, `US-CENTRAL1`, `us-central1`, …).
+   * Immutable — changing it replaces the job.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   * Immutable after create — changing labels replaces the job.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Query job configuration. Mutually exclusive with `load`, `copy`, and
+   * `extract`. GoogleSQL is the default (`useLegacySql: false`).
+   */
+  mutable query?: JobQuery
+  /**
+   * Load job configuration. Mutually exclusive with `query`, `copy`, and
+   * `extract`.
+   */
+  mutable load?: JobLoad
+  /**
+   * Copy job configuration. Mutually exclusive with `query`, `load`, and
+   * `extract`.
+   */
+  mutable copy?: JobCopy
+  /**
+   * Extract job configuration. Mutually exclusive with `query`, `load`,
+   * and `copy`.
+   */
+  mutable extract?: JobExtract
+  /**
+   * Job timeout in milliseconds relative to creation time.
+   */
+  mutable jobTimeoutMs?: string
+  /**
+   * Reservation the job should run on, as
+   * `projects/{project}/locations/{location}/reservations/{reservation}`.
+   */
+  mutable reservation?: string
+}
+
+export type Job = Resource<
+  "GCP.BigQuery.Job",
+  JobProps,
+  {
+    /** Resource path `projects/{project}/jobs/{jobId}`. */
+    mutable name: string
+    /** Opaque id `project:jobId`. */
+    mutable id: string
+    /** Job id. */
+    mutable jobId: string
+    /** Project id. */
+    mutable project: string
+    /** Geographic location. */
+    mutable location: string
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Job kind (`QUERY`, `LOAD`, `EXTRACT`, `COPY`, …). */
+    mutable jobType: string | undefined
+    /** Running state (`PENDING`, `RUNNING`, `DONE`). */
+    mutable state: string | undefined
+    /** Final error when the job completed unsuccessfully. */
+    mutable errorResult: JobError | undefined
+    /** Query text when this is a query job. */
+    mutable query: string | undefined
+    /** Self-link URL. */
+    mutable selfLink: string | undefined
+    /** Creator email. */
+    mutable userEmail: string | undefined
+    /** Creation time in milliseconds since epoch. */
+    mutable creationTime: string | undefined
+    /** Start time in milliseconds since epoch. */
+    mutable startTime: string | undefined
+    /** End time in milliseconds since epoch. */
+    mutable endTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Google BigQuery job — a one-shot query, load, copy, or extract.
+ *
+ * Jobs are immutable after insert. Changing `jobId`, `location`, labels,
+ * or the job configuration replaces the job. BigQuery job ids cannot be
+ * reused even after metadata delete, so replacement always creates a new
+ * id then deletes the previous generation. Destroy cancels a running job,
+ * then deletes its metadata.
+ *
+ * ### Creating a Job
+ * **Example:** GoogleSQL query
+ * ```typescript
+ * const job = yield* GCP.BigQuery.Job("Count", {
+ *   query: { query: "SELECT 1 AS n", useLegacySql: false },
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * **Example:** Query into a destination table
+ * ```typescript
+ * const dataset = yield* GCP.BigQuery.Dataset("Analytics", {
+ *   forceDestroy: true,
+ * });
+ * const table = yield* GCP.BigQuery.Table("Results", {
+ *   datasetId: dataset.datasetId,
+ *   schema: [{ name: "n", type: "INTEGER" }],
+ * });
+ * const load = yield* GCP.BigQuery.Job("Seed", {
+ *   query: {
+ *     query: "SELECT 1 AS n",
+ *     useLegacySql: false,
+ *     destinationTable: {
+ *       projectId: table.project,
+ *       datasetId: table.datasetId,
+ *       tableId: table.tableId,
+ *     },
+ *     writeDisposition: "WRITE_TRUNCATE",
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category BigQuery
+ */
+export const Job = Resource<Job>("GCP.BigQuery.Job")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class JobNotResolved extends Data.TaggedError("GCP.BigQuery.JobNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class JobNotDone extends Data.TaggedError("GCP.BigQuery.JobNotDone")<{
+  mutable jobId: string
+  mutable state: string | undefined
+}> {}
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const resourceName = (project: string, jobId: string): infer _ => `projects/${project}/jobs/${jobId}`
+
+const normalizeLocation = (location: string | undefined, fallback: string): infer _ =>
+  (location ?? fallback).toUpperCase()
+
+const toId = effect (id: string, jobId: string | undefined, existing?: string) => {
+  if (jobId !== undefined) return jobId
+  if (existing !== undefined) return existing
+  return try createPhysicalName({
+    id,
+    maxLength: MAX_JOB_ID_LENGTH,
+    lowercase: true,
+  })
+}
+
+const jobIdOf = (job: bigquery.Job | bigquery.JobListJobsItem, fallback: string): infer _ =>
+  job.jobReference?.jobId ?? fallback
+
+const projectOf = (job: bigquery.Job | bigquery.JobListJobsItem, fallback: string): infer _ =>
+  job.jobReference?.projectId ?? fallback
+
+const locationOf = (job: bigquery.Job | bigquery.JobListJobsItem, fallback: string): infer _ =>
+  job.jobReference?.location ?? fallback
+
+const stateOf = (job: bigquery.Job | bigquery.JobListJobsItem): infer _ => {
+  const full = job as bigquery.Job
+  return full.status?.state ?? (job as bigquery.JobListJobsItem).state
+}
+
+const toAttrs = (
+  job: bigquery.Job | bigquery.JobListJobsItem,
+  fallbackProject: string,
+  region: string,
+): infer _ => {
+  const jobId = jobIdOf(job, "")
+  const project = projectOf(job, fallbackProject)
+  const full = job as bigquery.Job
+  return {
+    name: resourceName(project, jobId),
+    id: full.id ?? `${project}:${jobId}`,
+    jobId,
+    project,
+    location: locationOf(job, region),
+    labels: userLabels(job.configuration?.labels),
+    jobType: job.configuration?.jobType,
+    state: stateOf(job),
+    errorResult: full.status?.errorResult ?? (job as bigquery.JobListJobsItem).errorResult,
+    query: job.configuration?.query?.query,
+    selfLink: full.selfLink,
+    userEmail: full.user_email ?? (job as bigquery.JobListJobsItem).user_email,
+    creationTime: full.statistics?.creationTime ?? job.statistics?.creationTime,
+    startTime: full.statistics?.startTime ?? job.statistics?.startTime,
+    endTime: full.statistics?.endTime ?? job.statistics?.endTime,
+  }
+}
+
+const getByRef = effect (projectId: string, jobId: string, location: string) =>
+  bigquery
+    .getJobs({ projectId, jobId, location }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const waitUntilDone = effect (projectId: string, jobId: string, location: string) =>
+  try (effect {
+    return try effect {
+      const job = try getByRef(projectId, jobId, location)
+
+      if (job === undefined) return try Effect.undefined
+      const state = job.status?.state ?? ""
+      if (state === "DONE") return job
+      throw new JobNotDone({ jobId, state })
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.BigQuery.JobNotDone",
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+const queryBody = (query: JobQuery): JobQuery => ({
+  ...query,
+  useLegacySql: query.useLegacySql ?? false,
+})
+
+const toJobBody = (
+  projectId: string,
+  jobId: string,
+  location: string,
+  news: JobProps,
+  labels: Record<string, string>,
+): bigquery.Job => ({
+  jobReference: { projectId, jobId, location },
+  configuration: {
+    labels,
+    query: news.query !== undefined ? queryBody(news.query) : undefined,
+    load: news.load,
+    copy: news.copy,
+    extract: news.extract,
+    jobTimeoutMs: news.jobTimeoutMs,
+    reservation: news.reservation,
+  },
+})
+
+const stable = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(stable)
+  if (value !== null && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, nested]) => nested !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, stable(nested)]),
+    )
+  }
+  return value
+}
+
+const jsonEqual = (left: unknown, right: unknown): infer _ =>
+  JSON.stringify(stable(left ?? null)) === JSON.stringify(stable(right ?? null))
+
+const pickDefined = (news: Record<string, unknown>, observed: Record<string, unknown>): infer _ => {
+  const next: Record<string, unknown> = {}
+  const previous: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(news)) {
+    if (value !== undefined) {
+      next[key] = value
+      previous[key] = observed[key]
+    }
+  }
+  return { news: next, observed: previous }
+}
+
+const nestedChanged = (
+  news: Record<string, unknown> | undefined,
+  olds: Record<string, unknown> | undefined,
+  hadOlds: boolean,
+): infer _ => {
+  if (news === undefined) return false
+  if (olds === undefined) return hadOlds
+  const picked = pickDefined(news, olds)
+  return !jsonEqual(picked.news, picked.observed)
+}
+
+export const JobProvider = (): infer _ =>
+  Provider.succeed(Job, {
+    stables: ["name", "id", "jobId", "project", "location", "creationTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousId = olds?.jobId ?? output?.jobId
+      const jobIdChanged = news.jobId !== undefined && previousId !== undefined && news.jobId !== previousId
+
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      const locationChanged = output !== undefined && previousLocation !== nextLocation
+
+      const labelsChanged = news.labels !== undefined
+        && output !== undefined
+        && !jsonEqual(toLabels(news.labels), output.labels)
+
+      const timeoutChanged = news.jobTimeoutMs !== undefined && (olds?.jobTimeoutMs ?? "") !== news.jobTimeoutMs
+      const reservationChanged = news.reservation !== undefined && (olds?.reservation ?? "") !== news.reservation
+
+      const replaced = jobIdChanged
+        || locationChanged
+        || labelsChanged
+        || timeoutChanged
+        || reservationChanged
+        || nestedChanged(
+          news.query as Record<string, unknown> | undefined,
+          olds?.query as Record<string, unknown> | undefined,
+          olds !== undefined,
+        )
+        || nestedChanged(
+          news.load as Record<string, unknown> | undefined,
+          olds?.load as Record<string, unknown> | undefined,
+          olds !== undefined,
+        )
+        || nestedChanged(
+          news.copy as Record<string, unknown> | undefined,
+          olds?.copy as Record<string, unknown> | undefined,
+          olds !== undefined,
+        )
+        || nestedChanged(
+          news.extract as Record<string, unknown> | undefined,
+          olds?.extract as Record<string, unknown> | undefined,
+          olds !== undefined,
+        )
+
+      if (!replaced) return undefined
+      // Job ids cannot be reused after delete (the API returns NotFound on
+      // insert of a retired id), so never delete-first.
+      return { action: "replace" as const, deleteFirst: false }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const jobId = try toId(id, olds?.jobId, output?.jobId)
+      const location = olds?.location ?? output?.location ?? env.region
+      const project = output?.project ?? env.project
+      const existing = try getByRef(project, jobId, location)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, project, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.configuration?.labels)))
+        ? attrs
+        : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return (Array.from(
+        try (bigquery.listJobs
+          .pages({
+            projectId: env.project,
+            maxResults: 1000,
+            projection: "full",
+            allUsers: true,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.jobs ?? []))
+          |> Stream.filter(
+            %,
+            (job) => Object.keys(job.configuration?.labels ?? {}).some((key) => key.startsWith("alchemy-")),
+          )
+          |> Stream.map(%, (job) => toAttrs(job, env.project, env.region))
+          |> Stream.runCollect(%)),
+      )) catch effect (e) =>
+        match (e) {
+          when { _tag: "Forbidden" }: Array.from(
+            try (bigquery.listJobs
+              .pages({
+                projectId: env.project,
+                maxResults: 1000,
+                projection: "full",
+              })
+              |> Stream.flatMap(%, (page) => Stream.fromIterable(page.jobs ?? []))
+              |> Stream.filter(
+                %,
+                (job) => Object.keys(job.configuration?.labels ?? {}).some((key) => key.startsWith("alchemy-")),
+              )
+              |> Stream.map(%, (job) => toAttrs(job, env.project, env.region))
+              |> Stream.runCollect(%)),
+          );
+          default: throw e;
+        } catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: [] as ReturnType<typeof toAttrs>[];
+          default: throw e;
+        }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const jobId = try toId(id, news.jobId, output?.jobId)
+      const location = news.location ?? output?.location ?? env.region
+      const project = output?.project ?? env.project
+      const name = resourceName(project, jobId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByRef(project, jobId, location)
+
+      if (current === undefined) {
+        const created = bigquery
+          .insertJobs({
+            projectId: project,
+            body: toJobBody(project, jobId, location, news, desiredLabels),
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try getByRef(project, jobId, location);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new JobNotResolved({ resourceName: name })
+      }
+
+      const state = current.status?.state ?? ""
+      if (state !== "DONE") {
+        current = (try waitUntilDone(project, jobId, location)) ?? current
+      }
+
+      return toAttrs(current, project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const state = output.state ?? ""
+      if (state === "PENDING" || state === "RUNNING") {
+        bigquery
+          .cancelJobs({
+            projectId: output.project,
+            jobId: output.jobId,
+            location: output.location,
+          }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.void;
+            when { _tag: "BadRequest" }: try Effect.void;
+            default: throw e;
+          }
+        waitUntilDone(output.project, output.jobId, output.location) catch effect (e) => match (e) {
+          when { _tag: "GCP.BigQuery.JobNotDone" }: try Effect.void;
+          default: throw e;
+        }
+      }
+      ;(try (bigquery
+        .deleteJobs({
+          projectId: output.project,
+          jobId: output.jobId,
+          location: output.location,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict" || error._tag === "BadRequest",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

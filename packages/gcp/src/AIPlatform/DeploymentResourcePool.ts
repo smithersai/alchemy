@@ -19,7 +19,7 @@ import {
   resourceNameFromOperation,
   waitForOperation,
 } from "./internal.ts";
-import { listLocations } from "./names.ts";
+import { listLocations } from "./names.vibe";
 import { settlePendingCreates } from "./operations.ts";
 import type { EncryptionSpec } from "./shared.vibe";
 

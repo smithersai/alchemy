@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.js";
 import type { Providers } from "../Providers.js";
-import { type AccountAccessStatus, type AccountType, type IngestedUserListInfoProps, type MembershipStatus, type TargetNetworkInfoProps } from "./internal.js";
+import { type AccountAccessStatus, type AccountType, type IngestedUserListInfoProps, type MembershipStatus, type TargetNetworkInfoProps } from "./internal.vibe";
 export type AccountTypesUserListProps = {
     /**
      * Parent account. Full name

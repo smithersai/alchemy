@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { Subscription } from "./Subscription.js";
-import type { Topic } from "./Topic.js";
+import type { Subscription } from "./Subscription.vibe";
+import type { Topic } from "./Topic.vibe";
 /**
  * Shared HTTP scaffolding for Pub/Sub bindings.
  * NOT exported from index.ts.

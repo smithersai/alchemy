@@ -73,7 +73,7 @@ import { resolveViteMain } from "./ViteMain.ts";
 import { isSelfUrl, Worker } from "./Worker.ts";
 import { getCronBindings } from "./WorkerAsyncBindings.ts";
 import type { WorkerBinding } from "./WorkerBinding.ts";
-import { createWorkerName } from "./WorkerName.ts";
+import { createWorkerName } from "./WorkerName.vibe";
 import { resolveTailConsumers } from "./WorkerProvider.ts";
 
 /** Local dev-server options (the worker-mode arm of `WorkerProps["dev"]`). */

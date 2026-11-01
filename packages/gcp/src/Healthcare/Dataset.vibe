@@ -1,0 +1,216 @@
+import * as healthcare from "@distilled.cloud/gcp/healthcare_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  locationParent,
+  normalizeLocation,
+  parseResourceName,
+  replaceOnIdentity,
+  retryTransient,
+  sameText,
+  toPhysicalId,
+  waitUntilGone,
+} from "./internal.ts"
+import { waitForOperation } from "./operations.vibe"
+
+export type DatasetProps = {
+  /**
+   * Dataset id (the `{dataset}` segment of
+   * `projects/{project}/locations/{location}/datasets/{dataset}`). If
+   * omitted, a unique name is generated. Must match letters, numbers,
+   * underscores, hyphens, and periods; 1-256 characters. Immutable —
+   * changing it replaces the dataset.
+   */
+  mutable datasetId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * dataset. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Default IANA time zone used when parsing times with no zone
+   * (HL7 messages, …). Empty defaults to UTC. Datasets have no labels
+   * field; ownership is the generated physical id.
+   */
+  mutable timeZone?: string
+}
+
+export type Dataset = Resource<
+  "GCP.Healthcare.Dataset",
+  DatasetProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/datasets/{dataset}`. */
+    mutable name: string
+    /** Dataset id (last path segment). */
+    mutable datasetId: string
+    /** Location id. */
+    mutable location: string
+    /** Project id. */
+    mutable project: string
+    /** Default IANA time zone, if set. */
+    mutable timeZone: string | undefined
+    /** Whether the dataset satisfies zone isolation. */
+    mutable satisfiesPzi: boolean | undefined
+    /** Whether the dataset satisfies zone separation. */
+    mutable satisfiesPzs: boolean | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Healthcare dataset — a container for DICOM, FHIR, HL7v2, and
+ * consent stores.
+ *
+ * Dataset create and delete are long-running operations. Location and
+ * dataset id are immutable; `timeZone` updates in place. Datasets have
+ * no labels API, so `list` returns every dataset in `us-central1` that
+ * this stack created (matched by persisted name).
+ *
+ * ### Creating a Dataset
+ * **Example:** Generated name
+ * ```typescript
+ * const dataset = yield* GCP.Healthcare.Dataset("Clinic", {});
+ * ```
+ *
+ * **Example:** Named dataset with a time zone
+ * ```typescript
+ * const dataset = yield* GCP.Healthcare.Dataset("Clinic", {
+ *   datasetId: "clinic-records",
+ *   location: "us-central1",
+ *   timeZone: "America/New_York",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Healthcare
+ */
+export const Dataset = Resource<Dataset>("GCP.Healthcare.Dataset")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DatasetNotResolved extends Data.TaggedError("GCP.Healthcare.DatasetNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (project: string, location: string, datasetId: string): infer _ =>
+  `${locationParent(project, location)}/datasets/${datasetId}`
+
+const toAttrs = (dataset: healthcare.Dataset, project: string, region: string): infer _ => {
+  const name = dataset.name ?? ""
+  const parsed = parseResourceName(name, "datasets", region)
+  return {
+    name,
+    datasetId: parsed.id,
+    location: parsed.location,
+    project: parsed.project || project,
+    timeZone: dataset.timeZone,
+    satisfiesPzi: dataset.satisfiesPzi,
+    satisfiesPzs: dataset.satisfiesPzs,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : healthcare
+  .getProjectsLocationsDatasets({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const DatasetProvider = (): infer _ =>
+  Provider.succeed(Dataset, {
+    stables: ["name", "datasetId", "location", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = olds?.location ?? output?.location
+      if (
+        previousLocation !== undefined
+        && news.location !== undefined
+        && normalizeLocation(previousLocation, env.region)
+          !== normalizeLocation(news.location, env.region)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return replaceOnIdentity({
+        previousId: olds?.datasetId ?? output?.datasetId,
+        nextId: news.datasetId,
+      })
+    },
+
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const datasetId = olds?.datasetId
+        ?? output?.datasetId
+        ?? (output?.name ? parseResourceName(output.name, "datasets", env.region).id : "")
+      const name = output?.name
+        ?? (datasetId.length > 0 ? resourceName(env.project, location, datasetId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      // Datasets have no labels. The physical name is unique per
+      // instance id, so a hit at our computed name is treated as owned.
+      return output?.name !== undefined && output.name !== attrs.name ? Unowned(attrs) : attrs
+    },
+
+    list: effect () => [],
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const datasetId = try toPhysicalId(id, news.datasetId, output?.datasetId)
+      const name = output?.name ?? resourceName(env.project, location, datasetId)
+      const parent = locationParent(env.project, location)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          healthcare.createProjectsLocationsDatasets({
+            parent,
+            datasetId,
+            body: {
+              timeZone: news.timeZone,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try getByName(name)
+      }
+
+      if (current === undefined) {
+        throw new DatasetNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      if (!sameText(current.timeZone, news.timeZone)) {
+        current = try retryTransient(
+          healthcare.patchProjectsLocationsDatasets({
+            name: currentName,
+            updateMask: "timeZone",
+            body: {
+              timeZone: news.timeZone,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      retryTransient(healthcare.deleteProjectsLocationsDatasets({ name: output.name })) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.void;
+        default: throw e;
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

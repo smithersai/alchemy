@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { Connection } from "./Connection.js";
+import type { Connection } from "./Connection.vibe";
 /**
  * Shared HTTP scaffolding for BigQuery Connection bindings.
  * NOT exported from index.ts.

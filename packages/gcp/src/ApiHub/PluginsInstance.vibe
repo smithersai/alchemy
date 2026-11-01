@@ -1,0 +1,397 @@
+import * as apihub from "@distilled.cloud/gcp/apihub_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  ApihubInstanceFailed,
+  ApihubNotResolved,
+  encodeOwnershipLine,
+  hasOwnershipMarker,
+  locationParent,
+  MAX_PLUGIN_INSTANCE_DISPLAY_NAME_LENGTH,
+  normalizeLocation,
+  ownedByAlchemy,
+  ownershipLabels,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.ts"
+import { waitForDeleteOperation, waitForOperation } from "./internal.ts"
+
+export type PluginInstanceAction = apihub.GoogleCloudApihubV1PluginInstanceAction
+export type AuthConfig = apihub.GoogleCloudApihubV1AuthConfig
+export type ConfigVariableMap = apihub.GoogleCloudApihubV1ConfigVariableMap
+export type SourceEnvironmentMap = apihub.GoogleCloudApihubV1SourceEnvironmentMap
+
+export type PluginsInstanceProps = {
+  /**
+   * Parent plugin resource name
+   * `projects/{project}/locations/{location}/plugins/{plugin}`.
+   * Immutable — changing it replaces the instance.
+   */
+  mutable plugin: string
+  /**
+   * Plugin instance id (the `{instance}` segment). If omitted, a unique
+   * id is generated. Immutable — changing it replaces the instance.
+   */
+  mutable pluginInstanceId?: string
+  /**
+   * Location of the API Hub instance. Defaults to the parent plugin's
+   * location. Immutable — changing it replaces the instance.
+   */
+  mutable location?: string
+  /**
+   * Display name. Max 255 characters. Plugin instances have no
+   * description, so Alchemy stamps ownership into a `[alchemy …]` prefix
+   * and strips it from attributes.
+   */
+  mutable displayName?: string
+  /**
+   * Actions this instance should run. Each `actionId` must match an
+   * action on the parent plugin. Defaults to `{ actionId: "sync-metadata" }`.
+   */
+  mutable actions?: PluginInstanceAction[]
+  /**
+   * Authentication configuration for this instance.
+   */
+  mutable authConfig?: AuthConfig
+  /**
+   * Additional config variables keyed by template id.
+   */
+  mutable additionalConfig?: ConfigVariableMap
+  /**
+   * Source project id (runtime project for Google Cloud plugins).
+   */
+  mutable sourceProjectId?: string
+  /**
+   * Source environment config keyed by environment name.
+   */
+  mutable sourceEnvironmentsConfig?: SourceEnvironmentMap
+}
+
+export type PluginsInstance = Resource<
+  "GCP.ApiHub.PluginsInstance",
+  PluginsInstanceProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Plugin instance id (last path segment). */
+    mutable pluginInstanceId: string
+    /** Parent plugin resource name. */
+    mutable plugin: string
+    /** Parent plugin id. */
+    mutable pluginId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    mutable displayName: string | undefined
+    /** Actions. */
+    mutable actions: PluginInstanceAction[] | undefined
+    /** Auth config. */
+    mutable authConfig: AuthConfig | undefined
+    /** Additional config. */
+    mutable additionalConfig: ConfigVariableMap | undefined
+    /** Source project id. */
+    mutable sourceProjectId: string | undefined
+    /** Source environment config. */
+    mutable sourceEnvironmentsConfig: SourceEnvironmentMap | undefined
+    /** Instance state. */
+    mutable state: string | undefined
+    /** Error message when state is ERROR or FAILED. */
+    mutable errorMessage: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An API Hub plugin instance — a configured running copy of a plugin.
+ *
+ * Plugin instances have no labels or description, so Alchemy stamps
+ * ownership into the display name for `list` / nuke. Plugin, location,
+ * and instance id are identity. Display name (and schedule cron on
+ * actions) update in place; auth/additional config changes replace the
+ * instance because ApplyPluginInstanceConfig is not in the distilled SDK.
+ *
+ * ### Creating a Plugin Instance
+ * **Example:** Instance of a user-owned plugin
+ * ```typescript
+ * const plugin = yield* GCP.ApiHub.Plugin("OnRamp", {
+ *   displayName: "on-ramp",
+ * });
+ * const instance = yield* GCP.ApiHub.PluginsInstance("Collector", {
+ *   plugin: plugin.name,
+ *   displayName: "orders collector",
+ * });
+ * ```
+ *
+ * **Example:** Named instance with an explicit action
+ * ```typescript
+ * const instance = yield* GCP.ApiHub.PluginsInstance("Collector", {
+ *   plugin: plugin.name,
+ *   pluginInstanceId: "orders-collector",
+ *   actions: [{ actionId: "sync-metadata" }],
+ * });
+ * ```
+ *
+ * @resource
+ * @category ApiHub
+ */
+export const PluginsInstance = Resource<PluginsInstance>("GCP.ApiHub.PluginsInstance")
+
+const DEFAULT_ACTIONS: PluginInstanceAction[] = [{ actionId: "sync-metadata" }]
+
+const resourceName = (plugin: string, pluginInstanceId: string): infer _ => `${plugin}/instances/${pluginInstanceId}`
+
+const toAttrs = (
+  instance: apihub.GoogleCloudApihubV1PluginInstance,
+  project: string,
+  region: string,
+): PluginsInstance["Attributes"] => {
+  const name = instance.name ?? ""
+  const parsed = parseName(name, "instances", region)
+  const { text } = parseOwnership(instance.displayName)
+  return {
+    name,
+    pluginInstanceId: parsed.id,
+    plugin: parsed.plugin ?? parsed.parent,
+    pluginId: parsed.pluginId,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: text,
+    actions: instance.actions,
+    authConfig: instance.authConfig,
+    additionalConfig: instance.additionalConfig,
+    sourceProjectId: instance.sourceProjectId,
+    sourceEnvironmentsConfig: instance.sourceEnvironmentsConfig,
+    state: instance.state === undefined ? undefined : `${instance.state}`,
+    errorMessage: instance.errorMessage,
+    createTime: instance.createTime,
+    updateTime: instance.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : apihub
+  .getProjectsLocationsPluginsInstances({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string, region: string) =>
+  (Array.from(
+    try (apihub.listProjectsLocationsPluginsInstances.pages({ parent, pageSize: 1000 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.pluginInstances ?? []))
+      |> Stream.filter(%, (item) => hasOwnershipMarker(item.displayName))
+      |> Stream.map(%, (item) => toAttrs(item, project, region))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const waitUntilReady = effect (name: string) =>
+  try effect {
+    const current = try (getByName(name)
+      |> Effect.filterOrFail(%, (current): current is apihub.GoogleCloudApihubV1PluginInstance =>
+        current !== undefined
+        && current.state !== "CREATING"
+        && current.state !== "APPLYING_CONFIG", () => new ApihubNotResolved({ resourceName: name }))
+      |> Effect.retry(%, {
+        while: (error) => error._tag === "GCP.ApiHub.ResourceNotResolved",
+        times: 10,
+        schedule: Schedule.spaced("3 seconds"),
+      }))
+
+    if (current.state === "ERROR" || current.state === "FAILED") {
+      throw new ApihubInstanceFailed({
+        resourceName: name,
+        state: current.state,
+        message: current.errorMessage,
+      })
+    }
+    return current
+  }
+
+const scheduleOf = (actions: PluginInstanceAction[] | undefined): infer _ =>
+  (actions ?? []).map((action) => ({
+    actionId: action.actionId,
+    scheduleCronExpression: action.scheduleCronExpression ?? "",
+    scheduleTimeZone: action.scheduleTimeZone ?? "",
+  }))
+
+export const PluginsInstanceProvider = (): infer _ =>
+  Provider.succeed(PluginsInstance, {
+    stables: [
+      "name",
+      "pluginInstanceId",
+      "plugin",
+      "pluginId",
+      "project",
+      "location",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const extra = olds !== undefined
+        && (!sameJson(news.authConfig, olds.authConfig)
+          || !sameJson(news.additionalConfig, olds.additionalConfig)
+          || !sameText(news.sourceProjectId, olds.sourceProjectId)
+          || !sameJson(news.sourceEnvironmentsConfig, olds.sourceEnvironmentsConfig)
+          || !sameJson(
+            (news.actions ?? DEFAULT_ACTIONS).map((action) => action.actionId),
+            (olds.actions ?? DEFAULT_ACTIONS).map((action) => action.actionId),
+          ))
+      const previousPlugin = olds?.plugin ?? output?.plugin
+      const pluginChanged = previousPlugin !== undefined && news.plugin !== undefined && news.plugin !== previousPlugin
+      const identity = replaceOnIdentity({
+        previousId: olds?.pluginInstanceId ?? output?.pluginInstanceId,
+        nextId: news.pluginInstanceId ?? olds?.pluginInstanceId ?? output?.pluginInstanceId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: extra || pluginChanged,
+      })
+      if (identity !== undefined) return identity
+      if (pluginChanged) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const plugin = olds?.plugin ?? output?.plugin ?? ""
+      const pluginInstanceId = try toPhysicalId(
+        id,
+        olds?.pluginInstanceId,
+        output?.pluginInstanceId,
+      )
+      const name = output?.name ?? (plugin.length > 0 ? resourceName(plugin, pluginInstanceId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAt(
+        `${locationParent(env.project, env.region)}/plugins/-`,
+        env.project,
+        env.region,
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const plugin = news.plugin
+      const parsedPlugin = parseName(plugin, "plugins", env.region)
+      const location = normalizeLocation(
+        news.location ?? parsedPlugin.location ?? output?.location,
+        env.region,
+      )
+      const pluginName = plugin.includes("/")
+        ? plugin
+        : `${locationParent(env.project, location)}/plugins/${plugin}`
+      const pluginInstanceId = try toPhysicalId(
+        id,
+        news.pluginInstanceId,
+        output?.pluginInstanceId,
+      )
+      const name = resourceName(pluginName, pluginInstanceId)
+      const ownership = try ownershipLabels(id)
+      const displayName = encodeOwnershipLine(
+        ownership,
+        news.displayName,
+        MAX_PLUGIN_INSTANCE_DISPLAY_NAME_LENGTH,
+      )
+      const actions = news.actions ?? DEFAULT_ACTIONS
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apihub
+          .createProjectsLocationsPluginsInstances({
+            parent: pluginName,
+            pluginInstanceId,
+            body: {
+              displayName,
+              actions,
+              authConfig: news.authConfig,
+              additionalConfig: news.additionalConfig,
+              sourceProjectId: news.sourceProjectId,
+              sourceEnvironmentsConfig: news.sourceEnvironmentsConfig,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+          current = try waitUntilExists(getByName(name), name)
+        }
+        if (current === undefined) {
+          current = waitUntilExists(getByName(name), name) catch effect (e) => match (e) {
+            when { _tag: "GCP.ApiHub.ResourceNotResolved" }: try Effect.undefined;
+            default: throw e;
+          }
+        }
+      }
+
+      if (current === undefined) {
+        throw new ApihubNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      let ready = try waitUntilReady(currentName)
+
+      const observedDisplay = parseOwnership(ready.displayName).text
+      const displayChanged = !sameText(observedDisplay, news.displayName)
+      const scheduleChanged = !sameJson(scheduleOf(ready.actions), scheduleOf(actions))
+      const updateMask = updateMaskOf(
+        displayChanged ? "display_name" : undefined,
+        scheduleChanged ? "actions" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        ready = try apihub.patchProjectsLocationsPluginsInstances({
+          name: currentName,
+          updateMask,
+          body: {
+            name: currentName,
+            displayName,
+            actions,
+          },
+        })
+      }
+
+      return toAttrs(ready, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (apihub
+        .deleteProjectsLocationsPluginsInstances({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForDeleteOperation(operation)
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

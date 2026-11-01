@@ -1,0 +1,416 @@
+import * as securityposture from "@distilled.cloud/gcp/securityposture_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_LOCATION,
+  defaultTargetResource,
+  fieldMask,
+  hasAlchemyAnnotationMap,
+  lastSegment,
+  locationParent,
+  normalizeTargetResource,
+  organizationIdOf,
+  organizationParent,
+  parseName,
+  replaceOnIdentity,
+  resolveOrganization,
+  sameText,
+  SecuritypostureNotResolved,
+  toPhysicalId,
+  tryResolveOrganization,
+  userAnnotations,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.ts"
+
+export type PostureDeploymentState = securityposture.PostureDeploymentStateEnum | (string & {})
+
+export type PostureDeploymentProps = {
+  /**
+   * Posture deployment id (the `{postureDeployment}` segment of
+   * `organizations/{organization}/locations/global/postureDeployments/{postureDeployment}`).
+   * If omitted, a unique id is generated from the stack, stage, and
+   * logical id. Letters, digits, hyphens, and underscores; max 63
+   * characters. Immutable — changing it replaces the deployment.
+   */
+  mutable postureDeploymentId?: string
+  /**
+   * Parent organization (`organizations/{organization}` or the numeric
+   * id). Defaults to `GOOGLE_ORGANIZATION_ID` or the project's Resource
+   * Manager ancestor. Immutable — changing it replaces the deployment.
+   */
+  mutable organization?: string
+  /**
+   * Location. Posture deployments live in `global`.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Organization, folder, or project the posture is applied to
+   * (`organizations/{number}`, `folders/{number}`, or
+   * `projects/{number}`). Defaults to the stack project. At most one
+   * posture can be deployed to each target. Immutable — changing it
+   * replaces the deployment.
+   */
+  mutable targetResource?: string
+  /**
+   * Posture used in the deployment, as
+   * `organizations/{organization}/locations/global/postures/{posture}`.
+   */
+  mutable postureId: string
+  /**
+   * Revision id of the posture used in the deployment.
+   */
+  mutable postureRevisionId: string
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string
+  /**
+   * User annotations. Deployments have no labels field — Alchemy
+   * ownership (`alchemy-stack` / `alchemy-stage` / `alchemy-id`) is
+   * stored here so `list` / `pnpm nuke:gcp` can find owned deployments.
+   * Annotations are set at create time.
+   */
+  mutable annotations?: Record<string, string>
+}
+
+export type PostureDeployment = Resource<
+  "GCP.SecurityPosture.PostureDeployment",
+  PostureDeploymentProps,
+  {
+    /** Full resource name `organizations/{organization}/locations/global/postureDeployments/{postureDeployment}`. */
+    mutable name: string
+    /** Posture deployment id (last path segment). */
+    mutable postureDeploymentId: string
+    /** Organization resource name. */
+    mutable organization: string
+    /** Organization id. */
+    mutable organizationId: string
+    /** Location id (`global`). */
+    mutable location: string
+    /** Project id of the deploying stack. */
+    mutable project: string
+    /** Target organization, folder, or project. */
+    mutable targetResource: string | undefined
+    /** Deployed posture resource name. */
+    mutable postureId: string | undefined
+    /** Deployed posture revision id. */
+    mutable postureRevisionId: string | undefined
+    /** User description. */
+    mutable description: string | undefined
+    /** User annotations (Alchemy ownership keys stripped). */
+    mutable annotations: Record<string, string>
+    /** Deployment state (`CREATING`, `ACTIVE`, `CREATE_FAILED`, …). */
+    mutable state: string | undefined
+    /** Failure message when the deployment is in a failed state. */
+    mutable failureMessage: string | undefined
+    /** Categories assigned by the Security Posture API. */
+    mutable categories: string[] | undefined
+    /** Whether the deployment is being updated. */
+    mutable reconciling: boolean | undefined
+    /** Server checksum used on update and delete. */
+    mutable etag: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Security Command Center posture deployment.
+ *
+ * Deployments apply a posture revision to one organization, folder, or
+ * project. The parent is always the organization, even when the target
+ * is a folder or project. At most one posture can be deployed to each
+ * target. Deployments have no labels field — Alchemy stamps ownership
+ * into `annotations`. `postureDeploymentId`, `organization`, and
+ * `targetResource` are identity. `postureId` and `postureRevisionId`
+ * update in place.
+ *
+ * The posture must be `ACTIVE`. Creating a deployment requires the
+ * Security Posture API and organization-level Security Command Center
+ * Premium or Enterprise.
+ *
+ * ### Creating a Posture Deployment
+ * **Example:** Deploy a posture to the stack project
+ * ```typescript
+ * const posture = yield* GCP.SecurityPosture.Posture("Baseline", {
+ *   state: "ACTIVE",
+ * });
+ * const deployment = yield* GCP.SecurityPosture.PostureDeployment(
+ *   "Staging",
+ *   {
+ *     postureId: posture.name,
+ *     postureRevisionId: posture.revisionId,
+ *   },
+ * );
+ * ```
+ *
+ * **Example:** Deploy to an explicit project
+ * ```typescript
+ * const deployment = yield* GCP.SecurityPosture.PostureDeployment(
+ *   "Staging",
+ *   {
+ *     organization: "organizations/123456789",
+ *     targetResource: "projects/987654321",
+ *     postureId:
+ *       "organizations/123456789/locations/global/postures/staging-baseline",
+ *     postureRevisionId: "abcdefgh",
+ *     description: "staging deployment",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category SecurityPosture
+ */
+export const PostureDeployment = Resource<PostureDeployment>(
+  "GCP.SecurityPosture.PostureDeployment",
+)
+
+const resourceName = (organization: string, location: string, postureDeploymentId: string): infer _ =>
+  `${locationParent(organization, location)}/postureDeployments/${postureDeploymentId}`
+
+const waitDeploymentOperation = effect (operation: securityposture.Operation) => try waitForOperation(operation)
+
+const waitDeploymentOperationGone = effect (operation: securityposture.Operation) =>
+  try waitForOperation(operation, { notFoundOk: true })
+
+const toAttrs = (deployment: securityposture.PostureDeployment, project: string): infer _ => {
+  const name = deployment.name ?? ""
+  const parsed = parseName(name, "postureDeployments")
+  const organization = parsed.organization ? organizationParent(parsed.organization) : ""
+  return {
+    name,
+    postureDeploymentId: parsed.id || lastSegment(name),
+    organization,
+    organizationId: organizationIdOf(organization),
+    location: parsed.location,
+    project,
+    targetResource: deployment.targetResource,
+    postureId: deployment.postureId,
+    postureRevisionId: deployment.postureRevisionId,
+    description: deployment.description,
+    annotations: userAnnotations(deployment.annotations),
+    state: deployment.state,
+    failureMessage: deployment.failureMessage,
+    categories: deployment.categories,
+    reconciling: deployment.reconciling,
+    etag: deployment.etag,
+    createTime: deployment.createTime,
+    updateTime: deployment.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : securityposture
+  .getOrganizationsLocationsPostureDeployments({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const isBusy = (deployment: securityposture.PostureDeployment): infer _ =>
+  deployment.reconciling === true
+  || deployment.state === "CREATING"
+  || deployment.state === "UPDATING"
+  || deployment.state === "DELETING"
+
+const waitUntilSettled = effect (name: string) =>
+  try (effect {
+    return try effect {
+      const current = try getByName(name)
+
+      if (current === undefined) {
+        throw new SecuritypostureNotResolved({ resourceName: name })
+      }
+      if (isBusy(current)) {
+        throw new SecuritypostureNotResolved({ resourceName: `${name}:${current.state}` })
+      }
+      return current
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.SecurityPosture.NotResolved",
+      times: 10,
+      schedule: Schedule.spaced("3 seconds"),
+    }))
+
+export const PostureDeploymentProvider = (): infer _ =>
+  Provider.succeed(PostureDeployment, {
+    stables: [
+      "name",
+      "postureDeploymentId",
+      "organization",
+      "organizationId",
+      "location",
+      "project",
+      "targetResource",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.postureDeploymentId ?? output?.postureDeploymentId
+      const nextId = news.postureDeploymentId ?? previousId
+      const previousOrg = olds?.organization ?? output?.organization
+      const nextOrg = news.organization !== undefined ? organizationParent(news.organization) : previousOrg
+      const previousTarget = olds?.targetResource ?? output?.targetResource
+      const nextTarget = news.targetResource ?? previousTarget
+      return replaceOnIdentity(
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+          || (previousOrg !== undefined
+            && nextOrg !== undefined
+            && organizationParent(previousOrg) !== organizationParent(nextOrg))
+          || (previousTarget !== undefined
+            && nextTarget !== undefined
+            && previousTarget !== nextTarget),
+        true,
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const postureDeploymentId = try toPhysicalId(
+        id,
+        olds?.postureDeploymentId,
+        output?.postureDeploymentId,
+        "deploy",
+      )
+      const organization = resolveOrganization(
+        olds?.organization ?? output?.organization,
+        output?.organization,
+      ) catch effect (e) => match (e) {
+        when { _tag: "GCP.SecurityPosture.OrganizationNotResolved" }: output?.organization ?? "";
+        default: throw e;
+      }
+      const location = lastSegment(olds?.location ?? output?.location ?? DEFAULT_LOCATION)
+      const name = output?.name
+        ?? (organization.length > 0 ? resourceName(organization, location, postureDeploymentId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.annotations)))
+        ? attrs
+        : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organization = try tryResolveOrganization()
+      if (organization === undefined) return []
+      const parent = locationParent(organization, DEFAULT_LOCATION)
+      return (Array.from(
+        try (securityposture.listOrganizationsLocationsPostureDeployments
+          .pages({ parent, pageSize: 1000 })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.postureDeployments ?? []))
+          |> Stream.filter(%, (deployment) => hasAlchemyAnnotationMap(deployment.annotations))
+          |> Stream.map(%, (deployment) => toAttrs(deployment, env.project))
+          |> Stream.runCollect(%)),
+      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const postureDeploymentId = try toPhysicalId(
+        id,
+        news.postureDeploymentId,
+        output?.postureDeploymentId,
+        "deploy",
+      )
+      const organization = try resolveOrganization(
+        news.organization ?? output?.organization,
+        output?.organization,
+      )
+      const location = lastSegment(news.location ?? output?.location ?? DEFAULT_LOCATION)
+      const parent = locationParent(organization, location)
+      const name = resourceName(organization, location, postureDeploymentId)
+      const targetResource = news.targetResource !== undefined
+        ? try normalizeTargetResource(news.targetResource)
+        : (output?.targetResource ? output.targetResource : try defaultTargetResource())
+      const desiredAnnotations = {
+        ...toLabels(news.annotations),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = securityposture
+          .createOrganizationsLocationsPostureDeployments({
+            parent,
+            postureDeploymentId,
+            body: {
+              targetResource,
+              postureId: news.postureId,
+              postureRevisionId: news.postureRevisionId,
+              description: news.description,
+              annotations: desiredAnnotations,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitDeploymentOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+        current = try waitUntilSettled(current.name ?? name)
+      }
+
+      if (current === undefined) {
+        throw new SecuritypostureNotResolved({ resourceName: name })
+      }
+
+      const postureChanged = !sameText(current.postureId, news.postureId)
+      const revisionChanged = !sameText(current.postureRevisionId, news.postureRevisionId)
+      const descriptionChanged = !sameText(current.description, news.description)
+      const mask = fieldMask([
+        postureChanged && "posture_id",
+        revisionChanged && "posture_revision_id",
+        descriptionChanged && "description",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try securityposture.patchOrganizationsLocationsPostureDeployments({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            postureId: news.postureId,
+            postureRevisionId: news.postureRevisionId,
+            description: news.description,
+            etag: current.etag,
+          },
+        })
+        try waitDeploymentOperation(operation)
+        current = try waitUntilSettled(current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      const operation = (try (securityposture
+        .deleteOrganizationsLocationsPostureDeployments({
+          name: output.name,
+          etag: output.etag,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitDeploymentOperationGone(operation)
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

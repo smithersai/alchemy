@@ -1,0 +1,266 @@
+import * as datalabeling from "@distilled.cloud/gcp/datalabeling_v1beta1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnership,
+  findOwned,
+  hasOwnershipMarker,
+  ignoreGone,
+  listAnnotationSpecSets,
+  noRetryLayer,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  projectParent,
+  replaceOnIdentity,
+  retryDelete,
+  retryTransient,
+  sameJson,
+  sameText,
+  toDisplayName,
+  waitUntilGone,
+} from "./internal.ts"
+
+export type AnnotationSpec = {
+  /**
+   * Display name of this spec (the class label). Maximum 64 characters.
+   */
+  mutable displayName: string
+  /**
+   * Optional description of this spec. Maximum 10,000 characters.
+   */
+  mutable description?: string
+}
+
+export type AnnotationSpecSetProps = {
+  /**
+   * Annotation spec set id (the last segment of
+   * `projects/{project}/annotationSpecSets/{annotation_spec_set}`).
+   * Server-assigned on create. Immutable — changing it replaces the set.
+   */
+  mutable annotationSpecSetId?: string
+  /**
+   * Display name. Maximum 64 characters. Required by the API; Alchemy
+   * falls back to a generated name. Immutable — changing it replaces
+   * the set.
+   */
+  mutable displayName?: string
+  /**
+   * Human-readable description. Annotation spec sets have no labels
+   * field, so Alchemy stamps ownership into this field. Immutable —
+   * changing it replaces the set.
+   */
+  mutable description?: string
+  /**
+   * The possible labels for a labeling task. Required. Immutable —
+   * changing them replaces the set.
+   */
+  mutable annotationSpecs: AnnotationSpec[]
+}
+
+export type AnnotationSpecSet = Resource<
+  "GCP.DataLabeling.AnnotationSpecSet",
+  AnnotationSpecSetProps,
+  {
+    /** Full resource name `projects/{project}/annotationSpecSets/{id}`. */
+    mutable name: string
+    /** Annotation spec set id (last path segment). */
+    mutable annotationSpecSetId: string
+    /** Project id. */
+    mutable project: string
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Annotation specs (class labels). */
+    mutable annotationSpecs: AnnotationSpec[]
+    /** Related resources blocking changes. */
+    mutable blockingResources: string[] | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Data Labeling annotation spec set — a collection of class labels
+ * used by labeling tasks.
+ *
+ * Spec sets are immutable after create. There is no labels API, so
+ * Alchemy stamps ownership into `description` so `list` / nuke can find
+ * them. Ids are server-assigned.
+ *
+ * ### Creating an Annotation Spec Set
+ * **Example:** Image classes
+ * ```typescript
+ * const specs = yield* GCP.DataLabeling.AnnotationSpecSet("Classes", {
+ *   displayName: "pets",
+ *   annotationSpecs: [
+ *     { displayName: "dog" },
+ *     { displayName: "cat" },
+ *   ],
+ * });
+ * ```
+ *
+ * **Example:** Specs with descriptions
+ * ```typescript
+ * const specs = yield* GCP.DataLabeling.AnnotationSpecSet("Classes", {
+ *   displayName: "sentiment",
+ *   description: "review polarity",
+ *   annotationSpecs: [
+ *     { displayName: "positive", description: "favorable" },
+ *     { displayName: "negative", description: "unfavorable" },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category DataLabeling
+ */
+export const AnnotationSpecSet = Resource<AnnotationSpecSet>("GCP.DataLabeling.AnnotationSpecSet")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AnnotationSpecSetNotResolved extends Data.TaggedError(
+  "GCP.DataLabeling.AnnotationSpecSetNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (project: string, annotationSpecSetId: string): infer _ =>
+  `${projectParent(project)}/annotationSpecSets/${annotationSpecSetId}`
+
+const specsOf = (
+  specs:
+    | readonly datalabeling.GoogleCloudDatalabelingV1beta1AnnotationSpec[]
+    | readonly AnnotationSpec[]
+    | undefined,
+): AnnotationSpec[] =>
+  (specs ?? []).map((spec) => ({
+    displayName: spec.displayName ?? "",
+    description: spec.description,
+  }))
+
+const toAttrs = (
+  set: datalabeling.GoogleCloudDatalabelingV1beta1AnnotationSpecSet,
+  project: string,
+): infer _ => {
+  const name = set.name ?? ""
+  const parsed = parseResourceName(name, "annotationSpecSets")
+  return {
+    name,
+    annotationSpecSetId: parsed.id,
+    project: parsed.project || project,
+    displayName: set.displayName,
+    description: parseOwnership(set.description).text,
+    annotationSpecs: specsOf(set.annotationSpecs),
+    blockingResources: set.blockingResources,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (try effect {
+  provide noRetryLayer {
+    return try datalabeling.getProjectsAnnotationSpecSets({ name })
+  }
+}) catch effect (e) => match (e) {
+  when { _tag: "NotFound" }: try Effect.undefined;
+  when { _tag: "BadGateway" }: try Effect.undefined;
+  default: throw e;
+})
+
+const findByOwnership = effect (id: string, project: string) => {
+  const rows = try listAnnotationSpecSets(projectParent(project))
+  return try findOwned(id, rows, (row) => row.description)
+}
+
+export const AnnotationSpecSetProvider = (): infer _ =>
+  Provider.succeed(AnnotationSpecSet, {
+    stables: ["name", "annotationSpecSetId", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const extra = (news.displayName !== undefined
+        && output?.displayName !== undefined
+        && !sameText(news.displayName, output.displayName))
+        || (olds !== undefined && !sameText(news.description, output?.description))
+        || (output !== undefined && !sameJson(specsOf(news.annotationSpecs), output.annotationSpecs))
+      return replaceOnIdentity({
+        previousId: olds?.annotationSpecSetId ?? output?.annotationSpecSetId,
+        nextId: news.annotationSpecSetId,
+        extra,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const annotationSpecSetId = olds?.annotationSpecSetId
+        ?? output?.annotationSpecSetId
+        ?? (output?.name ? parseResourceName(output.name, "annotationSpecSets").id : "")
+      const name = output?.name
+        ?? (annotationSpecSetId.length > 0 ? resourceName(env.project, annotationSpecSetId) : "")
+      const existing = (try getByName(name)) ?? (try findByOwnership(id, env.project))
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const rows = try listAnnotationSpecSets(projectParent(env.project))
+      return rows
+        .filter((row) => hasOwnershipMarker(row.description))
+        .map((row) => toAttrs(row, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const annotationSpecSetId = news.annotationSpecSetId ?? output?.annotationSpecSetId
+      const name = output?.name
+        ?? (annotationSpecSetId !== undefined ? resourceName(env.project, annotationSpecSetId) : "")
+      const ownership = try createInternalLabels(id)
+      const displayName = try toDisplayName(id, news.displayName, output?.displayName)
+      const description = encodeOwnership(ownership, news.description)
+      const annotationSpecs = specsOf(news.annotationSpecs)
+
+      let current = (try getByName(name)) ?? (try findByOwnership(id, env.project))
+
+      if (current === undefined) {
+        const created = retryTransient(
+          datalabeling.createProjectsAnnotationSpecSets({
+            parent: projectParent(env.project),
+            body: {
+              annotationSpecSet: {
+                displayName,
+                description,
+                annotationSpecs,
+              },
+            },
+          }),
+        ) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try findByOwnership(id, env.project);
+          default: throw e;
+        }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AnnotationSpecSetNotResolved({
+          resourceName: name || projectParent(env.project),
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      try (datalabeling
+        .deleteProjectsAnnotationSpecSets({ name: output.name })
+        |> retryDelete(%)
+        |> ignoreGone(%))
+      try waitUntilGone(getByName(output.name))
+    },
+  })

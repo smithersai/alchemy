@@ -17,7 +17,7 @@ import {
   observePolicy,
   type PolicyBody,
   policyEqualsObserved,
-} from "./internal.ts";
+} from "./internal.vibe";
 import type { NotificationPolicyMechanisms } from "./NotificationPolicy.ts";
 
 export class CustomAlertUnexpectedResponse extends Data.TaggedError(

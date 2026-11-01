@@ -2,7 +2,7 @@ import type * as translate from "@distilled.cloud/gcp/translate_v3";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Model } from "./Model.js";
+import type { Model } from "./Model.vibe";
 export interface TranslateTextRequest {
     /**
      * Request body. `model` is filled from the bound custom model.

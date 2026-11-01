@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { WriteDns } from "./WriteDns.js";
+import { WriteDns } from "./WriteDns.vibe";
 /**
  * Local implementation of the {@link WriteDns} binding — creates, updates, and
  * deletes Cloudflare DNS records over the HTTP API using the **current

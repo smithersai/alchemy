@@ -1,0 +1,282 @@
+import * as firebase from "@distilled.cloud/gcp/firebase_v1beta1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  hasOwnershipMarker,
+  lastSegment,
+  listAndroidApps,
+  ownedByAlchemy,
+  ownedDisplayName,
+  packageNameOf,
+  parseDisplayName,
+  projectParent,
+  ResourceNotResolved,
+  waitForOperation,
+} from "./internal.vibe"
+
+export type AndroidAppProps = {
+  /**
+   * Canonical Android package name (`com.example.app`). Immutable —
+   * changing it replaces the app. If omitted, a unique
+   * `com.alchemy.test.{id}` name is generated.
+   */
+  mutable packageName?: string
+  /**
+   * User-assigned display name. Android apps have no labels field, so
+   * Alchemy stamps ownership into a `[alchemy …]` prefix and strips it
+   * from attributes.
+   */
+  mutable displayName?: string
+  /**
+   * SHA-1 certificate hashes.
+   */
+  mutable sha1Hashes?: string[]
+  /**
+   * SHA-256 certificate hashes.
+   */
+  mutable sha256Hashes?: string[]
+  /**
+   * Google-assigned API key uid. Firebase associates one automatically
+   * when omitted.
+   */
+  mutable apiKeyId?: string
+}
+
+export type AndroidApp = Resource<
+  "GCP.Firebase.AndroidApp",
+  AndroidAppProps,
+  {
+    /** Full resource name `projects/{project}/androidApps/{appId}`. */
+    mutable name: string
+    /** Firebase-assigned app id. */
+    mutable appId: string
+    /** Parent project id. */
+    mutable projectId: string
+    /** Android package name. */
+    mutable packageName: string | undefined
+    /** User display name with the Alchemy ownership prefix stripped. */
+    mutable displayName: string | undefined
+    /** SHA-1 hashes. */
+    mutable sha1Hashes: string[] | undefined
+    /** SHA-256 hashes. */
+    mutable sha256Hashes: string[] | undefined
+    /** Lifecycle state. */
+    mutable state: string | undefined
+    /** Associated API key uid. */
+    mutable apiKeyId: string | undefined
+    /** Server etag. */
+    mutable etag: string | undefined
+    /** Expire time when the app is in `DELETED`. */
+    mutable expireTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Firebase Android app in a Firebase project.
+ *
+ * Apps have no labels — Alchemy stamps ownership into `displayName`.
+ * `packageName` is immutable. Delete uses `androidApps.remove` with
+ * `immediate: true` so tests do not leave a 30-day tombstone.
+ *
+ * ### Creating an Android App
+ * **Example:** Generated package name
+ * ```typescript
+ * const app = yield* GCP.Firebase.AndroidApp("Mobile", {
+ *   displayName: "mobile",
+ * });
+ * ```
+ *
+ * **Example:** Explicit package
+ * ```typescript
+ * const app = yield* GCP.Firebase.AndroidApp("Mobile", {
+ *   packageName: "com.example.mobile",
+ *   displayName: "mobile",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Firebase
+ */
+export const AndroidApp = Resource<AndroidApp>("GCP.Firebase.AndroidApp")
+
+const toAttrs = (app: firebase.AndroidApp): infer _ => ({
+  name: app.name ?? "",
+  appId: app.appId ?? lastSegment(app.name ?? ""),
+  projectId: app.projectId ?? "",
+  packageName: app.packageName,
+  displayName: parseDisplayName(app.displayName).displayName,
+  sha1Hashes: app.sha1Hashes,
+  sha256Hashes: app.sha256Hashes,
+  state: app.state,
+  apiKeyId: app.apiKeyId,
+  etag: app.etag,
+  expireTime: app.expireTime,
+})
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : firebase
+  .getProjectsAndroidApps({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" } or { _tag: "AndroidAppNotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const findOwned = effect (project: string, displayName: string, packageName?: string) =>
+  (try listAndroidApps(project)).find(
+    (app) =>
+      app.displayName === displayName
+      || (packageName !== undefined && app.packageName === packageName),
+  )
+
+const sameList = (left: readonly string[] | undefined, right: readonly string[] | undefined): infer _ =>
+  JSON.stringify([...(left ?? [])].sort()) === JSON.stringify([...(right ?? [])].sort())
+
+export const AndroidAppProvider = (): infer _ =>
+  Provider.succeed(AndroidApp, {
+    stables: ["name", "appId", "projectId", "packageName"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousPackage = olds?.packageName ?? output?.packageName
+      if (
+        previousPackage !== undefined
+        && news.packageName !== undefined
+        && news.packageName !== previousPackage
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      let existing = try getByName(output?.name ?? "")
+      if (existing === undefined) {
+        const displayName = try ownedDisplayName(
+          id,
+          olds?.displayName,
+          parseDisplayName(output?.displayName).displayName,
+        )
+        existing = try findOwned(
+          env.project,
+          displayName,
+          olds?.packageName ?? output?.packageName,
+        )
+      }
+      if (existing === undefined || existing.state === "DELETED") {
+        return undefined
+      }
+      const attrs = toAttrs(existing)
+      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const apps = try listAndroidApps(env.project)
+      return apps
+        .filter((app) => hasOwnershipMarker(app.displayName) && app.state !== "DELETED")
+        .map(toAttrs)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const displayName = try ownedDisplayName(
+        id,
+        news.displayName,
+        parseDisplayName(output?.displayName).displayName,
+      )
+      const packageName = try packageNameOf(id, news.packageName, output?.packageName)
+
+      let current = try getByName(output?.name ?? "")
+      if (current === undefined) {
+        current = try findOwned(env.project, displayName, packageName)
+      }
+
+      if (current === undefined) {
+        const operation = firebase
+          .createProjectsAndroidApps({
+            parent: projectParent(env.project),
+            body: {
+              packageName,
+              displayName,
+              sha1Hashes: news.sha1Hashes,
+              sha256Hashes: news.sha256Hashes,
+              apiKeyId: news.apiKeyId,
+            },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try effect {
+              const app = try findOwned(env.project, displayName, packageName)
+              return app
+                ? ({
+                  done: true,
+                  response: { name: app.name },
+                } satisfies firebase.Operation)
+                : undefined
+            };
+            default: throw e;
+          }
+        if (operation) {
+          const done = try waitForOperation(operation)
+          const name = (typeof done.response?.name === "string" ? done.response.name : undefined)
+            ?? output?.name
+            ?? ""
+          current = (try getByName(name)) ?? (try findOwned(env.project, displayName, packageName))
+        }
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({
+          resourceName: output?.name ?? packageName,
+        })
+      }
+
+      const name = current.name ?? ""
+      const displayChanged = current.displayName !== displayName
+      const sha1Changed = news.sha1Hashes !== undefined && !sameList(current.sha1Hashes, news.sha1Hashes)
+      const sha256Changed = news.sha256Hashes !== undefined && !sameList(current.sha256Hashes, news.sha256Hashes)
+      const apiKeyChanged = news.apiKeyId !== undefined && current.apiKeyId !== news.apiKeyId
+      const updateMask = [
+        displayChanged ? "displayName" : undefined,
+        sha1Changed ? "sha1Hashes" : undefined,
+        sha256Changed ? "sha256Hashes" : undefined,
+        apiKeyChanged ? "apiKeyId" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        current = try firebase.patchProjectsAndroidApps({
+          name,
+          updateMask: updateMask.join(","),
+          body: {
+            displayName,
+            sha1Hashes: news.sha1Hashes,
+            sha256Hashes: news.sha256Hashes,
+            apiKeyId: news.apiKeyId,
+          },
+        })
+      }
+
+      return toAttrs(current)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      const operation = firebase
+        .removeProjectsAndroidApps({
+          name: output.name,
+          body: { immediate: true, allowMissing: true },
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "AndroidAppNotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (operation) {
+        try (waitForOperation(operation)
+          |> Effect.catchIf(%, (error) =>
+            error._tag === "GCP.OperationFailed" && error.code === 5, effect () =>
+            try Effect.void))
+      }
+    },
+  })

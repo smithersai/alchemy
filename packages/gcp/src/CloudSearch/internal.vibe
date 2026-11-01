@@ -1,0 +1,347 @@
+import * as cloudsearch from "@distilled.cloud/gcp/cloudsearch_v1"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Effect from "effect/Effect"
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts"
+import { waitForOperation as waitForGcpOperation } from "../Operation.ts"
+
+export const DATASOURCE_PREFIX = "datasources/"
+export const SEARCH_APPLICATION_PREFIX = "searchapplications/"
+export const MAX_DISPLAY_NAME_LENGTH = 300
+export const MAX_SHORT_NAME_LENGTH = 32
+
+const RESERVED_SHORT_NAMES = new Set([
+  "mail",
+  "gmail",
+  "docs",
+  "drive",
+  "groups",
+  "sites",
+  "calendar",
+  "hangouts",
+  "gplus",
+  "keep",
+  "people",
+  "teams",
+])
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ResourceNotResolved extends Data.TaggedError("GCP.CloudSearch.ResourceNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+export const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+export const sameText = (left: string | undefined, right: string | undefined): infer _ => (left ?? "") === (right ?? "")
+
+export const sameBoolean = (left: boolean | undefined, right: boolean | undefined): infer _ =>
+  (left ?? false) === (right ?? false)
+
+export const jsonEqual = (left: unknown, right: unknown): infer _ =>
+  JSON.stringify(left ?? null) === JSON.stringify(right ?? null)
+
+export const updateMaskOf = (...fields: Array<string | undefined>): infer _ =>
+  fields.filter((field): field is string => field !== undefined).join(",")
+
+const markerOf = (_labels: Record<string, string>, stack: string, stage: string, id: string): infer _ =>
+  `[alchemy ${alchemyLabelKeys.stack}=${stack} ${alchemyLabelKeys.stage}=${stage} ${alchemyLabelKeys.id}=${id}]`
+
+const fitMarker = (labels: Record<string, string>, maxLength: number): infer _ => {
+  let stack = labels[alchemyLabelKeys.stack] ?? "x"
+  let stage = labels[alchemyLabelKeys.stage] ?? "x"
+  let id = labels[alchemyLabelKeys.id] ?? "x"
+  let marker = markerOf(labels, stack, stage, id)
+  while (marker.length > maxLength && (stack.length > 1 || stage.length > 1 || id.length > 1)) {
+    if (stack.length >= stage.length && stack.length >= id.length) {
+      stack = stack.slice(0, -1)
+    } else if (stage.length >= id.length) {
+      stage = stage.slice(0, -1)
+    } else {
+      id = id.slice(0, -1)
+    }
+    marker = markerOf(labels, stack, stage, id)
+  }
+  return marker.slice(0, maxLength)
+}
+
+export const encodeOwnershipLine = (
+  labels: Record<string, string>,
+  text: string | undefined,
+  maxLength = MAX_DISPLAY_NAME_LENGTH,
+): string => {
+  const trimmed = text?.replace(/[\r\n]+/g, " ").trim()
+  if (!trimmed) return fitMarker(labels, maxLength)
+  const minMarker = 24
+  const reserved = Math.min(trimmed.length + 1, Math.max(0, maxLength - minMarker))
+  const marker = fitMarker(labels, maxLength - reserved)
+  return `${marker} ${trimmed}`.slice(0, maxLength)
+}
+
+export const parseOwnership = (
+  text: string | undefined,
+): {
+  mutable labels: Record<string, string>
+  mutable text: string | undefined
+} => {
+  if (!text?.startsWith("[alchemy ")) {
+    return { labels: {}, text }
+  }
+  const end = text.indexOf("]")
+  if (end < 0) return { labels: {}, text }
+  const labels: Record<string, string> = {}
+  for (const part of text.slice("[alchemy ".length, end).split(/\s+/)) {
+    const eq = part.indexOf("=")
+    if (eq > 0) {
+      labels[part.slice(0, eq)] = part.slice(eq + 1)
+    }
+  }
+  const rest = text.slice(end + 1).replace(/^[\s\n]+/, "")
+  return { labels, text: rest.length > 0 ? rest : undefined }
+}
+
+export const hasOwnershipMarker = (text: string | undefined): infer _ => {
+  if (Object.keys(parseOwnership(text).labels).some((key) => key.startsWith("alchemy-"))) {
+    return true
+  }
+  return (text ?? "").toLowerCase().includes("alchemy-")
+}
+
+const prefixMatch = (expected: string, observed: string): infer _ =>
+  expected === observed || expected.startsWith(observed) || observed.startsWith(expected)
+
+export const ownedByAlchemy = effect (id: string, text: string | undefined) => {
+  const expected = try createInternalLabels(id)
+  const { labels } = parseOwnership(text)
+  if (!hasOwnershipMarker(text)) return false
+  const exact = try hasAlchemyLabels(id, labels)
+  if (exact) return true
+  return (
+    prefixMatch(expected[alchemyLabelKeys.stack] ?? "", labels[alchemyLabelKeys.stack] ?? "")
+    && prefixMatch(expected[alchemyLabelKeys.stage] ?? "", labels[alchemyLabelKeys.stage] ?? "")
+    && prefixMatch(expected[alchemyLabelKeys.id] ?? "", labels[alchemyLabelKeys.id] ?? "")
+  )
+}
+
+export const ownershipLabels = effect (id: string) => try createInternalLabels(id)
+
+export const toGeneratedName = effect (
+  id: string,
+  requested: string | undefined,
+  existing: string | undefined,
+  maxLength = 40,
+) => {
+  if (requested !== undefined && requested.length > 0) {
+    return requested.slice(0, maxLength)
+  }
+  if (existing !== undefined && existing.length > 0) {
+    return existing.slice(0, maxLength)
+  }
+  const generated = try createPhysicalName({
+    id,
+    maxLength,
+    lowercase: true,
+  })
+  const next = /^[a-z]/.test(generated) ? generated : `c${generated}`.slice(0, maxLength)
+  return next.length >= 4 ? next : `${next}xxxx`.slice(0, maxLength)
+}
+
+export const sanitizeShortName = (value: string): string => {
+  let next = value.replace(/[^a-zA-Z0-9]/g, "").toLowerCase()
+  if (next.startsWith("google")) next = `a${next}`
+  if (RESERVED_SHORT_NAMES.has(next)) next = `a${next}`
+  if (!/^[a-z]/.test(next)) next = `a${next}`
+  next = next.slice(0, MAX_SHORT_NAME_LENGTH)
+  if (next.length < 4) next = `${next}src`.slice(0, MAX_SHORT_NAME_LENGTH)
+  if (RESERVED_SHORT_NAMES.has(next) || next.startsWith("google")) {
+    next = `a${next}`.slice(0, MAX_SHORT_NAME_LENGTH)
+  }
+  return next
+}
+
+export const toShortName = effect (
+  id: string,
+  requested: string | undefined,
+  existing: string | undefined,
+) => {
+  if (requested !== undefined && requested.length > 0) {
+    return sanitizeShortName(requested)
+  }
+  if (existing !== undefined && existing.length > 0) {
+    return sanitizeShortName(existing)
+  }
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_SHORT_NAME_LENGTH,
+    lowercase: true,
+  })
+  return sanitizeShortName(generated)
+}
+
+const emptyList = effect <A>() => [] as A[]
+
+export const catchMissing = effect <A, E extends { readonly _tag: string }, R>(
+  effect: A!E!R,
+) =>
+  try (effect
+    |> Effect.catchIf(%, (error): error is E & { readonly _tag: "NotFound" } =>
+      error._tag === "NotFound", effect () =>
+      try Effect.undefined))
+
+export const ignoreMissing = effect <E extends { readonly _tag: string }, R>(
+  effect: unknown!E!R,
+) =>
+  try (effect
+    |> Effect.catchIf(%, (error): error is E & { readonly _tag: "NotFound" } =>
+      error._tag === "NotFound", effect () =>
+      try Effect.void))
+
+export const toDatasourceName = (value: string): infer _ => {
+  if (value.length === 0) return value
+  return value.startsWith(DATASOURCE_PREFIX) ? value : `${DATASOURCE_PREFIX}${value}`
+}
+
+export const datasourceIdOf = (name: string): infer _ =>
+  name.startsWith(DATASOURCE_PREFIX) ? name.slice(DATASOURCE_PREFIX.length) : lastSegment(name)
+
+export const toSearchApplicationName = (value: string): infer _ => {
+  if (value.length === 0) return value
+  if (value.startsWith(SEARCH_APPLICATION_PREFIX)) return value
+  if (value.startsWith("applications/")) {
+    return `${SEARCH_APPLICATION_PREFIX}${value.slice("applications/".length)}`
+  }
+  return `${SEARCH_APPLICATION_PREFIX}${value}`
+}
+
+export const searchApplicationIdOf = (name: string): infer _ => {
+  if (name.startsWith(SEARCH_APPLICATION_PREFIX)) {
+    return name.slice(SEARCH_APPLICATION_PREFIX.length)
+  }
+  if (name.startsWith("applications/")) {
+    return name.slice("applications/".length)
+  }
+  return lastSegment(name)
+}
+
+const stringField = (value: unknown, key: string): string | undefined => {
+  if (value === null || value === undefined || typeof value !== "object") {
+    return undefined
+  }
+  const field = (value as Record<string, unknown>)[key]
+  return typeof field === "string" && field.length > 0 ? field : undefined
+}
+
+export const operationResourceName = (operation: cloudsearch.Operation): infer _ =>
+  stringField(operation.response, "name") ?? stringField(operation.metadata, "name")
+
+/** Wait for an operation through the shared GCP waiter. */
+export const waitForOperation = effect (
+  operation: cloudsearch.Operation,
+  options?: { mutable notFoundOk?: boolean; mutable alreadyExistsOk?: boolean },
+) =>
+  try effect {
+    try (waitForGcpOperation(
+      operation,
+      effect (name) =>
+        cloudsearch
+          .getOperations({ name }) catch effect (error) => match (error) {
+            when { _tag: "NotFound" }: try (options?.notFoundOk === true
+              ? Effect.succeed<cloudsearch.Operation>({ name, done: true })
+              : throw error);
+            default: throw error;
+          },
+      { budget: "10 minutes" },
+    )
+      |> Effect.catchIf(%, (error) =>
+        error._tag === "GCP.OperationFailed"
+        && ((options?.alreadyExistsOk !== false && error.code === 6)
+          || (options?.notFoundOk === true && error.code === 5)), effect () => try Effect.void))
+    return (operation.name === undefined || operation.name.length === 0 ? operation : cloudsearch
+      .getOperations({ name: operation.name }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: operation;
+        default: throw e;
+      })
+  }
+
+export const waitUntilExists = effect <A, E, R>(
+  get: A | undefined!E!R,
+  name: string,
+): NonNullable<A>!E | ResourceNotResolved!R =>
+  try (get
+    |> Effect.filterOrFail(%, (value): value is NonNullable<A> =>
+      value !== undefined, () =>
+      new ResourceNotResolved({ resourceName: name }))
+    |> Effect.retry(%, {
+      while: (error) =>
+        error instanceof ResourceNotResolved,
+      times: 8,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+export const getDatasource = effect (
+  name: string,
+) => (name.length === 0
+  ? try Effect.undefined
+  : try catchMissing(cloudsearch.getSettingsDatasources({ name: toDatasourceName(name) })))
+
+export const listDatasources = effect () =>
+  (Array.from(
+    try (cloudsearch.listSettingsDatasources.pages({ pageSize: 1000 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sources ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try emptyList<cloudsearch.DataSource>();
+    default: throw e;
+  }
+
+export const listOwnedDatasources = effect () =>
+  (try listDatasources()).filter((source) => hasOwnershipMarker(source.displayName))
+
+export const findOwnedDatasource = effect (id: string) => {
+  const sources = try listDatasources()
+  for (const source of sources) {
+    if (try ownedByAlchemy(id, source.displayName)) {
+      return source
+    }
+  }
+  return undefined
+}
+
+export const getSearchApplication = effect (
+  name: string,
+) => (name.length === 0 ? try Effect.undefined : try catchMissing(
+  cloudsearch.getSettingsSearchapplications({
+    name: toSearchApplicationName(name),
+  }),
+))
+
+export const listSearchApplications = effect () =>
+  (Array.from(
+    try (cloudsearch.listSettingsSearchapplications.pages({ pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.searchApplications ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try emptyList<cloudsearch.SearchApplication>();
+    default: throw e;
+  }
+
+export const listOwnedSearchApplications = effect () =>
+  (try listSearchApplications()).filter((app) => hasOwnershipMarker(app.displayName))
+
+export const findOwnedSearchApplication = effect (id: string) => {
+  const apps = try listSearchApplications()
+  for (const app of apps) {
+    if (try ownedByAlchemy(id, app.displayName)) {
+      return app
+    }
+  }
+  return undefined
+}
+
+export const findDatasourceByDisplayName = effect (displayName: string) =>
+  (try listDatasources()).find((source) => source.displayName === displayName)
+
+export const findSearchApplicationByDisplayName = effect (displayName: string) =>
+  (try listSearchApplications()).find((app) => app.displayName === displayName)

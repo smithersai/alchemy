@@ -1,0 +1,278 @@
+import * as logging from "@distilled.cloud/gcp/logging_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeDescription,
+  hasOwnershipMarker,
+  lastSegment,
+  organizationIdOf,
+  parseDescription,
+  resolveOrganization,
+  toPhysicalId,
+  tryResolveOrganization,
+} from "./internal.ts"
+
+export type OrganizationExclusionProps = {
+  /**
+   * Exclusion id (the `{exclusion}` segment of
+   * `organizations/{organization}/exclusions/{exclusion}`). If omitted, a
+   * unique name is generated from the stack, stage, and logical id.
+   * Limited to 100 characters: letters, digits, underscores, hyphens,
+   * periods; first character must be alphanumeric. Immutable — changing
+   * it replaces the exclusion.
+   */
+  mutable exclusionId?: string
+  /**
+   * Parent organization (`organizations/{organization}` or the numeric
+   * id). Defaults to the project ancestor organization. Immutable —
+   * changing it replaces the exclusion.
+   */
+  mutable organization?: string
+  /**
+   * Advanced logs filter matching entries to exclude from the `_Default`
+   * sink. Required. Use `sample()` to exclude a fraction of matches.
+   */
+  mutable filter: string
+  /**
+   * Human-readable description. Logging exclusions have no labels field,
+   * so Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  mutable description?: string
+  /**
+   * When true, the exclusion exists but does not exclude any entries.
+   * @default false
+   */
+  mutable disabled?: boolean
+}
+
+export type OrganizationExclusion = Resource<
+  "GCP.Logging.OrganizationExclusion",
+  OrganizationExclusionProps,
+  {
+    /** Full resource name `organizations/{organization}/exclusions/{exclusionId}`. */
+    mutable name: string
+    /** Exclusion id (last path segment). */
+    mutable exclusionId: string
+    /** Organization resource name `organizations/{organization}`. */
+    mutable organization: string
+    /** Organization id. */
+    mutable organizationId: string
+    /** Project id of the deploying stack. */
+    mutable project: string
+    /** Advanced logs filter. */
+    mutable filter: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Whether the exclusion is disabled. */
+    mutable disabled: boolean
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Logging exclusion on an organization's `_Default` sink.
+ *
+ * Exclusions drop matching log entries before they are stored in the
+ * organization's `_Default` bucket (they do not apply to `_Required`).
+ * An organization can have up to 10. Logging exclusions have no labels
+ * field, so Alchemy stamps ownership into the description for `list` /
+ * nuke. Name and organization are identity — changing either replaces
+ * the exclusion.
+ *
+ * ### Creating an Organization Exclusion
+ * **Example:** Generated name, drop debug logs
+ * ```typescript
+ * const exclusion = yield* GCP.Logging.OrganizationExclusion("DropDebug", {
+ *   filter: "severity=DEBUG",
+ *   description: "drop debug entries",
+ * });
+ * ```
+ *
+ * **Example:** Named exclusion on an explicit organization
+ * ```typescript
+ * const exclusion = yield* GCP.Logging.OrganizationExclusion("DropDebug", {
+ *   organization: "organizations/123456789",
+ *   exclusionId: "drop-debug",
+ *   filter: "severity=DEBUG",
+ * });
+ * ```
+ *
+ * ### Updating an Organization Exclusion
+ * **Example:** Change the filter and disable
+ * ```typescript
+ * const exclusion = yield* GCP.Logging.OrganizationExclusion("DropDebug", {
+ *   organization: "organizations/123456789",
+ *   filter: "severity<ERROR",
+ *   description: "drop non-errors",
+ *   disabled: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Logging
+ */
+export const OrganizationExclusion = Resource<OrganizationExclusion>(
+  "GCP.Logging.OrganizationExclusion",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class OrganizationExclusionNotResolved extends Data.TaggedError(
+  "GCP.Logging.OrganizationExclusionNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (organization: string, exclusionId: string): infer _ => `${organization}/exclusions/${exclusionId}`
+
+const exclusionIdOf = (exclusion: logging.LogExclusion): infer _ => {
+  const raw = exclusion.name ?? ""
+  return raw.includes("/") ? lastSegment(raw) : raw
+}
+
+const toAttrs = (exclusion: logging.LogExclusion, organization: string, project: string): infer _ => {
+  const exclusionId = exclusionIdOf(exclusion)
+  const parsed = parseDescription(exclusion.description)
+  const name = exclusion.name?.includes("/")
+    ? exclusion.name
+    : resourceName(organization, exclusionId)
+  return {
+    name,
+    exclusionId,
+    organization,
+    organizationId: organizationIdOf(organization),
+    project,
+    filter: exclusion.filter ?? "",
+    description: parsed.description,
+    disabled: exclusion.disabled === true,
+    createTime: exclusion.createTime,
+    updateTime: exclusion.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  logging
+    .getOrganizationsExclusions({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const OrganizationExclusionProvider = (): infer _ =>
+  Provider.succeed(OrganizationExclusion, {
+    stables: ["name", "exclusionId", "organization", "organizationId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previous = olds?.exclusionId ?? output?.exclusionId
+      const idChanged = previous !== undefined && news.exclusionId !== undefined && news.exclusionId !== previous
+      const previousOrg = olds?.organization ?? output?.organization
+      const orgChanged = previousOrg !== undefined
+        && news.organization !== undefined
+        && news.organization !== previousOrg
+      if (!idChanged && !orgChanged) return undefined
+      return { action: "replace" as const, deleteFirst: false }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(
+        olds?.organization ?? output?.organization,
+        output?.organization,
+      )
+      const exclusionId = try toPhysicalId(id, olds?.exclusionId, output?.exclusionId, "e")
+      const name = output?.name ?? resourceName(organization, exclusionId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization, env.project)
+      const { labels } = parseDescription(existing.description)
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organization = try tryResolveOrganization()
+      if (organization === undefined) return []
+      return (Array.from(
+        try (logging.listOrganizationsExclusions
+          .pages({
+            parent: organization,
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.exclusions ?? []))
+          |> Stream.filter(%, (exclusion) => hasOwnershipMarker(exclusion.description))
+          |> Stream.map(%, (exclusion) => toAttrs(exclusion, organization, env.project))
+          |> Stream.runCollect(%)),
+      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(news.organization, output?.organization)
+      const exclusionId = try toPhysicalId(id, news.exclusionId, output?.exclusionId, "e")
+      const name = resourceName(organization, exclusionId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeDescription(ownership, news.description)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = logging
+          .createOrganizationsExclusions({
+            parent: organization,
+            body: {
+              name: exclusionId,
+              filter: news.filter,
+              description: desiredDescription,
+              disabled: news.disabled === true ? true : undefined,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new OrganizationExclusionNotResolved({ resourceName: name })
+      }
+
+      const desiredDisabled = news.disabled === true
+      const filterChanged = (current.filter ?? "") !== news.filter
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const disabledChanged = (current.disabled === true) !== desiredDisabled
+      const updateMask = [
+        filterChanged ? "filter" : undefined,
+        descriptionChanged ? "description" : undefined,
+        disabledChanged ? "disabled" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        current = try logging.patchOrganizationsExclusions({
+          name: current.name?.includes("/") ? current.name : name,
+          updateMask: updateMask.join(","),
+          body: {
+            filter: news.filter,
+            description: desiredDescription,
+            disabled: desiredDisabled,
+          },
+        })
+      }
+
+      return toAttrs(current, organization, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      logging
+        .deleteOrganizationsExclusions({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

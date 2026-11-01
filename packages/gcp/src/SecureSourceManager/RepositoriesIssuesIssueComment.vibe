@@ -1,0 +1,323 @@
+import * as ssm from "@distilled.cloud/gcp/securesourcemanager_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  catchMissing,
+  collectPages,
+  expandName,
+  forEachRepository,
+  hasOwnershipMarker,
+  nameFromOperation,
+  normalizeLocation,
+  ownedByAlchemy,
+  PAGE_SIZE,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  retryConflict,
+  sameText,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.ts"
+
+export type RepositoriesIssuesIssueCommentProps = {
+  /**
+   * Parent issue. Full name
+   * `projects/{project}/locations/{location}/repositories/{repository}/issues/{issue}`
+   * or the issue id (combined with `repository`). Immutable — changing
+   * it replaces the comment.
+   */
+  mutable issue: string
+  /**
+   * Parent repository used when `issue` is a bare id.
+   */
+  mutable repository?: string
+  /**
+   * Region used when `issue` or `repository` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Server-assigned comment id. Set after create. Immutable — changing
+   * it replaces the comment.
+   */
+  mutable commentId?: string
+  /**
+   * Comment body, posted as given. Comments have no labels, so Alchemy
+   * tracks the comment by its server-assigned id.
+   */
+  mutable body: string
+}
+
+export type RepositoriesIssuesIssueComment = Resource<
+  "GCP.SecureSourceManager.RepositoriesIssuesIssueComment",
+  RepositoriesIssuesIssueCommentProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Server-assigned comment id. */
+    mutable commentId: string
+    /** Parent issue resource name. */
+    mutable issue: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Comment body with the Alchemy ownership prefix stripped. */
+    mutable body: string
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A comment on a Secure Source Manager issue.
+ *
+ * Comment ids are server-assigned. Changing `commentId` or `issue`
+ * replaces the comment. Body updates in place. Ownership for `list` /
+ * nuke is stamped into the body (comments have no labels field).
+ *
+ * ### Creating an Issue Comment
+ * **Example:** Reply on an issue
+ * ```typescript
+ * const comment = yield* GCP.SecureSourceManager.RepositoriesIssuesIssueComment(
+ *   "Note",
+ *   {
+ *     issue: issue.name,
+ *     body: "reproduced on main",
+ *   },
+ * );
+ * ```
+ *
+ * ### Updating an Issue Comment
+ * Re-declare the same logical id with changed props; the engine keeps the
+ * physical resource and updates it in place.
+ *
+ * **Example:** Edit the body
+ * ```typescript
+ * const comment = yield* GCP.SecureSourceManager.RepositoriesIssuesIssueComment(
+ *   "Note",
+ *   {
+ *     issue: issue.name,
+ *     body: "reproduced on release",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category SecureSourceManager
+ */
+export const RepositoriesIssuesIssueComment = Resource<RepositoriesIssuesIssueComment>(
+  "GCP.SecureSourceManager.RepositoriesIssuesIssueComment",
+)
+
+const resourceName = (issue: string, commentId: string): infer _ => `${issue}/issueComments/${commentId}`
+
+const expandIssue = (
+  issue: string,
+  repository: string | undefined,
+  project: string,
+  location: string,
+): infer _ => {
+  const next = issue.replace(/\/+$/, "")
+  if (next.includes("/")) return next
+  const repo = expandName(repository ?? "", project, location, "repositories")
+  return repo.length > 0 ? `${repo}/issues/${next}` : next
+}
+
+const toAttrs = (item: ssm.IssueComment, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "issueComments", region)
+  const body = parseOwnership(item.body)
+  return {
+    name,
+    commentId: parsed.id,
+    issue: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    body: body.text ?? "",
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (
+  name: string,
+) => (name.length === 0
+  ? try Effect.undefined
+  : try catchMissing(ssm.getProjectsLocationsRepositoriesIssuesIssueComments({ name })))
+
+const listOnIssue = effect (issue: string) =>
+  try collectPages(
+    ssm.listProjectsLocationsRepositoriesIssuesIssueComments.pages({
+      parent: issue,
+      pageSize: PAGE_SIZE,
+    }),
+    (page) => page.issueComments,
+  )
+
+const listOnRepository = effect (repository: string) => {
+  const issues = try collectPages(
+    ssm.listProjectsLocationsRepositoriesIssues.pages({
+      parent: repository,
+      pageSize: PAGE_SIZE,
+    }),
+    (page) => page.issues,
+  )
+  const pages = try Effect.forEach(
+    issues.filter((issue) => (issue.name ?? "").length > 0),
+    effect (issue) => try listOnIssue(issue.name!),
+    { concurrency: 4 },
+  )
+  return pages.flat()
+}
+
+/**
+ * A comment on the issue with this body (or one carrying a legacy
+ * ownership marker for `id`). Recovers a comment whose create succeeded but
+ * was never recorded.
+ */
+const findMatching = effect (issue: string, id: string, body: string) => {
+  if (issue.length === 0) return undefined
+  const items = try listOnIssue(issue)
+  for (const item of items) {
+    if (try ownedByAlchemy(id, item.body)) return item
+    if (sameText(item.body, body)) return item
+  }
+  return undefined
+}
+
+const listOwned = effect (project: string, region: string) =>
+  try forEachRepository(
+    project,
+    region,
+    effect (repository) => (try listOnRepository(repository)).filter((item) => hasOwnershipMarker(item.body)),
+  )
+
+export const RepositoriesIssuesIssueCommentProvider = (): infer _ =>
+  Provider.succeed(RepositoriesIssuesIssueComment, {
+    stables: ["name", "commentId", "issue", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      return replaceOnIdentity({
+        previousId: olds?.commentId ?? output?.commentId,
+        nextId: news.commentId ?? olds?.commentId ?? output?.commentId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: location,
+        previousParent: olds?.issue ?? output?.issue,
+        nextParent: expandIssue(news.issue, news.repository, env.project, location),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const issue = expandIssue(
+        olds?.issue ?? output?.issue ?? "",
+        olds?.repository
+          ?? (output === undefined ? undefined : parseName(output.issue, "issues", env.region).parent),
+        env.project,
+        location,
+      )
+      const commentId = olds?.commentId ?? output?.commentId
+      const name = output?.name
+        ?? (commentId !== undefined && issue.length > 0 ? resourceName(issue, commentId) : "")
+      let existing = try getByName(name)
+      const recorded = existing !== undefined && output !== undefined
+      if (existing === undefined && olds !== undefined) {
+        existing = try findMatching(issue, id, olds.body)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      const { labels } = parseOwnership(existing.body)
+      // A matching comment found without a recorded id could be anyone's.
+      return recorded || (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item: ssm.IssueComment) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const issue = expandIssue(news.issue, news.repository, env.project, location)
+      const body = news.body
+      const name = output?.name ?? (news.commentId !== undefined ? resourceName(issue, news.commentId) : "")
+
+      let current = try getByName(name)
+      if (current === undefined) {
+        current = try findMatching(issue, id, body)
+      }
+
+      if (current === undefined) {
+        const created = ssm
+          .createProjectsLocationsRepositoriesIssuesIssueComments({
+            parent: issue,
+            body: { body },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          const operation = try waitForOperation(created)
+          const createdName = nameFromOperation(operation)
+          if (createdName !== undefined) {
+            current = try waitUntilExists(getByName(createdName), createdName)
+          }
+        }
+        if (current === undefined) {
+          current = try findMatching(issue, id, body)
+        }
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name || issue })
+      }
+
+      const currentName = current.name ?? name
+      // Raw body: also rewrites a legacy ownership marker away.
+      if (!sameText(current.body, body)) {
+        const operation = try ssm.patchProjectsLocationsRepositoriesIssuesIssueComments({
+          name: currentName,
+          updateMask: "body",
+          body: { body },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(currentName), currentName)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = try retryConflict(
+        effect {
+          return ssm
+            .deleteProjectsLocationsRepositoriesIssuesIssueComments({
+              name: output.name,
+            }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+        },
+      )
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

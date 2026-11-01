@@ -1,25 +1,25 @@
-export * from "./AgentsEntityType.ts";
-export * from "./AgentsEnvironment.ts";
-export * from "./AgentsEnvironmentsExperiment.ts";
-export * from "./AgentsEnvironmentsSessionsEntityType.ts";
-export * from "./AgentsFlow.ts";
-export * from "./AgentsFlowsPage.ts";
-export * from "./AgentsFlowsTransitionRouteGroup.ts";
-export * from "./AgentsFlowsVersion.ts";
-export * from "./AgentsGenerator.ts";
-export * from "./AgentsIntent.ts";
-export * from "./AgentsPlaybook.ts";
-export * from "./AgentsPlaybooksExample.ts";
-export * from "./AgentsPlaybooksVersion.ts";
-export * from "./AgentsSessionsEntityType.ts";
-export * from "./AgentsTool.ts";
-export * from "./AgentsToolsVersion.ts";
+export * from "./AgentsEntityType.vibe";
+export * from "./AgentsEnvironment.vibe";
+export * from "./AgentsEnvironmentsExperiment.vibe";
+export * from "./AgentsEnvironmentsSessionsEntityType.vibe";
+export * from "./AgentsFlow.vibe";
+export * from "./AgentsFlowsPage.vibe";
+export * from "./AgentsFlowsTransitionRouteGroup.vibe";
+export * from "./AgentsFlowsVersion.vibe";
+export * from "./AgentsGenerator.vibe";
+export * from "./AgentsIntent.vibe";
+export * from "./AgentsPlaybook.vibe";
+export * from "./AgentsPlaybooksExample.vibe";
+export * from "./AgentsPlaybooksVersion.vibe";
+export * from "./AgentsSessionsEntityType.vibe";
+export * from "./AgentsTool.vibe";
+export * from "./AgentsToolsVersion.vibe";
 export {
   AgentsTransitionRouteGroup,
   AgentsTransitionRouteGroupNotResolved,
   AgentsTransitionRouteGroupProvider,
-} from "./AgentsTransitionRouteGroup.ts";
-export type { AgentsTransitionRouteGroupProps } from "./AgentsTransitionRouteGroup.ts";
-export * from "./AgentsWebhook.ts";
-export * from "./SecuritySetting.ts";
+} from "./AgentsTransitionRouteGroup.vibe";
+export type { AgentsTransitionRouteGroupProps } from "./AgentsTransitionRouteGroup.vibe";
+export * from "./AgentsWebhook.vibe";
+export * from "./SecuritySetting.vibe";
 export { resourceNameFromOperation, waitForOperation } from "./operations.ts";

@@ -3,4 +3,4 @@ export * from "./GetNodeHttp.vibe";
 export * from "./GetQueuedResource.vibe";
 export * from "./GetQueuedResourceHttp.vibe";
 export * from "./Node.vibe";
-export * from "./QueuedResource.ts";
+export * from "./QueuedResource.vibe";

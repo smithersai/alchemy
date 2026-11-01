@@ -1,0 +1,273 @@
+import * as observability from "@distilled.cloud/gcp/observability_v1"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Effect from "effect/Effect"
+import { GcpEnvironment } from "../Environment.ts"
+import { alchemyLabelKeys } from "../Labels.ts"
+
+export const MAX_NAME_LENGTH = 100
+export const DEFAULT_TRACE_LOCATION = "global"
+export const DEFAULT_BUCKET_ID = "_Trace"
+export const DEFAULT_DATASET_ID = "Spans"
+
+export const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+export const encodeDescription = (
+  labels: Record<string, string>,
+  description: string | undefined,
+): string => {
+  const marker = `[alchemy ${alchemyLabelKeys.stack}=${labels[alchemyLabelKeys.stack]} ${alchemyLabelKeys.stage}=${
+    labels[alchemyLabelKeys.stage]
+  } ${alchemyLabelKeys.id}=${labels[alchemyLabelKeys.id]}]`
+  return description ? `${marker}\n${description}` : marker
+}
+
+export const parseDescription = (
+  description: string | undefined,
+): {
+  mutable labels: Record<string, string>
+  mutable description: string | undefined
+} => {
+  if (!description?.startsWith("[alchemy ")) {
+    return { labels: {}, description }
+  }
+  const end = description.indexOf("]")
+  if (end < 0) return { labels: {}, description }
+  const labels: Record<string, string> = {}
+  for (const part of description.slice("[alchemy ".length, end).split(/\s+/)) {
+    const eq = part.indexOf("=")
+    if (eq > 0) {
+      labels[part.slice(0, eq)] = part.slice(eq + 1)
+    }
+  }
+  const rest = description.slice(end + 1).replace(/^\n/, "")
+  return { labels, description: rest.length > 0 ? rest : undefined }
+}
+
+export const hasOwnershipMarker = (description: string | undefined): infer _ =>
+  Object.keys(parseDescription(description).labels).some((key) => key.startsWith("alchemy-"))
+
+export const sortedStrings = (values: readonly string[] | undefined): infer _ => [...(values ?? [])].slice().sort()
+
+export const sameStringList = (
+  left: readonly string[] | undefined,
+  right: readonly string[] | undefined,
+): infer _ => JSON.stringify(sortedStrings(left)) === JSON.stringify(sortedStrings(right))
+
+export const normalizeLocation = (location: string | undefined, fallback: string): infer _ =>
+  lastSegment(location ?? fallback).toLowerCase()
+
+export const expandProjectName = (value: string, project: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  if (trimmed.startsWith("projects/")) return trimmed
+  if (trimmed.length === 0) return `projects/${project}`
+  return `projects/${lastSegment(trimmed)}`
+}
+
+export const expandResourceNames = (names: readonly string[] | undefined, project: string): infer _ =>
+  (names === undefined || names.length === 0 ? [`projects/${project}`] : [...names]).map((name) =>
+    expandProjectName(name, project)
+  )
+
+export const toScopeId = effect (id: string, explicit: string | undefined, existing?: string) => {
+  if (explicit !== undefined) return explicit
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_NAME_LENGTH,
+    lowercase: true,
+  })
+  return /^[a-z0-9]/.test(generated) ? generated : `s${generated}`.slice(0, MAX_NAME_LENGTH)
+}
+
+export const toLinkId = effect (id: string, explicit: string | undefined, existing?: string) => {
+  if (explicit !== undefined) return explicit
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_NAME_LENGTH,
+    lowercase: true,
+    delimiter: "_",
+  })
+  const cleaned = generated.replace(/-/g, "_").replace(/[^a-z0-9_]/g, "_")
+  return /^[a-z]/.test(cleaned) ? cleaned : `l${cleaned}`.slice(0, MAX_NAME_LENGTH)
+}
+
+export type ParsedLinkName = {
+  mutable project: string
+  mutable location: string
+  mutable bucketId: string
+  mutable datasetId: string
+  mutable linkId: string
+}
+
+export const parseLinkName = (name: string): ParsedLinkName | undefined => {
+  const match = name.match(
+    /^projects\/([^/]+)\/locations\/([^/]+)\/buckets\/([^/]+)\/datasets\/([^/]+)\/links\/([^/]+)$/,
+  )
+  if (!match) return undefined
+  return {
+    project: match[1]!,
+    location: match[2]!,
+    bucketId: match[3]!,
+    datasetId: match[4]!,
+    linkId: match[5]!,
+  }
+}
+
+export const parseDatasetName = (name: string): infer _ => {
+  const match = name.match(
+    /^projects\/([^/]+)\/locations\/([^/]+)\/buckets\/([^/]+)\/datasets\/([^/]+)$/,
+  )
+  if (!match) return undefined
+  return {
+    name: match[0]!,
+    project: match[1]!,
+    location: match[2]!,
+    bucketId: match[3]!,
+    datasetId: match[4]!,
+  }
+}
+
+export const parseBucketName = (name: string): infer _ => {
+  const match = name.match(/^projects\/([^/]+)\/locations\/([^/]+)\/buckets\/([^/]+)$/)
+  if (!match) return undefined
+  return {
+    name: match[0]!,
+    project: match[1]!,
+    location: match[2]!,
+    bucketId: match[3]!,
+  }
+}
+
+export const parseScopeName = (name: string): infer _ => {
+  const match = name.match(/^projects\/([^/]+)\/locations\/([^/]+)\/traceScopes\/([^/]+)$/)
+  if (!match) return undefined
+  return {
+    project: match[1]!,
+    location: match[2]!,
+    traceScopeId: match[3]!,
+  }
+}
+
+export const datasetResourceName = (
+  project: string,
+  location: string,
+  bucketId: string,
+  datasetId: string,
+): infer _ => `projects/${project}/locations/${location}/buckets/${bucketId}/datasets/${datasetId}`
+
+export const linkResourceName = (
+  project: string,
+  location: string,
+  bucketId: string,
+  datasetId: string,
+  linkId: string,
+): infer _ => `${datasetResourceName(project, location, bucketId, datasetId)}/links/${linkId}`
+
+export const scopeResourceName = (project: string, location: string, traceScopeId: string): infer _ =>
+  `projects/${project}/locations/${location}/traceScopes/${traceScopeId}`
+
+export const resolveDatasetParent = (
+  dataset: string,
+  bucket: string | undefined,
+  location: string,
+  project: string,
+): infer _ => {
+  const fromDataset = parseDatasetName(dataset)
+  if (fromDataset) return fromDataset
+  const fromBucket = bucket ? parseBucketName(bucket) : undefined
+  const bucketId = fromBucket?.bucketId
+    ?? (bucket !== undefined && bucket.length > 0 ? lastSegment(bucket) : DEFAULT_BUCKET_ID)
+  const resolvedLocation = fromBucket?.location ?? location
+  const resolvedProject = fromBucket?.project ?? project
+  const datasetId = dataset.length > 0 ? lastSegment(dataset) : DEFAULT_DATASET_ID
+  return {
+    name: datasetResourceName(resolvedProject, resolvedLocation, bucketId, datasetId),
+    project: resolvedProject,
+    location: resolvedLocation,
+    bucketId,
+    datasetId,
+  }
+}
+
+export const listLocationIds = effect (project: string, region: string) =>
+  (try effect {
+    const chunk = try (observability.listProjectsLocations
+      .pages({
+        name: `projects/${project}`,
+        pageSize: 200,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.locations ?? []))
+      |> Stream.map(%, (location) => location.locationId ?? lastSegment(location.name ?? ""))
+      |> Stream.filter(%, (id) => id.length > 0)
+      |> Stream.runCollect(%))
+
+    const ids = new Set(Array.from(chunk))
+    ids.add(DEFAULT_TRACE_LOCATION)
+    ids.add(region)
+    return [...ids]
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: [DEFAULT_TRACE_LOCATION, region]; default: throw e; }
+
+const listBucketsAt = effect (parent: string) =>
+  (Array.from(
+    try (observability.listProjectsLocationsBuckets
+      .pages({
+        parent,
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.buckets ?? []))
+      |> Stream.filter(%, (bucket) => (bucket.name ?? "").length > 0)
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as observability.Bucket[]; default: throw e; }
+
+export const listProjectBuckets = effect () => {
+  const env = try GcpEnvironment.current
+  const wildcard = try listBucketsAt(`projects/${env.project}/locations/-`)
+  if (wildcard.length > 0) return wildcard
+  const locations = try listLocationIds(env.project, env.region)
+  const pages = try Effect.forEach(
+    locations,
+    effect (location) => try listBucketsAt(`projects/${env.project}/locations/${location}`),
+    { concurrency: 4 },
+  )
+  const byName = new Map<string, observability.Bucket>()
+  for (const bucket of pages.flat()) {
+    if (bucket.name) byName.set(bucket.name, bucket)
+  }
+  return [...byName.values()]
+}
+
+const listDatasetsAt = effect (parent: string) =>
+  (Array.from(
+    try (observability.listProjectsLocationsBucketsDatasets
+      .pages({
+        parent,
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.datasets ?? []))
+      |> Stream.filter(%, (dataset) => (dataset.name ?? "").length > 0)
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as observability.Dataset[]; default: throw e; }
+
+export const listProjectDatasets = effect () => {
+  const buckets = try listProjectBuckets()
+  const pages = try Effect.forEach(buckets, effect (bucket) => try listDatasetsAt(bucket.name!), {
+    concurrency: 4,
+  })
+  return pages.flat()
+}
+
+export const listLinksAt = effect (parent: string) =>
+  (Array.from(
+    try (observability.listProjectsLocationsBucketsDatasetsLinks
+      .pages({
+        parent,
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.links ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as observability.Link[]; default: throw e; }

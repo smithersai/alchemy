@@ -1,0 +1,368 @@
+import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  collectionParent,
+  DEFAULT_LOCATION,
+  encodeOwnershipLine,
+  expandAgent,
+  fingerprint,
+  hasOwnershipMarker,
+  internalLabels,
+  lastSegment,
+  locationOf,
+  MAX_ROUTE_GROUP_DISPLAY_NAME_LENGTH,
+  namedAgents,
+  normalizeLocation,
+  ownedByAlchemy,
+  parentOf,
+  parseOwnership,
+  projectOf,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+  retryQuota,
+} from "./internal.ts"
+
+type TransitionRoute = {
+  /** Intent that triggers this route. */
+  mutable intent?: string
+  /** Condition expression. At least one of `intent` or `condition` is required. */
+  mutable condition?: string
+  /** Target flow resource name. */
+  mutable targetFlow?: string
+  /** Target page resource name. */
+  mutable targetPage?: string
+  /** Description of the route (max 500 characters). */
+  mutable description?: string
+  /** Fulfillment run when the route matches. */
+  mutable triggerFulfillment?: {
+    mutable messages?: Array<{
+      mutable text?: { mutable text?: string[]; mutable allowPlaybackInterruption?: boolean }
+    }>
+    mutable tag?: string
+  }
+}
+
+export type AgentsTransitionRouteGroupProps = {
+  /**
+   * Parent agent resource name
+   * `projects/{project}/locations/{location}/agents/{agent}` or a bare
+   * agent id (combined with `location`). Immutable — changing it
+   * replaces the route group.
+   */
+  mutable agent: string
+  /**
+   * Transition route group id (the `{transitionRouteGroup}` segment).
+   * Server-assigned on create. Immutable — changing it replaces the
+   * group.
+   */
+  mutable transitionRouteGroupId?: string
+  /**
+   * Location used when `agent` is a bare id.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Human-readable name, unique within the agent (max 30 characters
+   * including Alchemy's ownership marker). Route groups have no labels
+   * field, so ownership is stored in a compact `[alc …]` prefix and
+   * stripped from attributes.
+   */
+  mutable displayName?: string
+  /** Transition routes in the group. */
+  mutable transitionRoutes?: TransitionRoute[]
+  /** Language code of the route group. */
+  mutable languageCode?: string
+}
+
+export type AgentsTransitionRouteGroup = Resource<
+  "GCP.Dialogflow.AgentsTransitionRouteGroup",
+  AgentsTransitionRouteGroupProps,
+  {
+    /** Full resource name `.../agents/{agent}/transitionRouteGroups/{id}`. */
+    mutable name: string
+    /** Route group id (last path segment). */
+    mutable transitionRouteGroupId: string
+    /** Parent agent resource name. */
+    mutable agent: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    mutable displayName: string | undefined
+    /** Transition routes. */
+    mutable transitionRoutes: TransitionRoute[]
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dialogflow CX agent-level transition route group.
+ *
+ * Agent-level groups are shared across flows. Route groups have no labels
+ * field, so Alchemy stamps ownership into `displayName` (30-character
+ * limit; compact `[alc …]` marker) for `list` / nuke. Parent agent and id
+ * are immutable. Display name and routes update in place.
+ *
+ * ### Creating a Route Group
+ * **Example:** Fallback routes
+ * ```typescript
+ * const group = yield* GCP.Dialogflow.AgentsTransitionRouteGroup("Fallback", {
+ *   agent: agent.name,
+ *   displayName: "fb",
+ *   transitionRoutes: [
+ *     {
+ *       condition: "true",
+ *       triggerFulfillment: {
+ *         messages: [{ text: { text: ["I did not get that."] } }],
+ *       },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * ### Updating a Route Group
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Rename
+ * ```typescript
+ * const group = yield* GCP.Dialogflow.AgentsTransitionRouteGroup("Fallback", {
+ *   agent: agent.name,
+ *   displayName: "g2",
+ *   transitionRoutes: [
+ *     {
+ *       condition: "true",
+ *       triggerFulfillment: {
+ *         messages: [{ text: { text: ["Sorry."] } }],
+ *       },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dialogflow
+ */
+export const AgentsTransitionRouteGroup = Resource<AgentsTransitionRouteGroup>(
+  "GCP.Dialogflow.AgentsTransitionRouteGroup",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AgentsTransitionRouteGroupNotResolved extends Data.TaggedError(
+  "GCP.Dialogflow.AgentsTransitionRouteGroupNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (agent: string, transitionRouteGroupId: string): infer _ =>
+  `${agent}/transitionRouteGroups/${transitionRouteGroupId}`
+
+const routesOf = (
+  list: readonly dialogflow.GoogleCloudDialogflowCxV3TransitionRoute[] | undefined,
+): TransitionRoute[] =>
+  (list ?? []).map((route) => ({
+    intent: route.intent,
+    condition: route.condition,
+    targetFlow: route.targetFlow,
+    targetPage: route.targetPage,
+    description: route.description,
+    triggerFulfillment: route.triggerFulfillment
+      ? {
+        messages: route.triggerFulfillment.messages?.map((message) => ({
+          text: message.text
+            ? {
+              text: [...(message.text.text ?? [])],
+              allowPlaybackInterruption: message.text.allowPlaybackInterruption,
+            }
+            : undefined,
+        })),
+        tag: route.triggerFulfillment.tag,
+      }
+      : undefined,
+  }))
+
+const toAttrs = (
+  group: dialogflow.GoogleCloudDialogflowCxV3TransitionRouteGroup,
+  project: string,
+  agentHint?: string,
+): infer _ => {
+  const name = group.name ?? ""
+  return {
+    name,
+    transitionRouteGroupId: lastSegment(name),
+    agent: name.includes("/transitionRouteGroups/")
+      ? collectionParent(name, "agents")
+      : (agentHint ?? parentOf(name)),
+    project: projectOf(name) || project,
+    location: locationOf(name),
+    displayName: parseOwnership(group.displayName).text,
+    transitionRoutes: routesOf(group.transitionRoutes),
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dialogflow
+  .getProjectsLocationsAgentsTransitionRouteGroups({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string) =>
+  (Array.from(
+    try (dialogflow.listProjectsLocationsAgentsTransitionRouteGroups.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.transitionRouteGroups ?? []))
+      |> Stream.filter(%, (group) => hasOwnershipMarker(group.displayName))
+      |> Stream.map(%, (group) => toAttrs(group, project, parent))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findByDisplayName = effect (parent: string, displayName: string) =>
+  (try effect {
+    const option = try (dialogflow.listProjectsLocationsAgentsTransitionRouteGroups.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.transitionRouteGroups ?? []))
+      |> Stream.filter(%, (group) => group.displayName === displayName)
+      |> Stream.runHead(%))
+    return (option._tag === "Some" ? option.value : undefined)
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+export const AgentsTransitionRouteGroupProvider = (): infer _ =>
+  Provider.succeed(AgentsTransitionRouteGroup, {
+    stables: ["name", "transitionRouteGroupId", "agent", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousAgent = olds?.agent ?? output?.agent
+      if (previousAgent !== undefined && news.agent !== previousAgent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.transitionRouteGroupId ?? output?.transitionRouteGroupId
+      if (
+        previousId !== undefined
+        && news.transitionRouteGroupId !== undefined
+        && news.transitionRouteGroupId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousLocation = olds?.location ?? output?.location
+      if (
+        previousLocation !== undefined
+        && news.location !== undefined
+        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const agent = olds?.agent ? expandAgent(olds.agent, env.project, location) : output?.agent
+      const transitionRouteGroupId = try toResourceId(
+        id,
+        olds?.transitionRouteGroupId,
+        output?.transitionRouteGroupId,
+      )
+      const name = output?.name ?? (agent !== undefined ? resourceName(agent, transitionRouteGroupId) : "")
+      let existing = try getByName(name)
+      if (existing === undefined && agent !== undefined) {
+        const ownership = try internalLabels(id)
+        existing = try findByDisplayName(
+          agent,
+          encodeOwnershipLine(ownership, olds?.displayName, MAX_ROUTE_GROUP_DISPLAY_NAME_LENGTH),
+        )
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, agent)
+      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const agents = try namedAgents(env.project)
+      const pages = try Effect.forEach(agents, effect (agent) => try listAt(agent.name, env.project), {
+        concurrency: 4,
+      })
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) =>
+      try (effect {
+        const env = try GcpEnvironment.current
+        const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
+        const agent = expandAgent(news.agent, env.project, location)
+        const transitionRouteGroupId = try toResourceId(
+          id,
+          news.transitionRouteGroupId,
+          output?.transitionRouteGroupId,
+        )
+        const name = output?.name ?? resourceName(agent, transitionRouteGroupId)
+        const ownership = try internalLabels(id)
+        const displayName = encodeOwnershipLine(
+          ownership,
+          news.displayName,
+          MAX_ROUTE_GROUP_DISPLAY_NAME_LENGTH,
+        )
+        const body: dialogflow.GoogleCloudDialogflowCxV3TransitionRouteGroup = {
+          displayName,
+          transitionRoutes: news.transitionRoutes,
+        }
+
+        let current = try getByName(output?.name ?? name)
+        if (current === undefined) {
+          current = try findByDisplayName(agent, displayName)
+        }
+
+        if (current === undefined) {
+          const created = dialogflow
+            .createProjectsLocationsAgentsTransitionRouteGroups({
+              parent: agent,
+              languageCode: news.languageCode,
+              body,
+            }) catch effect (e) => match (e) {
+              when { _tag: "Conflict" }: try findByDisplayName(agent, displayName);
+              default: throw e;
+            }
+          current = created ?? undefined
+        }
+
+        if (current === undefined) {
+          throw new AgentsTransitionRouteGroupNotResolved({ resourceName: name })
+        }
+
+        const currentName = current.name ?? name
+        const displayChanged = !sameText(current.displayName, displayName)
+        const routesChanged = fingerprint(routesOf(current.transitionRoutes)) !== fingerprint(news.transitionRoutes)
+
+        if (displayChanged || routesChanged) {
+          current = try dialogflow.patchProjectsLocationsAgentsTransitionRouteGroups({
+            name: currentName,
+            languageCode: news.languageCode,
+            updateMask: updateMaskOf(
+              displayChanged ? "display_name" : undefined,
+              routesChanged ? "transition_routes" : undefined,
+            ),
+            body: { ...body, name: currentName },
+          })
+        }
+
+        return toAttrs(current, env.project, agent)
+      }
+        |> retryQuota(%)),
+
+    delete: effect ({ output }) =>
+      try (effect {
+        dialogflow
+          .deleteProjectsLocationsAgentsTransitionRouteGroups({
+            name: output.name,
+            force: true,
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+        |> retryQuota(%)),
+  })

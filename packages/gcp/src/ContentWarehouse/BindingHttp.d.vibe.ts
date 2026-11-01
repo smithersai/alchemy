@@ -1,10 +1,10 @@
 import type { GcpOpContext } from "@distilled.cloud/gcp/contentwarehouse_v1";
 import * as Effect from "effect/Effect";
 import { type BindingIam } from "../HttpBinding.js";
-import type { Document } from "./Document.js";
+import type { Document } from "./Document.vibe";
 import type { DocumentSchema } from "./DocumentSchema.js";
 import type { RuleSet } from "./RuleSet.js";
-import type { SynonymSet } from "./SynonymSet.js";
+import type { SynonymSet } from "./SynonymSet.vibe";
 /**
  * Distilled ops are OperationMethods: yield them once at Layer construction
  * (after providing Credentials + HttpClient) so the inner runtime Effect is

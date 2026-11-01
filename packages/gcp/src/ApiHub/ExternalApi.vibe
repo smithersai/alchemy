@@ -1,0 +1,305 @@
+import * as apihub from "@distilled.cloud/gcp/apihub_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  ApihubNotResolved,
+  encodeOwnership,
+  hasOwnershipMarker,
+  locationParent,
+  MAX_LONG_ID_LENGTH,
+  normalizeLocation,
+  ownedByAlchemy,
+  ownershipLabels,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  sameJson,
+  sameStringList,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+} from "./internal.ts"
+
+type AttributeValuesMap = apihub.GoogleCloudApihubV1AttributeValuesMap
+type Documentation = apihub.GoogleCloudApihubV1Documentation
+
+export type ExternalApiProps = {
+  /**
+   * External API id (the `{externalApi}` segment of
+   * `projects/{project}/locations/{location}/externalApis/{externalApi}`).
+   * If omitted, a unique id is generated. Immutable — changing it replaces
+   * the External API.
+   */
+  mutable externalApiId?: string
+  /**
+   * Location of the API Hub instance (`us-central1`, …). Immutable —
+   * changing it replaces the External API.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Display name. Max 63 characters.
+   */
+  mutable displayName?: string
+  /**
+   * Human-readable description. External APIs have no labels field, so
+   * Alchemy stamps ownership into a `[alchemy …]` prefix and strips it
+   * from attributes.
+   */
+  mutable description?: string
+  /**
+   * Documentation URI.
+   */
+  mutable documentation?: Documentation
+  /**
+   * Endpoints on which this API is accessible.
+   */
+  mutable endpoints?: string[]
+  /**
+   * Paths served by this API.
+   */
+  mutable paths?: string[]
+  /**
+   * User-defined attributes keyed by attribute resource name.
+   */
+  mutable attributes?: AttributeValuesMap
+}
+
+export type ExternalApi = Resource<
+  "GCP.ApiHub.ExternalApi",
+  ExternalApiProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** External API id (last path segment). */
+    mutable externalApiId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Documentation. */
+    mutable documentation: Documentation | undefined
+    /** Endpoints. */
+    mutable endpoints: string[]
+    /** Paths. */
+    mutable paths: string[]
+    /** User-defined attributes. */
+    mutable attributes: AttributeValuesMap | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An API Hub External API — a third-party API modeled so it can be
+ * referenced from dependencies.
+ *
+ * External APIs have no labels, so Alchemy stamps ownership into the
+ * description for `list` / nuke. Location and id are identity — changing
+ * them replaces the resource. Display name, description, documentation,
+ * endpoints, and paths update in place.
+ *
+ * ### Creating an External API
+ * **Example:** Generated id
+ * ```typescript
+ * const stripe = yield* GCP.ApiHub.ExternalApi("Stripe", {
+ *   displayName: "Stripe",
+ *   endpoints: ["https://api.stripe.com"],
+ *   paths: ["/v1/charges"],
+ * });
+ * ```
+ *
+ * **Example:** Named External API
+ * ```typescript
+ * const stripe = yield* GCP.ApiHub.ExternalApi("Stripe", {
+ *   externalApiId: "stripe-prod",
+ *   displayName: "Stripe",
+ *   description: "payments",
+ *   endpoints: ["https://api.stripe.com"],
+ * });
+ * ```
+ *
+ * ### Updating an External API
+ * **Example:** Change description and paths
+ * ```typescript
+ * const stripe = yield* GCP.ApiHub.ExternalApi("Stripe", {
+ *   displayName: "Stripe",
+ *   description: "payments (updated)",
+ *   paths: ["/v1/charges", "/v1/customers"],
+ * });
+ * ```
+ *
+ * @resource
+ * @category ApiHub
+ */
+export const ExternalApi = Resource<ExternalApi>("GCP.ApiHub.ExternalApi")
+
+const resourceName = (project: string, location: string, externalApiId: string): infer _ =>
+  `${locationParent(project, location)}/externalApis/${externalApiId}`
+
+const toAttrs = (api: apihub.GoogleCloudApihubV1ExternalApi, project: string, region: string): infer _ => {
+  const name = api.name ?? ""
+  const parsed = parseName(name, "externalApis", region)
+  const { text } = parseOwnership(api.description)
+  return {
+    name,
+    externalApiId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: api.displayName,
+    description: text,
+    documentation: api.documentation,
+    endpoints: [...(api.endpoints ?? [])],
+    paths: [...(api.paths ?? [])],
+    attributes: api.attributes,
+    createTime: api.createTime,
+    updateTime: api.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : apihub
+  .getProjectsLocationsExternalApis({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string, region: string) =>
+  (Array.from(
+    try (apihub.listProjectsLocationsExternalApis.pages({ parent, pageSize: 1000 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.externalApis ?? []))
+      |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+      |> Stream.map(%, (item) => toAttrs(item, project, region))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const ExternalApiProvider = (): infer _ =>
+  Provider.succeed(ExternalApi, {
+    stables: ["name", "externalApiId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      return replaceOnIdentity({
+        previousId: olds?.externalApiId ?? output?.externalApiId,
+        nextId: news.externalApiId ?? olds?.externalApiId ?? output?.externalApiId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const externalApiId = try toPhysicalId(
+        id,
+        olds?.externalApiId,
+        output?.externalApiId,
+        MAX_LONG_ID_LENGTH,
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, externalApiId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAt(locationParent(env.project, env.region), env.project, env.region)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const externalApiId = try toPhysicalId(
+        id,
+        news.externalApiId,
+        output?.externalApiId,
+        MAX_LONG_ID_LENGTH,
+      )
+      const name = resourceName(env.project, location, externalApiId)
+      const ownership = try ownershipLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = (news.displayName ?? externalApiId).slice(0, 63)
+      const parent = locationParent(env.project, location)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apihub
+          .createProjectsLocationsExternalApis({
+            parent,
+            externalApiId,
+            body: {
+              displayName,
+              description,
+              documentation: news.documentation,
+              endpoints: news.endpoints,
+              paths: news.paths,
+              attributes: news.attributes,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? (try getByName(name))
+      }
+
+      if (current === undefined) {
+        throw new ApihubNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const observed = parseOwnership(current.description).text
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = !sameText(observed, news.description)
+      const documentationChanged = !sameJson(current.documentation, news.documentation)
+      const endpointsChanged = !sameStringList(current.endpoints, news.endpoints)
+      const pathsChanged = !sameStringList(current.paths, news.paths)
+
+      const updateMask = updateMaskOf(
+        displayChanged ? "display_name" : undefined,
+        descriptionChanged ? "description" : undefined,
+        documentationChanged ? "documentation" : undefined,
+        endpointsChanged ? "endpoints" : undefined,
+        pathsChanged ? "paths" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try apihub.patchProjectsLocationsExternalApis({
+          name: currentName,
+          updateMask,
+          body: {
+            name: currentName,
+            displayName,
+            description,
+            documentation: news.documentation,
+            endpoints: news.endpoints,
+            paths: news.paths,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      apihub
+        .deleteProjectsLocationsExternalApis({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

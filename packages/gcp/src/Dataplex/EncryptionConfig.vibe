@@ -1,0 +1,256 @@
+import * as dataplex from "@distilled.cloud/gcp/dataplex_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DataplexNotResolved,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  retryQuota,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.ts"
+
+const DEFAULT_ENCRYPTION_CONFIG_ID = "default"
+
+export type EncryptionConfigFailureDetails = dataplex.GoogleCloudDataplexV1EncryptionConfigFailureDetails
+
+export type EncryptionConfigProps = {
+  /**
+   * Organization id (the `{organization}` segment of
+   * `organizations/{organization}/locations/{location}/encryptionConfigs/{encryptionConfig}`).
+   * Immutable — changing it replaces the config.
+   */
+  mutable organizationId: string
+  /**
+   * Region (`us-central1`, …). Global is not supported. Immutable —
+   * changing it replaces the config.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * EncryptionConfig id. Currently only `"default"` is supported.
+   * Immutable — changing it replaces the config.
+   * @default "default"
+   */
+  mutable encryptionConfigId?: string
+  /**
+   * Cloud KMS key for CMEK. Omit to use Google-managed encryption.
+   */
+  mutable key?: string
+  /**
+   * Opt the metastore into CMEK.
+   * @default false
+   */
+  mutable enableMetastoreEncryption?: boolean
+}
+
+export type EncryptionConfig = Resource<
+  "GCP.Dataplex.EncryptionConfig",
+  EncryptionConfigProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** EncryptionConfig id (last path segment). */
+    mutable encryptionConfigId: string
+    /** Organization id. */
+    mutable organizationId: string
+    /** Location id. */
+    mutable location: string
+    /** CMEK key, if any. */
+    mutable key: string | undefined
+    /** Whether metastore CMEK is enabled. */
+    mutable enableMetastoreEncryption: boolean
+    /** Encryption state. */
+    mutable encryptionState: string | undefined
+    /** Failure details, if any. */
+    mutable failureDetails: EncryptionConfigFailureDetails | undefined
+    /** Server etag. */
+    mutable etag: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataplex EncryptionConfig that opts an organization location into
+ * customer-managed encryption keys (CMEK).
+ *
+ * EncryptionConfigs have no labels field. Organization, location, and id
+ * are immutable (`default` is the only supported id). Key and metastore
+ * encryption update in place. `list` returns an empty set because
+ * ownership cannot be stamped on this org singleton.
+ *
+ * ### Creating an EncryptionConfig
+ * **Example:** Google-managed encryption at us-central1
+ * ```typescript
+ * const config = yield* GCP.Dataplex.EncryptionConfig("Default", {
+ *   organizationId: "1234567890",
+ *   location: "us-central1",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataplex
+ */
+export const EncryptionConfig = Resource<EncryptionConfig>("GCP.Dataplex.EncryptionConfig")
+
+const orgParent = (organizationId: string, location: string): infer _ =>
+  `organizations/${organizationId}/locations/${location}`
+
+const resourceName = (organizationId: string, location: string, encryptionConfigId: string): infer _ =>
+  `${orgParent(organizationId, location)}/encryptionConfigs/${encryptionConfigId}`
+
+const toId = (encryptionConfigId: string | undefined, existing?: string): infer _ =>
+  encryptionConfigId ?? existing ?? DEFAULT_ENCRYPTION_CONFIG_ID
+
+const toAttrs = (
+  config: dataplex.GoogleCloudDataplexV1EncryptionConfig,
+  organizationId: string,
+): infer _ => {
+  const name = config.name ?? ""
+  const parsed = parseName(name, "encryptionConfigs")
+  return {
+    name,
+    encryptionConfigId: parsed.id || DEFAULT_ENCRYPTION_CONFIG_ID,
+    organizationId: parsed.organization || organizationId,
+    location: parsed.location,
+    key: config.key,
+    enableMetastoreEncryption: config.enableMetastoreEncryption === true,
+    encryptionState: config.encryptionState,
+    failureDetails: config.failureDetails,
+    etag: config.etag,
+    createTime: config.createTime,
+    updateTime: config.updateTime,
+  }
+}
+
+const getByName = effect (
+  name: string,
+) => (name.length === 0
+  ? try Effect.undefined
+  : retryQuota(dataplex.getOrganizationsLocationsEncryptionConfigs({ name })) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const EncryptionConfigProvider = (): infer _ =>
+  Provider.succeed(EncryptionConfig, {
+    stables: ["name", "encryptionConfigId", "organizationId", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      return replaceOnIdentity({
+        previousId: olds?.encryptionConfigId ?? output?.encryptionConfigId ?? DEFAULT_ENCRYPTION_CONFIG_ID,
+        nextId: toId(
+          news.encryptionConfigId,
+          olds?.encryptionConfigId ?? output?.encryptionConfigId,
+        ),
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        previousParent: olds?.organizationId ?? output?.organizationId,
+        nextParent: news.organizationId,
+      })
+    },
+
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const encryptionConfigId = toId(olds?.encryptionConfigId, output?.encryptionConfigId)
+      const organizationId = olds?.organizationId ?? output?.organizationId
+      if (organizationId === undefined) return undefined
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(organizationId, location, encryptionConfigId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organizationId)
+      return output !== undefined ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => [],
+
+    reconcile: effect ({ news, output }) => {
+      const env = try GcpEnvironment.current
+      const encryptionConfigId = toId(news.encryptionConfigId, output?.encryptionConfigId)
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(news.organizationId, location, encryptionConfigId)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = retryQuota(
+          dataplex.createOrganizationsLocationsEncryptionConfigs({
+            parent: orgParent(news.organizationId, location),
+            encryptionConfigId,
+            body: {
+              key: news.key,
+              enableMetastoreEncryption: news.enableMetastoreEncryption === true ? true : undefined,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new DataplexNotResolved({ resourceName: name })
+      }
+
+      const keyChanged = (current.key ?? "") !== (news.key ?? "")
+      const metastoreChanged =
+        (current.enableMetastoreEncryption === true) !== (news.enableMetastoreEncryption === true)
+
+      if (keyChanged || metastoreChanged) {
+        const operation = try dataplex.patchOrganizationsLocationsEncryptionConfigs({
+          name: current.name ?? name,
+          updateMask: [
+            keyChanged ? "key" : undefined,
+            metastoreChanged ? "enableMetastoreEncryption" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name: current.name ?? name,
+            key: news.key,
+            enableMetastoreEncryption: news.enableMetastoreEncryption === true,
+            etag: current.etag,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, news.organizationId)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (dataplex
+        .deleteOrganizationsLocationsEncryptionConfigs({
+          name: output.name,
+          etag: output.etag,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

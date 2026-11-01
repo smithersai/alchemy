@@ -1,0 +1,381 @@
+import * as registry from "@distilled.cloud/gcp/agentregistry_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  MAX_DISPLAY_NAME_LENGTH,
+  encodeOwnership,
+  hasOwnershipMarker,
+  listBindings,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  replaceOnIdentity,
+  resourceName,
+  retryTransient,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+  waitForDeleteOperation,
+  waitForOperation,
+  waitForVisible,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type AuthProviderBinding = {
+  /**
+   * Auth provider resource name
+   * `projects/{project}/locations/{location}/connectors/{auth_provider}`
+   * or `.../authProviders/{auth_provider}`.
+   */
+  mutable authProvider: string
+  /**
+   * OAuth2 scopes requested from the auth provider.
+   */
+  mutable scopes?: string[]
+  /**
+   * Continue URI used to reauthenticate the user and finalize the
+   * managed OAuth flow.
+   */
+  mutable continueUri?: string
+}
+
+export type BindingProps = {
+  /**
+   * Binding id (the `{binding}` segment of
+   * `projects/{project}/locations/{location}/bindings/{binding}`). If
+   * omitted, a unique RFC1035 name is generated. Must be 4-63 characters
+   * matching `^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$`. Immutable — changing
+   * it replaces the binding.
+   */
+  mutable bindingId?: string
+  /**
+   * Location of the binding (`us-central1`, `global`, …). Multi-region
+   * `us` and `eu` are not supported. Immutable — changing it replaces
+   * the binding.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * URN of the source agent (`urn:agent:{publisher}:{namespace}:{name}`).
+   * Immutable — changing it replaces the binding.
+   */
+  mutable sourceIdentifier: string
+  /**
+   * URN of the target agent, MCP server, or endpoint
+   * (`urn:agent:…`, `urn:mcp:…`, or `urn:endpoint:…`). Immutable —
+   * changing it replaces the binding.
+   */
+  mutable targetIdentifier: string
+  /**
+   * Human-readable name. Max 63 characters. Defaults to the binding id.
+   */
+  mutable displayName?: string
+  /**
+   * Human-readable description (max 2048 characters). Bindings have no
+   * labels field, so Alchemy stamps ownership into a `[alchemy …]`
+   * prefix and strips it from attributes.
+   */
+  mutable description?: string
+  /**
+   * Optional auth-provider binding for delegated permissions.
+   */
+  mutable authProviderBinding?: AuthProviderBinding
+}
+
+export type Binding = Resource<
+  "GCP.AgentRegistry.Binding",
+  BindingProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/bindings/{binding}`. */
+    mutable name: string
+    /** Binding id (last path segment). */
+    mutable bindingId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id of the resource. */
+    mutable location: string
+    /** Source agent URN. */
+    mutable sourceIdentifier: string | undefined
+    /** Target agent, MCP server, or endpoint URN. */
+    mutable targetIdentifier: string | undefined
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Auth-provider binding, if set. */
+    mutable authProviderBinding: AuthProviderBinding | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Agent Registry binding connecting a source agent to a target
+ * agent, MCP server, or endpoint.
+ *
+ * Create, update, and delete are long-running operations. `bindingId`,
+ * `location`, `sourceIdentifier`, and `targetIdentifier` replace the
+ * resource. Display name, description, and auth-provider settings
+ * update in place. Bindings have no labels API, so Alchemy stamps
+ * ownership into `description` so `list` / nuke can find them.
+ *
+ * ### Creating a Binding
+ * **Example:** Generated name
+ * ```typescript
+ * const binding = yield* GCP.AgentRegistry.Binding("Orchestrator", {
+ *   sourceIdentifier:
+ *     "urn:agent:projects-123:projects:123:locations:us-central1:agentregistry:source",
+ *   targetIdentifier:
+ *     "urn:mcp:projects-123:projects:123:locations:us-central1:agentregistry:tools",
+ * });
+ * ```
+ *
+ * **Example:** Named binding with a description
+ * ```typescript
+ * const binding = yield* GCP.AgentRegistry.Binding("Orchestrator", {
+ *   bindingId: "orchestrator-tools",
+ *   location: "us-central1",
+ *   displayName: "orchestrator tools",
+ *   description: "routes the orchestrator to the tools MCP server",
+ *   sourceIdentifier: source.agentId,
+ *   targetIdentifier: tools.mcpServerId,
+ * });
+ * ```
+ *
+ * ### Updating a Binding
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Display name and description
+ * ```typescript
+ * const binding = yield* GCP.AgentRegistry.Binding("Orchestrator", {
+ *   sourceIdentifier: source.agentId,
+ *   targetIdentifier: tools.mcpServerId,
+ *   displayName: "orchestrator tools v2",
+ *   description: "updated routing",
+ * });
+ * ```
+ *
+ * @resource
+ * @category AgentRegistry
+ */
+export const Binding = Resource<Binding>("GCP.AgentRegistry.Binding")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class BindingNotResolved extends Data.TaggedError("GCP.AgentRegistry.BindingNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+const COLLECTION = "bindings"
+
+const toAuth = (
+  binding: registry.AuthProviderBinding | undefined,
+): AuthProviderBinding | undefined => {
+  if (binding === undefined) return undefined
+  const authProvider = binding.authProvider
+  if (authProvider === undefined || authProvider.length === 0) {
+    return undefined
+  }
+  return {
+    authProvider,
+    scopes: binding.scopes,
+    continueUri: binding.continueUri,
+  }
+}
+
+const desiredAuth = (
+  binding: AuthProviderBinding | undefined,
+): registry.AuthProviderBinding | undefined => {
+  if (binding === undefined) return undefined
+  return {
+    authProvider: binding.authProvider,
+    scopes: binding.scopes,
+    continueUri: binding.continueUri,
+  }
+}
+
+const authKey = (binding: AuthProviderBinding | registry.AuthProviderBinding | undefined): infer _ =>
+  binding === undefined
+    ? undefined
+    : {
+      authProvider: binding.authProvider,
+      continueUri: binding.continueUri,
+      scopes: [...(binding.scopes ?? [])].slice().sort(),
+    }
+
+const toAttrs = (item: registry.Binding, project: string, location: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseResourceName(name, COLLECTION)
+  const owned = parseOwnership(item.description)
+  return {
+    name,
+    bindingId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || location,
+    sourceIdentifier: item.source?.identifier,
+    targetIdentifier: item.target?.identifier,
+    displayName: item.displayName,
+    description: owned.description,
+    authProviderBinding: toAuth(item.authProviderBinding),
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : registry
+  .getProjectsLocationsBindings({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const displayNameOf = (news: BindingProps, bindingId: string): infer _ =>
+  (news.displayName ?? bindingId).slice(0, MAX_DISPLAY_NAME_LENGTH)
+
+export const BindingProvider = (): infer _ =>
+  Provider.succeed(Binding, {
+    stables: ["name", "bindingId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousSource = olds?.sourceIdentifier ?? output?.sourceIdentifier
+      const previousTarget = olds?.targetIdentifier ?? output?.targetIdentifier
+      return replaceOnIdentity({
+        previousId: olds?.bindingId ?? output?.bindingId,
+        nextId: news.bindingId ?? olds?.bindingId ?? output?.bindingId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: (previousSource !== undefined && previousSource !== news.sourceIdentifier)
+          || (previousTarget !== undefined && previousTarget !== news.targetIdentifier),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const bindingId = try toPhysicalId(id, olds?.bindingId, output?.bindingId)
+      const name = output?.name ?? resourceName(env.project, location, COLLECTION, bindingId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, location)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listBindings(env.project, env.region)
+      return items
+        .filter((item) => hasOwnershipMarker(item.description))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const bindingId = try toPhysicalId(id, news.bindingId, output?.bindingId)
+      const name = resourceName(env.project, location, COLLECTION, bindingId)
+      const parent = locationParent(env.project, location)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = displayNameOf(news, bindingId)
+      const source = { identifier: news.sourceIdentifier }
+      const target = { identifier: news.targetIdentifier }
+      const authProviderBinding = desiredAuth(news.authProviderBinding)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          registry.createProjectsLocationsBindings({
+            parent,
+            bindingId,
+            body: {
+              source,
+              target,
+              displayName,
+              description,
+              authProviderBinding,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          // ALREADY_EXISTS (code 6): a concurrent create won the race.
+          try (waitForOperation(created)
+            |> Effect.catchIf(%, (error) =>
+              error._tag === "GCP.OperationFailed" && error.code === 6, effect () =>
+              try Effect.void))
+        }
+        current = try waitForVisible(getByName(name))
+      }
+
+      if (current === undefined) {
+        throw new BindingNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = !sameText(current.description, description)
+      const sourceChanged = !sameText(current.source?.identifier, news.sourceIdentifier)
+      const targetChanged = !sameText(current.target?.identifier, news.targetIdentifier)
+      const authChanged = !sameJson(
+        authKey(current.authProviderBinding),
+        authKey(news.authProviderBinding),
+      )
+
+      const mask = updateMaskOf(
+        displayChanged ? "display_name" : undefined,
+        descriptionChanged ? "description" : undefined,
+        sourceChanged ? "source" : undefined,
+        targetChanged ? "target" : undefined,
+        authChanged ? "auth_provider_binding" : undefined,
+      )
+
+      if (mask.length > 0) {
+        const operation = try retryTransient(
+          registry.patchProjectsLocationsBindings({
+            name: currentName,
+            updateMask: mask,
+            body: {
+              name: currentName,
+              displayName,
+              description,
+              source,
+              target,
+              authProviderBinding,
+            },
+          }),
+        )
+        try waitForOperation(operation)
+        current = (try waitForVisible(getByName(currentName))) ?? current
+      }
+
+      return toAttrs(current, env.project, location)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) {
+        return
+      }
+      const deleted = retryTransient(
+        registry.deleteProjectsLocationsBindings({ name: output.name }),
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (deleted !== undefined) {
+        try waitForDeleteOperation(deleted)
+      }
+      try waitUntilGone(getByName(output.name))
+    },
+  })

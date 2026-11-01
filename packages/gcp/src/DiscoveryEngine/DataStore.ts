@@ -14,7 +14,7 @@ import {
   parseResourceName,
   sameStringList,
   toResourceId,
-} from "./internal.ts";
+} from "./internal.vibe";
 import { waitForOperation } from "./operations.vibe";
 
 export type DataStoreProps = {

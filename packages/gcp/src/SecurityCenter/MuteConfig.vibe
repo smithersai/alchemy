@@ -1,0 +1,250 @@
+import * as scc from "@distilled.cloud/gcp/securitycenter_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  collectPages,
+  encodeOwnership,
+  hasOwnershipMarker,
+  lastSegment,
+  ownedByAlchemy,
+  parseOwnership,
+  projectOf,
+  replaceOn,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./internal.ts"
+
+export type MuteConfigType = "MUTE_CONFIG_TYPE_UNSPECIFIED" | "STATIC" | "DYNAMIC"
+
+export type MuteConfigProps = {
+  /**
+   * Mute config id (the `{muteConfig}` segment of
+   * `projects/{project}/muteConfigs/{muteConfig}`). If omitted, a unique
+   * id is generated. Lowercase letters, digits, and hyphens; must start
+   * with a letter; max 63 characters. Immutable — changing it replaces
+   * the config.
+   */
+  mutable muteConfigId?: string
+  /**
+   * Finding filter that selects which findings are muted.
+   */
+  mutable filter: string
+  /**
+   * Human-readable description (max 1024 characters). Mute configs have
+   * no labels field, so Alchemy ownership is stored in a `[alchemy …]`
+   * prefix and stripped from attributes.
+   */
+  mutable description?: string
+  /**
+   * Mute config type. `STATIC` mutes matching findings immediately.
+   * `DYNAMIC` re-evaluates until `expiryTime`. Immutable — changing it
+   * replaces the config.
+   * @default "STATIC"
+   */
+  mutable type?: MuteConfigType
+  /**
+   * RFC3339 expiry for `DYNAMIC` mute configs.
+   */
+  mutable expiryTime?: string
+}
+
+export type MuteConfig = Resource<
+  "GCP.SecurityCenter.MuteConfig",
+  MuteConfigProps,
+  {
+    /** Full resource name `projects/{project}/muteConfigs/{muteConfig}`. */
+    mutable name: string
+    /** Mute config id (last path segment). */
+    mutable muteConfigId: string
+    /** Project id. */
+    mutable project: string
+    /** Finding filter. */
+    mutable filter: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Mute config type. */
+    mutable type: string | undefined
+    /** RFC3339 expiry, if set. */
+    mutable expiryTime: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+    /** Last editor email. */
+    mutable mostRecentEditor: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A project-scoped Security Command Center mute config that hides matching
+ * findings from the default view.
+ *
+ * Mute configs have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. Id and type are identity.
+ * Filter, description, and expiry update in place.
+ *
+ * ### Creating a Mute Config
+ * **Example:** Mute low-severity findings
+ * ```typescript
+ * const mute = yield* GCP.SecurityCenter.MuteConfig("Low", {
+ *   filter: 'severity="LOW"',
+ *   description: "mute low severity",
+ * });
+ * ```
+ *
+ * ### Updating a Mute Config
+ * **Example:** Mute medium severity as well
+ * ```typescript
+ * const mute = yield* GCP.SecurityCenter.MuteConfig("Low", {
+ *   filter: 'severity="LOW" OR severity="MEDIUM"',
+ *   description: "mute low and medium",
+ * });
+ * ```
+ *
+ * @resource
+ * @category SecurityCenter
+ */
+export const MuteConfig = Resource<MuteConfig>("GCP.SecurityCenter.MuteConfig")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MuteConfigNotResolved extends Data.TaggedError(
+  "GCP.SecurityCenter.MuteConfigNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (project: string, muteConfigId: string): infer _ =>
+  `projects/${project}/muteConfigs/${muteConfigId}`
+
+const toAttrs = (config: scc.GoogleCloudSecuritycenterV1MuteConfig, project: string): infer _ => {
+  const name = config.name ?? ""
+  const parsed = parseOwnership(config.description)
+  return {
+    name,
+    muteConfigId: lastSegment(name),
+    project: projectOf(name) || project,
+    filter: config.filter,
+    description: parsed.text,
+    type: config.type,
+    expiryTime: config.expiryTime,
+    createTime: config.createTime,
+    updateTime: config.updateTime,
+    mostRecentEditor: config.mostRecentEditor,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : scc
+  .getProjectsMuteConfigs({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const MuteConfigProvider = (): infer _ =>
+  Provider.succeed(MuteConfig, {
+    stables: ["name", "muteConfigId", "project", "type", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      return (
+        replaceOn(olds?.muteConfigId ?? output?.muteConfigId, news.muteConfigId)
+          ?? replaceOn(olds?.type ?? output?.type ?? "STATIC", news.type ?? "STATIC")
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const muteConfigId = try toResourceId(id, olds?.muteConfigId, output?.muteConfigId, "m")
+      const name = output?.name ?? resourceName(env.project, muteConfigId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = collectPages(
+        scc.listProjectsMuteConfigs.pages({
+          parent: `projects/${env.project}`,
+          pageSize: 100,
+        }),
+        (page) => page.muteConfigs,
+      ) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: [] as scc.GoogleCloudSecuritycenterV1MuteConfig[];
+        default: throw e;
+      }
+      return items
+        .filter((config) => hasOwnershipMarker(config.description))
+        .map((config) => toAttrs(config, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const muteConfigId = try toResourceId(id, news.muteConfigId, output?.muteConfigId, "m")
+      const name = resourceName(env.project, muteConfigId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const type = news.type ?? "STATIC"
+      const body: scc.GoogleCloudSecuritycenterV1MuteConfig = {
+        filter: news.filter,
+        description,
+        type,
+        expiryTime: news.expiryTime,
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = scc
+          .createProjectsMuteConfigs({
+            parent: `projects/${env.project}`,
+            muteConfigId,
+            body,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new MuteConfigNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const filterChanged = !sameText(current.filter, news.filter)
+      const descriptionChanged = !sameText(current.description, description)
+      const expiryChanged = !sameText(current.expiryTime, news.expiryTime)
+      const updateMask = updateMaskOf(
+        filterChanged ? "filter" : undefined,
+        descriptionChanged ? "description" : undefined,
+        expiryChanged ? "expiry_time" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try scc.patchProjectsMuteConfigs({
+          name: currentName,
+          updateMask,
+          body: {
+            ...body,
+            name: currentName,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      scc
+        .deleteProjectsMuteConfigs({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

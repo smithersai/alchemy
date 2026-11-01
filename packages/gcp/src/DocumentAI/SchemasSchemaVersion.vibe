@@ -1,0 +1,309 @@
+import * as documentai from "@distilled.cloud/gcp/documentai_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_LOCATION,
+  ResourceNotResolved,
+  expandParent,
+  findOwnedByLabels,
+  hasAlchemyLabelMap,
+  listProjectSchemas,
+  listSchemaVersionsAt,
+  normalizeLocation,
+  parseResourceName,
+  replaceOnIdentity,
+  retryTransient,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+  userLabels,
+  waitUntilGone,
+} from "./internal.vibe"
+import { waitForOperation } from "./operations.ts"
+
+export type DocumentSchemaSpec = documentai.GoogleCloudDocumentaiV1DocumentSchema
+
+export type SchemasSchemaVersionProps = {
+  /**
+   * Parent schema. Full name
+   * `projects/{project}/locations/{location}/schemas/{schema}` or the
+   * schema id (combined with `location`). Immutable — changing it
+   * replaces the schema version.
+   */
+  mutable schema: string
+  /**
+   * Region used when `schema` is a bare id.
+   * @default "us"
+   */
+  mutable location?: string
+  /**
+   * Schema version id (the `{schemaVersion}` segment). Assigned by the
+   * API on create. Immutable — changing it replaces the version. Supply
+   * it to adopt an existing version.
+   */
+  mutable schemaVersionId?: string
+  /**
+   * User-defined display name. Defaults to a generated id.
+   */
+  mutable displayName?: string
+  /**
+   * Document schema describing extraction output. Immutable — changing it
+   * replaces the schema version.
+   */
+  mutable documentSchema: DocumentSchemaSpec
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type SchemasSchemaVersion = Resource<
+  "GCP.DocumentAI.SchemasSchemaVersion",
+  SchemasSchemaVersionProps,
+  {
+    /** Full resource name `.../schemas/{schema}/schemaVersions/{schemaVersion}`. */
+    mutable name: string
+    /** Schema version id. */
+    mutable schemaVersionId: string
+    /** Parent schema resource name. */
+    mutable schema: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** User-defined display name. */
+    mutable displayName: string | undefined
+    /** Document schema describing extraction output. */
+    mutable documentSchema: DocumentSchemaSpec | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Document AI schema version — an immutable snapshot of a document
+ * schema under a Schema.
+ *
+ * Parent schema, version id, and the document schema body are immutable.
+ * Display name and labels update in place.
+ *
+ * ### Creating a Schema Version
+ * **Example:** Invoice schema version
+ * ```typescript
+ * const version = yield* GCP.DocumentAI.SchemasSchemaVersion("V1", {
+ *   schema: schema.name,
+ *   displayName: "v1",
+ *   documentSchema: {
+ *     displayName: "invoice",
+ *     entityTypes: [
+ *       {
+ *         name: "invoice",
+ *         baseTypes: ["document"],
+ *         properties: [
+ *           {
+ *             name: "invoice_id",
+ *             valueType: "string",
+ *             occurrenceType: "OPTIONAL_ONCE",
+ *           },
+ *         ],
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category DocumentAI
+ */
+export const SchemasSchemaVersion = Resource<SchemasSchemaVersion>(
+  "GCP.DocumentAI.SchemasSchemaVersion",
+)
+
+const schemaOf = (schema: string, project: string, location: string): infer _ =>
+  expandParent(schema, project, location, "schemas")
+
+const resourceName = (schema: string, schemaVersionId: string): infer _ => `${schema}/schemaVersions/${schemaVersionId}`
+
+const toAttrs = (version: documentai.GoogleCloudDocumentaiV1SchemaVersion, project: string): infer _ => {
+  const name = version.name ?? ""
+  const parsed = parseResourceName(name, "schemaVersions")
+  return {
+    name,
+    schemaVersionId: parsed.id,
+    schema: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: version.displayName,
+    documentSchema: version.schema,
+    labels: userLabels(version.labels),
+    createTime: version.createTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : documentai
+  .getProjectsLocationsSchemasSchemaVersions({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwnedVersions = effect (project: string) => {
+  const schemas = try listProjectSchemas(project)
+  const groups = try Effect.forEach(
+    schemas,
+    effect (schema) => try listSchemaVersionsAt(schema.name ?? ""),
+    { concurrency: 2 },
+  )
+  return groups.flat()
+}
+
+const findOwned = effect (id: string, project: string, parent: string, hinted?: string) => {
+  if (hinted !== undefined && hinted.length > 0) {
+    const existing = try getByName(hinted)
+    if (existing !== undefined) return existing
+  }
+  const local = try findOwnedByLabels(id, try listSchemaVersionsAt(parent))
+  if (local !== undefined) return local
+  return try findOwnedByLabels(id, try listOwnedVersions(project))
+}
+
+export const SchemasSchemaVersionProvider = (): infer _ =>
+  Provider.succeed(SchemasSchemaVersion, {
+    stables: ["name", "schemaVersionId", "schema", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
+      const nextParent = schemaOf(news.schema, env.project, location)
+      const previousParent = olds?.schema ?? output?.schema
+      const previousSchema = olds?.documentSchema ?? output?.documentSchema
+      const extra = (previousParent !== undefined && previousParent !== nextParent)
+        || (previousSchema !== undefined && !sameJson(previousSchema, news.documentSchema))
+      return replaceOnIdentity({
+        previousId: olds?.schemaVersionId ?? output?.schemaVersionId,
+        nextId: news.schemaVersionId,
+        previousLocation: olds?.location ?? output?.location,
+        nextLocation: news.location ?? olds?.location ?? output?.location,
+        extra,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const schemaVersionId = olds?.schemaVersionId ?? output?.schemaVersionId
+      const schema = olds?.schema !== undefined
+        ? schemaOf(olds.schema, env.project, location)
+        : (output?.schema ?? "")
+      const name = output?.name
+        ?? (schema.length > 0 && schemaVersionId ? resourceName(schema, schemaVersionId) : "")
+      const existing = try findOwned(id, env.project, schema, name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const versions = try listOwnedVersions(env.project)
+      return versions
+        .filter((version) => hasAlchemyLabelMap(version.labels))
+        .map((version) => toAttrs(version, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
+      const schema = schemaOf(news.schema, env.project, location)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const fallbackName = try toPhysicalId(
+        id,
+        undefined,
+        output?.displayName ?? output?.schemaVersionId,
+      )
+      const displayName = news.displayName ?? fallbackName
+      const hinted = output?.name ?? (news.schemaVersionId ? resourceName(schema, news.schemaVersionId) : "")
+
+      let current = try findOwned(id, env.project, schema, hinted)
+
+      if (current === undefined) {
+        current = retryTransient(
+          documentai.createProjectsLocationsSchemasSchemaVersions({
+            parent: schema,
+            body: {
+              displayName,
+              labels: desiredLabels,
+              schema: news.documentSchema,
+            },
+          }),
+        ) catch effect (error) => match (error) {
+          when { _tag: "Conflict" }: try effect {
+            const found = try findOwned(id, env.project, schema, hinted)
+            return (found !== undefined ? found : throw error)
+          };
+          default: throw error;
+        }
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({
+          resourceName: hinted || `${schema}/schemaVersions`,
+        })
+      }
+
+      const currentName = current.name ?? hinted
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const displayChanged = !sameText(current.displayName, displayName)
+
+      if (labelsChanged || displayChanged) {
+        current = try retryTransient(
+          documentai.patchProjectsLocationsSchemasSchemaVersions({
+            name: currentName,
+            updateMask: updateMaskOf(
+              displayChanged ? "displayName" : undefined,
+              labelsChanged ? "labels" : undefined,
+            ),
+            body: {
+              displayName,
+              labels: desiredLabels,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      const operation = retryTransient(
+        documentai.deleteProjectsLocationsSchemasSchemaVersions({
+          name: output.name,
+        }),
+      ) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        // NOT_FOUND (5): already gone.
+        waitForOperation(operation) catch effect (error) => match (error) {
+          when { _tag: "GCP.OperationFailed" }: try (error.code === 5 ? Effect.void : throw error);
+          default: throw error;
+        }
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

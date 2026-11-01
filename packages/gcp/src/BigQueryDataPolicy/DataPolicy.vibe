@@ -1,0 +1,406 @@
+import * as bqdp from "@distilled.cloud/gcp/bigquerydatapolicy_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  LIST_LOCATIONS,
+  compact,
+  hasOwnershipMarker,
+  lastSegment,
+  normalizeLocation,
+  normalizePolicyType,
+  ownedByAlchemy,
+  parentOf,
+  parseName,
+  resourceNameOf,
+  sameJson,
+  sameStringList,
+  sameText,
+  sortedStrings,
+  toDataPolicyId,
+  updateMaskOf,
+} from "./internal.vibe"
+
+export type DataPolicyType = bqdp.DataPolicyDataPolicyTypeEnum | (string & {})
+
+export type DataMaskingPolicyPredefinedExpression =
+  | bqdp.DataMaskingPolicyPredefinedExpressionEnum
+  | (string & {})
+
+export type DataMaskingPolicy = {
+  /**
+   * Predefined masking expression (`SHA256`, `ALWAYS_NULL`,
+   * `DEFAULT_MASKING_VALUE`, `LAST_FOUR_CHARACTERS`,
+   * `FIRST_FOUR_CHARACTERS`, `EMAIL_MASK`, `DATE_YEAR_MASK`,
+   * `RANDOM_HASH`). Mutually exclusive with `routine`.
+   */
+  mutable predefinedExpression?: DataMaskingPolicyPredefinedExpression
+  /**
+   * BigQuery routine that implements a custom masking function, as
+   * `projects/{project}/datasets/{dataset}/routines/{routine}`. Mutually
+   * exclusive with `predefinedExpression`.
+   */
+  mutable routine?: string
+}
+
+export type DataGovernanceTag = {
+  /**
+   * Namespaced tag key (`parent-id/pii`). Tag keys are globally unique
+   * Resource Manager keys.
+   */
+  mutable key?: string
+  /**
+   * Short tag value (`sensitive`).
+   */
+  mutable value?: string
+}
+
+export type DataPolicyProps = {
+  /**
+   * Data policy id (the `{dataPolicy}` segment of
+   * `projects/{project}/locations/{location}/dataPolicies/{dataPolicy}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Letters, digits, and underscores; max 200 characters.
+   * Data policies have no labels field, so Alchemy stamps ownership into
+   * this id (`alch___…`) for `list` / nuke. Immutable — changing it
+   * replaces the policy.
+   */
+  mutable dataPolicyId?: string
+  /**
+   * BigQuery location (`us-central1`, `US`, `EU`, …). Immutable —
+   * changing it replaces the policy. Multi-regions `US` and `EU` stay
+   * uppercase; regional ids are lowercased (`US-CENTRAL1` becomes
+   * `us-central1`).
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Type of data policy. `COLUMN_LEVEL_SECURITY_POLICY` is deprecated in
+   * the v2 API (GET/LIST of v1 policies only).
+   * @default "RAW_DATA_ACCESS_POLICY"
+   */
+  mutable dataPolicyType?: DataPolicyType
+  /**
+   * Masking rule. Required when `dataPolicyType` is
+   * `DATA_MASKING_POLICY`.
+   */
+  mutable dataMaskingPolicy?: DataMaskingPolicy
+  /**
+   * IAM V2 principals with fine-grained access to the governed data
+   * (`principal://goog/subject/user@example.com`). V2 policies only.
+   */
+  mutable grantees?: string[]
+  /**
+   * Resource Manager data-governance tag bound to this policy.
+   */
+  mutable dataGovernanceTag?: DataGovernanceTag
+}
+
+export type DataPolicy = Resource<
+  "GCP.BigQueryDataPolicy.DataPolicy",
+  DataPolicyProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/dataPolicies/{dataPolicy}`. */
+    mutable name: string
+    /** Data policy id (last path segment), including the Alchemy prefix. */
+    mutable dataPolicyId: string
+    /** Project id used when the policy was reconciled. */
+    mutable project: string
+    /** Location id (`us-central1`, `US`, …). */
+    mutable location: string
+    /** Policy type. */
+    mutable dataPolicyType: string | undefined
+    /** Masking rule, if this is a data-masking policy. */
+    mutable dataMaskingPolicy: DataMaskingPolicy | undefined
+    /** Fine-grained access principals. */
+    mutable grantees: string[]
+    /** Bound data-governance tag, if any. */
+    mutable dataGovernanceTag: DataGovernanceTag | undefined
+    /** Policy-tag resource name (v1 policies only). */
+    mutable policyTag: string | undefined
+    /** Server-reported policy version (`V1`, `V2`). */
+    mutable version: string | undefined
+    /** Server etag used for concurrent updates. */
+    mutable etag: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A BigQuery Data Policy (v2) — raw-data access or column data masking.
+ *
+ * Data policies have no labels, so Alchemy stamps ownership into the
+ * policy id (`alch___…`) so `list` / `pnpm nuke:gcp` can find them.
+ * `dataPolicyId` and `location` are identity — changing either replaces
+ * the policy. Type, masking rule, grantees, and the data-governance tag
+ * update in place. Patches send the observed etag.
+ *
+ * ### Creating a Data Policy
+ * **Example:** Raw-data access
+ * ```typescript
+ * const policy = yield* GCP.BigQueryDataPolicy.DataPolicy("Raw", {
+ *   dataPolicyType: "RAW_DATA_ACCESS_POLICY",
+ * });
+ * ```
+ *
+ * **Example:** SHA256 masking
+ * ```typescript
+ * const policy = yield* GCP.BigQueryDataPolicy.DataPolicy("Mask", {
+ *   location: "us-central1",
+ *   dataPolicyType: "DATA_MASKING_POLICY",
+ *   dataMaskingPolicy: { predefinedExpression: "SHA256" },
+ * });
+ * ```
+ *
+ * ### Updating a Data Policy
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Change the masking expression
+ * ```typescript
+ * const policy = yield* GCP.BigQueryDataPolicy.DataPolicy("Mask", {
+ *   location: "us-central1",
+ *   dataPolicyType: "DATA_MASKING_POLICY",
+ *   dataMaskingPolicy: { predefinedExpression: "ALWAYS_NULL" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category BigQueryDataPolicy
+ */
+export const DataPolicy = Resource<DataPolicy>("GCP.BigQueryDataPolicy.DataPolicy")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DataPolicyNotResolved extends Data.TaggedError(
+  "GCP.BigQueryDataPolicy.DataPolicyNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const toMasking = (policy: bqdp.DataMaskingPolicy | undefined): DataMaskingPolicy | undefined => {
+  if (policy === undefined) return undefined
+  const next = compact({
+    predefinedExpression: policy.predefinedExpression,
+    routine: policy.routine,
+  })
+  return Object.keys(next).length > 0 ? next : undefined
+}
+
+const toGovernanceTag = (
+  tag: bqdp.DataGovernanceTag | undefined,
+): DataGovernanceTag | undefined => {
+  if (tag === undefined) return undefined
+  const next = compact({ key: tag.key, value: tag.value })
+  return Object.keys(next).length > 0 ? next : undefined
+}
+
+const toAttrs = (policy: bqdp.DataPolicy, project: string, region: string): infer _ => {
+  const name = policy.name ?? ""
+  const parsed = parseName(name, project, region)
+  return {
+    name,
+    dataPolicyId: policy.dataPolicyId ?? parsed.dataPolicyId,
+    project,
+    location: parsed.location,
+    dataPolicyType: policy.dataPolicyType,
+    dataMaskingPolicy: toMasking(policy.dataMaskingPolicy),
+    grantees: sortedStrings(policy.grantees),
+    dataGovernanceTag: toGovernanceTag(policy.dataGovernanceTag),
+    policyTag: policy.policyTag,
+    version: policy.version,
+    etag: policy.etag,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : bqdp
+  .getProjectsLocationsDataPolicies({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (project: string, location: string) =>
+  (Array.from(
+    try (bqdp.listProjectsLocationsDataPolicies
+      .pages({
+        parent: parentOf(project, location),
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.dataPolicies ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as bqdp.DataPolicy[]; default: throw e; }
+
+const findOwned = effect (items: readonly bqdp.DataPolicy[], id: string, name?: string) => {
+  if (name !== undefined && name.length > 0) {
+    const match = items.find((item) => item.name === name)
+    if (match !== undefined) return match
+  }
+  for (const item of items) {
+    const resourceId = item.dataPolicyId ?? lastSegment(item.name ?? "")
+    if (try ownedByAlchemy(id, resourceId)) return item
+  }
+  return undefined
+}
+
+const observe = effect (id: string, name: string | undefined, project: string, location: string) => {
+  if (name !== undefined && name.length > 0) {
+    const existing = try getByName(name)
+    if (existing !== undefined) return existing
+  }
+  const items = try listAt(project, location)
+  return try findOwned(items, id, name)
+}
+
+const toCreateBody = (news: DataPolicyProps, dataPolicyType: string): infer _ =>
+  compact({
+    dataPolicyType,
+    dataMaskingPolicy: news.dataMaskingPolicy,
+    grantees: news.grantees,
+    dataGovernanceTag: news.dataGovernanceTag,
+  })
+
+const patchPolicy = effect (name: string, updateMask: string, body: bqdp.DataPolicy) =>
+  try (effect {
+    const latest = try getByName(name)
+    if (latest === undefined) {
+      throw new DataPolicyNotResolved({ resourceName: name })
+    }
+    return try bqdp.patchProjectsLocationsDataPolicies({
+      name,
+      updateMask,
+      body: compact({
+        ...body,
+        etag: latest.etag,
+      }),
+    })
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "Conflict",
+      times: 8,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+export const DataPolicyProvider = (): infer _ =>
+  Provider.succeed(DataPolicy, {
+    stables: ["name", "dataPolicyId", "project", "location"],
+
+    diff: effect ({ id, news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousId = olds?.dataPolicyId ?? output?.dataPolicyId
+      const nextId = try toDataPolicyId(id, news.dataPolicyId, previousId)
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region)
+      if (
+        (previousId === undefined || nextId === previousId)
+        && previousLocation === nextLocation
+      ) {
+        return undefined
+      }
+      return {
+        action: "replace" as const,
+        deleteFirst: false,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const dataPolicyId = try toDataPolicyId(id, olds?.dataPolicyId, output?.dataPolicyId)
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceNameOf(env.project, location, dataPolicyId)
+      const existing = try observe(id, name, env.project, location)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      const resourceId = existing.dataPolicyId ?? lastSegment(existing.name ?? "")
+      return (try ownedByAlchemy(id, resourceId)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const pages = try Effect.forEach(
+        Array.from(new Set<string>([...LIST_LOCATIONS, env.region])),
+        effect (location) => try listAt(env.project, location),
+        { concurrency: 4 },
+      )
+      const byName = new Map<string, ReturnType<typeof toAttrs>>()
+      for (const item of pages.flat()) {
+        const resourceId = item.dataPolicyId ?? lastSegment(item.name ?? "")
+        if (!hasOwnershipMarker(resourceId)) continue
+        const attrs = toAttrs(item, env.project, env.region)
+        if (attrs.name.length > 0) byName.set(attrs.name, attrs)
+      }
+      return Array.from(byName.values())
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const dataPolicyId = try toDataPolicyId(id, news.dataPolicyId, output?.dataPolicyId)
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const parent = parentOf(env.project, location)
+      const name = output?.name ?? resourceNameOf(env.project, location, dataPolicyId)
+      const dataPolicyType = normalizePolicyType(news.dataPolicyType ?? output?.dataPolicyType)
+
+      let current = try observe(id, name, env.project, location)
+
+      if (current === undefined) {
+        const created = bqdp
+          .createProjectsLocationsDataPolicies({
+            parent,
+            body: {
+              dataPolicyId,
+              dataPolicy: toCreateBody(news, dataPolicyType),
+            },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try observe(id, name, env.project, location);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DataPolicyNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const desiredType = normalizePolicyType(news.dataPolicyType ?? current.dataPolicyType)
+      const observedType = normalizePolicyType(current.dataPolicyType)
+      const typeChanged = !sameText(observedType, desiredType)
+      const maskingChanged = news.dataMaskingPolicy !== undefined
+        && !sameJson(toMasking(current.dataMaskingPolicy), news.dataMaskingPolicy)
+      const granteesChanged = news.grantees !== undefined && !sameStringList(current.grantees, news.grantees)
+      const tagChanged = news.dataGovernanceTag !== undefined
+        && !sameJson(toGovernanceTag(current.dataGovernanceTag), news.dataGovernanceTag)
+
+      const updateMask = updateMaskOf(
+        typeChanged ? "dataPolicyType" : undefined,
+        maskingChanged ? "dataMaskingPolicy" : undefined,
+        granteesChanged ? "grantees" : undefined,
+        tagChanged ? "dataGovernanceTag" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try patchPolicy(
+          currentName,
+          updateMask,
+          compact({
+            dataPolicyType: typeChanged ? desiredType : undefined,
+            dataMaskingPolicy: maskingChanged ? news.dataMaskingPolicy : undefined,
+            grantees: granteesChanged ? news.grantees : undefined,
+            dataGovernanceTag: tagChanged ? news.dataGovernanceTag : undefined,
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      bqdp
+        .deleteProjectsLocationsDataPolicies({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

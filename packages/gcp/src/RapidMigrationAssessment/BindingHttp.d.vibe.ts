@@ -2,7 +2,7 @@ import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import { type BindingIam } from "../HttpBinding.js";
-import type { Collector } from "./Collector.js";
+import type { Collector } from "./Collector.vibe";
 /**
  * Shared HTTP scaffolding for Rapid Migration Assessment collector
  * bindings. NOT exported from index.ts.

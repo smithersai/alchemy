@@ -2,7 +2,7 @@ import type * as bigquery from "@distilled.cloud/gcp/bigquery_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.vibe";
 declare const QueryNotComplete_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "GCP.BigQuery.QueryNotComplete";
 } & Readonly<A>;

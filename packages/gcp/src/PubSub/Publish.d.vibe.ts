@@ -2,7 +2,7 @@ import type * as pubsub from "@distilled.cloud/gcp/pubsub_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Topic } from "./Topic.js";
+import type { Topic } from "./Topic.vibe";
 export interface PublishRequest extends Omit<pubsub.PublishProjectsTopicsRequest, "topic"> {
 }
 /**

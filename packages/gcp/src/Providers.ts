@@ -34,13 +34,16 @@ import {
 import {
   Binding as AgentregistryBinding,
   BindingProvider as AgentregistryBindingProvider,
-} from "./AgentRegistry/Binding.ts";
+} from "./AgentRegistry/Binding.vibe";
 import { Agent, AgentProvider } from "./AIPlatform/Agent.ts";
-import { BatchPredictionJob, BatchPredictionJobProvider } from "./AIPlatform/BatchPredictionJob.ts";
-import { CachedContent, CachedContentProvider } from "./AIPlatform/CachedContent.ts";
+import {
+  BatchPredictionJob,
+  BatchPredictionJobProvider,
+} from "./AIPlatform/BatchPredictionJob.vibe";
+import { CachedContent, CachedContentProvider } from "./AIPlatform/CachedContent.vibe";
 import { CancelTrainingPipelineHttp } from "./AIPlatform/CancelTrainingPipelineHttp.vibe";
-import { CustomJob, CustomJobProvider } from "./AIPlatform/CustomJob.ts";
-import { DataLabelingJob, DataLabelingJobProvider } from "./AIPlatform/DataLabelingJob.ts";
+import { CustomJob, CustomJobProvider } from "./AIPlatform/CustomJob.vibe";
+import { DataLabelingJob, DataLabelingJobProvider } from "./AIPlatform/DataLabelingJob.vibe";
 import {
   Dataset as AIPlatformDataset,
   DatasetProvider as AIPlatformDatasetProvider,
@@ -132,11 +135,11 @@ import { ReasoningEngine, ReasoningEngineProvider } from "./AIPlatform/Reasoning
 import {
   ReasoningEnginesMemory,
   ReasoningEnginesMemoryProvider,
-} from "./AIPlatform/ReasoningEnginesMemory.ts";
+} from "./AIPlatform/ReasoningEnginesMemory.vibe";
 import {
   ReasoningEnginesSandboxEnvironment,
   ReasoningEnginesSandboxEnvironmentProvider,
-} from "./AIPlatform/ReasoningEnginesSandboxEnvironment.ts";
+} from "./AIPlatform/ReasoningEnginesSandboxEnvironment.vibe";
 import {
   ReasoningEnginesSandboxEnvironmentTemplate,
   ReasoningEnginesSandboxEnvironmentTemplateProvider,
@@ -144,31 +147,31 @@ import {
 import {
   ReasoningEnginesSession,
   ReasoningEnginesSessionProvider,
-} from "./AIPlatform/ReasoningEnginesSession.ts";
+} from "./AIPlatform/ReasoningEnginesSession.vibe";
 import { ResumeSandboxEnvironmentHttp } from "./AIPlatform/ResumeSandboxEnvironmentHttp.vibe";
-import { Schedule, ScheduleProvider } from "./AIPlatform/Schedule.ts";
+import { Schedule, ScheduleProvider } from "./AIPlatform/Schedule.vibe";
 import {
   SemanticGovernancePolicy,
   SemanticGovernancePolicyProvider,
-} from "./AIPlatform/SemanticGovernancePolicy.ts";
-import { SpecialistPool, SpecialistPoolProvider } from "./AIPlatform/SpecialistPool.ts";
-import { StudiesTrial, StudiesTrialProvider } from "./AIPlatform/StudiesTrial.ts";
+} from "./AIPlatform/SemanticGovernancePolicy.vibe";
+import { SpecialistPool, SpecialistPoolProvider } from "./AIPlatform/SpecialistPool.vibe";
+import { StudiesTrial, StudiesTrialProvider } from "./AIPlatform/StudiesTrial.vibe";
 import { Study, StudyProvider } from "./AIPlatform/Study.ts";
-import { Tensorboard, TensorboardProvider } from "./AIPlatform/Tensorboard.ts";
+import { Tensorboard, TensorboardProvider } from "./AIPlatform/Tensorboard.vibe";
 import {
   TensorboardsExperiment,
   TensorboardsExperimentProvider,
-} from "./AIPlatform/TensorboardsExperiment.ts";
+} from "./AIPlatform/TensorboardsExperiment.vibe";
 import {
   TensorboardsExperimentsRun,
   TensorboardsExperimentsRunProvider,
-} from "./AIPlatform/TensorboardsExperimentsRun.ts";
+} from "./AIPlatform/TensorboardsExperimentsRun.vibe";
 import {
   TensorboardsExperimentsRunsTimeSeries,
   TensorboardsExperimentsRunsTimeSeriesProvider,
-} from "./AIPlatform/TensorboardsExperimentsRunsTimeSeries.ts";
+} from "./AIPlatform/TensorboardsExperimentsRunsTimeSeries.vibe";
 import { TrainingPipeline, TrainingPipelineProvider } from "./AIPlatform/TrainingPipeline.ts";
-import { TuningJob, TuningJobProvider } from "./AIPlatform/TuningJob.ts";
+import { TuningJob, TuningJobProvider } from "./AIPlatform/TuningJob.vibe";
 import {
   Backup as AlloyDbBackup,
   BackupProvider as AlloyDbBackupProvider,
@@ -231,12 +234,12 @@ import {
   MonetizationSubscriptionsBasePlansOffer,
   MonetizationSubscriptionsBasePlansOfferProvider,
 } from "./AndroidPublisher/MonetizationSubscriptionsBasePlansOffer.vibe";
-import { ApisConfig, ApisConfigProvider } from "./ApiGateway/ApisConfig.ts";
+import { ApisConfig, ApisConfigProvider } from "./ApiGateway/ApisConfig.vibe";
 import { AnalyticsDatastore, AnalyticsDatastoreProvider } from "./Apigee/AnalyticsDatastore.vibe";
 import {
   ApimServiceExtension,
   ApimServiceExtensionProvider,
-} from "./Apigee/ApimServiceExtension.ts";
+} from "./Apigee/ApimServiceExtension.vibe";
 import { Apiproduct, ApiproductProvider } from "./Apigee/Apiproduct.vibe";
 import {
   ApiproductsRateplan,
@@ -246,9 +249,9 @@ import { ApisKeyvaluemap, ApisKeyvaluemapProvider } from "./Apigee/ApisKeyvaluem
 import {
   ApisKeyvaluemapsEntry,
   ApisKeyvaluemapsEntryProvider,
-} from "./Apigee/ApisKeyvaluemapsEntry.ts";
-import { Appgroup, AppgroupProvider } from "./Apigee/Appgroup.ts";
-import { AppgroupsApp, AppgroupsAppProvider } from "./Apigee/AppgroupsApp.ts";
+} from "./Apigee/ApisKeyvaluemapsEntry.vibe";
+import { Appgroup, AppgroupProvider } from "./Apigee/Appgroup.vibe";
+import { AppgroupsApp, AppgroupsAppProvider } from "./Apigee/AppgroupsApp.vibe";
 import { AppgroupsAppsKey, AppgroupsAppsKeyProvider } from "./Apigee/AppgroupsAppsKey.vibe";
 import { Datacollector, DatacollectorProvider } from "./Apigee/Datacollector.vibe";
 import { Developer, DeveloperProvider } from "./Apigee/Developer.vibe";
@@ -268,7 +271,7 @@ import {
 import {
   EnvironmentsApisRevisionsDebugsession,
   EnvironmentsApisRevisionsDebugsessionProvider,
-} from "./Apigee/EnvironmentsApisRevisionsDebugsession.ts";
+} from "./Apigee/EnvironmentsApisRevisionsDebugsession.vibe";
 import {
   EnvironmentsArchiveDeployment,
   EnvironmentsArchiveDeploymentProvider,
@@ -300,7 +303,7 @@ import {
 import {
   EnvironmentsSecurityAction,
   EnvironmentsSecurityActionProvider,
-} from "./Apigee/EnvironmentsSecurityAction.ts";
+} from "./Apigee/EnvironmentsSecurityAction.vibe";
 import {
   EnvironmentsTargetserver,
   EnvironmentsTargetserverProvider,
@@ -308,54 +311,60 @@ import {
 import {
   EnvironmentsTraceConfigOverride,
   EnvironmentsTraceConfigOverrideProvider,
-} from "./Apigee/EnvironmentsTraceConfigOverride.ts";
-import { InstancesAttachment, InstancesAttachmentProvider } from "./Apigee/InstancesAttachment.ts";
-import { InstancesNatAddress, InstancesNatAddressProvider } from "./Apigee/InstancesNatAddress.ts";
+} from "./Apigee/EnvironmentsTraceConfigOverride.vibe";
+import {
+  InstancesAttachment,
+  InstancesAttachmentProvider,
+} from "./Apigee/InstancesAttachment.vibe";
+import {
+  InstancesNatAddress,
+  InstancesNatAddressProvider,
+} from "./Apigee/InstancesNatAddress.vibe";
 import { Keyvaluemap, KeyvaluemapProvider } from "./Apigee/Keyvaluemap.vibe";
 import { KeyvaluemapsEntry, KeyvaluemapsEntryProvider } from "./Apigee/KeyvaluemapsEntry.vibe";
 import { Organization, OrganizationProvider } from "./Apigee/Organization.vibe";
-import { SecurityFeedback, SecurityFeedbackProvider } from "./Apigee/SecurityFeedback.ts";
+import { SecurityFeedback, SecurityFeedbackProvider } from "./Apigee/SecurityFeedback.vibe";
 import {
   SecurityMonitoringCondition,
   SecurityMonitoringConditionProvider,
-} from "./Apigee/SecurityMonitoringCondition.ts";
-import { SecurityProfilesV2, SecurityProfilesV2Provider } from "./Apigee/SecurityProfilesV2.ts";
+} from "./Apigee/SecurityMonitoringCondition.vibe";
+import { SecurityProfilesV2, SecurityProfilesV2Provider } from "./Apigee/SecurityProfilesV2.vibe";
 import { Sharedflow, SharedflowProvider } from "./Apigee/Sharedflow.ts";
 import { SitesApicategory, SitesApicategoryProvider } from "./Apigee/SitesApicategory.vibe";
-import { SitesApidoc, SitesApidocProvider } from "./Apigee/SitesApidoc.ts";
-import { Api as ApihubApi, ApiProvider as ApihubApiProvider } from "./ApiHub/Api.ts";
-import { ApiHubInstance, ApiHubInstanceProvider } from "./ApiHub/ApiHubInstance.ts";
-import { ApisVersion, ApisVersionProvider } from "./ApiHub/ApisVersion.ts";
+import { SitesApidoc, SitesApidocProvider } from "./Apigee/SitesApidoc.vibe";
+import { Api as ApihubApi, ApiProvider as ApihubApiProvider } from "./ApiHub/Api.vibe";
+import { ApiHubInstance, ApiHubInstanceProvider } from "./ApiHub/ApiHubInstance.vibe";
+import { ApisVersion, ApisVersionProvider } from "./ApiHub/ApisVersion.vibe";
 import {
   ApisVersionsOperation,
   ApisVersionsOperationProvider,
-} from "./ApiHub/ApisVersionsOperation.ts";
-import { ApisVersionsSpec, ApisVersionsSpecProvider } from "./ApiHub/ApisVersionsSpec.ts";
+} from "./ApiHub/ApisVersionsOperation.vibe";
+import { ApisVersionsSpec, ApisVersionsSpecProvider } from "./ApiHub/ApisVersionsSpec.vibe";
 import {
   Attribute as ApihubAttribute,
   AttributeProvider as ApihubAttributeProvider,
-} from "./ApiHub/Attribute.ts";
-import { Curation, CurationProvider } from "./ApiHub/Curation.ts";
-import { Dependency, DependencyProvider } from "./ApiHub/Dependency.ts";
+} from "./ApiHub/Attribute.vibe";
+import { Curation, CurationProvider } from "./ApiHub/Curation.vibe";
+import { Dependency, DependencyProvider } from "./ApiHub/Dependency.vibe";
 import {
   Deployment as ApihubDeployment,
   DeploymentProvider as ApihubDeploymentProvider,
-} from "./ApiHub/Deployment.ts";
-import { ExternalApi, ExternalApiProvider } from "./ApiHub/ExternalApi.ts";
-import { Plugin, PluginProvider } from "./ApiHub/Plugin.ts";
-import { PluginsInstance, PluginsInstanceProvider } from "./ApiHub/PluginsInstance.ts";
+} from "./ApiHub/Deployment.vibe";
+import { ExternalApi, ExternalApiProvider } from "./ApiHub/ExternalApi.vibe";
+import { Plugin, PluginProvider } from "./ApiHub/Plugin.vibe";
+import { PluginsInstance, PluginsInstanceProvider } from "./ApiHub/PluginsInstance.vibe";
 import {
   RuntimeProjectAttachment,
   RuntimeProjectAttachmentProvider,
-} from "./ApiHub/RuntimeProjectAttachment.ts";
+} from "./ApiHub/RuntimeProjectAttachment.vibe";
 import { GetKeyStringHttp } from "./ApiKeys/GetKeyStringHttp.vibe";
-import { Key, KeyProvider } from "./ApiKeys/Key.ts";
-import { ObservationJob, ObservationJobProvider } from "./Apim/ObservationJob.ts";
-import { ObservationSource, ObservationSourceProvider } from "./Apim/ObservationSource.ts";
+import { Key, KeyProvider } from "./ApiKeys/Key.vibe";
+import { ObservationJob, ObservationJobProvider } from "./Apim/ObservationJob.vibe";
+import { ObservationSource, ObservationSourceProvider } from "./Apim/ObservationSource.vibe";
 import {
   ApplicationsAuthorizedCertificate,
   ApplicationsAuthorizedCertificateProvider,
-} from "./AppEngine/ApplicationsAuthorizedCertificate.ts";
+} from "./AppEngine/ApplicationsAuthorizedCertificate.vibe";
 import {
   ApplicationsDomainMapping,
   ApplicationsDomainMappingProvider,
@@ -363,7 +372,7 @@ import {
 import {
   AppsAuthorizedCertificate,
   AppsAuthorizedCertificateProvider,
-} from "./AppEngine/AppsAuthorizedCertificate.ts";
+} from "./AppEngine/AppsAuthorizedCertificate.vibe";
 import { AppsDomainMapping, AppsDomainMappingProvider } from "./AppEngine/AppsDomainMapping.ts";
 import {
   AppsFirewallIngressRule,
@@ -373,16 +382,19 @@ import {
   AppsServicesVersion,
   AppsServicesVersionProvider,
 } from "./AppEngine/AppsServicesVersion.ts";
-import { Application, ApplicationProvider } from "./AppHub/Application.ts";
-import { ApplicationsService, ApplicationsServiceProvider } from "./AppHub/ApplicationsService.ts";
+import { Application, ApplicationProvider } from "./AppHub/Application.vibe";
+import {
+  ApplicationsService,
+  ApplicationsServiceProvider,
+} from "./AppHub/ApplicationsService.vibe";
 import {
   ApplicationsWorkload,
   ApplicationsWorkloadProvider,
-} from "./AppHub/ApplicationsWorkload.ts";
+} from "./AppHub/ApplicationsWorkload.vibe";
 import {
   ServiceProjectAttachment,
   ServiceProjectAttachmentProvider,
-} from "./AppHub/ServiceProjectAttachment.ts";
+} from "./AppHub/ServiceProjectAttachment.vibe";
 import { ListDockerImagesHttp } from "./ArtifactRegistry/ListDockerImagesHttp.ts";
 import {
   RepositoriesAttachment,
@@ -400,11 +412,11 @@ import { Repository, RepositoryProvider } from "./ArtifactRegistry/Repository.vi
 import {
   Workload as AssuredworkloadsWorkload,
   WorkloadProvider as AssuredworkloadsWorkloadProvider,
-} from "./AssuredWorkloads/Workload.ts";
+} from "./AssuredWorkloads/Workload.vibe";
 import {
   BuyersClientsUser,
   BuyersClientsUserProvider,
-} from "./AuthorizedBuyersMarketplace/BuyersClientsUser.ts";
+} from "./AuthorizedBuyersMarketplace/BuyersClientsUser.vibe";
 import { GcpAuth } from "./AuthProvider.ts";
 import {
   BackupPlan as BackupdrBackupPlan,
@@ -413,7 +425,7 @@ import {
 import {
   BackupPlanAssociation,
   BackupPlanAssociationProvider,
-} from "./BackupDR/BackupPlanAssociation.ts";
+} from "./BackupDR/BackupPlanAssociation.vibe";
 import {
   BackupVault as BackupdrBackupVault,
   BackupVaultProvider as BackupdrBackupVaultProvider,
@@ -441,38 +453,38 @@ import {
 import {
   Catalog as BiglakeCatalog,
   CatalogProvider as BiglakeCatalogProvider,
-} from "./BigLake/Catalog.ts";
+} from "./BigLake/Catalog.vibe";
 import { CatalogsDatabase, CatalogsDatabaseProvider } from "./BigLake/CatalogsDatabase.vibe";
 import {
   CatalogsDatabasesTable,
   CatalogsDatabasesTableProvider,
 } from "./BigLake/CatalogsDatabasesTable.vibe";
-import { Dataset, DatasetProvider } from "./BigQuery/Dataset.ts";
+import { Dataset, DatasetProvider } from "./BigQuery/Dataset.vibe";
 import { InsertAllHttp } from "./BigQuery/InsertAllHttp.vibe";
-import { Job as BigQueryJob, JobProvider as BigQueryJobProvider } from "./BigQuery/Job.ts";
+import { Job as BigQueryJob, JobProvider as BigQueryJobProvider } from "./BigQuery/Job.vibe";
 import { ListTabledataHttp } from "./BigQuery/ListTabledataHttp.vibe";
 import { QueryHttp } from "./BigQuery/QueryHttp.ts";
-import { Routine, RoutineProvider } from "./BigQuery/Routine.ts";
-import { RowAccessPolicy, RowAccessPolicyProvider } from "./BigQuery/RowAccessPolicy.ts";
-import { Table, TableProvider } from "./BigQuery/Table.ts";
+import { Routine, RoutineProvider } from "./BigQuery/Routine.vibe";
+import { RowAccessPolicy, RowAccessPolicyProvider } from "./BigQuery/RowAccessPolicy.vibe";
+import { Table, TableProvider } from "./BigQuery/Table.vibe";
 import {
   Connection as BigQueryConnection,
   ConnectionProvider as BigQueryConnectionProvider,
-} from "./BigQueryConnection/Connection.ts";
+} from "./BigQueryConnection/Connection.vibe";
 import { GetConnectionHttp as BigQueryGetConnectionHttp } from "./BigQueryConnection/GetConnectionHttp.vibe";
-import { DataPolicy, DataPolicyProvider } from "./BigQueryDataPolicy/DataPolicy.ts";
+import { DataPolicy, DataPolicyProvider } from "./BigQueryDataPolicy/DataPolicy.vibe";
 import { StartManualRunsHttp } from "./BigQueryDataTransfer/StartManualRunsHttp.vibe";
-import { TransferConfig, TransferConfigProvider } from "./BigQueryDataTransfer/TransferConfig.ts";
+import { TransferConfig, TransferConfigProvider } from "./BigQueryDataTransfer/TransferConfig.vibe";
 import { Assignment, AssignmentProvider } from "./BigQueryReservation/Assignment.vibe";
 import {
   CapacityCommitment,
   CapacityCommitmentProvider,
-} from "./BigQueryReservation/CapacityCommitment.ts";
-import { Reservation, ReservationProvider } from "./BigQueryReservation/Reservation.ts";
+} from "./BigQueryReservation/CapacityCommitment.vibe";
+import { Reservation, ReservationProvider } from "./BigQueryReservation/Reservation.vibe";
 import {
   ReservationGroup,
   ReservationGroupProvider,
-} from "./BigQueryReservation/ReservationGroup.ts";
+} from "./BigQueryReservation/ReservationGroup.vibe";
 import {
   AppProfile as BigtableAppProfile,
   AppProfileProvider as BigtableAppProfileProvider,
@@ -525,7 +537,7 @@ import {
   PlatformsPolicyProvider,
 } from "./BinaryAuthorization/PlatformsPolicy.vibe";
 import { ValidateAttestationHttp } from "./BinaryAuthorization/ValidateAttestationHttp.ts";
-import { BlockchainNode, BlockchainNodeProvider } from "./BlockchainNodeEngine/BlockchainNode.ts";
+import { BlockchainNode, BlockchainNodeProvider } from "./BlockchainNodeEngine/BlockchainNode.vibe";
 import { Certificate, CertificateProvider } from "./CertificateManager/Certificate.ts";
 import {
   CertificateIssuanceConfig,
@@ -541,14 +553,14 @@ import {
   DnsAuthorizationProvider,
 } from "./CertificateManager/DnsAuthorization.ts";
 import { TrustConfig, TrustConfigProvider } from "./CertificateManager/TrustConfig.ts";
-import { App as CesApp, AppProvider as CesAppProvider } from "./CES/App.ts";
-import { AppsAgent, AppsAgentProvider } from "./CES/AppsAgent.ts";
-import { AppsDeployment, AppsDeploymentProvider } from "./CES/AppsDeployment.ts";
-import { AppsExample, AppsExampleProvider } from "./CES/AppsExample.ts";
-import { AppsGuardrail, AppsGuardrailProvider } from "./CES/AppsGuardrail.ts";
-import { AppsTool, AppsToolProvider } from "./CES/AppsTool.ts";
-import { AppsToolset, AppsToolsetProvider } from "./CES/AppsToolset.ts";
-import { AppsVersion, AppsVersionProvider } from "./CES/AppsVersion.ts";
+import { App as CesApp, AppProvider as CesAppProvider } from "./CES/App.vibe";
+import { AppsAgent, AppsAgentProvider } from "./CES/AppsAgent.vibe";
+import { AppsDeployment, AppsDeploymentProvider } from "./CES/AppsDeployment.vibe";
+import { AppsExample, AppsExampleProvider } from "./CES/AppsExample.vibe";
+import { AppsGuardrail, AppsGuardrailProvider } from "./CES/AppsGuardrail.vibe";
+import { AppsTool, AppsToolProvider } from "./CES/AppsTool.vibe";
+import { AppsToolset, AppsToolsetProvider } from "./CES/AppsToolset.vibe";
+import { AppsVersion, AppsVersionProvider } from "./CES/AppsVersion.vibe";
 import {
   CustomersConnectorConfig,
   CustomersConnectorConfigProvider,
@@ -556,11 +568,11 @@ import {
 import {
   Feed as CloudassetFeed,
   FeedProvider as CloudassetFeedProvider,
-} from "./CloudAsset/Feed.ts";
+} from "./CloudAsset/Feed.vibe";
 import {
   SavedQuery as CloudassetSavedQuery,
   SavedQueryProvider as CloudassetSavedQueryProvider,
-} from "./CloudAsset/SavedQuery.ts";
+} from "./CloudAsset/SavedQuery.vibe";
 import { AccessReadTokenHttp as CloudBuildAccessReadTokenHttp } from "./CloudBuild/AccessReadTokenHttp.vibe";
 import { AccessReadWriteTokenHttp as CloudBuildAccessReadWriteTokenHttp } from "./CloudBuild/AccessReadWriteTokenHttp.vibe";
 import {
@@ -614,7 +626,7 @@ import {
   Group as CloudidentityGroup,
   GroupProvider as CloudidentityGroupProvider,
 } from "./CloudIdentity/Group.vibe";
-import { GroupsMembership, GroupsMembershipProvider } from "./CloudIdentity/GroupsMembership.ts";
+import { GroupsMembership, GroupsMembershipProvider } from "./CloudIdentity/GroupsMembership.vibe";
 import {
   InboundOidcSsoProfile,
   InboundOidcSsoProfileProvider,
@@ -627,10 +639,10 @@ import {
   InboundSsoAssignment,
   InboundSsoAssignmentProvider,
 } from "./CloudIdentity/InboundSsoAssignment.vibe";
-import { CustomRange, CustomRangeProvider } from "./CloudNumberRegistry/CustomRange.ts";
-import { IpamAdminScope, IpamAdminScopeProvider } from "./CloudNumberRegistry/IpamAdminScope.ts";
-import { Realm, RealmProvider } from "./CloudNumberRegistry/Realm.ts";
-import { RegistryBook, RegistryBookProvider } from "./CloudNumberRegistry/RegistryBook.ts";
+import { CustomRange, CustomRangeProvider } from "./CloudNumberRegistry/CustomRange.vibe";
+import { IpamAdminScope, IpamAdminScopeProvider } from "./CloudNumberRegistry/IpamAdminScope.vibe";
+import { Realm, RealmProvider } from "./CloudNumberRegistry/Realm.vibe";
+import { RegistryBook, RegistryBookProvider } from "./CloudNumberRegistry/RegistryBook.vibe";
 import { Job, JobProvider } from "./CloudScheduler/Job.ts";
 import { PauseJobHttp } from "./CloudScheduler/PauseJobHttp.vibe";
 import { ResumeJobHttp } from "./CloudScheduler/ResumeJobHttp.vibe";
@@ -667,17 +679,17 @@ import { GetUserWorkloadsConfigMapHttp } from "./Composer/GetUserWorkloadsConfig
 import { GetUserWorkloadsSecretHttp } from "./Composer/GetUserWorkloadsSecretHttp.vibe";
 import { Address, AddressProvider } from "./Compute/Address.vibe";
 import { Autoscaler, AutoscalerProvider } from "./Compute/Autoscaler.ts";
-import { BackendBucket, BackendBucketProvider } from "./Compute/BackendBucket.ts";
-import { BackendService, BackendServiceProvider } from "./Compute/BackendService.ts";
-import { CrossSiteNetwork, CrossSiteNetworkProvider } from "./Compute/CrossSiteNetwork.ts";
+import { BackendBucket, BackendBucketProvider } from "./Compute/BackendBucket.vibe";
+import { BackendService, BackendServiceProvider } from "./Compute/BackendService.vibe";
+import { CrossSiteNetwork, CrossSiteNetworkProvider } from "./Compute/CrossSiteNetwork.vibe";
 import { Disk, DiskProvider } from "./Compute/Disk.vibe";
 import { ExternalVpnGateway, ExternalVpnGatewayProvider } from "./Compute/ExternalVpnGateway.ts";
-import { Firewall, FirewallProvider } from "./Compute/Firewall.ts";
+import { Firewall, FirewallProvider } from "./Compute/Firewall.vibe";
 import { FirewallPolicy, FirewallPolicyProvider } from "./Compute/FirewallPolicy.ts";
 import { ForwardingRule, ForwardingRuleProvider } from "./Compute/ForwardingRule.ts";
 import { FutureReservation, FutureReservationProvider } from "./Compute/FutureReservation.vibe";
 import { GetInstanceHttp } from "./Compute/GetInstanceHttp.vibe";
-import { GlobalAddress, GlobalAddressProvider } from "./Compute/GlobalAddress.ts";
+import { GlobalAddress, GlobalAddressProvider } from "./Compute/GlobalAddress.vibe";
 import {
   GlobalForwardingRule,
   GlobalForwardingRuleProvider,
@@ -689,15 +701,15 @@ import {
 import {
   GlobalPublicDelegatedPrefix,
   GlobalPublicDelegatedPrefixProvider,
-} from "./Compute/GlobalPublicDelegatedPrefix.ts";
+} from "./Compute/GlobalPublicDelegatedPrefix.vibe";
 import {
   GlobalVmExtensionPolicy,
   GlobalVmExtensionPolicyProvider,
 } from "./Compute/GlobalVmExtensionPolicy.ts";
-import { HealthCheck, HealthCheckProvider } from "./Compute/HealthCheck.ts";
-import { HttpHealthCheck, HttpHealthCheckProvider } from "./Compute/HttpHealthCheck.ts";
-import { HttpsHealthCheck, HttpsHealthCheckProvider } from "./Compute/HttpsHealthCheck.ts";
-import { Image, ImageProvider } from "./Compute/Image.ts";
+import { HealthCheck, HealthCheckProvider } from "./Compute/HealthCheck.vibe";
+import { HttpHealthCheck, HttpHealthCheckProvider } from "./Compute/HttpHealthCheck.vibe";
+import { HttpsHealthCheck, HttpsHealthCheckProvider } from "./Compute/HttpsHealthCheck.vibe";
+import { Image, ImageProvider } from "./Compute/Image.vibe";
 import { Instance, InstanceProvider } from "./Compute/Instance.vibe";
 import { InstanceGroup, InstanceGroupProvider } from "./Compute/InstanceGroup.ts";
 import {
@@ -707,13 +719,13 @@ import {
 import {
   InstanceGroupManagerResizeRequest,
   InstanceGroupManagerResizeRequestProvider,
-} from "./Compute/InstanceGroupManagerResizeRequest.ts";
+} from "./Compute/InstanceGroupManagerResizeRequest.vibe";
 import { InstanceTemplate, InstanceTemplateProvider } from "./Compute/InstanceTemplate.ts";
 import { InstantSnapshot, InstantSnapshotProvider } from "./Compute/InstantSnapshot.vibe";
 import {
   InstantSnapshotGroup,
   InstantSnapshotGroupProvider,
-} from "./Compute/InstantSnapshotGroup.ts";
+} from "./Compute/InstantSnapshotGroup.vibe";
 import { Interconnect, InterconnectProvider } from "./Compute/Interconnect.ts";
 import {
   InterconnectAttachment,
@@ -725,7 +737,7 @@ import {
 } from "./Compute/InterconnectAttachmentGroup.ts";
 import { InterconnectGroup, InterconnectGroupProvider } from "./Compute/InterconnectGroup.ts";
 import { License, LicenseProvider } from "./Compute/License.ts";
-import { MachineImage, MachineImageProvider } from "./Compute/MachineImage.ts";
+import { MachineImage, MachineImageProvider } from "./Compute/MachineImage.vibe";
 import { Network, NetworkProvider } from "./Compute/Network.ts";
 import { NetworkAttachment, NetworkAttachmentProvider } from "./Compute/NetworkAttachment.ts";
 import {
@@ -745,12 +757,12 @@ import { NodeTemplate, NodeTemplateProvider } from "./Compute/NodeTemplate.ts";
 import {
   OrganizationSecurityPolicy,
   OrganizationSecurityPolicyProvider,
-} from "./Compute/OrganizationSecurityPolicy.ts";
+} from "./Compute/OrganizationSecurityPolicy.vibe";
 import { PacketMirroring, PacketMirroringProvider } from "./Compute/PacketMirroring.vibe";
 import {
   PublicAdvertisedPrefix,
   PublicAdvertisedPrefixProvider,
-} from "./Compute/PublicAdvertisedPrefix.ts";
+} from "./Compute/PublicAdvertisedPrefix.vibe";
 import {
   PublicDelegatedPrefix,
   PublicDelegatedPrefixProvider,
@@ -786,7 +798,7 @@ import {
 import {
   RegionInstanceGroupManagerResizeRequest,
   RegionInstanceGroupManagerResizeRequestProvider,
-} from "./Compute/RegionInstanceGroupManagerResizeRequest.ts";
+} from "./Compute/RegionInstanceGroupManagerResizeRequest.vibe";
 import {
   RegionInstanceTemplate,
   RegionInstanceTemplateProvider,
@@ -798,7 +810,7 @@ import {
 import {
   RegionInstantSnapshotGroup,
   RegionInstantSnapshotGroupProvider,
-} from "./Compute/RegionInstantSnapshotGroup.ts";
+} from "./Compute/RegionInstantSnapshotGroup.vibe";
 import {
   RegionNetworkEndpointGroup,
   RegionNetworkEndpointGroupProvider,
@@ -815,7 +827,7 @@ import {
   RegionSecurityPolicy,
   RegionSecurityPolicyProvider,
 } from "./Compute/RegionSecurityPolicy.ts";
-import { RegionSnapshot, RegionSnapshotProvider } from "./Compute/RegionSnapshot.ts";
+import { RegionSnapshot, RegionSnapshotProvider } from "./Compute/RegionSnapshot.vibe";
 import {
   RegionSslCertificate,
   RegionSslCertificateProvider,
@@ -840,33 +852,33 @@ import {
 } from "./Compute/Reservation.vibe";
 import { ResourcePolicy, ResourcePolicyProvider } from "./Compute/ResourcePolicy.vibe";
 import { RolloutPlan, RolloutPlanProvider } from "./Compute/RolloutPlan.ts";
-import { Route, RouteProvider } from "./Compute/Route.ts";
+import { Route, RouteProvider } from "./Compute/Route.vibe";
 import { Router, RouterProvider } from "./Compute/Router.ts";
 import { SecurityPolicy, SecurityPolicyProvider } from "./Compute/SecurityPolicy.ts";
 import { ServiceAttachment, ServiceAttachmentProvider } from "./Compute/ServiceAttachment.ts";
-import { Snapshot, SnapshotProvider } from "./Compute/Snapshot.ts";
-import { SslCertificate, SslCertificateProvider } from "./Compute/SslCertificate.ts";
-import { SslPolicy, SslPolicyProvider } from "./Compute/SslPolicy.ts";
+import { Snapshot, SnapshotProvider } from "./Compute/Snapshot.vibe";
+import { SslCertificate, SslCertificateProvider } from "./Compute/SslCertificate.vibe";
+import { SslPolicy, SslPolicyProvider } from "./Compute/SslPolicy.vibe";
 import { StartInstanceHttp } from "./Compute/StartInstanceHttp.vibe";
 import { StopInstanceHttp } from "./Compute/StopInstanceHttp.vibe";
 import { StoragePool, StoragePoolProvider } from "./Compute/StoragePool.vibe";
 import { Subnetwork, SubnetworkProvider } from "./Compute/Subnetwork.vibe";
-import { TargetGrpcProxy, TargetGrpcProxyProvider } from "./Compute/TargetGrpcProxy.ts";
-import { TargetHttpProxy, TargetHttpProxyProvider } from "./Compute/TargetHttpProxy.ts";
-import { TargetHttpsProxy, TargetHttpsProxyProvider } from "./Compute/TargetHttpsProxy.ts";
+import { TargetGrpcProxy, TargetGrpcProxyProvider } from "./Compute/TargetGrpcProxy.vibe";
+import { TargetHttpProxy, TargetHttpProxyProvider } from "./Compute/TargetHttpProxy.vibe";
+import { TargetHttpsProxy, TargetHttpsProxyProvider } from "./Compute/TargetHttpsProxy.vibe";
 import { TargetInstance, TargetInstanceProvider } from "./Compute/TargetInstance.ts";
 import { TargetPool, TargetPoolProvider } from "./Compute/TargetPool.ts";
-import { TargetSslProxy, TargetSslProxyProvider } from "./Compute/TargetSslProxy.ts";
-import { TargetTcpProxy, TargetTcpProxyProvider } from "./Compute/TargetTcpProxy.ts";
+import { TargetSslProxy, TargetSslProxyProvider } from "./Compute/TargetSslProxy.vibe";
+import { TargetTcpProxy, TargetTcpProxyProvider } from "./Compute/TargetTcpProxy.vibe";
 import { TargetVpnGateway, TargetVpnGatewayProvider } from "./Compute/TargetVpnGateway.ts";
-import { UrlMap, UrlMapProvider } from "./Compute/UrlMap.ts";
+import { UrlMap, UrlMapProvider } from "./Compute/UrlMap.vibe";
 import { VpnGateway, VpnGatewayProvider } from "./Compute/VpnGateway.ts";
 import { VpnTunnel, VpnTunnelProvider } from "./Compute/VpnTunnel.ts";
 import { WireGroup, WireGroupProvider } from "./Compute/WireGroup.ts";
 import {
   ZoneVmExtensionPolicy,
   ZoneVmExtensionPolicyProvider,
-} from "./Compute/ZoneVmExtensionPolicy.ts";
+} from "./Compute/ZoneVmExtensionPolicy.vibe";
 import {
   DeploymentGroup as ConfigDeploymentGroup,
   DeploymentGroupProvider as ConfigDeploymentGroupProvider,
@@ -880,68 +892,71 @@ import {
   ConnectionsEntityTypesEntityProvider,
 } from "./Connectors/ConnectionsEntityTypesEntity.vibe";
 import { GetEntityHttp } from "./Connectors/GetEntityHttp.vibe";
-import { ContactCenter, ContactCenterProvider } from "./ContactCenterAIPlatform/ContactCenter.ts";
-import { AnalysisRule, AnalysisRuleProvider } from "./ContactCenterInsights/AnalysisRule.ts";
-import { AssessmentRule, AssessmentRuleProvider } from "./ContactCenterInsights/AssessmentRule.ts";
+import { ContactCenter, ContactCenterProvider } from "./ContactCenterAIPlatform/ContactCenter.vibe";
+import { AnalysisRule, AnalysisRuleProvider } from "./ContactCenterInsights/AnalysisRule.vibe";
+import {
+  AssessmentRule,
+  AssessmentRuleProvider,
+} from "./ContactCenterInsights/AssessmentRule.vibe";
 import {
   AuthorizedViewSet,
   AuthorizedViewSetProvider,
-} from "./ContactCenterInsights/AuthorizedViewSet.ts";
+} from "./ContactCenterInsights/AuthorizedViewSet.vibe";
 import {
   AuthorizedViewSetsAuthorizedView,
   AuthorizedViewSetsAuthorizedViewProvider,
-} from "./ContactCenterInsights/AuthorizedViewSetsAuthorizedView.ts";
+} from "./ContactCenterInsights/AuthorizedViewSetsAuthorizedView.vibe";
 import {
   AuthorizedViewSetsAuthorizedViewsConversationsAssessment,
   AuthorizedViewSetsAuthorizedViewsConversationsAssessmentProvider,
-} from "./ContactCenterInsights/AuthorizedViewSetsAuthorizedViewsConversationsAssessment.ts";
+} from "./ContactCenterInsights/AuthorizedViewSetsAuthorizedViewsConversationsAssessment.vibe";
 import {
   AuthorizedViewSetsAuthorizedViewsConversationsFeedbackLabel,
   AuthorizedViewSetsAuthorizedViewsConversationsFeedbackLabelProvider,
-} from "./ContactCenterInsights/AuthorizedViewSetsAuthorizedViewsConversationsFeedbackLabel.ts";
+} from "./ContactCenterInsights/AuthorizedViewSetsAuthorizedViewsConversationsFeedbackLabel.vibe";
 import {
   AutoLabelingRule,
   AutoLabelingRuleProvider,
-} from "./ContactCenterInsights/AutoLabelingRule.ts";
-import { Conversation, ConversationProvider } from "./ContactCenterInsights/Conversation.ts";
+} from "./ContactCenterInsights/AutoLabelingRule.vibe";
+import { Conversation, ConversationProvider } from "./ContactCenterInsights/Conversation.vibe";
 import {
   ConversationsAnalyses,
   ConversationsAnalysesProvider,
-} from "./ContactCenterInsights/ConversationsAnalyses.ts";
+} from "./ContactCenterInsights/ConversationsAnalyses.vibe";
 import {
   ConversationsAssessment,
   ConversationsAssessmentProvider,
-} from "./ContactCenterInsights/ConversationsAssessment.ts";
+} from "./ContactCenterInsights/ConversationsAssessment.vibe";
 import {
   ConversationsFeedbackLabel,
   ConversationsFeedbackLabelProvider,
-} from "./ContactCenterInsights/ConversationsFeedbackLabel.ts";
-import { Dashboard, DashboardProvider } from "./ContactCenterInsights/Dashboard.ts";
+} from "./ContactCenterInsights/ConversationsFeedbackLabel.vibe";
+import { Dashboard, DashboardProvider } from "./ContactCenterInsights/Dashboard.vibe";
 import {
   DashboardsChart,
   DashboardsChartProvider,
-} from "./ContactCenterInsights/DashboardsChart.ts";
+} from "./ContactCenterInsights/DashboardsChart.vibe";
 import {
   DatasetsConversationsFeedbackLabel,
   DatasetsConversationsFeedbackLabelProvider,
-} from "./ContactCenterInsights/DatasetsConversationsFeedbackLabel.ts";
-import { IssueModel, IssueModelProvider } from "./ContactCenterInsights/IssueModel.ts";
+} from "./ContactCenterInsights/DatasetsConversationsFeedbackLabel.vibe";
+import { IssueModel, IssueModelProvider } from "./ContactCenterInsights/IssueModel.vibe";
 import {
   IssueModelsIssue,
   IssueModelsIssueProvider,
-} from "./ContactCenterInsights/IssueModelsIssue.ts";
-import { PhraseMatcher, PhraseMatcherProvider } from "./ContactCenterInsights/PhraseMatcher.ts";
-import { QaQuestionTag, QaQuestionTagProvider } from "./ContactCenterInsights/QaQuestionTag.ts";
-import { QaScorecard, QaScorecardProvider } from "./ContactCenterInsights/QaScorecard.ts";
+} from "./ContactCenterInsights/IssueModelsIssue.vibe";
+import { PhraseMatcher, PhraseMatcherProvider } from "./ContactCenterInsights/PhraseMatcher.vibe";
+import { QaQuestionTag, QaQuestionTagProvider } from "./ContactCenterInsights/QaQuestionTag.vibe";
+import { QaScorecard, QaScorecardProvider } from "./ContactCenterInsights/QaScorecard.vibe";
 import {
   QaScorecardsRevision,
   QaScorecardsRevisionProvider,
-} from "./ContactCenterInsights/QaScorecardsRevision.ts";
+} from "./ContactCenterInsights/QaScorecardsRevision.vibe";
 import {
   QaScorecardsRevisionsQaQuestion,
   QaScorecardsRevisionsQaQuestionProvider,
-} from "./ContactCenterInsights/QaScorecardsRevisionsQaQuestion.ts";
-import { View, ViewProvider } from "./ContactCenterInsights/View.ts";
+} from "./ContactCenterInsights/QaScorecardsRevisionsQaQuestion.vibe";
+import { View, ViewProvider } from "./ContactCenterInsights/View.vibe";
 import { Cluster, ClusterProvider } from "./Container/Cluster.ts";
 import { ClustersNodePool, ClustersNodePoolProvider } from "./Container/ClustersNodePool.ts";
 import { GetClusterHttp } from "./Container/GetClusterHttp.vibe";
@@ -967,7 +982,7 @@ import {
 import {
   Document as ContentwarehouseDocument,
   DocumentProvider as ContentwarehouseDocumentProvider,
-} from "./ContentWarehouse/Document.ts";
+} from "./ContentWarehouse/Document.vibe";
 import {
   DocumentSchema as ContentwarehouseDocumentSchema,
   DocumentSchemaProvider as ContentwarehouseDocumentSchemaProvider,
@@ -983,7 +998,7 @@ import {
 import {
   SynonymSet as ContentwarehouseSynonymSet,
   SynonymSetProvider as ContentwarehouseSynonymSetProvider,
-} from "./ContentWarehouse/SynonymSet.ts";
+} from "./ContentWarehouse/SynonymSet.vibe";
 import * as Credentials from "./Credentials.ts";
 import { TagTemplate, TagTemplateProvider } from "./DataCatalog/TagTemplate.vibe";
 import {
@@ -994,54 +1009,54 @@ import { Taxonomy, TaxonomyProvider } from "./DataCatalog/Taxonomy.vibe";
 import {
   ProjectsLocationsFolder,
   ProjectsLocationsFolderProvider,
-} from "./Dataform/ProjectsLocationsFolder.ts";
+} from "./Dataform/ProjectsLocationsFolder.vibe";
 import {
   RepositoriesReleaseConfig,
   RepositoriesReleaseConfigProvider,
-} from "./Dataform/RepositoriesReleaseConfig.ts";
+} from "./Dataform/RepositoriesReleaseConfig.vibe";
 import {
   RepositoriesWorkflowConfig,
   RepositoriesWorkflowConfigProvider,
-} from "./Dataform/RepositoriesWorkflowConfig.ts";
+} from "./Dataform/RepositoriesWorkflowConfig.vibe";
 import {
   RepositoriesWorkflowInvocation,
   RepositoriesWorkflowInvocationProvider,
-} from "./Dataform/RepositoriesWorkflowInvocation.ts";
+} from "./Dataform/RepositoriesWorkflowInvocation.vibe";
 import {
   RepositoriesWorkspace,
   RepositoriesWorkspaceProvider,
-} from "./Dataform/RepositoriesWorkspace.ts";
+} from "./Dataform/RepositoriesWorkspace.vibe";
 import {
   Repository as DataformRepository,
   RepositoryProvider as DataformRepositoryProvider,
-} from "./Dataform/Repository.ts";
-import { Team, TeamProvider } from "./Dataform/Team.ts";
+} from "./Dataform/Repository.vibe";
+import { Team, TeamProvider } from "./Dataform/Team.vibe";
 import {
   AnnotationSpecSet as DatalabelingAnnotationSpecSet,
   AnnotationSpecSetProvider as DatalabelingAnnotationSpecSetProvider,
-} from "./DataLabeling/AnnotationSpecSet.ts";
+} from "./DataLabeling/AnnotationSpecSet.vibe";
 import {
   Dataset as DatalabelingDataset,
   DatasetProvider as DatalabelingDatasetProvider,
-} from "./DataLabeling/Dataset.ts";
+} from "./DataLabeling/Dataset.vibe";
 import {
   DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessage,
   DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessageProvider,
-} from "./DataLabeling/DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessage.ts";
+} from "./DataLabeling/DatasetsAnnotatedDatasetsFeedbackThreadsFeedbackMessage.vibe";
 import {
   EvaluationJob as DatalabelingEvaluationJob,
   EvaluationJobProvider as DatalabelingEvaluationJobProvider,
-} from "./DataLabeling/EvaluationJob.ts";
+} from "./DataLabeling/EvaluationJob.vibe";
 import {
   Instruction as DatalabelingInstruction,
   InstructionProvider as DatalabelingInstructionProvider,
-} from "./DataLabeling/Instruction.ts";
-import { Process, ProcessProvider } from "./DataLineage/Process.ts";
-import { ProcessesRun, ProcessesRunProvider } from "./DataLineage/ProcessesRun.ts";
+} from "./DataLabeling/Instruction.vibe";
+import { Process, ProcessProvider } from "./DataLineage/Process.vibe";
+import { ProcessesRun, ProcessesRunProvider } from "./DataLineage/ProcessesRun.vibe";
 import {
   ProcessesRunsLineageEvent,
   ProcessesRunsLineageEventProvider,
-} from "./DataLineage/ProcessesRunsLineageEvent.ts";
+} from "./DataLineage/ProcessesRunsLineageEvent.vibe";
 import {
   AccountTypesUserList,
   AccountTypesUserListProvider,
@@ -1049,23 +1064,23 @@ import {
 import {
   ConnectionProfile as DatamigrationConnectionProfile,
   ConnectionProfileProvider as DatamigrationConnectionProfileProvider,
-} from "./DataMigration/ConnectionProfile.ts";
+} from "./DataMigration/ConnectionProfile.vibe";
 import {
   ConversionWorkspace as DatamigrationConversionWorkspace,
   ConversionWorkspaceProvider as DatamigrationConversionWorkspaceProvider,
-} from "./DataMigration/ConversionWorkspace.ts";
+} from "./DataMigration/ConversionWorkspace.vibe";
 import {
   ConversionWorkspacesMappingRule,
   ConversionWorkspacesMappingRuleProvider,
-} from "./DataMigration/ConversionWorkspacesMappingRule.ts";
+} from "./DataMigration/ConversionWorkspacesMappingRule.vibe";
 import {
   MigrationJob as DatamigrationMigrationJob,
   MigrationJobProvider as DatamigrationMigrationJobProvider,
-} from "./DataMigration/MigrationJob.ts";
+} from "./DataMigration/MigrationJob.vibe";
 import {
   PrivateConnection as DatamigrationPrivateConnection,
   PrivateConnectionProvider as DatamigrationPrivateConnectionProvider,
-} from "./DataMigration/PrivateConnection.ts";
+} from "./DataMigration/PrivateConnection.vibe";
 import {
   Pipeline as DatapipelinesPipeline,
   PipelineProvider as DatapipelinesPipelineProvider,
@@ -1074,14 +1089,14 @@ import { RunPipelineHttp } from "./DataPipelines/RunPipelineHttp.vibe";
 import { StopPipelineHttp } from "./DataPipelines/StopPipelineHttp.vibe";
 import { AspectType, AspectTypeProvider } from "./Dataplex/AspectType.vibe";
 import { DataDomain, DataDomainProvider } from "./Dataplex/DataDomain.vibe";
-import { DataDomainsBinding, DataDomainsBindingProvider } from "./Dataplex/DataDomainsBinding.ts";
+import { DataDomainsBinding, DataDomainsBindingProvider } from "./Dataplex/DataDomainsBinding.vibe";
 import { DataProduct, DataProductProvider } from "./Dataplex/DataProduct.vibe";
 import {
   DataProductsDataAsset,
   DataProductsDataAssetProvider,
-} from "./Dataplex/DataProductsDataAsset.ts";
+} from "./Dataplex/DataProductsDataAsset.vibe";
 import { DataScan, DataScanProvider } from "./Dataplex/DataScan.vibe";
-import { EncryptionConfig, EncryptionConfigProvider } from "./Dataplex/EncryptionConfig.ts";
+import { EncryptionConfig, EncryptionConfigProvider } from "./Dataplex/EncryptionConfig.vibe";
 import { EntryGroup, EntryGroupProvider } from "./Dataplex/EntryGroup.vibe";
 import { EntryGroupsEntry, EntryGroupsEntryProvider } from "./Dataplex/EntryGroupsEntry.vibe";
 import {
@@ -1098,7 +1113,7 @@ import {
   LakesEntitiesPartition,
   LakesEntitiesPartitionProvider,
 } from "./Dataplex/LakesEntitiesPartition.vibe";
-import { LakesEntity, LakesEntityProvider } from "./Dataplex/LakesEntity.ts";
+import { LakesEntity, LakesEntityProvider } from "./Dataplex/LakesEntity.vibe";
 import { LakesTask, LakesTaskProvider } from "./Dataplex/LakesTask.ts";
 import { LakesZone, LakesZoneProvider } from "./Dataplex/LakesZone.ts";
 import { MetadataFeed, MetadataFeedProvider } from "./Dataplex/MetadataFeed.ts";
@@ -1146,7 +1161,7 @@ import { RunQueryHttp } from "./Datastore/RunQueryHttp.vibe";
 import {
   ConnectionProfile as DatastreamConnectionProfile,
   ConnectionProfileProvider as DatastreamConnectionProfileProvider,
-} from "./Datastream/ConnectionProfile.ts";
+} from "./Datastream/ConnectionProfile.vibe";
 import {
   PrivateConnection as DatastreamPrivateConnection,
   PrivateConnectionProvider as DatastreamPrivateConnectionProvider,
@@ -1154,11 +1169,11 @@ import {
 import {
   PrivateConnectionsRoute,
   PrivateConnectionsRouteProvider,
-} from "./Datastream/PrivateConnectionsRoute.ts";
+} from "./Datastream/PrivateConnectionsRoute.vibe";
 import {
   Stream as DatastreamStream,
   StreamProvider as DatastreamStreamProvider,
-} from "./Datastream/Stream.ts";
+} from "./Datastream/Stream.vibe";
 import {
   Deployment as DeploymentmanagerDeployment,
   DeploymentProvider as DeploymentmanagerDeploymentProvider,
@@ -1176,46 +1191,52 @@ import { FetchGitRefsHttp as DeveloperconnectFetchGitRefsHttp } from "./Develope
 import { FetchReadTokenHttp as DeveloperconnectFetchReadTokenHttp } from "./DeveloperConnect/FetchReadTokenHttp.vibe";
 import { FetchReadWriteTokenHttp as DeveloperconnectFetchReadWriteTokenHttp } from "./DeveloperConnect/FetchReadWriteTokenHttp.vibe";
 import { InsightsConfig, InsightsConfigProvider } from "./DeveloperConnect/InsightsConfig.ts";
-import { AgentsEntityType, AgentsEntityTypeProvider } from "./Dialogflow/AgentsEntityType.ts";
-import { AgentsEnvironment, AgentsEnvironmentProvider } from "./Dialogflow/AgentsEnvironment.ts";
+import { AgentsEntityType, AgentsEntityTypeProvider } from "./Dialogflow/AgentsEntityType.vibe";
+import { AgentsEnvironment, AgentsEnvironmentProvider } from "./Dialogflow/AgentsEnvironment.vibe";
 import {
   AgentsEnvironmentsExperiment,
   AgentsEnvironmentsExperimentProvider,
-} from "./Dialogflow/AgentsEnvironmentsExperiment.ts";
+} from "./Dialogflow/AgentsEnvironmentsExperiment.vibe";
 import {
   AgentsEnvironmentsSessionsEntityType,
   AgentsEnvironmentsSessionsEntityTypeProvider,
-} from "./Dialogflow/AgentsEnvironmentsSessionsEntityType.ts";
-import { AgentsFlow, AgentsFlowProvider } from "./Dialogflow/AgentsFlow.ts";
-import { AgentsFlowsPage, AgentsFlowsPageProvider } from "./Dialogflow/AgentsFlowsPage.ts";
+} from "./Dialogflow/AgentsEnvironmentsSessionsEntityType.vibe";
+import { AgentsFlow, AgentsFlowProvider } from "./Dialogflow/AgentsFlow.vibe";
+import { AgentsFlowsPage, AgentsFlowsPageProvider } from "./Dialogflow/AgentsFlowsPage.vibe";
 import {
   AgentsFlowsTransitionRouteGroup,
   AgentsFlowsTransitionRouteGroupProvider,
-} from "./Dialogflow/AgentsFlowsTransitionRouteGroup.ts";
-import { AgentsFlowsVersion, AgentsFlowsVersionProvider } from "./Dialogflow/AgentsFlowsVersion.ts";
-import { AgentsGenerator, AgentsGeneratorProvider } from "./Dialogflow/AgentsGenerator.ts";
-import { AgentsIntent, AgentsIntentProvider } from "./Dialogflow/AgentsIntent.ts";
-import { AgentsPlaybook, AgentsPlaybookProvider } from "./Dialogflow/AgentsPlaybook.ts";
+} from "./Dialogflow/AgentsFlowsTransitionRouteGroup.vibe";
+import {
+  AgentsFlowsVersion,
+  AgentsFlowsVersionProvider,
+} from "./Dialogflow/AgentsFlowsVersion.vibe";
+import { AgentsGenerator, AgentsGeneratorProvider } from "./Dialogflow/AgentsGenerator.vibe";
+import { AgentsIntent, AgentsIntentProvider } from "./Dialogflow/AgentsIntent.vibe";
+import { AgentsPlaybook, AgentsPlaybookProvider } from "./Dialogflow/AgentsPlaybook.vibe";
 import {
   AgentsPlaybooksExample,
   AgentsPlaybooksExampleProvider,
-} from "./Dialogflow/AgentsPlaybooksExample.ts";
+} from "./Dialogflow/AgentsPlaybooksExample.vibe";
 import {
   AgentsPlaybooksVersion,
   AgentsPlaybooksVersionProvider,
-} from "./Dialogflow/AgentsPlaybooksVersion.ts";
+} from "./Dialogflow/AgentsPlaybooksVersion.vibe";
 import {
   AgentsSessionsEntityType,
   AgentsSessionsEntityTypeProvider,
-} from "./Dialogflow/AgentsSessionsEntityType.ts";
-import { AgentsTool, AgentsToolProvider } from "./Dialogflow/AgentsTool.ts";
-import { AgentsToolsVersion, AgentsToolsVersionProvider } from "./Dialogflow/AgentsToolsVersion.ts";
+} from "./Dialogflow/AgentsSessionsEntityType.vibe";
+import { AgentsTool, AgentsToolProvider } from "./Dialogflow/AgentsTool.vibe";
+import {
+  AgentsToolsVersion,
+  AgentsToolsVersionProvider,
+} from "./Dialogflow/AgentsToolsVersion.vibe";
 import {
   AgentsTransitionRouteGroup,
   AgentsTransitionRouteGroupProvider,
-} from "./Dialogflow/AgentsTransitionRouteGroup.ts";
-import { AgentsWebhook, AgentsWebhookProvider } from "./Dialogflow/AgentsWebhook.ts";
-import { SecuritySetting, SecuritySettingProvider } from "./Dialogflow/SecuritySetting.ts";
+} from "./Dialogflow/AgentsTransitionRouteGroup.vibe";
+import { AgentsWebhook, AgentsWebhookProvider } from "./Dialogflow/AgentsWebhook.vibe";
+import { SecuritySetting, SecuritySettingProvider } from "./Dialogflow/SecuritySetting.vibe";
 import {
   CollectionsDataStore,
   CollectionsDataStoreProvider,
@@ -1223,15 +1244,15 @@ import {
 import {
   CollectionsDataStoresBranchesDocument,
   CollectionsDataStoresBranchesDocumentProvider,
-} from "./DiscoveryEngine/CollectionsDataStoresBranchesDocument.ts";
+} from "./DiscoveryEngine/CollectionsDataStoresBranchesDocument.vibe";
 import {
   CollectionsDataStoresControl,
   CollectionsDataStoresControlProvider,
-} from "./DiscoveryEngine/CollectionsDataStoresControl.ts";
+} from "./DiscoveryEngine/CollectionsDataStoresControl.vibe";
 import {
   CollectionsDataStoresConversation,
   CollectionsDataStoresConversationProvider,
-} from "./DiscoveryEngine/CollectionsDataStoresConversation.ts";
+} from "./DiscoveryEngine/CollectionsDataStoresConversation.vibe";
 import {
   CollectionsDataStoresSchema,
   CollectionsDataStoresSchemaProvider,
@@ -1239,11 +1260,11 @@ import {
 import {
   CollectionsDataStoresServingConfig,
   CollectionsDataStoresServingConfigProvider,
-} from "./DiscoveryEngine/CollectionsDataStoresServingConfig.ts";
+} from "./DiscoveryEngine/CollectionsDataStoresServingConfig.vibe";
 import {
   CollectionsDataStoresSession,
   CollectionsDataStoresSessionProvider,
-} from "./DiscoveryEngine/CollectionsDataStoresSession.ts";
+} from "./DiscoveryEngine/CollectionsDataStoresSession.vibe";
 import {
   CollectionsDataStoresSiteSearchEngineTargetSite,
   CollectionsDataStoresSiteSearchEngineTargetSiteProvider,
@@ -1280,94 +1301,97 @@ import { DataStore, DataStoreProvider } from "./DiscoveryEngine/DataStore.ts";
 import {
   DataStoresBranchesDocument,
   DataStoresBranchesDocumentProvider,
-} from "./DiscoveryEngine/DataStoresBranchesDocument.ts";
+} from "./DiscoveryEngine/DataStoresBranchesDocument.vibe";
 import {
   DataStoresControl,
   DataStoresControlProvider,
-} from "./DiscoveryEngine/DataStoresControl.ts";
+} from "./DiscoveryEngine/DataStoresControl.vibe";
 import {
   DataStoresConversation,
   DataStoresConversationProvider,
-} from "./DiscoveryEngine/DataStoresConversation.ts";
-import { DataStoresSchema, DataStoresSchemaProvider } from "./DiscoveryEngine/DataStoresSchema.ts";
+} from "./DiscoveryEngine/DataStoresConversation.vibe";
+import {
+  DataStoresSchema,
+  DataStoresSchemaProvider,
+} from "./DiscoveryEngine/DataStoresSchema.vibe";
 import {
   DataStoresServingConfig,
   DataStoresServingConfigProvider,
-} from "./DiscoveryEngine/DataStoresServingConfig.ts";
+} from "./DiscoveryEngine/DataStoresServingConfig.vibe";
 import {
   DataStoresSession,
   DataStoresSessionProvider,
-} from "./DiscoveryEngine/DataStoresSession.ts";
+} from "./DiscoveryEngine/DataStoresSession.vibe";
 import {
   DataStoresSiteSearchEngineTargetSite,
   DataStoresSiteSearchEngineTargetSiteProvider,
-} from "./DiscoveryEngine/DataStoresSiteSearchEngineTargetSite.ts";
+} from "./DiscoveryEngine/DataStoresSiteSearchEngineTargetSite.vibe";
 import {
   IdentityMappingStore,
   IdentityMappingStoreProvider,
-} from "./DiscoveryEngine/IdentityMappingStore.ts";
-import { ContentPolicy, ContentPolicyProvider } from "./DLP/ContentPolicy.ts";
-import { DeidentifyTemplate, DeidentifyTemplateProvider } from "./DLP/DeidentifyTemplate.ts";
-import { DiscoveryConfig, DiscoveryConfigProvider } from "./DLP/DiscoveryConfig.ts";
+} from "./DiscoveryEngine/IdentityMappingStore.vibe";
+import { ContentPolicy, ContentPolicyProvider } from "./DLP/ContentPolicy.vibe";
+import { DeidentifyTemplate, DeidentifyTemplateProvider } from "./DLP/DeidentifyTemplate.vibe";
+import { DiscoveryConfig, DiscoveryConfigProvider } from "./DLP/DiscoveryConfig.vibe";
 import { DlpJob, DlpJobProvider } from "./DLP/DlpJob.ts";
-import { InspectTemplate, InspectTemplateProvider } from "./DLP/InspectTemplate.ts";
-import { JobTrigger, JobTriggerProvider } from "./DLP/JobTrigger.ts";
+import { InspectTemplate, InspectTemplateProvider } from "./DLP/InspectTemplate.vibe";
+import { JobTrigger, JobTriggerProvider } from "./DLP/JobTrigger.vibe";
 import {
   LocationsDeidentifyTemplate,
   LocationsDeidentifyTemplateProvider,
-} from "./DLP/LocationsDeidentifyTemplate.ts";
-import { LocationsDlpJob, LocationsDlpJobProvider } from "./DLP/LocationsDlpJob.ts";
+} from "./DLP/LocationsDeidentifyTemplate.vibe";
+import { LocationsDlpJob, LocationsDlpJobProvider } from "./DLP/LocationsDlpJob.vibe";
 import {
   LocationsInspectTemplate,
   LocationsInspectTemplateProvider,
-} from "./DLP/LocationsInspectTemplate.ts";
-import { LocationsJobTrigger, LocationsJobTriggerProvider } from "./DLP/LocationsJobTrigger.ts";
+} from "./DLP/LocationsInspectTemplate.vibe";
+import { LocationsJobTrigger, LocationsJobTriggerProvider } from "./DLP/LocationsJobTrigger.vibe";
 import {
   LocationsStoredInfoType,
   LocationsStoredInfoTypeProvider,
-} from "./DLP/LocationsStoredInfoType.ts";
+} from "./DLP/LocationsStoredInfoType.vibe";
 import {
   OrganizationsDeidentifyTemplate,
   OrganizationsDeidentifyTemplateProvider,
-} from "./DLP/OrganizationsDeidentifyTemplate.ts";
+} from "./DLP/OrganizationsDeidentifyTemplate.vibe";
 import {
   OrganizationsInspectTemplate,
   OrganizationsInspectTemplateProvider,
-} from "./DLP/OrganizationsInspectTemplate.ts";
+} from "./DLP/OrganizationsInspectTemplate.vibe";
 import {
   OrganizationsLocationsConnection,
   OrganizationsLocationsConnectionProvider,
-} from "./DLP/OrganizationsLocationsConnection.ts";
+} from "./DLP/OrganizationsLocationsConnection.vibe";
 import {
   OrganizationsLocationsDeidentifyTemplate,
   OrganizationsLocationsDeidentifyTemplateProvider,
-} from "./DLP/OrganizationsLocationsDeidentifyTemplate.ts";
+} from "./DLP/OrganizationsLocationsDeidentifyTemplate.vibe";
 import {
   OrganizationsLocationsDiscoveryConfig,
   OrganizationsLocationsDiscoveryConfigProvider,
-} from "./DLP/OrganizationsLocationsDiscoveryConfig.ts";
+} from "./DLP/OrganizationsLocationsDiscoveryConfig.vibe";
 import {
   OrganizationsLocationsInspectTemplate,
   OrganizationsLocationsInspectTemplateProvider,
-} from "./DLP/OrganizationsLocationsInspectTemplate.ts";
+} from "./DLP/OrganizationsLocationsInspectTemplate.vibe";
 import {
   OrganizationsLocationsJobTrigger,
   OrganizationsLocationsJobTriggerProvider,
-} from "./DLP/OrganizationsLocationsJobTrigger.ts";
+} from "./DLP/OrganizationsLocationsJobTrigger.vibe";
 import {
   OrganizationsLocationsStoredInfoType,
   OrganizationsLocationsStoredInfoTypeProvider,
-} from "./DLP/OrganizationsLocationsStoredInfoType.ts";
+} from "./DLP/OrganizationsLocationsStoredInfoType.vibe";
 import {
   OrganizationStoredInfoType,
   OrganizationStoredInfoTypeProvider,
-} from "./DLP/OrganizationStoredInfoType.ts";
-import { StoredInfoType, StoredInfoTypeProvider } from "./DLP/StoredInfoType.ts";
+} from "./DLP/OrganizationStoredInfoType.vibe";
+import { StoredInfoType, StoredInfoTypeProvider } from "./DLP/StoredInfoType.vibe";
 import { ManagedZone, ManagedZoneProvider } from "./DNS/ManagedZone.vibe";
 import { Policy as DnsPolicy, PolicyProvider as DnsPolicyProvider } from "./DNS/Policy.vibe";
-import { ResourceRecordSet, ResourceRecordSetProvider } from "./DNS/ResourceRecordSet.ts";
-import { ResponsePolicy, ResponsePolicyProvider } from "./DNS/ResponsePolicy.ts";
-import { ResponsePolicyRule, ResponsePolicyRuleProvider } from "./DNS/ResponsePolicyRule.ts";
+import { ResourceRecordSet, ResourceRecordSetProvider } from "./DNS/ResourceRecordSet.vibe";
+import { ResponsePolicy, ResponsePolicyProvider } from "./DNS/ResponsePolicy.vibe";
+import { ResponsePolicyRule, ResponsePolicyRuleProvider } from "./DNS/ResponsePolicyRule.vibe";
 import { GetProcessorHttp } from "./DocumentAI/GetProcessorHttp.vibe";
 import { GetSchemaHttp as DocumentaiGetSchemaHttp } from "./DocumentAI/GetSchemaHttp.vibe";
 import { GetSchemaVersionHttp } from "./DocumentAI/GetSchemaVersionHttp.vibe";
@@ -1375,25 +1399,25 @@ import { ProcessHttp as DocumentaiProcessHttp } from "./DocumentAI/ProcessHttp.v
 import {
   Processor as DocumentaiProcessor,
   ProcessorProvider as DocumentaiProcessorProvider,
-} from "./DocumentAI/Processor.ts";
+} from "./DocumentAI/Processor.vibe";
 import {
   Schema as DocumentaiSchema,
   SchemaProvider as DocumentaiSchemaProvider,
-} from "./DocumentAI/Schema.ts";
+} from "./DocumentAI/Schema.vibe";
 import {
   SchemasSchemaVersion,
   SchemasSchemaVersionProvider,
-} from "./DocumentAI/SchemasSchemaVersion.ts";
+} from "./DocumentAI/SchemasSchemaVersion.vibe";
 import { fromCredentials } from "./Environment.ts";
 import {
   Contact as EssentialcontactsContact,
   ContactProvider as EssentialcontactsContactProvider,
-} from "./EssentialContacts/Contact.ts";
-import { FolderContact, FolderContactProvider } from "./EssentialContacts/FolderContact.ts";
+} from "./EssentialContacts/Contact.vibe";
+import { FolderContact, FolderContactProvider } from "./EssentialContacts/FolderContact.vibe";
 import {
   OrganizationContact,
   OrganizationContactProvider,
-} from "./EssentialContacts/OrganizationContact.ts";
+} from "./EssentialContacts/OrganizationContact.vibe";
 import { Channel, ChannelProvider } from "./Eventarc/Channel.ts";
 import { ChannelConnection, ChannelConnectionProvider } from "./Eventarc/ChannelConnection.ts";
 import { Enrollment, EnrollmentProvider } from "./Eventarc/Enrollment.ts";
@@ -1415,8 +1439,8 @@ import {
 import {
   InstancesSnapshot as FilestoreInstancesSnapshot,
   InstancesSnapshotProvider as FilestoreInstancesSnapshotProvider,
-} from "./Filestore/InstancesSnapshot.ts";
-import { AndroidApp, AndroidAppProvider } from "./Firebase/AndroidApp.ts";
+} from "./Filestore/InstancesSnapshot.vibe";
+import { AndroidApp, AndroidAppProvider } from "./Firebase/AndroidApp.vibe";
 import { AppsDebugToken, AppsDebugTokenProvider } from "./FirebaseAppCheck/AppsDebugToken.vibe";
 import { ExchangeDebugTokenHttp } from "./FirebaseAppCheck/ExchangeDebugTokenHttp.vibe";
 import {
@@ -1464,7 +1488,7 @@ import {
 import {
   DatabasesCollectionGroupsIndex,
   DatabasesCollectionGroupsIndexProvider,
-} from "./Firestore/DatabasesCollectionGroupsIndex.ts";
+} from "./Firestore/DatabasesCollectionGroupsIndex.vibe";
 import { DatabasesUserCred, DatabasesUserCredProvider } from "./Firestore/DatabasesUserCred.vibe";
 import { DeleteDocumentHttp } from "./Firestore/DeleteDocumentHttp.vibe";
 import { GetDocumentHttp } from "./Firestore/GetDocumentHttp.vibe";
@@ -1486,7 +1510,7 @@ import {
   RestorePlansRestore,
   RestorePlansRestoreProvider,
 } from "./GKEBackup/RestorePlansRestore.vibe";
-import { MembershipsFeature, MembershipsFeatureProvider } from "./GKEHub/MembershipsFeature.ts";
+import { MembershipsFeature, MembershipsFeatureProvider } from "./GKEHub/MembershipsFeature.vibe";
 import { BareMetalCluster, BareMetalClusterProvider } from "./GKEOnPrem/BareMetalCluster.vibe";
 import {
   BareMetalClustersBareMetalNodePool,
@@ -1508,37 +1532,43 @@ import { DomainsUser, DomainsUserProvider } from "./GmailPostmasterTools/Domains
 import {
   Dataset as HealthcareDataset,
   DatasetProvider as HealthcareDatasetProvider,
-} from "./Healthcare/Dataset.ts";
+} from "./Healthcare/Dataset.vibe";
 import {
   DatasetsConsentStore,
   DatasetsConsentStoreProvider,
-} from "./Healthcare/DatasetsConsentStore.ts";
+} from "./Healthcare/DatasetsConsentStore.vibe";
 import {
   DatasetsConsentStoresAttributeDefinition,
   DatasetsConsentStoresAttributeDefinitionProvider,
-} from "./Healthcare/DatasetsConsentStoresAttributeDefinition.ts";
+} from "./Healthcare/DatasetsConsentStoresAttributeDefinition.vibe";
 import {
   DatasetsConsentStoresConsent,
   DatasetsConsentStoresConsentProvider,
-} from "./Healthcare/DatasetsConsentStoresConsent.ts";
+} from "./Healthcare/DatasetsConsentStoresConsent.vibe";
 import {
   DatasetsConsentStoresConsentArtifact,
   DatasetsConsentStoresConsentArtifactProvider,
-} from "./Healthcare/DatasetsConsentStoresConsentArtifact.ts";
+} from "./Healthcare/DatasetsConsentStoresConsentArtifact.vibe";
 import {
   DatasetsConsentStoresUserDataMapping,
   DatasetsConsentStoresUserDataMappingProvider,
-} from "./Healthcare/DatasetsConsentStoresUserDataMapping.ts";
-import { DatasetsDicomStore, DatasetsDicomStoreProvider } from "./Healthcare/DatasetsDicomStore.ts";
-import { DatasetsFhirStore, DatasetsFhirStoreProvider } from "./Healthcare/DatasetsFhirStore.ts";
-import { DatasetsHl7V2Store, DatasetsHl7V2StoreProvider } from "./Healthcare/DatasetsHl7V2Store.ts";
+} from "./Healthcare/DatasetsConsentStoresUserDataMapping.vibe";
+import {
+  DatasetsDicomStore,
+  DatasetsDicomStoreProvider,
+} from "./Healthcare/DatasetsDicomStore.vibe";
+import { DatasetsFhirStore, DatasetsFhirStoreProvider } from "./Healthcare/DatasetsFhirStore.vibe";
+import {
+  DatasetsHl7V2Store,
+  DatasetsHl7V2StoreProvider,
+} from "./Healthcare/DatasetsHl7V2Store.vibe";
 import {
   DatasetsHl7V2StoresMessage,
   DatasetsHl7V2StoresMessageProvider,
-} from "./Healthcare/DatasetsHl7V2StoresMessage.ts";
-import { HostServiceAccount, HostServiceAccountProvider } from "./IAM/HostServiceAccount.ts";
+} from "./Healthcare/DatasetsHl7V2StoresMessage.vibe";
+import { HostServiceAccount, HostServiceAccountProvider } from "./IAM/HostServiceAccount.vibe";
 import { Member as IamMember, MemberProvider as IamMemberProvider } from "./IAM/Member.vibe";
-import { Policy as IamPolicy, PolicyProvider as IamPolicyProvider } from "./IAM/Policy.ts";
+import { Policy as IamPolicy, PolicyProvider as IamPolicyProvider } from "./IAM/Policy.vibe";
 import {
   ServiceAccount as IamServiceAccount,
   ServiceAccountProvider as IamServiceAccountProvider,
@@ -1547,7 +1577,10 @@ import {
   ServiceAccountKey as IamServiceAccountKey,
   ServiceAccountKeyProvider as IamServiceAccountKeyProvider,
 } from "./IAM/ServiceAccountKey.vibe";
-import { WorkloadIdentityPool, WorkloadIdentityPoolProvider } from "./IAM/WorkloadIdentityPool.ts";
+import {
+  WorkloadIdentityPool,
+  WorkloadIdentityPoolProvider,
+} from "./IAM/WorkloadIdentityPool.vibe";
 import {
   WorkloadIdentityProvider,
   WorkloadIdentityProviderProvider,
@@ -1557,44 +1590,44 @@ import {
   BrandsIdentityAwareProxyClientProvider,
 } from "./IAP/BrandsIdentityAwareProxyClient.vibe";
 import { IapDestGroup, IapDestGroupProvider } from "./IAP/IapDestGroup.vibe";
-import { AuthConfig, AuthConfigProvider } from "./Integrations/AuthConfig.ts";
+import { AuthConfig, AuthConfigProvider } from "./Integrations/AuthConfig.vibe";
 import {
   IntegrationsVersion,
   IntegrationsVersionProvider,
-} from "./Integrations/IntegrationsVersion.ts";
+} from "./Integrations/IntegrationsVersion.vibe";
 import {
   IntegrationsVersionsTestCases,
   IntegrationsVersionsTestCasesProvider,
-} from "./Integrations/IntegrationsVersionsTestCases.ts";
+} from "./Integrations/IntegrationsVersionsTestCases.vibe";
 import {
   ProductsAuthConfig,
   ProductsAuthConfigProvider,
-} from "./Integrations/ProductsAuthConfig.ts";
+} from "./Integrations/ProductsAuthConfig.vibe";
 import {
   ProductsCertificate,
   ProductsCertificateProvider,
-} from "./Integrations/ProductsCertificate.ts";
+} from "./Integrations/ProductsCertificate.vibe";
 import {
   ProductsIntegrationsVersion,
   ProductsIntegrationsVersionProvider,
-} from "./Integrations/ProductsIntegrationsVersion.ts";
+} from "./Integrations/ProductsIntegrationsVersion.vibe";
 import {
   ProductsSfdcInstance,
   ProductsSfdcInstanceProvider,
-} from "./Integrations/ProductsSfdcInstance.ts";
+} from "./Integrations/ProductsSfdcInstance.vibe";
 import {
   ProductsSfdcInstancesSfdcChannel,
   ProductsSfdcInstancesSfdcChannelProvider,
-} from "./Integrations/ProductsSfdcInstancesSfdcChannel.ts";
-import { SfdcInstance, SfdcInstanceProvider } from "./Integrations/SfdcInstance.ts";
+} from "./Integrations/ProductsSfdcInstancesSfdcChannel.vibe";
+import { SfdcInstance, SfdcInstanceProvider } from "./Integrations/SfdcInstance.vibe";
 import {
   SfdcInstancesSfdcChannel,
   SfdcInstancesSfdcChannelProvider,
-} from "./Integrations/SfdcInstancesSfdcChannel.ts";
+} from "./Integrations/SfdcInstancesSfdcChannel.vibe";
 import {
   Template as IntegrationsTemplate,
   TemplateProvider as IntegrationsTemplateProvider,
-} from "./Integrations/Template.ts";
+} from "./Integrations/Template.vibe";
 import { Tenant as JobsTenant, TenantProvider as JobsTenantProvider } from "./Jobs/Tenant.vibe";
 import { TenantsCompany, TenantsCompanyProvider } from "./Jobs/TenantsCompany.vibe";
 import { TenantsJob, TenantsJobProvider } from "./Jobs/TenantsJob.vibe";
@@ -1611,20 +1644,20 @@ import {
 import { LicenseAssignment, LicenseAssignmentProvider } from "./Licensing/LicenseAssignment.vibe";
 import { BillingBucket, BillingBucketProvider } from "./Logging/BillingBucket.ts";
 import { BillingBucketsLink, BillingBucketsLinkProvider } from "./Logging/BillingBucketsLink.ts";
-import { BillingBucketsView, BillingBucketsViewProvider } from "./Logging/BillingBucketsView.ts";
-import { BillingExclusion, BillingExclusionProvider } from "./Logging/BillingExclusion.ts";
-import { BillingSavedQuery, BillingSavedQueryProvider } from "./Logging/BillingSavedQuery.ts";
-import { BillingSink, BillingSinkProvider } from "./Logging/BillingSink.ts";
+import { BillingBucketsView, BillingBucketsViewProvider } from "./Logging/BillingBucketsView.vibe";
+import { BillingExclusion, BillingExclusionProvider } from "./Logging/BillingExclusion.vibe";
+import { BillingSavedQuery, BillingSavedQueryProvider } from "./Logging/BillingSavedQuery.vibe";
+import { BillingSink, BillingSinkProvider } from "./Logging/BillingSink.vibe";
 import { BucketsLink, BucketsLinkProvider } from "./Logging/BucketsLink.ts";
-import { BucketsView, BucketsViewProvider } from "./Logging/BucketsView.ts";
-import { Exclusion, ExclusionProvider } from "./Logging/Exclusion.ts";
+import { BucketsView, BucketsViewProvider } from "./Logging/BucketsView.vibe";
+import { Exclusion, ExclusionProvider } from "./Logging/Exclusion.vibe";
 import { FolderBucket, FolderBucketProvider } from "./Logging/FolderBucket.ts";
 import { FolderBucketsLink, FolderBucketsLinkProvider } from "./Logging/FolderBucketsLink.ts";
-import { FolderBucketsView, FolderBucketsViewProvider } from "./Logging/FolderBucketsView.ts";
-import { FolderExclusion, FolderExclusionProvider } from "./Logging/FolderExclusion.ts";
-import { FolderLogScope, FolderLogScopeProvider } from "./Logging/FolderLogScope.ts";
-import { FolderSavedQuery, FolderSavedQueryProvider } from "./Logging/FolderSavedQuery.ts";
-import { FolderSink, FolderSinkProvider } from "./Logging/FolderSink.ts";
+import { FolderBucketsView, FolderBucketsViewProvider } from "./Logging/FolderBucketsView.vibe";
+import { FolderExclusion, FolderExclusionProvider } from "./Logging/FolderExclusion.vibe";
+import { FolderLogScope, FolderLogScopeProvider } from "./Logging/FolderLogScope.vibe";
+import { FolderSavedQuery, FolderSavedQueryProvider } from "./Logging/FolderSavedQuery.vibe";
+import { FolderSink, FolderSinkProvider } from "./Logging/FolderSink.vibe";
 import { LocationsBucket, LocationsBucketProvider } from "./Logging/LocationsBucket.ts";
 import {
   LocationsBucketsLink,
@@ -1633,10 +1666,10 @@ import {
 import {
   LocationsBucketsView,
   LocationsBucketsViewProvider,
-} from "./Logging/LocationsBucketsView.ts";
+} from "./Logging/LocationsBucketsView.vibe";
 import { LogBucket, LogBucketProvider } from "./Logging/LogBucket.ts";
-import { LogScope, LogScopeProvider } from "./Logging/LogScope.ts";
-import { Metric, MetricProvider } from "./Logging/Metric.ts";
+import { LogScope, LogScopeProvider } from "./Logging/LogScope.vibe";
+import { Metric, MetricProvider } from "./Logging/Metric.vibe";
 import {
   OrganizationBucketsLink,
   OrganizationBucketsLinkProvider,
@@ -1644,11 +1677,11 @@ import {
 import {
   OrganizationBucketsView,
   OrganizationBucketsViewProvider,
-} from "./Logging/OrganizationBucketsView.ts";
+} from "./Logging/OrganizationBucketsView.vibe";
 import {
   OrganizationExclusion,
   OrganizationExclusionProvider,
-} from "./Logging/OrganizationExclusion.ts";
+} from "./Logging/OrganizationExclusion.vibe";
 import {
   OrganizationLogBucket,
   OrganizationLogBucketProvider,
@@ -1656,27 +1689,27 @@ import {
 import {
   OrganizationLogScope,
   OrganizationLogScopeProvider,
-} from "./Logging/OrganizationLogScope.ts";
+} from "./Logging/OrganizationLogScope.vibe";
 import {
   OrganizationSavedQuery,
   OrganizationSavedQueryProvider,
-} from "./Logging/OrganizationSavedQuery.ts";
-import { OrganizationSink, OrganizationSinkProvider } from "./Logging/OrganizationSink.ts";
-import { SavedQuery, SavedQueryProvider } from "./Logging/SavedQuery.ts";
-import { Sink, SinkProvider } from "./Logging/Sink.ts";
+} from "./Logging/OrganizationSavedQuery.vibe";
+import { OrganizationSink, OrganizationSinkProvider } from "./Logging/OrganizationSink.vibe";
+import { SavedQuery, SavedQueryProvider } from "./Logging/SavedQuery.vibe";
+import { Sink, SinkProvider } from "./Logging/Sink.vibe";
 import { InstancesBackup, InstancesBackupProvider } from "./Looker/InstancesBackup.ts";
 import {
   Domain as ManagedidentitiesDomain,
   DomainProvider as ManagedidentitiesDomainProvider,
-} from "./ManagedIdentities/Domain.ts";
+} from "./ManagedIdentities/Domain.vibe";
 import {
   DomainsBackup as ManagedidentitiesDomainsBackup,
   DomainsBackupProvider as ManagedidentitiesDomainsBackupProvider,
-} from "./ManagedIdentities/DomainsBackup.ts";
+} from "./ManagedIdentities/DomainsBackup.vibe";
 import {
   Peering as ManagedidentitiesPeering,
   PeeringProvider as ManagedidentitiesPeeringProvider,
-} from "./ManagedIdentities/Peering.ts";
+} from "./ManagedIdentities/Peering.vibe";
 import {
   Cluster as ManagedKafkaCluster,
   ClusterProvider as ManagedKafkaClusterProvider,
@@ -1717,75 +1750,75 @@ import { ProductReview, ProductReviewProvider } from "./MerchantApiReviews/Produ
 import {
   Federation as MetastoreFederation,
   FederationProvider as MetastoreFederationProvider,
-} from "./Metastore/Federation.ts";
+} from "./Metastore/Federation.vibe";
 import {
   Service as MetastoreService,
   ServiceProvider as MetastoreServiceProvider,
-} from "./Metastore/Service.ts";
+} from "./Metastore/Service.vibe";
 import {
   ServicesBackup as MetastoreServicesBackup,
   ServicesBackupProvider as MetastoreServicesBackupProvider,
-} from "./Metastore/ServicesBackup.ts";
+} from "./Metastore/ServicesBackup.vibe";
 import {
   AssetsExportJob as MigrationcenterAssetsExportJob,
   AssetsExportJobProvider as MigrationcenterAssetsExportJobProvider,
-} from "./MigrationCenter/AssetsExportJob.ts";
+} from "./MigrationCenter/AssetsExportJob.vibe";
 import {
   DiscoveryClient as MigrationcenterDiscoveryClient,
   DiscoveryClientProvider as MigrationcenterDiscoveryClientProvider,
-} from "./MigrationCenter/DiscoveryClient.ts";
+} from "./MigrationCenter/DiscoveryClient.vibe";
 import {
   Group as MigrationcenterGroup,
   GroupProvider as MigrationcenterGroupProvider,
-} from "./MigrationCenter/Group.ts";
+} from "./MigrationCenter/Group.vibe";
 import {
   ImportJob as MigrationcenterImportJob,
   ImportJobProvider as MigrationcenterImportJobProvider,
-} from "./MigrationCenter/ImportJob.ts";
+} from "./MigrationCenter/ImportJob.vibe";
 import {
   ImportJobsImportDataFile as MigrationcenterImportJobsImportDataFile,
   ImportJobsImportDataFileProvider as MigrationcenterImportJobsImportDataFileProvider,
-} from "./MigrationCenter/ImportJobsImportDataFile.ts";
+} from "./MigrationCenter/ImportJobsImportDataFile.vibe";
 import {
   PreferenceSet as MigrationcenterPreferenceSet,
   PreferenceSetProvider as MigrationcenterPreferenceSetProvider,
-} from "./MigrationCenter/PreferenceSet.ts";
+} from "./MigrationCenter/PreferenceSet.vibe";
 import {
   ReportConfig as MigrationcenterReportConfig,
   ReportConfigProvider as MigrationcenterReportConfigProvider,
-} from "./MigrationCenter/ReportConfig.ts";
+} from "./MigrationCenter/ReportConfig.vibe";
 import {
   ReportConfigsReport as MigrationcenterReportConfigsReport,
   ReportConfigsReportProvider as MigrationcenterReportConfigsReportProvider,
-} from "./MigrationCenter/ReportConfigsReport.ts";
+} from "./MigrationCenter/ReportConfigsReport.vibe";
 import {
   Source as MigrationcenterSource,
   SourceProvider as MigrationcenterSourceProvider,
-} from "./MigrationCenter/Source.ts";
+} from "./MigrationCenter/Source.vibe";
 import { GetModelHttp as GetMlModelHttp } from "./ML/GetModelHttp.vibe";
 import { GetVersionHttp as GetMlVersionHttp } from "./ML/GetVersionHttp.vibe";
-import { Model as MlModel, ModelProvider as MlModelProvider } from "./ML/Model.ts";
+import { Model as MlModel, ModelProvider as MlModelProvider } from "./ML/Model.vibe";
 import { ModelsVersion, ModelsVersionProvider } from "./ML/ModelsVersion.vibe";
 import { PredictHttp as PredictMlHttp } from "./ML/PredictHttp.vibe";
-import { AlertPolicy, AlertPolicyProvider } from "./Monitoring/AlertPolicy.ts";
+import { AlertPolicy, AlertPolicyProvider } from "./Monitoring/AlertPolicy.vibe";
 import {
   Group as MonitoringGroup,
   GroupProvider as MonitoringGroupProvider,
-} from "./Monitoring/Group.ts";
-import { MetricDescriptor, MetricDescriptorProvider } from "./Monitoring/MetricDescriptor.ts";
+} from "./Monitoring/Group.vibe";
+import { MetricDescriptor, MetricDescriptorProvider } from "./Monitoring/MetricDescriptor.vibe";
 import {
   NotificationChannel,
   NotificationChannelProvider,
-} from "./Monitoring/NotificationChannel.ts";
+} from "./Monitoring/NotificationChannel.vibe";
 import {
   Service as MonitoringService,
   ServiceProvider as MonitoringServiceProvider,
-} from "./Monitoring/Service.ts";
+} from "./Monitoring/Service.vibe";
 import {
   ServicesServiceLevelObjective,
   ServicesServiceLevelObjectiveProvider,
-} from "./Monitoring/ServicesServiceLevelObjective.ts";
-import { UptimeCheckConfig, UptimeCheckConfigProvider } from "./Monitoring/UptimeCheckConfig.ts";
+} from "./Monitoring/ServicesServiceLevelObjective.vibe";
+import { UptimeCheckConfig, UptimeCheckConfigProvider } from "./Monitoring/UptimeCheckConfig.vibe";
 import {
   ActiveDirectory as NetappActiveDirectory,
   ActiveDirectoryProvider as NetappActiveDirectoryProvider,
@@ -1793,7 +1826,7 @@ import {
 import {
   BackupPolicy as NetappBackupPolicy,
   BackupPolicyProvider as NetappBackupPolicyProvider,
-} from "./NetApp/BackupPolicy.ts";
+} from "./NetApp/BackupPolicy.vibe";
 import {
   BackupVault as NetappBackupVault,
   BackupVaultProvider as NetappBackupVaultProvider,
@@ -1823,7 +1856,7 @@ import {
   VolumesQuotaRuleProvider as NetappVolumesQuotaRuleProvider,
 } from "./NetApp/VolumesQuotaRule.vibe";
 import { VolumesReplication, VolumesReplicationProvider } from "./NetApp/VolumesReplication.ts";
-import { VolumesSnapshot, VolumesSnapshotProvider } from "./NetApp/VolumesSnapshot.ts";
+import { VolumesSnapshot, VolumesSnapshotProvider } from "./NetApp/VolumesSnapshot.vibe";
 import {
   AutomatedDnsRecord,
   AutomatedDnsRecordProvider,
@@ -1880,16 +1913,16 @@ import {
   VpcFlowLogsConfig,
   VpcFlowLogsConfigProvider,
 } from "./NetworkManagement/VpcFlowLogsConfig.vibe";
-import { AddressGroup, AddressGroupProvider } from "./NetworkSecurity/AddressGroup.ts";
+import { AddressGroup, AddressGroupProvider } from "./NetworkSecurity/AddressGroup.vibe";
 import {
   AuthorizationPolicy,
   AuthorizationPolicyProvider,
-} from "./NetworkSecurity/AuthorizationPolicy.ts";
-import { AuthzPolicy, AuthzPolicyProvider } from "./NetworkSecurity/AuthzPolicy.ts";
+} from "./NetworkSecurity/AuthorizationPolicy.vibe";
+import { AuthzPolicy, AuthzPolicyProvider } from "./NetworkSecurity/AuthzPolicy.vibe";
 import {
   BackendAuthenticationConfig,
   BackendAuthenticationConfigProvider,
-} from "./NetworkSecurity/BackendAuthenticationConfig.ts";
+} from "./NetworkSecurity/BackendAuthenticationConfig.vibe";
 import { ClientTlsPolicy, ClientTlsPolicyProvider } from "./NetworkSecurity/ClientTlsPolicy.vibe";
 import {
   DnsThreatDetector,
@@ -1946,19 +1979,19 @@ import {
 import {
   OrganizationsAddressGroup,
   OrganizationsAddressGroupProvider,
-} from "./NetworkSecurity/OrganizationsAddressGroup.ts";
+} from "./NetworkSecurity/OrganizationsAddressGroup.vibe";
 import {
   OrganizationsFirewallEndpoint,
   OrganizationsFirewallEndpointProvider,
-} from "./NetworkSecurity/OrganizationsFirewallEndpoint.ts";
+} from "./NetworkSecurity/OrganizationsFirewallEndpoint.vibe";
 import {
   OrganizationsSecurityProfile,
   OrganizationsSecurityProfileProvider,
-} from "./NetworkSecurity/OrganizationsSecurityProfile.ts";
+} from "./NetworkSecurity/OrganizationsSecurityProfile.vibe";
 import {
   OrganizationsSecurityProfileGroup,
   OrganizationsSecurityProfileGroupProvider,
-} from "./NetworkSecurity/OrganizationsSecurityProfileGroup.ts";
+} from "./NetworkSecurity/OrganizationsSecurityProfileGroup.vibe";
 import { SacAttachment, SacAttachmentProvider } from "./NetworkSecurity/SacAttachment.ts";
 import { SacRealm, SacRealmProvider } from "./NetworkSecurity/SacRealm.ts";
 import { SecurityProfile, SecurityProfileProvider } from "./NetworkSecurity/SecurityProfile.ts";
@@ -2007,12 +2040,12 @@ import { WasmPlugin, WasmPluginProvider } from "./NetworkServices/WasmPlugin.vib
 import {
   WasmPluginsVersion,
   WasmPluginsVersionProvider,
-} from "./NetworkServices/WasmPluginsVersion.ts";
+} from "./NetworkServices/WasmPluginsVersion.vibe";
 import {
   BucketsDatasetsLink,
   BucketsDatasetsLinkProvider,
 } from "./Observability/BucketsDatasetsLink.ts";
-import { TraceScope, TraceScopeProvider } from "./Observability/TraceScope.ts";
+import { TraceScope, TraceScopeProvider } from "./Observability/TraceScope.vibe";
 import {
   AutonomousDatabase,
   AutonomousDatabaseProvider,
@@ -2051,12 +2084,12 @@ import {
 import {
   GoldengateDeployment,
   GoldengateDeploymentProvider,
-} from "./OracleDatabase/GoldengateDeployment.ts";
-import { OdbNetwork, OdbNetworkProvider } from "./OracleDatabase/OdbNetwork.ts";
+} from "./OracleDatabase/GoldengateDeployment.vibe";
+import { OdbNetwork, OdbNetworkProvider } from "./OracleDatabase/OdbNetwork.vibe";
 import {
   OdbNetworksOdbSubnet,
   OdbNetworksOdbSubnetProvider,
-} from "./OracleDatabase/OdbNetworksOdbSubnet.ts";
+} from "./OracleDatabase/OdbNetworksOdbSubnet.vibe";
 import { RestartAutonomousDatabaseHttp } from "./OracleDatabase/RestartAutonomousDatabaseHttp.vibe";
 import { StartAutonomousDatabaseHttp } from "./OracleDatabase/StartAutonomousDatabaseHttp.vibe";
 import { StopAutonomousDatabaseHttp } from "./OracleDatabase/StopAutonomousDatabaseHttp.vibe";
@@ -2065,15 +2098,15 @@ import { Policy, PolicyProvider } from "./OrgPolicy/Policy.ts";
 import {
   FoldersLocationsGlobalPolicyOrchestrator,
   FoldersLocationsGlobalPolicyOrchestratorProvider,
-} from "./OSConfig/FoldersLocationsGlobalPolicyOrchestrator.ts";
+} from "./OSConfig/FoldersLocationsGlobalPolicyOrchestrator.vibe";
 import {
   OrganizationsLocationsGlobalPolicyOrchestrator,
   OrganizationsLocationsGlobalPolicyOrchestratorProvider,
-} from "./OSConfig/OrganizationsLocationsGlobalPolicyOrchestrator.ts";
+} from "./OSConfig/OrganizationsLocationsGlobalPolicyOrchestrator.vibe";
 import {
   ProjectsLocationsGlobalPolicyOrchestrator,
   ProjectsLocationsGlobalPolicyOrchestratorProvider,
-} from "./OSConfig/ProjectsLocationsGlobalPolicyOrchestrator.ts";
+} from "./OSConfig/ProjectsLocationsGlobalPolicyOrchestrator.vibe";
 import { UsersSshPublicKey, UsersSshPublicKeyProvider } from "./OSLogin/UsersSshPublicKey.vibe";
 import { GetParameterHttp } from "./ParameterManager/GetParameterHttp.ts";
 import { GetParameterVersionHttp } from "./ParameterManager/GetParameterVersionHttp.vibe";
@@ -2098,13 +2131,13 @@ import { AcknowledgeHttp } from "./PubSub/AcknowledgeHttp.vibe";
 import { GetSchemaHttp } from "./PubSub/GetSchemaHttp.ts";
 import { PublishHttp } from "./PubSub/PublishHttp.vibe";
 import { PullHttp } from "./PubSub/PullHttp.vibe";
-import { Schema, SchemaProvider } from "./PubSub/Schema.ts";
+import { Schema, SchemaProvider } from "./PubSub/Schema.vibe";
 import {
   Snapshot as PubSubSnapshot,
   SnapshotProvider as PubSubSnapshotProvider,
-} from "./PubSub/Snapshot.ts";
-import { Subscription, SubscriptionProvider } from "./PubSub/Subscription.ts";
-import { Topic, TopicProvider } from "./PubSub/Topic.ts";
+} from "./PubSub/Snapshot.vibe";
+import { Subscription, SubscriptionProvider } from "./PubSub/Subscription.vibe";
+import { Topic, TopicProvider } from "./PubSub/Topic.vibe";
 import { ValidateMessageHttp } from "./PubSub/ValidateMessageHttp.vibe";
 import { AdminReservation, AdminReservationProvider } from "./PubSubLite/AdminReservation.vibe";
 import { AdminSubscription, AdminSubscriptionProvider } from "./PubSubLite/AdminSubscription.vibe";
@@ -2118,7 +2151,7 @@ import { GetTopicHttp as GetPubsubliteTopicHttp } from "./PubSubLite/GetTopicHtt
 import {
   Collector as RapidmigrationassessmentCollector,
   CollectorProvider as RapidmigrationassessmentCollectorProvider,
-} from "./RapidMigrationAssessment/Collector.ts";
+} from "./RapidMigrationAssessment/Collector.vibe";
 import { PauseCollectorHttp } from "./RapidMigrationAssessment/PauseCollectorHttp.vibe";
 import { RegisterCollectorHttp } from "./RapidMigrationAssessment/RegisterCollectorHttp.vibe";
 import { ResumeCollectorHttp } from "./RapidMigrationAssessment/ResumeCollectorHttp.vibe";
@@ -2138,7 +2171,7 @@ import {
 import {
   CatalogsCatalogItem,
   CatalogsCatalogItemProvider,
-} from "./RecommendationEngine/CatalogsCatalogItem.ts";
+} from "./RecommendationEngine/CatalogsCatalogItem.vibe";
 import { GetCatalogItemHttp } from "./RecommendationEngine/GetCatalogItemHttp.vibe";
 import { AclPolicy, AclPolicyProvider } from "./Redis/AclPolicy.ts";
 import { GetAclPolicyHttp } from "./Redis/GetAclPolicyHttp.vibe";
@@ -2160,19 +2193,19 @@ import {
   Project as ResourceManagerProject,
   ProjectProvider as ResourceManagerProjectProvider,
 } from "./ResourceManager/Project.vibe";
-import { TagBinding, TagBindingProvider } from "./ResourceManager/TagBinding.ts";
+import { TagBinding, TagBindingProvider } from "./ResourceManager/TagBinding.vibe";
 import { TagKey, TagKeyProvider } from "./ResourceManager/TagKey.ts";
 import { TagValue, TagValueProvider } from "./ResourceManager/TagValue.ts";
 import {
   CatalogsBranchesProduct,
   CatalogsBranchesProductProvider,
-} from "./Retail/CatalogsBranchesProduct.ts";
-import { CatalogsControl, CatalogsControlProvider } from "./Retail/CatalogsControl.ts";
-import { CatalogsModel, CatalogsModelProvider } from "./Retail/CatalogsModel.ts";
+} from "./Retail/CatalogsBranchesProduct.vibe";
+import { CatalogsControl, CatalogsControlProvider } from "./Retail/CatalogsControl.vibe";
+import { CatalogsModel, CatalogsModelProvider } from "./Retail/CatalogsModel.vibe";
 import {
   CatalogsServingConfig,
   CatalogsServingConfigProvider,
-} from "./Retail/CatalogsServingConfig.ts";
+} from "./Retail/CatalogsServingConfig.vibe";
 import { PredictHttp as RetailPredictHttp } from "./Retail/PredictHttp.vibe";
 import { SearchHttp as RetailSearchHttp } from "./Retail/SearchHttp.vibe";
 import {
@@ -2188,39 +2221,39 @@ import { WorkerPool, WorkerPoolProvider } from "./Run/WorkerPool.ts";
 import {
   Release as SaasservicemgmtRelease,
   ReleaseProvider as SaasservicemgmtReleaseProvider,
-} from "./SaasServiceManagement/Release.ts";
+} from "./SaasServiceManagement/Release.vibe";
 import {
   Rollout as SaasservicemgmtRollout,
   RolloutProvider as SaasservicemgmtRolloutProvider,
-} from "./SaasServiceManagement/Rollout.ts";
+} from "./SaasServiceManagement/Rollout.vibe";
 import {
   RolloutKind as SaasservicemgmtRolloutKind,
   RolloutKindProvider as SaasservicemgmtRolloutKindProvider,
-} from "./SaasServiceManagement/RolloutKind.ts";
+} from "./SaasServiceManagement/RolloutKind.vibe";
 import {
   Saa as SaasservicemgmtSaa,
   SaaProvider as SaasservicemgmtSaaProvider,
-} from "./SaasServiceManagement/Saa.ts";
+} from "./SaasServiceManagement/Saa.vibe";
 import {
   Tenant as SaasservicemgmtTenant,
   TenantProvider as SaasservicemgmtTenantProvider,
-} from "./SaasServiceManagement/Tenant.ts";
+} from "./SaasServiceManagement/Tenant.vibe";
 import {
   Unit as SaasservicemgmtUnit,
   UnitProvider as SaasservicemgmtUnitProvider,
-} from "./SaasServiceManagement/Unit.ts";
+} from "./SaasServiceManagement/Unit.vibe";
 import {
   UnitKind as SaasservicemgmtUnitKind,
   UnitKindProvider as SaasservicemgmtUnitKindProvider,
-} from "./SaasServiceManagement/UnitKind.ts";
+} from "./SaasServiceManagement/UnitKind.vibe";
 import {
   UnitOperation as SaasservicemgmtUnitOperation,
   UnitOperationProvider as SaasservicemgmtUnitOperationProvider,
-} from "./SaasServiceManagement/UnitOperation.ts";
+} from "./SaasServiceManagement/UnitOperation.vibe";
 import {
   CustomersDeployment as SasportalCustomersDeployment,
   CustomersDeploymentProvider as SasportalCustomersDeploymentProvider,
-} from "./SasPortal/CustomersDeployment.ts";
+} from "./SasPortal/CustomersDeployment.vibe";
 import {
   CustomersDeploymentsDevice as SasportalCustomersDeploymentsDevice,
   CustomersDeploymentsDeviceProvider as SasportalCustomersDeploymentsDeviceProvider,
@@ -2228,11 +2261,11 @@ import {
 import {
   CustomersDevice as SasportalCustomersDevice,
   CustomersDeviceProvider as SasportalCustomersDeviceProvider,
-} from "./SasPortal/CustomersDevice.ts";
+} from "./SasPortal/CustomersDevice.vibe";
 import {
   CustomersNode as SasportalCustomersNode,
   CustomersNodeProvider as SasportalCustomersNodeProvider,
-} from "./SasPortal/CustomersNode.ts";
+} from "./SasPortal/CustomersNode.vibe";
 import {
   CustomersNodesDeployment as SasportalCustomersNodesDeployment,
   CustomersNodesDeploymentProvider as SasportalCustomersNodesDeploymentProvider,
@@ -2300,79 +2333,79 @@ import { Secret, SecretProvider } from "./SecretManager/Secret.ts";
 import {
   RepositoriesBranchRule,
   RepositoriesBranchRuleProvider,
-} from "./SecureSourceManager/RepositoriesBranchRule.ts";
+} from "./SecureSourceManager/RepositoriesBranchRule.vibe";
 import {
   RepositoriesHook,
   RepositoriesHookProvider,
-} from "./SecureSourceManager/RepositoriesHook.ts";
+} from "./SecureSourceManager/RepositoriesHook.vibe";
 import {
   RepositoriesIssue,
   RepositoriesIssueProvider,
-} from "./SecureSourceManager/RepositoriesIssue.ts";
+} from "./SecureSourceManager/RepositoriesIssue.vibe";
 import {
   RepositoriesIssuesIssueComment,
   RepositoriesIssuesIssueCommentProvider,
-} from "./SecureSourceManager/RepositoriesIssuesIssueComment.ts";
+} from "./SecureSourceManager/RepositoriesIssuesIssueComment.vibe";
 import {
   RepositoriesPullRequestsPullRequestComment,
   RepositoriesPullRequestsPullRequestCommentProvider,
-} from "./SecureSourceManager/RepositoriesPullRequestsPullRequestComment.ts";
-import { BigQueryExport, BigQueryExportProvider } from "./SecurityCenter/BigQueryExport.ts";
+} from "./SecureSourceManager/RepositoriesPullRequestsPullRequestComment.vibe";
+import { BigQueryExport, BigQueryExportProvider } from "./SecurityCenter/BigQueryExport.vibe";
 import {
   EventThreatDetectionSettingsCustomModule,
   EventThreatDetectionSettingsCustomModuleProvider,
-} from "./SecurityCenter/EventThreatDetectionSettingsCustomModule.ts";
+} from "./SecurityCenter/EventThreatDetectionSettingsCustomModule.vibe";
 import {
   FolderBigQueryExport,
   FolderBigQueryExportProvider,
-} from "./SecurityCenter/FolderBigQueryExport.ts";
+} from "./SecurityCenter/FolderBigQueryExport.vibe";
 import {
   FolderEventThreatDetectionSettingsCustomModule,
   FolderEventThreatDetectionSettingsCustomModuleProvider,
-} from "./SecurityCenter/FolderEventThreatDetectionSettingsCustomModule.ts";
-import { FolderMuteConfig, FolderMuteConfigProvider } from "./SecurityCenter/FolderMuteConfig.ts";
+} from "./SecurityCenter/FolderEventThreatDetectionSettingsCustomModule.vibe";
+import { FolderMuteConfig, FolderMuteConfigProvider } from "./SecurityCenter/FolderMuteConfig.vibe";
 import {
   FolderNotificationConfig,
   FolderNotificationConfigProvider,
-} from "./SecurityCenter/FolderNotificationConfig.ts";
+} from "./SecurityCenter/FolderNotificationConfig.vibe";
 import {
   FolderSecurityHealthAnalyticsSettingsCustomModule,
   FolderSecurityHealthAnalyticsSettingsCustomModuleProvider,
-} from "./SecurityCenter/FolderSecurityHealthAnalyticsSettingsCustomModule.ts";
-import { MuteConfig, MuteConfigProvider } from "./SecurityCenter/MuteConfig.ts";
+} from "./SecurityCenter/FolderSecurityHealthAnalyticsSettingsCustomModule.vibe";
+import { MuteConfig, MuteConfigProvider } from "./SecurityCenter/MuteConfig.vibe";
 import {
   NotificationConfig,
   NotificationConfigProvider,
-} from "./SecurityCenter/NotificationConfig.ts";
+} from "./SecurityCenter/NotificationConfig.vibe";
 import {
   OrganizationBigQueryExport,
   OrganizationBigQueryExportProvider,
-} from "./SecurityCenter/OrganizationBigQueryExport.ts";
+} from "./SecurityCenter/OrganizationBigQueryExport.vibe";
 import {
   OrganizationEventThreatDetectionSettingsCustomModule,
   OrganizationEventThreatDetectionSettingsCustomModuleProvider,
-} from "./SecurityCenter/OrganizationEventThreatDetectionSettingsCustomModule.ts";
+} from "./SecurityCenter/OrganizationEventThreatDetectionSettingsCustomModule.vibe";
 import {
   OrganizationMuteConfig,
   OrganizationMuteConfigProvider,
-} from "./SecurityCenter/OrganizationMuteConfig.ts";
+} from "./SecurityCenter/OrganizationMuteConfig.vibe";
 import {
   OrganizationsNotificationConfig,
   OrganizationsNotificationConfigProvider,
-} from "./SecurityCenter/OrganizationsNotificationConfig.ts";
+} from "./SecurityCenter/OrganizationsNotificationConfig.vibe";
 import {
   OrganizationsSecurityHealthAnalyticsSettingsCustomModule,
   OrganizationsSecurityHealthAnalyticsSettingsCustomModuleProvider,
-} from "./SecurityCenter/OrganizationsSecurityHealthAnalyticsSettingsCustomModule.ts";
+} from "./SecurityCenter/OrganizationsSecurityHealthAnalyticsSettingsCustomModule.vibe";
 import {
   SecurityHealthAnalyticsSettingsCustomModule,
   SecurityHealthAnalyticsSettingsCustomModuleProvider,
-} from "./SecurityCenter/SecurityHealthAnalyticsSettingsCustomModule.ts";
+} from "./SecurityCenter/SecurityHealthAnalyticsSettingsCustomModule.vibe";
 import { Posture, PostureProvider } from "./SecurityPosture/Posture.ts";
 import {
   PostureDeployment,
   PostureDeploymentProvider,
-} from "./SecurityPosture/PostureDeployment.ts";
+} from "./SecurityPosture/PostureDeployment.vibe";
 import {
   Endpoint as ServiceDirectoryEndpoint,
   EndpointProvider as ServiceDirectoryEndpointProvider,
@@ -2413,7 +2446,7 @@ import {
 import {
   InstancesDatabasesBackupSchedule as SpannerInstancesDatabasesBackupSchedule,
   InstancesDatabasesBackupScheduleProvider as SpannerInstancesDatabasesBackupScheduleProvider,
-} from "./Spanner/InstancesDatabasesBackupSchedule.ts";
+} from "./Spanner/InstancesDatabasesBackupSchedule.vibe";
 import {
   InstancesInstancePartition as SpannerInstancesInstancePartition,
   InstancesInstancePartitionProvider as SpannerInstancesInstancePartitionProvider,
@@ -2444,7 +2477,7 @@ import {
 } from "./SQL/Instance.ts";
 import { SslCert as SqlSslCert, SslCertProvider as SqlSslCertProvider } from "./SQL/SslCert.ts";
 import { User as SqlUser, UserProvider as SqlUserProvider } from "./SQL/User.ts";
-import { Bucket, BucketProvider } from "./Storage/Bucket.ts";
+import { Bucket, BucketProvider } from "./Storage/Bucket.vibe";
 import {
   BucketAccessControl,
   BucketAccessControlProvider,
@@ -2478,10 +2511,10 @@ import { Node as TpuNode, NodeProvider as TpuNodeProvider } from "./TPU/Node.vib
 import {
   QueuedResource as TpuQueuedResource,
   QueuedResourceProvider as TpuQueuedResourceProvider,
-} from "./TPU/QueuedResource.ts";
+} from "./TPU/QueuedResource.vibe";
 import { CreateJobHttp } from "./Transcoder/CreateJobHttp.vibe";
 import { JobTemplate, JobTemplateProvider } from "./Transcoder/JobTemplate.vibe";
-import { AdaptiveMtDataset, AdaptiveMtDatasetProvider } from "./Translate/AdaptiveMtDataset.ts";
+import { AdaptiveMtDataset, AdaptiveMtDatasetProvider } from "./Translate/AdaptiveMtDataset.vibe";
 import { AdaptiveMtTranslateHttp } from "./Translate/AdaptiveMtTranslateHttp.ts";
 import { GetAdaptiveMtDatasetHttp } from "./Translate/GetAdaptiveMtDatasetHttp.ts";
 import { GetGlossariesGlossaryEntryHttp } from "./Translate/GetGlossariesGlossaryEntryHttp.ts";
@@ -2489,11 +2522,11 @@ import { GetModelHttp as TranslateGetModelHttp } from "./Translate/GetModelHttp.
 import {
   GlossariesGlossaryEntry,
   GlossariesGlossaryEntryProvider,
-} from "./Translate/GlossariesGlossaryEntry.ts";
+} from "./Translate/GlossariesGlossaryEntry.vibe";
 import {
   Model as TranslateModel,
   ModelProvider as TranslateModelProvider,
-} from "./Translate/Model.ts";
+} from "./Translate/Model.vibe";
 import { TranslateTextHttp } from "./Translate/TranslateTextHttp.ts";
 import { Matter, MatterProvider } from "./Vault/Matter.vibe";
 import { MattersExport, MattersExportProvider } from "./Vault/MattersExport.vibe";
@@ -2514,35 +2547,35 @@ import {
 import {
   Group as VmmigrationGroup,
   GroupProvider as VmmigrationGroupProvider,
-} from "./VMMigration/Group.ts";
+} from "./VMMigration/Group.vibe";
 import {
   ImageImport as VmmigrationImageImport,
   ImageImportProvider as VmmigrationImageImportProvider,
-} from "./VMMigration/ImageImport.ts";
+} from "./VMMigration/ImageImport.vibe";
 import {
   Source as VmmigrationSource,
   SourceProvider as VmmigrationSourceProvider,
-} from "./VMMigration/Source.ts";
+} from "./VMMigration/Source.vibe";
 import {
   SourcesDatacenterConnector,
   SourcesDatacenterConnectorProvider,
-} from "./VMMigration/SourcesDatacenterConnector.ts";
+} from "./VMMigration/SourcesDatacenterConnector.vibe";
 import {
   SourcesDiskMigrationJob,
   SourcesDiskMigrationJobProvider,
-} from "./VMMigration/SourcesDiskMigrationJob.ts";
+} from "./VMMigration/SourcesDiskMigrationJob.vibe";
 import {
   SourcesMigratingVm,
   SourcesMigratingVmProvider,
-} from "./VMMigration/SourcesMigratingVm.ts";
+} from "./VMMigration/SourcesMigratingVm.vibe";
 import {
   SourcesUtilizationReport,
   SourcesUtilizationReportProvider,
-} from "./VMMigration/SourcesUtilizationReport.ts";
+} from "./VMMigration/SourcesUtilizationReport.vibe";
 import {
   Target as VmmigrationTarget,
   TargetProvider as VmmigrationTargetProvider,
-} from "./VMMigration/Target.ts";
+} from "./VMMigration/Target.vibe";
 import {
   Datastore as VmwareengineDatastore,
   DatastoreProvider as VmwareengineDatastoreProvider,
@@ -2572,12 +2605,15 @@ import {
 import {
   PrivateCloudsManagementDnsZoneBinding,
   PrivateCloudsManagementDnsZoneBindingProvider,
-} from "./VMwareEngine/PrivateCloudsManagementDnsZoneBinding.ts";
-import { PrivateConnection, PrivateConnectionProvider } from "./VMwareEngine/PrivateConnection.ts";
+} from "./VMwareEngine/PrivateCloudsManagementDnsZoneBinding.vibe";
+import {
+  PrivateConnection,
+  PrivateConnectionProvider,
+} from "./VMwareEngine/PrivateConnection.vibe";
 import {
   VmwareEngineNetwork,
   VmwareEngineNetworkProvider,
-} from "./VMwareEngine/VmwareEngineNetwork.ts";
+} from "./VMwareEngine/VmwareEngineNetwork.vibe";
 import { Connector, ConnectorProvider } from "./VpcAccess/Connector.ts";
 import { ScanConfig, ScanConfigProvider } from "./WebSecurityScanner/ScanConfig.vibe";
 import { CreateExecutionHttp } from "./Workflows/CreateExecutionHttp.vibe";

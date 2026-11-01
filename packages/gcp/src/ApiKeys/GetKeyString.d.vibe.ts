@@ -2,7 +2,7 @@ import type * as apikeys from "@distilled.cloud/gcp/apikeys_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.vibe";
 /**
  * Runtime binding for API Keys `keys.getKeyString`.
  *

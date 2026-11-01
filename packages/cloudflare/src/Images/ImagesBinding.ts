@@ -9,7 +9,7 @@ import {
   type ImagesClient,
   type ImageTransformationResult,
   type ImageTransformer,
-} from "./Images.ts";
+} from "./Images.vibe";
 
 /** The binding value produced by calling {@link Images} (declared on `env` or `yield*`-ed). */
 export type ImagesBinding = Binding.Binding<Images["key"], ImagesClient, Images>;

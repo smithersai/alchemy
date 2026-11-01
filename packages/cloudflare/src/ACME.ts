@@ -15,7 +15,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
 import * as Stream from "effect/Stream";
-import type { WriteDnsClient } from "./DNS/WriteDns.ts";
+import type { WriteDnsClient } from "./DNS/WriteDns.vibe";
 
 /** Solver descriptor: publish `_acme-challenge` TXT records in a Cloudflare zone. */
 export interface CloudflareDnsSolver extends DnsSolverDescriptor {

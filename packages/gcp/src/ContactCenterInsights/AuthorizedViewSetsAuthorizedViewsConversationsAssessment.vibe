@@ -1,0 +1,270 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnershipLine,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  ownedByAlchemy,
+  parentOf,
+  parseOwnership,
+} from "./ownership.vibe"
+
+export type AgentInfo = {
+  /** Opaque agent id the assessment is for. Required on create. */
+  mutable agentId?: string
+  /** Agent display name. */
+  mutable displayName?: string
+  /** Agent type (e.g. `HUMAN_AGENT`). */
+  mutable agentType?: string
+  /** Agent team. */
+  mutable team?: string
+  /** Agent teams. */
+  mutable teams?: string[]
+  /** Agent location. */
+  mutable location?: string
+}
+
+export type AuthorizedViewSetsAuthorizedViewsConversationsAssessmentProps = {
+  /**
+   * Parent conversation under an AuthorizedView
+   * (`{authorizedView}/conversations/{conversation}`). Immutable —
+   * changing it replaces the assessment.
+   */
+  mutable parent: string
+  /**
+   * Agent the assessment is for. Assessments have no labels or
+   * description field, so Alchemy ownership is stored in
+   * `agentInfo.displayName`.
+   */
+  mutable agentInfo: AgentInfo
+}
+
+export type AuthorizedViewSetsAuthorizedViewsConversationsAssessment = Resource<
+  "GCP.ContactCenterInsights.AuthorizedViewSetsAuthorizedViewsConversationsAssessment",
+  AuthorizedViewSetsAuthorizedViewsConversationsAssessmentProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Assessment id (last path segment). */
+    mutable assessmentId: string
+    /** Parent conversation under the AuthorizedView. */
+    mutable parent: string
+    /** Location id. */
+    mutable location: string
+    /** Project id. */
+    mutable project: string
+    /** Assessment state. */
+    mutable state: string | undefined
+    /** Agent info with the Alchemy ownership prefix stripped from displayName. */
+    mutable agentInfo: AgentInfo | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Contact Center AI Insights quality assessment of a conversation,
+ * created through an AuthorizedView.
+ *
+ * Assessments have no labels field and no patch API — Alchemy stamps
+ * ownership into `agentInfo.displayName`. Parent conversation is
+ * immutable. Reconcile is observe-then-ensure.
+ *
+ * ### Creating an Assessment
+ * **Example:** Assess a conversation through a view
+ * ```typescript
+ * const assessment =
+ *   yield* GCP.ContactCenterInsights.AuthorizedViewSetsAuthorizedViewsConversationsAssessment(
+ *     "Qa",
+ *     {
+ *       parent: `${view.name}/conversations/${conversation.conversationId}`,
+ *       agentInfo: { agentId: "agent-1", displayName: "Ada" },
+ *     },
+ *   );
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const AuthorizedViewSetsAuthorizedViewsConversationsAssessment = Resource<
+  AuthorizedViewSetsAuthorizedViewsConversationsAssessment
+>(
+  "GCP.ContactCenterInsights.AuthorizedViewSetsAuthorizedViewsConversationsAssessment",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AuthorizedViewSetsAuthorizedViewsConversationsAssessmentNotResolved extends Data.TaggedError(
+  "GCP.ContactCenterInsights.AuthorizedViewSetsAuthorizedViewsConversationsAssessmentNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const agentInfoOf = (
+  info: cci.GoogleCloudContactcenterinsightsV1ConversationQualityMetadataAgentInfo | undefined,
+): AgentInfo | undefined => {
+  if (info === undefined) return undefined
+  const parsed = parseOwnership(info.displayName)
+  return {
+    agentId: info.agentId,
+    displayName: parsed.text,
+    agentType: info.agentType,
+    team: info.team,
+    teams: info.teams,
+    location: info.location,
+  }
+}
+
+const toAttrs = (assessment: cci.GoogleCloudContactcenterinsightsV1Assessment, project: string): infer _ => {
+  const name = assessment.name ?? ""
+  return {
+    name,
+    assessmentId: lastSegment(name),
+    parent: parentOf(name),
+    location: locationOf(name),
+    project,
+    state: assessment.state,
+    agentInfo: agentInfoOf(assessment.agentInfo),
+    createTime: assessment.createTime,
+    updateTime: assessment.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+  .getProjectsLocationsAuthorizedViewSetsAuthorizedViewsConversationsAssessments({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAtParent = effect (parent: string, project: string) =>
+  (Array.from(
+    try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViewsConversationsAssessments
+      .pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assessments ?? []))
+      |> Stream.filter(%, (assessment) => hasOwnershipMarker(assessment.agentInfo?.displayName))
+      |> Stream.map(%, (assessment) => toAttrs(assessment, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findOwned = effect (parent: string, displayName: string, agentId: string | undefined) =>
+  (try effect {
+    const option = try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViewsConversationsAssessments
+      .pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.assessments ?? []))
+      |> Stream.filter(%, (assessment) =>
+        assessment.agentInfo?.displayName === displayName
+        && (agentId === undefined || assessment.agentInfo?.agentId === agentId))
+      |> Stream.runHead(%))
+    return (option._tag === "Some" ? option.value : undefined)
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+export const AuthorizedViewSetsAuthorizedViewsConversationsAssessmentProvider = (): infer _ =>
+  Provider.succeed(AuthorizedViewSetsAuthorizedViewsConversationsAssessment, {
+    stables: ["name", "assessmentId", "parent", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (previousParent !== undefined && news.parent !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousAgent = olds?.agentInfo?.agentId ?? output?.agentInfo?.agentId
+      if (
+        previousAgent !== undefined
+        && news.agentInfo.agentId !== undefined
+        && news.agentInfo.agentId !== previousAgent
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      let existing = try getByName(output?.name ?? "")
+      if (existing === undefined && olds?.parent !== undefined) {
+        const ownership = try createInternalLabels(id)
+        existing = try findOwned(
+          olds.parent,
+          encodeOwnershipLine(ownership, olds.agentInfo?.displayName),
+          olds.agentInfo?.agentId,
+        )
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.agentInfo?.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const viewsParent = `${locationParent(env.project, env.region)}/authorizedViewSets/-`
+      const views = (Array.from(
+        try (cci.listProjectsLocationsAuthorizedViewSetsAuthorizedViews
+          .pages({ parent: viewsParent, pageSize: 100 })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.authorizedViews ?? []))
+          |> Stream.map(%, (view) => view.name ?? "")
+          |> Stream.filter(%, (name) => name.length > 0)
+          |> Stream.runCollect(%)),
+      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+      const pages = try Effect.forEach(
+        views,
+        effect (view) => try listAtParent(`${view}/conversations/-`, env.project),
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const ownership = try createInternalLabels(id)
+      const displayName = encodeOwnershipLine(ownership, news.agentInfo.displayName)
+      const agentInfo = {
+        ...news.agentInfo,
+        displayName,
+      }
+
+      let current = try getByName(output?.name ?? "")
+      if (current === undefined) {
+        current = try findOwned(news.parent, displayName, news.agentInfo.agentId)
+      }
+
+      if (current === undefined) {
+        const created = cci
+          .createProjectsLocationsAuthorizedViewSetsAuthorizedViewsConversationsAssessments({
+            parent: news.parent,
+            body: { agentInfo },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try findOwned(news.parent, displayName, news.agentInfo.agentId);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AuthorizedViewSetsAuthorizedViewsConversationsAssessmentNotResolved({
+          resourceName: output?.name ?? `${news.parent}/assessments/-`,
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      cci
+        .deleteProjectsLocationsAuthorizedViewSetsAuthorizedViewsConversationsAssessments({
+          name: output.name,
+          force: true,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

@@ -1,0 +1,327 @@
+import * as apihub from "@distilled.cloud/gcp/apihub_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  ApihubNotResolved,
+  type AttributeValuesMap,
+  type Documentation,
+  createOwnership,
+  encodeOwnership,
+  hasOwnershipMarker,
+  listApis,
+  listChildResources,
+  listOperations,
+  listVersions,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  replaceOnIdentity,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+} from "./internal.ts"
+
+export type HttpOperation = {
+  /** HTTP method. Required on create. */
+  mutable method?:
+    | "METHOD_UNSPECIFIED"
+    | "GET"
+    | "PUT"
+    | "POST"
+    | "DELETE"
+    | "OPTIONS"
+    | "HEAD"
+    | "PATCH"
+    | "TRACE"
+    | (string & {})
+  /** Path relative to the server endpoint. Required on create. */
+  mutable path?: {
+    mutable path?: string
+    mutable description?: string
+  }
+}
+
+export type OperationDetails = {
+  /** HTTP operation. Required on create when not using MCP. */
+  mutable httpOperation?: HttpOperation
+  /** Description of the operation. Alchemy stamps ownership here. */
+  mutable description?: string
+  /** When true, the operation is deprecated. */
+  mutable deprecated?: boolean
+  /** External documentation. */
+  mutable documentation?: Documentation
+  /** MCP tool details. */
+  mutable mcpTool?: apihub.GoogleCloudApihubV1McpTool
+}
+
+export type ApisVersionsOperationProps = {
+  /**
+   * Parent version. Full name
+   * `projects/{project}/locations/{location}/apis/{api}/versions/{version}`.
+   * Immutable — changing it replaces the operation.
+   */
+  mutable version: string
+  /**
+   * Operation id (the `{operation}` segment of
+   * `.../versions/{version}/operations/{operation}`). If omitted, a unique
+   * id is generated. Immutable — changing it replaces the operation.
+   */
+  mutable apiOperationId?: string
+  /**
+   * Location used when parsing parent names.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Operation details. `httpOperation.method` and `httpOperation.path.path`
+   * are required on create. Description is stamped with `[alchemy …]`
+   * because operations have no labels field.
+   */
+  mutable details: OperationDetails
+  /**
+   * User-defined attributes keyed by attribute resource name.
+   */
+  mutable attributes?: AttributeValuesMap
+}
+
+export type ApisVersionsOperation = Resource<
+  "GCP.ApiHub.ApisVersionsOperation",
+  ApisVersionsOperationProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Operation id (last path segment). */
+    mutable apiOperationId: string
+    /** Parent version resource name. */
+    mutable version: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Spec that produced this operation, if parsed from a spec. */
+    mutable spec: string | undefined
+    /** Operation details with the Alchemy ownership prefix stripped. */
+    mutable details: OperationDetails | undefined
+    /** User-defined attributes. */
+    mutable attributes: AttributeValuesMap | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An API operation in an API Hub version. Operations can be created only
+ * when the version has no spec-parsed operations.
+ *
+ * Parent version and id are immutable. Description, documentation, HTTP
+ * path/method, deprecation, and attributes update in place. Operations
+ * have no labels field — Alchemy stamps ownership into
+ * `details.description`.
+ *
+ * ### Creating an Operation
+ * **Example:** GET /pets
+ * ```typescript
+ * const version = yield* GCP.ApiHub.ApisVersion("V1", { api: api.name });
+ * const operation = yield* GCP.ApiHub.ApisVersionsOperation("ListPets", {
+ *   version: version.name,
+ *   details: {
+ *     httpOperation: { method: "GET", path: { path: "/pets" } },
+ *     description: "list pets",
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category ApiHub
+ */
+export const ApisVersionsOperation = Resource<ApisVersionsOperation>(
+  "GCP.ApiHub.ApisVersionsOperation",
+)
+
+const resourceName = (version: string, apiOperationId: string): infer _ => `${version}/operations/${apiOperationId}`
+
+const toDetails = (
+  details: apihub.GoogleCloudApihubV1OperationDetails | undefined,
+): OperationDetails | undefined => {
+  if (details === undefined) return undefined
+  const parsed = parseOwnership(details.description)
+  return {
+    httpOperation: details.httpOperation,
+    description: parsed.text,
+    deprecated: details.deprecated,
+    documentation: details.documentation,
+    mcpTool: details.mcpTool,
+  }
+}
+
+const toAttrs = (
+  operation: apihub.GoogleCloudApihubV1ApiOperation,
+  project: string,
+  region: string,
+): ApisVersionsOperation["Attributes"] => {
+  const name = operation.name ?? ""
+  const parsed = parseResourceName(name, "operations", region)
+  return {
+    name,
+    apiOperationId: parsed.id,
+    version: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    spec: operation.spec,
+    details: toDetails(operation.details),
+    attributes: operation.attributes,
+    createTime: operation.createTime,
+    updateTime: operation.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : apihub
+  .getProjectsLocationsApisVersionsOperations({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const detailsOf = (
+  news: ApisVersionsOperationProps,
+  description: string,
+): apihub.GoogleCloudApihubV1OperationDetails => ({
+  httpOperation: news.details.httpOperation,
+  description,
+  deprecated: news.details.deprecated,
+  documentation: news.details.documentation,
+  mcpTool: news.details.mcpTool,
+})
+
+export const ApisVersionsOperationProvider = (): infer _ =>
+  Provider.succeed(ApisVersionsOperation, {
+    stables: ["name", "apiOperationId", "version", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      return replaceOnIdentity({
+        previousId: olds?.apiOperationId ?? output?.apiOperationId,
+        nextId: news.apiOperationId ?? olds?.apiOperationId ?? output?.apiOperationId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        previousParent: olds?.version ?? output?.version,
+        nextParent: news.version ?? olds?.version ?? output?.version,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const version = olds?.version ?? output?.version ?? ""
+      const apiOperationId = try toPhysicalId(id, olds?.apiOperationId, output?.apiOperationId)
+      const name = output?.name ?? resourceName(version, apiOperationId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.details?.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const apis = try listApis(`projects/${env.project}/locations/${env.region}`)
+      const versions = try listChildResources(apis, listVersions)
+      const operations = try listChildResources(versions, listOperations)
+      return operations
+        .filter((item) => hasOwnershipMarker(item.details?.description))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const version = news.version.replace(/\/+$/, "")
+      const apiOperationId = try toPhysicalId(id, news.apiOperationId, output?.apiOperationId)
+      const name = output?.name ?? resourceName(version, apiOperationId)
+      const ownership = try createOwnership(id)
+      const description = encodeOwnership(ownership, news.details.description)
+      const details = detailsOf(news, description)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = apihub
+          .createProjectsLocationsApisVersionsOperations({
+            parent: version,
+            apiOperationId,
+            body: {
+              details,
+              attributes: news.attributes,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ApihubNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const descriptionChanged = !sameText(current.details?.description, description)
+      const docsChanged = !sameJson(current.details?.documentation, news.details.documentation)
+      const pathChanged = !sameJson(
+        current.details?.httpOperation?.path,
+        news.details.httpOperation?.path,
+      )
+      const methodChanged = !sameText(
+        current.details?.httpOperation?.method,
+        news.details.httpOperation?.method,
+      )
+      const deprecatedChanged = (current.details?.deprecated === true) !== (news.details.deprecated === true)
+      const mcpChanged = !sameJson(current.details?.mcpTool, news.details.mcpTool)
+      const attributesChanged = !sameJson(current.attributes, news.attributes)
+
+      if (
+        descriptionChanged
+        || docsChanged
+        || pathChanged
+        || methodChanged
+        || deprecatedChanged
+        || mcpChanged
+        || attributesChanged
+      ) {
+        current = try apihub.patchProjectsLocationsApisVersionsOperations({
+          name: currentName,
+          updateMask: updateMaskOf(
+            descriptionChanged ? "details.description" : undefined,
+            docsChanged ? "details.documentation" : undefined,
+            pathChanged ? "details.http_operation.path" : undefined,
+            methodChanged ? "details.http_operation.method" : undefined,
+            deprecatedChanged ? "details.deprecated" : undefined,
+            mcpChanged ? "details.mcp_tool" : undefined,
+            attributesChanged ? "attributes" : undefined,
+          ),
+          body: {
+            name: currentName,
+            details,
+            attributes: news.attributes,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      apihub
+        .deleteProjectsLocationsApisVersionsOperations({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

@@ -5,7 +5,7 @@ export * from "./Evaluation.ts";
 export * from "./Gateway.ts";
 export * from "./GatewayDynamicRouting.ts";
 export * from "./GatewayProvider.ts";
-export * from "./LanguageModel.ts";
+export * from "./LanguageModel.vibe";
 export * from "./Model.ts";
 export * from "./ProviderKey.vibe";
 export * from "./QueryGateway.vibe";

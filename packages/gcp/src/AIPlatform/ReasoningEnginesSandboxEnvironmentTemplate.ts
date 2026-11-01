@@ -21,7 +21,7 @@ import {
   parseDisplayName,
   parseName,
   listLocations,
-} from "./names.ts";
+} from "./names.vibe";
 import { resourceNameFromOperation, waitForOperation } from "./operations.ts";
 
 export type SandboxEnvironmentTemplateDefaultContainerEnvironment =

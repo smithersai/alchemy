@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.js";
 import type { Providers } from "../Providers.js";
-import { type TagTemplateField, type TagTemplateFieldMap } from "./internal.js";
+import { type TagTemplateField, type TagTemplateFieldMap } from "./internal.vibe";
 export type TagTemplateFieldType = datacatalog.GoogleCloudDatacatalogV1FieldType;
 export type { TagTemplateField, TagTemplateFieldMap };
 export type TagTemplateProps = {

@@ -1,0 +1,351 @@
+import * as apphub from "@distilled.cloud/gcp/apphub_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  type Attributes,
+  type ServiceProperties,
+  type ServiceReference,
+  encodeOwnership,
+  expandApplication,
+  fieldMask,
+  listNestedOwned,
+  listOwnedPages,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  resolveDiscoveredService,
+  ResourceNotResolved,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.ts"
+
+export type ApplicationsServiceProps = {
+  /**
+   * Parent Application. Full name
+   * `projects/{project}/locations/{location}/applications/{application}`
+   * or the application id (combined with `location`). Immutable —
+   * changing it replaces the service.
+   */
+  mutable application: string
+  /**
+   * Region used when `application` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Service id (the `{service}` segment). Must be RFC1035 (63 chars).
+   * If omitted, a unique name is generated. Immutable — changing it
+   * replaces the service.
+   */
+  mutable serviceId?: string
+  /**
+   * Resource name of the original discovered service, or the underlying
+   * resource URI (looked up via `discoveredServices:lookup`). Immutable
+   * — changing it replaces the service.
+   */
+  mutable discoveredService: string
+  /**
+   * User-defined display name. Maximum length is 63 characters. Defaults
+   * to the service id.
+   */
+  mutable displayName?: string
+  /**
+   * User-defined description. Maximum length is 2048 characters.
+   * Services have no labels field, so Alchemy stamps ownership into a
+   * `[alchemy …]` prefix and strips it from attributes.
+   */
+  mutable description?: string
+  /**
+   * Consumer-provided attributes (criticality, environment, owners).
+   */
+  mutable attributes?: Attributes
+}
+
+export type ApplicationsService = Resource<
+  "GCP.AppHub.ApplicationsService",
+  ApplicationsServiceProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Service id (last path segment). */
+    mutable serviceId: string
+    /** Parent Application resource name. */
+    mutable application: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Discovered service resource name. */
+    mutable discoveredService: string | undefined
+    /** User-defined display name. */
+    mutable displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Consumer-provided attributes. */
+    mutable attributes: Attributes | undefined
+    /** Reference to the underlying networking resource. */
+    mutable serviceReference: ServiceReference | undefined
+    /** Properties of the underlying compute resource. */
+    mutable serviceProperties: ServiceProperties | undefined
+    /** Server-reported state. */
+    mutable state: string | undefined
+    /** Server-generated resource uid. */
+    mutable uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An App Hub service registered onto an Application. A service is a
+ * discovered network or API interface (forwarding rule, URL map, Cloud
+ * Run service, …) that exposes functionality over the network.
+ *
+ * Services have no labels field, so Alchemy stamps ownership into the
+ * description for `list` / nuke. Application, service id, and
+ * `discoveredService` are immutable. Display name, description, and
+ * attributes update in place.
+ *
+ * ### Creating a Service
+ * **Example:** Register a discovered service
+ * ```typescript
+ * const service = yield* GCP.AppHub.ApplicationsService("Frontend", {
+ *   application: app.name,
+ *   discoveredService: discovered.name,
+ * });
+ * ```
+ *
+ * **Example:** Lookup from an underlying resource URI
+ * ```typescript
+ * const service = yield* GCP.AppHub.ApplicationsService("Frontend", {
+ *   application: app.name,
+ *   discoveredService: forwardingRule.selfLink,
+ *   displayName: "frontend",
+ *   description: "https load balancer",
+ * });
+ * ```
+ *
+ * ### Updating a Service
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Display name and attributes
+ * ```typescript
+ * const service = yield* GCP.AppHub.ApplicationsService("Frontend", {
+ *   application: app.name,
+ *   discoveredService: discovered.name,
+ *   displayName: "frontend-v2",
+ *   attributes: { criticality: { type: "HIGH" } },
+ * });
+ * ```
+ *
+ * @resource
+ * @category AppHub
+ */
+export const ApplicationsService = Resource<ApplicationsService>("GCP.AppHub.ApplicationsService")
+
+const resourceName = (application: string, serviceId: string): infer _ => `${application}/services/${serviceId}`
+
+const toAttrs = (item: apphub.Service, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "services", region)
+  const ownership = parseOwnership(item.description)
+  return {
+    name,
+    serviceId: parsed.id,
+    application: parsed.application,
+    project: parsed.project || project,
+    location: parsed.location,
+    discoveredService: item.discoveredService,
+    displayName: item.displayName,
+    description: ownership.text,
+    attributes: item.attributes,
+    serviceReference: item.serviceReference,
+    serviceProperties: item.serviceProperties,
+    state: item.state,
+    uid: item.uid,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : apphub
+  .getProjectsLocationsApplicationsServices({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string, region: string) =>
+  try listNestedOwned(project, region, effect (application) =>
+    try listOwnedPages(
+      apphub.listProjectsLocationsApplicationsServices.pages({
+        parent: application,
+        pageSize: 1000,
+      }),
+      (page) => page.services,
+      (item) => item.description,
+    ))
+
+export const ApplicationsServiceProvider = (): infer _ =>
+  Provider.succeed(ApplicationsService, {
+    stables: [
+      "name",
+      "serviceId",
+      "application",
+      "project",
+      "location",
+      "discoveredService",
+      "uid",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousDiscovered = olds?.discoveredService ?? output?.discoveredService
+      return replaceOnIdentity({
+        previousId: olds?.serviceId ?? output?.serviceId,
+        nextId: news.serviceId ?? olds?.serviceId ?? output?.serviceId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        previousParent: olds?.application ?? output?.application,
+        nextParent: news.application,
+        extra: previousDiscovered !== undefined
+          && news.discoveredService !== undefined
+          && previousDiscovered !== news.discoveredService
+          && !previousDiscovered.endsWith(`/${news.discoveredService}`)
+          && !news.discoveredService.endsWith(`/${previousDiscovered}`),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceId = try toPhysicalId(id, olds?.serviceId, output?.serviceId, "service")
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const application = expandApplication(
+        olds?.application ?? output?.application ?? "",
+        env.project,
+        location,
+      )
+      const name = output?.name ?? resourceName(application, serviceId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceId = try toPhysicalId(id, news.serviceId, output?.serviceId, "service")
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const application = expandApplication(news.application, env.project, location)
+      const name = resourceName(application, serviceId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? serviceId
+      const discoveredService = try resolveDiscoveredService(
+        locationParent(env.project, location),
+        news.discoveredService,
+        env.project,
+        location,
+      )
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apphub
+          .createProjectsLocationsApplicationsServices({
+            parent: application,
+            serviceId,
+            body: {
+              discoveredService,
+              displayName,
+              description,
+              attributes: news.attributes,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      current = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item) => item.state,
+      )
+
+      const mask = fieldMask([
+        !sameText(current.description, description) && "description",
+        !sameText(current.displayName, displayName) && "displayName",
+        news.attributes !== undefined
+        && !sameJson(current.attributes, news.attributes)
+        && "attributes",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try apphub.patchProjectsLocationsApplicationsServices({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            displayName,
+            description,
+            attributes: news.attributes,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(
+          getByName(current.name ?? name),
+          current.name ?? name,
+          (item) => item.state,
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (apphub
+        .deleteProjectsLocationsApplicationsServices({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

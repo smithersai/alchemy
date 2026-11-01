@@ -1,0 +1,316 @@
+import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnershipLine,
+  listAgents,
+  listFlows,
+  listTransitionRouteGroups,
+  ownedByAlchemy,
+  ownershipLabels,
+  ownershipText,
+  parseOwnership,
+  parseResourceName,
+  sameJson,
+  sameText,
+  updateMaskOf,
+  retryQuota,
+} from "./internal.ts"
+
+export type TransitionRoute = {
+  /** Intent that triggers this route. */
+  mutable intent?: string
+  /** Condition expression. */
+  mutable condition?: string
+  /** Target flow resource name. */
+  mutable targetFlow?: string
+  /** Target page resource name. */
+  mutable targetPage?: string
+  /** Description of the route. */
+  mutable description?: string
+  /** Fulfillment run when the route matches. */
+  mutable triggerFulfillment?: {
+    mutable messages?: Array<{
+      mutable text?: { mutable text?: string[]; mutable allowPlaybackInterruption?: boolean }
+    }>
+    mutable tag?: string
+  }
+}
+
+export type AgentsFlowsTransitionRouteGroupProps = {
+  /**
+   * Parent flow resource name
+   * `projects/{project}/locations/{location}/agents/{agent}/flows/{flow}`.
+   * Immutable — changing it replaces the route group.
+   */
+  mutable flow: string
+  /**
+   * Transition route group id. Server-assigned on create. Immutable —
+   * changing it replaces the route group.
+   */
+  mutable transitionRouteGroupId?: string
+  /**
+   * Human-readable name, unique within the flow. Route groups have no
+   * labels or description field, so Alchemy stamps ownership into this
+   * field for `list` / nuke.
+   */
+  mutable displayName?: string
+  /** Transition routes in the group. */
+  mutable transitionRoutes?: TransitionRoute[]
+  /** Language code of the route group. */
+  mutable languageCode?: string
+}
+
+export type AgentsFlowsTransitionRouteGroup = Resource<
+  "GCP.Dialogflow.AgentsFlowsTransitionRouteGroup",
+  AgentsFlowsTransitionRouteGroupProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Route group id (last path segment). */
+    mutable transitionRouteGroupId: string
+    /** Parent flow resource name. */
+    mutable flow: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    mutable displayName: string | undefined
+    /** Transition routes. */
+    mutable transitionRoutes: TransitionRoute[]
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dialogflow CX transition route group under a flow.
+ *
+ * Route groups have no labels field, so Alchemy stamps ownership into
+ * `displayName` for `list` / nuke. Parent flow and id are immutable.
+ * Display name and routes update in place.
+ *
+ * ### Creating a Route Group
+ * **Example:** Fallback routes
+ * ```typescript
+ * const group = yield* GCP.Dialogflow.AgentsFlowsTransitionRouteGroup(
+ *   "Fallback",
+ *   {
+ *     flow: flow.name,
+ *     displayName: "fallback",
+ *     transitionRoutes: [
+ *       {
+ *         condition: "true",
+ *         triggerFulfillment: {
+ *           messages: [{ text: { text: ["I did not get that."] } }],
+ *         },
+ *       },
+ *     ],
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category Dialogflow
+ */
+export const AgentsFlowsTransitionRouteGroup = Resource<AgentsFlowsTransitionRouteGroup>(
+  "GCP.Dialogflow.AgentsFlowsTransitionRouteGroup",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AgentsFlowsTransitionRouteGroupNotResolved extends Data.TaggedError(
+  "GCP.Dialogflow.AgentsFlowsTransitionRouteGroupNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const routesOf = (
+  list: readonly dialogflow.GoogleCloudDialogflowCxV3TransitionRoute[] | undefined,
+): TransitionRoute[] =>
+  (list ?? []).map((route) => ({
+    intent: route.intent,
+    condition: route.condition,
+    targetFlow: route.targetFlow,
+    targetPage: route.targetPage,
+    description: route.description,
+    triggerFulfillment: route.triggerFulfillment
+      ? {
+        messages: route.triggerFulfillment.messages?.map((message) => ({
+          text: message.text
+            ? {
+              text: [...(message.text.text ?? [])],
+              allowPlaybackInterruption: message.text.allowPlaybackInterruption,
+            }
+            : undefined,
+        })),
+        tag: route.triggerFulfillment.tag,
+      }
+      : undefined,
+  }))
+
+const toAttrs = (
+  group: dialogflow.GoogleCloudDialogflowCxV3TransitionRouteGroup,
+  project: string,
+): infer _ => {
+  const name = group.name ?? ""
+  const parsed = parseResourceName(name, "transitionRouteGroups")
+  return {
+    name,
+    transitionRouteGroupId: parsed.id,
+    flow: parsed.flow || parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: parseOwnership(group.displayName).text,
+    transitionRoutes: routesOf(group.transitionRoutes),
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dialogflow
+  .getProjectsLocationsAgentsFlowsTransitionRouteGroups({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const findOwned = effect (id: string, flow: string, hinted?: string) => {
+  if (hinted !== undefined && hinted.length > 0) {
+    const existing = try getByName(hinted)
+    if (existing !== undefined) return existing
+  }
+  const groups = try listTransitionRouteGroups(flow)
+  for (const group of groups) {
+    if (try ownedByAlchemy(id, ownershipText(group))) return group
+  }
+  return undefined as dialogflow.GoogleCloudDialogflowCxV3TransitionRouteGroup | undefined
+}
+
+const listOwned = effect (project: string) => {
+  const agents = try listAgents(project)
+  const flows = (try Effect.forEach(
+    agents,
+    effect (agent) => (agent.name ? try listFlows(agent.name) : []),
+    { concurrency: 4 },
+  )).flat()
+  const groups = (try Effect.forEach(
+    flows,
+    effect (flow) => (flow.name ? try listTransitionRouteGroups(flow.name) : []),
+    { concurrency: 4 },
+  )).flat()
+  return groups
+    .filter((group) => parseOwnership(group.displayName).labels["alchemy-id"] !== undefined)
+    .map((group) => toAttrs(group, project))
+}
+
+export const AgentsFlowsTransitionRouteGroupProvider = (): infer _ =>
+  Provider.succeed(AgentsFlowsTransitionRouteGroup, {
+    stables: ["name", "transitionRouteGroupId", "flow", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousFlow = olds?.flow ?? output?.flow
+      const previousId = olds?.transitionRouteGroupId ?? output?.transitionRouteGroupId
+      if (
+        (previousFlow !== undefined && news.flow !== previousFlow)
+        || (previousId !== undefined
+          && news.transitionRouteGroupId !== undefined
+          && news.transitionRouteGroupId !== previousId)
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst: previousFlow === news.flow
+            && previousId !== undefined
+            && news.transitionRouteGroupId === previousId,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const flow = olds?.flow ?? output?.flow
+      const existing = output?.name !== undefined
+        ? try getByName(output.name)
+        : flow !== undefined
+        ? try findOwned(id, flow)
+        : undefined
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, ownershipText(existing))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listOwned(env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) =>
+      try (effect {
+        const env = try GcpEnvironment.current
+        const flow = news.flow
+        const ownership = try ownershipLabels(id)
+        const displayName = encodeOwnershipLine(ownership, news.displayName ?? "routes")
+        const transitionRoutes = news.transitionRoutes
+        const body: dialogflow.GoogleCloudDialogflowCxV3TransitionRouteGroup = {
+          displayName,
+          transitionRoutes,
+        }
+
+        let current = try findOwned(id, flow, output?.name)
+
+        if (current === undefined) {
+          const created = dialogflow
+            .createProjectsLocationsAgentsFlowsTransitionRouteGroups({
+              parent: flow,
+              languageCode: news.languageCode,
+              body,
+            }) catch effect (e) => match (e) {
+              when { _tag: "Conflict" }: try findOwned(id, flow, output?.name);
+              default: throw e;
+            }
+          current = created ?? undefined
+        }
+
+        if (current === undefined) {
+          throw new AgentsFlowsTransitionRouteGroupNotResolved({
+            resourceName: output?.name
+              ?? `${flow}/transitionRouteGroups/${news.transitionRouteGroupId ?? "unknown"}`,
+          })
+        }
+
+        const currentName = current.name ?? output?.name ?? ""
+        const displayChanged = !sameText(current.displayName, displayName)
+        const routesChanged = !sameJson(
+          routesOf(current.transitionRoutes),
+          routesOf(transitionRoutes),
+        )
+
+        if (displayChanged || routesChanged) {
+          current = try dialogflow.patchProjectsLocationsAgentsFlowsTransitionRouteGroups({
+            name: currentName,
+            languageCode: news.languageCode,
+            updateMask: updateMaskOf(
+              displayChanged ? "display_name" : undefined,
+              routesChanged ? "transition_routes" : undefined,
+            ),
+            body: { ...body, name: currentName },
+          })
+        }
+
+        return toAttrs(current, env.project)
+      }
+        |> retryQuota(%)),
+
+    delete: effect ({ output }) =>
+      try (effect {
+        dialogflow
+          .deleteProjectsLocationsAgentsFlowsTransitionRouteGroups({
+            name: output.name,
+            force: true,
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+        |> retryQuota(%)),
+  })

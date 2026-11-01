@@ -1,0 +1,300 @@
+import * as logging from "@distilled.cloud/gcp/logging_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+
+const MAX_NAME_LENGTH = 100
+
+export type ExclusionProps = {
+  /**
+   * Exclusion id (the `{exclusion}` segment of
+   * `projects/{project}/exclusions/{exclusion}`). If omitted, a unique
+   * name is generated from the stack, stage, and logical id. Limited to
+   * 100 characters: letters, digits, underscores, hyphens, periods; first
+   * character must be alphanumeric. Immutable — changing it replaces the
+   * exclusion.
+   */
+  mutable exclusionId?: string
+  /**
+   * Advanced logs filter matching entries to exclude from the `_Default`
+   * sink. Required. Use `sample()` to exclude a fraction of matches.
+   */
+  mutable filter: string
+  /**
+   * Human-readable description. Logging exclusions have no labels field,
+   * so Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  mutable description?: string
+  /**
+   * When true, the exclusion exists but does not exclude any entries.
+   * @default false
+   */
+  mutable disabled?: boolean
+}
+
+export type Exclusion = Resource<
+  "GCP.Logging.Exclusion",
+  ExclusionProps,
+  {
+    /** Full resource name `projects/{project}/exclusions/{exclusionId}`. */
+    mutable name: string
+    /** Exclusion id (last path segment). */
+    mutable exclusionId: string
+    /** Project id. */
+    mutable project: string
+    /** Advanced logs filter. */
+    mutable filter: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Whether the exclusion is disabled. */
+    mutable disabled: boolean
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Logging exclusion on the `_Default` sink.
+ *
+ * Exclusions drop matching log entries before they are stored in the
+ * `_Default` bucket (they do not apply to `_Required`). A project can have
+ * up to 10. Logging exclusions have no labels field, so Alchemy stamps
+ * ownership into the description for `list` / nuke. Name is identity —
+ * changing `exclusionId` replaces the exclusion.
+ *
+ * ### Creating an Exclusion
+ * **Example:** Generated name, drop debug logs
+ * ```typescript
+ * const exclusion = yield* GCP.Logging.Exclusion("DropDebug", {
+ *   filter: "severity=DEBUG",
+ *   description: "drop debug entries",
+ * });
+ * ```
+ *
+ * **Example:** Named exclusion
+ * ```typescript
+ * const exclusion = yield* GCP.Logging.Exclusion("DropDebug", {
+ *   exclusionId: "drop-debug",
+ *   filter: "severity=DEBUG",
+ *   description: "drop debug entries",
+ * });
+ * ```
+ *
+ * ### Updating an Exclusion
+ * **Example:** Change the filter and disable
+ * ```typescript
+ * const exclusion = yield* GCP.Logging.Exclusion("DropDebug", {
+ *   filter: "severity<ERROR",
+ *   description: "drop non-errors",
+ *   disabled: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Logging
+ */
+export const Exclusion = Resource<Exclusion>("GCP.Logging.Exclusion")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ExclusionNotResolved extends Data.TaggedError("GCP.Logging.ExclusionNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+const resourceName = (project: string, exclusionId: string): infer _ => `projects/${project}/exclusions/${exclusionId}`
+
+const exclusionIdOf = (exclusion: logging.LogExclusion): infer _ => {
+  const raw = exclusion.name ?? ""
+  return raw.includes("/") ? lastSegment(raw) : raw
+}
+
+const toId = effect (id: string, exclusionId: string | undefined, existing?: string) => {
+  if (exclusionId !== undefined) return exclusionId
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_NAME_LENGTH,
+    lowercase: true,
+  })
+  return /^[a-z0-9]/.test(generated) ? generated : `e${generated}`.slice(0, MAX_NAME_LENGTH)
+}
+
+const encodeDescription = (
+  labels: Record<string, string>,
+  description: string | undefined,
+): string => {
+  const marker = `[alchemy ${alchemyLabelKeys.stack}=${labels[alchemyLabelKeys.stack]} ${alchemyLabelKeys.stage}=${
+    labels[alchemyLabelKeys.stage]
+  } ${alchemyLabelKeys.id}=${labels[alchemyLabelKeys.id]}]`
+  return description ? `${marker}\n${description}` : marker
+}
+
+const parseDescription = (
+  description: string | undefined,
+): {
+  mutable labels: Record<string, string>
+  mutable description: string | undefined
+} => {
+  if (!description?.startsWith("[alchemy ")) {
+    return { labels: {}, description }
+  }
+  const end = description.indexOf("]")
+  if (end < 0) return { labels: {}, description }
+  const labels: Record<string, string> = {}
+  for (const part of description.slice("[alchemy ".length, end).split(/\s+/)) {
+    const eq = part.indexOf("=")
+    if (eq > 0) {
+      labels[part.slice(0, eq)] = part.slice(eq + 1)
+    }
+  }
+  const rest = description.slice(end + 1).replace(/^\n/, "")
+  return { labels, description: rest.length > 0 ? rest : undefined }
+}
+
+const hasOwnershipMarker = (description: string | undefined): infer _ =>
+  Object.keys(parseDescription(description).labels).some((key) => key.startsWith("alchemy-"))
+
+const toAttrs = (exclusion: logging.LogExclusion, project: string): infer _ => {
+  const exclusionId = exclusionIdOf(exclusion)
+  const parsed = parseDescription(exclusion.description)
+  return {
+    name: exclusionId.includes("/")
+      ? exclusionId
+      : exclusion.name?.includes("/")
+      ? exclusion.name
+      : resourceName(project, exclusionId),
+    exclusionId,
+    project,
+    filter: exclusion.filter ?? "",
+    description: parsed.description,
+    disabled: exclusion.disabled === true,
+    createTime: exclusion.createTime,
+    updateTime: exclusion.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  logging.getProjectsExclusions({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+export const ExclusionProvider = (): infer _ =>
+  Provider.succeed(Exclusion, {
+    stables: ["name", "exclusionId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previous = olds?.exclusionId ?? output?.exclusionId
+      if (
+        previous !== undefined
+        && news.exclusionId !== undefined
+        && news.exclusionId !== previous
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const exclusionId = try toId(id, olds?.exclusionId, output?.exclusionId)
+      const name = output?.name ?? resourceName(env.project, exclusionId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      const { labels } = parseDescription(existing.description)
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (logging.listProjectsExclusions
+          .pages({
+            parent: `projects/${env.project}`,
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.exclusions ?? []))
+          |> Stream.filter(%, (exclusion) => hasOwnershipMarker(exclusion.description))
+          |> Stream.map(%, (exclusion) => toAttrs(exclusion, env.project))
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const exclusionId = try toId(id, news.exclusionId, output?.exclusionId)
+      const name = resourceName(env.project, exclusionId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeDescription(ownership, news.description)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = logging
+          .createProjectsExclusions({
+            parent: `projects/${env.project}`,
+            body: {
+              name: exclusionId,
+              filter: news.filter,
+              description: desiredDescription,
+              disabled: news.disabled === true ? true : undefined,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ExclusionNotResolved({ resourceName: name })
+      }
+
+      const desiredDisabled = news.disabled === true
+      const filterChanged = (current.filter ?? "") !== news.filter
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const disabledChanged = (current.disabled === true) !== desiredDisabled
+
+      const updateMask = [
+        filterChanged ? "filter" : undefined,
+        descriptionChanged ? "description" : undefined,
+        disabledChanged ? "disabled" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        current = try logging.patchProjectsExclusions({
+          name: current.name?.includes("/") ? current.name : name,
+          updateMask: updateMask.join(","),
+          body: {
+            filter: news.filter,
+            description: desiredDescription,
+            disabled: desiredDisabled,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      logging
+        .deleteProjectsExclusions({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

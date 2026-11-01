@@ -1,0 +1,311 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import { lastSegment, orgParent, resolveOrgId, sameJson, sortedStrings, toPhysicalId } from "./operations.vibe"
+import { fromAttributes, toAttributes, userAttributeList, type Attribute } from "./ownership.ts"
+
+const MAX_NAME_LENGTH = 255
+
+export type AppgroupsAppProps = {
+  /**
+   * Apigee organization id. Defaults to the GCP project id. Immutable.
+   */
+  mutable organizationId?: string
+  /**
+   * Parent AppGroup id or `organizations/{org}/appgroups/{appgroup}`.
+   * Immutable.
+   */
+  mutable appgroup: string
+  /**
+   * App id. If omitted, a unique name is generated. Immutable.
+   */
+  mutable appId?: string
+  /**
+   * API products associated with the app. An API key is generated for
+   * each product on create.
+   */
+  mutable apiProducts?: string[]
+  /**
+   * App status: `approved` or `revoked`.
+   * @default "approved"
+   */
+  mutable status?: string
+  /**
+   * OAuth callback URL.
+   */
+  mutable callbackUrl?: string
+  /**
+   * Consumer key lifetime in seconds. `-1` (default) never expires.
+   * Immutable after create.
+   */
+  mutable keyExpiresIn?: string
+  /**
+   * OAuth scopes. Must already exist on associated API products.
+   */
+  mutable scopes?: string[]
+  /**
+   * Customer attributes. Alchemy ownership attributes are merged in
+   * automatically so `list` / nuke can find the app.
+   */
+  mutable attributes?: Attribute[]
+}
+
+export type AppgroupsApp = Resource<
+  "GCP.Apigee.AppgroupsApp",
+  AppgroupsAppProps,
+  {
+    /** Full resource name `organizations/{org}/appgroups/{group}/apps/{app}`. */
+    mutable name: string
+    /** App id. */
+    mutable appId: string
+    /** Parent AppGroup id. */
+    mutable appgroupId: string
+    /** Organization id. */
+    mutable organizationId: string
+    /** Project id. */
+    mutable project: string
+    /** Associated API products. */
+    mutable apiProducts: string[]
+    /** App status. */
+    mutable status: string | undefined
+    /** OAuth callback URL. */
+    mutable callbackUrl: string | undefined
+    /** Consumer key lifetime in seconds. */
+    mutable keyExpiresIn: string | undefined
+    /** OAuth scopes. */
+    mutable scopes: string[]
+    /** User attributes (Alchemy ownership attributes stripped). */
+    mutable attributes: Attribute[]
+    /** Internal app id. */
+    mutable internalAppId: string | undefined
+    /** Credentials issued for the app. */
+    mutable credentials: apigee.GoogleCloudApigeeV1Credential[]
+    /** Creation time in milliseconds since epoch. */
+    mutable createdAt: string | undefined
+    /** Last modification time in milliseconds since epoch. */
+    mutable lastModifiedAt: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An app belonging to an Apigee AppGroup, with auto-generated API keys
+ * for the associated API products.
+ *
+ * Apps have no labels field. Alchemy stamps ownership into attributes
+ * so `list` / nuke can find them. The app name is immutable.
+ *
+ * ### Creating an App
+ * **Example:** App bound to a product
+ * ```typescript
+ * const app = yield* GCP.Apigee.AppgroupsApp("Mobile", {
+ *   appgroup: group.appgroupId,
+ *   apiProducts: [product.apiproductId],
+ *   callbackUrl: "https://example.com/oauth",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const AppgroupsApp = Resource<AppgroupsApp>("GCP.Apigee.AppgroupsApp")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AppgroupsAppNotResolved extends Data.TaggedError(
+  "GCP.Apigee.AppgroupsAppNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const groupParent = (organizationId: string, appgroup: string): infer _ =>
+  `${orgParent(organizationId)}/appgroups/${lastSegment(appgroup)}`
+
+const resourceName = (organizationId: string, appgroup: string, appId: string): infer _ =>
+  `${groupParent(organizationId, appgroup)}/apps/${appId}`
+
+const toAttrs = (
+  app: apigee.GoogleCloudApigeeV1AppGroupApp,
+  project: string,
+  organizationId: string,
+  appgroupId: string,
+): infer _ => {
+  const appId = lastSegment(app.name ?? "")
+  const attributes = userAttributeList(app.attributes)
+  return {
+    name: resourceName(organizationId, appgroupId, appId),
+    appId,
+    appgroupId: lastSegment(app.appGroup ?? appgroupId),
+    organizationId,
+    project,
+    apiProducts: sortedStrings(app.apiProducts),
+    status: app.status,
+    callbackUrl: app.callbackUrl,
+    keyExpiresIn: app.keyExpiresIn,
+    scopes: sortedStrings(app.scopes),
+    attributes,
+    internalAppId: app.appId,
+    credentials: [...(app.credentials ?? [])],
+    createdAt: app.createdAt,
+    lastModifiedAt: app.lastModifiedAt,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsAppgroupsApps({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const AppgroupsAppProvider = (): infer _ =>
+  Provider.succeed(AppgroupsApp, {
+    stables: [
+      "name",
+      "appId",
+      "appgroupId",
+      "organizationId",
+      "project",
+      "internalAppId",
+      "createdAt",
+      "keyExpiresIn",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.appId ?? output?.appId
+      const previousGroup = olds?.appgroup ? lastSegment(olds.appgroup) : output?.appgroupId
+      const previousOrg = olds?.organizationId ?? output?.organizationId
+      if (
+        (previousId !== undefined && news.appId !== undefined && news.appId !== previousId)
+        || (previousGroup !== undefined && lastSegment(news.appgroup) !== previousGroup)
+        || (previousOrg !== undefined
+          && news.organizationId !== undefined
+          && news.organizationId !== previousOrg)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organizationId = olds?.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
+      const appgroupId = lastSegment(olds?.appgroup ?? output?.appgroupId ?? "")
+      if (appgroupId.length === 0) return undefined
+      const appId = try toPhysicalId(id, olds?.appId, output?.appId, MAX_NAME_LENGTH)
+      const name = output?.name ?? resourceName(organizationId, appgroupId, appId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, organizationId, appgroupId)
+      const { labels } = fromAttributes(existing.attributes)
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organizationId = try resolveOrgId(env.project)
+      const groups = (Array.from(
+        try (apigee.listOrganizationsAppgroups
+          .pages({
+            parent: orgParent(organizationId),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.appGroups ?? []))
+          |> Stream.filter(%, (group) => fromAttributes(group.attributes).labels["alchemy-id"] !== undefined)
+          |> Stream.runCollect(%)),
+      )) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [];
+        default: throw e;
+      }
+      const apps = []
+      for (const group of groups) {
+        const appgroupId = lastSegment(group.name ?? "")
+        if (appgroupId.length === 0) continue
+        const page = (Array.from(
+          try (apigee.listOrganizationsAppgroupsApps
+            .pages({
+              parent: groupParent(organizationId, appgroupId),
+              pageSize: 1000,
+            })
+            |> Stream.flatMap(%, (item) => Stream.fromIterable(item.appGroupApps ?? []))
+            |> Stream.filter(%, (app) => fromAttributes(app.attributes).labels["alchemy-id"] !== undefined)
+            |> Stream.map(%, (app) => toAttrs(app, env.project, organizationId, appgroupId))
+            |> Stream.runCollect(%)),
+        )) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [];
+          default: throw e;
+        }
+        apps.push(...page)
+      }
+      return apps
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organizationId = news.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
+      const appgroupId = lastSegment(news.appgroup)
+      const appId = try toPhysicalId(id, news.appId, output?.appId, MAX_NAME_LENGTH)
+      const name = resourceName(organizationId, appgroupId, appId)
+      const ownership = try createInternalLabels(id)
+      const desiredAttributes = toAttributes(ownership, news.attributes)
+      const desiredStatus = news.status ?? "approved"
+      const body: apigee.GoogleCloudApigeeV1AppGroupApp = {
+        name: appId,
+        apiProducts: news.apiProducts,
+        callbackUrl: news.callbackUrl,
+        keyExpiresIn: news.keyExpiresIn,
+        scopes: news.scopes,
+        attributes: desiredAttributes,
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsAppgroupsApps({
+            parent: groupParent(organizationId, appgroupId),
+            body,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AppgroupsAppNotResolved({ resourceName: name })
+      }
+
+      const needsUpdate = (current.callbackUrl ?? "") !== (news.callbackUrl ?? "")
+        || !sameJson(sortedStrings(current.apiProducts), sortedStrings(news.apiProducts))
+        || !sameJson(sortedStrings(current.scopes), sortedStrings(news.scopes))
+        || !sameJson(current.attributes ?? [], desiredAttributes)
+
+      if (needsUpdate) {
+        current = try apigee.updateOrganizationsAppgroupsApps({
+          name,
+          body,
+        })
+      }
+
+      if ((current.status ?? "approved") !== desiredStatus) {
+        current = try apigee.updateOrganizationsAppgroupsApps({
+          name,
+          action: desiredStatus === "approved" ? "approve" : "revoke",
+        })
+      }
+
+      return toAttrs(current, env.project, organizationId, appgroupId)
+    },
+
+    delete: effect ({ output }) => {
+      apigee
+        .deleteOrganizationsAppgroupsApps({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

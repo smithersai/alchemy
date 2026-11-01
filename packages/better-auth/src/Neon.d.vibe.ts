@@ -15,7 +15,6 @@ export interface NeonOptions extends SqlLayerOptions {
  * For TCP access through Cloudflare Hyperdrive use `CloudflareHyperdrive`;
  * for a generic `pg` connection use `Postgres`.
  *
- *
  * ### Connecting from a Worker or Lambda
  * The `connectionUri` Output binds into the host environment at deploy
  * and is read back at runtime; the same source drives the deploy-time

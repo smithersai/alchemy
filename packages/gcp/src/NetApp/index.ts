@@ -1,5 +1,5 @@
 export * from "./ActiveDirectory.vibe";
-export * from "./BackupPolicy.ts";
+export * from "./BackupPolicy.vibe";
 export * from "./BackupVault.vibe";
 export * from "./BackupVaultsBackup.vibe";
 export * from "./HostGroup.vibe";
@@ -8,4 +8,4 @@ export * from "./StoragePool.vibe";
 export * from "./Volume.vibe";
 export * from "./VolumesQuotaRule.vibe";
 export * from "./VolumesReplication.ts";
-export * from "./VolumesSnapshot.ts";
+export * from "./VolumesSnapshot.vibe";

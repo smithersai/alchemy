@@ -1,0 +1,378 @@
+import * as documentai from "@distilled.cloud/gcp/documentai_v1"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import { tagRecord } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import * as Stream from "effect/Stream"
+import { isTransientGcpError } from "../Errors.vibe"
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels, stripInternalLabels } from "../Labels.ts"
+
+// Document AI is only served from the `us` / `eu` multi-region deployments, so the
+// default stays `us` rather than following `GCP.Region`.
+export const DEFAULT_LOCATION = "us"
+/**
+ * The distilled Document AI client talks to `documentai.googleapis.com`
+ * (the US deployment). Listing processors/schemas in `eu` or regional
+ * locations against that host returns HTTP 400 INVALID_ARGUMENT
+ * (`Invalid location: '…' must match the server deployment 'us'`).
+ */
+export const LIST_LOCATIONS = ["us"] as const
+export const MAX_PROCESSOR_DISPLAY_NAME_LENGTH = 64
+export const MAX_DISPLAY_NAME_LENGTH = 128
+export const DEFAULT_PROCESSOR_TYPE = "OCR_PROCESSOR"
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ResourceNotResolved extends Data.TaggedError("GCP.DocumentAI.ResourceNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ResourceStillExists extends Data.TaggedError("GCP.DocumentAI.ResourceStillExists")<{
+  mutable resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ProcessorPending extends Data.TaggedError("GCP.DocumentAI.ProcessorPending")<{
+  mutable resourceName: string
+  mutable state: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ProcessorFailed extends Data.TaggedError("GCP.DocumentAI.ProcessorFailed")<{
+  mutable resourceName: string
+  mutable state: string
+}> {}
+
+export const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+export const locationParent = (project: string, location: string): infer _ =>
+  `projects/${project}/locations/${location}`
+
+export const normalizeLocation = (location: string | undefined): infer _ =>
+  lastSegment(location ?? DEFAULT_LOCATION).toLowerCase()
+
+export const parseResourceName = (name: string, collection: string): infer _ => {
+  const parts = name.split("/").filter((part) => part.length > 0)
+  const collectionAt = parts.lastIndexOf(collection)
+  const locationsAt = parts.lastIndexOf("locations")
+  const projectsAt = parts.lastIndexOf("projects")
+  return {
+    project: projectsAt >= 0 && parts[projectsAt + 1] ? parts[projectsAt + 1]! : "",
+    location: locationsAt >= 0 && parts[locationsAt + 1] ? parts[locationsAt + 1]! : DEFAULT_LOCATION,
+    id: collectionAt >= 0 && parts[collectionAt + 1] ? parts[collectionAt + 1]! : lastSegment(name),
+    parent: collectionAt > 0
+      ? parts.slice(0, collectionAt).join("/")
+      : parts.slice(0, Math.max(0, parts.length - 1)).join("/"),
+  }
+}
+
+export const expandParent = (
+  value: string,
+  project: string,
+  location: string,
+  collection: string,
+): infer _ => {
+  if (value.includes("/")) return value.replace(/\/+$/, "")
+  return `${locationParent(project, location)}/${collection}/${value}`
+}
+
+export const sameText = (left: string | undefined, right: string | undefined): infer _ => (left ?? "") === (right ?? "")
+
+export const canonical = (value: unknown): unknown => {
+  if (value === undefined || value === null) return undefined
+  if (typeof value === "boolean" || typeof value === "number") return value
+  if (typeof value === "string") {
+    return value.length === 0 ? undefined : value
+  }
+  if (Array.isArray(value)) {
+    const items = value.map(canonical).filter((item) => item !== undefined)
+    return items.length === 0 ? undefined : items
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => [key, canonical(item)] as const)
+      .filter(([, item]) => item !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+    if (entries.length === 0) return undefined
+    return Object.fromEntries(entries)
+  }
+  return undefined
+}
+
+export const fingerprint = (value: unknown): string => JSON.stringify(canonical(value) ?? null)
+
+export const sameJson = (left: unknown, right: unknown): infer _ => fingerprint(left) === fingerprint(right)
+
+export const updateMaskOf = (...fields: Array<string | undefined>): infer _ =>
+  fields.filter((field): field is string => field !== undefined).join(",")
+
+export const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+export const hasAlchemyLabelMap = (labels: Record<string, string | undefined> | null | undefined): infer _ =>
+  Object.keys(labels ?? {}).some((key) => key.startsWith("alchemy-"))
+
+const compactMarkerOf = (stack: string, stage: string, id: string): infer _ => `[alc ${stack} ${stage} ${id}]`
+
+const shrinkMarker = (
+  labels: Record<string, string>,
+  maxLength: number,
+  build: (stack: string, stage: string, id: string) => string,
+): infer _ => {
+  let stack = labels[alchemyLabelKeys.stack] ?? "x"
+  let stage = labels[alchemyLabelKeys.stage] ?? "x"
+  let id = labels[alchemyLabelKeys.id] ?? "x"
+  let marker = build(stack, stage, id)
+  while (marker.length > maxLength && (stack.length > 1 || stage.length > 1 || id.length > 1)) {
+    if (stack.length >= stage.length && stack.length >= id.length) {
+      stack = stack.slice(0, -1)
+    } else if (stage.length >= id.length) {
+      stage = stage.slice(0, -1)
+    } else {
+      id = id.slice(0, -1)
+    }
+    marker = build(stack, stage, id)
+  }
+  return marker.slice(0, maxLength)
+}
+
+export const encodeOwnershipLine = (
+  labels: Record<string, string>,
+  text: string | undefined,
+  maxLength = MAX_DISPLAY_NAME_LENGTH,
+): string => {
+  const trimmed = text?.replace(/[\r\n]+/g, " ").trim()
+  const suffix = trimmed && trimmed.length > 0 ? ` ${trimmed}` : ""
+  const markerMax = Math.min(maxLength, Math.max(12, maxLength - suffix.length))
+  const marker = shrinkMarker(labels, markerMax, compactMarkerOf)
+  return `${marker}${suffix}`.slice(0, maxLength)
+}
+
+export const parseOwnership = (
+  text: string | undefined,
+): {
+  mutable labels: Record<string, string>
+  mutable text: string | undefined
+} => {
+  if (text?.startsWith("[alc ")) {
+    const end = text.indexOf("]")
+    if (end < 0) return { labels: {}, text }
+    const parts = text.slice("[alc ".length, end).trim().split(/\s+/)
+    const labels: Record<string, string> = {}
+    if (parts[0]) labels[alchemyLabelKeys.stack] = parts[0]!
+    if (parts[1]) labels[alchemyLabelKeys.stage] = parts[1]!
+    if (parts[2]) labels[alchemyLabelKeys.id] = parts[2]!
+    const rest = text.slice(end + 1).replace(/^[\s\n]+/, "")
+    return { labels, text: rest.length > 0 ? rest : undefined }
+  }
+  if (!text?.startsWith("[alchemy ")) {
+    return { labels: {}, text }
+  }
+  const end = text.indexOf("]")
+  if (end < 0) return { labels: {}, text }
+  const labels: Record<string, string> = {}
+  for (const part of text.slice("[alchemy ".length, end).split(/\s+/)) {
+    const eq = part.indexOf("=")
+    if (eq > 0) {
+      labels[part.slice(0, eq)] = part.slice(eq + 1)
+    }
+  }
+  const rest = text.slice(end + 1).replace(/^[\s\n]+/, "")
+  return { labels, text: rest.length > 0 ? rest : undefined }
+}
+
+export const hasOwnershipMarker = (text: string | undefined): infer _ =>
+  Object.keys(parseOwnership(text).labels).some((key) => key.startsWith("alchemy-"))
+
+const prefixMatch = (expected: string, observed: string): infer _ =>
+  expected === observed || expected.startsWith(observed) || observed.startsWith(expected)
+
+export const ownedByAlchemy = effect (id: string, text: string | undefined) => {
+  const expected = try createInternalLabels(id)
+  const { labels } = parseOwnership(text)
+  if (!hasOwnershipMarker(text)) return false
+  const exact = try hasAlchemyLabels(id, labels)
+  if (exact) return true
+  return (
+    prefixMatch(expected[alchemyLabelKeys.stack] ?? "", labels[alchemyLabelKeys.stack] ?? "")
+    && prefixMatch(expected[alchemyLabelKeys.stage] ?? "", labels[alchemyLabelKeys.stage] ?? "")
+    && prefixMatch(expected[alchemyLabelKeys.id] ?? "", labels[alchemyLabelKeys.id] ?? "")
+  )
+}
+
+export const toPhysicalId = effect (
+  id: string,
+  explicit: string | undefined,
+  existing: string | undefined,
+  maxLength = 32,
+) => {
+  if (explicit !== undefined) return explicit
+  if (existing !== undefined) return existing
+  return try createPhysicalName({
+    id,
+    maxLength,
+    lowercase: true,
+  })
+}
+
+export const replaceOnIdentity = (input: {
+  mutable previousId?: string
+  mutable nextId?: string
+  mutable previousLocation?: string
+  mutable nextLocation?: string
+  mutable extra?: boolean
+}): infer _ => {
+  const previousLocation = normalizeLocation(input.previousLocation)
+  const nextLocation = normalizeLocation(input.nextLocation)
+  const replace = (input.extra ?? false)
+    || (input.previousId !== undefined
+      && input.nextId !== undefined
+      && input.nextId !== input.previousId)
+    || (input.previousLocation !== undefined && previousLocation !== nextLocation)
+  if (!replace) return undefined
+  const samePhysical = previousLocation === nextLocation
+    && input.previousId !== undefined
+    && input.nextId === input.previousId
+  return {
+    action: "replace" as const,
+    deleteFirst: samePhysical,
+  }
+}
+
+export const retryTransient = effect <A, E extends { readonly _tag: string }, R>(
+  effect: A!E!R,
+) =>
+  try (effect
+    |> Effect.retry(%, {
+      while: isTransientGcpError,
+      times: 8,
+      schedule: Schedule.exponential("250 millis"),
+    }))
+
+export const waitUntilGone = effect <A, E, R>(
+  get: A | undefined!E!R,
+  name: string,
+): void!E | ResourceStillExists!R =>
+  try (get
+    |> Effect.filterOrFail(%, (value) => value === undefined, () => new ResourceStillExists({ resourceName: name }))
+    |> Effect.retry(%, {
+      while: (error) => error instanceof ResourceStillExists,
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    })
+    |> Effect.asVoid(%))
+
+export const collectPages = effect <Page, Item, E, R>(
+  pages: Stream.Stream<Page, E, R>,
+  items: (page: Page) => readonly Item[] | null | undefined,
+) =>
+  Array.from(
+    try (pages
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(items(page) ?? []))
+      |> Stream.runCollect(%)),
+  ) as Item[]
+
+const emptyList = effect <A>() => []
+
+export const listLocationParents = effect (project: string) =>
+  LIST_LOCATIONS.map((location) => locationParent(project, location))
+
+export const listProcessorsAt = effect (
+  parent: string,
+) => (parent.length === 0 ? try emptyList<documentai.GoogleCloudDocumentaiV1Processor>() : collectPages(
+  documentai.listProjectsLocationsProcessors.pages({
+    parent,
+    pageSize: 100,
+  }),
+  (page) => page.processors,
+) catch effect (e) => match (e) {
+  when { _tag: "NotFound" }: try emptyList<documentai.GoogleCloudDocumentaiV1Processor>();
+  default: throw e;
+})
+
+export const listSchemasAt = effect (
+  parent: string,
+) => (parent.length === 0 ? try emptyList<documentai.GoogleCloudDocumentaiV1NextSchema>() : collectPages(
+  documentai.listProjectsLocationsSchemas.pages({
+    parent,
+    pageSize: 20,
+  }),
+  (page) => page.schemas,
+) catch effect (e) => match (e) {
+  when { _tag: "NotFound" }: try emptyList<documentai.GoogleCloudDocumentaiV1NextSchema>();
+  default: throw e;
+})
+
+export const listSchemaVersionsAt = effect (
+  parent: string,
+) => (parent.length === 0 ? try emptyList<documentai.GoogleCloudDocumentaiV1SchemaVersion>() : collectPages(
+  documentai.listProjectsLocationsSchemasSchemaVersions.pages({
+    parent,
+    pageSize: 20,
+  }),
+  (page) => page.schemaVersions,
+) catch effect (e) => match (e) {
+  when { _tag: "NotFound" }: try emptyList<documentai.GoogleCloudDocumentaiV1SchemaVersion>();
+  default: throw e;
+})
+
+export const listProjectProcessors = effect (project: string) => {
+  const parents = try listLocationParents(project)
+  const groups = try Effect.forEach(parents, listProcessorsAt, {
+    concurrency: 2,
+  })
+  const seen = new Set<string>()
+  const processors: documentai.GoogleCloudDocumentaiV1Processor[] = []
+  for (const processor of groups.flat()) {
+    const name = processor.name ?? ""
+    if (name.length === 0 || seen.has(name)) continue
+    seen.add(name)
+    processors.push(processor)
+  }
+  return processors
+}
+
+export const listProjectSchemas = effect (project: string) => {
+  const parents = try listLocationParents(project)
+  const groups = try Effect.forEach(parents, listSchemasAt, {
+    concurrency: 2,
+  })
+  const seen = new Set<string>()
+  const schemas: documentai.GoogleCloudDocumentaiV1NextSchema[] = []
+  for (const schema of groups.flat()) {
+    const name = schema.name ?? ""
+    if (name.length === 0 || seen.has(name)) continue
+    seen.add(name)
+    schemas.push(schema)
+  }
+  return schemas
+}
+
+export const findOwnedByDisplayName = effect <T extends { mutable name?: string; mutable displayName?: string }>(
+  id: string,
+  items: readonly T[],
+) => {
+  for (const item of items) {
+    if (try ownedByAlchemy(id, item.displayName)) return item
+  }
+  return undefined as T | undefined
+}
+
+export const findOwnedByLabels = effect <
+  T extends {
+    mutable name?: string
+    mutable labels?: Record<string, string | undefined> | null
+  },
+>(
+  id: string,
+  items: readonly T[],
+) => {
+  for (const item of items) {
+    if (try hasAlchemyLabels(id, tagRecord(item.labels))) return item
+  }
+  return undefined as T | undefined
+}

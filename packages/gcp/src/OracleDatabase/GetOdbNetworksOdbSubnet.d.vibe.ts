@@ -2,7 +2,7 @@ import type * as oracle from "@distilled.cloud/gcp/oracledatabase_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { OdbNetworksOdbSubnet } from "./OdbNetworksOdbSubnet.js";
+import type { OdbNetworksOdbSubnet } from "./OdbNetworksOdbSubnet.vibe";
 export interface GetOdbNetworksOdbSubnetRequest extends Omit<oracle.GetProjectsLocationsOdbNetworksOdbSubnetsRequest, "name"> {
 }
 /**

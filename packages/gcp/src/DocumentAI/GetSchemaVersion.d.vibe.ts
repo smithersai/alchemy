@@ -2,7 +2,7 @@ import type * as documentai from "@distilled.cloud/gcp/documentai_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { SchemasSchemaVersion } from "./SchemasSchemaVersion.js";
+import type { SchemasSchemaVersion } from "./SchemasSchemaVersion.vibe";
 export interface GetSchemaVersionRequest extends Omit<documentai.GetProjectsLocationsSchemasSchemaVersionsRequest, "name"> {
 }
 /**

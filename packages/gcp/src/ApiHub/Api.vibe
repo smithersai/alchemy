@@ -1,0 +1,365 @@
+import * as apihub from "@distilled.cloud/gcp/apihub_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  ApihubNotResolved,
+  createOwnership,
+  encodeOwnership,
+  hasOwnershipMarker,
+  listApis,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  replaceOnIdentity,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+  type AttributeValues,
+  type AttributeValuesMap,
+  type Documentation,
+} from "./internal.ts"
+
+export type Owner = {
+  /** Owner display name. */
+  mutable displayName?: string
+  /** Owner email. Required by the API when `owner` is set. */
+  mutable email?: string
+}
+
+export type ApiProps = {
+  /**
+   * API id (the `{api}` segment of
+   * `projects/{project}/locations/{location}/apis/{api}`). If omitted, a
+   * unique id is generated. Immutable — changing it replaces the API.
+   */
+  mutable apiId?: string
+  /**
+   * Location (`us-central1`, …). Must match the ApiHub instance location.
+   * Immutable — changing it replaces the API.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Display name. Defaults to the API id.
+   */
+  mutable displayName?: string
+  /**
+   * Human-readable description. APIs have no labels field, so Alchemy
+   * stamps ownership into a `[alchemy …]` prefix and strips it from
+   * attributes.
+   */
+  mutable description?: string
+  /**
+   * Unique fingerprint for this API resource.
+   */
+  mutable fingerprint?: string
+  /**
+   * Owner of the API.
+   */
+  mutable owner?: Owner
+  /**
+   * External documentation.
+   */
+  mutable documentation?: Documentation
+  /**
+   * Selected version resource name
+   * `projects/{project}/locations/{location}/apis/{api}/versions/{version}`.
+   */
+  mutable selectedVersion?: string
+  /**
+   * User-defined attributes keyed by attribute resource name.
+   */
+  mutable attributes?: AttributeValuesMap
+  /** System attribute `system-target-user`. */
+  mutable targetUser?: AttributeValues
+  /** System attribute `system-business-unit`. */
+  mutable businessUnit?: AttributeValues
+  /** System attribute `system-maturity-level`. */
+  mutable maturityLevel?: AttributeValues
+  /** System attribute `system-team`. */
+  mutable team?: AttributeValues
+  /** System attribute `system-api-style`. */
+  mutable apiStyle?: AttributeValues
+  /** System attribute `system-api-requirements`. */
+  mutable apiRequirements?: AttributeValues
+  /** System attribute `system-api-functional-requirements`. */
+  mutable apiFunctionalRequirements?: AttributeValues
+  /** System attribute `system-api-technical-requirements`. */
+  mutable apiTechnicalRequirements?: AttributeValues
+}
+
+export type Api = Resource<
+  "GCP.ApiHub.Api",
+  ApiProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** API id (last path segment). */
+    mutable apiId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Fingerprint. */
+    mutable fingerprint: string | undefined
+    /** Owner. */
+    mutable owner: Owner | undefined
+    /** Documentation. */
+    mutable documentation: Documentation | undefined
+    /** Selected version resource name. */
+    mutable selectedVersion: string | undefined
+    /** Version resource names. */
+    mutable versions: string[]
+    /** User-defined attributes. */
+    mutable attributes: AttributeValuesMap | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An API resource in API Hub. Versions, specs, and operations hang off it.
+ *
+ * Location and id are immutable. Display name, description, owner,
+ * documentation, fingerprint, selected version, and attributes update in
+ * place. APIs have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them.
+ *
+ * ### Creating an API
+ * **Example:** Generated id
+ * ```typescript
+ * const api = yield* GCP.ApiHub.Api("Pets", {
+ *   displayName: "pets",
+ *   description: "Pet store API",
+ * });
+ * ```
+ *
+ * **Example:** Named API with an owner
+ * ```typescript
+ * const api = yield* GCP.ApiHub.Api("Pets", {
+ *   apiId: "pets",
+ *   displayName: "pets",
+ *   owner: { email: "apihub@example.com", displayName: "platform" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category ApiHub
+ */
+export const Api = Resource<Api>("GCP.ApiHub.Api")
+
+const resourceName = (project: string, location: string, apiId: string): infer _ =>
+  `${locationParent(project, location)}/apis/${apiId}`
+
+const toAttrs = (
+  api: apihub.GoogleCloudApihubV1Api,
+  project: string,
+  region: string,
+): Api["Attributes"] => {
+  const name = api.name ?? ""
+  const parsed = parseResourceName(name, "apis", region)
+  const description = parseOwnership(api.description).text
+  return {
+    name,
+    apiId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: api.displayName,
+    description,
+    fingerprint: api.fingerprint,
+    owner: api.owner === undefined
+      ? undefined
+      : {
+        displayName: api.owner.displayName,
+        email: api.owner.email,
+      },
+    documentation: api.documentation,
+    selectedVersion: api.selectedVersion,
+    versions: [...(api.versions ?? [])],
+    attributes: api.attributes,
+    createTime: api.createTime,
+    updateTime: api.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : apihub
+  .getProjectsLocationsApis({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const bodyOf = (
+  news: ApiProps,
+  displayName: string,
+  description: string,
+): apihub.GoogleCloudApihubV1Api => ({
+  displayName,
+  description,
+  fingerprint: news.fingerprint,
+  owner: news.owner,
+  documentation: news.documentation,
+  selectedVersion: news.selectedVersion,
+  attributes: news.attributes,
+  targetUser: news.targetUser,
+  businessUnit: news.businessUnit,
+  maturityLevel: news.maturityLevel,
+  team: news.team,
+  apiStyle: news.apiStyle,
+  apiRequirements: news.apiRequirements,
+  apiFunctionalRequirements: news.apiFunctionalRequirements,
+  apiTechnicalRequirements: news.apiTechnicalRequirements,
+})
+
+export const ApiProvider = (): infer _ =>
+  Provider.succeed(Api, {
+    stables: ["name", "apiId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      return replaceOnIdentity({
+        previousId: olds?.apiId ?? output?.apiId,
+        nextId: news.apiId ?? olds?.apiId ?? output?.apiId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const apiId = try toPhysicalId(id, olds?.apiId, output?.apiId)
+      const name = output?.name ?? resourceName(env.project, location, apiId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listApis(locationParent(env.project, env.region))
+      return items
+        .filter((item) => hasOwnershipMarker(item.description))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const parent = locationParent(env.project, location)
+      const apiId = try toPhysicalId(id, news.apiId, output?.apiId)
+      const name = output?.name ?? resourceName(env.project, location, apiId)
+      const ownership = try createOwnership(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? apiId
+      const desired = bodyOf(news, displayName, description)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = apihub
+          .createProjectsLocationsApis({
+            parent,
+            apiId,
+            body: desired,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ApihubNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = !sameText(current.description, description)
+      const fingerprintChanged = !sameText(current.fingerprint, news.fingerprint)
+      const ownerChanged = !sameJson(current.owner, news.owner)
+      const docsChanged = !sameJson(current.documentation, news.documentation)
+      const selectedChanged = !sameText(current.selectedVersion, news.selectedVersion)
+      const attributesChanged = !sameJson(current.attributes, news.attributes)
+      const targetChanged = !sameJson(current.targetUser, news.targetUser)
+      const unitChanged = !sameJson(current.businessUnit, news.businessUnit)
+      const maturityChanged = !sameJson(current.maturityLevel, news.maturityLevel)
+      const teamChanged = !sameJson(current.team, news.team)
+      const styleChanged = !sameJson(current.apiStyle, news.apiStyle)
+      const requirementsChanged = !sameJson(current.apiRequirements, news.apiRequirements)
+      const functionalChanged = !sameJson(
+        current.apiFunctionalRequirements,
+        news.apiFunctionalRequirements,
+      )
+      const technicalChanged = !sameJson(
+        current.apiTechnicalRequirements,
+        news.apiTechnicalRequirements,
+      )
+
+      if (
+        displayChanged
+        || descriptionChanged
+        || fingerprintChanged
+        || ownerChanged
+        || docsChanged
+        || selectedChanged
+        || attributesChanged
+        || targetChanged
+        || unitChanged
+        || maturityChanged
+        || teamChanged
+        || styleChanged
+        || requirementsChanged
+        || functionalChanged
+        || technicalChanged
+      ) {
+        current = try apihub.patchProjectsLocationsApis({
+          name: currentName,
+          updateMask: updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            descriptionChanged ? "description" : undefined,
+            fingerprintChanged ? "fingerprint" : undefined,
+            ownerChanged ? "owner" : undefined,
+            docsChanged ? "documentation" : undefined,
+            selectedChanged ? "selected_version" : undefined,
+            attributesChanged ? "attributes" : undefined,
+            targetChanged ? "target_user" : undefined,
+            unitChanged ? "business_unit" : undefined,
+            maturityChanged ? "maturity_level" : undefined,
+            teamChanged ? "team" : undefined,
+            styleChanged ? "api_style" : undefined,
+            requirementsChanged ? "api_requirements" : undefined,
+            functionalChanged ? "api_functional_requirements" : undefined,
+            technicalChanged ? "api_technical_requirements" : undefined,
+          ),
+          body: { name: currentName, ...desired },
+        })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      apihub
+        .deleteProjectsLocationsApis({ name: output.name, force: true }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { Model } from "./Model.js";
+import type { Model } from "./Model.vibe";
 import type { ModelsVersion } from "./ModelsVersion.vibe";
 /**
  * Shared HTTP scaffolding for AI Platform (legacy ML Engine) bindings.

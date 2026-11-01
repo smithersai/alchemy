@@ -23,7 +23,7 @@ import {
   parseName,
   toPhysicalId,
   listLocations,
-} from "./names.ts";
+} from "./names.vibe";
 import { waitForOperation } from "./operations.ts";
 
 export type TrainingPipelineEncryptionSpec = aiplatform.GoogleCloudAiplatformV1EncryptionSpec;

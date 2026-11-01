@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.vibe";
 /**
  * Shared HTTP scaffolding for BigQuery table bindings.
  * NOT exported from index.ts.

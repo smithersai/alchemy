@@ -85,7 +85,7 @@ export * from "./FunctionTrigger.vibe";
 export * from "./FunctionTriggerEvent.vibe";
 export * from "./CustomDomain.vibe";
 export * from "./CronEventSource.vibe";
-export * from "./CronEventSourceHttp.ts";
+export * from "./CronEventSourceHttp.vibe";
 export * from "./BucketEventSource.vibe";
 export * from "./BucketEventSourceHttp.vibe";
 export * from "./InvokeFunction.vibe";

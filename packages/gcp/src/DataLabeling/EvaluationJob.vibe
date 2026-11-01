@@ -1,0 +1,400 @@
+import * as datalabeling from "@distilled.cloud/gcp/datalabeling_v1beta1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnership,
+  findOwned,
+  hasOwnershipMarker,
+  ignoreGone,
+  listEvaluationJobs,
+  MAX_EVALUATION_DESCRIPTION_LENGTH,
+  noRetryLayer,
+  ownedByAlchemy,
+  parseOwnership,
+  parseResourceName,
+  projectParent,
+  replaceOnIdentity,
+  retryDelete,
+  retryTransient,
+  sameJson,
+  sameText,
+  updateMaskOf,
+  waitUntilGone,
+} from "./internal.ts"
+
+export type EvaluationJobConfig = datalabeling.GoogleCloudDatalabelingV1beta1EvaluationJobConfig
+
+export type EvaluationJobProps = {
+  /**
+   * Evaluation job id (the last segment of
+   * `projects/{project}/evaluationJobs/{evaluation_job}`).
+   * Server-assigned on create. Immutable — changing it replaces the
+   * job.
+   */
+  mutable evaluationJobId?: string
+  /**
+   * Description of the job. Maximum 25,000 characters. Evaluation jobs
+   * have no labels field, so Alchemy stamps ownership into this field.
+   * Immutable — changing it replaces the job.
+   */
+  mutable description?: string
+  /**
+   * Annotation spec set resource name describing the labels the model
+   * outputs. Immutable — changing it replaces the job.
+   */
+  mutable annotationSpecSet: string
+  /**
+   * AI Platform Prediction model version sampled for evaluation, as
+   * `projects/{project}/models/{model}/versions/{version}`. Immutable —
+   * changing it replaces the job.
+   */
+  mutable modelVersion: string
+  /**
+   * Run interval, in crontab or English-like format. Must be at least
+   * one day. Immutable — changing it replaces the job.
+   */
+  mutable schedule: string
+  /**
+   * When true, Data Labeling assigns human labelers for missing ground
+   * truth. When false, ground truth is read from the job's BigQuery
+   * table.
+   * @default false
+   */
+  mutable labelMissingGroundTruth?: boolean
+  /**
+   * Configuration for sampling, import keys, human annotation, and
+   * metrics. Only `humanAnnotationConfig.instruction`, `exampleCount`,
+   * and `exampleSamplePercentage` update in place; any other change
+   * replaces the job.
+   */
+  mutable evaluationJobConfig: EvaluationJobConfig
+  /**
+   * When true, pause the job after ensure. Pausing a paused job is a
+   * no-op; resuming a running or scheduled job is a no-op.
+   * @default false
+   */
+  mutable paused?: boolean
+}
+
+export type EvaluationJob = Resource<
+  "GCP.DataLabeling.EvaluationJob",
+  EvaluationJobProps,
+  {
+    /** Full resource name `projects/{project}/evaluationJobs/{job}`. */
+    mutable name: string
+    /** Evaluation job id (last path segment). */
+    mutable evaluationJobId: string
+    /** Project id. */
+    mutable project: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Annotation spec set resource name. */
+    mutable annotationSpecSet: string | undefined
+    /** Model version sampled for evaluation. */
+    mutable modelVersion: string | undefined
+    /** Run interval. */
+    mutable schedule: string | undefined
+    /** Whether the service provides ground-truth labels. */
+    mutable labelMissingGroundTruth: boolean
+    /** Job configuration. */
+    mutable evaluationJobConfig: EvaluationJobConfig | undefined
+    /** Server-reported job state. */
+    mutable state: string | undefined
+    /** Whether the job is paused. */
+    mutable paused: boolean
+    /** Failed attempts, if any. */
+    mutable attempts: datalabeling.GoogleCloudDatalabelingV1beta1AttemptList | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Data Labeling evaluation job that periodically samples predictions
+ * from an AI Platform model version and scores them.
+ *
+ * Patch can only update `evaluationJobConfig.humanAnnotationConfig.instruction`,
+ * `evaluationJobConfig.exampleCount`, and
+ * `evaluationJobConfig.exampleSamplePercentage`. Pause and resume are
+ * separate RPCs. Every other field is identity — changing it replaces
+ * the job. There is no labels API, so Alchemy stamps ownership into
+ * `description`.
+ *
+ * ### Creating an Evaluation Job
+ * **Example:** Daily image classification eval
+ * ```typescript
+ * const evaluationJobConfig = {
+ *   exampleCount: 100,
+ *   exampleSamplePercentage: 0.1,
+ *   evaluationConfig: {},
+ *   inputConfig: {
+ *     dataType: "IMAGE",
+ *     annotationType: "IMAGE_CLASSIFICATION_ANNOTATION",
+ *     classificationMetadata: { isMultiLabel: false },
+ *     bigquerySource: {
+ *       inputUri: "bq://my-project.eval.predictions",
+ *     },
+ *   },
+ *   bigqueryImportKeys: {
+ *     data_json_key: "data",
+ *     label_json_key: "label",
+ *     label_score_json_key: "score",
+ *   },
+ *   imageClassificationConfig: {
+ *     annotationSpecSet: specs.name,
+ *   },
+ * };
+ * const job = yield* GCP.DataLabeling.EvaluationJob("DailyEval", {
+ *   annotationSpecSet: specs.name,
+ *   modelVersion:
+ *     "projects/my-project/models/classifier/versions/v1",
+ *   schedule: "every 24 hours",
+ *   evaluationJobConfig,
+ * });
+ * ```
+ *
+ * ### Pausing an Evaluation Job
+ * **Example:** Pause sampling
+ * ```typescript
+ * // Same logical id, changed props: the engine updates it in place.
+ * const job = yield* GCP.DataLabeling.EvaluationJob("DailyEval", {
+ *   annotationSpecSet: specs.name,
+ *   modelVersion:
+ *     "projects/my-project/models/classifier/versions/v1",
+ *   schedule: "every 24 hours",
+ *   evaluationJobConfig,
+ *   paused: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category DataLabeling
+ */
+export const EvaluationJob = Resource<EvaluationJob>("GCP.DataLabeling.EvaluationJob")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class EvaluationJobNotResolved extends Data.TaggedError(
+  "GCP.DataLabeling.EvaluationJobNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (project: string, evaluationJobId: string): infer _ =>
+  `${projectParent(project)}/evaluationJobs/${evaluationJobId}`
+
+const isPaused = (state: string | undefined): infer _ => state === "PAUSED"
+
+const configIdentity = (config: EvaluationJobConfig | undefined): infer _ => {
+  if (config === undefined) return undefined
+  const {
+    exampleCount: _exampleCount,
+    exampleSamplePercentage: _exampleSamplePercentage,
+    humanAnnotationConfig,
+    ...rest
+  } = config
+  const { instruction: _instruction, ...humanRest } = humanAnnotationConfig ?? {}
+  return {
+    ...rest,
+    humanAnnotationConfig: Object.keys(humanRest).length > 0 ? humanRest : undefined,
+  }
+}
+
+const toAttrs = (
+  job: datalabeling.GoogleCloudDatalabelingV1beta1EvaluationJob,
+  project: string,
+): infer _ => {
+  const name = job.name ?? ""
+  const parsed = parseResourceName(name, "evaluationJobs")
+  return {
+    name,
+    evaluationJobId: parsed.id,
+    project: parsed.project || project,
+    description: parseOwnership(job.description).text,
+    annotationSpecSet: job.annotationSpecSet,
+    modelVersion: job.modelVersion,
+    schedule: job.schedule,
+    labelMissingGroundTruth: job.labelMissingGroundTruth === true,
+    evaluationJobConfig: job.evaluationJobConfig,
+    state: job.state,
+    paused: isPaused(job.state),
+    attempts: job.attempts,
+    createTime: job.createTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : (try effect {
+  provide noRetryLayer {
+    return try datalabeling.getProjectsEvaluationJobs({ name })
+  }
+}) catch effect (e) => match (e) {
+  when { _tag: "NotFound" }: try Effect.undefined;
+  when { _tag: "BadGateway" }: try Effect.undefined;
+  default: throw e;
+})
+
+const findByOwnership = effect (id: string, project: string) => {
+  const rows = try listEvaluationJobs(projectParent(project))
+  return try findOwned(id, rows, (row) => row.description)
+}
+
+export const EvaluationJobProvider = (): infer _ =>
+  Provider.succeed(EvaluationJob, {
+    stables: ["name", "evaluationJobId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const extra = (output?.annotationSpecSet !== undefined
+        && !sameText(news.annotationSpecSet, output.annotationSpecSet))
+        || (output?.modelVersion !== undefined && !sameText(news.modelVersion, output.modelVersion))
+        || (output?.schedule !== undefined && !sameText(news.schedule, output.schedule))
+        || (output !== undefined
+          && (news.labelMissingGroundTruth === true) !== output.labelMissingGroundTruth)
+        || (olds !== undefined && !sameText(news.description, output?.description))
+        || (output !== undefined
+          && !sameJson(
+            configIdentity(news.evaluationJobConfig),
+            configIdentity(output.evaluationJobConfig),
+          ))
+      return replaceOnIdentity({
+        previousId: olds?.evaluationJobId ?? output?.evaluationJobId,
+        nextId: news.evaluationJobId,
+        extra,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const evaluationJobId = olds?.evaluationJobId
+        ?? output?.evaluationJobId
+        ?? (output?.name ? parseResourceName(output.name, "evaluationJobs").id : "")
+      const name = output?.name
+        ?? (evaluationJobId.length > 0 ? resourceName(env.project, evaluationJobId) : "")
+      const existing = (try getByName(name)) ?? (try findByOwnership(id, env.project))
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const rows = try listEvaluationJobs(projectParent(env.project))
+      return rows
+        .filter((row) => hasOwnershipMarker(row.description))
+        .map((row) => toAttrs(row, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const evaluationJobId = news.evaluationJobId ?? output?.evaluationJobId
+      const name = output?.name
+        ?? (evaluationJobId !== undefined ? resourceName(env.project, evaluationJobId) : "")
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(
+        ownership,
+        news.description,
+        MAX_EVALUATION_DESCRIPTION_LENGTH,
+      )
+      const labelMissingGroundTruth = news.labelMissingGroundTruth === true
+      const desiredPaused = news.paused === true
+
+      let current = (try getByName(name)) ?? (try findByOwnership(id, env.project))
+
+      if (current === undefined) {
+        const created = retryTransient(
+          datalabeling.createProjectsEvaluationJobs({
+            parent: projectParent(env.project),
+            body: {
+              job: {
+                description,
+                annotationSpecSet: news.annotationSpecSet,
+                modelVersion: news.modelVersion,
+                schedule: news.schedule,
+                labelMissingGroundTruth,
+                evaluationJobConfig: news.evaluationJobConfig,
+              },
+            },
+          }),
+        ) catch effect (e) => match (e) {
+          when { _tag: "Conflict" }: try findByOwnership(id, env.project);
+          default: throw e;
+        }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new EvaluationJobNotResolved({
+          resourceName: name || projectParent(env.project),
+        })
+      }
+
+      const currentName = current.name ?? name
+      const observedConfig = current.evaluationJobConfig
+      const desiredConfig = news.evaluationJobConfig
+      const instructionChanged = !sameText(
+        observedConfig?.humanAnnotationConfig?.instruction,
+        desiredConfig.humanAnnotationConfig?.instruction,
+      )
+      const exampleCountChanged =
+        (observedConfig?.exampleCount ?? undefined) !== (desiredConfig.exampleCount ?? undefined)
+      const sampleChanged = (observedConfig?.exampleSamplePercentage ?? undefined)
+        !== (desiredConfig.exampleSamplePercentage ?? undefined)
+
+      if (instructionChanged || exampleCountChanged || sampleChanged) {
+        current = try retryTransient(
+          datalabeling.patchProjectsEvaluationJobs({
+            name: currentName,
+            updateMask: updateMaskOf(
+              instructionChanged
+                ? "evaluationJobConfig.humanAnnotationConfig.instruction"
+                : undefined,
+              exampleCountChanged ? "evaluationJobConfig.exampleCount" : undefined,
+              sampleChanged ? "evaluationJobConfig.exampleSamplePercentage" : undefined,
+            ),
+            body: {
+              evaluationJobConfig: {
+                humanAnnotationConfig: desiredConfig.humanAnnotationConfig,
+                exampleCount: desiredConfig.exampleCount,
+                exampleSamplePercentage: desiredConfig.exampleSamplePercentage,
+              },
+            },
+          }),
+        )
+      }
+
+      if (desiredPaused && !isPaused(current.state)) {
+        try retryTransient(
+          datalabeling.pauseProjectsEvaluationJobs({
+            name: currentName,
+            body: {},
+          }),
+        )
+        current = (try getByName(currentName)) ?? current
+      } else if (!desiredPaused && isPaused(current.state)) {
+        try retryTransient(
+          datalabeling.resumeProjectsEvaluationJobs({
+            name: currentName,
+            body: {},
+          }),
+        )
+        current = (try getByName(currentName)) ?? current
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      try (datalabeling
+        .deleteProjectsEvaluationJobs({ name: output.name })
+        |> retryDelete(%)
+        |> ignoreGone(%))
+      try waitUntilGone(getByName(output.name))
+    },
+  })

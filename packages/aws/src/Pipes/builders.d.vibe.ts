@@ -80,4 +80,25 @@ export interface QueueTargetOptions extends PipeTargetOptions {
  *   .toLambda(fn);
  * ```
  */
-export declare const from: any;
+export declare const from: (source: PipeSource, options?: PipeSourceOptions) => {
+    /**
+     * Add EventBridge event-pattern filters. Only source events matching at
+     * least one pattern reach the enrichment/target. Accepts pattern strings
+     * or plain objects (JSON-stringified).
+     */
+    filter: (...patterns: (string | Record<string, unknown>)[]) => /*elided*/ any;
+    /**
+     * Enrich each batch with a Lambda function before delivery to the
+     * target. The synthesized role is granted `lambda:InvokeFunction` on the
+     * enrichment function.
+     */
+    enrich: (fn: Function, parameters?: pipes.PipeEnrichmentParameters) => /*elided*/ any;
+    /**
+     * Deliver batches to a Lambda function target.
+     */
+    toLambda: (fn: Function, options?: LambdaTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.js").Providers>;
+    /**
+     * Deliver batches to an SQS queue target.
+     */
+    toQueue: (queue: Queue, options?: QueueTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.js").Providers>;
+};

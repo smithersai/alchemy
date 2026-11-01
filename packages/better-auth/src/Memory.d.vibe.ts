@@ -7,7 +7,6 @@ import { Database } from "./Database.js";
  * lifetime of the process/isolate; nothing is persisted and there is no
  * migration step (tables are seeded from the resolved auth schema).
  *
- *
  * ### Testing
  * **Example:** Unit-testing auth flows without a database
  * ```typescript

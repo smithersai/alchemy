@@ -1,0 +1,434 @@
+import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  collectionParent,
+  DEFAULT_LOCATION,
+  encodeOwnershipLine,
+  expandAgent,
+  fingerprint,
+  hasOwnershipMarker,
+  internalLabels,
+  lastSegment,
+  locationOf,
+  namedAgents,
+  normalizeLocation,
+  ownedByAlchemy,
+  parentOf,
+  parseOwnership,
+  projectOf,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+  retryQuota,
+} from "./internal.ts"
+
+export type PlaybookType = "PLAYBOOK_TYPE_UNSPECIFIED" | "TASK" | "ROUTINE"
+
+export type PlaybookStep = {
+  /** Instruction text for this step. */
+  mutable text?: string
+  /** Nested steps. */
+  mutable steps?: PlaybookStep[]
+}
+
+export type PlaybookInstruction = {
+  /** Free-form guidelines. */
+  mutable guidelines?: string
+  /** Ordered steps. */
+  mutable steps?: PlaybookStep[]
+}
+
+export type PlaybookParameterDefinition = {
+  /** Parameter name. */
+  mutable name?: string
+  /** Parameter type (`STRING`, `NUMBER`, …). */
+  mutable type?: string
+  /** Human-readable description. */
+  mutable description?: string
+}
+
+export type PlaybookLlmModelSettings = {
+  /** LLM model id. */
+  mutable model?: string
+  /** Model prompt text. */
+  mutable promptText?: string
+}
+
+export type AgentsPlaybookProps = {
+  /**
+   * Parent agent resource name
+   * `projects/{project}/locations/{location}/agents/{agent}`.
+   * Immutable — changing it replaces the playbook.
+   */
+  mutable agent: string
+  /**
+   * Playbook id (the `{playbook}` segment). Server-assigned when omitted.
+   * Immutable — changing it replaces the playbook.
+   */
+  mutable playbookId?: string
+  /**
+   * Location used when `agent` is an id rather than a resource name.
+   * Immutable — changing it replaces the playbook.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Human-readable name. Playbooks have no labels field, so Alchemy
+   * stamps ownership into this field and strips it from attributes.
+   */
+  mutable displayName?: string
+  /**
+   * High-level goal of the playbook.
+   * @default "Handle the user request."
+   */
+  mutable goal?: string
+  /** Instruction block (guidelines and steps). */
+  mutable instruction?: PlaybookInstruction
+  /**
+   * Playbook kind.
+   * @default "TASK"
+   */
+  mutable playbookType?: PlaybookType | (string & {})
+  /** Referenced tool resource names. */
+  mutable referencedTools?: string[]
+  /** Referenced playbook resource names. */
+  mutable referencedPlaybooks?: string[]
+  /** Referenced flow resource names. */
+  mutable referencedFlows?: string[]
+  /** LLM model settings. */
+  mutable llmModelSettings?: PlaybookLlmModelSettings
+  /** Inline code block. */
+  mutable codeBlock?: { mutable code?: string }
+  /** Input parameter definitions. */
+  mutable inputParameterDefinitions?: PlaybookParameterDefinition[]
+  /** Output parameter definitions. */
+  mutable outputParameterDefinitions?: PlaybookParameterDefinition[]
+}
+
+export type AgentsPlaybook = Resource<
+  "GCP.Dialogflow.AgentsPlaybook",
+  AgentsPlaybookProps,
+  {
+    /** Full resource name `.../agents/{agent}/playbooks/{playbook}`. */
+    mutable name: string
+    /** Playbook id (last path segment). */
+    mutable playbookId: string
+    /** Parent agent resource name. */
+    mutable agent: string
+    /** Location id. */
+    mutable location: string
+    /** Project id. */
+    mutable project: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    mutable displayName: string | undefined
+    /** Goal. */
+    mutable goal: string | undefined
+    /** Instruction block. */
+    mutable instruction: PlaybookInstruction | undefined
+    /** Playbook kind. */
+    mutable playbookType: string | undefined
+    /** Referenced tools. */
+    mutable referencedTools: string[]
+    /** Referenced playbooks. */
+    mutable referencedPlaybooks: string[]
+    /** Referenced flows. */
+    mutable referencedFlows: string[]
+    /** LLM model settings. */
+    mutable llmModelSettings: PlaybookLlmModelSettings | undefined
+    /** Token count. */
+    mutable tokenCount: string | undefined
+    /** RFC3339 create timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dialogflow CX playbook (goal-driven LLM workflow).
+ *
+ * Playbooks have no labels field — Alchemy stamps ownership into
+ * `displayName` so `list` / nuke can find them. Parent agent and id are
+ * immutable. Display name, goal, instruction, type, references, and LLM
+ * settings update in place.
+ *
+ * ### Creating a Playbook
+ * **Example:** Task playbook
+ * ```typescript
+ * const playbook = yield* GCP.Dialogflow.AgentsPlaybook("Support", {
+ *   agent: agentName,
+ *   displayName: "support",
+ *   goal: "Answer the user's support question.",
+ * });
+ * ```
+ *
+ * ### Updating a Playbook
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Narrow the goal
+ * ```typescript
+ * const playbook = yield* GCP.Dialogflow.AgentsPlaybook("Support", {
+ *   agent: agentName,
+ *   displayName: "support",
+ *   goal: "Reset the user's password.",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dialogflow
+ */
+export const AgentsPlaybook = Resource<AgentsPlaybook>("GCP.Dialogflow.AgentsPlaybook")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AgentsPlaybookNotResolved extends Data.TaggedError(
+  "GCP.Dialogflow.AgentsPlaybookNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const DEFAULT_GOAL = "Handle the user request."
+const DEFAULT_TYPE: PlaybookType = "TASK"
+
+const resourceName = (agent: string, playbookId: string): infer _ => `${agent}/playbooks/${playbookId}`
+
+const stepsOf = (
+  steps: dialogflow.GoogleCloudDialogflowCxV3PlaybookStepList | undefined,
+): PlaybookStep[] | undefined => {
+  if (steps === undefined) return undefined
+  return steps.map((step) => ({
+    text: step.text,
+    steps: stepsOf(step.steps),
+  }))
+}
+
+const instructionOf = (
+  instruction: dialogflow.GoogleCloudDialogflowCxV3PlaybookInstruction | undefined,
+): PlaybookInstruction | undefined => {
+  if (instruction === undefined) return undefined
+  return {
+    guidelines: instruction.guidelines,
+    steps: stepsOf(instruction.steps),
+  }
+}
+
+const toAttrs = (
+  playbook: dialogflow.GoogleCloudDialogflowCxV3Playbook,
+  project: string,
+  agentHint?: string,
+): infer _ => {
+  const name = playbook.name ?? ""
+  return {
+    name,
+    playbookId: lastSegment(name),
+    agent: name.includes("/playbooks/")
+      ? collectionParent(name, "agents")
+      : (agentHint ?? parentOf(name)),
+    location: locationOf(name),
+    project: projectOf(name) || project,
+    displayName: parseOwnership(playbook.displayName).text,
+    goal: playbook.goal,
+    instruction: instructionOf(playbook.instruction),
+    playbookType: playbook.playbookType,
+    referencedTools: [...(playbook.referencedTools ?? [])],
+    referencedPlaybooks: [...(playbook.referencedPlaybooks ?? [])],
+    referencedFlows: [...(playbook.referencedFlows ?? [])],
+    llmModelSettings: playbook.llmModelSettings
+      ? {
+        model: playbook.llmModelSettings.model,
+        promptText: playbook.llmModelSettings.promptText,
+      }
+      : undefined,
+    tokenCount: playbook.tokenCount,
+    createTime: playbook.createTime,
+    updateTime: playbook.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dialogflow
+  .getProjectsLocationsAgentsPlaybooks({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string) =>
+  (Array.from(
+    try (dialogflow.listProjectsLocationsAgentsPlaybooks.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.playbooks ?? []))
+      |> Stream.filter(%, (playbook) => hasOwnershipMarker(playbook.displayName))
+      |> Stream.map(%, (playbook) => toAttrs(playbook, project, parent))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findByDisplayName = effect (parent: string, displayName: string) =>
+  (try effect {
+    const option = try (dialogflow.listProjectsLocationsAgentsPlaybooks.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.playbooks ?? []))
+      |> Stream.filter(%, (playbook) => playbook.displayName === displayName)
+      |> Stream.runHead(%))
+    return (option._tag === "Some" ? option.value : undefined)
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+export const AgentsPlaybookProvider = (): infer _ =>
+  Provider.succeed(AgentsPlaybook, {
+    stables: ["name", "playbookId", "agent", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousAgent = olds?.agent ?? output?.agent
+      if (previousAgent !== undefined && news.agent !== previousAgent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.playbookId ?? output?.playbookId
+      if (
+        previousId !== undefined
+        && news.playbookId !== undefined
+        && news.playbookId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const agent = olds?.agent ? expandAgent(olds.agent, env.project, location) : output?.agent
+      const playbookId = try toResourceId(id, olds?.playbookId, output?.playbookId)
+      const name = output?.name ?? (agent !== undefined ? resourceName(agent, playbookId) : "")
+      let existing = try getByName(name)
+      if (existing === undefined && agent !== undefined) {
+        const ownership = try internalLabels(id)
+        existing = try findByDisplayName(
+          agent,
+          encodeOwnershipLine(ownership, olds?.displayName),
+        )
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, agent)
+      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const agents = try namedAgents(env.project)
+      const pages = try Effect.forEach(agents, effect (agent) => try listAt(agent.name, env.project), {
+        concurrency: 4,
+      })
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) =>
+      try (effect {
+        const env = try GcpEnvironment.current
+        const location = normalizeLocation(news.location ?? output?.location ?? DEFAULT_LOCATION)
+        const agent = expandAgent(news.agent, env.project, location)
+        const playbookId = try toResourceId(id, news.playbookId, output?.playbookId)
+        const name = output?.name ?? resourceName(agent, playbookId)
+        const ownership = try internalLabels(id)
+        const displayName = encodeOwnershipLine(ownership, news.displayName)
+        const goal = news.goal ?? DEFAULT_GOAL
+        const playbookType = news.playbookType ?? DEFAULT_TYPE
+        const body: dialogflow.GoogleCloudDialogflowCxV3Playbook = {
+          displayName,
+          goal,
+          instruction: news.instruction,
+          playbookType,
+          referencedTools: news.referencedTools,
+          referencedPlaybooks: news.referencedPlaybooks,
+          referencedFlows: news.referencedFlows,
+          llmModelSettings: news.llmModelSettings,
+          codeBlock: news.codeBlock,
+          inputParameterDefinitions: news.inputParameterDefinitions,
+          outputParameterDefinitions: news.outputParameterDefinitions,
+        }
+
+        let current = try getByName(output?.name ?? name)
+        if (current === undefined) {
+          current = try findByDisplayName(agent, displayName)
+        }
+
+        if (current === undefined) {
+          const created = dialogflow
+            .createProjectsLocationsAgentsPlaybooks({
+              parent: agent,
+              body,
+            }) catch effect (e) => match (e) {
+              when { _tag: "Conflict" }: try findByDisplayName(agent, displayName);
+              default: throw e;
+            }
+          current = created ?? undefined
+        }
+
+        if (current === undefined) {
+          throw new AgentsPlaybookNotResolved({ resourceName: name })
+        }
+
+        const currentName = current.name ?? name
+        const displayChanged = (current.displayName ?? "") !== displayName
+        const goalChanged = !sameText(current.goal, goal)
+        const instructionChanged = fingerprint(instructionOf(current.instruction)) !== fingerprint(news.instruction)
+        const typeChanged = (current.playbookType ?? DEFAULT_TYPE) !== playbookType
+        const toolsChanged = fingerprint([...(current.referencedTools ?? [])]) !== fingerprint(news.referencedTools)
+        const playbooksChanged = fingerprint([...(current.referencedPlaybooks ?? [])])
+          !== fingerprint(news.referencedPlaybooks)
+        const flowsChanged = fingerprint([...(current.referencedFlows ?? [])]) !== fingerprint(news.referencedFlows)
+        const llmChanged = fingerprint(current.llmModelSettings) !== fingerprint(news.llmModelSettings)
+        const codeChanged = fingerprint(current.codeBlock) !== fingerprint(news.codeBlock)
+        const inputChanged = fingerprint(current.inputParameterDefinitions)
+          !== fingerprint(news.inputParameterDefinitions)
+        const outputChanged = fingerprint(current.outputParameterDefinitions)
+          !== fingerprint(news.outputParameterDefinitions)
+
+        if (
+          displayChanged
+          || goalChanged
+          || instructionChanged
+          || typeChanged
+          || toolsChanged
+          || playbooksChanged
+          || flowsChanged
+          || llmChanged
+          || codeChanged
+          || inputChanged
+          || outputChanged
+        ) {
+          current = try dialogflow.patchProjectsLocationsAgentsPlaybooks({
+            name: currentName,
+            updateMask: updateMaskOf(
+              displayChanged ? "display_name" : undefined,
+              goalChanged ? "goal" : undefined,
+              instructionChanged ? "instruction" : undefined,
+              typeChanged ? "playbook_type" : undefined,
+              toolsChanged ? "referenced_tools" : undefined,
+              playbooksChanged ? "referenced_playbooks" : undefined,
+              flowsChanged ? "referenced_flows" : undefined,
+              llmChanged ? "llm_model_settings" : undefined,
+              codeChanged ? "code_block" : undefined,
+              inputChanged ? "input_parameter_definitions" : undefined,
+              outputChanged ? "output_parameter_definitions" : undefined,
+            ),
+            body: { ...body, name: currentName },
+          })
+        }
+
+        return toAttrs(current, env.project, agent)
+      }
+        |> retryQuota(%)),
+
+    delete: effect ({ output }) =>
+      try (effect {
+        dialogflow
+          .deleteProjectsLocationsAgentsPlaybooks({ name: output.name }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.void;
+            default: throw e;
+          }
+      }
+        |> retryQuota(%)),
+  })

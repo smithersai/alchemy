@@ -1,7 +1,7 @@
 /// <reference types="@cloudflare/workers-types" />
 
 import * as Effect from "effect/Effect";
-import { makeLanguageModelLayer } from "../AI/LanguageModel.ts";
+import { makeLanguageModelLayer } from "../AI/LanguageModel.vibe";
 import { AI, WorkersAIError, type AIClient } from "./AI.ts";
 import * as Binding from "./Binding.ts";
 import { makeBindingLayer } from "./BindingLayer.vibe";

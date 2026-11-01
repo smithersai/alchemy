@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.js";
 import type { Providers } from "../Providers.js";
-import { ResourceNotResolved } from "./internal.js";
+import { ResourceNotResolved } from "./internal.vibe";
 export type AutoScaling = ml.GoogleCloudMlV1__AutoScaling;
 export type ManualScaling = ml.GoogleCloudMlV1__ManualScaling;
 export type ContainerSpec = ml.GoogleCloudMlV1__ContainerSpec;

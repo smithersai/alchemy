@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.vibe";
 import type { ObjectContent, ObjectNotFound, ObjectRequestFailed } from "./ObjectMedia.js";
 export type { ObjectContent } from "./ObjectMedia.js";
 export interface GetObjectRequest {

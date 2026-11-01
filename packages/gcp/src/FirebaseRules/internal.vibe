@@ -1,0 +1,236 @@
+import * as firebaserules from "@distilled.cloud/gcp/firebaserules_v1"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Effect from "effect/Effect"
+import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts"
+
+export const MAX_RELEASE_ID_LENGTH = 63
+export const GENERATED_RELEASE_PREFIX = "alc-"
+
+export type RulesetFile = {
+  /** Path of this file in the ruleset (e.g. `firestore.rules`). */
+  mutable name: string
+  /** Textual rules content. */
+  mutable content: string
+  /** Optional fingerprint (git SHA, etag, …) associated with the file. */
+  mutable fingerprint?: string
+}
+
+export type RulesetSource = {
+  /** Files that make up the ruleset. At least one file is required. */
+  mutable files: RulesetFile[]
+}
+
+export const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+export const projectParent = (project: string): infer _ =>
+  project.startsWith("projects/") ? project : `projects/${project}`
+
+export const rulesetResourceName = (project: string, rulesetId: string): infer _ =>
+  `${projectParent(project)}/rulesets/${rulesetId}`
+
+export const releaseResourceName = (project: string, releaseId: string): infer _ =>
+  `${projectParent(project)}/releases/${releaseId}`
+
+export const expandRulesetName = (project: string, value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  if (trimmed.includes("/")) return trimmed
+  return rulesetResourceName(project, trimmed)
+}
+
+export const rulesetIdOf = (name: string): infer _ => {
+  const marker = "/rulesets/"
+  const index = name.indexOf(marker)
+  return index >= 0 ? name.slice(index + marker.length) : lastSegment(name)
+}
+
+export const releaseIdOf = (name: string): infer _ => {
+  const marker = "/releases/"
+  const index = name.indexOf(marker)
+  return index >= 0 ? name.slice(index + marker.length) : lastSegment(name)
+}
+
+export const sameText = (left: string | undefined, right: string | undefined): infer _ => (left ?? "") === (right ?? "")
+
+const markerOf = (labels: Record<string, string>): infer _ =>
+  `// [alchemy ${alchemyLabelKeys.stack}=${labels[alchemyLabelKeys.stack]} ${alchemyLabelKeys.stage}=${
+    labels[alchemyLabelKeys.stage]
+  } ${alchemyLabelKeys.id}=${labels[alchemyLabelKeys.id]}]`
+
+const OWNERSHIP_LINE = /^\/\/ \[alchemy [^\]]*\]\r?\n?/
+
+export const stripOwnershipLine = (content: string | undefined): string => (content ?? "").replace(OWNERSHIP_LINE, "")
+
+export const parseOwnership = (
+  content: string | undefined,
+): {
+  mutable labels: Record<string, string>
+  mutable content: string
+} => {
+  const raw = content ?? ""
+  if (!raw.startsWith("// [alchemy ")) {
+    return { labels: {}, content: raw }
+  }
+  const end = raw.indexOf("]")
+  if (end < 0) return { labels: {}, content: raw }
+  const labels: Record<string, string> = {}
+  for (const part of raw.slice("// [alchemy ".length, end).split(/\s+/)) {
+    const eq = part.indexOf("=")
+    if (eq > 0) {
+      labels[part.slice(0, eq)] = part.slice(eq + 1)
+    }
+  }
+  return { labels, content: stripOwnershipLine(raw) }
+}
+
+export const hasOwnershipMarker = (content: string | undefined): infer _ =>
+  Object.keys(parseOwnership(content).labels).some((key) => key.startsWith("alchemy-"))
+
+export const sourceHasOwnership = (source: firebaserules.Source | RulesetSource | undefined): infer _ =>
+  (source?.files ?? []).some((file) => hasOwnershipMarker(file.content))
+
+const prefixMatch = (expected: string, observed: string): infer _ =>
+  expected === observed || expected.startsWith(observed) || observed.startsWith(expected)
+
+export const ownedByAlchemy = effect (
+  id: string,
+  source: firebaserules.Source | RulesetSource | undefined,
+) => {
+  const expected = try createInternalLabels(id)
+  const file = (source?.files ?? []).find((item) => hasOwnershipMarker(item.content))
+  if (file === undefined) return false
+  const { labels } = parseOwnership(file.content)
+  const exact = try hasAlchemyLabels(id, labels)
+  if (exact) return true
+  return (
+    prefixMatch(expected[alchemyLabelKeys.stack] ?? "", labels[alchemyLabelKeys.stack] ?? "")
+    && prefixMatch(expected[alchemyLabelKeys.stage] ?? "", labels[alchemyLabelKeys.stage] ?? "")
+    && prefixMatch(expected[alchemyLabelKeys.id] ?? "", labels[alchemyLabelKeys.id] ?? "")
+  )
+}
+
+export const toUserFiles = (
+  files: readonly firebaserules.File[] | readonly RulesetFile[] | undefined,
+): RulesetFile[] =>
+  (files ?? []).map((file) => ({
+    name: file.name ?? "firestore.rules",
+    content: stripOwnershipLine(file.content),
+    fingerprint: file.fingerprint,
+  }))
+
+export const stampSource = (
+  source: RulesetSource,
+  labels: Record<string, string>,
+): firebaserules.Source => {
+  const marker = markerOf(labels)
+  const files = source.files.length > 0 ? source.files : [{ name: "firestore.rules", content: "" }]
+  return {
+    files: files.map((file, index) => {
+      const content = stripOwnershipLine(file.content)
+      return {
+        name: file.name,
+        fingerprint: file.fingerprint,
+        content: index === 0 ? `${marker}\n${content}` : content,
+      }
+    }),
+  }
+}
+
+export const sourceFingerprint = (
+  files: readonly firebaserules.File[] | readonly RulesetFile[] | undefined,
+): infer _ =>
+  JSON.stringify(
+    toUserFiles(files)
+      .map((file) => ({
+        name: file.name,
+        content: file.content,
+        fingerprint: file.fingerprint ?? "",
+      }))
+      .slice()
+      .sort((left, right) => left.name.localeCompare(right.name)),
+  )
+
+export const toReleaseId = effect (
+  id: string,
+  explicit: string | undefined,
+  existing: string | undefined,
+) => {
+  if (explicit !== undefined) return explicit
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_RELEASE_ID_LENGTH - GENERATED_RELEASE_PREFIX.length,
+    lowercase: true,
+  })
+  return `${GENERATED_RELEASE_PREFIX}${generated}`.slice(0, MAX_RELEASE_ID_LENGTH)
+}
+
+export const isGeneratedReleaseId = (releaseId: string | undefined): infer _ =>
+  (releaseId ?? "").startsWith(GENERATED_RELEASE_PREFIX)
+
+export const getRuleset = effect (name: string) => (name.length === 0 ? try Effect.undefined : firebaserules
+  .getProjectsRulesets({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const getRelease = effect (name: string) => (name.length === 0 ? try Effect.undefined : firebaserules
+  .getProjectsReleases({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listRulesetMetas = effect (project: string) =>
+  (Array.from(
+    try (firebaserules.listProjectsRulesets
+      .pages({
+        name: projectParent(project),
+        pageSize: 100,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.rulesets ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const listFullRulesets = effect (project: string) => {
+  const metas = try listRulesetMetas(project)
+  const loaded = try Effect.forEach(metas, effect (ruleset) => try getRuleset(ruleset.name ?? ""), {
+    concurrency: 8,
+  })
+  return loaded.filter((ruleset): ruleset is firebaserules.Ruleset => ruleset !== undefined)
+}
+
+export const listOwnedRulesets = effect (project: string) => {
+  const rulesets = try listFullRulesets(project)
+  return rulesets.filter((ruleset) => sourceHasOwnership(ruleset.source))
+}
+
+export const findOwnedRuleset = effect (
+  rulesets: readonly firebaserules.Ruleset[],
+  id: string,
+  existingName: string | undefined,
+) => {
+  if (existingName) {
+    const hit = rulesets.find((ruleset) => ruleset.name === existingName)
+    if (hit) return hit
+  }
+  for (const ruleset of rulesets) {
+    if (try ownedByAlchemy(id, ruleset.source)) {
+      return ruleset
+    }
+  }
+  return undefined
+}
+
+export const listReleases = effect (project: string) =>
+  (Array.from(
+    try (firebaserules.listProjectsReleases
+      .pages({
+        name: projectParent(project),
+        pageSize: 100,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.releases ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }

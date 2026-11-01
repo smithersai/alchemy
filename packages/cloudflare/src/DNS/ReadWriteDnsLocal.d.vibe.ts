@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadWriteDns } from "./ReadWriteDns.js";
+import { ReadWriteDns } from "./ReadWriteDns.vibe";
 /**
  * Local implementation of the {@link ReadWriteDns} binding — performs the full
  * Cloudflare DNS record CRUD surface over the HTTP API using the **current

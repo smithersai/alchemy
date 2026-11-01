@@ -1,0 +1,261 @@
+import * as managedidentities from "@distilled.cloud/gcp/managedidentities_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  domainResourceOf,
+  fieldMask,
+  listBackups,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.ts"
+
+export type DomainsBackupProps = {
+  /**
+   * Parent Managed Microsoft AD domain. Full name
+   * `projects/{project}/locations/global/domains/{domain}` or the domain
+   * FQDN. Immutable — changing it replaces the backup.
+   */
+  mutable domain: string
+  /**
+   * Backup id (the `{backup}` segment of
+   * `.../domains/{domain}/backups/{backup}`). If omitted, a unique
+   * RFC1035 name is generated from the stack, stage, and logical id.
+   * 1-63 characters, lowercase letters, numbers, and hyphens. Immutable
+   * — changing it replaces the backup.
+   */
+  mutable backupId?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   * Labels are the only mutable field.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type DomainsBackup = Resource<
+  "GCP.ManagedIdentities.DomainsBackup",
+  DomainsBackupProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Backup id (last path segment). */
+    mutable backupId: string
+    /** Parent domain resource name. */
+    mutable domain: string
+    /** Project id. */
+    mutable project: string
+    /** Resource location (`global`). */
+    mutable location: string
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Backup type (`ON_DEMAND` or `SCHEDULED`). */
+    mutable type: string | undefined
+    /** Server-reported state (`ACTIVE`, `CREATING`, …). */
+    mutable state: string | undefined
+    /** Additional status information, if available. */
+    mutable statusMessage: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An on-demand backup of a Managed Microsoft AD domain.
+ *
+ * Changing `backupId` or `domain` replaces the backup. Labels update in
+ * place. Create is on-demand; scheduled backups are produced by the
+ * domain and are not managed here.
+ *
+ * ### Creating a Backup
+ * **Example:** Generated name
+ * ```typescript
+ * const backup = yield* GCP.ManagedIdentities.DomainsBackup("Nightly", {
+ *   domain: domain.name,
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and labels
+ * ```typescript
+ * const backup = yield* GCP.ManagedIdentities.DomainsBackup("Nightly", {
+ *   domain: domain.name,
+ *   backupId: "app-nightly",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating a Backup
+ * Re-declare the same logical id with changed props; the engine keeps the
+ * physical resource and updates it in place.
+ *
+ * **Example:** Labels
+ * ```typescript
+ * const backup = yield* GCP.ManagedIdentities.DomainsBackup("Nightly", {
+ *   domain: domain.name,
+ *   labels: { env: "prod", team: "identity" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category ManagedIdentities
+ */
+export const DomainsBackup = Resource<DomainsBackup>("GCP.ManagedIdentities.DomainsBackup")
+
+const resourceName = (domain: string, backupId: string): infer _ => `${domain}/backups/${backupId}`
+
+const toAttrs = (item: managedidentities.Backup, project: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "backups")
+  return {
+    name,
+    backupId: parsed.id,
+    domain: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    labels: userLabels(item.labels),
+    type: item.type,
+    state: item.state,
+    statusMessage: item.statusMessage,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (
+  name: string,
+) => (name.length === 0 || name.includes("//") ? try Effect.undefined : managedidentities
+  .getProjectsLocationsGlobalDomainsBackups({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const DomainsBackupProvider = (): infer _ =>
+  Provider.succeed(DomainsBackup, {
+    stables: ["name", "backupId", "domain", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousDomain = domainResourceOf(olds?.domain ?? output?.domain ?? "", env.project)
+      const nextDomain = domainResourceOf(
+        news.domain ?? olds?.domain ?? output?.domain ?? "",
+        env.project,
+      )
+      return replaceOnIdentity({
+        previousId: olds?.backupId ?? output?.backupId,
+        nextId: news.backupId ?? olds?.backupId ?? output?.backupId,
+        previousParent: previousDomain,
+        nextParent: nextDomain,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const domain = domainResourceOf(olds?.domain ?? output?.domain ?? "", env.project)
+      const backupId = try toPhysicalId(id, olds?.backupId, output?.backupId, "backup")
+      const name = output?.name ?? resourceName(domain, backupId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listBackups(env.project)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const domain = domainResourceOf(news.domain, env.project)
+      const backupId = try toPhysicalId(id, news.backupId, output?.backupId, "backup")
+      const name = output?.name ?? resourceName(domain, backupId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = managedidentities
+          .createProjectsLocationsGlobalDomainsBackups({
+            parent: domain,
+            backupId,
+            body: {
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      current = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item: managedidentities.Backup) => item.state,
+        (item: managedidentities.Backup) => item.statusMessage,
+      )
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const mask = fieldMask([(upsert.length > 0 || removed.length > 0) && "labels"])
+
+      if (mask.length > 0) {
+        const operation = try managedidentities.patchProjectsLocationsGlobalDomainsBackups({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(
+          getByName(current.name ?? name),
+          current.name ?? name,
+          (item: managedidentities.Backup) => item.state,
+          (item: managedidentities.Backup) => item.statusMessage,
+        )
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name || output.name.includes("//")) return
+      const operation = (try (managedidentities
+        .deleteProjectsLocationsGlobalDomainsBackups({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

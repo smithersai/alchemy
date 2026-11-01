@@ -2,7 +2,7 @@ import type * as storage from "@distilled.cloud/gcp/storage_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.vibe";
 import type { ObjectContent, ObjectRequestFailed } from "./ObjectMedia.js";
 export interface ListBucketOptions {
     /** Only objects whose name starts with this prefix. */

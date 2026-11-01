@@ -1,4 +1,4 @@
-export * from "./AdaptiveMtDataset.ts";
+export * from "./AdaptiveMtDataset.vibe";
 export * from "./AdaptiveMtTranslate.vibe";
 export * from "./AdaptiveMtTranslateHttp.ts";
 export * from "./GetAdaptiveMtDataset.vibe";
@@ -7,8 +7,8 @@ export * from "./GetGlossariesGlossaryEntry.vibe";
 export * from "./GetGlossariesGlossaryEntryHttp.ts";
 export * from "./GetModel.vibe";
 export * from "./GetModelHttp.ts";
-export * from "./GlossariesGlossaryEntry.ts";
-export * from "./Model.ts";
+export * from "./GlossariesGlossaryEntry.vibe";
+export * from "./Model.vibe";
 export * from "./TranslateText.vibe";
 export * from "./TranslateTextHttp.ts";
 export { waitForOperation } from "./operations.vibe";

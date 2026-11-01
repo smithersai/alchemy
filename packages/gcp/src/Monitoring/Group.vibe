@@ -1,0 +1,272 @@
+import * as monitoring from "@distilled.cloud/gcp/monitoring_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import { encodeDisplayName, hasOwnershipMarker, lastSegment, parentOf, parseMarker } from "./ownership.ts"
+
+const MAX_DISPLAY_NAME_LENGTH = 512
+
+export type GroupProps = {
+  /**
+   * Human-readable display name. If omitted, a unique name is generated
+   * from the stack, stage, and logical id. Groups have no labels field,
+   * so Alchemy stamps ownership into this value for `list` / nuke.
+   */
+  mutable displayName?: string
+  /**
+   * Monitoring filter matching member resources (for example
+   * `resource.metadata.region="us-central1"`).
+   */
+  mutable filter: string
+  /**
+   * Parent group resource name
+   * (`projects/{project}/groups/{group}`). Empty means a root group.
+   */
+  mutable parentName?: string
+  /**
+   * When true, members are treated as a cluster for extra analysis.
+   * @default false
+   */
+  mutable isCluster?: boolean
+}
+
+export type Group = Resource<
+  "GCP.Monitoring.Group",
+  GroupProps,
+  {
+    /** Full resource name `projects/{project}/groups/{group}`. */
+    mutable name: string
+    /** Server-assigned group id (last path segment). */
+    mutable groupId: string
+    /** Project id. */
+    mutable project: string
+    /** Human-readable display name (ownership marker stripped). */
+    mutable displayName: string | undefined
+    /** Membership filter. */
+    mutable filter: string
+    /** Parent group resource name, or empty for a root group. */
+    mutable parentName: string
+    /** Whether members are treated as a cluster. */
+    mutable isCluster: boolean
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Monitoring group — a dynamic collection of monitored
+ * resources selected by a filter.
+ *
+ * Group ids are assigned by the API. Groups have no labels field, so
+ * Alchemy stamps ownership into `displayName` (`[alchemy
+ * alchemy-stack=… alchemy-stage=… alchemy-id=…]`) so `list` /
+ * `pnpm nuke:gcp` can find them. Display name, filter, parent, and
+ * cluster flag update in place.
+ *
+ * ### Creating a Group
+ * **Example:** Root group of GCE instances in a region
+ * ```typescript
+ * const group = yield* GCP.Monitoring.Group("Prod", {
+ *   displayName: "production instances",
+ *   filter: 'resource.metadata.region="us-central1"',
+ * });
+ * ```
+ *
+ * **Example:** Nested group
+ * ```typescript
+ * const parent = yield* GCP.Monitoring.Group("Prod", {
+ *   filter: 'resource.metadata.region="us-central1"',
+ * });
+ * const child = yield* GCP.Monitoring.Group("Workers", {
+ *   filter: 'resource.metadata.tag="worker"',
+ *   parentName: parent.name,
+ * });
+ * ```
+ *
+ * ### Updating a Group
+ * **Example:** Retarget the filter and mark as a cluster
+ * ```typescript
+ * const group = yield* GCP.Monitoring.Group("Prod", {
+ *   displayName: "production instances",
+ *   filter: 'resource.metadata.region="us-east1"',
+ *   isCluster: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Monitoring
+ */
+export const Group = Resource<Group>("GCP.Monitoring.Group")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class GroupNotResolved extends Data.TaggedError("GCP.Monitoring.GroupNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+const toDisplayName = effect (id: string, displayName: string | undefined, existing?: string) => (
+  displayName
+    ?? existing
+    ?? (try createPhysicalName({
+      id,
+      maxLength: MAX_DISPLAY_NAME_LENGTH,
+      lowercase: true,
+    }))
+)
+
+const toAttrs = (group: monitoring.Group, project: string): infer _ => {
+  const name = group.name ?? ""
+  const parsed = parseMarker(group.displayName)
+  return {
+    name,
+    groupId: lastSegment(name),
+    project,
+    displayName: parsed.rest,
+    filter: group.filter ?? "",
+    parentName: group.parentName ?? "",
+    isCluster: group.isCluster === true,
+  }
+}
+
+const getByName = effect (name: string) =>
+  monitoring.getProjectsGroups({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const listPages = effect (project: string) =>
+  (Array.from(
+    try (monitoring.listProjectsGroups
+      .pages({
+        name: parentOf(project),
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.group ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const listOwned = effect (project: string) => {
+  const groups = try listPages(project)
+  return groups
+    .filter((group) => hasOwnershipMarker(group.displayName))
+    .map((group) => toAttrs(group, project))
+}
+
+const findOwned = effect (project: string, id: string) => {
+  const groups = try listPages(project)
+  for (const group of groups) {
+    if (try hasAlchemyLabels(id, parseMarker(group.displayName).labels)) {
+      return group
+    }
+  }
+  return undefined
+}
+
+const observe = effect (project: string, id: string, name: string | undefined) => {
+  if (name !== undefined) {
+    const existing = try getByName(name)
+    if (existing !== undefined) return existing
+  }
+  return try findOwned(project, id)
+}
+
+/**
+ * Monitoring answers 409 "Too many concurrent edits to the project
+ * configuration" while another write to the project's monitoring config is
+ * in flight; it clears within seconds.
+ */
+const retryConcurrentEdits = effect <A, E extends { readonly _tag: string }, R>(
+  effect: A!E!R,
+) =>
+  try (effect
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "Conflict",
+      times: 8,
+      schedule: Schedule.exponential("500 millis"),
+    }))
+
+export const GroupProvider = (): infer _ =>
+  Provider.succeed(Group, {
+    stables: ["name", "groupId", "project"],
+
+    read: effect ({ id, output }) => {
+      const env = try GcpEnvironment.current
+      const existing = try observe(env.project, id, output?.name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, parseMarker(existing.displayName).labels))
+        ? attrs
+        : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listOwned(env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const displayName = try toDisplayName(id, news.displayName, output?.displayName)
+      const ownership = try createInternalLabels(id)
+      const encodedDisplayName = encodeDisplayName(ownership, displayName)
+      const desiredParent = news.parentName ?? ""
+      const desiredCluster = news.isCluster === true
+
+      let current = try observe(env.project, id, output?.name)
+
+      if (current === undefined) {
+        const created = try (monitoring
+          .createProjectsGroups({
+            name: parentOf(env.project),
+            body: {
+              displayName: encodedDisplayName,
+              filter: news.filter,
+              parentName: news.parentName,
+              isCluster: desiredCluster,
+            },
+          })
+          |> retryConcurrentEdits(%))
+        current = created
+      }
+
+      if (current === undefined) {
+        throw new GroupNotResolved({
+          resourceName: output?.name ?? displayName,
+        })
+      }
+
+      const name = current.name ?? output?.name ?? ""
+      const needsUpdate = (current.displayName ?? "") !== encodedDisplayName
+        || (current.filter ?? "") !== news.filter
+        || (current.parentName ?? "") !== desiredParent
+        || (current.isCluster === true) !== desiredCluster
+
+      if (needsUpdate) {
+        current = try (monitoring
+          .updateProjectsGroups({
+            name,
+            body: {
+              name,
+              displayName: encodedDisplayName,
+              filter: news.filter,
+              parentName: desiredParent,
+              isCluster: desiredCluster,
+            },
+          })
+          |> retryConcurrentEdits(%))
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      ;(try (monitoring.deleteProjectsGroups({ name: output.name, recursive: true })
+        |> retryConcurrentEdits(%))) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

@@ -1,0 +1,338 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { lastSegment, orgParent, organizationFromName, sameJson, toResourceId } from "./names.vibe"
+
+const MAX_NAME_LENGTH = 59
+const ALCHEMY_ID_PREFIX = "alc-"
+
+export type MonitoredResource = {
+  /** Resource id (API proxy id or API Hub deployment id). */
+  mutable name: string
+  /** Resource type. */
+  mutable type:
+    | apigee.GoogleCloudApigeeV1BatchComputeSecurityAssessmentResultsRequestResourceArrayResourceTypeEnum
+    | (string & {})
+}
+
+export type SecurityMonitoringConditionProps = {
+  /**
+   * Apigee organization id. Defaults to the current GCP project id.
+   * Immutable — changing it replaces the condition.
+   */
+  mutable organization?: string
+  /**
+   * Condition id (the `{security_monitoring_condition}` segment of
+   * `organizations/{org}/securityMonitoringConditions/{id}`). If
+   * omitted, a unique `alc-` prefixed name is generated. 4–63
+   * characters, lowercase letters and hyphens. Immutable — changing it
+   * replaces the condition.
+   */
+  mutable securityMonitoringConditionId?: string
+  /**
+   * Security profile id or full name this condition scores against.
+   * Required.
+   */
+  mutable profile: string
+  /**
+   * Risk assessment type.
+   * @default "APIGEE"
+   */
+  mutable riskAssessmentType?:
+    | apigee.GoogleCloudApigeeV1SecurityMonitoringConditionRiskAssessmentTypeEnum
+    | (string & {})
+  /**
+   * Environment scope when `riskAssessmentType` is `APIGEE`.
+   */
+  mutable scope?: string
+  /**
+   * API Hub gateway when `riskAssessmentType` is `API_HUB`
+   * (`projects/{project}/locations/{location}/plugins/{plugin}/instances/{instance}`).
+   */
+  mutable apiHubGateway?: string
+  /**
+   * When true, include every resource under `scope`. Mutually exclusive
+   * with `include`.
+   * @default false
+   */
+  mutable includeAllResources?: boolean
+  /**
+   * Explicit resources to include. Mutually exclusive with
+   * `includeAllResources`.
+   */
+  mutable include?: MonitoredResource[]
+}
+
+export type SecurityMonitoringCondition = Resource<
+  "GCP.Apigee.SecurityMonitoringCondition",
+  SecurityMonitoringConditionProps,
+  {
+    /** Full resource name `organizations/{org}/securityMonitoringConditions/{id}`. */
+    mutable name: string
+    /** Condition id (last path segment). */
+    mutable securityMonitoringConditionId: string
+    /** Apigee organization id. */
+    mutable organization: string
+    /** Security profile id. */
+    mutable profile: string
+    /** Risk assessment type. */
+    mutable riskAssessmentType: string | undefined
+    /** Environment scope. */
+    mutable scope: string | undefined
+    /** API Hub gateway, if set. */
+    mutable apiHubGateway: string | undefined
+    /** Whether all resources under scope are included. */
+    mutable includeAllResources: boolean
+    /** Explicit included resources. */
+    mutable include: MonitoredResource[]
+    /** Total deployed resources in scope. */
+    mutable totalDeployedResources: number | undefined
+    /** Total monitored resources. */
+    mutable totalMonitoredResources: number | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Advanced API Security monitoring condition (risk assessment v2).
+ *
+ * Conditions have no labels or description. Generated ids are prefixed
+ * `alc-` so `list` / nuke can distinguish Alchemy rows from
+ * Google-defined conditions. Organization and id are identity —
+ * changing them replaces the condition. Profile, scope, include, and
+ * include-all update in place.
+ *
+ * ### Creating a Condition
+ * **Example:** Monitor every proxy in an environment
+ * ```typescript
+ * const profile = yield* GCP.Apigee.SecurityProfilesV2("Default", {});
+ * const condition = yield* GCP.Apigee.SecurityMonitoringCondition("Eval", {
+ *   profile: profile.name,
+ *   scope: "eval",
+ *   includeAllResources: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const SecurityMonitoringCondition = Resource<SecurityMonitoringCondition>(
+  "GCP.Apigee.SecurityMonitoringCondition",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SecurityMonitoringConditionNotResolved extends Data.TaggedError(
+  "GCP.Apigee.SecurityMonitoringConditionNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (organization: string, conditionId: string): infer _ =>
+  `${orgParent(organization)}/securityMonitoringConditions/${conditionId}`
+
+const conditionIdOf = (condition: apigee.GoogleCloudApigeeV1SecurityMonitoringCondition): infer _ =>
+  lastSegment(condition.name ?? "")
+
+const toConditionId = effect (id: string, explicit: string | undefined, existing: string | undefined) => {
+  if (explicit !== undefined) return explicit
+  if (existing !== undefined) return existing
+  const generated = try toResourceId(id, undefined, undefined, MAX_NAME_LENGTH)
+  return generated.startsWith(ALCHEMY_ID_PREFIX)
+    ? generated
+    : `${ALCHEMY_ID_PREFIX}${generated}`.slice(0, 63)
+}
+
+const isAlchemyId = (conditionId: string): infer _ => conditionId.startsWith(ALCHEMY_ID_PREFIX)
+
+const includeOf = (
+  include:
+    | apigee.GoogleCloudApigeeV1BatchComputeSecurityAssessmentResultsRequestResourceArray
+    | undefined,
+): MonitoredResource[] =>
+  (include?.resources ?? []).flatMap((resource) =>
+    resource.name !== undefined && resource.type !== undefined
+      ? [{ name: resource.name, type: resource.type }]
+      : []
+  )
+
+const toAttrs = (
+  condition: apigee.GoogleCloudApigeeV1SecurityMonitoringCondition,
+  organization: string,
+): infer _ => {
+  const securityMonitoringConditionId = conditionIdOf(condition)
+  const name = condition.name?.includes("/")
+    ? condition.name
+    : resourceName(organization, securityMonitoringConditionId)
+  return {
+    name,
+    securityMonitoringConditionId,
+    organization: organizationFromName(name) ?? organization,
+    profile: condition.profile ?? "",
+    riskAssessmentType: condition.riskAssessmentType,
+    scope: condition.scope,
+    apiHubGateway: condition.apiHubGateway,
+    includeAllResources: condition.includeAllResources !== undefined,
+    include: includeOf(condition.include),
+    totalDeployedResources: condition.totalDeployedResources,
+    totalMonitoredResources: condition.totalMonitoredResources,
+    createTime: condition.createTime,
+    updateTime: condition.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsSecurityMonitoringConditions({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const toBody = (
+  news: SecurityMonitoringConditionProps,
+): apigee.GoogleCloudApigeeV1SecurityMonitoringCondition => ({
+  profile: news.profile,
+  riskAssessmentType: news.riskAssessmentType,
+  scope: news.scope,
+  apiHubGateway: news.apiHubGateway,
+  includeAllResources: news.includeAllResources === true ? {} : undefined,
+  include: news.includeAllResources === true
+    ? undefined
+    : news.include !== undefined
+    ? { resources: news.include }
+    : undefined,
+})
+
+export const SecurityMonitoringConditionProvider = (): infer _ =>
+  Provider.succeed(SecurityMonitoringCondition, {
+    stables: ["name", "securityMonitoringConditionId", "organization", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.securityMonitoringConditionId ?? output?.securityMonitoringConditionId
+      const previousOrg = olds?.organization ?? output?.organization
+      if (
+        (previousId !== undefined
+          && news.securityMonitoringConditionId !== undefined
+          && news.securityMonitoringConditionId !== previousId)
+        || (previousOrg !== undefined
+          && news.organization !== undefined
+          && news.organization !== previousOrg)
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = organizationFromName(output?.name) ?? olds?.organization ?? env.project
+      const securityMonitoringConditionId = try toConditionId(
+        id,
+        olds?.securityMonitoringConditionId,
+        output?.securityMonitoringConditionId,
+      )
+      const name = output?.name ?? resourceName(organization, securityMonitoringConditionId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization)
+      return isAlchemyId(attrs.securityMonitoringConditionId)
+          || (olds?.securityMonitoringConditionId !== undefined
+            && olds.securityMonitoringConditionId === attrs.securityMonitoringConditionId)
+        ? attrs
+        : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return (Array.from(
+        try (apigee.listOrganizationsSecurityMonitoringConditions
+          .pages({
+            parent: orgParent(env.project),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityMonitoringConditions ?? []))
+          |> Stream.filter(%, (condition) => isAlchemyId(conditionIdOf(condition)))
+          |> Stream.map(%, (condition) => toAttrs(condition, env.project))
+          |> Stream.runCollect(%)),
+      )) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }:
+          [] as SecurityMonitoringCondition["Attributes"][];
+        default: throw e;
+      }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = news.organization ?? output?.organization ?? env.project
+      const securityMonitoringConditionId = try toConditionId(
+        id,
+        news.securityMonitoringConditionId,
+        output?.securityMonitoringConditionId,
+      )
+      const name = resourceName(organization, securityMonitoringConditionId)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsSecurityMonitoringConditions({
+            parent: orgParent(organization),
+            securityMonitoringConditionId,
+            body: toBody(news),
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SecurityMonitoringConditionNotResolved({ resourceName: name })
+      }
+
+      const desiredIncludeAll = news.includeAllResources === true
+      const observedIncludeAll = current.includeAllResources !== undefined
+      const profileChanged = (current.profile ?? "") !== news.profile
+      const scopeChanged = (current.scope ?? "") !== (news.scope ?? "")
+      const gatewayChanged = (current.apiHubGateway ?? "") !== (news.apiHubGateway ?? "")
+      const includeAllChanged = desiredIncludeAll !== observedIncludeAll
+      const includeChanged = !sameJson(includeOf(current.include), news.include ?? [])
+      const typeChanged = (current.riskAssessmentType ?? "")
+        !== (news.riskAssessmentType ?? current.riskAssessmentType ?? "")
+
+      const updateMask = [
+        profileChanged ? "profile" : undefined,
+        scopeChanged ? "scope" : undefined,
+        gatewayChanged ? "apiHubGateway" : undefined,
+        includeAllChanged ? "include_all_resources" : undefined,
+        includeChanged ? "include" : undefined,
+        typeChanged ? "riskAssessmentType" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        current = try apigee.patchOrganizationsSecurityMonitoringConditions({
+          name: current.name?.includes("/") ? current.name : name,
+          updateMask: updateMask.join(","),
+          body: toBody(news),
+        })
+      }
+
+      return toAttrs(current, organization)
+    },
+
+    delete: effect ({ output }) => {
+      apigee
+        .deleteOrganizationsSecurityMonitoringConditions({
+          name: output.name,
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

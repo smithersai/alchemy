@@ -1,10 +1,10 @@
 import * as Effect from "effect/Effect";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor, type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
-import type { AdaptiveMtDataset } from "./AdaptiveMtDataset.ts";
-import type { GlossariesGlossaryEntry } from "./GlossariesGlossaryEntry.ts";
+import type { AdaptiveMtDataset } from "./AdaptiveMtDataset.vibe";
+import type { GlossariesGlossaryEntry } from "./GlossariesGlossaryEntry.vibe";
 import { locationParentOf } from "./internal.vibe";
-import type { Model } from "./Model.ts";
+import type { Model } from "./Model.vibe";
 
 const closeOver = <I, A, E>(operation: GcpHttpOp<I, A, E>) => operation;
 

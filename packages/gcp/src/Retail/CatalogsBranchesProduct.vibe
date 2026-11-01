@@ -1,0 +1,427 @@
+import * as retail from "@distilled.cloud/gcp/retail_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  MAX_PRODUCT_ID_LENGTH,
+  branchName,
+  expandCatalog,
+  normalizeBranch,
+  normalizeLocation,
+  parentOf,
+  parseResourceName,
+  productIdOf,
+  replaceOnIdentity,
+  sameJson,
+  sameStringList,
+  sameText,
+  toPhysical,
+  updateMaskOf,
+} from "./internal.ts"
+
+export type ProductPriceInfo = {
+  /** ISO 4217 currency code, e.g. `USD`. */
+  mutable currencyCode?: string
+  /** Sale price. */
+  mutable price?: number
+  /** Price before discount. */
+  mutable originalPrice?: number
+  /** Cost of goods sold. */
+  mutable cost?: number
+}
+
+export type ProductImage = {
+  /** Image URI. */
+  mutable uri: string
+  /** Height in pixels. */
+  mutable height?: number
+  /** Width in pixels. */
+  mutable width?: number
+}
+
+export type CatalogsBranchesProductProps = {
+  /**
+   * Parent catalog resource name
+   * `projects/{project}/locations/{location}/catalogs/{catalog}` or a
+   * catalog id (combined with `location`). Immutable — changing it
+   * replaces the product.
+   * @default "default_catalog"
+   */
+  mutable catalog?: string
+  /**
+   * Location used when `catalog` is a bare id. Immutable.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Branch id. Immutable.
+   * @default "default_branch"
+   */
+  mutable branchId?: string
+  /**
+   * Product id (max 128 characters). If omitted, a unique id is
+   * generated. Immutable — changing it replaces the product.
+   */
+  mutable productId?: string
+  /**
+   * Product title (max 1,000 characters). Defaults to the product id.
+   */
+  mutable title?: string
+  /**
+   * Product description (max 5,000 characters).
+   */
+  mutable description?: string
+  /**
+   * Category paths, e.g. `Shoes & Accessories > Shoes`. Required for
+   * `PRIMARY` products.
+   * @default ["Alchemy"]
+   */
+  mutable categories?: string[]
+  /**
+   * Product type. Immutable.
+   * @default "PRIMARY"
+   */
+  mutable type?: "TYPE_UNSPECIFIED" | "PRIMARY" | "VARIANT" | "COLLECTION" | (string & {})
+  /**
+   * Canonical product URI.
+   */
+  mutable uri?: string
+  /**
+   * Brand names.
+   */
+  mutable brands?: string[]
+  /**
+   * Language of title/description (`en-US`, …).
+   */
+  mutable languageCode?: string
+  /**
+   * Availability.
+   * @default "IN_STOCK"
+   */
+  mutable availability?:
+    | "AVAILABILITY_UNSPECIFIED"
+    | "IN_STOCK"
+    | "OUT_OF_STOCK"
+    | "PREORDER"
+    | "BACKORDER"
+    | (string & {})
+  /**
+   * Price information.
+   */
+  mutable priceInfo?: ProductPriceInfo
+  /**
+   * Product images.
+   */
+  mutable images?: ProductImage[]
+  /**
+   * Custom tags (used for recommendation filters).
+   */
+  mutable tags?: string[]
+  /**
+   * GTIN.
+   */
+  mutable gtin?: string
+  /**
+   * Primary product id for `VARIANT` products.
+   */
+  mutable primaryProductId?: string
+}
+
+export type CatalogsBranchesProduct = Resource<
+  "GCP.Retail.CatalogsBranchesProduct",
+  CatalogsBranchesProductProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Product id. */
+    mutable productId: string
+    /** Parent catalog resource name. */
+    mutable catalog: string
+    /** Branch id. */
+    mutable branchId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Title. */
+    mutable title: string | undefined
+    /** Description. */
+    mutable description: string | undefined
+    /** Categories. */
+    mutable categories: string[]
+    /** Product type. */
+    mutable type: string | undefined
+    /** Canonical URI. */
+    mutable uri: string | undefined
+    /** Brands. */
+    mutable brands: string[]
+    /** Language code. */
+    mutable languageCode: string | undefined
+    /** Availability. */
+    mutable availability: string | undefined
+    /** Price information. */
+    mutable priceInfo: ProductPriceInfo | undefined
+    /** Images. */
+    mutable images: ProductImage[]
+    /** Custom tags. */
+    mutable tags: string[]
+    /** GTIN. */
+    mutable gtin: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Retail product under a catalog branch.
+ *
+ * Without labels, ownership rests on the deterministic id: `read` reports a
+ * resource it finds without prior state as unowned (adopt it with `--adopt`).
+ * Catalog, location, branch, product id, and type are immutable. Title,
+ * description, categories, price, and tags update in place.
+ *
+ * ### Creating a Product
+ * **Example:** Primary product on the default catalog
+ * ```typescript
+ * const product = yield* GCP.Retail.CatalogsBranchesProduct("Shirt", {
+ *   title: "Cotton tee",
+ *   categories: ["Apparel > T-Shirts"],
+ *   priceInfo: { currencyCode: "USD", price: 20 },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Retail
+ */
+export const CatalogsBranchesProduct = Resource<CatalogsBranchesProduct>(
+  "GCP.Retail.CatalogsBranchesProduct",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class CatalogsBranchesProductNotResolved extends Data.TaggedError(
+  "GCP.Retail.CatalogsBranchesProductNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const priceInfoOf = (
+  info: retail.GoogleCloudRetailV2PriceInfo | ProductPriceInfo | undefined,
+): ProductPriceInfo | undefined =>
+  info === undefined
+    ? undefined
+    : {
+      currencyCode: info.currencyCode,
+      price: info.price,
+      originalPrice: info.originalPrice,
+      cost: info.cost,
+    }
+
+const imagesOf = (
+  images: readonly retail.GoogleCloudRetailV2Image[] | readonly ProductImage[] | undefined,
+): ProductImage[] =>
+  (images ?? [])
+    .filter((image) => (image.uri ?? "").length > 0)
+    .map((image) => ({
+      uri: image.uri ?? "",
+      height: image.height,
+      width: image.width,
+    }))
+
+const toAttrs = (product: retail.GoogleCloudRetailV2Product, project: string): infer _ => {
+  const name = product.name ?? ""
+  const parsed = parseResourceName(name, "products")
+  return {
+    name,
+    productId: product.id ?? parsed.id,
+    catalog: parentOf(name, "branches"),
+    branchId: parsed.branchId,
+    project: parsed.project || project,
+    location: parsed.location,
+    title: product.title,
+    description: product.description,
+    categories: [...(product.categories ?? [])],
+    type: product.type,
+    uri: product.uri,
+    brands: [...(product.brands ?? [])],
+    languageCode: product.languageCode,
+    availability: product.availability,
+    priceInfo: priceInfoOf(product.priceInfo),
+    images: imagesOf(product.images),
+    tags: [...(product.tags ?? [])],
+    gtin: product.gtin,
+  }
+}
+
+const resourceName = (catalog: string, branchId: string, productId: string): infer _ =>
+  `${branchName(catalog, branchId)}/products/${productId}`
+
+const toBody = (
+  news: CatalogsBranchesProductProps,
+  productId: string,
+  description: string | undefined,
+  tags: string[],
+): retail.GoogleCloudRetailV2Product => ({
+  id: productId,
+  title: news.title ?? productId,
+  description,
+  categories: news.categories ?? ["Alchemy"],
+  type: news.type ?? "PRIMARY",
+  uri: news.uri,
+  brands: news.brands,
+  languageCode: news.languageCode,
+  availability: news.availability ?? "IN_STOCK",
+  priceInfo: news.priceInfo,
+  images: news.images,
+  tags,
+  gtin: news.gtin,
+  primaryProductId: news.primaryProductId,
+})
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : retail
+  .getProjectsLocationsCatalogsBranchesProducts({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const CatalogsBranchesProductProvider = (): infer _ =>
+  Provider.succeed(CatalogsBranchesProduct, {
+    stables: ["name", "productId", "catalog", "branchId", "project", "location", "type"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousParent = olds?.catalog ?? output?.catalog
+      const nextParent = expandCatalog(
+        news.catalog,
+        env.project,
+        normalizeLocation(news.location ?? output?.location),
+      )
+      const previousBranch = olds?.branchId ?? output?.branchId
+      const nextBranch = news.branchId ?? previousBranch
+      const previousType = olds?.type ?? output?.type
+      const nextType = news.type ?? previousType
+      const identity = replaceOnIdentity({
+        previousId: olds?.productId ?? output?.productId,
+        nextId: news.productId,
+        previousParent,
+        nextParent,
+      })
+      if (
+        identity !== undefined
+        || (previousBranch !== undefined
+          && nextBranch !== undefined
+          && previousBranch !== nextBranch)
+        || (previousType !== undefined && nextType !== undefined && previousType !== nextType)
+      ) {
+        return (
+          identity ?? {
+            action: "replace" as const,
+            deleteFirst: true,
+          }
+        )
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const catalog = olds?.catalog ?? output?.catalog
+      const branchId = normalizeBranch(olds?.branchId ?? output?.branchId)
+      const productId = try toPhysical(
+        id,
+        olds?.productId,
+        output?.productId,
+        productIdOf,
+        MAX_PRODUCT_ID_LENGTH,
+      )
+      const name = output?.name
+        ?? (catalog !== undefined
+          ? resourceName(
+            expandCatalog(catalog, env.project, normalizeLocation(output?.location)),
+            branchId,
+            productId,
+          )
+          : undefined)
+      if (name === undefined) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      // No labels field: without prior state it may not be ours.
+      return output !== undefined ? attrs : Unowned(attrs)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location)
+      const catalog = expandCatalog(news.catalog, env.project, location)
+      const branchId = normalizeBranch(news.branchId ?? output?.branchId)
+      const productId = try toPhysical(
+        id,
+        news.productId,
+        output?.productId,
+        productIdOf,
+        MAX_PRODUCT_ID_LENGTH,
+      )
+      const parent = branchName(catalog, branchId)
+      const name = resourceName(catalog, branchId, productId)
+      const description = news.description
+      const tags = news.tags ?? []
+      const body = toBody(news, productId, description, tags)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = retail
+          .createProjectsLocationsCatalogsBranchesProducts({
+            parent,
+            productId,
+            body,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new CatalogsBranchesProductNotResolved({ resourceName: name })
+      }
+
+      const resource = current.name ?? name
+      const title = news.title ?? productId
+      const mask = updateMaskOf(
+        sameText(current.title, title) ? undefined : "title",
+        sameText(current.description, description) ? undefined : "description",
+        sameStringList(current.categories, news.categories ?? ["Alchemy"])
+          ? undefined
+          : "categories",
+        sameText(current.uri, news.uri) ? undefined : "uri",
+        sameStringList(current.brands, news.brands) ? undefined : "brands",
+        sameText(current.languageCode, news.languageCode) ? undefined : "language_code",
+        sameText(current.availability, news.availability ?? "IN_STOCK")
+          ? undefined
+          : "availability",
+        sameJson(priceInfoOf(current.priceInfo), news.priceInfo) ? undefined : "price_info",
+        sameJson(imagesOf(current.images), news.images) ? undefined : "images",
+        sameStringList(current.tags, tags) ? undefined : "tags",
+        sameText(current.gtin, news.gtin) ? undefined : "gtin",
+      )
+
+      if (mask.length > 0) {
+        current = try retail.patchProjectsLocationsCatalogsBranchesProducts({
+          name: resource,
+          updateMask: mask,
+          body: { ...body, name: resource },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      retail
+        .deleteProjectsLocationsCatalogsBranchesProducts({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

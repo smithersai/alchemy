@@ -1,3 +1,3 @@
-export * from "./Domain.ts";
-export * from "./DomainsBackup.ts";
-export * from "./Peering.ts";
+export * from "./Domain.vibe";
+export * from "./DomainsBackup.vibe";
+export * from "./Peering.vibe";

@@ -13,7 +13,7 @@ export * from "./Database.ts";
 export * from "./DatabaseToken.ts";
 export * from "./Group.ts";
 export * from "./GroupToken.ts";
-export * from "./ManageDatabases.ts";
+export * from "./ManageDatabases.vibe";
 export * from "./OrganizationInvite.ts";
 export * from "./OrganizationMember.ts";
 export * from "./OrganizationSettings.ts";

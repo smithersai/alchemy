@@ -64,7 +64,7 @@ import {
   type WorkerSettingsBinding,
   withoutDevOnlyBindings,
 } from "./WorkerBinding.ts";
-import { createWorkerName } from "./WorkerName.ts";
+import { createWorkerName } from "./WorkerName.vibe";
 class MissingDurableObjects extends Data.TaggedError("MissingDurableObjects")<{
   scriptName: string;
   expected: string[];

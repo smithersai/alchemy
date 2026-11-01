@@ -1,0 +1,284 @@
+import * as discoveryengine from "@distilled.cloud/gcp/discoveryengine_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { expandDataStore, matchesUriPattern, parseResourceName } from "./internal.vibe"
+import { waitForOperation } from "./operations.vibe"
+
+export type DataStoresSiteSearchEngineTargetSiteProps = {
+  /**
+   * Parent Data Store resource name
+   * `projects/{project}/locations/{location}/dataStores/{dataStore}`.
+   * The data store must use `PUBLIC_WEBSITE` content. Immutable —
+   * changing it replaces the target site.
+   */
+  mutable dataStore: string
+  /**
+   * User-provided URI pattern from which the generated URI pattern is
+   * derived (for example `www.example.com`). Identifies the target site
+   * within the data store. Changing it replaces the site.
+   */
+  mutable providedUriPattern: string
+  /**
+   * When true, match the provided URI pattern exactly. Immutable —
+   * changing it replaces the target site.
+   * @default false
+   */
+  mutable exactMatch?: boolean
+  /**
+   * Whether the site is included or excluded (`INCLUDE`, `EXCLUDE`).
+   * @default "INCLUDE"
+   */
+  mutable type?: string
+}
+
+export type DataStoresSiteSearchEngineTargetSite = Resource<
+  "GCP.DiscoveryEngine.DataStoresSiteSearchEngineTargetSite",
+  DataStoresSiteSearchEngineTargetSiteProps,
+  {
+    /** Full resource name `.../siteSearchEngine/targetSites/{targetSite}`. */
+    mutable name: string
+    /** Target site id (last path segment). Server-assigned on create. */
+    mutable targetSiteId: string
+    /** Parent data store resource name. */
+    mutable dataStore: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** User-provided URI pattern. */
+    mutable providedUriPattern: string | undefined
+    /** System-generated URI pattern. */
+    mutable generatedUriPattern: string | undefined
+    /** Root domain of the provided URI pattern. */
+    mutable rootDomainUri: string | undefined
+    /** Whether the URI pattern is an exact match. */
+    mutable exactMatch: boolean
+    /** Include or exclude. */
+    mutable type: string | undefined
+    /** Indexing status. */
+    mutable indexingStatus: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex AI Search TargetSite under a Data Store site search engine.
+ *
+ * Its id is assigned by the API, so only a recorded resource can be read
+ * back. The target site id is server-assigned. Parent and exact-match flag
+ * are immutable; type updates in place (LRO).
+ *
+ * ### Creating a Target Site
+ * **Example:** Include a site
+ * ```typescript
+ * const site = yield* GCP.DiscoveryEngine.DataStoresSiteSearchEngineTargetSite(
+ *   "Docs",
+ *   {
+ *     dataStore: dataStore.name,
+ *     providedUriPattern: "www.example.com/docs",
+ *     type: "INCLUDE",
+ *   },
+ * );
+ * ```
+ *
+ * ### Updating a Target Site
+ * **Example:** Exclude the site
+ * ```typescript
+ * // Same logical id as before; only the changed props differ.
+ * const site = yield* GCP.DiscoveryEngine.DataStoresSiteSearchEngineTargetSite(
+ *   "Docs",
+ *   {
+ *     dataStore: dataStore.name,
+ *     providedUriPattern: "www.example.com/docs",
+ *     type: "EXCLUDE",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category DiscoveryEngine
+ */
+export const DataStoresSiteSearchEngineTargetSite = Resource<DataStoresSiteSearchEngineTargetSite>(
+  "GCP.DiscoveryEngine.DataStoresSiteSearchEngineTargetSite",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DataStoresSiteSearchEngineTargetSiteNotResolved extends Data.TaggedError(
+  "GCP.DiscoveryEngine.DataStoresSiteSearchEngineTargetSiteNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const siteSearchEngine = (dataStore: string): infer _ => `${dataStore}/siteSearchEngine`
+
+const toAttrs = (
+  site: discoveryengine.GoogleCloudDiscoveryengineV1TargetSite,
+  project: string,
+  pattern?: string,
+): infer _ => {
+  const name = site.name ?? ""
+  const parsed = parseResourceName(name, "targetSites")
+  return {
+    name,
+    targetSiteId: parsed.id,
+    dataStore: parsed.dataStore,
+    project: parsed.project || project,
+    location: parsed.location,
+    providedUriPattern: site.providedUriPattern ?? pattern ?? site.generatedUriPattern,
+    generatedUriPattern: site.generatedUriPattern,
+    rootDomainUri: site.rootDomainUri,
+    exactMatch: site.exactMatch === true,
+    type: site.type,
+    indexingStatus: site.indexingStatus,
+    updateTime: site.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : discoveryengine
+  .getProjectsLocationsDataStoresSiteSearchEngineTargetSites({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAtParent = effect (parent: string) =>
+  (Array.from(
+    try (discoveryengine.listProjectsLocationsDataStoresSiteSearchEngineTargetSites
+      .pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.targetSites ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findByPattern = effect (uri: string, parent: string | undefined, hinted?: string) => {
+  if (hinted !== undefined && hinted.length > 0) {
+    const existing = try getByName(hinted)
+    if (existing !== undefined) return existing
+  }
+  if (parent === undefined) return undefined
+  const sites = try listAtParent(parent)
+  return sites.find((site) => matchesUriPattern(site, uri))
+}
+
+export const DataStoresSiteSearchEngineTargetSiteProvider = (): infer _ =>
+  Provider.succeed(DataStoresSiteSearchEngineTargetSite, {
+    stables: [
+      "name",
+      "targetSiteId",
+      "dataStore",
+      "project",
+      "location",
+      "providedUriPattern",
+      "exactMatch",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.dataStore ?? output?.dataStore
+      if (previousParent !== undefined && news.dataStore !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousExact = olds?.exactMatch ?? output?.exactMatch ?? false
+      const nextExact = news.exactMatch ?? previousExact
+      if (previousExact !== nextExact) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      const previousUri = olds?.providedUriPattern ?? output?.providedUriPattern
+      if (
+        previousUri !== undefined
+        && news.providedUriPattern !== undefined
+        && news.providedUriPattern !== previousUri
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      const previousType = olds?.type ?? output?.type ?? "INCLUDE"
+      const nextType = news.type ?? previousType
+      if (previousType !== nextType) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = olds?.dataStore
+        ? expandDataStore(olds.dataStore, env.project, output?.location ?? "global")
+        : undefined
+      const uri = olds?.providedUriPattern ?? output?.providedUriPattern
+      const existing = uri === undefined
+        ? undefined
+        : try findByPattern(uri, parent ? siteSearchEngine(parent) : undefined, output?.name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, uri)
+      // No labels field: without prior state it may not be ours.
+      return output !== undefined ? attrs : Unowned(attrs)
+    },
+
+    reconcile: effect ({ news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = expandDataStore(news.dataStore, env.project, output?.location ?? "global")
+      const engine = siteSearchEngine(parent)
+      const providedUriPattern = news.providedUriPattern
+      const exactMatch = news.exactMatch === true
+      const type = news.type ?? "INCLUDE"
+
+      let current = try findByPattern(providedUriPattern, engine, output?.name)
+
+      if (current === undefined) {
+        const created = discoveryengine
+          .createProjectsLocationsDataStoresSiteSearchEngineTargetSites({
+            parent: engine,
+            body: {
+              providedUriPattern,
+              exactMatch,
+              type,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try findByPattern(providedUriPattern, engine)
+      }
+
+      if (current === undefined) {
+        throw new DataStoresSiteSearchEngineTargetSiteNotResolved({
+          resourceName: output?.name ?? `${engine}/targetSites`,
+        })
+      }
+
+      const typeChanged = news.type !== undefined && (current.type ?? "INCLUDE") !== type
+
+      if (typeChanged) {
+        const patched = try discoveryengine.patchProjectsLocationsDataStoresSiteSearchEngineTargetSites({
+          name: current.name ?? "",
+          body: {
+            name: current.name,
+            providedUriPattern,
+            exactMatch,
+            type,
+          },
+        })
+        try waitForOperation(patched)
+        current = (try getByName(current.name ?? "")) ?? current
+      }
+
+      return toAttrs(current, env.project, providedUriPattern)
+    },
+
+    delete: effect ({ output }) => {
+      const existing = try getByName(output.name)
+      if (existing === undefined) return
+      const operation = discoveryengine
+        .deleteProjectsLocationsDataStoresSiteSearchEngineTargetSites({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+    },
+  })

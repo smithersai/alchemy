@@ -17,7 +17,7 @@ import {
   observePolicy,
   type PolicyBody,
   policyEqualsObserved,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export class NotificationPolicyUnexpectedResponse extends Data.TaggedError(
   "NotificationPolicyUnexpectedResponse",
@@ -26,7 +26,7 @@ export class NotificationPolicyUnexpectedResponse extends Data.TaggedError(
   readonly cause?: unknown;
 }> {}
 
-export type { NotificationPolicyBinding } from "./internal.ts";
+export type { NotificationPolicyBinding } from "./internal.vibe";
 
 const TypeId = "Cloudflare.Alerting.NotificationPolicy" as const;
 type TypeId = typeof TypeId;

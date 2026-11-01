@@ -1,0 +1,308 @@
+import * as mc from "@distilled.cloud/gcp/migrationcenter_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnership,
+  expandParent,
+  fieldMask,
+  fingerprint,
+  hasOwnershipMarker,
+  lastSegment,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type SourceType = mc.SourceTypeEnum | (string & {})
+export type SourceState = mc.SourceStateEnum | (string & {})
+
+export type SourceProps = {
+  /**
+   * Source id (the `{source}` segment of
+   * `projects/{project}/locations/{location}/sources/{source}`). If
+   * omitted, a unique RFC1035 name is generated. Immutable — changing it
+   * replaces the source.
+   */
+  mutable sourceId?: string
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the
+   * source. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Data source type. Immutable — changing it replaces the source.
+   * @default "SOURCE_TYPE_UPLOAD"
+   */
+  mutable type?: SourceType
+  /**
+   * User-friendly display name.
+   */
+  mutable displayName?: string
+  /**
+   * Free-text description. Sources have no labels field, so Alchemy
+   * ownership is stored in a `[alchemy …]` prefix and stripped from
+   * attributes.
+   */
+  mutable description?: string
+  /**
+   * Information confidence of the source. Higher is more confident.
+   */
+  mutable priority?: number
+}
+
+export type Source = Resource<
+  "GCP.MigrationCenter.Source",
+  SourceProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Source id (last path segment). */
+    mutable sourceId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Data source type. */
+    mutable type: string | undefined
+    /** User-friendly display name. */
+    mutable displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Information confidence. */
+    mutable priority: number | undefined
+    /** Whether another service manages this source. */
+    mutable managed: boolean | undefined
+    /** Server-reported state. */
+    mutable state: string | undefined
+    /** Frames still being processed. */
+    mutable pendingFrameCount: number | undefined
+    /** Frames that contained errors. */
+    mutable errorFrameCount: number | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Migration Center source that streams asset frames into a project.
+ *
+ * Sources have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. `sourceId`, `location`, and
+ * `type` are immutable. Display name, description, and priority update
+ * in place.
+ *
+ * ### Creating a Source
+ * **Example:** Upload source
+ * ```typescript
+ * const source = yield* GCP.MigrationCenter.Source("Inventory", {
+ *   type: "SOURCE_TYPE_UPLOAD",
+ *   displayName: "rvtools",
+ * });
+ * ```
+ *
+ * **Example:** Discovery-client source
+ * ```typescript
+ * const source = yield* GCP.MigrationCenter.Source("Scanner", {
+ *   type: "SOURCE_TYPE_DISCOVERY_CLIENT",
+ *   description: "on-prem scanner",
+ * });
+ * ```
+ *
+ * @resource
+ * @category MigrationCenter
+ */
+export const Source = Resource<Source>("GCP.MigrationCenter.Source")
+
+const DEFAULT_TYPE: SourceType = "SOURCE_TYPE_UPLOAD"
+
+const resourceName = (project: string, location: string, sourceId: string): infer _ =>
+  `${locationParent(project, location)}/sources/${sourceId}`
+
+const toAttrs = (source: mc.Source, project: string, region: string): infer _ => {
+  const name = source.name ?? ""
+  const parsed = parseName(name, "sources", region)
+  const ownership = parseOwnership(source.description)
+  return {
+    name,
+    sourceId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    type: source.type,
+    displayName: source.displayName,
+    description: ownership.text,
+    priority: source.priority,
+    managed: source.managed,
+    state: source.state,
+    pendingFrameCount: source.pendingFrameCount,
+    errorFrameCount: source.errorFrameCount,
+    createTime: source.createTime,
+    updateTime: source.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : mc
+  .getProjectsLocationsSources({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string, region: string) =>
+  (Array.from(
+    try (mc.listProjectsLocationsSources
+      .pages({
+        parent: `projects/${project}/locations/-`,
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sources ?? []))
+      |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (Array.from(
+      try (mc.listProjectsLocationsSources
+        .pages({
+          parent: locationParent(project, region),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.sources ?? []))
+        |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+        |> Stream.runCollect(%)),
+    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as mc.Source[]; default: throw e; };
+    default: throw e;
+  }
+
+export const SourceProvider = (): infer _ =>
+  Provider.succeed(Source, {
+    stables: ["name", "sourceId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousType = olds?.type ?? output?.type ?? DEFAULT_TYPE
+      const nextType = news.type ?? previousType
+      return replaceOnIdentity({
+        previousId: olds?.sourceId ?? output?.sourceId,
+        nextId: news.sourceId ?? olds?.sourceId ?? output?.sourceId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: previousType !== nextType,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const sourceId = try toPhysicalId(id, olds?.sourceId, output?.sourceId, "source")
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, sourceId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const sourceId = try toPhysicalId(id, news.sourceId, output?.sourceId, "source")
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, sourceId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const type = news.type ?? DEFAULT_TYPE
+      const displayName = news.displayName ?? sourceId
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = mc
+          .createProjectsLocationsSources({
+            parent: locationParent(env.project, location),
+            sourceId,
+            body: {
+              type,
+              displayName,
+              description,
+              priority: news.priority,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== description
+      const displayNameChanged = (current.displayName ?? "") !== displayName
+      const priorityChanged = fingerprint(current.priority) !== fingerprint(news.priority)
+      const mask = fieldMask([
+        descriptionChanged && "description",
+        displayNameChanged && "displayName",
+        priorityChanged && "priority",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try mc.patchProjectsLocationsSources({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            displayName,
+            description,
+            priority: news.priority,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (mc.deleteProjectsLocationsSources({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 10,
+          schedule: Schedule.spaced("3 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })
+
+export const sourceNameOf = (value: string, project: string, location: string): infer _ =>
+  expandParent(value, project, location, "sources")
+
+export const sourceIdOf = (name: string): infer _ => lastSegment(name)

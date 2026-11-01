@@ -1,0 +1,328 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { lastSegment, orgParent, organizationFromName, sameJson, toResourceId } from "./names.vibe"
+import {
+  createInternalLabels,
+  encodeOwnership,
+  hasAlchemyLabels,
+  hasOwnershipMarker,
+  parseOwnership,
+} from "./ownership.ts"
+
+const MAX_NAME_LENGTH = 63
+
+export type ProfileAssessmentConfig = {
+  /**
+   * Weight of this assessment.
+   */
+  mutable weight?:
+    | apigee.GoogleCloudApigeeV1SecurityProfileV2ProfileAssessmentConfigWeightEnum
+    | (string & {})
+  /**
+   * API Hub gateway types to include.
+   */
+  mutable include?: Array<
+    | apigee.GoogleCloudApigeeV1SecurityProfileV2ProfileAssessmentConfigApiHubGatewayTypeArrayGatewayTypesItemEnum
+    | (string & {})
+  >
+}
+
+export type SecurityProfilesV2Props = {
+  /**
+   * Apigee organization id. Defaults to the current GCP project id.
+   * Immutable — changing it replaces the profile.
+   */
+  mutable organization?: string
+  /**
+   * Profile id (the `{profile}` segment of
+   * `organizations/{org}/securityProfilesV2/{profile}`). If omitted, a
+   * unique name is generated from the stack, stage, and logical id.
+   * Immutable — changing it replaces the profile.
+   */
+  mutable securityProfileV2Id?: string
+  /**
+   * Human-readable description. Alchemy ownership is stored in a
+   * `[alchemy …]` prefix and stripped from attributes. Profiles have no
+   * labels field.
+   */
+  mutable description?: string
+  /**
+   * Risk assessment type.
+   * @default "APIGEE"
+   */
+  mutable riskAssessmentType?:
+    | apigee.GoogleCloudApigeeV1SecurityProfileV2RiskAssessmentTypeEnum
+    | (string & {})
+  /**
+   * Configuration for each assessment, keyed by assessment id.
+   * @default `{ authorization: { weight: "MODERATE" }, threat: { weight: "MODERATE" } }`
+   */
+  mutable profileAssessmentConfigs?: Record<string, ProfileAssessmentConfig>
+}
+
+export type SecurityProfilesV2 = Resource<
+  "GCP.Apigee.SecurityProfilesV2",
+  SecurityProfilesV2Props,
+  {
+    /** Full resource name `organizations/{org}/securityProfilesV2/{profile}`. */
+    mutable name: string
+    /** Profile id (last path segment). */
+    mutable securityProfileV2Id: string
+    /** Apigee organization id. */
+    mutable organization: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Risk assessment type. */
+    mutable riskAssessmentType: string | undefined
+    /** Assessment configuration map. */
+    mutable profileAssessmentConfigs: Record<string, ProfileAssessmentConfig>
+    /** Whether this profile is Google-defined. */
+    mutable googleDefined: boolean | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Advanced API Security profile (risk assessment v2).
+ *
+ * Profiles have no labels field, so Alchemy stamps ownership into the
+ * description for `list` / nuke. Google-defined profiles are ignored by
+ * `list`. Name and organization are identity — changing them replaces
+ * the profile. Description and assessment configs update in place.
+ *
+ * ### Creating a Profile
+ * **Example:** Generated name with default assessments
+ * ```typescript
+ * const profile = yield* GCP.Apigee.SecurityProfilesV2("Baseline", {});
+ * ```
+ *
+ * **Example:** Named profile with explicit weights
+ * ```typescript
+ * const profile = yield* GCP.Apigee.SecurityProfilesV2("Baseline", {
+ *   securityProfileV2Id: "app-baseline",
+ *   description: "production scoring",
+ *   profileAssessmentConfigs: {
+ *     authorization: { weight: "MAJOR" },
+ *     threat: { weight: "MODERATE" },
+ *     cors: { weight: "MINOR" },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const SecurityProfilesV2 = Resource<SecurityProfilesV2>("GCP.Apigee.SecurityProfilesV2")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SecurityProfilesV2NotResolved extends Data.TaggedError(
+  "GCP.Apigee.SecurityProfilesV2NotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const DEFAULT_ASSESSMENTS: Record<string, ProfileAssessmentConfig> = {
+  authorization: { weight: "MODERATE" },
+  threat: { weight: "MODERATE" },
+}
+
+const resourceName = (organization: string, profileId: string): infer _ =>
+  `${orgParent(organization)}/securityProfilesV2/${profileId}`
+
+const profileIdOf = (profile: apigee.GoogleCloudApigeeV1SecurityProfileV2): infer _ => lastSegment(profile.name ?? "")
+
+const configsOf = (
+  configs:
+    | apigee.GoogleCloudApigeeV1SecurityProfileV2ProfileAssessmentConfigMap
+    | Record<string, ProfileAssessmentConfig>
+    | undefined,
+): Record<string, ProfileAssessmentConfig> => {
+  const result: Record<string, ProfileAssessmentConfig> = {}
+  for (const [key, value] of Object.entries(configs ?? {})) {
+    if (value === undefined) continue
+    result[key] = {
+      weight: value.weight,
+      include: value.include?.gatewayTypes
+        ? [...value.include.gatewayTypes]
+        : "include" in value && Array.isArray(value.include)
+        ? [...value.include]
+        : undefined,
+    }
+  }
+  return result
+}
+
+const toApiConfigs = (
+  configs: Record<string, ProfileAssessmentConfig>,
+): apigee.GoogleCloudApigeeV1SecurityProfileV2ProfileAssessmentConfigMap => {
+  const result: apigee.GoogleCloudApigeeV1SecurityProfileV2ProfileAssessmentConfigMap = {}
+  for (const [key, value] of Object.entries(configs)) {
+    result[key] = {
+      weight: value.weight,
+      include: value.include !== undefined ? { gatewayTypes: value.include } : undefined,
+    }
+  }
+  return result
+}
+
+const toAttrs = (profile: apigee.GoogleCloudApigeeV1SecurityProfileV2, organization: string): infer _ => {
+  const securityProfileV2Id = profileIdOf(profile)
+  const name = profile.name?.includes("/")
+    ? profile.name
+    : resourceName(organization, securityProfileV2Id)
+  const parsed = parseOwnership(profile.description)
+  return {
+    name,
+    securityProfileV2Id,
+    organization: organizationFromName(name) ?? organization,
+    description: parsed.text,
+    riskAssessmentType: profile.riskAssessmentType,
+    profileAssessmentConfigs: configsOf(profile.profileAssessmentConfigs),
+    googleDefined: profile.googleDefined,
+    createTime: profile.createTime,
+    updateTime: profile.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsSecurityProfilesV2({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const toBody = (
+  news: SecurityProfilesV2Props,
+  description: string,
+): apigee.GoogleCloudApigeeV1SecurityProfileV2 => ({
+  description,
+  riskAssessmentType: news.riskAssessmentType,
+  profileAssessmentConfigs: toApiConfigs(news.profileAssessmentConfigs ?? DEFAULT_ASSESSMENTS),
+})
+
+export const SecurityProfilesV2Provider = (): infer _ =>
+  Provider.succeed(SecurityProfilesV2, {
+    stables: ["name", "securityProfileV2Id", "organization", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.securityProfileV2Id ?? output?.securityProfileV2Id
+      const previousOrg = olds?.organization ?? output?.organization
+      if (
+        (previousId !== undefined
+          && news.securityProfileV2Id !== undefined
+          && news.securityProfileV2Id !== previousId)
+        || (previousOrg !== undefined
+          && news.organization !== undefined
+          && news.organization !== previousOrg)
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = organizationFromName(output?.name) ?? olds?.organization ?? env.project
+      const securityProfileV2Id = try toResourceId(
+        id,
+        olds?.securityProfileV2Id,
+        output?.securityProfileV2Id,
+        MAX_NAME_LENGTH,
+      )
+      const name = output?.name ?? resourceName(organization, securityProfileV2Id)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization)
+      const { labels } = parseOwnership(existing.description)
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return (Array.from(
+        try (apigee.listOrganizationsSecurityProfilesV2
+          .pages({
+            parent: orgParent(env.project),
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityProfilesV2 ?? []))
+          |> Stream.filter(%, (profile) => profile.googleDefined !== true && hasOwnershipMarker(profile.description))
+          |> Stream.map(%, (profile) => toAttrs(profile, env.project))
+          |> Stream.runCollect(%)),
+      )) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as SecurityProfilesV2["Attributes"][];
+        default: throw e;
+      }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = news.organization ?? output?.organization ?? env.project
+      const securityProfileV2Id = try toResourceId(
+        id,
+        news.securityProfileV2Id,
+        output?.securityProfileV2Id,
+        MAX_NAME_LENGTH,
+      )
+      const name = resourceName(organization, securityProfileV2Id)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeOwnership(ownership, news.description)
+      const desiredConfigs = configsOf(news.profileAssessmentConfigs ?? DEFAULT_ASSESSMENTS)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsSecurityProfilesV2({
+            parent: orgParent(organization),
+            securityProfileV2Id,
+            body: toBody(news, desiredDescription),
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SecurityProfilesV2NotResolved({ resourceName: name })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const configsChanged = !sameJson(configsOf(current.profileAssessmentConfigs), desiredConfigs)
+      const typeChanged = news.riskAssessmentType !== undefined
+        && (current.riskAssessmentType ?? "") !== news.riskAssessmentType
+
+      const updateMask = [
+        descriptionChanged ? "description" : undefined,
+        configsChanged ? "profileAssessmentConfigs" : undefined,
+        typeChanged ? "riskAssessmentType" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        current = try apigee.patchOrganizationsSecurityProfilesV2({
+          name: current.name?.includes("/") ? current.name : name,
+          updateMask: updateMask.join(","),
+          body: toBody(news, desiredDescription),
+        })
+      }
+
+      return toAttrs(current, organization)
+    },
+
+    delete: effect ({ output }) => {
+      apigee
+        .deleteOrganizationsSecurityProfilesV2({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

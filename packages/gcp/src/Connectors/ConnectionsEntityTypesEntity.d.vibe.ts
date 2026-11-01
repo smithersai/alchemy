@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.js";
 import type { Providers } from "../Providers.js";
-import { type EntityFields } from "./internal.js";
+import { type EntityFields } from "./internal.vibe";
 export type ConnectionsEntityTypesEntityProps = {
     /**
      * Parent entity type resource name

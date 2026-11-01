@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
 import type { Node } from "./Node.vibe";
-import type { QueuedResource } from "./QueuedResource.js";
+import type { QueuedResource } from "./QueuedResource.vibe";
 /**
  * Shared HTTP scaffolding for Cloud TPU node bindings.
  * NOT exported from index.ts.

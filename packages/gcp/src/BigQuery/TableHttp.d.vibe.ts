@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import { type BindingIam } from "../HttpBinding.js";
 import { type ReadTableClient } from "./ReadTable.vibe";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.vibe";
 import { type WriteTableClient } from "./WriteTable.vibe";
 export declare const readTableIam: ReadonlyArray<BindingIam>;
 export declare const writeTableIam: ReadonlyArray<BindingIam>;

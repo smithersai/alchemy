@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.js";
 import type { Providers } from "../Providers.js";
-import type { SslPolicyMinTlsVersion, SslPolicyPostQuantumKeyExchange, SslPolicyProfile } from "./SslPolicy.js";
+import type { SslPolicyMinTlsVersion, SslPolicyPostQuantumKeyExchange, SslPolicyProfile } from "./SslPolicy.vibe";
 export type RegionSslPolicyProps = {
     /**
      * SSL policy name (RFC1035, 1-63 chars). If omitted, a unique name is

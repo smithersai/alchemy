@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { type DnsAuth } from "./DnsHttp.js";
-import { WriteDns, type WriteDnsClient } from "./WriteDns.js";
+import { WriteDns, type WriteDnsClient } from "./WriteDns.vibe";
 /** Runtime layer for {@link WriteDns}. */
 export declare const WriteDnsHttp: Layer.Layer<WriteDns, never, import("alchemy/Self").Self<{
     Type: string;

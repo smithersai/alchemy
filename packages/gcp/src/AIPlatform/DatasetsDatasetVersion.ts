@@ -18,7 +18,7 @@ import {
   resourceNameFromOperation,
   waitForOperation,
 } from "./internal.ts";
-import { listLocations } from "./names.ts";
+import { listLocations } from "./names.vibe";
 
 export type DatasetsDatasetVersionProps = {
   /**

@@ -4,8 +4,8 @@ import * as Effect from "effect/Effect";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import { Subscription } from "../PubSub/Subscription.ts";
-import type { Topic } from "../PubSub/Topic.ts";
+import { Subscription } from "../PubSub/Subscription.vibe";
+import type { Topic } from "../PubSub/Topic.vibe";
 import {
   TopicEventSource as PubSubTopicEventSource,
   type TopicEventSourceProps,

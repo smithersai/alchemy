@@ -1,0 +1,448 @@
+import * as networksecurity from "@distilled.cloud/gcp/networksecurity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  listOrganizations,
+  normalizeLocation,
+  organizationParent,
+  parseResourceName,
+  ResourceNotResolved,
+  resolveOrganization,
+  sameJson,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./operations.ts"
+
+const DEFAULT_TYPE = "THREAT_PREVENTION" satisfies networksecurity.SecurityProfileTypeEnum
+
+export type OrganizationsSecurityProfileType =
+  | networksecurity.SecurityProfileTypeEnum
+  | (string & {})
+
+export type OrganizationsAntivirusOverride = {
+  /** Protocol to match (`HTTP`, `SMTP`, …). */
+  mutable protocol?: string
+  /** Threat action (`ALLOW`, `ALERT`, `DENY`, `DEFAULT_ACTION`). */
+  mutable action?: string
+}
+
+export type OrganizationsSeverityOverride = {
+  /** Severity (`INFORMATIONAL`, `LOW`, `MEDIUM`, `HIGH`, `CRITICAL`). */
+  mutable severity?: string
+  /** Threat action (`ALLOW`, `ALERT`, `DENY`, `DEFAULT_ACTION`). */
+  mutable action?: string
+}
+
+export type OrganizationsThreatOverride = {
+  /** Vendor-specific threat id. */
+  mutable threatId?: string
+  /** Threat type (output-only on the wire). */
+  mutable type?: string
+  /** Threat action (`ALLOW`, `ALERT`, `DENY`, `DEFAULT_ACTION`). */
+  mutable action?: string
+}
+
+export type OrganizationsThreatPreventionProfile = {
+  /** Antivirus action overrides per protocol. */
+  mutable antivirusOverrides?: OrganizationsAntivirusOverride[]
+  /** Action overrides by severity. */
+  mutable severityOverrides?: OrganizationsSeverityOverride[]
+  /** Action overrides by threat id. */
+  mutable threatOverrides?: OrganizationsThreatOverride[]
+}
+
+export type OrganizationsCustomMirroringProfile = {
+  /** Target MirroringEndpointGroup resource name. Immutable. */
+  mutable mirroringEndpointGroup?: string
+}
+
+export type OrganizationsUrlFilter = {
+  /** Action (`ALLOW` or `DENY`). */
+  mutable filteringAction?: string
+  /** URL match strings. */
+  mutable urls?: string[]
+  /** Unique priority within the profile. Lower is higher priority. */
+  mutable priority?: number
+}
+
+export type OrganizationsUrlFilteringProfile = {
+  /** URL filters. */
+  mutable urlFilters?: OrganizationsUrlFilter[]
+}
+
+export type OrganizationsCustomInterceptProfile = {
+  /** Target InterceptEndpointGroup resource name. Immutable. */
+  mutable interceptEndpointGroup?: string
+}
+
+export type OrganizationsSecurityProfileProps = {
+  /**
+   * Security profile id. If omitted, a unique RFC1035 name is generated
+   * from the stack, stage, and logical id. Immutable — changing it
+   * replaces the profile.
+   */
+  mutable securityProfileId?: string
+  /**
+   * Organization id or `organizations/{organization}`. If omitted,
+   * Alchemy uses `GOOGLE_ORGANIZATION_ID` or the project's Resource
+   * Manager parent. Immutable — changing it replaces the profile.
+   */
+  mutable organization?: string
+  /**
+   * Location. Security profiles live in `global`. Immutable — changing
+   * it replaces the profile.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Profile type. Immutable — changing it replaces the profile.
+   * @default "THREAT_PREVENTION"
+   */
+  mutable type?: OrganizationsSecurityProfileType
+  /**
+   * Threat prevention configuration. Used when `type` is
+   * `THREAT_PREVENTION`.
+   */
+  mutable threatPreventionProfile?: OrganizationsThreatPreventionProfile
+  /**
+   * Packet mirroring configuration. Used when `type` is
+   * `CUSTOM_MIRRORING`. Immutable.
+   */
+  mutable customMirroringProfile?: OrganizationsCustomMirroringProfile
+  /**
+   * URL filtering configuration. Used when `type` is `URL_FILTERING`.
+   */
+  mutable urlFilteringProfile?: OrganizationsUrlFilteringProfile
+  /**
+   * Packet intercept configuration. Used when `type` is
+   * `CUSTOM_INTERCEPT`. Immutable.
+   */
+  mutable customInterceptProfile?: OrganizationsCustomInterceptProfile
+  /**
+   * Human-readable description (max 512 characters).
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type OrganizationsSecurityProfile = Resource<
+  "GCP.NetworkSecurity.OrganizationsSecurityProfile",
+  OrganizationsSecurityProfileProps,
+  {
+    /** Full resource name `organizations/{organization}/locations/{location}/securityProfiles/{securityProfile}`. */
+    mutable name: string
+    /** Security profile id (last path segment). */
+    mutable securityProfileId: string
+    /** Organization id. */
+    mutable organization: string
+    /** Location id. */
+    mutable location: string
+    /** Profile type. */
+    mutable type: string
+    /** Threat prevention configuration, if set. */
+    mutable threatPreventionProfile: OrganizationsThreatPreventionProfile | undefined
+    /** Packet mirroring configuration, if set. */
+    mutable customMirroringProfile: OrganizationsCustomMirroringProfile | undefined
+    /** URL filtering configuration, if set. */
+    mutable urlFilteringProfile: OrganizationsUrlFilteringProfile | undefined
+    /** Packet intercept configuration, if set. */
+    mutable customInterceptProfile: OrganizationsCustomInterceptProfile | undefined
+    /** User-provided description. */
+    mutable description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Server-computed checksum. */
+    mutable etag: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An organization-scoped Network Security profile (threat prevention,
+ * URL filtering, custom mirroring, or custom intercept).
+ *
+ * Changing `securityProfileId`, `organization`, `location`, `type`, or
+ * the immutable nested mirroring/intercept targets replaces the profile.
+ * Description, labels, and threat-prevention or URL-filter config update
+ * in place.
+ *
+ * ### Creating a Security Profile
+ * **Example:** Threat prevention
+ * ```typescript
+ * const profile = yield* GCP.NetworkSecurity.OrganizationsSecurityProfile(
+ *   "Threats",
+ *   {
+ *     type: "THREAT_PREVENTION",
+ *     threatPreventionProfile: {
+ *       severityOverrides: [{ severity: "INFORMATIONAL", action: "ALERT" }],
+ *     },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category NetworkSecurity
+ */
+export const OrganizationsSecurityProfile = Resource<OrganizationsSecurityProfile>(
+  "GCP.NetworkSecurity.OrganizationsSecurityProfile",
+)
+
+const resourceName = (organization: string, location: string, securityProfileId: string): infer _ =>
+  `organizations/${organization}/locations/${location}/securityProfiles/${securityProfileId}`
+
+const typeOf = (value: string | undefined): infer _ => (value ?? DEFAULT_TYPE).toUpperCase()
+
+const toThreatPrevention = (
+  profile: networksecurity.ThreatPreventionProfile | undefined,
+): OrganizationsThreatPreventionProfile | undefined => {
+  if (profile === undefined) return undefined
+  return {
+    antivirusOverrides: profile.antivirusOverrides,
+    severityOverrides: profile.severityOverrides,
+    threatOverrides: profile.threatOverrides,
+  }
+}
+
+const toAttrs = (profile: networksecurity.SecurityProfile): infer _ => {
+  const name = profile.name ?? ""
+  const parsed = parseResourceName(name)
+  return {
+    name,
+    securityProfileId: parsed.id,
+    organization: parsed.parentId,
+    location: parsed.location,
+    type: profile.type ?? DEFAULT_TYPE,
+    threatPreventionProfile: toThreatPrevention(profile.threatPreventionProfile),
+    customMirroringProfile: profile.customMirroringProfile,
+    urlFilteringProfile: profile.urlFilteringProfile,
+    customInterceptProfile: profile.customInterceptProfile,
+    description: profile.description,
+    labels: userLabels(profile.labels),
+    etag: profile.etag,
+    createTime: profile.createTime,
+    updateTime: profile.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networksecurity
+    .getOrganizationsLocationsSecurityProfiles({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwned = effect (organization: string) =>
+  (Array.from(
+    try (networksecurity.listOrganizationsLocationsSecurityProfiles
+      .pages({
+        parent: organizationParent(organization, "-"),
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.securityProfiles ?? []))
+      |> Stream.filter(%, (profile) => Object.keys(profile.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+      |> Stream.map(%, toAttrs)
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const desiredThreatPrevention = (
+  news: OrganizationsSecurityProfileProps,
+  type: string,
+): OrganizationsThreatPreventionProfile | undefined => {
+  if (type !== "THREAT_PREVENTION") return undefined
+  return news.threatPreventionProfile ?? {}
+}
+
+export const OrganizationsSecurityProfileProvider = (): infer _ =>
+  Provider.succeed(OrganizationsSecurityProfile, {
+    stables: ["name", "securityProfileId", "organization", "location", "type", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.securityProfileId ?? output?.securityProfileId
+      const nextId = news.securityProfileId ?? previousId
+      const previousOrg = olds?.organization ?? output?.organization
+      const nextOrg = news.organization ?? previousOrg
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location)
+      const nextLocation = normalizeLocation(news.location ?? olds?.location ?? output?.location)
+      const previousType = typeOf(olds?.type ?? output?.type)
+      const nextType = typeOf(news.type ?? olds?.type ?? output?.type)
+      const previousMirror = olds?.customMirroringProfile?.mirroringEndpointGroup
+        ?? output?.customMirroringProfile?.mirroringEndpointGroup
+      const nextMirror = news.customMirroringProfile?.mirroringEndpointGroup ?? previousMirror
+      const previousIntercept = olds?.customInterceptProfile?.interceptEndpointGroup
+        ?? output?.customInterceptProfile?.interceptEndpointGroup
+      const nextIntercept = news.customInterceptProfile?.interceptEndpointGroup ?? previousIntercept
+      const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || (previousOrg !== undefined && nextOrg !== undefined && nextOrg !== previousOrg)
+        || previousLocation !== nextLocation
+        || previousType !== nextType
+        || previousMirror !== nextMirror
+        || previousIntercept !== nextIntercept
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousLocation === nextLocation
+          && previousOrg === nextOrg
+          && previousId !== undefined
+          && nextId === previousId,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const securityProfileId = try toPhysicalId(
+        id,
+        olds?.securityProfileId,
+        output?.securityProfileId,
+        "secprofile",
+      )
+      const organization = resolveOrganization(
+        olds?.organization ?? output?.organization,
+        output?.organization,
+      ) catch effect (e) => match (e) {
+        when { _tag: "GCP.NetworkSecurity.OrganizationRequired" }: output?.organization ?? "";
+        default: throw e;
+      }
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const name = output?.name
+        ?? (organization.length > 0 ? resourceName(organization, location, securityProfileId) : "")
+      if (name.length === 0) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const orgs = try listOrganizations(env.project)
+      const listed: OrganizationsSecurityProfile["Attributes"][] = []
+      for (const organization of orgs) {
+        listed.push(...(try listOwned(organization)))
+      }
+      return listed
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const securityProfileId = try toPhysicalId(
+        id,
+        news.securityProfileId,
+        output?.securityProfileId,
+        "secprofile",
+      )
+      const organization = try resolveOrganization(
+        news.organization ?? output?.organization,
+        output?.organization,
+      )
+      const location = normalizeLocation(news.location ?? output?.location)
+      const name = resourceName(organization, location, securityProfileId)
+      const type = typeOf(news.type)
+      const threatPreventionProfile = desiredThreatPrevention(news, type)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (try (networksecurity
+          .createOrganizationsLocationsSecurityProfiles({
+            parent: organizationParent(organization, location),
+            securityProfileId,
+            body: {
+              type,
+              description: news.description,
+              labels: desiredLabels,
+              threatPreventionProfile,
+              customMirroringProfile: news.customMirroringProfile,
+              urlFilteringProfile: news.urlFilteringProfile,
+              customInterceptProfile: news.customInterceptProfile,
+            },
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 5,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const threatChanged = type === "THREAT_PREVENTION"
+        && !sameJson(
+          toThreatPrevention(current.threatPreventionProfile) ?? {},
+          threatPreventionProfile ?? {},
+        )
+      const urlChanged = type === "URL_FILTERING"
+        && !sameJson(current.urlFilteringProfile, news.urlFilteringProfile)
+
+      if (labelsChanged || descriptionChanged || threatChanged || urlChanged) {
+        const updateMask = [
+          labelsChanged ? "labels" : undefined,
+          descriptionChanged ? "description" : undefined,
+          threatChanged ? "threatPreventionProfile" : undefined,
+          urlChanged ? "urlFilteringProfile" : undefined,
+        ].filter((field): field is string => field !== undefined)
+
+        const operation = try networksecurity.patchOrganizationsLocationsSecurityProfiles({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+            threatPreventionProfile,
+            urlFilteringProfile: news.urlFilteringProfile,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (networksecurity
+        .deleteOrganizationsLocationsSecurityProfiles({
+          name: output.name,
+          etag: output.etag,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })
