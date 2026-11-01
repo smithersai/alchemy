@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadWriteDatabase } from "./ReadWriteDatabase.js";
+import { ReadWriteDatabase } from "./ReadWriteDatabase.vibe";
 /**
  * HTTP implementation of {@link ReadWriteDatabase} over the Firestore REST API.
  *

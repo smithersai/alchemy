@@ -4,7 +4,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import { fromDurableObjectStorage, type DurableObjectStorage } from "./DurableObjectStorage.ts";
-import { fromWebSocket, type WebSocket } from "./WebSocket.ts";
+import { fromWebSocket, type WebSocket } from "./WebSocket.vibe";
 import {
   getLoopbackEntrypoint,
   makeEntrypointExports,

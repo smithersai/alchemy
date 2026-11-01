@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitRegionOperation } from "./operations.ts";
+import { waitRegionOperation } from "./operations.vibe";
 
 const DEFAULT_GATEWAY_IP_VERSION = "IPV4";
 const DEFAULT_STACK_TYPE = "IPV4_ONLY";

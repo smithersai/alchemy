@@ -1,0 +1,125 @@
+import * as discoveryengine from "@distilled.cloud/gcp/discoveryengine_v1";
+import * as Provider from "alchemy/Provider";
+import { Resource } from "alchemy/Resource";
+import { GcpEnvironment } from "../Environment.js";
+import type { Providers } from "../Providers.js";
+export type CollectionsEnginesServingConfigProps = {
+    /**
+     * Parent Engine resource name
+     * `projects/{project}/locations/{location}/collections/{collection}/engines/{engine}`.
+     * Immutable — changing it replaces the serving config.
+     */
+    engine: string;
+    /**
+     * Serving config id (4-63 alphanumeric characters). If omitted, a
+     * unique id is generated. Immutable — changing it replaces the
+     * serving config.
+     */
+    servingConfigId?: string;
+    /**
+     * Human-readable name (max 128 characters).
+     */
+    displayName?: string;
+    /**
+     * Solution type. Immutable.
+     * @default "SOLUTION_TYPE_SEARCH"
+     */
+    solutionType?: discoveryengine.GoogleCloudDiscoveryengineV1ServingConfigSolutionTypeEnum;
+    /**
+     * Custom ranking expression.
+     */
+    rankingExpression?: string;
+    /**
+     * Recommendation model id. Required for `SOLUTION_TYPE_RECOMMENDATION`.
+     */
+    modelId?: string;
+    /**
+     * Diversity level for recommendation results.
+     */
+    diversityLevel?: string;
+    /**
+     * Boost control ids applied at serving time.
+     */
+    boostControlIds?: string[];
+    /**
+     * Filter control ids applied at serving time.
+     */
+    filterControlIds?: string[];
+    /**
+     * Synonyms control ids.
+     */
+    synonymsControlIds?: string[];
+    /**
+     * Redirect control ids.
+     */
+    redirectControlIds?: string[];
+};
+export type CollectionsEnginesServingConfig = Resource<"GCP.DiscoveryEngine.CollectionsEnginesServingConfig", CollectionsEnginesServingConfigProps, {
+    /** Full resource name. */
+    name: string;
+    /** Serving config id (last path segment). */
+    servingConfigId: string;
+    /** Parent engine resource name. */
+    engine: string;
+    /** Project id. */
+    project: string;
+    /** Location id. */
+    location: string;
+    /** Collection id. */
+    collectionId: string;
+    /** Display name. */
+    displayName: string | undefined;
+    /** Solution type. */
+    solutionType: string | undefined;
+    /** Ranking expression. */
+    rankingExpression: string | undefined;
+    /** Model id. */
+    modelId: string | undefined;
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined;
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined;
+}, never, Providers>;
+/**
+ * A Discovery Engine ServingConfig on a collection Engine.
+ *
+ * Without labels, ownership rests on the deterministic id: `read` reports a
+ * resource it finds without prior state as unowned (adopt it with `--adopt`).
+ * Additional serving configs are API-only (the console uses the default).
+ * Parent engine, id, and solution type are immutable; display name, ranking,
+ * and control lists update in place.
+ *
+ * ### Creating a Serving Config
+ * **Example:** Extra search serving config
+ * ```typescript
+ * const serving =
+ *   yield* GCP.DiscoveryEngine.CollectionsEnginesServingConfig("Primary", {
+ *     engine: engine.name,
+ *     displayName: "primary",
+ *   });
+ * ```
+ *
+ * ### Updating a Serving Config
+ * **Example:** Rename
+ * ```typescript
+ * // Same logical id as before; only the changed props differ.
+ * const serving =
+ *   yield* GCP.DiscoveryEngine.CollectionsEnginesServingConfig("Primary", {
+ *     engine: engine.name,
+ *     displayName: "primary-prod",
+ *   });
+ * ```
+ *
+ * @resource
+ * @category DiscoveryEngine
+ */
+export declare const CollectionsEnginesServingConfig: import("alchemy/Resource").ResourceClass<CollectionsEnginesServingConfig>;
+declare const CollectionsEnginesServingConfigNotResolved_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
+    readonly _tag: "GCP.DiscoveryEngine.CollectionsEnginesServingConfigNotResolved";
+} & Readonly<A>;
+export declare class CollectionsEnginesServingConfigNotResolved extends CollectionsEnginesServingConfigNotResolved_base<{
+    resourceName: string;
+}> {
+}
+export declare const CollectionsEnginesServingConfigProvider: () => import("effect/Layer").Layer<Provider.Provider<CollectionsEnginesServingConfig>, never, GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | discoveryengine.GcpOpContext>;
+export {};

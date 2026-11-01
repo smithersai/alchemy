@@ -1,0 +1,500 @@
+import * as compute from "@distilled.cloud/gcp/compute_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import { waitZoneOperation } from "./operations.vibe"
+
+export type DiskProps = {
+  /**
+   * Disk name (RFC1035, 1-63 characters). If omitted, a unique name is
+   * generated from the stack, stage, and logical id. Changing the name
+   * replaces the disk.
+   */
+  mutable diskName?: string
+  /**
+   * Zone the disk lives in (e.g. `us-central1-a`). Immutable — changing it
+   * replaces the disk.
+   * @default "us-central1-a"
+   */
+  mutable zone?: string
+  /**
+   * Persistent disk type (`pd-standard`, `pd-balanced`, `pd-ssd`,
+   * `pd-extreme`, `hyperdisk-balanced`, …). Immutable — changing it
+   * replaces the disk.
+   * @default "pd-standard"
+   */
+  mutable type?: string
+  /**
+   * Size in GB. May only grow in place; shrinking replaces the disk.
+   * @default 10
+   */
+  mutable sizeGb?: number
+  /**
+   * Optional description.
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Source image used to create the disk. Immutable — changing it replaces
+   * the disk.
+   */
+  mutable sourceImage?: string
+  /**
+   * Source snapshot used to create the disk. Immutable — changing it
+   * replaces the disk.
+   */
+  mutable sourceSnapshot?: string
+  /**
+   * Source disk used to create this disk. Immutable — changing it replaces
+   * the disk.
+   */
+  mutable sourceDisk?: string
+  /**
+   * CPU architecture (`ARM64` or `X86_64`). Immutable — changing it
+   * replaces the disk.
+   */
+  mutable architecture?: string
+  /**
+   * Physical block size in bytes (typically `4096`). Immutable — changing
+   * it replaces the disk.
+   */
+  mutable physicalBlockSizeBytes?: number
+  /**
+   * Provisioned IOPS (Extreme PD / Hyperdisk). Mutable in place.
+   */
+  mutable provisionedIops?: number
+  /**
+   * Provisioned throughput in MB/s (Hyperdisk). Mutable in place.
+   */
+  mutable provisionedThroughput?: number
+  /**
+   * Whether confidential compute is enabled. Immutable — changing it
+   * replaces the disk.
+   */
+  mutable enableConfidentialCompute?: boolean
+}
+
+export type Disk = Resource<
+  "GCP.Compute.Disk",
+  DiskProps,
+  {
+    /** Disk name. */
+    mutable diskName: string
+    /** Server-assigned numeric id. */
+    mutable diskId: string | undefined
+    /** Project id. */
+    mutable project: string
+    /** Zone (short name, e.g. `us-central1-a`). */
+    mutable zone: string
+    /** Disk type (short name, e.g. `pd-standard`). */
+    mutable type: string
+    /** Size in GB. */
+    mutable sizeGb: number
+    /** Server-reported status (`READY`, `CREATING`, …). */
+    mutable status: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Optional description. */
+    mutable description: string | undefined
+    /** Compute Engine self-link. */
+    mutable selfLink: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable creationTimestamp: string | undefined
+    /** Source image, if any. */
+    mutable sourceImage: string | undefined
+    /** Source snapshot, if any. */
+    mutable sourceSnapshot: string | undefined
+    /** Source disk, if any. */
+    mutable sourceDisk: string | undefined
+    /** Attached instance URLs. */
+    mutable users: ReadonlyArray<string>
+  },
+  never,
+  Providers
+>
+
+/**
+ * A zonal Compute Engine persistent disk.
+ *
+ * Changing `zone`, `type`, `diskName`, `sourceImage`, `sourceSnapshot`,
+ * `sourceDisk`, `architecture`, `physicalBlockSizeBytes`, or
+ * `enableConfidentialCompute` replaces the disk. Growing `sizeGb` is
+ * applied in place via `disks.resize`; shrinking it replaces the disk.
+ *
+ * ### Creating a Disk
+ * **Example:** Generated name
+ * ```typescript
+ * const disk = yield* GCP.Compute.Disk("data", {});
+ * ```
+ *
+ * **Example:** Explicit name, type, size, and labels
+ * ```typescript
+ * const disk = yield* GCP.Compute.Disk("data", {
+ *   diskName: "app-data",
+ *   zone: "us-central1-a",
+ *   type: "pd-balanced",
+ *   sizeGb: 20,
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Resizing a Disk
+ * **Example:** Grow in place
+ * ```typescript
+ * const disk = yield* GCP.Compute.Disk("data", {
+ *   diskName: "app-data",
+ *   sizeGb: 50,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Compute
+ */
+export const Disk = Resource<Disk>("GCP.Compute.Disk")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DiskNotResolved extends Data.TaggedError("GCP.Compute.DiskNotResolved")<{
+  mutable diskName: string
+  mutable zone: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DiskNotReady extends Data.TaggedError("GCP.Compute.DiskNotReady")<{
+  mutable diskName: string
+  mutable status: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DiskFailed extends Data.TaggedError("GCP.Compute.DiskFailed")<{
+  mutable diskName: string
+  mutable status: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DiskStillExists extends Data.TaggedError("GCP.Compute.DiskStillExists")<{
+  mutable diskName: string
+  mutable status: string
+}> {}
+
+const DEFAULT_ZONE = "us-central1-a"
+const DEFAULT_TYPE = "pd-standard"
+const DEFAULT_SIZE_GB = 10
+
+const lastSegment = (value: string | undefined): string | undefined => {
+  if (value === undefined || value.length === 0) return undefined
+  const parts = value.split("/")
+  return parts[parts.length - 1] || value
+}
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const parseSizeGb = (value: string | undefined): number => {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+const toName = effect (id: string, name: string | undefined, existing?: string) => {
+  if (name !== undefined) return name
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: 63,
+    lowercase: true,
+  })
+  // RFC1035: disk names must start with a letter.
+  return /^[a-z]/.test(generated) ? generated : `d${generated}`.slice(0, 63)
+}
+
+const toAttrs = (disk: compute.Disk, project: string): infer _ => ({
+  diskName: disk.name ?? disk.id ?? "",
+  diskId: disk.id,
+  project,
+  zone: lastSegment(disk.zone) ?? DEFAULT_ZONE,
+  type: lastSegment(disk.type) ?? DEFAULT_TYPE,
+  sizeGb: parseSizeGb(disk.sizeGb),
+  status: disk.status,
+  labels: userLabels(disk.labels),
+  description: disk.description,
+  selfLink: disk.selfLink,
+  creationTimestamp: disk.creationTimestamp,
+  sourceImage: disk.sourceImage,
+  sourceSnapshot: disk.sourceSnapshot,
+  sourceDisk: disk.sourceDisk,
+  users: disk.users ?? [],
+})
+
+const getByName = effect (project: string, zone: string, disk: string) =>
+  compute
+    .getDisks({ project, zone, disk }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const waitDiskReady = effect (project: string, zone: string, diskName: string) =>
+  try (effect {
+    return try effect {
+      const disk = try getByName(project, zone, diskName)
+      return (disk?.status === "FAILED" ? throw new DiskFailed({ diskName, status: "FAILED" }) : disk)
+    }
+  }
+    |> Effect.filterOrFail(%, (disk): disk is compute.Disk =>
+      disk !== undefined && disk.status === "READY", (disk) =>
+      new DiskNotReady({
+        diskName,
+        status: disk?.status ?? "MISSING",
+      }))
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.Compute.DiskNotReady",
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+const waitDiskGone = effect (project: string, zone: string, diskName: string) =>
+  try (effect {
+    return try effect {
+      const disk = try getByName(project, zone, diskName)
+      return (disk === undefined ? try Effect.void : throw new DiskStillExists({
+        diskName,
+        status: disk.status ?? "UNKNOWN",
+      }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error instanceof DiskStillExists,
+      times: 10,
+      schedule: Schedule.spaced("3 seconds"),
+    }))
+
+const diskTypeUrl = (project: string, zone: string, type: string): infer _ =>
+  `projects/${project}/zones/${zone}/diskTypes/${type}`
+
+export const DiskProvider = (): infer _ =>
+  Provider.succeed(Disk, {
+    stables: [
+      "diskName",
+      "diskId",
+      "project",
+      "zone",
+      "type",
+      "selfLink",
+      "creationTimestamp",
+      "sourceImage",
+      "sourceSnapshot",
+      "sourceDisk",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+
+      const previousZone = lastSegment(olds?.zone) ?? lastSegment(output?.zone) ?? DEFAULT_ZONE
+      const nextZone = lastSegment(news.zone) ?? DEFAULT_ZONE
+      const previousType = lastSegment(olds?.type) ?? lastSegment(output?.type) ?? DEFAULT_TYPE
+      const nextType = lastSegment(news.type) ?? DEFAULT_TYPE
+      const previousName = olds?.diskName ?? output?.diskName
+      const nextName = news.diskName ?? previousName
+      const previousSize = olds?.sizeGb ?? output?.sizeGb
+      const nextSize = news.sizeGb ?? DEFAULT_SIZE_GB
+
+      const replace = previousZone !== nextZone
+        || previousType !== nextType
+        || (previousName !== undefined && nextName !== undefined && previousName !== nextName)
+        || (olds?.sourceImage ?? undefined) !== (news.sourceImage ?? undefined)
+        || (olds?.sourceSnapshot ?? undefined) !== (news.sourceSnapshot ?? undefined)
+        || (olds?.sourceDisk ?? undefined) !== (news.sourceDisk ?? undefined)
+        || (olds?.architecture ?? undefined) !== (news.architecture ?? undefined)
+        || (olds?.physicalBlockSizeBytes ?? undefined)
+          !== (news.physicalBlockSizeBytes ?? undefined)
+        || (olds?.enableConfidentialCompute ?? undefined)
+          !== (news.enableConfidentialCompute ?? undefined)
+        || (previousSize !== undefined && nextSize < previousSize)
+
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousName !== undefined && nextName === previousName && previousZone === nextZone,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const diskName = try toName(id, olds?.diskName, output?.diskName)
+      const zone = lastSegment(olds?.zone) ?? lastSegment(output?.zone) ?? DEFAULT_ZONE
+      const existing = try getByName(env.project, zone, diskName)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const pages = try compute.aggregatedListDisks
+        .pages({
+          project: env.project,
+          filter: "labels.alchemy-id:*",
+          returnPartialSuccess: true,
+          maxResults: 500,
+        })
+        .pipe(Stream.runCollect)
+      return Array.from(pages).flatMap((page) =>
+        Object.values(page.items ?? {}).flatMap((scoped) =>
+          (scoped?.disks ?? [])
+            .filter((disk) => Object.keys(disk.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+            .map((disk) => toAttrs(disk, env.project))
+        )
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const diskName = try toName(id, news.diskName, output?.diskName)
+      const zone = lastSegment(news.zone) ?? lastSegment(output?.zone) ?? DEFAULT_ZONE
+      const diskType = lastSegment(news.type) ?? DEFAULT_TYPE
+      const sizeGb = news.sizeGb ?? DEFAULT_SIZE_GB
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(env.project, zone, diskName)
+      if (current?.status === "DELETING") {
+        try waitDiskGone(env.project, zone, diskName)
+        current = undefined
+      }
+
+      if (current === undefined) {
+        const inserted = compute
+          .insertDisks({
+            project: env.project,
+            zone,
+            body: {
+              name: diskName,
+              sizeGb: String(sizeGb),
+              type: diskTypeUrl(env.project, zone, diskType),
+              description: news.description,
+              labels: desiredLabels,
+              sourceImage: news.sourceImage,
+              sourceSnapshot: news.sourceSnapshot,
+              sourceDisk: news.sourceDisk,
+              architecture: news.architecture,
+              physicalBlockSizeBytes: news.physicalBlockSizeBytes !== undefined
+                ? String(news.physicalBlockSizeBytes)
+                : undefined,
+              provisionedIops: news.provisionedIops !== undefined ? String(news.provisionedIops) : undefined,
+              provisionedThroughput: news.provisionedThroughput !== undefined
+                ? String(news.provisionedThroughput)
+                : undefined,
+              enableConfidentialCompute: news.enableConfidentialCompute,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (inserted !== undefined) {
+          try waitZoneOperation(env.project, zone, inserted, {
+            ignore: ["RESOURCE_ALREADY_EXISTS"],
+          })
+        }
+        current = try waitDiskReady(env.project, zone, diskName)
+      }
+
+      if (current === undefined) {
+        throw new DiskNotResolved({ diskName, zone })
+      }
+
+      const observedSize = parseSizeGb(current.sizeGb)
+      if (sizeGb > observedSize) {
+        const resized = try compute.resizeDisks({
+          project: env.project,
+          zone,
+          disk: diskName,
+          body: { sizeGb: String(sizeGb) },
+        })
+        try waitZoneOperation(env.project, zone, resized)
+        current = try waitDiskReady(env.project, zone, diskName)
+      }
+
+      if (current === undefined) {
+        throw new DiskNotResolved({ diskName, zone })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      if (upsert.length > 0 || removed.length > 0) {
+        const labeled = try compute.setLabelsDisks({
+          project: env.project,
+          zone,
+          resource: diskName,
+          body: {
+            labels: desiredLabels,
+            labelFingerprint: current.labelFingerprint,
+          },
+        })
+        try waitZoneOperation(env.project, zone, labeled)
+        current = try getByName(env.project, zone, diskName)
+      }
+
+      if (current === undefined) {
+        throw new DiskNotResolved({ diskName, zone })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const iopsChanged = news.provisionedIops !== undefined
+        && String(news.provisionedIops) !== (current.provisionedIops ?? "")
+      const throughputChanged = news.provisionedThroughput !== undefined
+        && String(news.provisionedThroughput) !== (current.provisionedThroughput ?? "")
+
+      if (descriptionChanged || iopsChanged || throughputChanged) {
+        const updated = try compute.updateDisks({
+          project: env.project,
+          zone,
+          disk: diskName,
+          updateMask: [
+            descriptionChanged ? "description" : undefined,
+            iopsChanged ? "provisionedIops" : undefined,
+            throughputChanged ? "provisionedThroughput" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            description: news.description,
+            provisionedIops: news.provisionedIops !== undefined ? String(news.provisionedIops) : undefined,
+            provisionedThroughput: news.provisionedThroughput !== undefined
+              ? String(news.provisionedThroughput)
+              : undefined,
+          },
+        })
+        try waitZoneOperation(env.project, zone, updated)
+        current = try getByName(env.project, zone, diskName)
+      }
+
+      if (current === undefined) {
+        throw new DiskNotResolved({ diskName, zone })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const deleted = compute
+        .deleteDisks({
+          project: output.project,
+          zone: output.zone,
+          disk: output.diskName,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (deleted !== undefined) {
+        try waitZoneOperation(output.project, output.zone, deleted, {
+          ignore: ["RESOURCE_NOT_FOUND"],
+        })
+      }
+      try waitDiskGone(output.project, output.zone, output.diskName)
+    },
+  })

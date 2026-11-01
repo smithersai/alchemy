@@ -3,8 +3,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
-import { CreateTask, type CreateTaskRequest } from "./CreateTask.ts";
-import type { Queue } from "./Queue.ts";
+import { CreateTask, type CreateTaskRequest } from "./CreateTask.vibe";
+import type { Queue } from "./Queue.vibe";
 
 /**
  * HTTP implementation of {@link CreateTask}.

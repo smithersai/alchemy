@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetVersion } from "./GetVersion.js";
+import { GetVersion } from "./GetVersion.vibe";
 /**
  * HTTP implementation of {@link GetVersion}.
  *

@@ -18,7 +18,7 @@ import {
   retryTransient,
   waitUntilGone,
   toRestrictedDisplayName,
-} from "./internal.ts";
+} from "./internal.vibe";
 import { waitForOperation } from "./operations.vibe";
 
 export type ModelProps = {

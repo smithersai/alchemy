@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetDocumentSchema } from "./GetDocumentSchema.js";
+import { GetDocumentSchema } from "./GetDocumentSchema.vibe";
 /**
  * HTTP implementation of {@link GetDocumentSchema}.
  *

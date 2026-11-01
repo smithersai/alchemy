@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetProcessor } from "./GetProcessor.js";
+import { GetProcessor } from "./GetProcessor.vibe";
 /**
  * HTTP implementation of {@link GetProcessor}.
  *

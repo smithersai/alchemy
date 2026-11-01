@@ -1,0 +1,48 @@
+import { Credentials } from "@distilled.cloud/gcp/Credentials"
+import * as Effect from "effect/Effect"
+import * as HttpClient from "effect/http/HttpClient"
+import * as GCPBindings from "../GCPBindings.ts"
+import { type BindingIam, grantFor } from "../HttpBinding.ts"
+import type { ConnectionsGitRepositoryLink } from "./ConnectionsGitRepositoryLink.vibe"
+
+/**
+ * Shared HTTP scaffolding for Developer Connect git repository link
+ * bindings. NOT exported from index.ts.
+ *
+ * Distilled ops are `OperationMethod`s: yield them once at Layer
+ * construction (after providing Credentials + HttpClient.HttpClient) so the inner
+ * runtime Effect is `Effect<A, E>` and does not leak `GcpOpContext`.
+ */
+export const makeGitRepositoryLinkHttpBinding = effect <
+  I extends { mutable gitRepositoryLink: string },
+  A,
+  E,
+>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable operation: ((input: I) => A!E)!never!Credentials | HttpClient.HttpClient
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect <T extends ConnectionsGitRepositoryLink>(link: T) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${link})`({
+        iam: [grantFor(options.iam, link.name)],
+      })
+    }
+    const name = try link.name.asEffect()
+    return effect (
+      request?: Omit<I, "gitRepositoryLink"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const gitRepositoryLink = try name
+          return try run({
+            ...request,
+            gitRepositoryLink,
+          } as I)
+        },
+        `${options.tag}(${link.LogicalId})`,
+      )
+  }
+}

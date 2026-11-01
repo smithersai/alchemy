@@ -1,1 +1,1 @@
-export * from "./BillingBudget.ts";
+export * from "./BillingBudget.vibe";

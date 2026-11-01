@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadWriteNamespace } from "./ReadWriteNamespace.js";
+import { ReadWriteNamespace } from "./ReadWriteNamespace.vibe";
 /**
  * Local implementation of the {@link ReadWriteNamespace} binding — reads and
  * writes KV values over the Cloudflare HTTP API using the **current

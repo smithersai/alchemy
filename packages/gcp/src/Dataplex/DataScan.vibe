@@ -1,0 +1,389 @@
+import * as dataplex from "@distilled.cloud/gcp/dataplex_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DataplexNotResolved,
+  collectPages,
+  fingerprint,
+  hasAlchemyLabelMap,
+  listAtLocation,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  retryQuota,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.ts"
+
+export type DataScanDataSource = dataplex.GoogleCloudDataplexV1DataSource
+export type DataScanExecutionSpec = dataplex.GoogleCloudDataplexV1DataScanExecutionSpec
+export type DataScanExecutionIdentity = dataplex.GoogleCloudDataplexV1ExecutionIdentity
+export type DataQualitySpec = dataplex.GoogleCloudDataplexV1DataQualitySpec
+export type DataProfileSpec = dataplex.GoogleCloudDataplexV1DataProfileSpec
+export type DataDiscoverySpec = dataplex.GoogleCloudDataplexV1DataDiscoverySpec
+export type DataDocumentationSpec = dataplex.GoogleCloudDataplexV1DataDocumentationSpec
+export type UnstructuredDataProfileSpec = dataplex.GoogleCloudDataplexV1UnstructuredDataProfileSpec
+
+export type DataScanProps = {
+  /**
+   * DataScan id. If omitted, a unique name is generated. Must contain
+   * only lowercase letters, numbers and hyphens, start with a letter,
+   * end with a letter or number, and be 1-63 characters. Immutable —
+   * changing it replaces the scan.
+   */
+  mutable dataScanId?: string
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the
+   * scan.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Description (1-1024 characters).
+   */
+  mutable description?: string
+  /**
+   * User-friendly display name (1-256 characters).
+   */
+  mutable displayName?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Immutable data source (Dataplex entity or BigQuery / GCS resource).
+   * Changing it replaces the scan.
+   */
+  mutable data: DataScanDataSource
+  /**
+   * Execution settings. Defaults to on-demand.
+   */
+  mutable executionSpec?: DataScanExecutionSpec
+  /**
+   * Immutable identity used to run the scan. Changing it replaces the
+   * scan.
+   */
+  mutable executionIdentity?: DataScanExecutionIdentity
+  /**
+   * Data quality scan settings. Mutually exclusive with the other spec
+   * fields.
+   */
+  mutable dataQualitySpec?: DataQualitySpec
+  /**
+   * Data profile scan settings.
+   */
+  mutable dataProfileSpec?: DataProfileSpec
+  /**
+   * Data discovery scan settings.
+   */
+  mutable dataDiscoverySpec?: DataDiscoverySpec
+  /**
+   * Data documentation scan settings.
+   */
+  mutable dataDocumentationSpec?: DataDocumentationSpec
+  /**
+   * Unstructured data profile scan settings.
+   */
+  mutable unstructuredDataProfileSpec?: UnstructuredDataProfileSpec
+}
+
+export type DataScan = Resource<
+  "GCP.Dataplex.DataScan",
+  DataScanProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** DataScan id (last path segment). */
+    mutable dataScanId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Description. */
+    mutable description: string | undefined
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Current state. */
+    mutable state: string | undefined
+    /** Data source. */
+    mutable data: DataScanDataSource | undefined
+    /** Execution spec. */
+    mutable executionSpec: DataScanExecutionSpec | undefined
+    /** Scan type. */
+    mutable type: string | undefined
+    /** Data quality spec, if any. */
+    mutable dataQualitySpec: DataQualitySpec | undefined
+    /** Data profile spec, if any. */
+    mutable dataProfileSpec: DataProfileSpec | undefined
+    /** Data discovery spec, if any. */
+    mutable dataDiscoverySpec: DataDiscoverySpec | undefined
+    /** Data documentation spec, if any. */
+    mutable dataDocumentationSpec: DataDocumentationSpec | undefined
+    /** Unstructured data profile spec, if any. */
+    mutable unstructuredDataProfileSpec: UnstructuredDataProfileSpec | undefined
+    /** System uid. */
+    mutable uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataplex DataScan that profiles, quality-checks, discovers, or
+ * documents a BigQuery table, dataset, or Cloud Storage bucket.
+ *
+ * Location, scan id, data source, and execution identity are immutable.
+ * Description, display name, labels, execution spec, and scan specs
+ * update in place.
+ *
+ * ### Creating a DataScan
+ * **Example:** On-demand profile scan of a BigQuery table
+ * ```typescript
+ * const scan = yield* GCP.Dataplex.DataScan("OrdersProfile", {
+ *   displayName: "orders profile",
+ *   labels: { env: "test" },
+ *   data: {
+ *     resource:
+ *       "//bigquery.googleapis.com/projects/my-project/datasets/sales/tables/orders",
+ *   },
+ *   dataProfileSpec: {},
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataplex
+ */
+export const DataScan = Resource<DataScan>("GCP.Dataplex.DataScan")
+
+const resourceName = (project: string, location: string, dataScanId: string): infer _ =>
+  `projects/${project}/locations/${location}/dataScans/${dataScanId}`
+
+const toAttrs = (scan: dataplex.GoogleCloudDataplexV1DataScan, project: string): infer _ => {
+  const name = scan.name ?? ""
+  const parsed = parseName(name, "dataScans")
+  return {
+    name,
+    dataScanId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    description: scan.description,
+    displayName: scan.displayName,
+    labels: userLabels(scan.labels),
+    state: scan.state,
+    data: scan.data,
+    executionSpec: scan.executionSpec,
+    type: scan.type,
+    dataQualitySpec: scan.dataQualitySpec,
+    dataProfileSpec: scan.dataProfileSpec,
+    dataDiscoverySpec: scan.dataDiscoverySpec,
+    dataDocumentationSpec: scan.dataDocumentationSpec,
+    unstructuredDataProfileSpec: scan.unstructuredDataProfileSpec,
+    uid: scan.uid,
+    createTime: scan.createTime,
+    updateTime: scan.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  retryQuota(dataplex.getProjectsLocationsDataScans({ name, view: "FULL" })) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const listScans = effect (project: string, region: string) => {
+  const collect = effect (parent: string) =>
+    ((try collectPages(
+      dataplex.listProjectsLocationsDataScans.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.dataScans,
+    )).filter((item) => hasAlchemyLabelMap(item.labels))) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: [];
+      default: throw e;
+    }
+  return try listAtLocation(project, region, collect)
+}
+
+const dataSourceOf = (data: DataScanDataSource | undefined): infer _ => ({
+  entity: data?.entity ?? "",
+  resource: data?.resource ?? "",
+})
+
+export const DataScanProvider = (): infer _ =>
+  Provider.succeed(DataScan, {
+    stables: ["name", "dataScanId", "project", "location", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      return replaceOnIdentity({
+        previousId: olds?.dataScanId ?? output?.dataScanId,
+        nextId: news.dataScanId ?? olds?.dataScanId ?? output?.dataScanId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: fingerprint(dataSourceOf(news.data))
+            !== fingerprint(dataSourceOf(olds?.data ?? output?.data))
+          || fingerprint(news.executionIdentity ?? olds?.executionIdentity)
+            !== fingerprint(olds?.executionIdentity),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const dataScanId = try toPhysicalId(id, olds?.dataScanId, output?.dataScanId, "datascan")
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, dataScanId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listScans(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const dataScanId = try toPhysicalId(id, news.dataScanId, output?.dataScanId, "datascan")
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, dataScanId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = retryQuota(
+          dataplex.createProjectsLocationsDataScans({
+            parent: parentOf(env.project, location),
+            dataScanId,
+            body: {
+              description: news.description,
+              displayName: news.displayName,
+              labels: desiredLabels,
+              data: news.data,
+              executionSpec: news.executionSpec,
+              executionIdentity: news.executionIdentity,
+              dataQualitySpec: news.dataQualitySpec,
+              dataProfileSpec: news.dataProfileSpec,
+              dataDiscoverySpec: news.dataDiscoverySpec,
+              dataDocumentationSpec: news.dataDocumentationSpec,
+              unstructuredDataProfileSpec: news.unstructuredDataProfileSpec,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new DataplexNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const displayNameChanged = (current.displayName ?? "") !== (news.displayName ?? "")
+      const executionChanged = fingerprint(current.executionSpec) !== fingerprint(news.executionSpec)
+      const qualityChanged = fingerprint(current.dataQualitySpec) !== fingerprint(news.dataQualitySpec)
+      const profileChanged = fingerprint(current.dataProfileSpec) !== fingerprint(news.dataProfileSpec)
+      const discoveryChanged = fingerprint(current.dataDiscoverySpec) !== fingerprint(news.dataDiscoverySpec)
+      const documentationChanged =
+        fingerprint(current.dataDocumentationSpec) !== fingerprint(news.dataDocumentationSpec)
+      const unstructuredChanged = fingerprint(current.unstructuredDataProfileSpec)
+        !== fingerprint(news.unstructuredDataProfileSpec)
+
+      if (
+        labelsChanged
+        || descriptionChanged
+        || displayNameChanged
+        || executionChanged
+        || qualityChanged
+        || profileChanged
+        || discoveryChanged
+        || documentationChanged
+        || unstructuredChanged
+      ) {
+        const operation = try retryQuota(
+          dataplex.patchProjectsLocationsDataScans({
+            name: current.name ?? name,
+            updateMask: [
+              labelsChanged ? "labels" : undefined,
+              descriptionChanged ? "description" : undefined,
+              displayNameChanged ? "displayName" : undefined,
+              executionChanged ? "executionSpec" : undefined,
+              qualityChanged ? "dataQualitySpec" : undefined,
+              profileChanged ? "dataProfileSpec" : undefined,
+              discoveryChanged ? "dataDiscoverySpec" : undefined,
+              documentationChanged ? "dataDocumentationSpec" : undefined,
+              unstructuredChanged ? "unstructuredDataProfileSpec" : undefined,
+            ]
+              .filter((field): field is string => field !== undefined)
+              .join(","),
+            body: {
+              name: current.name ?? name,
+              description: news.description,
+              displayName: news.displayName,
+              labels: desiredLabels,
+              executionSpec: news.executionSpec,
+              dataQualitySpec: news.dataQualitySpec,
+              dataProfileSpec: news.dataProfileSpec,
+              dataDiscoverySpec: news.dataDiscoverySpec,
+              dataDocumentationSpec: news.dataDocumentationSpec,
+              unstructuredDataProfileSpec: news.unstructuredDataProfileSpec,
+            },
+          }),
+        )
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (retryQuota(
+        dataplex.deleteProjectsLocationsDataScans({
+          name: output.name,
+          force: true,
+        }),
+      )
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

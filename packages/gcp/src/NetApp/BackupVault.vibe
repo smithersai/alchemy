@@ -1,0 +1,386 @@
+import * as netapp from "@distilled.cloud/gcp/netapp_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  expandParent,
+  fieldMask,
+  fingerprint,
+  listAtLocation,
+  listLabeledPages,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  toPhysicalId,
+  userLabels,
+  waitForDeleteOperation,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+
+export type BackupRetentionPolicy = {
+  /**
+   * Minimum retention duration in days for backups in the vault.
+   */
+  mutable backupMinimumEnforcedRetentionDays?: number
+  /**
+   * Whether daily backups are immutable.
+   */
+  mutable dailyBackupImmutable?: boolean
+  /**
+   * Whether weekly backups are immutable.
+   */
+  mutable weeklyBackupImmutable?: boolean
+  /**
+   * Whether monthly backups are immutable.
+   */
+  mutable monthlyBackupImmutable?: boolean
+  /**
+   * Whether manual backups are immutable.
+   */
+  mutable manualBackupImmutable?: boolean
+}
+
+export type BackupVaultProps = {
+  /**
+   * Backup vault id (the `{backupVault}` segment of
+   * `projects/{project}/locations/{location}/backupVaults/{backupVault}`).
+   * If omitted, a unique RFC1035 name is generated from the stack, stage,
+   * and logical id. Immutable — changing it replaces the vault.
+   */
+  mutable backupVaultId?: string
+  /**
+   * Region (`us-central1`, `us-east1`, …). Immutable — changing it
+   * replaces the vault. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Vault type. Immutable — changing it replaces the vault.
+   * @default "IN_REGION"
+   */
+  mutable backupVaultType?: netapp.BackupVaultBackupVaultTypeEnum | (string & {})
+  /**
+   * Region that stores backups for a cross-region vault. Full location
+   * name or id. Immutable — changing it replaces the vault.
+   */
+  mutable backupRegion?: string
+  /**
+   * KMS config used to encrypt backups. Full name or id. Immutable —
+   * changing it replaces the vault.
+   */
+  mutable kmsConfig?: string
+  /**
+   * Backup retention policy. At least one immutable flag must be true
+   * when the policy is set.
+   */
+  mutable backupRetentionPolicy?: BackupRetentionPolicy
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type BackupVault = Resource<
+  "GCP.NetApp.BackupVault",
+  BackupVaultProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Backup vault id (last path segment). */
+    mutable backupVaultId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Vault type. */
+    mutable backupVaultType: string | undefined
+    /** Backup region. */
+    mutable backupRegion: string | undefined
+    /** Source region. */
+    mutable sourceRegion: string | undefined
+    /** Source vault name. */
+    mutable sourceBackupVault: string | undefined
+    /** Destination vault name. */
+    mutable destinationBackupVault: string | undefined
+    /** KMS config name. */
+    mutable kmsConfig: string | undefined
+    /** Crypto key version used to encrypt backups. */
+    mutable backupsCryptoKeyVersion: string | undefined
+    /** Encryption state of CMEK backups. */
+    mutable encryptionState: string | undefined
+    /** Retention policy. */
+    mutable backupRetentionPolicy: BackupRetentionPolicy | undefined
+    /** Human-readable description. */
+    mutable description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Server-reported state. */
+    mutable state: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud NetApp Volumes backup vault that stores volume backups.
+ *
+ * Changing `backupVaultId`, `location`, `backupVaultType`, `backupRegion`,
+ * or `kmsConfig` replaces the vault. Description, labels, and retention
+ * policy update in place.
+ *
+ * ### Creating a Backup Vault
+ * **Example:** Generated name
+ * ```typescript
+ * const vault = yield* GCP.NetApp.BackupVault("Vault", {});
+ * ```
+ *
+ * **Example:** Explicit id and description
+ * ```typescript
+ * const vault = yield* GCP.NetApp.BackupVault("Vault", {
+ *   backupVaultId: "app-backups",
+ *   description: "nightly backups",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating a Backup Vault
+ * **Example:** Description and labels
+ * ```typescript
+ * const vault = yield* GCP.NetApp.BackupVault("Vault", {
+ *   description: "nightly backups v2",
+ *   labels: { env: "prod", team: "storage" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category NetApp
+ */
+export const BackupVault = Resource<BackupVault>("GCP.NetApp.BackupVault")
+
+const resourceName = (project: string, location: string, backupVaultId: string): infer _ =>
+  `projects/${project}/locations/${location}/backupVaults/${backupVaultId}`
+
+const toRetention = (
+  policy: netapp.BackupRetentionPolicy | undefined,
+): BackupRetentionPolicy | undefined =>
+  policy === undefined
+    ? undefined
+    : {
+      backupMinimumEnforcedRetentionDays: policy.backupMinimumEnforcedRetentionDays,
+      dailyBackupImmutable: policy.dailyBackupImmutable,
+      weeklyBackupImmutable: policy.weeklyBackupImmutable,
+      monthlyBackupImmutable: policy.monthlyBackupImmutable,
+      manualBackupImmutable: policy.manualBackupImmutable,
+    }
+
+const toAttrs = (item: netapp.BackupVault, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "backupVaults", region)
+  return {
+    name,
+    backupVaultId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    backupVaultType: item.backupVaultType,
+    backupRegion: item.backupRegion,
+    sourceRegion: item.sourceRegion,
+    sourceBackupVault: item.sourceBackupVault,
+    destinationBackupVault: item.destinationBackupVault,
+    kmsConfig: item.kmsConfig,
+    backupsCryptoKeyVersion: item.backupsCryptoKeyVersion,
+    encryptionState: item.encryptionState,
+    backupRetentionPolicy: toRetention(item.backupRetentionPolicy),
+    description: item.description,
+    labels: userLabels(item.labels),
+    state: item.state,
+    createTime: item.createTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  netapp
+    .getProjectsLocationsBackupVaults({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwned = effect (project: string) =>
+  try listAtLocation(project, effect (parent) =>
+    try listLabeledPages(
+      netapp.listProjectsLocationsBackupVaults.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.backupVaults,
+      (item) => item.labels,
+    ))
+
+export const BackupVaultProvider = (): infer _ =>
+  Provider.succeed(BackupVault, {
+    stables: ["name", "backupVaultId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousType = olds?.backupVaultType ?? output?.backupVaultType
+      const previousRegion = olds?.backupRegion ?? output?.backupRegion
+      const previousKms = olds?.kmsConfig ?? output?.kmsConfig
+      return replaceOnIdentity({
+        previousId: olds?.backupVaultId ?? output?.backupVaultId,
+        nextId: news.backupVaultId ?? olds?.backupVaultId ?? output?.backupVaultId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: (previousType !== undefined
+          && news.backupVaultType !== undefined
+          && news.backupVaultType !== previousType)
+          || (previousRegion !== undefined
+            && news.backupRegion !== undefined
+            && news.backupRegion !== previousRegion)
+          || (previousKms !== undefined
+            && news.kmsConfig !== undefined
+            && news.kmsConfig !== previousKms),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const backupVaultId = try toPhysicalId(
+        id,
+        olds?.backupVaultId,
+        output?.backupVaultId,
+        "backupvault",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, backupVaultId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const backupVaultId = try toPhysicalId(
+        id,
+        news.backupVaultId,
+        output?.backupVaultId,
+        "backupvault",
+      )
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, backupVaultId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const backupRegion = news.backupRegion === undefined
+        ? undefined
+        : news.backupRegion.includes("/")
+        ? news.backupRegion
+        : parentOf(env.project, news.backupRegion)
+      const kmsConfig = news.kmsConfig === undefined
+        ? undefined
+        : expandParent(news.kmsConfig, env.project, location, "kmsConfigs")
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = netapp
+          .createProjectsLocationsBackupVaults({
+            parent: parentOf(env.project, location),
+            backupVaultId,
+            body: {
+              backupVaultType: news.backupVaultType,
+              backupRegion,
+              kmsConfig,
+              backupRetentionPolicy: news.backupRetentionPolicy,
+              description: news.description,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      current = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item) => item.state,
+      )
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const mask = fieldMask([
+        (upsert.length > 0 || removed.length > 0) && "labels",
+        (current.description ?? "") !== (news.description ?? "") && "description",
+        fingerprint(toRetention(current.backupRetentionPolicy))
+          !== fingerprint(news.backupRetentionPolicy) && "backupRetentionPolicy",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try netapp.patchProjectsLocationsBackupVaults({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+            backupRetentionPolicy: news.backupRetentionPolicy,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(
+          getByName(current.name ?? name),
+          current.name ?? name,
+          (item) => item.state,
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (netapp
+        .deleteProjectsLocationsBackupVaults({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForDeleteOperation(operation)
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

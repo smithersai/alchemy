@@ -19,7 +19,7 @@ import {
   listenForDeliveries,
   pathSegment,
   pushHost,
-} from "../PushDelivery.ts";
+} from "../PushDelivery.vibe";
 
 /**
  * Subscription `deadLetterPolicy` and `retryPolicy` for the event source's

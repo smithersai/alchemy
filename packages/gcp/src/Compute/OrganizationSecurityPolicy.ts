@@ -20,8 +20,8 @@ import {
   sameJson,
   sorted,
   toPhysicalName,
-} from "./internal.ts";
-import { waitOrganizationOperation } from "./operations.ts";
+} from "./internal.vibe";
+import { waitOrganizationOperation } from "./operations.vibe";
 import type {
   SecurityPolicyAdaptiveProtectionConfig,
   SecurityPolicyAdvancedOptionsConfig,

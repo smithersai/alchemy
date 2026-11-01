@@ -18,7 +18,7 @@ import {
   sameJson,
   sameText,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type GlossaryTermProps = {
   /**

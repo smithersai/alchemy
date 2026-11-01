@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
 import type { InstantNamespace } from "./InstantNamespace.ts";
 import type { Namespace } from "./Namespace.ts";
-import { NamespaceError } from "./NamespaceTypes.ts";
+import { NamespaceError } from "./NamespaceTypes.vibe";
 
 /**
  * Shared scaffolding for the Worker-binding implementations of the KV

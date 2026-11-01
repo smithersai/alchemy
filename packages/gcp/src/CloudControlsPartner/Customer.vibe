@@ -1,0 +1,313 @@
+import * as cloudcontrolspartner from "@distilled.cloud/gcp/cloudcontrolspartner_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  customerName,
+  encodeDisplayName,
+  findOwnedCustomer,
+  getCustomer,
+  hasOwnershipMarker,
+  listCustomers,
+  listLocationParents,
+  locationParent,
+  normalizeLocation,
+  organizationIdOf,
+  organizationParent,
+  ownedByAlchemy,
+  ownershipLabels,
+  parseName,
+  parseOwnership,
+  replaceOn,
+  resolveOrganization,
+  sameText,
+  toCustomerId,
+  toCustomerResourceId,
+  toDisplayName,
+  tryResolveOrganization,
+} from "./internal.ts"
+
+export type CustomerOnboardingState = cloudcontrolspartner.CustomerOnboardingState
+
+export type CustomerProps = {
+  /**
+   * Partner organization (`organizations/{organization}` or the numeric
+   * id). Defaults to `GOOGLE_CLOUDCONTROLSPARTNER_ORGANIZATION`,
+   * `GOOGLE_ORGANIZATION_ID`, or the project's Resource Manager
+   * ancestor. Immutable — changing it replaces the customer.
+   */
+  mutable organization?: string
+  /**
+   * Partner-operated Google Cloud location (`us-central1`, …).
+   * Immutable — changing it replaces the customer. `US-CENTRAL1` is
+   * accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Customer Google Cloud organization id. Becomes the last segment of
+   * `organizations/{organization}/locations/{location}/customers/{customer}`.
+   * Required on create and must be a valid organization id. Immutable —
+   * changing it replaces the customer.
+   */
+  mutable customerId?: string
+  /**
+   * Display name for the customer. Cloud Controls Partner customers
+   * have no labels field, so Alchemy ownership is stored in a
+   * `[alchemy …]` prefix and stripped from attributes.
+   */
+  mutable displayName?: string
+}
+
+export type Customer = Resource<
+  "GCP.CloudControlsPartner.Customer",
+  CustomerProps,
+  {
+    /** Resource name `organizations/{organization}/locations/{location}/customers/{customer}`. */
+    mutable name: string
+    /** Customer organization id (last path segment). */
+    mutable customerId: string
+    /** Partner organization resource name. */
+    mutable organization: string
+    /** Partner organization id. */
+    mutable organizationId: string
+    /** Location id. */
+    mutable location: string
+    /** Parent `organizations/{organization}/locations/{location}`. */
+    mutable parent: string
+    /** Project id of the deploying stack. */
+    mutable project: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    mutable displayName: string | undefined
+    /** Customer organization domain extracted from Resource Manager. */
+    mutable organizationDomain: string | undefined
+    /** Whether the customer has finished onboarding. */
+    mutable isOnboarded: boolean
+    /** Onboarding step state reported by the partner API. */
+    mutable customerOnboardingState: CustomerOnboardingState | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Controls Partner customer of a sovereign-controls partner.
+ *
+ * Customers have no labels field — Alchemy stamps ownership into
+ * `displayName` for `list` / nuke. Partner organization, location, and
+ * customer organization id are identity. Display name updates in place.
+ *
+ * Creating customers requires Cloud Controls Partner (Sovereign
+ * Controls by Partners) access. The `customerId` must be the customer's
+ * Google Cloud organization id.
+ *
+ * ### Creating a Customer
+ * **Example:** Generated display name
+ * ```typescript
+ * const customer = yield* GCP.CloudControlsPartner.Customer("Acme", {
+ *   organization: "organizations/123",
+ *   location: "us-central1",
+ *   customerId: "456",
+ * });
+ * ```
+ *
+ * **Example:** Explicit display name
+ * ```typescript
+ * const customer = yield* GCP.CloudControlsPartner.Customer("Acme", {
+ *   organization: "123",
+ *   customerId: "456",
+ *   displayName: "Acme Corp",
+ * });
+ * ```
+ *
+ * ### Updating a Customer
+ * Re-declare the same logical id with changed props; the engine keeps the
+ * physical resource and updates it in place.
+ *
+ * **Example:** Rename
+ * ```typescript
+ * const customer = yield* GCP.CloudControlsPartner.Customer("Acme", {
+ *   organization: "organizations/123",
+ *   customerId: "456",
+ *   displayName: "Acme Corporation",
+ * });
+ * ```
+ *
+ * @resource
+ * @category CloudControlsPartner
+ */
+export const Customer = Resource<Customer>("GCP.CloudControlsPartner.Customer")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class CustomerNotResolved extends Data.TaggedError(
+  "GCP.CloudControlsPartner.CustomerNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const toAttrs = (
+  customer: cloudcontrolspartner.Customer,
+  organization: string,
+  project: string,
+): infer _ => {
+  const name = customer.name ?? ""
+  const parsed = parseName(name)
+  const org = parsed.organization || organizationParent(organization)
+  return {
+    name,
+    customerId: parsed.customerId || toCustomerId(name) || "",
+    organization: org,
+    organizationId: organizationIdOf(org),
+    location: parsed.location,
+    parent: parsed.parent || locationParent(org, parsed.location),
+    project,
+    displayName: parseOwnership(customer.displayName).text,
+    organizationDomain: customer.organizationDomain,
+    isOnboarded: customer.isOnboarded === true,
+    customerOnboardingState: customer.customerOnboardingState,
+  }
+}
+
+export const CustomerProvider = (): infer _ =>
+  Provider.succeed(Customer, {
+    stables: [
+      "name",
+      "customerId",
+      "organization",
+      "organizationId",
+      "location",
+      "parent",
+      "project",
+      "organizationDomain",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location ?? env.region,
+      )
+      const previousOrg = olds?.organization ?? output?.organization
+      const nextOrg = news.organization
+      return (
+        replaceOn(
+          toCustomerId(olds?.customerId ?? output?.customerId),
+          toCustomerId(news.customerId),
+        )
+          ?? replaceOn(
+            previousOrg !== undefined ? organizationParent(previousOrg) : undefined,
+            nextOrg !== undefined ? organizationParent(nextOrg) : undefined,
+          )
+          ?? replaceOn(previousLocation, nextLocation)
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(
+        olds?.organization ?? output?.organization,
+        output?.organization,
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const customerId = try toCustomerResourceId(
+        id,
+        olds?.customerId ?? output?.customerId,
+        output?.name,
+      )
+      const name = output?.name ?? customerName(organization, location, customerId)
+      let existing = try getCustomer(name)
+      if (existing === undefined) {
+        existing = try findOwnedCustomer(id, locationParent(organization, location))
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization, env.project)
+      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organization = try tryResolveOrganization()
+      if (organization === undefined) return []
+      const pages = try Effect.forEach(
+        listLocationParents(organization, env.region),
+        effect (parent) => try listCustomers(parent),
+        { concurrency: 3 },
+      )
+      const byName = new Map<string, ReturnType<typeof toAttrs>>()
+      for (const customer of pages.flat()) {
+        if (!hasOwnershipMarker(customer.displayName)) continue
+        const attrs = toAttrs(customer, organization, env.project)
+        if (attrs.name.length > 0) byName.set(attrs.name, attrs)
+      }
+      return [...byName.values()]
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(news.organization, output?.organization)
+      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const customerId = try toCustomerResourceId(
+        id,
+        news.customerId,
+        output?.customerId ?? output?.name,
+      )
+      const parent = locationParent(organization, location)
+      const name = customerName(organization, location, customerId)
+      const ownership = try ownershipLabels(id)
+      const displayName = encodeDisplayName(
+        ownership,
+        try toDisplayName(id, news.displayName, output?.displayName),
+      )
+
+      let current = try getCustomer(output?.name ?? name)
+      if (current === undefined) {
+        current = try findOwnedCustomer(id, parent)
+      }
+
+      if (current === undefined) {
+        const created = cloudcontrolspartner
+          .createOrganizationsLocationsCustomers({
+            parent,
+            customerId,
+            body: { displayName },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try effect {
+              const existing = try getCustomer(name)
+              return (existing !== undefined ? existing : try findOwnedCustomer(id, parent))
+            };
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new CustomerNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      if (!sameText(current.displayName, displayName) && currentName.length > 0) {
+        current = try cloudcontrolspartner.patchOrganizationsLocationsCustomers({
+          name: currentName,
+          updateMask: "display_name",
+          body: { displayName },
+        })
+      }
+
+      const latest = (try getCustomer(current.name ?? currentName)) ?? current
+      return toAttrs(latest, organization, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const name = output.name
+      if (!name) return
+      cloudcontrolspartner
+        .deleteOrganizationsLocationsCustomers({ name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

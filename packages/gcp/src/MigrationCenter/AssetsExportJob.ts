@@ -23,7 +23,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type AssetsExportJobFileFormat = mc.SignedUriDestinationFileFormatEnum | (string & {});
 

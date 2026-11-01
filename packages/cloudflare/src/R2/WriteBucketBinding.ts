@@ -11,8 +11,8 @@ import type {
   PutOptions,
   UploadPartOptions,
   UploadedPart,
-} from "./BucketTypes.ts";
-import { WriteBucket, type WriteBucketClient } from "./WriteBucket.ts";
+} from "./BucketTypes.vibe";
+import { WriteBucket, type WriteBucketClient } from "./WriteBucket.vibe";
 
 /**
  * Implementation of the {@link WriteBucket} binding that uses a Worker binding.

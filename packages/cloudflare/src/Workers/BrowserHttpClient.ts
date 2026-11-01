@@ -13,7 +13,7 @@ import {
   type BrowserMarkdownResult,
   type BrowserScrapeResult,
   type BrowserSnapshotResult,
-} from "./Browser.ts";
+} from "./Browser.vibe";
 
 // Shared HTTP scaffolding for the Browser Rendering binding. NOT re-exported
 // from `index.ts` — only the contract and the impl layers are public. A future

@@ -12,7 +12,7 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitGlobalOperation } from "./operations.ts";
+import { waitGlobalOperation } from "./operations.vibe";
 
 export interface FirewallRule {
   /**

@@ -9,7 +9,7 @@ import {
   type ScheduledEvent,
   type ScheduleEventSourceProps,
   type ScheduleEventSourceService,
-} from "../CloudScheduler/ScheduleEventSource.ts";
+} from "../CloudScheduler/ScheduleEventSource.vibe";
 import {
   deliveryAudience,
   grantSelfInvoker,
@@ -17,7 +17,7 @@ import {
   listenForDeliveries,
   pathSegment,
   pushHost,
-} from "../PushDelivery.ts";
+} from "../PushDelivery.vibe";
 
 /** Default delivery path for a schedule. */
 export const schedulePushPath = (id: string, props: ScheduleEventSourceProps) =>

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { FetchReadWriteToken } from "./FetchReadWriteToken.js";
+import { FetchReadWriteToken } from "./FetchReadWriteToken.vibe";
 /**
  * HTTP implementation of {@link FetchReadWriteToken}.
  *

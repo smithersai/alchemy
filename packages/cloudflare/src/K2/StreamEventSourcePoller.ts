@@ -10,16 +10,16 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { decodeWithSchema } from "./K2Codec.ts";
-import type { Batch, ConsumedRecord, K2SchemaError } from "./K2Types.ts";
-import { ReadSubscription, type ReadSubscriptionClient } from "./ReadSubscription.ts";
+import { decodeWithSchema } from "./K2Codec.vibe";
+import type { Batch, ConsumedRecord, K2SchemaError } from "./K2Types.vibe";
+import { ReadSubscription, type ReadSubscriptionClient } from "./ReadSubscription.vibe";
 import type { Stream as K2Stream } from "./Stream.ts";
 import {
   StreamEventSource,
   type ConsumeStreamRecordsProps,
   type ConsumeStreamRecordsHandler,
   type StreamEventSourceService,
-} from "./StreamEventSource.ts";
+} from "./StreamEventSource.vibe";
 import { Subscription } from "./Subscription.ts";
 
 /**

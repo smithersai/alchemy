@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetNodePool } from "./GetNodePool.js";
+import { GetNodePool } from "./GetNodePool.vibe";
 /**
  * HTTP implementation of {@link GetNodePool}.
  *

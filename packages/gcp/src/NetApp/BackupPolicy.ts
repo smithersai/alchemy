@@ -26,7 +26,7 @@ import {
   waitUntilExists,
   waitUntilGone,
   waitUntilReady,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 const DEFAULT_DAILY = 2;
 const DEFAULT_WEEKLY = 1;

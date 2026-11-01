@@ -17,7 +17,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitGlobalOperation } from "./operations.ts";
+import { waitGlobalOperation } from "./operations.vibe";
 
 const DEFAULT_PROTOCOL = "HTTP";
 const DEFAULT_SCHEME = "EXTERNAL";

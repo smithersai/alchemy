@@ -1,0 +1,420 @@
+import * as networkservices from "@distilled.cloud/gcp/networkservices_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_GLOBAL,
+  changedFields,
+  collectPages,
+  hasAlchemyLabelKeys,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  resourceName,
+  rfc1035,
+  sameJson,
+  sameStringList,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+} from "./internal.ts"
+
+const COLLECTION = "lbEdgeExtensions"
+const DEFAULT_SCHEME = "EXTERNAL_MANAGED"
+
+export type LbEdgeExtensionLoadBalancingScheme =
+  | networkservices.LbEdgeExtensionLoadBalancingSchemeEnum
+  | (string & {})
+
+export type ExtensionChainMatchCondition = {
+  /**
+   * CEL expression used to select requests. See the Service Extensions
+   * CEL matcher language reference.
+   */
+  mutable celExpression?: string
+}
+
+export type ExtensionChainExtension = {
+  /**
+   * Extension name logged in HTTP request logs. RFC1034, 1-63
+   * characters. Required except on AuthzExtension.
+   */
+  mutable name?: string
+  /**
+   * `:authority` header sent from Envoy to the callout. Required for
+   * callout extensions; forbidden for plugin extensions.
+   */
+  mutable authority?: string
+  /**
+   * Backend service URL (callout) or WasmPlugin resource name (plugin).
+   */
+  mutable service?: string
+  /**
+   * Events that invoke this extension. `LbEdgeExtension` must list only
+   * `REQUEST_HEADERS`.
+   */
+  mutable supportedEvents?: string[]
+  /**
+   * Per-message timeout between 10ms and 10000ms. Required for callouts.
+   */
+  mutable timeout?: string
+  /**
+   * Continue request processing if the callout fails or times out.
+   * @default false
+   */
+  mutable failOpen?: boolean
+  /** HTTP headers forwarded to the extension. Omitted sends every header. */
+  mutable forwardHeaders?: string[]
+  /** Envoy attributes forwarded to the extension. Omitted sends none. */
+  mutable forwardAttributes?: string[]
+  /**
+   * Metadata included in `ProcessingRequest.metadata_context`. Must not
+   * be set for plugin extensions.
+   */
+  mutable metadata?: Record<string, unknown>
+  /** Request body send mode (`STREAMED` or `FULL_DUPLEX_STREAMED`). */
+  mutable requestBodySendMode?: string
+  /** Response body send mode. */
+  mutable responseBodySendMode?: string
+  /**
+   * Run the callout asynchronously without pausing the request.
+   * @default false
+   */
+  mutable observabilityMode?: boolean
+}
+
+export type ExtensionChain = {
+  /** Chain name logged in HTTP request logs. RFC1034, 1-63 characters. */
+  mutable name?: string
+  /** Conditions under which this chain runs. */
+  mutable matchCondition?: ExtensionChainMatchCondition
+  /**
+   * Extensions executed for a matching request. `LbEdgeExtension` and
+   * `LbRouteExtension` allow one extension per chain.
+   */
+  mutable extensions?: ExtensionChainExtension[]
+}
+
+export type LbEdgeExtensionProps = {
+  /**
+   * LbEdgeExtension id (the `{lbEdgeExtension}` segment of
+   * `projects/{project}/locations/{location}/lbEdgeExtensions/{lbEdgeExtension}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Must be 1-63 characters and not start with a number.
+   * Immutable — changing it replaces the extension.
+   */
+  mutable lbEdgeExtensionId?: string
+  /**
+   * Location (`global`, `us-central1`, …). Immutable — changing it
+   * replaces the extension. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Forwarding rule resource names this extension attaches to. At least
+   * one is required. Only one LbEdgeExtension may attach to a given
+   * forwarding rule.
+   */
+  mutable forwardingRules: string[]
+  /**
+   * Ordered extension chains. The first matching chain runs. Limited to
+   * 5 chains.
+   */
+  mutable extensionChains: ExtensionChain[]
+  /**
+   * Load balancing scheme shared by referenced forwarding rules.
+   * Immutable — changing it replaces the extension.
+   * @default "EXTERNAL_MANAGED"
+   */
+  mutable loadBalancingScheme?: LbEdgeExtensionLoadBalancingScheme
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type LbEdgeExtension = Resource<
+  "GCP.NetworkServices.LbEdgeExtension",
+  LbEdgeExtensionProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/lbEdgeExtensions/{lbEdgeExtension}`. */
+    mutable name: string
+    /** LbEdgeExtension id (last path segment). */
+    mutable lbEdgeExtensionId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id (`global`, `us-central1`, …). */
+    mutable location: string
+    /** Attached forwarding rule resource names. */
+    mutable forwardingRules: string[]
+    /** Extension chains. */
+    mutable extensionChains: ExtensionChain[]
+    /** Load balancing scheme. */
+    mutable loadBalancingScheme: string | undefined
+    /** User-provided description. */
+    mutable description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Network Services LbEdgeExtension — a Service Extension that
+ * rewrites request headers so an Application Load Balancer can change
+ * backend selection and Cloud CDN cache keys.
+ *
+ * Changing `lbEdgeExtensionId`, `location`, or `loadBalancingScheme`
+ * replaces the extension. Description, labels, forwarding rules, and
+ * extension chains update in place.
+ *
+ * ### Creating an LbEdgeExtension
+ * **Example:** Attach to a global forwarding rule
+ * ```typescript
+ * const ext = yield* GCP.NetworkServices.LbEdgeExtension("Edge", {
+ *   loadBalancingScheme: "EXTERNAL_MANAGED",
+ *   forwardingRules: [rule.selfLink],
+ *   extensionChains: [
+ *     {
+ *       name: "chain1",
+ *       matchCondition: { celExpression: "true" },
+ *       extensions: [
+ *         {
+ *           name: "ext1",
+ *           authority: "ext1.example.com",
+ *           service: backend.selfLink,
+ *           timeout: "0.1s",
+ *           supportedEvents: ["REQUEST_HEADERS"],
+ *         },
+ *       ],
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category NetworkServices
+ */
+export const LbEdgeExtension = Resource<LbEdgeExtension>("GCP.NetworkServices.LbEdgeExtension")
+
+export const toExtension = (
+  value: ExtensionChainExtension | networkservices.ExtensionChainExtension,
+): ExtensionChainExtension => ({
+  name: value.name,
+  authority: value.authority,
+  service: value.service,
+  supportedEvents: value.supportedEvents ?? [],
+  timeout: value.timeout,
+  failOpen: value.failOpen,
+  forwardHeaders: value.forwardHeaders ?? [],
+  forwardAttributes: value.forwardAttributes ?? [],
+  metadata: value.metadata,
+  requestBodySendMode: value.requestBodySendMode,
+  responseBodySendMode: value.responseBodySendMode,
+  observabilityMode: value.observabilityMode,
+})
+
+export const toChain = (
+  value: ExtensionChain | networkservices.ExtensionChain,
+): ExtensionChain => ({
+  name: value.name,
+  matchCondition: value.matchCondition
+    ? { celExpression: value.matchCondition.celExpression }
+    : undefined,
+  extensions: (value.extensions ?? []).map(toExtension),
+})
+
+const toAttrs = (extension: networkservices.LbEdgeExtension, project: string): infer _ => {
+  const name = extension.name ?? ""
+  const parsed = parseName(name, COLLECTION, DEFAULT_GLOBAL)
+  return {
+    name,
+    lbEdgeExtensionId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || DEFAULT_GLOBAL,
+    forwardingRules: extension.forwardingRules ?? [],
+    extensionChains: (extension.extensionChains ?? []).map(toChain),
+    loadBalancingScheme: extension.loadBalancingScheme,
+    description: extension.description,
+    labels: userLabels(extension.labels),
+    createTime: extension.createTime,
+    updateTime: extension.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networkservices
+    .getProjectsLocationsLbEdgeExtensions({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const LbEdgeExtensionProvider = (): infer _ =>
+  Provider.succeed(LbEdgeExtension, {
+    stables: ["name", "lbEdgeExtensionId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.lbEdgeExtensionId ?? output?.lbEdgeExtensionId
+      const nextId = news.lbEdgeExtensionId
+        ? rfc1035(news.lbEdgeExtensionId, "lb-edge-extension")
+        : previousId
+      const previousLocation = normalizeLocation(
+        olds?.location ?? output?.location,
+        DEFAULT_GLOBAL,
+      )
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        DEFAULT_GLOBAL,
+      )
+      const previousScheme = olds?.loadBalancingScheme ?? output?.loadBalancingScheme ?? DEFAULT_SCHEME
+      const nextScheme = news.loadBalancingScheme ?? previousScheme
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+        || previousScheme !== nextScheme
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const lbEdgeExtensionId = try toPhysicalId(
+        id,
+        olds?.lbEdgeExtensionId,
+        output?.lbEdgeExtensionId,
+        "lb-edge-extension",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL)
+      const name = output?.name ?? resourceName(env.project, location, COLLECTION, lbEdgeExtensionId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try collectPages(
+        networkservices.listProjectsLocationsLbEdgeExtensions.pages({
+          parent: parentOf(env.project, "-"),
+          pageSize: 1000,
+        }),
+        (page) => page.lbEdgeExtensions,
+      )
+      return items
+        .filter((item) => hasAlchemyLabelKeys(item.labels))
+        .map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const lbEdgeExtensionId = try toPhysicalId(
+        id,
+        news.lbEdgeExtensionId,
+        output?.lbEdgeExtensionId,
+        "lb-edge-extension",
+      )
+      const location = normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL)
+      const name = resourceName(env.project, location, COLLECTION, lbEdgeExtensionId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const loadBalancingScheme = news.loadBalancingScheme ?? DEFAULT_SCHEME
+      const desiredRules = news.forwardingRules
+      const desiredChains = news.extensionChains.map(toChain)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (try (networkservices
+          .createProjectsLocationsLbEdgeExtensions({
+            parent: parentOf(env.project, location),
+            lbEdgeExtensionId,
+            body: {
+              labels: desiredLabels,
+              description: news.description,
+              forwardingRules: desiredRules,
+              extensionChains: desiredChains,
+              loadBalancingScheme,
+            },
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 5,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const rulesChanged = !sameStringList(current.forwardingRules, desiredRules)
+      const chainsChanged = !sameJson((current.extensionChains ?? []).map(toChain), desiredChains)
+
+      const updateMask = changedFields([
+        ["labels", labelsChanged],
+        ["description", descriptionChanged],
+        ["forwardingRules", rulesChanged],
+        ["extensionChains", chainsChanged],
+      ])
+
+      if (updateMask.length > 0) {
+        const operation = try networkservices.patchProjectsLocationsLbEdgeExtensions({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+            forwardingRules: desiredRules,
+            extensionChains: desiredChains,
+            loadBalancingScheme,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilPresent(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (networkservices
+        .deleteProjectsLocationsLbEdgeExtensions({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

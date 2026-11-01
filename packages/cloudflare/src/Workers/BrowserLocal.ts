@@ -3,7 +3,7 @@ import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Credentials } from "../Credentials.ts";
-import { Browser } from "./Browser.ts";
+import { Browser } from "./Browser.vibe";
 import type { BrowserBinding } from "./BrowserBinding.ts";
 import { type BrowserAuth, makeHttpBrowserClient } from "./BrowserHttpClient.ts";
 

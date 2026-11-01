@@ -10,7 +10,7 @@ import { GcpEnvironment } from "../Environment.ts";
 import { createInternalLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
 import { listLocations } from "./names.ts";
-import { lastSegment, locationOf, locationParent, parentOf } from "./ownership.ts";
+import { lastSegment, locationOf, locationParent, parentOf } from "./ownership.vibe";
 import { hasStudyOwnership } from "./Study.ts";
 
 export type TrialParameter = {

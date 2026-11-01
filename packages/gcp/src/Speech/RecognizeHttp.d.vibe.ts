@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Recognize } from "./Recognize.js";
+import { Recognize } from "./Recognize.vibe";
 /**
  * HTTP implementation of {@link Recognize}.
  *

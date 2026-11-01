@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadWriteBucket } from "./ReadWriteBucket.js";
+import { ReadWriteBucket } from "./ReadWriteBucket.vibe";
 /**
  * Local implementation of the {@link ReadWriteBucket} binding — reads and
  * writes R2 objects over the Cloudflare HTTP API using the **current

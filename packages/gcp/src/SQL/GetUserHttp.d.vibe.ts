@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetUser } from "./GetUser.js";
+import { GetUser } from "./GetUser.vibe";
 /**
  * HTTP implementation of {@link GetUser}.
  *

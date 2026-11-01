@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
-import { type Namespace as ArtifactsLike } from "./Namespace.ts";
+import { type Namespace as ArtifactsLike } from "./Namespace.vibe";
 import {
   ArtifactsError,
   ReadNamespace,
@@ -9,7 +9,7 @@ import {
   type ReadWriteNamespaceClient,
   type RepoClient,
   WriteNamespace,
-} from "./ReadWriteNamespace.ts";
+} from "./ReadWriteNamespace.vibe";
 
 const tryPromise = <T>(fn: () => Promise<T>): Effect.Effect<T, ArtifactsError> =>
   Effect.tryPromise({

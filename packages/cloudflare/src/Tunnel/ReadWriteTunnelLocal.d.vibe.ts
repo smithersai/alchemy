@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadWriteTunnel } from "./ReadWriteTunnel.js";
+import { ReadWriteTunnel } from "./ReadWriteTunnel.vibe";
 /**
  * Local implementation of the {@link ReadWriteTunnel} binding — performs the
  * full cfd_tunnel CRUD surface over the HTTP API using the **current

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CommitCursor } from "./CommitCursor.js";
+import { CommitCursor } from "./CommitCursor.vibe";
 /**
  * HTTP implementation of {@link CommitCursor}.
  *

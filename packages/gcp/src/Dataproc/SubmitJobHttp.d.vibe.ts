@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { SubmitJob } from "./SubmitJob.js";
+import { SubmitJob } from "./SubmitJob.vibe";
 /**
  * HTTP implementation of {@link SubmitJob}.
  *

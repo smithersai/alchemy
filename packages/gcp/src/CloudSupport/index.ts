@@ -1,1 +1,1 @@
-export * from "./SupportEventSubscription.ts";
+export * from "./SupportEventSubscription.vibe";

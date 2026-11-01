@@ -3,8 +3,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
-import { Resolve, type ResolveRequest } from "./Resolve.ts";
-import type { Service } from "./Service.ts";
+import { Resolve, type ResolveRequest } from "./Resolve.vibe";
+import type { Service } from "./Service.vibe";
 
 /**
  * HTTP implementation of {@link Resolve}.

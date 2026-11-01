@@ -1,0 +1,69 @@
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.ts"
+import { grantFor, type BindingIam, type GcpHttpOp } from "../HttpBinding.ts"
+import type { Model } from "./Model.ts"
+import type { ModelsVersion } from "./ModelsVersion.vibe"
+
+/**
+ * Shared HTTP scaffolding for AI Platform (legacy ML Engine) bindings.
+ * NOT exported from index.ts.
+ */
+export const makeModelHttpBinding = effect <I extends { mutable name?: string }, A, E>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (model: Model) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${model})`({
+        iam: [grantFor(options.iam, model.name)],
+      })
+    }
+    const name = try model.name.asEffect()
+    return effect (request?: Omit<I, "name"> | undefined) =>
+      try withSpan(
+        effect {
+          return try run({
+            ...(request as I),
+            name: try name,
+          } as I)
+        },
+        `${options.tag}(${model.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Versions have no IAM policy of their own; `iam.on` (`ml.model`) is
+ * granted on the version's parent model.
+ */
+export const makeVersionHttpBinding = effect <I extends { mutable name?: string }, A, E>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (version: ModelsVersion) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${version})`({
+        iam: [grantFor(options.iam, version.model)],
+      })
+    }
+    const name = try version.name.asEffect()
+    return effect (
+      request?: Omit<I, "name"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try run({
+            ...(request as I),
+            name: try name,
+          } as I)
+        },
+        `${options.tag}(${version.LogicalId})`,
+      )
+  }
+}

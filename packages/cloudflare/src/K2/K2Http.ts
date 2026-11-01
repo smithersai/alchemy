@@ -7,7 +7,7 @@ import { AccountApiToken } from "../ApiToken/AccountApiToken.ts";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Credentials } from "../Credentials.ts";
 import { requireLiveResource } from "../HttpBindingDev.ts";
-import { authorizeWith } from "../HttpClientUtils.ts";
+import { authorizeWith } from "../HttpClientUtils.vibe";
 
 /**
  * Shared scaffolding for the HTTP-backed K2 services. Internal — not

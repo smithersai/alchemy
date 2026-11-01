@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadTable } from "./ReadTable.js";
+import { ReadTable } from "./ReadTable.vibe";
 /**
  * HTTP implementation of {@link ReadTable} over the BigQuery REST API.
  *

@@ -1,0 +1,215 @@
+import * as gmailpostmastertools from "@distilled.cloud/gcp/gmailpostmastertools_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_PERMISSION,
+  findUser,
+  fullUserName,
+  ignoreMissing,
+  isAlchemyEmail,
+  isPatchablePermission,
+  listOwnedUsers,
+  normalize,
+  parentOfUserName,
+  sameText,
+  toDomainName,
+  toGeneratedUserId,
+  toUserName,
+  userEmailOf,
+} from "./internal.ts"
+
+export type DomainsUserProps = {
+  /**
+   * Parent domain (`domains/{domain}` or the FQDN). Immutable —
+   * changing it replaces the user.
+   */
+  mutable parent: string
+  /**
+   * User email. If omitted, a unique `alchemy-*@example.com` address is
+   * generated. Immutable — changing it replaces the user. Users have no
+   * labels field, so Alchemy stamps ownership into the generated local
+   * part for `list` / nuke.
+   */
+  mutable userId?: string
+  /**
+   * Permission on the parent domain. Updates in place for `READER` and
+   * `ADMIN`. `OWNER` and `NONE` cannot be patched.
+   * @default "READER"
+   */
+  mutable permission?: gmailpostmastertools.UserPermissionEnum | (string & {})
+}
+
+export type DomainsUser = Resource<
+  "GCP.GmailPostmasterTools.DomainsUser",
+  DomainsUserProps,
+  {
+    /** Full resource name `domains/{domain}/users/{user}`. */
+    mutable name: string
+    /** Parent domain name `domains/{domain}`. */
+    mutable parent: string
+    /** User email. */
+    mutable userId: string
+    /** Project id used when the user was reconciled. */
+    mutable project: string
+    /** Permission on the parent domain. */
+    mutable permission: string | undefined
+    /** RFC3339 time access was granted. */
+    mutable createTime: string | undefined
+    /** Email of the user that granted access. */
+    mutable accessGranter: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Gmail Postmaster Tools domain user.
+ *
+ * Users have no labels or description, so identity is `(parent, userId)`
+ * and `list` / nuke returns rows whose email local-part starts with
+ * `alchemy-`. Permission updates in place (`READER` / `ADMIN`). Changing
+ * parent or email replaces the user.
+ *
+ * ### Creating a User
+ * **Example:** Generated email
+ * ```typescript
+ * const user = yield* GCP.GmailPostmasterTools.DomainsUser("Ada", {
+ *   parent: domain.name,
+ * });
+ * ```
+ *
+ * **Example:** Explicit email and permission
+ * ```typescript
+ * const user = yield* GCP.GmailPostmasterTools.DomainsUser("Ada", {
+ *   parent: domain.name,
+ *   userId: "ada@example.com",
+ *   permission: "ADMIN",
+ * });
+ * ```
+ *
+ * ### Updating a User
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Change permission
+ * ```typescript
+ * const user = yield* GCP.GmailPostmasterTools.DomainsUser("Ada", {
+ *   parent: domain.name,
+ *   userId: "ada@example.com",
+ *   permission: "READER",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Gmail Postmaster Tools
+ */
+export const DomainsUser = Resource<DomainsUser>("GCP.GmailPostmasterTools.DomainsUser")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DomainsUserNotResolved extends Data.TaggedError(
+  "GCP.GmailPostmasterTools.DomainsUserNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const toAttrs = (user: gmailpostmastertools.User, parent: string, project: string): infer _ => {
+  const resolvedParent = parentOfUserName(user.name ?? "") || toDomainName(parent)
+  const name = fullUserName(resolvedParent, user)
+  return {
+    name,
+    parent: resolvedParent,
+    userId: userEmailOf(user),
+    project,
+    permission: user.permission,
+    createTime: user.createTime,
+    accessGranter: user.accessGranter,
+  }
+}
+
+export const DomainsUserProvider = (): infer _ =>
+  Provider.succeed(DomainsUser, {
+    stables: ["name", "parent", "userId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (
+        previousParent !== undefined
+        && toDomainName(news.parent) !== toDomainName(previousParent)
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      const previousUser = olds?.userId ?? output?.userId
+      if (
+        previousUser !== undefined
+        && news.userId !== undefined
+        && normalize(news.userId) !== normalize(previousUser)
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = olds?.parent ?? output?.parent ?? ""
+      const userId = olds?.userId ?? output?.userId ?? ""
+      const existing = try findUser(parent, userId, output?.name ?? toUserName(parent, userId))
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, parent, env.project)
+      return output !== undefined || isAlchemyEmail(attrs.userId) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const users = try listOwnedUsers()
+      return users.map((user) => toAttrs(user, parentOfUserName(user.name ?? "") || "", env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = toDomainName(news.parent)
+      const userId = try toGeneratedUserId(id, news.userId, output?.userId)
+      const name = toUserName(parent, userId)
+      const permission = news.permission ?? DEFAULT_PERMISSION
+
+      let current = try findUser(parent, userId, output?.name ?? name)
+
+      if (current === undefined) {
+        const created = gmailpostmastertools
+          .createDomainsUsers({
+            parent,
+            body: { userId, permission },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try findUser(parent, userId, name);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DomainsUserNotResolved({ resourceName: name })
+      }
+
+      const resourceName = fullUserName(parent, current)
+      if (isPatchablePermission(permission) && !sameText(current.permission, permission)) {
+        current = try gmailpostmastertools.patchDomainsUsers({
+          name: resourceName,
+          updateMask: "permission",
+          body: { permission },
+        })
+      }
+
+      const fresh = (try findUser(parent, userId, resourceName)) ?? current
+      return toAttrs(fresh, parent, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const name = output.name || toUserName(output.parent, output.userId)
+      if (name.length === 0) return
+      try ignoreMissing(gmailpostmastertools.deleteDomainsUsers({ name }))
+    },
+  })

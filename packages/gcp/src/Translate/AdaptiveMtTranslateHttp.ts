@@ -1,6 +1,6 @@
 import * as translate from "@distilled.cloud/gcp/translate_v3";
 import * as Layer from "effect/Layer";
-import { AdaptiveMtTranslate } from "./AdaptiveMtTranslate.ts";
+import { AdaptiveMtTranslate } from "./AdaptiveMtTranslate.vibe";
 import { locationParentOf, makeAdaptiveMtTranslateBinding } from "./BindingHttp.ts";
 
 /**

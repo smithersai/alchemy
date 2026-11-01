@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetConnection } from "./GetConnection.js";
+import { GetConnection } from "./GetConnection.vibe";
 /**
  * HTTP implementation of {@link GetConnection}.
  *

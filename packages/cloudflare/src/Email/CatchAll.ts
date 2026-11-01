@@ -8,7 +8,7 @@ import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Providers } from "../Providers.ts";
 import { resolveZoneId, type Reference } from "../Zone/index.ts";
 import { listAllZones } from "../Zone/lookup.ts";
-import { retryWorkerScriptNotFound } from "./retry.ts";
+import { retryWorkerScriptNotFound } from "./retry.vibe";
 import type { Action } from "./Rule.ts";
 
 const CatchAllTypeId = "Cloudflare.Email.CatchAll" as const;

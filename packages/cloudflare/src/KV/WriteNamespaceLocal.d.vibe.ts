@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { WriteNamespace } from "./WriteNamespace.js";
+import { WriteNamespace } from "./WriteNamespace.vibe";
 /**
  * Local implementation of the {@link WriteNamespace} binding — writes KV
  * values over the Cloudflare HTTP API using the **current credentials**

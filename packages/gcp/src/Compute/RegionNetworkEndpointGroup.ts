@@ -12,7 +12,7 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitRegionOperation } from "./operations.ts";
+import { waitRegionOperation } from "./operations.vibe";
 
 const DEFAULT_NETWORK_ENDPOINT_TYPE = "SERVERLESS";
 const MAX_NAME_LENGTH = 63;

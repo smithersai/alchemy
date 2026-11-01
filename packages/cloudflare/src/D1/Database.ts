@@ -25,10 +25,10 @@ import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import { localAccountId } from "../LocalAccount.ts";
 import { generateLocalId, LOCAL_PROVIDERS_URL, localRuntimeServices } from "../LocalRuntime.ts";
 import type { Providers } from "../Providers.ts";
-import { makeD1MigrationExecutor } from "./ApplyMigrations.ts";
+import { makeD1MigrationExecutor } from "./ApplyMigrations.vibe";
 import { cloneDatabase } from "./CloneDatabase.ts";
-import { importD1Database } from "./ImportDatabase.ts";
-import { withLocalD1Executor, withLocalD1Query } from "./LocalD1Gateway.ts";
+import { importD1Database } from "./ImportDatabase.vibe";
+import { withLocalD1Executor, withLocalD1Query } from "./LocalD1Gateway.vibe";
 
 export const isDatabase = (value: unknown): value is Database =>
   isResourceOfType(value, "Cloudflare.D1Database");

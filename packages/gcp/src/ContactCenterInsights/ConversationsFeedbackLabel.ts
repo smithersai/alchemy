@@ -21,7 +21,7 @@ import {
   parseOwnership,
   sameJson,
   toResourceId,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 type QaAnswerLabel = {
   /** Skip this question. */

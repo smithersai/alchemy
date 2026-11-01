@@ -1,0 +1,96 @@
+import type { GcpOpContext } from "@distilled.cloud/gcp/composer_v1"
+import type { Output } from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.ts"
+import { type BindingIam, grantFor } from "../HttpBinding.ts"
+import type { Environment } from "./Environment.ts"
+import type { EnvironmentsUserWorkloadsConfigMap } from "./EnvironmentsUserWorkloadsConfigMap.ts"
+import type { EnvironmentsUserWorkloadsSecret } from "./EnvironmentsUserWorkloadsSecret.ts"
+
+type GcpHttpOp<I, A, E> =
+  & (((input: I) => A!E)!!GcpOpContext)
+  & ((input: I) => A!E!GcpOpContext)
+
+type NamedResource = {
+  readonly name: Output<string, never>
+  readonly LogicalId: string
+}
+
+/**
+ * Shared HTTP scaffolding for Cloud Composer bindings whose request
+ * identifies the resource by a single name path parameter.
+ * Distilled ops are OperationMethods: yield them once at Layer
+ * construction (after providing Credentials + HttpClient) so the inner
+ * runtime Effect is `Effect<A, E>` and does not leak `GcpOpContext`.
+ * NOT exported from index.ts.
+ */
+export const makeNamedHttpBinding = effect <Resource extends NamedResource, I, A, E>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable nameKey?: string
+  mutable operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  const nameKey = options.nameKey ?? "name"
+  return effect (resource: Resource) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${resource})`({
+        iam: [grantFor(options.iam, resource.name)],
+      })
+    }
+    const name = try resource.name.asEffect()
+    return effect (request?: object | undefined) =>
+      try withSpan(
+        effect {
+          const resourceName = try name
+          return try run({
+            ...request,
+            [nameKey]: resourceName,
+          } as I)
+        },
+        `${options.tag}(${resource.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Shared HTTP scaffolding for Cloud Composer environment bindings.
+ * NOT exported from index.ts.
+ */
+export const makeEnvironmentHttpBinding = effect <I, A, E>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable nameKey: string
+  mutable operation: GcpHttpOp<I, A, E>
+}) =>
+  try makeNamedHttpBinding<Environment, I, A, E>({
+    tag: options.tag,
+    iam: options.iam,
+    nameKey: options.nameKey,
+    operation: options.operation,
+  })
+
+export const makeUserWorkloadsConfigMapHttpBinding = effect <I, A, E>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable operation: GcpHttpOp<I, A, E>
+}) =>
+  try makeNamedHttpBinding<EnvironmentsUserWorkloadsConfigMap, I, A, E>({
+    tag: options.tag,
+    iam: options.iam,
+    nameKey: "name",
+    operation: options.operation,
+  })
+
+export const makeUserWorkloadsSecretHttpBinding = effect <I, A, E>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable operation: GcpHttpOp<I, A, E>
+}) =>
+  try makeNamedHttpBinding<EnvironmentsUserWorkloadsSecret, I, A, E>({
+    tag: options.tag,
+    iam: options.iam,
+    nameKey: "name",
+    operation: options.operation,
+  })

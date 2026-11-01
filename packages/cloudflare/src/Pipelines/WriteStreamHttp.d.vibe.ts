@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { WriteStream } from "./WriteStream.js";
+import { WriteStream } from "./WriteStream.vibe";
 /**
  * HTTP-backed implementation of the {@link WriteStream} service. Creates
  * a scoped `AccountApiToken` with the `Pipelines Send` permission, binds

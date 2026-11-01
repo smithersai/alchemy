@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetTable } from "./GetTable.js";
+import { GetTable } from "./GetTable.vibe";
 /**
  * HTTP implementation of {@link GetTable}.
  *

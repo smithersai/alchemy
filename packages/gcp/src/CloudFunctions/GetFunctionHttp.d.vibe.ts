@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetFunction } from "./GetFunction.js";
+import { GetFunction } from "./GetFunction.vibe";
 /**
  * HTTP implementation of {@link GetFunction}.
  *

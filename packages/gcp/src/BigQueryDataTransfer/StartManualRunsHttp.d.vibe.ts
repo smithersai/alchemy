@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { StartManualRuns } from "./StartManualRuns.js";
+import { StartManualRuns } from "./StartManualRuns.vibe";
 /**
  * HTTP implementation of {@link StartManualRuns}.
  *

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreateAssessment } from "./CreateAssessment.js";
+import { CreateAssessment } from "./CreateAssessment.vibe";
 /**
  * HTTP implementation of {@link CreateAssessment}.
  *

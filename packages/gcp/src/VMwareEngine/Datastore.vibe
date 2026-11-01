@@ -1,0 +1,355 @@
+import * as vmwareengine from "@distilled.cloud/gcp/vmwareengine_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  VmwareengineNotResolved,
+  changedFields,
+  collectPages,
+  createInternalLabels,
+  encodeOwnership,
+  hasAlchemyLabels,
+  hasOwnershipMarker,
+  listAcrossLocations,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  rfc1035,
+  sameJson,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+  waitUntilReady,
+} from "./internal.ts"
+
+const COLLECTION = "datastores"
+
+export type GoogleFileService = {
+  /** NetApp Volume resource name. */
+  mutable netappVolume?: string
+  /** Filestore instance resource name. */
+  mutable filestoreInstance?: string
+}
+
+export type ThirdPartyFileService = {
+  /** NFS server IP addresses or DNS names. */
+  mutable servers?: string[]
+  /** VPC used for NFS access. */
+  mutable network?: string
+  /** Mount folder name. */
+  mutable fileShare?: string
+}
+
+export type NfsDatastore = {
+  /** Google-managed file service (NetApp or Filestore). */
+  mutable googleFileService?: GoogleFileService
+  /** GCVE-managed file service. */
+  mutable googleVmwareFileService?: Record<string, never>
+  /** Third-party NFS file service. */
+  mutable thirdPartyFileService?: ThirdPartyFileService
+}
+
+export type DatastoreProps = {
+  /**
+   * Datastore id (the `{datastore}` segment of
+   * `projects/{project}/locations/{location}/datastores/{datastore}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable — changing
+   * it replaces the datastore.
+   */
+  mutable datastoreId?: string
+  /**
+   * Region (`us-central1`, `us-east1`, …). Immutable — changing it
+   * replaces the datastore. `US-CENTRAL1` is accepted and normalized.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * NFS backend. Required. Choose Google Filestore/NetApp, a GCVE file
+   * service, or a third-party NFS server.
+   */
+  mutable nfsDatastore: NfsDatastore
+  /**
+   * Human-readable description. Datastores have no labels field, so
+   * Alchemy stamps ownership into a `[alchemy …]` prefix and strips it
+   * from attributes.
+   */
+  mutable description?: string
+}
+
+export type Datastore = Resource<
+  "GCP.VMwareEngine.Datastore",
+  DatastoreProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Datastore id (last path segment). */
+    mutable datastoreId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** NFS backend currently configured. */
+    mutable nfsDatastore: NfsDatastore | undefined
+    /** Clusters the datastore is attached to. */
+    mutable clusters: string[]
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Server-reported state. */
+    mutable state: string | undefined
+    /** Server etag. */
+    mutable etag: string | undefined
+    /** System-generated unique identifier. */
+    mutable uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Google Cloud VMware Engine NFS datastore.
+ *
+ * Datastores have no labels field, so Alchemy stamps ownership into the
+ * description for `list` / nuke. Changing `datastoreId`, `location`, or
+ * the NFS backend identity replaces the datastore. Description updates
+ * in place.
+ *
+ * ### Creating a Datastore
+ * **Example:** Filestore-backed NFS datastore
+ * ```typescript
+ * const datastore = yield* GCP.VMwareEngine.Datastore("Nfs", {
+ *   nfsDatastore: {
+ *     googleFileService: {
+ *       filestoreInstance:
+ *         "projects/my-project/locations/us-central1-a/instances/share",
+ *     },
+ *   },
+ *   description: "app nfs datastore",
+ * });
+ * ```
+ *
+ * **Example:** Third-party NFS
+ * ```typescript
+ * const datastore = yield* GCP.VMwareEngine.Datastore("VendorNfs", {
+ *   nfsDatastore: {
+ *     thirdPartyFileService: {
+ *       servers: ["10.1.2.3"],
+ *       network: "projects/my-project/global/networks/default",
+ *       fileShare: "vol1",
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category VMwareEngine
+ */
+export const Datastore = Resource<Datastore>("GCP.VMwareEngine.Datastore")
+
+const resourceName = (project: string, location: string, datastoreId: string): infer _ =>
+  `${parentOf(project, location)}/${COLLECTION}/${datastoreId}`
+
+const nfsOf = (
+  value: vmwareengine.NfsDatastore | NfsDatastore | undefined,
+): NfsDatastore | undefined => {
+  if (value === undefined) return undefined
+  return {
+    googleFileService: value.googleFileService === undefined
+      ? undefined
+      : {
+        netappVolume: value.googleFileService.netappVolume,
+        filestoreInstance: value.googleFileService.filestoreInstance,
+      },
+    googleVmwareFileService: value.googleVmwareFileService === undefined ? undefined : {},
+    thirdPartyFileService: value.thirdPartyFileService === undefined
+      ? undefined
+      : {
+        servers: value.thirdPartyFileService.servers,
+        network: value.thirdPartyFileService.network,
+        fileShare: value.thirdPartyFileService.fileShare,
+      },
+  }
+}
+
+const toAttrs = (item: vmwareengine.Datastore, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, COLLECTION, region)
+  const ownership = parseOwnership(item.description)
+  return {
+    name,
+    datastoreId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    nfsDatastore: nfsOf(item.nfsDatastore),
+    clusters: item.clusters ?? [],
+    description: ownership.text,
+    state: item.state,
+    etag: item.etag,
+    uid: item.uid,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  vmwareengine
+    .getProjectsLocationsDatastores({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const DatastoreProvider = (): infer _ =>
+  Provider.succeed(Datastore, {
+    stables: ["name", "datastoreId", "project", "location", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      return replaceOnIdentity({
+        previousId: olds?.datastoreId ?? output?.datastoreId,
+        nextId: news.datastoreId
+          ? rfc1035(news.datastoreId, "datastore")
+          : (olds?.datastoreId ?? output?.datastoreId),
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: !sameJson(news.nfsDatastore, olds?.nfsDatastore),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const datastoreId = try toPhysicalId(
+        id,
+        olds?.datastoreId,
+        output?.datastoreId,
+        "datastore",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, datastoreId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      const { labels } = parseOwnership(existing.description)
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listAcrossLocations(env.project, env.region, effect (parent) =>
+        try collectPages(
+          vmwareengine.listProjectsLocationsDatastores.pages({
+            parent,
+            pageSize: 1000,
+          }),
+          (page) => page.datastores,
+        ))
+      return items
+        .filter((item) => hasOwnershipMarker(item.description))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const datastoreId = try toPhysicalId(
+        id,
+        news.datastoreId,
+        output?.datastoreId,
+        "datastore",
+      )
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, datastoreId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeOwnership(ownership, news.description)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (try (vmwareengine
+          .createProjectsLocationsDatastores({
+            parent: parentOf(env.project, location),
+            datastoreId,
+            body: {
+              nfsDatastore: news.nfsDatastore,
+              description: desiredDescription,
+            },
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 5,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new VmwareengineNotResolved({ resourceName: name })
+      }
+
+      current = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item) => item.state,
+      )
+
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const nfsChanged = !sameJson(nfsOf(current.nfsDatastore), nfsOf(news.nfsDatastore))
+      const updateMask = changedFields([
+        ["description", descriptionChanged],
+        ["nfsDatastore", nfsChanged],
+      ])
+
+      if (updateMask.length > 0) {
+        const operation = try vmwareengine.patchProjectsLocationsDatastores({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            description: desiredDescription,
+            nfsDatastore: news.nfsDatastore,
+            etag: current.etag,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(
+          getByName(current.name ?? name),
+          current.name ?? name,
+          (item) => item.state,
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (vmwareengine
+        .deleteProjectsLocationsDatastores({
+          name: output.name,
+          etag: output.etag,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

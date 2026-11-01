@@ -4,8 +4,8 @@ import * as Layer from "effect/Layer";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
 import { isLegacyPipeline, type LegacyPipeline } from "./LegacyPipeline.ts";
 import type { Stream } from "./Stream.ts";
-import { makeStreamClient, recordSchemaOf, toStreamSendError } from "./StreamCodec.ts";
-import { WriteStream, type WriteStreamClient } from "./WriteStream.ts";
+import { makeStreamClient, recordSchemaOf, toStreamSendError } from "./StreamCodec.vibe";
+import { WriteStream, type WriteStreamClient } from "./WriteStream.vibe";
 
 /**
  * Implementation of the {@link WriteStream} service over a native Worker

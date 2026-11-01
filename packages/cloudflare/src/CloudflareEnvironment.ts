@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import {
   CLOUDFLARE_AUTH_PROVIDER_NAME,
   type CloudflareResolvedCredentials,
-} from "./Auth/AuthConfig.ts";
+} from "./Auth/AuthConfig.vibe";
 import { CloudflareEnvironment } from "./CloudflareEnvironmentService.ts";
 
 export { CloudflareEnvironment } from "./CloudflareEnvironmentService.ts";

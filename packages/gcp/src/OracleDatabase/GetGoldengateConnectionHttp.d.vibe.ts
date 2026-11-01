@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetGoldengateConnection } from "./GetGoldengateConnection.js";
+import { GetGoldengateConnection } from "./GetGoldengateConnection.vibe";
 /**
  * HTTP implementation of {@link GetGoldengateConnection}.
  *

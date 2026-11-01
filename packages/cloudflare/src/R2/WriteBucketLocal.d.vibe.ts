@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { WriteBucket } from "./WriteBucket.js";
+import { WriteBucket } from "./WriteBucket.vibe";
 /**
  * Local implementation of the {@link WriteBucket} binding — writes R2 objects
  * over the Cloudflare HTTP API using the **current credentials** instead of a

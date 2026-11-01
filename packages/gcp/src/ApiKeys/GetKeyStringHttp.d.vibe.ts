@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetKeyString } from "./GetKeyString.js";
+import { GetKeyString } from "./GetKeyString.vibe";
 /**
  * HTTP implementation of {@link GetKeyString}.
  *

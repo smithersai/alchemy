@@ -1,0 +1,58 @@
+import type { Credentials } from "@distilled.cloud/cloudflare/Credentials"
+import * as d1 from "@distilled.cloud/cloudflare/d1"
+import * as Effect from "effect/Effect"
+import type * as HttpClient from "effect/http/HttpClient"
+
+export interface ExportD1DatabaseOptions {
+  mutable accountId: string;
+  mutable databaseId: string;
+  mutable dumpOptions?: {
+    mutable tables?: string[];
+    mutable noSchema?: boolean;
+    mutable noData?: boolean;
+  };
+}
+
+export interface ExportD1DatabaseResult {
+  mutable filename: string;
+  mutable signedUrl: string;
+}
+
+/**
+ * Initiates an export of a Cloudflare D1 database and returns a signed
+ * download URL. Recursively polls with the bookmark until the export
+ * completes or fails.
+ */
+export const exportDatabase = effect (
+  options: ExportD1DatabaseOptions,
+): ExportD1DatabaseResult!d1.ExportDatabaseError!Credentials | HttpClient.HttpClient => {
+    const exportDb = try d1.exportDatabase;
+
+    const poll = effect (
+      currentBookmark?: string,
+    ): ExportD1DatabaseResult!d1.ExportDatabaseError!never => {
+        const data = try exportDb({
+          accountId: options.accountId,
+          databaseId: options.databaseId,
+          outputFormat: "polling",
+          currentBookmark,
+          dumpOptions: options.dumpOptions,
+        });
+
+        if (data.status === "complete" && data.result) {
+          if (!data.result.filename || !data.result.signedUrl) {
+            return try Effect.die("D1 export completed but missing filename/signedUrl");
+          }
+          return {
+            filename: data.result.filename,
+            signedUrl: data.result.signedUrl,
+          };
+        }
+        if (data.status === "error") {
+          return try Effect.die(data.error ?? "Error during D1 export");
+        }
+        return try poll(data.atBookmark ?? undefined);
+      };
+
+    return try poll();
+  };

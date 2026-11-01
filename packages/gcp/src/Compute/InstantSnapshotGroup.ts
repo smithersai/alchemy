@@ -11,7 +11,7 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitZoneOperation } from "./operations.ts";
+import { waitZoneOperation } from "./operations.vibe";
 
 const DEFAULT_ZONE = "us-central1-a";
 const LIST_ZONES = ["us-central1-a", "us-central1-b", "us-central1-c", "us-central1-f"];

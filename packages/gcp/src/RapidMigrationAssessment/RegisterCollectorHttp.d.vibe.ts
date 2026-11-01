@@ -1,7 +1,7 @@
 import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
-import { RegisterCollector } from "./RegisterCollector.js";
+import { RegisterCollector } from "./RegisterCollector.vibe";
 /**
  * HTTP implementation of {@link RegisterCollector}.
  *

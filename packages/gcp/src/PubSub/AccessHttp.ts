@@ -2,10 +2,10 @@ import * as pubsub from "@distilled.cloud/gcp/pubsub_v1";
 import * as Effect from "effect/Effect";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor, type BindingIam } from "../HttpBinding.ts";
-import type { PulledMessage, ReadSubscriptionClient } from "./ReadSubscription.ts";
+import type { PulledMessage, ReadSubscriptionClient } from "./ReadSubscription.vibe";
 import type { Subscription } from "./Subscription.ts";
 import type { Topic } from "./Topic.ts";
-import type { PublishMessage, WriteTopicClient } from "./WriteTopic.ts";
+import type { PublishMessage, WriteTopicClient } from "./WriteTopic.vibe";
 
 /**
  * Shared HTTP scaffolding for the Pub/Sub `WriteTopic` / `ReadSubscription`

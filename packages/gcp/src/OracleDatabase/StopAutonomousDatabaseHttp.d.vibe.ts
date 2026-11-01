@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { StopAutonomousDatabase } from "./StopAutonomousDatabase.js";
+import { StopAutonomousDatabase } from "./StopAutonomousDatabase.vibe";
 /**
  * HTTP implementation of {@link StopAutonomousDatabase}.
  *

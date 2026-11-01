@@ -9,7 +9,7 @@ import * as Schedule from "effect/Schedule";
 import { GcpEnvironment } from "../Environment.ts";
 import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { listAlchemyDataProducts } from "./DataProduct.ts";
+import { listAlchemyDataProducts } from "./DataProduct.vibe";
 import {
   DataplexNotResolved,
   collectPages,

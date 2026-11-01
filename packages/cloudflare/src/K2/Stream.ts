@@ -14,7 +14,7 @@ import * as Predicate from "effect/Predicate";
 import * as EffectStream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Providers } from "../Providers.ts";
-import type { ConsumedRecord, DecodedRecord, Record as K2Record, RecordSchema } from "./K2Types.ts";
+import type { ConsumedRecord, DecodedRecord, Record as K2Record, RecordSchema } from "./K2Types.vibe";
 
 const StreamTypeId = "Cloudflare.K2.Stream" as const;
 type StreamTypeId = typeof StreamTypeId;

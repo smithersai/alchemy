@@ -17,7 +17,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitGlobalOperation } from "./operations.ts";
+import { waitGlobalOperation } from "./operations.vibe";
 
 const DEFAULT_MACHINE_TYPE = "e2-micro";
 const DEFAULT_SOURCE_IMAGE = "projects/debian-cloud/global/images/family/debian-12";

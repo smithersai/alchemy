@@ -2,7 +2,7 @@ import type * as cf from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as Binding from "../Workers/Binding.ts";
-import { makeBindingLayer } from "../Workers/BindingLayer.ts";
+import { makeBindingLayer } from "../Workers/BindingLayer.vibe";
 import {
   Images,
   ImagesError,

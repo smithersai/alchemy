@@ -1,0 +1,247 @@
+import * as containeranalysis from "@distilled.cloud/gcp/containeranalysis_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  expandNoteName,
+  hasOwnershipMarker,
+  ignoreGone,
+  listLocationNotes,
+  locationParent,
+  missingGet,
+  noteAttrs,
+  noteKind,
+  normalizeLocation,
+  parseDescription,
+  reconcileNote,
+  replaceOnIdentity,
+  retryTransient,
+  toPhysicalId,
+} from "./internal.ts"
+import type { NoteProps } from "./Note.vibe"
+
+export type LocationsNoteProps = NoteProps & {
+  /**
+   * Location (`us-central1`, `us-east1`, …). Immutable — changing it
+   * replaces the note. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  mutable location?: string
+}
+
+export type LocationsNote = Resource<
+  "GCP.ContainerAnalysis.LocationsNote",
+  LocationsNoteProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/notes/{note}`. */
+    mutable name: string
+    /** Note id (last path segment). */
+    mutable noteId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** One-sentence summary. */
+    mutable shortDescription: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable longDescription: string | undefined
+    /** Server-reported analysis kind. */
+    mutable kind: string | undefined
+    /** RFC3339 expiration, if any. */
+    mutable expirationTime: string | undefined
+    /** URLs associated with this note. */
+    mutable relatedUrl: containeranalysis.RelatedUrlList
+    /** Related note resource names. */
+    mutable relatedNoteNames: string[]
+    /** Attestation authority metadata. */
+    mutable attestation: containeranalysis.AttestationNote | undefined
+    /** Build provenance metadata. */
+    mutable build: containeranalysis.BuildNote | undefined
+    /** Discovery metadata. */
+    mutable discovery: containeranalysis.DiscoveryNote | undefined
+    /** Base image metadata. */
+    mutable image: containeranalysis.ImageNote | undefined
+    /** Package metadata. */
+    mutable package: containeranalysis.PackageNote | undefined
+    /** Vulnerability metadata. */
+    mutable vulnerability: containeranalysis.VulnerabilityNote | undefined
+    /** Compliance metadata. */
+    mutable compliance: containeranalysis.ComplianceNote | undefined
+    /** Deployment metadata. */
+    mutable deployment: containeranalysis.DeploymentNote | undefined
+    /** Upgrade metadata. */
+    mutable upgrade: containeranalysis.UpgradeNote | undefined
+    /** Vulnerability assessment metadata. */
+    mutable vulnerabilityAssessment: containeranalysis.VulnerabilityAssessmentNote | undefined
+    /** Secret metadata. */
+    mutable secret: containeranalysis.SecretNote | undefined
+    /** DSSE attestation metadata. */
+    mutable dsseAttestation: containeranalysis.DSSEAttestationNote | undefined
+    /** SBOM reference metadata. */
+    mutable sbomReference: containeranalysis.SBOMReferenceNote | undefined
+    /** AI skill analysis metadata. */
+    mutable aiSkillAnalysis: containeranalysis.AISkillAnalysisNote | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A location-scoped Container Analysis (Grafeas) note. Same shape as
+ * {@link Note}, stored at
+ * `projects/{project}/locations/{location}/notes/{note}`.
+ *
+ * Location and note id are identity. Alchemy stamps ownership into
+ * `longDescription` for `list` / nuke.
+ *
+ * ### Creating a Locations Note
+ * **Example:** Regional attestation authority
+ * ```typescript
+ * const note = yield* GCP.ContainerAnalysis.LocationsNote("Authority", {
+ *   location: "us-central1",
+ *   shortDescription: "qa attestor",
+ *   attestation: { hint: { humanReadableName: "QA" } },
+ * });
+ * ```
+ *
+ * @resource
+ * @category ContainerAnalysis
+ */
+export const LocationsNote = Resource<LocationsNote>("GCP.ContainerAnalysis.LocationsNote")
+
+const resourceName = (project: string, location: string, noteId: string): infer _ =>
+  expandNoteName(noteId, project, location)
+
+const getByName = missingGet(containeranalysis.getProjectsLocationsNotes)
+
+const toPublicAttrs = (
+  note: containeranalysis.Note,
+  project: string,
+  region: string,
+): LocationsNote["Attributes"] => {
+  const attrs = noteAttrs(note, project)
+  return {
+    name: attrs.name,
+    noteId: attrs.noteId,
+    project: attrs.project,
+    location: attrs.location ?? region,
+    shortDescription: attrs.shortDescription,
+    longDescription: attrs.longDescription,
+    kind: attrs.kind,
+    expirationTime: attrs.expirationTime,
+    relatedUrl: attrs.relatedUrl,
+    relatedNoteNames: attrs.relatedNoteNames,
+    attestation: attrs.attestation,
+    build: attrs.build,
+    discovery: attrs.discovery,
+    image: attrs.image,
+    package: attrs.package,
+    vulnerability: attrs.vulnerability,
+    compliance: attrs.compliance,
+    deployment: attrs.deployment,
+    upgrade: attrs.upgrade,
+    vulnerabilityAssessment: attrs.vulnerabilityAssessment,
+    secret: attrs.secret,
+    dsseAttestation: attrs.dsseAttestation,
+    sbomReference: attrs.sbomReference,
+    aiSkillAnalysis: attrs.aiSkillAnalysis,
+    createTime: attrs.createTime,
+    updateTime: attrs.updateTime,
+  }
+}
+
+export const LocationsNoteProvider = (): infer _ =>
+  Provider.succeed(LocationsNote, {
+    stables: ["name", "noteId", "project", "location", "kind", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousKind = noteKind(olds ?? {}) ?? output?.kind
+      const nextKind = noteKind(news) ?? previousKind
+      return replaceOnIdentity({
+        previousId: olds?.noteId ?? output?.noteId,
+        nextId: news.noteId,
+        previousParent: locationParent(
+          "x",
+          normalizeLocation(olds?.location ?? output?.location, env.region),
+        ),
+        nextParent: locationParent(
+          "x",
+          normalizeLocation(news.location ?? olds?.location ?? output?.location, env.region),
+        ),
+        extra: previousKind !== undefined && nextKind !== undefined && previousKind !== nextKind,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const noteId = try toPhysicalId(id, olds?.noteId, output?.noteId)
+      const name = output?.name ?? resourceName(env.project, location, noteId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toPublicAttrs(existing, env.project, env.region)
+      const { labels } = parseDescription(existing.longDescription)
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listLocationNotes(env.project, env.region)
+      return items
+        .filter((item) => hasOwnershipMarker(item.longDescription))
+        .map((item) => toPublicAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const noteId = try toPhysicalId(id, news.noteId, output?.noteId)
+      const parent = locationParent(env.project, location)
+      const name = resourceName(env.project, location, noteId)
+      const current = try reconcileNote({
+        id,
+        name: output?.name ?? name,
+        parent,
+        noteId,
+        news,
+        ops: {
+          get: getByName,
+          create: effect (request) =>
+            retryTransient(
+              containeranalysis.createProjectsLocationsNotes({
+                parent: request.parent,
+                noteId: request.noteId,
+                body: request.body,
+              }),
+            ) catch effect (e) => match (e) {
+              when { _tag: "Conflict" }: try getByName(`${request.parent}/notes/${request.noteId}`);
+              default: throw e;
+            },
+          patch: effect (request) =>
+            try retryTransient(
+              containeranalysis.patchProjectsLocationsNotes({
+                name: request.name,
+                updateMask: request.updateMask,
+                body: request.body,
+              }),
+            ),
+        },
+      })
+      return toPublicAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      try ignoreGone(containeranalysis.deleteProjectsLocationsNotes({ name: output.name }))
+    },
+  })

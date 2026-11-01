@@ -25,7 +25,7 @@ import {
   sameList,
   sameText,
   toResourceId,
-} from "./common.ts";
+} from "./common.vibe";
 
 const MAX_NAME_LENGTH = 63;
 const DEFAULT_STATE = "ENABLED";

@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import { Namespace } from "../KV/Namespace.ts";
 import type { Providers } from "../Providers.ts";
 import type { AssetsConfig } from "../Workers/Assets.ts";
-import { VersionMetadata } from "../Workers/VersionMetadata.ts";
+import { VersionMetadata } from "../Workers/VersionMetadata.vibe";
 import {
   Worker,
   type NormalizedBindings,

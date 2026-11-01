@@ -1,0 +1,530 @@
+import * as networkservices from "@distilled.cloud/gcp/networkservices_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_GLOBAL,
+  changedFields,
+  collectPages,
+  hasAlchemyLabelKeys,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  resourceName,
+  rfc1035,
+  sameJson,
+  sameStringList,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+} from "./internal.ts"
+
+const COLLECTION = "grpcRoutes"
+
+export type GrpcRouteMethodMatch = {
+  /** How to match the method name. Defaults to `EXACT`. */
+  mutable type?: string
+  /** gRPC service name. Omitted matches every service. */
+  mutable grpcService?: string
+  /** gRPC method name. Omitted matches every method. */
+  mutable grpcMethod?: string
+  /**
+   * Case-sensitive matching. Defaults to true. Must not be set with
+   * `REGULAR_EXPRESSION`.
+   */
+  mutable caseSensitive?: boolean
+}
+
+export type GrpcRouteHeaderMatch = {
+  /** How to match the header value. Defaults to `EXACT`. */
+  mutable type?: string
+  /** Header key. */
+  mutable key?: string
+  /** Header value. */
+  mutable value?: string
+}
+
+export type GrpcRouteRouteMatch = {
+  /** gRPC method matcher. Omitted matches every method. */
+  mutable method?: GrpcRouteMethodMatch
+  /** Header matchers. */
+  mutable headers?: GrpcRouteHeaderMatch[]
+}
+
+export type GrpcRouteDestination = {
+  /** BackendService or Service Directory service URL. */
+  mutable serviceName?: string
+  /** Traffic weight relative to other destinations. */
+  mutable weight?: number
+}
+
+export type GrpcRouteFaultInjectionDelay = {
+  /** Fixed delay before forwarding (duration string). */
+  mutable fixedDelay?: string
+  /** Percentage of traffic delayed, 0-100. */
+  mutable percentage?: number
+}
+
+export type GrpcRouteFaultInjectionAbort = {
+  /** HTTP status used to abort, 200-599. */
+  mutable httpStatus?: number
+  /** Percentage of traffic aborted, 0-100. */
+  mutable percentage?: number
+}
+
+export type GrpcRouteFaultInjectionPolicy = {
+  /** Delay injection. */
+  mutable delay?: GrpcRouteFaultInjectionDelay
+  /** Abort injection. */
+  mutable abort?: GrpcRouteFaultInjectionAbort
+}
+
+export type GrpcRouteRetryPolicy = {
+  /**
+   * Conditions that trigger a retry (`connect-failure`, `unavailable`,
+   * `cancelled`, …).
+   */
+  mutable retryConditions?: string[]
+  /** Allowed retry count. Defaults to 1. */
+  mutable numRetries?: number
+}
+
+export type GrpcRouteStatefulSessionAffinityPolicy = {
+  /** Cookie TTL for the `GSSA` session cookie (`0s` is a session cookie). */
+  mutable cookieTtl?: string
+}
+
+export type GrpcRouteRouteAction = {
+  /** Destinations that receive matched traffic. */
+  mutable destinations?: GrpcRouteDestination[]
+  /** Fault injection. */
+  mutable faultInjectionPolicy?: GrpcRouteFaultInjectionPolicy
+  /** End-to-end timeout including retries. */
+  mutable timeout?: string
+  /** Retry policy. */
+  mutable retryPolicy?: GrpcRouteRetryPolicy
+  /** Cookie-based session affinity. */
+  mutable statefulSessionAffinity?: GrpcRouteStatefulSessionAffinityPolicy
+  /** Idle timeout. `0s` disables it. */
+  mutable idleTimeout?: string
+}
+
+export type GrpcRouteRouteRule = {
+  /**
+   * Matchers. The rule matches if any matcher matches. Omitted matches
+   * every request.
+   */
+  mutable matches?: GrpcRouteRouteMatch[]
+  /** How to route matched traffic. */
+  mutable action?: GrpcRouteRouteAction
+}
+
+export type GrpcRouteProps = {
+  /**
+   * GrpcRoute id (the `{grpcRoute}` segment of
+   * `projects/{project}/locations/{location}/grpcRoutes/{grpcRoute}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Must be 1-63 characters and not start with a number.
+   * Immutable — changing it replaces the route.
+   */
+  mutable grpcRouteId?: string
+  /**
+   * Location (`global`, `us-central1`, …). Immutable — changing it
+   * replaces the route. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default "global"
+   */
+  mutable location?: string
+  /**
+   * Service hostnames (with optional port) this route matches, e.g.
+   * `foo.example.com` or `*.example.com`.
+   */
+  mutable hostnames: string[]
+  /**
+   * Routing rules. The first matching rule is executed. At least one
+   * rule is required.
+   */
+  mutable rules: GrpcRouteRouteRule[]
+  /**
+   * Mesh resource names this route attaches to
+   * (`projects/{project}/locations/{location}/meshes/{mesh}`).
+   */
+  mutable meshes?: string[]
+  /**
+   * Gateway resource names this route attaches to
+   * (`projects/{project}/locations/{location}/gateways/{gateway}`).
+   */
+  mutable gateways?: string[]
+  /**
+   * Human-readable description. Max length 1024 characters.
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type GrpcRoute = Resource<
+  "GCP.NetworkServices.GrpcRoute",
+  GrpcRouteProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/grpcRoutes/{grpcRoute}`. */
+    mutable name: string
+    /** GrpcRoute id (last path segment). */
+    mutable grpcRouteId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id (`global`, `us-central1`, …). */
+    mutable location: string
+    /** Server-defined resource URL. */
+    mutable selfLink: string | undefined
+    /** Hostnames this route matches. */
+    mutable hostnames: string[]
+    /** Routing rules. */
+    mutable rules: GrpcRouteRouteRule[]
+    /** Attached Mesh resource names. */
+    mutable meshes: string[]
+    /** Attached Gateway resource names. */
+    mutable gateways: string[]
+    /** User-provided description. */
+    mutable description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Network Services GrpcRoute — how a Mesh or Gateway routes gRPC
+ * traffic for a set of hostnames.
+ *
+ * Changing `grpcRouteId` or `location` replaces the route. Hostnames,
+ * rules, mesh/gateway attachments, description, and labels update in
+ * place.
+ *
+ * ### Creating a GrpcRoute
+ * **Example:** Hostname with a retry policy
+ * ```typescript
+ * const route = yield* GCP.NetworkServices.GrpcRoute("Api", {
+ *   hostnames: ["api.example.com"],
+ *   rules: [
+ *     {
+ *       action: {
+ *         retryPolicy: { retryConditions: ["unavailable"], numRetries: 2 },
+ *       },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * **Example:** Attach to a gateway
+ * ```typescript
+ * const route = yield* GCP.NetworkServices.GrpcRoute("Api", {
+ *   grpcRouteId: "app-grpc",
+ *   hostnames: ["api.example.com"],
+ *   gateways: [gateway.name],
+ *   labels: { env: "prod" },
+ *   rules: [
+ *     {
+ *       matches: [{ method: { grpcService: "api.v1.Orders", grpcMethod: "Get" } }],
+ *       action: { destinations: [{ serviceName: backend.selfLink }] },
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ * @category NetworkServices
+ */
+export const GrpcRoute = Resource<GrpcRoute>("GCP.NetworkServices.GrpcRoute")
+
+const toMethod = (
+  value: GrpcRouteMethodMatch | networkservices.GrpcRouteMethodMatch | undefined,
+): GrpcRouteMethodMatch | undefined => {
+  if (value === undefined) return undefined
+  return {
+    type: value.type,
+    grpcService: value.grpcService,
+    grpcMethod: value.grpcMethod,
+    caseSensitive: value.caseSensitive,
+  }
+}
+
+const toHeader = (
+  value: GrpcRouteHeaderMatch | networkservices.GrpcRouteHeaderMatch,
+): GrpcRouteHeaderMatch => ({
+  type: value.type,
+  key: value.key,
+  value: value.value,
+})
+
+const toMatch = (
+  value: GrpcRouteRouteMatch | networkservices.GrpcRouteRouteMatch,
+): GrpcRouteRouteMatch => ({
+  method: toMethod(value.method),
+  headers: (value.headers ?? []).map(toHeader),
+})
+
+const toDestination = (
+  value: GrpcRouteDestination | networkservices.GrpcRouteDestination,
+): GrpcRouteDestination => ({
+  serviceName: value.serviceName,
+  weight: value.weight,
+})
+
+const toFault = (
+  value: GrpcRouteFaultInjectionPolicy | networkservices.GrpcRouteFaultInjectionPolicy | undefined,
+): GrpcRouteFaultInjectionPolicy | undefined => {
+  if (value === undefined) return undefined
+  return {
+    delay: value.delay
+      ? {
+        fixedDelay: value.delay.fixedDelay,
+        percentage: value.delay.percentage,
+      }
+      : undefined,
+    abort: value.abort
+      ? {
+        httpStatus: value.abort.httpStatus,
+        percentage: value.abort.percentage,
+      }
+      : undefined,
+  }
+}
+
+const toRetry = (
+  value: GrpcRouteRetryPolicy | networkservices.GrpcRouteRetryPolicy | undefined,
+): GrpcRouteRetryPolicy | undefined => {
+  if (value === undefined) return undefined
+  return {
+    retryConditions: value.retryConditions ?? [],
+    numRetries: value.numRetries,
+  }
+}
+
+const toAffinity = (
+  value:
+    | GrpcRouteStatefulSessionAffinityPolicy
+    | networkservices.GrpcRouteStatefulSessionAffinityPolicy
+    | undefined,
+): GrpcRouteStatefulSessionAffinityPolicy | undefined => {
+  if (value === undefined) return undefined
+  return { cookieTtl: value.cookieTtl }
+}
+
+const toAction = (
+  value: GrpcRouteRouteAction | networkservices.GrpcRouteRouteAction | undefined,
+): GrpcRouteRouteAction | undefined => {
+  if (value === undefined) return undefined
+  return {
+    destinations: (value.destinations ?? []).map(toDestination),
+    faultInjectionPolicy: toFault(value.faultInjectionPolicy),
+    timeout: value.timeout,
+    retryPolicy: toRetry(value.retryPolicy),
+    statefulSessionAffinity: toAffinity(value.statefulSessionAffinity),
+    idleTimeout: value.idleTimeout,
+  }
+}
+
+const toRule = (
+  value: GrpcRouteRouteRule | networkservices.GrpcRouteRouteRule,
+): GrpcRouteRouteRule => ({
+  matches: (value.matches ?? []).map(toMatch),
+  action: toAction(value.action),
+})
+
+const toAttrs = (route: networkservices.GrpcRoute, project: string): infer _ => {
+  const name = route.name ?? ""
+  const parsed = parseName(name, COLLECTION, DEFAULT_GLOBAL)
+  return {
+    name,
+    grpcRouteId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || DEFAULT_GLOBAL,
+    selfLink: route.selfLink,
+    hostnames: route.hostnames ?? [],
+    rules: (route.rules ?? []).map(toRule),
+    meshes: route.meshes ?? [],
+    gateways: route.gateways ?? [],
+    description: route.description,
+    labels: userLabels(route.labels),
+    createTime: route.createTime,
+    updateTime: route.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networkservices
+    .getProjectsLocationsGrpcRoutes({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const GrpcRouteProvider = (): infer _ =>
+  Provider.succeed(GrpcRoute, {
+    stables: ["name", "grpcRouteId", "project", "location", "selfLink", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.grpcRouteId ?? output?.grpcRouteId
+      const nextId = news.grpcRouteId ? rfc1035(news.grpcRouteId, "grpc-route") : previousId
+      const previousLocation = normalizeLocation(
+        olds?.location ?? output?.location,
+        DEFAULT_GLOBAL,
+      )
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        DEFAULT_GLOBAL,
+      )
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const grpcRouteId = try toPhysicalId(
+        id,
+        olds?.grpcRouteId,
+        output?.grpcRouteId,
+        "grpc-route",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, DEFAULT_GLOBAL)
+      const name = output?.name ?? resourceName(env.project, location, COLLECTION, grpcRouteId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try collectPages(
+        networkservices.listProjectsLocationsGrpcRoutes.pages({
+          parent: parentOf(env.project, "-"),
+          pageSize: 1000,
+          returnPartialSuccess: true,
+        }),
+        (page) => page.grpcRoutes,
+      )
+      return items
+        .filter((item) => hasAlchemyLabelKeys(item.labels))
+        .map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const grpcRouteId = try toPhysicalId(
+        id,
+        news.grpcRouteId,
+        output?.grpcRouteId,
+        "grpc-route",
+      )
+      const location = normalizeLocation(news.location ?? output?.location, DEFAULT_GLOBAL)
+      const name = resourceName(env.project, location, COLLECTION, grpcRouteId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const desiredRules = news.rules.map(toRule)
+      const desiredHostnames = news.hostnames
+      const desiredMeshes = news.meshes ?? []
+      const desiredGateways = news.gateways ?? []
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (try (networkservices
+          .createProjectsLocationsGrpcRoutes({
+            parent: parentOf(env.project, location),
+            grpcRouteId,
+            body: {
+              labels: desiredLabels,
+              description: news.description,
+              hostnames: desiredHostnames,
+              rules: desiredRules,
+              meshes: desiredMeshes,
+              gateways: desiredGateways,
+            },
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 5,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const hostnamesChanged = !sameStringList(current.hostnames, desiredHostnames)
+      const rulesChanged = !sameJson((current.rules ?? []).map(toRule), desiredRules)
+      const meshesChanged = !sameStringList(current.meshes, desiredMeshes)
+      const gatewaysChanged = !sameStringList(current.gateways, desiredGateways)
+
+      const updateMask = changedFields([
+        ["labels", labelsChanged],
+        ["description", descriptionChanged],
+        ["hostnames", hostnamesChanged],
+        ["rules", rulesChanged],
+        ["meshes", meshesChanged],
+        ["gateways", gatewaysChanged],
+      ])
+
+      if (updateMask.length > 0) {
+        const operation = try networkservices.patchProjectsLocationsGrpcRoutes({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+            hostnames: desiredHostnames,
+            rules: desiredRules,
+            meshes: desiredMeshes,
+            gateways: desiredGateways,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilPresent(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (networkservices
+        .deleteProjectsLocationsGrpcRoutes({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

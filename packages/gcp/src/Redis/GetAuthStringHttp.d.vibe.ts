@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetAuthString } from "./GetAuthString.js";
+import { GetAuthString } from "./GetAuthString.vibe";
 /**
  * HTTP implementation of {@link GetAuthString}.
  *

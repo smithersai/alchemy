@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CancelTrainingPipeline } from "./CancelTrainingPipeline.js";
+import { CancelTrainingPipeline } from "./CancelTrainingPipeline.vibe";
 /**
  * HTTP implementation of {@link CancelTrainingPipeline}.
  *

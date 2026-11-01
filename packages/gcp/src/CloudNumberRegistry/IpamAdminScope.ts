@@ -27,7 +27,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 const COLLECTION = "ipamAdminScopes";
 const DEFAULT_PLATFORM: cnr.IpamAdminScopeEnabledAddonPlatformsItemEnum = "COMPUTE_ENGINE";

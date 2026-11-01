@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadSubscription } from "./ReadSubscription.js";
+import { ReadSubscription } from "./ReadSubscription.vibe";
 /**
  * HTTP implementation of {@link ReadSubscription} over the Pub/Sub REST API.
  *

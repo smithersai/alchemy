@@ -22,7 +22,7 @@ import {
   sameText,
   toResourceId,
   updateMaskOf,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type AnnotatorSelector = {
   /** Run the sentiment annotator. */

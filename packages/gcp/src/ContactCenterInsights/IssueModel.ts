@@ -19,7 +19,7 @@ import {
   ownedByAlchemy,
   parseOwnership,
   sameJson,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type IssueModelInputDataConfig = {
   /**

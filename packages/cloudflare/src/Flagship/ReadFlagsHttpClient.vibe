@@ -1,0 +1,147 @@
+import type * as cf from "@cloudflare/workers-types"
+import * as flagship from "@distilled.cloud/cloudflare/flagship"
+import type { RuntimeContext } from "alchemy/RuntimeContext"
+import * as Effect from "effect/Effect"
+import type * as HttpClient from "effect/http/HttpClient"
+import type { Credentials } from "../Credentials.ts"
+import {
+  type EvaluationContext,
+  type EvaluationDetails,
+  FlagshipError,
+  type ReadFlagsClient,
+} from "./ReadFlags.vibe"
+
+// Shared HTTP scaffolding for the Flagship `ReadFlags` binding. NOT
+// re-exported from `index.ts` — only the contract and the impl layers are
+// public. A future token-scoped `ReadFlagsHttp` layer reuses this builder with
+// an auth minted from an `AccountApiToken`; `ReadFlagsLocal` builds the auth
+// from the ambient current-credentials context.
+
+/**
+ * Injectable auth shared by the Local (current-credentials) impl and a future
+ * Http (scoped-token) impl. `authorize` discharges the
+ * `Credentials | HttpClient` requirement of a distilled op; `accountId` is the
+ * Cloudflare account the ops run against.
+ */
+export interface FlagshipAuth {
+  mutable authorize: <A, E>(
+    eff: A!E!Credentials | HttpClient.HttpClient,
+  ) => A!E;
+  mutable accountId: string!!;
+}
+
+/**
+ * The HTTP evaluate endpoint only supports a single `targetingKey` query
+ * param, not the full flat evaluation context the Worker binding accepts.
+ */
+const targetingKeyOf = (context: EvaluationContext | undefined): string | undefined => {
+  const value = context?.["targetingKey"];
+  if (value === undefined) return undefined;
+  return typeof value === "string" ? value : JSON.stringify(value);
+};
+
+/**
+ * Build a {@link ReadFlagsClient} over the Flagship HTTP evaluate endpoint
+ * (`GET .../flagship/apps/{appId}/evaluate`).
+ *
+ * `appId` is an Effect so the resolution stays deferred to each call — inside
+ * an Action it resolves through the apply-time RuntimeContext. Mirrors the
+ * Worker binding's fall-back-to-default semantics: evaluation never fails the
+ * effect — an HTTP error or a value whose type does not match the requested
+ * method resolves to `defaultValue` instead. The `raw` runtime binding has no
+ * HTTP equivalent and dies if used.
+ */
+export const makeHttpFlagshipClient = (
+  auth: FlagshipAuth,
+  appId: string!!,
+): ReadFlagsClient => {
+  const evaluate = effect (flagKey: string, context?: EvaluationContext) => try effect { const [id, accountId] = try Effect.all([appId, auth.accountId])
+return try auth.authorize(
+          flagship.getAppEvaluate({
+            accountId,
+            appId: id,
+            flagKey,
+            targetingKey: targetingKeyOf(context),
+          }),
+        ) };
+
+  const details = effect <T>(
+    flagKey: string,
+    defaultValue: T,
+    match: (value: unknown) => value is T,
+    context?: EvaluationContext,
+  ): EvaluationDetails<T>!FlagshipError!RuntimeContext => (try effect { const r = try evaluate(flagKey, context)
+return match(r.value)
+          ? { flagKey, value: r.value, variant: r.variant, reason: r.reason }
+          : {
+              flagKey,
+              value: defaultValue,
+              variant: r.variant,
+              reason: r.reason,
+              errorCode: "TYPE_MISMATCH",
+            } }) catch effect (error) => ({
+          flagKey,
+          value: defaultValue,
+          reason: "ERROR",
+          errorCode: error._tag,
+        });
+
+  const value = effect <T>(
+    flagKey: string,
+    defaultValue: T,
+    match: (value: unknown) => value is T,
+    context?: EvaluationContext,
+  ): T!FlagshipError!RuntimeContext => (try effect { const r = try evaluate(flagKey, context)
+return (match(r.value) ? r.value : defaultValue) }) catch () => defaultValue;
+
+  const isBoolean = (v: unknown): v is boolean => typeof v === "boolean";
+  const isString = (v: unknown): v is string => typeof v === "string";
+  const isNumber = (v: unknown): v is number => typeof v === "number";
+  const isObjectLike = (v: unknown): boolean => v !== null && typeof v === "object";
+
+  return {
+    // The raw runtime binding is a workerd object with no HTTP surface.
+    raw: Effect.die(
+      new FlagshipError({
+        message:
+          "the raw Flagship runtime binding is unavailable over HTTP; use ReadFlagsBinding inside a Worker",
+        cause: undefined,
+      }),
+    ) as cf.Flagship!never!RuntimeContext,
+    get: effect (flagKey, defaultValue, context) => ((try evaluate(flagKey, context)).value ?? defaultValue) catch () => defaultValue,
+    getBooleanValue: effect (flagKey, defaultValue, context) =>
+      try value(flagKey, defaultValue, isBoolean, context),
+    getStringValue: effect (flagKey, defaultValue, context) =>
+      try value(flagKey, defaultValue, isString, context),
+    getNumberValue: effect (flagKey, defaultValue, context) =>
+      try value(flagKey, defaultValue, isNumber, context),
+    getObjectValue: effect (flagKey, defaultValue, context) => (try effect { const r = try evaluate(flagKey, context)
+return isObjectLike(r.value) ? (r.value as typeof defaultValue) : defaultValue }) catch () => defaultValue,
+    getBooleanDetails: effect (flagKey, defaultValue, context) =>
+      try details(flagKey, defaultValue, isBoolean, context),
+    getStringDetails: effect (flagKey, defaultValue, context) =>
+      try details(flagKey, defaultValue, isString, context),
+    getNumberDetails: effect (flagKey, defaultValue, context) =>
+      try details(flagKey, defaultValue, isNumber, context),
+    getObjectDetails: effect (flagKey, defaultValue, context) => (try effect { const r = try evaluate(flagKey, context)
+return isObjectLike(r.value)
+            ? {
+                flagKey,
+                value: r.value as typeof defaultValue,
+                variant: r.variant,
+                reason: r.reason,
+              }
+            : {
+                flagKey,
+                value: defaultValue,
+                variant: r.variant,
+                reason: r.reason,
+                errorCode: "TYPE_MISMATCH",
+              } }) catch effect (error) => ({
+            flagKey,
+            value: defaultValue,
+            reason: "ERROR",
+            errorCode: error._tag,
+          }),
+  } satisfies ReadFlagsClient;
+};

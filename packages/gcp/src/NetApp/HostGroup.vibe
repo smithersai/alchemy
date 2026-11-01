@@ -1,0 +1,321 @@
+import * as netapp from "@distilled.cloud/gcp/netapp_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  fieldMask,
+  listAtLocation,
+  listLabeledPages,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  sameStringList,
+  toPhysicalId,
+  userLabels,
+  waitForDeleteOperation,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+
+const DEFAULT_TYPE: netapp.HostGroupTypeEnum = "ISCSI_INITIATOR"
+const DEFAULT_OS: netapp.HostGroupOsTypeEnum = "LINUX"
+
+export type HostGroupProps = {
+  /**
+   * Host group id (the `{hostGroup}` segment of
+   * `projects/{project}/locations/{location}/hostGroups/{hostGroup}`).
+   * If omitted, a unique RFC1035 name is generated from the stack, stage,
+   * and logical id. Immutable — changing it replaces the group.
+   */
+  mutable hostGroupId?: string
+  /**
+   * Region (`us-central1`, `us-east1`, …). Immutable — changing it
+   * replaces the group. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * IQN (iSCSI) or NQN (NVMe) host identifiers in the group.
+   */
+  mutable hosts: string[]
+  /**
+   * Host group type. Immutable — changing it replaces the group.
+   * @default "ISCSI_INITIATOR"
+   */
+  mutable type?: netapp.HostGroupTypeEnum | (string & {})
+  /**
+   * OS type shared by every host. Immutable — changing it replaces the
+   * group.
+   * @default "LINUX"
+   */
+  mutable osType?: netapp.HostGroupOsTypeEnum | (string & {})
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type HostGroup = Resource<
+  "GCP.NetApp.HostGroup",
+  HostGroupProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Host group id (last path segment). */
+    mutable hostGroupId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Host identifiers. */
+    mutable hosts: string[]
+    /** Host group type. */
+    mutable type: string | undefined
+    /** OS type. */
+    mutable osType: string | undefined
+    /** Human-readable description. */
+    mutable description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Server-reported state. */
+    mutable state: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud NetApp Volumes host group — a set of iSCSI initiators that can
+ * mount a block volume.
+ *
+ * Changing `hostGroupId`, `location`, `type`, or `osType` replaces the
+ * group. Hosts, description, and labels update in place.
+ *
+ * ### Creating a Host Group
+ * **Example:** Generated name
+ * ```typescript
+ * const group = yield* GCP.NetApp.HostGroup("Initiators", {
+ *   hosts: ["iqn.1993-08.org.debian:01:db"],
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and OS
+ * ```typescript
+ * const group = yield* GCP.NetApp.HostGroup("Initiators", {
+ *   hostGroupId: "db-hosts",
+ *   hosts: ["iqn.1993-08.org.debian:01:db"],
+ *   osType: "LINUX",
+ *   description: "database initiators",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating a Host Group
+ * **Example:** Hosts and labels
+ * ```typescript
+ * const group = yield* GCP.NetApp.HostGroup("Initiators", {
+ *   hosts: [
+ *     "iqn.1993-08.org.debian:01:db",
+ *     "iqn.1993-08.org.debian:01:db2",
+ *   ],
+ *   labels: { env: "prod", team: "storage" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category NetApp
+ */
+export const HostGroup = Resource<HostGroup>("GCP.NetApp.HostGroup")
+
+const resourceName = (project: string, location: string, hostGroupId: string): infer _ =>
+  `projects/${project}/locations/${location}/hostGroups/${hostGroupId}`
+
+const toAttrs = (item: netapp.HostGroup, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "hostGroups", region)
+  return {
+    name,
+    hostGroupId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    hosts: item.hosts ?? [],
+    type: item.type,
+    osType: item.osType,
+    description: item.description,
+    labels: userLabels(item.labels),
+    state: item.state,
+    createTime: item.createTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  netapp
+    .getProjectsLocationsHostGroups({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwned = effect (project: string) =>
+  try listAtLocation(project, effect (parent) =>
+    try listLabeledPages(
+      netapp.listProjectsLocationsHostGroups.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.hostGroups,
+      (item) => item.labels,
+    ))
+
+export const HostGroupProvider = (): infer _ =>
+  Provider.succeed(HostGroup, {
+    stables: ["name", "hostGroupId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousType = olds?.type ?? output?.type
+      const previousOs = olds?.osType ?? output?.osType
+      const nextType = news.type ?? DEFAULT_TYPE
+      const nextOs = news.osType ?? DEFAULT_OS
+      return replaceOnIdentity({
+        previousId: olds?.hostGroupId ?? output?.hostGroupId,
+        nextId: news.hostGroupId ?? olds?.hostGroupId ?? output?.hostGroupId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: (previousType !== undefined && nextType !== previousType)
+          || (previousOs !== undefined && nextOs !== previousOs),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const hostGroupId = try toPhysicalId(
+        id,
+        olds?.hostGroupId,
+        output?.hostGroupId,
+        "hostgroup",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, hostGroupId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const hostGroupId = try toPhysicalId(
+        id,
+        news.hostGroupId,
+        output?.hostGroupId,
+        "hostgroup",
+      )
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, hostGroupId)
+      const type = news.type ?? DEFAULT_TYPE
+      const osType = news.osType ?? DEFAULT_OS
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = netapp
+          .createProjectsLocationsHostGroups({
+            parent: parentOf(env.project, location),
+            hostGroupId,
+            body: {
+              hosts: news.hosts,
+              type,
+              osType,
+              description: news.description,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      current = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item) => item.state,
+      )
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const mask = fieldMask([
+        (upsert.length > 0 || removed.length > 0) && "labels",
+        (current.description ?? "") !== (news.description ?? "") && "description",
+        !sameStringList(current.hosts, news.hosts) && "hosts",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try netapp.patchProjectsLocationsHostGroups({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+            hosts: news.hosts,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(
+          getByName(current.name ?? name),
+          current.name ?? name,
+          (item) => item.state,
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (netapp.deleteProjectsLocationsHostGroups({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForDeleteOperation(operation)
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

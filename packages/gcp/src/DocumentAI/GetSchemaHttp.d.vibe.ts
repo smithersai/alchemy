@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetSchema } from "./GetSchema.js";
+import { GetSchema } from "./GetSchema.vibe";
 /**
  * HTTP implementation of {@link GetSchema}.
  *

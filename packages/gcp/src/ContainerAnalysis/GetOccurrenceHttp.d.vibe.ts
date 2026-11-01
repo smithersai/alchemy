@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetOccurrence } from "./GetOccurrence.js";
+import { GetOccurrence } from "./GetOccurrence.vibe";
 /**
  * HTTP implementation of {@link GetOccurrence}.
  *

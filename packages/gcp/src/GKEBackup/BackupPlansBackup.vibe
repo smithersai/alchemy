@@ -1,0 +1,328 @@
+import * as gkebackup from "@distilled.cloud/gcp/gkebackup_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  expandParent,
+  fieldMask,
+  listAtNested,
+  listLabeledPages,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  sameText,
+  toPhysicalId,
+  userLabels,
+  waitForDeleteOperation,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type BackupPlansBackupProps = {
+  /**
+   * Parent BackupPlan. Full name
+   * `projects/{project}/locations/{location}/backupPlans/{backupPlan}`
+   * or the plan id (combined with `location`). Immutable — changing it
+   * replaces the backup.
+   */
+  mutable backupPlan: string
+  /**
+   * Region used when `backupPlan` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Backup id (the `{backup}` segment). If omitted, a unique RFC1035 name
+   * is generated from the stack, stage, and logical id. Immutable —
+   * changing it replaces the backup.
+   */
+  mutable backupId?: string
+  /**
+   * Minimum age in days before this Backup can be deleted (`0`–`90`).
+   * May only be increased after create. Defaults to the parent plan's
+   * `backupDeleteLockDays`.
+   */
+  mutable deleteLockDays?: number
+  /**
+   * Age in days after which this Backup is automatically deleted. `0`
+   * disables automatic deletion. May only be increased after create.
+   * Defaults to the parent plan's `backupRetainDays`.
+   */
+  mutable retainDays?: number
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type BackupPlansBackup = Resource<
+  "GCP.GKEBackup.BackupPlansBackup",
+  BackupPlansBackupProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Backup id (last path segment). */
+    mutable backupId: string
+    /** Parent BackupPlan name. */
+    mutable backupPlan: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Whether all namespaces were included. */
+    mutable allNamespaces: boolean | undefined
+    /** Delete-lock duration in days. */
+    mutable deleteLockDays: number | undefined
+    /** Automatic-deletion age in days. */
+    mutable retainDays: number | undefined
+    /** Whether this Backup was created manually. */
+    mutable manual: boolean | undefined
+    /** Whether the Backup contains volume data. */
+    mutable containsVolumeData: boolean | undefined
+    /** Whether the Backup contains Kubernetes Secrets. */
+    mutable containsSecrets: boolean | undefined
+    /** Size of the Backup in bytes. */
+    mutable sizeBytes: string | undefined
+    /** Human-readable description. */
+    mutable description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Server-reported state. */
+    mutable state: string | undefined
+    /** Human-readable state reason. */
+    mutable stateReason: string | undefined
+    /** Server-generated resource uid. */
+    mutable uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 completion timestamp. */
+    mutable completeTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Backup for GKE backup — a point-in-time capture of a cluster under
+ * a BackupPlan.
+ *
+ * Changing `backupId`, `backupPlan`, or `location` replaces the backup.
+ * Description, labels, `deleteLockDays`, and `retainDays` update in
+ * place (`deleteLockDays` and `retainDays` may only increase).
+ *
+ * ### Creating a Backup
+ * **Example:** Manual backup
+ * ```typescript
+ * const backup = yield* GCP.GKEBackup.BackupPlansBackup("Nightly", {
+ *   backupPlan: plan.name,
+ * });
+ * ```
+ *
+ * **Example:** Retention overrides
+ * ```typescript
+ * const backup = yield* GCP.GKEBackup.BackupPlansBackup("Nightly", {
+ *   backupPlan: plan.name,
+ *   deleteLockDays: 7,
+ *   retainDays: 30,
+ *   description: "pre-release",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating a Backup
+ * **Example:** Description and labels
+ * ```typescript
+ * const backup = yield* GCP.GKEBackup.BackupPlansBackup("Nightly", {
+ *   backupPlan: plan.name,
+ *   description: "pre-release v2",
+ *   labels: { env: "prod", team: "platform" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category GKEBackup
+ */
+export const BackupPlansBackup = Resource<BackupPlansBackup>("GCP.GKEBackup.BackupPlansBackup")
+
+const resourceName = (plan: string, backupId: string): infer _ => `${plan}/backups/${backupId}`
+
+const toAttrs = (item: gkebackup.Backup, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "backups", region)
+  return {
+    name,
+    backupId: parsed.id,
+    backupPlan: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    allNamespaces: item.allNamespaces,
+    deleteLockDays: item.deleteLockDays,
+    retainDays: item.retainDays,
+    manual: item.manual,
+    containsVolumeData: item.containsVolumeData,
+    containsSecrets: item.containsSecrets,
+    sizeBytes: item.sizeBytes,
+    description: item.description,
+    labels: userLabels(item.labels),
+    state: item.state,
+    stateReason: item.stateReason,
+    uid: item.uid,
+    createTime: item.createTime,
+    completeTime: item.completeTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  gkebackup
+    .getProjectsLocationsBackupPlansBackups({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwned = effect (project: string) =>
+  try listAtNested(project, "backupPlans/-", effect (parent) =>
+    try listLabeledPages(
+      gkebackup.listProjectsLocationsBackupPlansBackups.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.backups,
+      (item) => item.labels,
+    ))
+
+export const BackupPlansBackupProvider = (): infer _ =>
+  Provider.succeed(BackupPlansBackup, {
+    stables: ["name", "backupId", "backupPlan", "project", "location", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      return replaceOnIdentity({
+        previousId: olds?.backupId ?? output?.backupId,
+        nextId: news.backupId ?? olds?.backupId ?? output?.backupId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        previousParent: olds?.backupPlan ?? output?.backupPlan,
+        nextParent: news.backupPlan,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const backupId = try toPhysicalId(id, olds?.backupId, output?.backupId, "backup")
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const plan = expandParent(
+        olds?.backupPlan ?? output?.backupPlan ?? "",
+        env.project,
+        location,
+        "backupPlans",
+      )
+      const name = output?.name ?? resourceName(plan, backupId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const backupId = try toPhysicalId(id, news.backupId, output?.backupId, "backup")
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const plan = expandParent(news.backupPlan, env.project, location, "backupPlans")
+      const name = resourceName(plan, backupId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = gkebackup
+          .createProjectsLocationsBackupPlansBackups({
+            parent: plan,
+            backupId,
+            body: {
+              deleteLockDays: news.deleteLockDays,
+              retainDays: news.retainDays,
+              description: news.description,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const mask = fieldMask([
+        (upsert.length > 0 || removed.length > 0) && "labels",
+        !sameText(current.description, news.description) && "description",
+        news.deleteLockDays !== undefined
+        && news.deleteLockDays !== current.deleteLockDays
+        && "deleteLockDays",
+        news.retainDays !== undefined && news.retainDays !== current.retainDays && "retainDays",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try gkebackup.patchProjectsLocationsBackupPlansBackups({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            etag: current.etag,
+            labels: desiredLabels,
+            description: news.description,
+            deleteLockDays: news.deleteLockDays,
+            retainDays: news.retainDays,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (gkebackup
+        .deleteProjectsLocationsBackupPlansBackups({
+          name: output.name,
+          force: true,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForDeleteOperation(operation)
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

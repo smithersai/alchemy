@@ -20,7 +20,7 @@ import {
   sameText,
   segmentAfter,
   toResourceId,
-} from "./common.ts";
+} from "./common.vibe";
 
 export type EnvironmentsApisRevisionsDebugsessionProps = {
   /**

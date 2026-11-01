@@ -19,7 +19,7 @@ import {
 import type { Providers } from "../Providers.ts";
 import { listLocations } from "./names.ts";
 import { resourceNameFromOperation, waitForOperation } from "./operations.ts";
-import { lastSegment, locationOf, locationParent, parentOf, toResourceId } from "./ownership.ts";
+import { lastSegment, locationOf, locationParent, parentOf, toResourceId } from "./ownership.vibe";
 
 export type ReasoningEnginesSessionProps = {
   /**

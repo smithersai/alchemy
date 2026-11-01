@@ -3,8 +3,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
-import type { Attestor } from "./Attestor.ts";
-import { GetAttestor, type GetAttestorRequest } from "./GetAttestor.ts";
+import type { Attestor } from "./Attestor.vibe";
+import { GetAttestor, type GetAttestorRequest } from "./GetAttestor.vibe";
 
 /**
  * HTTP implementation of {@link GetAttestor}.

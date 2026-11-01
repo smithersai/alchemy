@@ -2,7 +2,7 @@ import * as r2 from "@distilled.cloud/cloudflare/r2";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import { authorizeWith } from "../HttpClientUtils.ts";
+import { authorizeWith } from "../HttpClientUtils.vibe";
 import {
   baseObject,
   makeHttpBucketBinding,
@@ -11,8 +11,8 @@ import {
   type HttpMetadata,
   type R2Auth,
 } from "./BucketHttp.ts";
-import { R2Error, type GetOptions, type ListOptions, type Objects } from "./BucketTypes.ts";
-import { ReadBucket, type ReadBucketClient } from "./ReadBucket.ts";
+import { R2Error, type GetOptions, type ListOptions, type Objects } from "./BucketTypes.vibe";
+import { ReadBucket, type ReadBucketClient } from "./ReadBucket.vibe";
 
 /**
  * HTTP-backed implementation of the {@link ReadBucket} binding.

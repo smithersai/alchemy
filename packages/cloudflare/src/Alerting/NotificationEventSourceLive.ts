@@ -15,7 +15,7 @@ import {
   type Notification,
   type NotificationEventSourceService,
   type NotifyingPolicy,
-} from "./NotificationEventSource.ts";
+} from "./NotificationEventSource.vibe";
 import type { AlertType } from "./NotificationPolicy.ts";
 import { NotificationWebhook } from "./Webhook.ts";
 

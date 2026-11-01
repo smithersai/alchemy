@@ -9,7 +9,7 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { lastSegment, orgParent, resolveOrgId, sameJson, toPhysicalId } from "./operations.ts";
+import { lastSegment, orgParent, resolveOrgId, sameJson, toPhysicalId } from "./operations.vibe";
 import { fromAttributes, toAttributes, userAttributeList, type Attribute } from "./ownership.ts";
 
 const MAX_NAME_LENGTH = 255;

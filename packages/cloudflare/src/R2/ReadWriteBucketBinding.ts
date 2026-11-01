@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { makeBucketBinding, makeHelpers } from "./BucketBinding.ts";
 import { makeRead } from "./ReadBucketBinding.ts";
-import { ReadWriteBucket, type ReadWriteBucketClient } from "./ReadWriteBucket.ts";
+import { ReadWriteBucket, type ReadWriteBucketClient } from "./ReadWriteBucket.vibe";
 import { makeWrite } from "./WriteBucketBinding.ts";
 
 /**

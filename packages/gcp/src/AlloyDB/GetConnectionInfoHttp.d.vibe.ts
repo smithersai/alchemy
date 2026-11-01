@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetConnectionInfo } from "./GetConnectionInfo.js";
+import { GetConnectionInfo } from "./GetConnectionInfo.vibe";
 /**
  * HTTP implementation of {@link GetConnectionInfo}.
  *

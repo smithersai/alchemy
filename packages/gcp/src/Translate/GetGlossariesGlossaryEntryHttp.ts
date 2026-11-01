@@ -1,7 +1,7 @@
 import * as translate from "@distilled.cloud/gcp/translate_v3";
 import * as Layer from "effect/Layer";
 import { makeGlossaryEntryHttpBinding } from "./BindingHttp.ts";
-import { GetGlossariesGlossaryEntry } from "./GetGlossariesGlossaryEntry.ts";
+import { GetGlossariesGlossaryEntry } from "./GetGlossariesGlossaryEntry.vibe";
 
 /**
  * HTTP implementation of {@link GetGlossariesGlossaryEntry}.

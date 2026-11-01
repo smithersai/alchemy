@@ -2,7 +2,7 @@ import type * as runtime from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
-import { makeClient, QuerySearch } from "./QuerySearch.ts";
+import { makeClient, QuerySearch } from "./QuerySearch.vibe";
 import type { SearchInstance } from "./SearchInstance.ts";
 
 /**

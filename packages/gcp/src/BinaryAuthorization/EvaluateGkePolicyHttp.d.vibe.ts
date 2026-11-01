@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { EvaluateGkePolicy } from "./EvaluateGkePolicy.js";
+import { EvaluateGkePolicy } from "./EvaluateGkePolicy.vibe";
 /**
  * HTTP implementation of {@link EvaluateGkePolicy}.
  *

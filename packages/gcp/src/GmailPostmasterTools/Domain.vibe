@@ -1,0 +1,199 @@
+import * as gmailpostmastertools from "@distilled.cloud/gcp/gmailpostmastertools_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  domainIdOf,
+  getDomain,
+  ignoreMissing,
+  isAlchemyDomain,
+  listOwnedDomains,
+  sameText,
+  toDomainName,
+  toGeneratedDomainId,
+} from "./internal.ts"
+
+export type DomainProps = {
+  /**
+   * Fully qualified domain name registered with Postmaster Tools
+   * (`mail.example.com`). If omitted, a unique `alchemy-*.example.com`
+   * name is generated from the stack, stage, and logical id. Immutable —
+   * changing it replaces the domain. Domains have no labels field, so
+   * Alchemy stamps ownership into the generated name prefix for
+   * `list` / nuke.
+   */
+  mutable domainId?: string
+  /**
+   * DNS verification method. When set, reconcile calls `domains.verify`
+   * if the domain is not already `VERIFIED`. Requires the matching TXT
+   * or CNAME record.
+   */
+  mutable verificationMethod?:
+    | gmailpostmastertools.VerifyDomainRequestVerificationMethodEnum
+    | (string & {})
+}
+
+export type Domain = Resource<
+  "GCP.GmailPostmasterTools.Domain",
+  DomainProps,
+  {
+    /** Full resource name `domains/{domain}`. */
+    mutable name: string
+    /** Fully qualified domain name. */
+    mutable domainId: string
+    /** Project id used when the domain was reconciled. */
+    mutable project: string
+    /** Caller's permission on the domain. */
+    mutable permission: string | undefined
+    /** Domain ownership verification state. */
+    mutable verificationState: string | undefined
+    /** RFC3339 time the domain was added. */
+    mutable createTime: string | undefined
+    /** RFC3339 time the domain was last verified. */
+    mutable lastVerifyTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Gmail Postmaster Tools domain.
+ *
+ * Domains have no labels or description, so identity is the FQDN and
+ * `list` / nuke returns names whose first label starts with `alchemy-`.
+ * There is nothing mutable beyond identity except optional DNS
+ * verification. Changing `domainId` replaces the domain.
+ *
+ * ### Creating a Domain
+ * **Example:** Generated domain
+ * ```typescript
+ * const domain = yield* GCP.GmailPostmasterTools.Domain("Mail", {});
+ * ```
+ *
+ * **Example:** Explicit domain
+ * ```typescript
+ * const domain = yield* GCP.GmailPostmasterTools.Domain("Mail", {
+ *   domainId: "mail.example.com",
+ * });
+ * ```
+ *
+ * ### Verifying a Domain
+ * **Example:** Verify with a TXT record
+ * ```typescript
+ * const domain = yield* GCP.GmailPostmasterTools.Domain("Mail", {
+ *   domainId: "mail.example.com",
+ *   verificationMethod: "TXT",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Gmail Postmaster Tools
+ */
+export const Domain = Resource<Domain>("GCP.GmailPostmasterTools.Domain")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DomainNotResolved extends Data.TaggedError(
+  "GCP.GmailPostmasterTools.DomainNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const toAttrs = (domain: gmailpostmastertools.Domain, project: string, fallbackId?: string): infer _ => {
+  const name = domain.name ?? (fallbackId ? toDomainName(fallbackId) : "")
+  return {
+    name,
+    domainId: domainIdOf(name) || fallbackId || "",
+    project,
+    permission: domain.permission,
+    verificationState: domain.verificationState,
+    createTime: domain.createTime,
+    lastVerifyTime: domain.lastVerifyTime,
+  }
+}
+
+export const DomainProvider = (): infer _ =>
+  Provider.succeed(Domain, {
+    stables: ["name", "domainId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previous = olds?.domainId ?? output?.domainId
+      if (
+        previous !== undefined
+        && news.domainId !== undefined
+        && domainIdOf(news.domainId) !== domainIdOf(previous)
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const domainId = olds?.domainId ?? output?.domainId ?? ""
+      const name = toDomainName(output?.name || domainId)
+      const existing = try getDomain(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, domainId)
+      return output !== undefined || isAlchemyDomain(existing.name) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const domains = try listOwnedDomains()
+      return domains.map((domain) => toAttrs(domain, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const domainId = try toGeneratedDomainId(id, news.domainId, output?.domainId)
+      const name = toDomainName(domainId)
+
+      let current = try getDomain(output?.name || name)
+
+      if (current === undefined) {
+        const created = gmailpostmastertools
+          .createDomains({ body: { domainId } }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try getDomain(name);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DomainNotResolved({ resourceName: name })
+      }
+
+      const resourceName = current.name ?? name
+      if (
+        news.verificationMethod !== undefined
+        && !sameText(current.verificationState, "VERIFIED")
+      ) {
+        try gmailpostmastertools.verifyDomains({
+          name: resourceName,
+          body: { verificationMethod: news.verificationMethod },
+        })
+        current = (try getDomain(resourceName)) ?? current
+      }
+
+      return toAttrs(current, env.project, domainId)
+    },
+
+    delete: effect ({ output }) => {
+      const name = output.name || toDomainName(output.domainId)
+      if (name.length === 0) return
+      try ignoreMissing(
+        effect {
+          return try (gmailpostmastertools.deleteDomains({ name })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict",
+              schedule: Schedule.spaced("1 second"),
+              times: 8,
+            }))
+        },
+      )
+    },
+  })

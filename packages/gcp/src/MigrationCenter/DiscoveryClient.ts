@@ -24,7 +24,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type DiscoveryClientState = mc.DiscoveryClientStateEnum | (string & {});
 

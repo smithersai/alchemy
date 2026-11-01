@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
 import type { Job } from "./Job.ts";
-import { RunJob, type RunJobRequest } from "./RunJob.ts";
+import { RunJob, type RunJobRequest } from "./RunJob.vibe";
 
 /**
  * HTTP implementation of {@link RunJob}.

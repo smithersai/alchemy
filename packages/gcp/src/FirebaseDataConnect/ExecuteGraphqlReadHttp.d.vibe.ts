@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ExecuteGraphqlRead } from "./ExecuteGraphqlRead.js";
+import { ExecuteGraphqlRead } from "./ExecuteGraphqlRead.vibe";
 /**
  * HTTP implementation of {@link ExecuteGraphqlRead}.
  *

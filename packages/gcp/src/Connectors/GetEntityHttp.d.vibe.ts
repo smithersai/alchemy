@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetEntity } from "./GetEntity.js";
+import { GetEntity } from "./GetEntity.vibe";
 /**
  * HTTP implementation of {@link GetEntity}.
  *

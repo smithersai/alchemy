@@ -1,0 +1,72 @@
+import * as Effect from "effect/Effect"
+import type { Database } from "../Firestore/Database.vibe"
+import * as GCPBindings from "../GCPBindings.ts"
+import { type BindingIam, type GcpHttpOp, grantFor } from "../HttpBinding.ts"
+
+/**
+ * A Datastore request with the project and database filled in from the
+ * bound database: callers only supply the request body (minus
+ * `databaseId`).
+ */
+export type DatastoreDatabaseRequest<
+  I extends {
+    mutable projectId: string
+    mutable requestParams?: string
+    mutable body?: { mutable databaseId?: string }
+  },
+> = Omit<I, "projectId" | "requestParams" | "body"> & {
+  mutable body?: Omit<NonNullable<I["body"]>, "databaseId">
+}
+
+/** The Datastore API names the default database `""`, not `(default)`. */
+const apiDatabaseId = (databaseId: string): infer _ => (databaseId === "(default)" ? "" : databaseId)
+
+/**
+ * Shared HTTP scaffolding for Datastore bindings.
+ *
+ * Grants the role on the project under an IAM Condition matching only the
+ * bound database, and pins every request to that database's project and id.
+ * NOT exported from index.ts.
+ */
+export const makeDatastoreHttpBinding = effect <
+  I extends {
+    mutable projectId: string
+    mutable requestParams?: string
+    mutable body?: { mutable databaseId?: string }
+  },
+  A,
+  E,
+>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (database: Database) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${database})`({
+        iam: [grantFor(options.iam, database.name)],
+      })
+    }
+    const project = try database.project.asEffect()
+    const databaseId = try database.databaseId.asEffect()
+    return effect (
+      request: DatastoreDatabaseRequest<I>,
+    ) =>
+      try withSpan(
+        effect {
+          const projectId = try project
+          const id = apiDatabaseId(try databaseId)
+          return try run({
+            ...request,
+            projectId,
+            // Named databases require the routing header.
+            requestParams: id.length > 0 ? `project_id=${projectId}&database_id=${id}` : undefined,
+            body: { ...request.body, databaseId: id },
+          } as I)
+        },
+        `${options.tag}(${database.LogicalId})`,
+      )
+  }
+}

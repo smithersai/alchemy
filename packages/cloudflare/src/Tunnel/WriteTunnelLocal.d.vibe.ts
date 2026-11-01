@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { WriteTunnel } from "./WriteTunnel.js";
+import { WriteTunnel } from "./WriteTunnel.vibe";
 /**
  * Local implementation of the {@link WriteTunnel} binding — creates, updates,
  * and deletes Cloudflare Tunnels over the cfd_tunnel HTTP API using the

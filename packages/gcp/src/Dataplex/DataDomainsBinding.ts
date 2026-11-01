@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { listAlchemyDataDomains } from "./DataDomain.ts";
+import { listAlchemyDataDomains } from "./DataDomain.vibe";
 import {
   DataplexNotResolved,
   collectPages,

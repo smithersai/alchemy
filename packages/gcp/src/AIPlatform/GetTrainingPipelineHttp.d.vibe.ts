@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetTrainingPipeline } from "./GetTrainingPipeline.js";
+import { GetTrainingPipeline } from "./GetTrainingPipeline.vibe";
 /**
  * HTTP implementation of {@link GetTrainingPipeline}.
  *

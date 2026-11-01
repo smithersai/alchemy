@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetCustomClass } from "./GetCustomClass.js";
+import { GetCustomClass } from "./GetCustomClass.vibe";
 /**
  * HTTP implementation of {@link GetCustomClass}.
  *

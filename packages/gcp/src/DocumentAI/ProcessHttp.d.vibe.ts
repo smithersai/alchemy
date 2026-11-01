@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Process } from "./Process.js";
+import { Process } from "./Process.vibe";
 /**
  * HTTP implementation of {@link Process}.
  *

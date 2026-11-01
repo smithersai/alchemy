@@ -1,0 +1,381 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  attributesToRecord,
+  childName,
+  createOwnership,
+  defaultOrgName,
+  desiredAttributes,
+  lastSegment,
+  listOrgNames,
+  orgIdOf,
+  orgNameOf,
+  ownedBy,
+  recordToAttributes,
+  sameRecord,
+  sameStringList,
+  userAttributes,
+} from "./operations.vibe"
+
+export type DevelopersAppsKeyProps = {
+  /**
+   * Apigee organization id or `organizations/{org}`. Defaults to the
+   * current GCP project id. Immutable — changing it replaces the key.
+   */
+  mutable organization?: string
+  /**
+   * Parent developer email or `organizations/{org}/developers/{email}`.
+   * Immutable — changing it replaces the key.
+   */
+  mutable developer: string
+  /**
+   * Parent developer app name or full resource name. Immutable — changing
+   * it replaces the key.
+   */
+  mutable app: string
+  /**
+   * Consumer key. If omitted, a unique key is generated. Immutable —
+   * changing it replaces the key.
+   */
+  mutable consumerKey?: string
+  /**
+   * Consumer secret. Required on create when supplying a custom key; if
+   * omitted, a unique secret is generated. Immutable — changing it
+   * replaces the key.
+   */
+  mutable consumerSecret?: string
+  /**
+   * Scopes to apply to the key.
+   */
+  mutable scopes?: string[]
+  /**
+   * API products associated with the key. Applied after create via
+   * UpdateDeveloperAppKey.
+   */
+  mutable apiProducts?: string[]
+  /**
+   * Credential status (`approved` or `revoked`).
+   * @default "approved"
+   */
+  mutable status?: string
+  /**
+   * Expiration time in seconds. `-1` (default) never expires. Immutable
+   * after create.
+   */
+  mutable expiresInSeconds?: string
+  /**
+   * Custom attributes. Alchemy ownership attributes are merged in
+   * automatically.
+   */
+  mutable attributes?: Record<string, string>
+}
+
+export type DevelopersAppsKey = Resource<
+  "GCP.Apigee.DevelopersAppsKey",
+  DevelopersAppsKeyProps,
+  {
+    /** Full resource name `organizations/{org}/developers/{email}/apps/{app}/keys/{key}`. */
+    mutable name: string
+    /** Consumer key. */
+    mutable consumerKey: string
+    /** Consumer secret. */
+    mutable consumerSecret: string | undefined
+    /** Parent developer email. */
+    mutable developer: string
+    /** Parent app name. */
+    mutable app: string
+    /** Apigee organization id. */
+    mutable organization: string
+    /** Scopes. */
+    mutable scopes: string[]
+    /** Associated API products. */
+    mutable apiProducts: unknown[]
+    /** Credential status. */
+    mutable status: string | undefined
+    /** User attributes (Alchemy ownership attributes stripped). */
+    mutable attributes: Record<string, string>
+    /** Issued-at time in milliseconds since epoch. */
+    mutable issuedAt: string | undefined
+    /** Expiration time in milliseconds since epoch. */
+    mutable expiresAt: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A custom consumer key and secret for an Apigee developer app.
+ *
+ * Apigee keys have no labels field, so Alchemy stamps ownership into
+ * custom attributes for `list` / nuke. The consumer key is identity —
+ * changing it replaces the key. Scopes, API products, status, and
+ * attributes update in place.
+ *
+ * ### Creating a Developer App Key
+ * **Example:** Generated key under a developer app
+ * ```typescript
+ * const key = yield* GCP.Apigee.DevelopersAppsKey("PortalKey", {
+ *   developer: developer.email,
+ *   app: app.appName,
+ * });
+ * ```
+ *
+ * **Example:** Custom key and secret
+ * ```typescript
+ * const key = yield* GCP.Apigee.DevelopersAppsKey("PortalKey", {
+ *   developer: "ada@example.com",
+ *   app: "portal-app",
+ *   consumerKey: "portal-key",
+ *   consumerSecret: "portal-secret",
+ *   status: "approved",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const DevelopersAppsKey = Resource<DevelopersAppsKey>("GCP.Apigee.DevelopersAppsKey")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DevelopersAppsKeyNotResolved extends Data.TaggedError(
+  "GCP.Apigee.DevelopersAppsKeyNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const developerEmailOf = (developer: string): infer _ =>
+  developer.includes("/developers/") ? lastSegment(developer) : developer
+
+const appNameOf = (app: string): infer _ => (app.includes("/apps/") ? lastSegment(app) : app)
+
+const appParentOf = (organization: string, developer: string, app: string): infer _ =>
+  `${childName(orgNameOf(organization), "developers", developerEmailOf(developer))}/apps/${appNameOf(app)}`
+
+const resourceName = (organization: string, developer: string, app: string, consumerKey: string): infer _ =>
+  `${appParentOf(organization, developer, app)}/keys/${consumerKey}`
+
+const toKeyId = effect (id: string, explicit: string | undefined, existing?: string) => {
+  if (explicit !== undefined) return explicit
+  if (existing !== undefined) return existing
+  return try createPhysicalName({ id, maxLength: 64, lowercase: true })
+}
+
+const toSecret = effect (id: string, explicit: string | undefined) => {
+  if (explicit !== undefined) return explicit
+  return try createPhysicalName({
+    id: `${id}-secret`,
+    maxLength: 64,
+    lowercase: true,
+  })
+}
+
+const productsOf = (value: unknown): unknown[] => (Array.isArray(value) ? value : [])
+
+const toAttrs = (
+  key: apigee.GoogleCloudApigeeV1DeveloperAppKey,
+  organization: string,
+  developer: string,
+  app: string,
+): infer _ => {
+  const consumerKey = key.consumerKey ?? ""
+  return {
+    name: resourceName(organization, developer, app, consumerKey),
+    consumerKey,
+    consumerSecret: key.consumerSecret,
+    developer: developerEmailOf(developer),
+    app: appNameOf(app),
+    organization: orgIdOf(organization),
+    scopes: key.scopes ?? [],
+    apiProducts: productsOf(key.apiProducts),
+    status: key.status,
+    attributes: userAttributes(attributesToRecord(key.attributes)),
+    issuedAt: key.issuedAt,
+    expiresAt: key.expiresAt,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsDevelopersAppsKeys({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listDeveloperEmails = effect (organization: string) =>
+  (((try apigee
+    .listOrganizationsDevelopers({
+      parent: organization,
+      expand: true,
+      count: "1000",
+    })).developer ?? [])
+    .map((developer) => developer.email ?? "")
+    .filter((email) => email.length > 0)) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as string[];
+      default: throw e;
+    }
+
+export const DevelopersAppsKeyProvider = (): infer _ =>
+  Provider.succeed(DevelopersAppsKey, {
+    stables: ["name", "consumerKey", "developer", "app", "organization", "issuedAt"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousKey = olds?.consumerKey ?? output?.consumerKey
+      const previousSecret = olds?.consumerSecret ?? output?.consumerSecret
+      const previousDeveloper = olds?.developer ?? output?.developer
+      const previousApp = olds?.app ?? output?.app
+      const previousOrg = olds?.organization ?? output?.organization
+      const keyChanged = previousKey !== undefined
+        && news.consumerKey !== undefined
+        && news.consumerKey !== previousKey
+      const secretChanged = previousSecret !== undefined
+        && news.consumerSecret !== undefined
+        && news.consumerSecret !== previousSecret
+      const developerChanged = previousDeveloper !== undefined
+        && developerEmailOf(news.developer) !== developerEmailOf(previousDeveloper)
+      const appChanged = previousApp !== undefined && appNameOf(news.app) !== appNameOf(previousApp)
+      const orgChanged = previousOrg !== undefined
+        && news.organization !== undefined
+        && orgIdOf(news.organization) !== orgIdOf(previousOrg)
+      if (keyChanged || secretChanged || developerChanged || appChanged || orgChanged) {
+        return {
+          action: "replace" as const,
+          deleteFirst: keyChanged && !developerChanged && !appChanged && !orgChanged,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = defaultOrgName(env.project, olds?.organization ?? output?.organization)
+      const developer = olds?.developer ?? output?.developer
+      const app = olds?.app ?? output?.app
+      if (developer === undefined || app === undefined) return undefined
+      const consumerKey = try toKeyId(id, olds?.consumerKey, output?.consumerKey)
+      const name = output?.name ?? resourceName(organization, developer, app, consumerKey)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization, developer, app)
+      return (try ownedBy(id, attributesToRecord(existing.attributes))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const orgs = try listOrgNames()
+      const rows: DevelopersAppsKey["Attributes"][] = []
+      for (const organization of orgs) {
+        const emails = try listDeveloperEmails(organization)
+        for (const email of emails) {
+          const page = apigee
+            .listOrganizationsDevelopersApps({
+              parent: childName(organization, "developers", email),
+              expand: true,
+              count: "1000",
+            }) catch effect (e) => match (e) {
+              when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: {
+                app: [] as apigee.GoogleCloudApigeeV1DeveloperApp[],
+              };
+              default: throw e;
+            }
+          for (const app of page.app ?? []) {
+            for (const credential of app.credentials ?? []) {
+              const labels = attributesToRecord(credential.attributes)
+              if (!Object.keys(labels).some((key) => key.startsWith("alchemy-"))) {
+                continue
+              }
+              rows.push(
+                toAttrs(
+                  {
+                    consumerKey: credential.consumerKey,
+                    consumerSecret: credential.consumerSecret,
+                    scopes: credential.scopes,
+                    apiProducts: credential.apiProducts,
+                    status: credential.status,
+                    attributes: credential.attributes,
+                    issuedAt: credential.issuedAt,
+                    expiresAt: credential.expiresAt,
+                  },
+                  organization,
+                  email,
+                  app.name ?? "",
+                ),
+              )
+            }
+          }
+        }
+      }
+      return rows
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = defaultOrgName(env.project, news.organization)
+      const developer = developerEmailOf(news.developer)
+      const app = appNameOf(news.app)
+      const consumerKey = try toKeyId(id, news.consumerKey, output?.consumerKey)
+      const consumerSecret = try toSecret(id, news.consumerSecret ?? output?.consumerSecret)
+      const parent = appParentOf(organization, developer, app)
+      const name = `${parent}/keys/${consumerKey}`
+      const ownership = try createOwnership(id)
+      const attributes = desiredAttributes(news.attributes, ownership)
+      const status = news.status ?? "approved"
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsDevelopersAppsKeys({
+            parent,
+            body: {
+              consumerKey,
+              consumerSecret,
+              expiresInSeconds: news.expiresInSeconds,
+              attributes: recordToAttributes(attributes),
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DevelopersAppsKeyNotResolved({ resourceName: name })
+      }
+
+      const observedAttributes = attributesToRecord(current.attributes)
+      const scopesChanged = !sameStringList(current.scopes, news.scopes)
+      const productsChanged = !sameStringList(
+        productsOf(current.apiProducts).map(String),
+        (news.apiProducts ?? []).map(String),
+      )
+      const statusChanged = (current.status ?? "") !== status
+      const attributesChanged = !sameRecord(observedAttributes, attributes)
+
+      if (scopesChanged || productsChanged || statusChanged || attributesChanged) {
+        current = try apigee.updateDeveloperAppKeyOrganizationsDevelopersAppsKeys({
+          name,
+          action: statusChanged ? status : undefined,
+          body: {
+            consumerKey,
+            scopes: news.scopes,
+            apiProducts: news.apiProducts,
+            attributes: recordToAttributes(attributes),
+          },
+        })
+      }
+
+      return toAttrs(current, organization, developer, app)
+    },
+
+    delete: effect ({ output }) => {
+      apigee
+        .deleteOrganizationsDevelopersAppsKeys({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

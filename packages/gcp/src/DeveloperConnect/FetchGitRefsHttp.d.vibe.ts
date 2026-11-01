@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { FetchGitRefs } from "./FetchGitRefs.js";
+import { FetchGitRefs } from "./FetchGitRefs.vibe";
 /**
  * HTTP implementation of {@link FetchGitRefs}.
  *

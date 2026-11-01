@@ -1,0 +1,41 @@
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.ts"
+import { type BindingIam, type GcpHttpOp, grantFor } from "../HttpBinding.ts"
+import type { Database } from "./Database.vibe"
+
+/**
+ * Shared HTTP scaffolding for Firestore document bindings.
+ * NOT exported from index.ts.
+ */
+export const makeDocumentHttpBinding = effect <I extends { mutable name: string }, A, E>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (database: Database) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${database})`({
+        iam: [grantFor(options.iam, database.name)],
+      })
+    }
+    const name = try database.name.asEffect()
+    return effect (
+      request: Omit<I, "name"> & { mutable documentPath: string },
+    ) =>
+      try withSpan(
+        effect {
+          const documentPath = request.documentPath
+          const relative = documentPath.replace(/^\/+/, "")
+          const databaseName = try name
+          const rest: Omit<I, "name"> = request
+          return try run({
+            ...rest,
+            name: `${databaseName}/documents/${relative}`,
+          } as I)
+        },
+        `${options.tag}(${database.LogicalId})`,
+      )
+  }
+}

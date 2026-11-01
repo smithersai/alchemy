@@ -20,7 +20,7 @@ import {
   ownedByAlchemy,
   parseOwnership,
   toResourceId,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type AuthorizedViewSetProps = {
   /**

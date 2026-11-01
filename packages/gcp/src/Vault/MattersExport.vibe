@@ -1,0 +1,270 @@
+import * as vault from "@distilled.cloud/gcp/vault_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnershipLine,
+  findExportByName,
+  findOwnedExport,
+  getExport,
+  hasOwnershipMarker,
+  ignoreMissing,
+  jsonEqual,
+  listActiveMatters,
+  listExports,
+  MAX_EXPORT_NAME_LENGTH,
+  ownedByAlchemy,
+  ownershipLabels,
+  parseOwnership,
+  toGeneratedName,
+} from "./internal.ts"
+
+export type MattersExportProps = {
+  /**
+   * Parent matter id. Immutable — changing it replaces the export.
+   */
+  mutable matterId: string
+  /**
+   * Server-assigned export id. Leave blank on create. Immutable —
+   * changing it replaces the export.
+   */
+  mutable exportId?: string
+  /**
+   * Export name (max 100 characters including Alchemy's ownership
+   * marker). Do not use `~!$'(),;@:/?`. Vault exports have no labels
+   * field, so ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes. Vault has no export update API — changing the name
+   * replaces the export.
+   */
+  mutable name?: string
+  /**
+   * Search query used to create the export. Required on create. Vault
+   * has no export update API — changing the query replaces the export.
+   */
+  mutable query: vault.Query
+  /**
+   * Additional export options (format, region). Vault has no export
+   * update API — changing options replaces the export.
+   */
+  mutable exportOptions?: vault.ExportOptions
+}
+
+export type MattersExport = Resource<
+  "GCP.Vault.MattersExport",
+  MattersExportProps,
+  {
+    /** Server-assigned export id. */
+    mutable exportId: string
+    /** Parent matter id. */
+    mutable matterId: string
+    /** Project id used when the export was reconciled. */
+    mutable project: string
+    /** User-facing name with the Alchemy ownership prefix stripped. */
+    mutable name: string | undefined
+    /** Search query. */
+    mutable query: vault.Query | undefined
+    /** Export options. */
+    mutable exportOptions: vault.ExportOptions | undefined
+    /** Export status (`IN_PROGRESS`, `COMPLETED`, `FAILED`). */
+    mutable status: string | undefined
+    /** RFC3339 create timestamp. */
+    mutable createTime: string | undefined
+    /** Parent export id when this is a child export. */
+    mutable parentExportId: string | undefined
+    /** Cloud Storage sink for export files. */
+    mutable cloudStorageSink: vault.CloudStorageSink | undefined
+    /** Progress and size. */
+    mutable stats: vault.ExportStats | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Google Vault export on a matter.
+ *
+ * Vault exports have no labels field, so Alchemy stamps ownership into
+ * `name` for `list` / nuke. There is no update API — changing the query,
+ * options, or name replaces the export (delete-first).
+ *
+ * ### Creating an Export
+ * **Example:** Mail export
+ * ```typescript
+ * const exported = yield* GCP.Vault.MattersExport("Mail", {
+ *   matterId: matter.matterId,
+ *   query: {
+ *     corpus: "MAIL",
+ *     dataScope: "ALL_DATA",
+ *     searchMethod: "ACCOUNT",
+ *     accountInfo: { emails: ["user@example.com"] },
+ *   },
+ *   exportOptions: { mailOptions: { exportFormat: "MBOX" } },
+ * });
+ * ```
+ *
+ * **Example:** Drive export with a name
+ * ```typescript
+ * const exported = yield* GCP.Vault.MattersExport("Drive", {
+ *   matterId: matter.matterId,
+ *   name: "drive-dump",
+ *   query: {
+ *     corpus: "DRIVE",
+ *     dataScope: "HELD_DATA",
+ *     searchMethod: "ENTIRE_ORG",
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Vault
+ */
+export const MattersExport = Resource<MattersExport>("GCP.Vault.MattersExport")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MattersExportNotResolved extends Data.TaggedError(
+  "GCP.Vault.MattersExportNotResolved",
+)<{
+  mutable matterId: string
+  mutable exportId: string
+}> {}
+
+const toAttrs = (item: vault.Export, project: string): infer _ => ({
+  exportId: item.id ?? "",
+  matterId: item.matterId ?? "",
+  project,
+  name: parseOwnership(item.name).text,
+  query: item.query,
+  exportOptions: item.exportOptions,
+  status: item.status,
+  createTime: item.createTime,
+  parentExportId: item.parentExportId,
+  cloudStorageSink: item.cloudStorageSink,
+  stats: item.stats,
+})
+
+export const MattersExportProvider = (): infer _ =>
+  Provider.succeed(MattersExport, {
+    stables: ["exportId", "matterId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousMatter = olds?.matterId ?? output?.matterId
+      if (previousMatter !== undefined && news.matterId !== previousMatter) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      const previousId = olds?.exportId ?? output?.exportId
+      if (previousId !== undefined && news.exportId !== undefined && news.exportId !== previousId) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      const previousName = olds?.name ?? output?.name
+      if (news.name !== undefined && previousName !== undefined && news.name !== previousName) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      const previousQuery = olds?.query ?? output?.query
+      if (previousQuery !== undefined && !jsonEqual(previousQuery, news.query)) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      const previousOptions = olds?.exportOptions ?? output?.exportOptions
+      if (
+        news.exportOptions !== undefined
+        && previousOptions !== undefined
+        && !jsonEqual(previousOptions, news.exportOptions)
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const matterId = olds?.matterId ?? output?.matterId ?? ""
+      const exportId = olds?.exportId ?? output?.exportId ?? ""
+      let existing = try getExport(matterId, exportId)
+      if (existing === undefined) {
+        const ownership = try ownershipLabels(id)
+        const name = encodeOwnershipLine(
+          ownership,
+          olds?.name ?? output?.name,
+          MAX_EXPORT_NAME_LENGTH,
+        )
+        existing = try findExportByName(matterId, name)
+      }
+      if (existing === undefined) {
+        existing = try findOwnedExport(id, matterId)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.name)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const matters = try listActiveMatters()
+      const pages = try Effect.forEach(
+        matters,
+        effect (matter) =>
+          (try listExports(matter.matterId ?? ""))
+            .filter((item) => hasOwnershipMarker(item.name))
+            .map((item) => toAttrs(item, env.project)),
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const matterId = news.matterId
+      const ownership = try ownershipLabels(id)
+      const displayName = try toGeneratedName(id, news.name, output?.name, 40)
+      const name = encodeOwnershipLine(ownership, displayName, MAX_EXPORT_NAME_LENGTH)
+      const desired: vault.Export = {
+        name,
+        query: news.query,
+        exportOptions: news.exportOptions,
+      }
+
+      let current = try getExport(matterId, news.exportId ?? output?.exportId ?? "")
+      if (current === undefined) {
+        current = try findExportByName(matterId, name)
+      }
+      if (current === undefined) {
+        current = try findOwnedExport(id, matterId)
+      }
+
+      if (current === undefined) {
+        const created = vault
+          .createMattersExports({
+            matterId,
+            body: desired,
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try findExportByName(matterId, name);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new MattersExportNotResolved({
+          matterId,
+          exportId: news.exportId ?? output?.exportId ?? name,
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (output.matterId.length === 0 || output.exportId.length === 0) {
+        return
+      }
+      try ignoreMissing(
+        vault.deleteMattersExports({
+          matterId: output.matterId,
+          exportId: output.exportId,
+        }),
+      )
+    },
+  })

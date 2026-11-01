@@ -1,0 +1,471 @@
+import * as networkconnectivity from "@distilled.cloud/gcp/networkconnectivity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  NetworkConnectivityNotResolved,
+  canonicalizeLink,
+  changedFields,
+  collectPages,
+  hasAlchemyLabelKeys,
+  lastSegment,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  rfc1035,
+  sameJson,
+  toNetworkResource,
+  toPhysicalId,
+  toSubnetworkResource,
+  userLabels,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+} from "./internal.ts"
+
+const COLLECTION = "serviceConnectionPolicies"
+
+export type ServiceConnectionPolicySubnetworkMode =
+  | networkconnectivity.CreateProjectsLocationsServiceConnectionPoliciesSubnetworkModeEnum
+  | (string & {})
+export type ServiceConnectionPolicyIpStack =
+  | networkconnectivity.CreateProjectsLocationsServiceConnectionPoliciesAutoSubnetworkConfig_ipStackEnum
+  | (string & {})
+export type PscConfigProducerInstanceLocation =
+  | networkconnectivity.PscConfigProducerInstanceLocationEnum
+  | (string & {})
+
+export type PscConfig = {
+  /**
+   * Subnetwork resource paths used for IPAM
+   * (`projects/{project}/regions/{region}/subnetworks/{subnetwork}`).
+   */
+  mutable subnetworks?: string[]
+  /**
+   * Max number of PSC connections for this policy (int64 string).
+   */
+  mutable limit?: string
+  /**
+   * Authorization mechanism for producer instance location.
+   */
+  mutable producerInstanceLocation?: PscConfigProducerInstanceLocation
+  /**
+   * Projects, folders, or organizations the producer instance may live
+   * in, e.g. `"projects/my-project"`.
+   */
+  mutable allowedGoogleProducersResourceHierarchyLevel?: string[]
+}
+
+export type AutoSubnetworkConfig = {
+  /** Requested IP stack. */
+  mutable ipStack?: ServiceConnectionPolicyIpStack
+  /** Desired prefix length for the auto-created subnet. */
+  mutable prefixLength?: number
+  /** CIDR spaces to search for a free range. */
+  mutable allocRangeSpace?: string[]
+}
+
+export type AutoCreatedSubnetworkInfo = {
+  mutable internalRange?: string
+  mutable internalRangeRef?: string
+  mutable subnetwork?: string
+  mutable subnetworkRef?: string
+  mutable delinked?: boolean
+}
+
+export type ServiceConnectionPolicyProps = {
+  /**
+   * Policy id (the `{service_connection_policy}` segment). If omitted, a
+   * unique name is generated. Immutable — changing it replaces the
+   * policy.
+   */
+  mutable serviceConnectionPolicyId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * policy. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Consumer VPC
+   * (`projects/{project}/global/networks/{network}` or a Compute
+   * self-link). Immutable — changing it replaces the policy.
+   */
+  mutable network: string
+  /**
+   * Service class identifier, e.g. `"gcp-memorystore-redis"` or
+   * `"gcp-cloud-sql"`.
+   */
+  mutable serviceClass: string
+  /**
+   * PSC connection configuration (subnets, connection limit, …).
+   */
+  mutable pscConfig?: PscConfig
+  /**
+   * Subnetwork mode. `USER_PROVIDED` uses `pscConfig.subnetworks`;
+   * `AUTO_CREATED` allocates a subnet from `autoSubnetworkConfig`.
+   * Create-only.
+   */
+  mutable subnetworkMode?: ServiceConnectionPolicySubnetworkMode
+  /**
+   * Auto-created subnet options. Create-only; used when
+   * `subnetworkMode` is `AUTO_CREATED`.
+   */
+  mutable autoSubnetworkConfig?: AutoSubnetworkConfig
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type ServiceConnectionPolicy = Resource<
+  "GCP.NetworkConnectivity.ServiceConnectionPolicy",
+  ServiceConnectionPolicyProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/serviceConnectionPolicies/{id}`. */
+    mutable name: string
+    /** Policy id (last path segment). */
+    mutable serviceConnectionPolicyId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Consumer VPC resource path. */
+    mutable network: string | undefined
+    /** Service class identifier. */
+    mutable serviceClass: string | undefined
+    /** PSC configuration. */
+    mutable pscConfig: PscConfig | undefined
+    /** Infrastructure used for connections (`PSC`, …). */
+    mutable infrastructure: string | undefined
+    /** Auto-created subnet info, if any. */
+    mutable autoCreatedSubnetInfo: AutoCreatedSubnetworkInfo | undefined
+    /** User-provided description. */
+    mutable description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Server etag. */
+    mutable etag: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A PSC Service Connection Policy that allows a consumer VPC to connect
+ * to a producer service class (Cloud SQL, Memorystore, …).
+ *
+ * Changing `serviceConnectionPolicyId`, `location`, or `network`
+ * replaces the policy. Description, labels, `serviceClass`, and
+ * `pscConfig` update in place.
+ *
+ * ### Creating a ServiceConnectionPolicy
+ * **Example:** User-provided subnet
+ * ```typescript
+ * const network = yield* GCP.Compute.Network("AppVpc", {
+ *   autoCreateSubnetworks: false,
+ * });
+ * const subnet = yield* GCP.Compute.Subnetwork("PscSubnet", {
+ *   network: network.selfLink ?? network.networkName,
+ *   ipCidrRange: "10.20.0.0/24",
+ * });
+ * const policy = yield* GCP.NetworkConnectivity.ServiceConnectionPolicy(
+ *   "Redis",
+ *   {
+ *     serviceClass: "gcp-memorystore-redis",
+ *     network: network.selfLink ?? network.networkName,
+ *     pscConfig: {
+ *       subnetworks: [subnet.selfLink ?? subnet.subnetworkName],
+ *     },
+ *     labels: { env: "prod" },
+ *   },
+ * );
+ * ```
+ *
+ * ### Updating a ServiceConnectionPolicy
+ * **Example:** Description, labels, and connection limit
+ * ```typescript
+ * const policy = yield* GCP.NetworkConnectivity.ServiceConnectionPolicy(
+ *   "Redis",
+ *   {
+ *     serviceClass: "gcp-memorystore-redis",
+ *     network: network.selfLink ?? network.networkName,
+ *     description: "redis psc v2",
+ *     pscConfig: {
+ *       subnetworks: [subnet.selfLink ?? subnet.subnetworkName],
+ *       limit: "4",
+ *     },
+ *     labels: { env: "prod", role: "psc" },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category NetworkConnectivity
+ */
+export const ServiceConnectionPolicy = Resource<ServiceConnectionPolicy>(
+  "GCP.NetworkConnectivity.ServiceConnectionPolicy",
+)
+
+const resourceName = (project: string, location: string, serviceConnectionPolicyId: string): infer _ =>
+  `projects/${project}/locations/${location}/serviceConnectionPolicies/${serviceConnectionPolicyId}`
+
+const toPscConfig = (
+  config: PscConfig | networkconnectivity.PscConfig | undefined,
+  project: string,
+  location: string,
+): PscConfig | undefined => {
+  if (config === undefined) return undefined
+  return {
+    subnetworks: (config.subnetworks ?? []).map((subnetwork) => toSubnetworkResource(project, location, subnetwork)),
+    limit: config.limit,
+    producerInstanceLocation: config.producerInstanceLocation,
+    allowedGoogleProducersResourceHierarchyLevel: config.allowedGoogleProducersResourceHierarchyLevel
+      ? [...config.allowedGoogleProducersResourceHierarchyLevel]
+      : undefined,
+  }
+}
+
+const toAutoCreated = (
+  info: networkconnectivity.AutoCreatedSubnetworkInfo | undefined,
+): AutoCreatedSubnetworkInfo | undefined => {
+  if (info === undefined) return undefined
+  return {
+    internalRange: info.internalRange,
+    internalRangeRef: info.internalRangeRef,
+    subnetwork: info.subnetwork,
+    subnetworkRef: info.subnetworkRef,
+    delinked: info.delinked,
+  }
+}
+
+const toAttrs = (
+  policy: networkconnectivity.ServiceConnectionPolicy,
+  project: string,
+  region: string,
+): infer _ => {
+  const name = policy.name ?? ""
+  const parsed = parseName(name, COLLECTION, region)
+  const location = parsed.location || region
+  return {
+    name,
+    serviceConnectionPolicyId: parsed.id,
+    project: parsed.project || project,
+    location,
+    network: policy.network,
+    serviceClass: policy.serviceClass,
+    pscConfig: toPscConfig(policy.pscConfig, parsed.project || project, location),
+    infrastructure: policy.infrastructure,
+    autoCreatedSubnetInfo: toAutoCreated(policy.autoCreatedSubnetInfo),
+    description: policy.description,
+    labels: userLabels(policy.labels),
+    etag: policy.etag,
+    createTime: policy.createTime,
+    updateTime: policy.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networkconnectivity
+    .getProjectsLocationsServiceConnectionPolicies({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const ServiceConnectionPolicyProvider = (): infer _ =>
+  Provider.succeed(ServiceConnectionPolicy, {
+    stables: ["name", "serviceConnectionPolicyId", "project", "location", "network", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousId = olds?.serviceConnectionPolicyId ?? output?.serviceConnectionPolicyId
+      const nextId = news.serviceConnectionPolicyId
+        ? rfc1035(news.serviceConnectionPolicyId, "service-connection-policy")
+        : previousId
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      const previousNetwork = lastSegment(canonicalizeLink(olds?.network ?? output?.network))
+      const nextNetwork = lastSegment(canonicalizeLink(news.network))
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+        || (previousNetwork.length > 0 && previousNetwork !== nextNetwork)
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceConnectionPolicyId = try toPhysicalId(
+        id,
+        olds?.serviceConnectionPolicyId,
+        output?.serviceConnectionPolicyId,
+        "service-connection-policy",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, serviceConnectionPolicyId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try collectPages(
+        networkconnectivity.listProjectsLocationsServiceConnectionPolicies.pages({
+          parent: parentOf(env.project, "-"),
+          pageSize: 1000,
+        }),
+        (page) => page.serviceConnectionPolicies,
+      )
+      return items
+        .filter((item) => hasAlchemyLabelKeys(item.labels))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceConnectionPolicyId = try toPhysicalId(
+        id,
+        news.serviceConnectionPolicyId,
+        output?.serviceConnectionPolicyId,
+        "service-connection-policy",
+      )
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, serviceConnectionPolicyId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const network = toNetworkResource(env.project, news.network)
+      const pscConfig = toPscConfig(news.pscConfig, env.project, location)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (try (networkconnectivity
+          .createProjectsLocationsServiceConnectionPolicies({
+            parent: parentOf(env.project, location),
+            serviceConnectionPolicyId,
+            subnetworkMode: news.subnetworkMode,
+            "autoSubnetworkConfig.ipStack": news.autoSubnetworkConfig?.ipStack,
+            "autoSubnetworkConfig.prefixLength": news.autoSubnetworkConfig?.prefixLength,
+            "autoSubnetworkConfig.allocRangeSpace": news.autoSubnetworkConfig?.allocRangeSpace
+              ? [...news.autoSubnetworkConfig.allocRangeSpace]
+              : undefined,
+            body: {
+              network,
+              serviceClass: news.serviceClass,
+              pscConfig,
+              description: news.description,
+              labels: desiredLabels,
+            },
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 5,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new NetworkConnectivityNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const serviceClassChanged = (current.serviceClass ?? "") !== news.serviceClass
+      const observedPsc = toPscConfig(current.pscConfig, env.project, location)
+      const pscChanged = !sameJson(
+        {
+          subnetworks: [...(observedPsc?.subnetworks ?? [])]
+            .map((value) => lastSegment(canonicalizeLink(value)))
+            .sort(),
+          limit: observedPsc?.limit ?? "",
+          producerInstanceLocation: observedPsc?.producerInstanceLocation ?? "",
+          allowedGoogleProducersResourceHierarchyLevel: [
+            ...(observedPsc?.allowedGoogleProducersResourceHierarchyLevel ?? []),
+          ].sort(),
+        },
+        {
+          subnetworks: [...(pscConfig?.subnetworks ?? [])]
+            .map((value) => lastSegment(canonicalizeLink(value)))
+            .sort(),
+          limit: pscConfig?.limit ?? "",
+          producerInstanceLocation: pscConfig?.producerInstanceLocation ?? "",
+          allowedGoogleProducersResourceHierarchyLevel: [
+            ...(pscConfig?.allowedGoogleProducersResourceHierarchyLevel ?? []),
+          ].sort(),
+        },
+      )
+      const updateMask = changedFields([
+        ["labels", labelsChanged],
+        ["description", descriptionChanged],
+        ["serviceClass", serviceClassChanged],
+        ["pscConfig", pscChanged],
+      ])
+
+      if (updateMask.length > 0) {
+        const operation = try networkconnectivity.patchProjectsLocationsServiceConnectionPolicies({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+            serviceClass: news.serviceClass,
+            pscConfig,
+            etag: current.etag,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilPresent(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (networkconnectivity
+        .deleteProjectsLocationsServiceConnectionPolicies({
+          name: output.name,
+          etag: output.etag,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

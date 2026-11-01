@@ -16,7 +16,7 @@ import {
   lastSegment,
   parseDatabaseName,
   stringFromMap,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 const DEFAULT_QUERY_SCOPE = "COLLECTION";
 const DEFAULT_API_SCOPE = "ANY_API";

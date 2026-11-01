@@ -18,7 +18,7 @@ import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
-import { ReadSecret } from "../SecretsStore/ReadSecret.ts";
+import { ReadSecret } from "../SecretsStore/ReadSecret.vibe";
 import { ReadSecretBinding } from "../SecretsStore/ReadSecretBinding.ts";
 import { Worker } from "../Workers/Worker.ts";
 import Store, { retrySecretRead } from "./Store.ts";

@@ -12,8 +12,8 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { ignoredCodes } from "./internal.ts";
-import { waitOrganizationOperation } from "./operations.ts";
+import { ignoredCodes } from "./internal.vibe";
+import { waitOrganizationOperation } from "./operations.vibe";
 
 const DEFAULT_POLICY_TYPE = "VPC_POLICY";
 const DEFAULT_RULE_PRIORITY = 2147483647;

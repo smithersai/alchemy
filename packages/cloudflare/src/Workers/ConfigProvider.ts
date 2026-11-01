@@ -1,7 +1,7 @@
 import { reifyBoundConfigProvider } from "alchemy/Runtime";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
-import cloudflare_workers from "./cloudflare_workers.ts";
+import cloudflare_workers from "./cloudflare_workers.vibe";
 
 /**
  * A `ConfigProvider` backed by the running Worker's environment.

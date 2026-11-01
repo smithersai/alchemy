@@ -1,7 +1,7 @@
 import * as translate from "@distilled.cloud/gcp/translate_v3";
 import * as Layer from "effect/Layer";
 import { makeModelHttpBinding } from "./BindingHttp.ts";
-import { GetModel } from "./GetModel.ts";
+import { GetModel } from "./GetModel.vibe";
 
 /**
  * HTTP implementation of {@link GetModel}.

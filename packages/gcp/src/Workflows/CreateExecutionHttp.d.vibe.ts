@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreateExecution } from "./CreateExecution.js";
+import { CreateExecution } from "./CreateExecution.vibe";
 /**
  * HTTP implementation of {@link CreateExecution}.
  *

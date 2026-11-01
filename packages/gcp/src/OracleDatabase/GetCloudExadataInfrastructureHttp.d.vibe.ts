@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetCloudExadataInfrastructure } from "./GetCloudExadataInfrastructure.js";
+import { GetCloudExadataInfrastructure } from "./GetCloudExadataInfrastructure.vibe";
 /**
  * HTTP implementation of {@link GetCloudExadataInfrastructure}.
  *

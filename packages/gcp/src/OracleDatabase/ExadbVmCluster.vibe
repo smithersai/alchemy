@@ -1,0 +1,449 @@
+import * as oracle from "@distilled.cloud/gcp/oracledatabase_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  OracleDatabaseNotResolved,
+  collectPages,
+  hasAlchemyLabelMap,
+  listAtLocation,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  resourceNameOf,
+  retryConflict,
+  retryQuota,
+  specifiedEquals,
+  type TimeZone,
+  toPhysicalId,
+  userLabels,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+import { waitForOperation } from "./operations.ts"
+
+const COLLECTION = "exadbVmClusters"
+const FALLBACK_ID = "exadbvm"
+
+export type ExadbVmClusterStorageDetails = {
+  /** Storage per node in GB. */
+  mutable sizeInGbsPerNode?: number
+}
+
+export type DataCollectionOptionsCommon = {
+  /** Enable incident logs. */
+  mutable isIncidentLogsEnabled?: boolean
+  /** Enable health monitoring. */
+  mutable isHealthMonitoringEnabled?: boolean
+  /** Enable diagnostics events. */
+  mutable isDiagnosticsEventsEnabled?: boolean
+}
+
+export type ExadbVmClusterPropertiesInput = {
+  /** OCI cluster name. Immutable. */
+  mutable clusterName?: string
+  /** Grid image id. Immutable. Required on create. */
+  mutable gridImageId?: string
+  /** License model. Immutable. */
+  mutable licenseModel?: oracle.ExadbVmClusterPropertiesLicenseModelEnum | (string & {})
+  /** VM file system storage. Immutable. Required on create. */
+  mutable vmFileSystemStorage?: ExadbVmClusterStorageDetails
+  /** Additional ECPUs per node. Immutable. */
+  mutable additionalEcpuCountPerNode?: number
+  /** Data collection options. Immutable. */
+  mutable dataCollectionOptions?: DataCollectionOptionsCommon
+  /** Shape attribute (`SMART_STORAGE`, `BLOCK_STORAGE`). Immutable. */
+  mutable shapeAttribute?: oracle.ExadbVmClusterPropertiesShapeAttributeEnum | (string & {})
+  /** Node/VM count. Mutable via patch. */
+  mutable nodeCount?: number
+  /** Enabled ECPUs per node. Immutable. */
+  mutable enabledEcpuCountPerNode?: number
+  /** SCAN listener TCP port. Immutable. */
+  mutable scanListenerPortTcp?: number
+  /** SSH public keys. Immutable. */
+  mutable sshPublicKeys?: string[]
+  /** Time zone. Immutable. */
+  mutable timeZone?: TimeZone
+  /** Exascale storage vault. Immutable. */
+  mutable exascaleDbStorageVault?: string
+  /** Hostname prefix. Immutable. */
+  mutable hostnamePrefix?: string
+}
+
+export type ExadbVmClusterProps = {
+  /**
+   * Exadb VM Cluster id. If omitted, a unique RFC1035 name is generated.
+   * Immutable.
+   */
+  mutable exadbVmClusterId?: string
+  /**
+   * Region. Immutable.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Display name. Immutable.
+   */
+  mutable displayName?: string
+  /**
+   * Client ODB Subnet. Immutable.
+   */
+  mutable odbSubnet?: string
+  /**
+   * Backup ODB Subnet. Immutable.
+   */
+  mutable backupOdbSubnet?: string
+  /**
+   * ODB Network. Immutable.
+   */
+  mutable odbNetwork?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Cluster properties.
+   */
+  mutable properties?: ExadbVmClusterPropertiesInput
+  /** Node count. Convenience alias for `properties.nodeCount`. */
+  mutable nodeCount?: number
+  /** Grid image id. Convenience alias for `properties.gridImageId`. */
+  mutable gridImageId?: string
+  /** Hostname prefix. Convenience alias for `properties.hostnamePrefix`. */
+  mutable hostnamePrefix?: string
+  /** SSH public keys. Convenience alias for `properties.sshPublicKeys`. */
+  mutable sshPublicKeys?: string[]
+  /** Exascale vault. Convenience alias. */
+  mutable exascaleDbStorageVault?: string
+  /** Enabled ECPUs per node. Convenience alias. */
+  mutable enabledEcpuCountPerNode?: number
+}
+
+export type ExadbVmCluster = Resource<
+  "GCP.OracleDatabase.ExadbVmCluster",
+  ExadbVmClusterProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Cluster id. */
+    mutable exadbVmClusterId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** Client ODB Subnet. */
+    mutable odbSubnet: string | undefined
+    /** Backup ODB Subnet. */
+    mutable backupOdbSubnet: string | undefined
+    /** ODB Network. */
+    mutable odbNetwork: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** GCP Oracle zone. */
+    mutable gcpOracleZone: string | undefined
+    /** Entitlement id. */
+    mutable entitlementId: string | undefined
+    /** Lifecycle state. */
+    mutable lifecycleState: string | undefined
+    /** Node count. */
+    mutable nodeCount: number | undefined
+    /** Hostname. */
+    mutable hostname: string | undefined
+    /** Grid Infrastructure version. */
+    mutable giVersion: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Oracle Exascale VM Cluster on Google Cloud.
+ *
+ * Changing `exadbVmClusterId`, `location`, ODB identity, `gridImageId`,
+ * or `exascaleDbStorageVault` replaces the cluster. Labels and
+ * `nodeCount` patch in place (adding VMs). Removing VMs uses a separate
+ * API and is not modeled here.
+ *
+ * ### Creating an Exadb VM Cluster
+ * **Example:** Generated name
+ * ```typescript
+ * const cluster = yield* GCP.OracleDatabase.ExadbVmCluster("ExaVm", {
+ *   displayName: "exavm",
+ *   odbSubnet: subnet.name,
+ *   backupOdbSubnet: backupSubnet.name,
+ *   gridImageId: "19.0.0.0",
+ *   hostnamePrefix: "exavm",
+ *   sshPublicKeys: [publicKey],
+ *   exascaleDbStorageVault: vault.name,
+ *   enabledEcpuCountPerNode: 8,
+ *   nodeCount: 2,
+ *   properties: {
+ *     vmFileSystemStorage: { sizeInGbsPerNode: 180 },
+ *     shapeAttribute: "SMART_STORAGE",
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category OracleDatabase
+ */
+export const ExadbVmCluster = Resource<ExadbVmCluster>("GCP.OracleDatabase.ExadbVmCluster")
+
+const mergedProperties = (news: ExadbVmClusterProps): ExadbVmClusterPropertiesInput => ({
+  ...news.properties,
+  nodeCount: news.nodeCount ?? news.properties?.nodeCount,
+  gridImageId: news.gridImageId ?? news.properties?.gridImageId,
+  hostnamePrefix: news.hostnamePrefix ?? news.properties?.hostnamePrefix,
+  sshPublicKeys: news.sshPublicKeys ?? news.properties?.sshPublicKeys,
+  exascaleDbStorageVault: news.exascaleDbStorageVault ?? news.properties?.exascaleDbStorageVault,
+  enabledEcpuCountPerNode: news.enabledEcpuCountPerNode ?? news.properties?.enabledEcpuCountPerNode,
+})
+
+const toCreateBody = (
+  news: ExadbVmClusterProps,
+  desiredLabels: Record<string, string>,
+): oracle.ExadbVmCluster => {
+  const props = mergedProperties(news)
+  const properties: oracle.ExadbVmClusterProperties = {}
+  if (props.clusterName !== undefined) properties.clusterName = props.clusterName
+  if (props.gridImageId !== undefined) properties.gridImageId = props.gridImageId
+  if (props.licenseModel !== undefined) {
+    properties.licenseModel = props.licenseModel
+  }
+  if (props.vmFileSystemStorage !== undefined) {
+    properties.vmFileSystemStorage = props.vmFileSystemStorage
+  }
+  if (props.additionalEcpuCountPerNode !== undefined) {
+    properties.additionalEcpuCountPerNode = props.additionalEcpuCountPerNode
+  }
+  if (props.dataCollectionOptions !== undefined) {
+    properties.dataCollectionOptions = props.dataCollectionOptions
+  }
+  if (props.shapeAttribute !== undefined) {
+    properties.shapeAttribute = props.shapeAttribute
+  }
+  if (props.nodeCount !== undefined) properties.nodeCount = props.nodeCount
+  if (props.enabledEcpuCountPerNode !== undefined) {
+    properties.enabledEcpuCountPerNode = props.enabledEcpuCountPerNode
+  }
+  if (props.scanListenerPortTcp !== undefined) {
+    properties.scanListenerPortTcp = props.scanListenerPortTcp
+  }
+  if (props.sshPublicKeys !== undefined) {
+    properties.sshPublicKeys = props.sshPublicKeys
+  }
+  if (props.timeZone !== undefined) properties.timeZone = props.timeZone
+  if (props.exascaleDbStorageVault !== undefined) {
+    properties.exascaleDbStorageVault = props.exascaleDbStorageVault
+  }
+  if (props.hostnamePrefix !== undefined) {
+    properties.hostnamePrefix = props.hostnamePrefix
+  }
+  const body: oracle.ExadbVmCluster = {
+    labels: desiredLabels,
+    properties,
+  }
+  if (news.displayName !== undefined) body.displayName = news.displayName
+  if (news.odbSubnet !== undefined) body.odbSubnet = news.odbSubnet
+  if (news.backupOdbSubnet !== undefined) {
+    body.backupOdbSubnet = news.backupOdbSubnet
+  }
+  if (news.odbNetwork !== undefined) body.odbNetwork = news.odbNetwork
+  return body
+}
+
+const toAttrs = (cluster: oracle.ExadbVmCluster, project: string): infer _ => {
+  const name = cluster.name ?? ""
+  const parsed = parseName(name, COLLECTION)
+  return {
+    name,
+    exadbVmClusterId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: cluster.displayName,
+    odbSubnet: cluster.odbSubnet,
+    backupOdbSubnet: cluster.backupOdbSubnet,
+    odbNetwork: cluster.odbNetwork,
+    labels: userLabels(cluster.labels),
+    gcpOracleZone: cluster.gcpOracleZone,
+    entitlementId: cluster.entitlementId,
+    lifecycleState: cluster.properties?.lifecycleState,
+    nodeCount: cluster.properties?.nodeCount,
+    hostname: cluster.properties?.hostname,
+    giVersion: cluster.properties?.giVersion,
+    createTime: cluster.createTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  retryQuota(oracle.getProjectsLocationsExadbVmClusters({ name })) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const listClusters = effect (project: string, region: string) => {
+  const collect = effect (parent: string) =>
+    (try collectPages(
+      oracle.listProjectsLocationsExadbVmClusters.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.exadbVmClusters,
+    )).filter((item) => hasAlchemyLabelMap(item.labels))
+  return listAtLocation(project, region, collect) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
+}
+
+export const ExadbVmClusterProvider = (): infer _ =>
+  Provider.succeed(ExadbVmCluster, {
+    stables: ["name", "exadbVmClusterId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousOdb = olds?.odbSubnet ?? output?.odbSubnet ?? ""
+      const nextOdb = news.odbSubnet ?? previousOdb
+      const previousBackup = olds?.backupOdbSubnet ?? output?.backupOdbSubnet ?? ""
+      const nextBackup = news.backupOdbSubnet ?? previousBackup
+      const previousVault = olds?.exascaleDbStorageVault ?? olds?.properties?.exascaleDbStorageVault ?? ""
+      const nextVault = news.exascaleDbStorageVault ?? news.properties?.exascaleDbStorageVault ?? previousVault
+      return replaceOnIdentity({
+        previousId: olds?.exadbVmClusterId ?? output?.exadbVmClusterId,
+        nextId: news.exadbVmClusterId ?? olds?.exadbVmClusterId ?? output?.exadbVmClusterId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location ?? env.region,
+        ),
+        extra: nextOdb !== previousOdb || nextBackup !== previousBackup || nextVault !== previousVault,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const exadbVmClusterId = try toPhysicalId(
+        id,
+        olds?.exadbVmClusterId,
+        output?.exadbVmClusterId,
+        FALLBACK_ID,
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const name = output?.name ?? resourceNameOf(env.project, location, COLLECTION, exadbVmClusterId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listClusters(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const exadbVmClusterId = try toPhysicalId(
+        id,
+        news.exadbVmClusterId,
+        output?.exadbVmClusterId,
+        FALLBACK_ID,
+      )
+      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const name = resourceNameOf(env.project, location, COLLECTION, exadbVmClusterId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (try (oracle
+          .createProjectsLocationsExadbVmClusters({
+            parent: parentOf(env.project, location),
+            exadbVmClusterId,
+            body: toCreateBody(news, desiredLabels),
+          })
+          |> retryQuota(%))) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try Effect.undefined;
+            default: throw e;
+          }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new OracleDatabaseNotResolved({ resourceName: name })
+      }
+
+      const ready = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (value) => value.properties?.lifecycleState,
+      )
+
+      const props = mergedProperties(news)
+      const observedLabels = tagRecord(ready.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const nodeCountChanged = props.nodeCount !== undefined
+        && !specifiedEquals(props.nodeCount, ready.properties?.nodeCount)
+
+      if (labelsChanged || nodeCountChanged) {
+        const mask = [
+          labelsChanged ? "labels" : undefined,
+          nodeCountChanged ? "properties.node_count" : undefined,
+        ].filter((field): field is string => field !== undefined)
+        const operation = try retryQuota(
+          oracle.patchProjectsLocationsExadbVmClusters({
+            name: ready.name ?? name,
+            updateMask: mask.join(","),
+            body: {
+              name: ready.name ?? name,
+              labels: desiredLabels,
+              properties: {
+                nodeCount: props.nodeCount,
+              },
+            },
+          }),
+        )
+        try waitForOperation(operation)
+        return toAttrs(
+          try waitUntilExists(getByName(ready.name ?? name), ready.name ?? name),
+          env.project,
+        )
+      }
+
+      return toAttrs(ready, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (oracle
+        .deleteProjectsLocationsExadbVmClusters({
+          name: output.name,
+        })
+        |> retryConflict(%))) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

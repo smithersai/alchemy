@@ -1,0 +1,103 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.ts"
+import { type BindingIam, type GcpHttpOp, grantFor } from "../HttpBinding.ts"
+import type { Instance } from "./Instance.ts"
+import type { User } from "./User.ts"
+
+/**
+ * Shared HTTP scaffolding for Cloud SQL instance and user bindings.
+ * Distilled ops are OperationMethods: yield them once at Layer
+ * construction so the inner
+ * runtime Effect is `Effect<A, E>` and does not leak `GcpOpContext`.
+ * NOT exported from index.ts.
+ */
+export const makeSqlInstanceHttpBinding = effect <
+  I extends { mutable instance?: string; mutable project?: string },
+  A,
+  E,
+>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (instance: Instance) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${instance})`({
+        iam: [
+          grantFor(
+            options.iam,
+            Output.interpolate`projects/${instance.project}/instances/${instance.instanceName}`,
+          ),
+        ],
+      })
+    }
+    const instanceName = try instance.instanceName.asEffect()
+    const project = try instance.project.asEffect()
+    return effect (
+      request?: Omit<I, "instance" | "project"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try run({
+            ...request,
+            instance: try instanceName,
+            project: try project,
+          } as I)
+        },
+        `${options.tag}(${instance.LogicalId})`,
+      )
+  }
+}
+
+export const makeSqlUserHttpBinding = effect <
+  I extends {
+    mutable name?: string
+    mutable instance?: string
+    mutable project?: string
+    mutable host?: string
+  },
+  A,
+  E,
+>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (user: User) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${user})`({
+        iam: [
+          grantFor(
+            options.iam,
+            Output.interpolate`projects/${user.project}/instances/${user.instance}`,
+          ),
+        ],
+      })
+    }
+    const userName = try user.userName.asEffect()
+    const instance = try user.instance.asEffect()
+    const project = try user.project.asEffect()
+    const host = try user.host.asEffect()
+    return effect (
+      request?: Omit<I, "name" | "instance" | "project"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const resolvedHost = request?.host ?? (try host)
+          return try run({
+            ...request,
+            name: try userName,
+            instance: try instance,
+            project: try project,
+            ...(resolvedHost ? { host: resolvedHost } : {}),
+          } as I)
+        },
+        `${options.tag}(${user.LogicalId})`,
+      )
+  }
+}

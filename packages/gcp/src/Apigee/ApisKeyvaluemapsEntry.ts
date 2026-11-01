@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { lastSegment, orgParent, resolveOrgId, toPhysicalId } from "./operations.ts";
+import { lastSegment, orgParent, resolveOrgId, toPhysicalId } from "./operations.vibe";
 
 const MAX_NAME_LENGTH = 255;
 const OWNERSHIP_KEY = "__alchemy";

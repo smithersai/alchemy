@@ -20,7 +20,7 @@ import {
   ownedByAlchemy,
   parentOf,
   parseOwnership,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type IssueModelsIssueProps = {
   /**

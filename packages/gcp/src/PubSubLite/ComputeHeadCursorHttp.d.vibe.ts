@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ComputeHeadCursor } from "./ComputeHeadCursor.js";
+import { ComputeHeadCursor } from "./ComputeHeadCursor.vibe";
 /**
  * HTTP implementation of {@link ComputeHeadCursor}.
  *

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetUserWorkloadsConfigMap } from "./GetUserWorkloadsConfigMap.js";
+import { GetUserWorkloadsConfigMap } from "./GetUserWorkloadsConfigMap.vibe";
 /**
  * HTTP implementation of {@link GetUserWorkloadsConfigMap}.
  *

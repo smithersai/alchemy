@@ -1,7 +1,7 @@
 import * as translate from "@distilled.cloud/gcp/translate_v3";
 import * as Layer from "effect/Layer";
 import { makeAdaptiveMtDatasetHttpBinding } from "./BindingHttp.ts";
-import { GetAdaptiveMtDataset } from "./GetAdaptiveMtDataset.ts";
+import { GetAdaptiveMtDataset } from "./GetAdaptiveMtDataset.vibe";
 
 /**
  * HTTP implementation of {@link GetAdaptiveMtDataset}.

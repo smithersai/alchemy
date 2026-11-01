@@ -23,8 +23,8 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
-import { toNodeBody, type NodeProps } from "./Node.ts";
+} from "./internal.vibe";
+import { toNodeBody, type NodeProps } from "./Node.vibe";
 
 export type MultisliceParams = {
   /**

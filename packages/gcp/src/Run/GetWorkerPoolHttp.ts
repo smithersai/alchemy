@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
-import { GetWorkerPool, type GetWorkerPoolRequest } from "./GetWorkerPool.ts";
+import { GetWorkerPool, type GetWorkerPoolRequest } from "./GetWorkerPool.vibe";
 import type { WorkerPool } from "./WorkerPool.ts";
 
 /**

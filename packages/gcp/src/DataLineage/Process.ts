@@ -23,7 +23,7 @@ import {
   userAttributes,
   waitForOperation,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type ProcessOrigin = {
   /**

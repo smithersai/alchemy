@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { StartWorkstation } from "./StartWorkstation.js";
+import { StartWorkstation } from "./StartWorkstation.vibe";
 /**
  * HTTP implementation of {@link StartWorkstation}.
  *

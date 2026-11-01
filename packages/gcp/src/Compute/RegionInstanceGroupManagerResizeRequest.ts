@@ -18,7 +18,7 @@ import {
   parseDescription,
   runRegionOp,
   toPhysicalName,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type RegionInstanceGroupManagerResizeRequestDuration = {
   /** Whole seconds. */

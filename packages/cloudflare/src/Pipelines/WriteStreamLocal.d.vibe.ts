@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { WriteStream } from "./WriteStream.js";
+import { WriteStream } from "./WriteStream.vibe";
 /**
  * Local implementation of the {@link WriteStream} service — POSTs records
  * to the stream's HTTP ingest endpoint with the **current credentials**

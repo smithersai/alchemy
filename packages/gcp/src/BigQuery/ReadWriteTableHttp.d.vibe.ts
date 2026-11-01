@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadWriteTable } from "./ReadWriteTable.js";
+import { ReadWriteTable } from "./ReadWriteTable.vibe";
 /**
  * HTTP implementation of {@link ReadWriteTable} over the BigQuery REST API.
  *

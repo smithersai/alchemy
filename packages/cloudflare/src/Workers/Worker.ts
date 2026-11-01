@@ -42,7 +42,7 @@ import { type Assets, type AssetsConfig, type AssetsProps } from "./Assets.ts";
 import { Request } from "./Request.ts";
 import type { ModuleRule } from "./Sources/Prebuilt.ts";
 import type { WorkerBuildOptions } from "./Sources/Rolldown.ts";
-import type { WorkerAccessConfig, WorkerAccessIdentity } from "./WorkerAccess.ts";
+import type { WorkerAccessConfig, WorkerAccessIdentity } from "./WorkerAccess.vibe";
 import { bindWorkerAsyncBindings } from "./WorkerAsyncBindings.ts";
 import type { WorkerBinding, WorkerBindingResource } from "./WorkerBinding.ts";
 import { transformWorkerDomainProps } from "./WorkerDomainDns.ts";

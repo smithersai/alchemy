@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Lookup } from "./Lookup.js";
+import { Lookup } from "./Lookup.vibe";
 /**
  * HTTP implementation of {@link Lookup}.
  *

@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { makeK2LocalAuth } from "./K2Http.ts";
 import type { Stream } from "./Stream.ts";
-import { WriteStream } from "./WriteStream.ts";
+import { WriteStream } from "./WriteStream.vibe";
 import { makeWriteStreamHttpClient } from "./WriteStreamHttp.ts";
 
 /**

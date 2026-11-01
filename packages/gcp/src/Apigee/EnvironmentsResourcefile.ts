@@ -16,7 +16,7 @@ import {
   organizationIdOf,
   stripRevision,
   toResourceId,
-} from "./common.ts";
+} from "./common.vibe";
 
 const MAX_NAME_LENGTH = 255;
 const DEFAULT_TYPE = "js";

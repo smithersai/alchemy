@@ -1,0 +1,285 @@
+import * as datacatalog from "@distilled.cloud/gcp/datacatalog_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { isTransientGcpError } from "../Errors.vibe"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DatacatalogNotResolved,
+  collectPages,
+  emptyOnMissing,
+  encodeOwnership,
+  findOwned,
+  hasOwnershipMarker,
+  ignoreGone,
+  listAtLocation,
+  locationParent,
+  missingGet,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  retryTransient,
+  sameStringList,
+  sameText,
+  toDisplayName,
+  updateMaskOf,
+  type TaxonomyActivatedPolicyType,
+} from "./internal.ts"
+
+export type { TaxonomyActivatedPolicyType }
+
+export type TaxonomyProps = {
+  /**
+   * Region (`us-central1`, `us`, …). Immutable — changing it replaces
+   * the taxonomy. Policy Tag Manager assigns the taxonomy id; it is not
+   * chosen by the caller.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * User-defined display name. Unique within an organization. Letters,
+   * numbers, underscores, dashes, and spaces; max 200 bytes. If omitted,
+   * a unique name is generated from the stack, stage, and logical id.
+   */
+  mutable displayName?: string
+  /**
+   * Human-readable description (max 2000 bytes). Taxonomies have no
+   * labels field, so Alchemy ownership is stored in a `[alchemy …]`
+   * prefix and stripped from attributes.
+   */
+  mutable description?: string
+  /**
+   * Policy types activated on this taxonomy
+   * (`FINE_GRAINED_ACCESS_CONTROL`).
+   */
+  mutable activatedPolicyTypes?: TaxonomyActivatedPolicyType[]
+}
+
+export type Taxonomy = Resource<
+  "GCP.DataCatalog.Taxonomy",
+  TaxonomyProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Server-assigned taxonomy id (last path segment). */
+    mutable taxonomyId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** User description (Alchemy ownership marker stripped). */
+    mutable description: string | undefined
+    /** Activated policy types. */
+    mutable activatedPolicyTypes: string[]
+    /** Number of policy tags in this taxonomy. */
+    mutable policyTagCount: number | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Data Catalog taxonomy — a hierarchy of policy tags used to classify
+ * data (for example PII vs financials).
+ *
+ * Taxonomy ids are assigned by Policy Tag Manager. Location is
+ * immutable. Display name, description, and activated policy types
+ * update in place. Taxonomies have no labels; Alchemy stamps
+ * `alchemy-stack` / `alchemy-stage` / `alchemy-id` into the description
+ * so `list` and `pnpm nuke:gcp` can identify owned taxonomies.
+ *
+ * ### Creating a Taxonomy
+ * **Example:** Generated display name
+ * ```typescript
+ * const taxonomy = yield* GCP.DataCatalog.Taxonomy("Pii", {
+ *   description: "sensitivity classes",
+ * });
+ * ```
+ *
+ * **Example:** Fine-grained access control
+ * ```typescript
+ * const taxonomy = yield* GCP.DataCatalog.Taxonomy("Pii", {
+ *   displayName: "PII",
+ *   activatedPolicyTypes: ["FINE_GRAINED_ACCESS_CONTROL"],
+ * });
+ * ```
+ *
+ * ### Updating a Taxonomy
+ * **Example:** Description
+ * ```typescript
+ * // Same logical id, changed props: the engine updates it in place.
+ * const taxonomy = yield* GCP.DataCatalog.Taxonomy("Pii", {
+ *   displayName: "PII",
+ *   description: "sensitivity classes v2",
+ *   activatedPolicyTypes: ["FINE_GRAINED_ACCESS_CONTROL"],
+ * });
+ * ```
+ *
+ * @resource
+ * @category DataCatalog
+ */
+export const Taxonomy = Resource<Taxonomy>("GCP.DataCatalog.Taxonomy")
+
+const toAttrs = (
+  taxonomy: datacatalog.GoogleCloudDatacatalogV1Taxonomy,
+  project: string,
+  region: string,
+): infer _ => {
+  const name = taxonomy.name ?? ""
+  const parsed = parseName(name, "taxonomies", region)
+  const ownership = parseOwnership(taxonomy.description)
+  return {
+    name,
+    taxonomyId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: taxonomy.displayName,
+    description: ownership.text,
+    activatedPolicyTypes: [...(taxonomy.activatedPolicyTypes ?? [])],
+    policyTagCount: taxonomy.policyTagCount,
+    createTime: taxonomy.taxonomyTimestamps?.createTime,
+    updateTime: taxonomy.taxonomyTimestamps?.updateTime,
+  }
+}
+
+const getByName = missingGet(datacatalog.getProjectsLocationsTaxonomies)
+
+const listTaxonomiesAt = effect (
+  parent: string,
+): datacatalog.GoogleCloudDatacatalogV1Taxonomy[]!datacatalog.ListProjectsLocationsTaxonomiesError!datacatalog.GcpOpContext =>
+  try emptyOnMissing(
+    collectPages(
+      datacatalog.listProjectsLocationsTaxonomies.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.taxonomies,
+    ),
+  )
+
+const listOwned = effect (project: string, region: string) =>
+  (try listAtLocation(project, region, listTaxonomiesAt)).filter((item) => hasOwnershipMarker(item.description))
+
+const observe = effect (id: string, name: string | undefined, project: string, location: string) => {
+  if (name !== undefined && name.length > 0) {
+    const existing = try getByName(name)
+    if (existing !== undefined) return existing
+  }
+  const candidates = try listTaxonomiesAt(locationParent(project, location))
+  return try findOwned(candidates, id, (item) => item.description)
+}
+
+export const TaxonomyProvider = (): infer _ =>
+  Provider.succeed(Taxonomy, {
+    stables: ["name", "taxonomyId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      return replaceOnIdentity({
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const existing = try observe(id, output?.name, env.project, location)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const parent = locationParent(env.project, location)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = try toDisplayName(id, news.displayName, output?.displayName)
+      const activatedPolicyTypes = news.activatedPolicyTypes
+
+      let current = try observe(id, output?.name, env.project, location)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          datacatalog.createProjectsLocationsTaxonomies({
+            parent,
+            body: {
+              displayName,
+              description,
+              activatedPolicyTypes,
+            },
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        current = created ?? (try observe(id, undefined, env.project, location))
+      }
+
+      if (current === undefined) {
+        throw new DatacatalogNotResolved({
+          resourceName: output?.name ?? `${parent}/taxonomies`,
+        })
+      }
+
+      const currentName = current.name ?? output?.name ?? ""
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = (current.description ?? "") !== description
+      const policyChanged = activatedPolicyTypes !== undefined
+        && !sameStringList(current.activatedPolicyTypes, activatedPolicyTypes)
+
+      if (displayChanged || descriptionChanged || policyChanged) {
+        current = try retryTransient(
+          datacatalog.patchProjectsLocationsTaxonomies({
+            name: currentName,
+            updateMask: updateMaskOf(
+              displayChanged ? "display_name" : undefined,
+              descriptionChanged ? "description" : undefined,
+              policyChanged ? "activated_policy_types" : undefined,
+            ),
+            body: {
+              name: currentName,
+              displayName,
+              description,
+              activatedPolicyTypes,
+            },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      try ignoreGone(
+        effect {
+          return try (datacatalog.deleteProjectsLocationsTaxonomies({ name: output.name })
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "Conflict" || isTransientGcpError(error),
+              times: 8,
+              schedule: Schedule.exponential("500 millis"),
+            }))
+        },
+      )
+    },
+  })

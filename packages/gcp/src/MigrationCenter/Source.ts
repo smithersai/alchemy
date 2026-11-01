@@ -27,7 +27,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type SourceType = mc.SourceTypeEnum | (string & {});
 export type SourceState = mc.SourceStateEnum | (string & {});

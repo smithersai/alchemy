@@ -1,7 +1,7 @@
 import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
-import { GetSchemaRegistry } from "./GetSchemaRegistry.js";
+import { GetSchemaRegistry } from "./GetSchemaRegistry.vibe";
 /**
  * HTTP implementation of {@link GetSchemaRegistry}.
  *

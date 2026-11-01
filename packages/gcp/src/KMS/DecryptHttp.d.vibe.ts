@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Decrypt } from "./Decrypt.js";
+import { Decrypt } from "./Decrypt.vibe";
 /**
  * HTTP implementation of {@link Decrypt}.
  *

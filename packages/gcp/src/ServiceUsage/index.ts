@@ -1,1 +1,1 @@
-export * from "./ProjectService.ts";
+export * from "./ProjectService.vibe";

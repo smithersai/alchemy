@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
-import { exportDatabase } from "./ExportDatabase.ts";
-import { importD1Database } from "./ImportDatabase.ts";
+import { exportDatabase } from "./ExportDatabase.vibe";
+import { importD1Database } from "./ImportDatabase.vibe";
 
 export interface CloneDatabaseOptions {
   accountId: string;

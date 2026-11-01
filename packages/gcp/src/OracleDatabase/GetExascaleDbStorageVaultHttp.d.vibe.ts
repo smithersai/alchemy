@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetExascaleDbStorageVault } from "./GetExascaleDbStorageVault.js";
+import { GetExascaleDbStorageVault } from "./GetExascaleDbStorageVault.vibe";
 /**
  * HTTP implementation of {@link GetExascaleDbStorageVault}.
  *

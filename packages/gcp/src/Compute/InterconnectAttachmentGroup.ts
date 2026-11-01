@@ -11,8 +11,8 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { ignoredCodes } from "./internal.ts";
-import { waitGlobalOperation } from "./operations.ts";
+import { ignoredCodes } from "./internal.vibe";
+import { waitGlobalOperation } from "./operations.vibe";
 
 const MAX_NAME_LENGTH = 63;
 const DEFAULT_SLA = "NO_SLA";

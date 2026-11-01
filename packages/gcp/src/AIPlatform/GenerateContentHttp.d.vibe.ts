@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GenerateContent } from "./GenerateContent.js";
+import { GenerateContent } from "./GenerateContent.vibe";
 /**
  * HTTP implementation of {@link GenerateContent}.
  *

@@ -25,7 +25,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type UtilizationReportTimeFrame = vm.UtilizationReportTimeFrameEnum | (string & {});
 export type UtilizationReportState = vm.UtilizationReportStateEnum | (string & {});

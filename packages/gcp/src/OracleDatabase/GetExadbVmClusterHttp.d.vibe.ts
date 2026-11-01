@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetExadbVmCluster } from "./GetExadbVmCluster.js";
+import { GetExadbVmCluster } from "./GetExadbVmCluster.vibe";
 /**
  * HTTP implementation of {@link GetExadbVmCluster}.
  *

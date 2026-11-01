@@ -1,0 +1,198 @@
+import * as connectors from "@distilled.cloud/gcp/connectors_v2"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { entityNameOf, getEntity, parseEntityName, retryTransient, sameJson, type EntityFields } from "./internal.ts"
+
+export type ConnectionsEntityTypesEntityProps = {
+  /**
+   * Parent entity type resource name
+   * `projects/{project}/locations/{location}/connections/{connection}/entityTypes/{type}`.
+   * Immutable — changing it replaces the entity.
+   */
+  mutable parent: string
+  /**
+   * External-system entity id (the `{id}` segment of
+   * `.../entityTypes/{type}/entities/{id}`). Server-assigned on create.
+   * Immutable — changing it replaces the entity.
+   */
+  mutable entityId?: string
+  /**
+   * Entity field values sent to the connected system. Keys are field
+   * names; values are JSON-compatible.
+   */
+  mutable fields?: EntityFields
+}
+
+export type ConnectionsEntityTypesEntity = Resource<
+  "GCP.Connectors.ConnectionsEntityTypesEntity",
+  ConnectionsEntityTypesEntityProps,
+  {
+    /**
+     * Full resource name
+     * `projects/{project}/locations/{location}/connections/{connection}/entityTypes/{type}/entities/{id}`.
+     */
+    mutable name: string
+    /** External-system entity id. */
+    mutable entityId: string
+    /** Parent entity type resource name. */
+    mutable parent: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Connection id. */
+    mutable connection: string
+    /** Entity type id. */
+    mutable entityType: string
+    /** Entity field values as reported by the connected system. */
+    mutable fields: EntityFields
+  },
+  never,
+  Providers
+>
+
+/**
+ * A row in a connected system, reached through Integration Connectors.
+ *
+ * Entities live under a Connection entity type. The entity id is
+ * assigned by the external system. Parent and entity id are identity —
+ * changing either replaces the row. `fields` update in place via patch.
+ * Entities have no labels, so nothing is written into the external row
+ * to mark ownership: Alchemy tracks the row by its server-assigned name.
+ *
+ * Creating an entity requires an ACTIVE Integration Connectors
+ * connection whose entity type accepts the supplied fields.
+ *
+ * ### Creating an Entity
+ * **Example:** Insert a row
+ * ```typescript
+ * const account = yield* GCP.Connectors.ConnectionsEntityTypesEntity(
+ *   "Account",
+ *   {
+ *     parent:
+ *       "projects/my-project/locations/us-central1/connections/salesforce/entityTypes/Account",
+ *     fields: { Name: "Acme" },
+ *   },
+ * );
+ * ```
+ *
+ * ### Updating an Entity
+ * **Example:** Patch fields
+ * ```typescript
+ * // Same logical id, changed fields: the engine keeps the row and patches it.
+ * const account = yield* GCP.Connectors.ConnectionsEntityTypesEntity(
+ *   "Account",
+ *   {
+ *     parent:
+ *       "projects/my-project/locations/us-central1/connections/salesforce/entityTypes/Account",
+ *     fields: { Name: "Acme Corp" },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category Connectors
+ */
+export const ConnectionsEntityTypesEntity = Resource<ConnectionsEntityTypesEntity>(
+  "GCP.Connectors.ConnectionsEntityTypesEntity",
+)
+
+const toAttrs = (entity: connectors.Entity, project: string, parent: string): infer _ => {
+  const name = entity.name ?? ""
+  const parsed = parseEntityName(name || `${parent}/entities/`)
+  return {
+    name,
+    entityId: parsed.entityId,
+    parent: parsed.parent || parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    connection: parsed.connection,
+    entityType: parsed.entityType,
+    fields: entity.fields ?? {},
+  }
+}
+
+const refresh = effect (name: string, fallback: connectors.Entity) => (try getEntity(name)) ?? fallback
+
+export const ConnectionsEntityTypesEntityProvider = (): infer _ =>
+  Provider.succeed(ConnectionsEntityTypesEntity, {
+    stables: ["name", "entityId", "parent", "project", "location", "connection", "entityType"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (previousParent !== undefined && news.parent !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.entityId ?? output?.entityId
+      if (previousId !== undefined && news.entityId !== undefined && news.entityId !== previousId) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    // Rows carry no ownership marker; only a known name (from state or an
+    // explicit `entityId`) identifies ours.
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = olds?.parent ?? output?.parent ?? ""
+      const entityId = olds?.entityId ?? output?.entityId
+      const name = output?.name
+        ?? (entityId !== undefined && parent.length > 0 ? entityNameOf(parent, entityId) : "")
+      const existing = try getEntity(name)
+      if (existing === undefined) return undefined
+      return toAttrs(existing, env.project, parent)
+    },
+
+    reconcile: effect ({ news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = news.parent
+      const desiredFields = news.fields ?? {}
+      const name = output?.name ?? (news.entityId !== undefined ? entityNameOf(parent, news.entityId) : "")
+
+      let current = try getEntity(name)
+
+      if (current === undefined) {
+        current = try retryTransient(
+          connectors.createProjectsLocationsConnectionsEntityTypesEntities({
+            parent,
+            body: { fields: desiredFields },
+          }),
+        )
+      }
+
+      const currentName = current.name ?? name
+      // The connected system may report extra columns; only compare ours.
+      const observed = current.fields ?? {}
+      const fieldsChanged = Object.entries(desiredFields).some(
+        ([key, value]) => !sameJson(observed[key], value),
+      )
+
+      if (fieldsChanged && currentName.length > 0) {
+        const patched = try retryTransient(
+          connectors.patchProjectsLocationsConnectionsEntityTypesEntities({
+            name: currentName,
+            body: { fields: desiredFields },
+          }),
+        )
+        current = try refresh(currentName, patched)
+      }
+
+      return toAttrs(current, env.project, parent)
+    },
+
+    delete: effect ({ output }) => {
+      if (output.name.length === 0) return
+      retryTransient(
+        connectors.deleteProjectsLocationsConnectionsEntityTypesEntities({
+          name: output.name,
+        }),
+      ) catch effect (e) => match (e) {
+        when { _tag: "NotFound" } or { _tag: "EntitiesNotImplemented" }: try Effect.void;
+        default: throw e;
+      }
+    },
+  })

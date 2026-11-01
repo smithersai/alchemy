@@ -28,7 +28,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 const COLLECTION = "realms";
 const DEFAULT_TRAFFIC: cnr.RealmTrafficTypeEnum = "PRIVATE";

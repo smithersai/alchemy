@@ -1,7 +1,7 @@
 import * as translate from "@distilled.cloud/gcp/translate_v3";
 import * as Layer from "effect/Layer";
 import { locationParentOf, makeTranslateTextBinding } from "./BindingHttp.ts";
-import { TranslateText } from "./TranslateText.ts";
+import { TranslateText } from "./TranslateText.vibe";
 
 /**
  * HTTP implementation of {@link TranslateText}.

@@ -21,7 +21,7 @@ import {
   parseOwnership,
   toResourceId,
   updateMaskOf,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type QaQuestionTagProps = {
   /**

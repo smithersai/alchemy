@@ -1,0 +1,356 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import { listLocations } from "./names.ts"
+import { resourceNameFromOperation, waitForOperation } from "./operations.ts"
+import {
+  AiPlatformNotResolved,
+  AiPlatformStillExists,
+  collectPages,
+  locationParent,
+  normalizeLocation,
+  parseResourceName,
+  toPhysicalId,
+  userLabels,
+  type EncryptionSpec,
+  type MachineSpec,
+  type NetworkSpec,
+  type PersistentDiskSpec,
+} from "./shared.vibe"
+
+const COLLECTION = "notebookExecutionJobs";
+
+export type DirectNotebookSource = {
+  /** Base64-encoded contents of the input notebook. */
+  mutable content?: string;
+};
+
+export type GcsNotebookSource = {
+  /** Cloud Storage URI of the ipynb (`gs://bucket/notebook.ipynb`). */
+  mutable uri?: string;
+  /** Object generation to read. Unset reads the live object. */
+  mutable generation?: string;
+};
+
+export type DataformRepositorySource = {
+  /** Dataform repository resource name. */
+  mutable dataformRepositoryResourceName?: string;
+  /** Commit SHA. Unset reads HEAD. */
+  mutable commitSha?: string;
+};
+
+export type CustomEnvironmentSpec = {
+  /** Machine spec for the execution job. */
+  mutable machineSpec?: MachineSpec;
+  /** Network spec. */
+  mutable networkSpec?: NetworkSpec;
+  /** Persistent disk attached to the job. */
+  mutable persistentDiskSpec?: PersistentDiskSpec;
+};
+
+export type NotebookExecutionJobProps = {
+  /**
+   * Job id. If omitted, a unique RFC1035 name is generated. Immutable —
+   * changing it replaces the job (a new execution is started).
+   */
+  mutable notebookExecutionJobId?: string;
+  /**
+   * Vertex AI location. Immutable — changing it replaces the job.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string;
+  /**
+   * Display name (max 128 UTF-8 characters). Defaults to the job id.
+   */
+  mutable displayName?: string;
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>;
+  /**
+   * NotebookRuntimeTemplate to source compute from.
+   */
+  mutable notebookRuntimeTemplateResourceName?: string;
+  /**
+   * Custom compute configuration. Mutually exclusive with a template.
+   */
+  mutable customEnvironmentSpec?: CustomEnvironmentSpec;
+  /**
+   * Inline notebook contents. Mutually exclusive with GCS / Dataform.
+   */
+  mutable directNotebookSource?: DirectNotebookSource;
+  /**
+   * Cloud Storage notebook URI.
+   */
+  mutable gcsNotebookSource?: GcsNotebookSource;
+  /**
+   * Dataform repository notebook source.
+   */
+  mutable dataformRepositorySource?: DataformRepositorySource;
+  /**
+   * Cloud Storage location for results (`gs://bucket-name`).
+   */
+  mutable gcsOutputUri?: string;
+  /**
+   * Service account the execution runs as.
+   */
+  mutable serviceAccount?: string;
+  /**
+   * User email to run as (Colab runtimes only).
+   */
+  mutable executionUser?: string;
+  /**
+   * Kernel name. Unset uses the default kernel.
+   */
+  mutable kernelName?: string;
+  /**
+   * Max running time (e.g. `"86400s"`).
+   */
+  mutable executionTimeout?: string;
+  /**
+   * Customer-managed encryption key.
+   */
+  mutable encryptionSpec?: EncryptionSpec;
+};
+
+export type NotebookExecutionJob = Resource<
+  "GCP.AIPlatform.NotebookExecutionJob",
+  NotebookExecutionJobProps,
+  {
+    /** Full resource name. */
+    mutable name: string;
+    /** Job id (last path segment). */
+    mutable notebookExecutionJobId: string;
+    /** Project id. */
+    mutable project: string;
+    /** Location id. */
+    mutable location: string;
+    /** Display name. */
+    mutable displayName: string | undefined;
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>;
+    /** Job state (`JOB_STATE_RUNNING`, `JOB_STATE_SUCCEEDED`, …). */
+    mutable jobState: string | undefined;
+    /** Cloud Storage output URI. */
+    mutable gcsOutputUri: string | undefined;
+    /** NotebookRuntimeTemplate resource name, if used. */
+    mutable notebookRuntimeTemplateResourceName: string | undefined;
+    /** Service account. */
+    mutable serviceAccount: string | undefined;
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined;
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined;
+  },
+  never,
+  Providers
+>;
+
+/**
+ * A Vertex AI notebook execution job — runs an ipynb once against a
+ * runtime template or custom environment.
+ *
+ * There is no update API. Changing identity (`notebookExecutionJobId`,
+ * `location`) or the notebook source replaces the job. Other fields are
+ * create-time only.
+ *
+ * ### Creating a Job
+ * **Example:** Execute a GCS notebook
+ * ```typescript
+ * const job = yield* GCP.AIPlatform.NotebookExecutionJob("Nightly", {
+ *   notebookRuntimeTemplateResourceName: template.name,
+ *   gcsNotebookSource: { uri: "gs://bucket/notebook.ipynb" },
+ *   gcsOutputUri: "gs://bucket/output",
+ * });
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const NotebookExecutionJob = Resource<NotebookExecutionJob>(
+  "GCP.AIPlatform.NotebookExecutionJob",
+);
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class NotebookExecutionJobNotResolved extends Data.TaggedError(
+  "GCP.AIPlatform.NotebookExecutionJobNotResolved",
+)<{
+  mutable resourceName: string;
+}> {}
+
+const resourceName = (project: string, location: string, id: string): infer _ =>
+  `${locationParent(project, location)}/${COLLECTION}/${id}`;
+
+const toAttrs = (job: aiplatform.GoogleCloudAiplatformV1NotebookExecutionJob, project: string): infer _ => {
+  const name = job.name ?? "";
+  const parsed = parseResourceName(name, COLLECTION);
+  return {
+    name,
+    notebookExecutionJobId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: job.displayName,
+    labels: userLabels(job.labels),
+    jobState: job.jobState,
+    gcsOutputUri: job.gcsOutputUri,
+    notebookRuntimeTemplateResourceName: job.notebookRuntimeTemplateResourceName,
+    serviceAccount: job.serviceAccount,
+    createTime: job.createTime,
+    updateTime: job.updateTime,
+  };
+};
+
+const getByName = effect (name: string) => aiplatform
+    .getProjectsLocationsNotebookExecutionJobs({ name }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; };
+
+const waitUntilExists = effect (name: string) => try (getByName(name)
+  |> Effect.filterOrFail(%, (job): job is aiplatform.GoogleCloudAiplatformV1NotebookExecutionJob => job !== undefined, () => new AiPlatformNotResolved({ resourceName: name }))
+  |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.AIPlatform.NotResolved",
+      times: 8,
+      schedule: Schedule.spaced("2 seconds"),
+    }));
+
+const waitUntilGone = effect (name: string) => try (getByName(name)
+  |> Effect.filterOrFail(%, (job) => job === undefined, () => new AiPlatformStillExists({ resourceName: name }))
+  |> Effect.asVoid(%)
+  |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.AIPlatform.StillExists",
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    }));
+
+export const NotebookExecutionJobProvider = (): infer _ =>
+  Provider.succeed(NotebookExecutionJob, {
+    stables: ["name", "notebookExecutionJobId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const env = try GcpEnvironment.current;
+      if (!isResolved(news)) return undefined;
+      const previousId = olds?.notebookExecutionJobId ?? output?.notebookExecutionJobId;
+      const nextId = news.notebookExecutionJobId ?? previousId;
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region);
+      const nextLocation = normalizeLocation(news.location ?? output?.location, env.region);
+      const sourceChanged =
+        (news.gcsNotebookSource?.uri ?? "") !== (olds?.gcsNotebookSource?.uri ?? "") ||
+        (news.directNotebookSource?.content ?? "") !==
+          (olds?.directNotebookSource?.content ?? "") ||
+        (news.dataformRepositorySource?.dataformRepositoryResourceName ?? "") !==
+          (olds?.dataformRepositorySource?.dataformRepositoryResourceName ?? "");
+      const replace =
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId) ||
+        previousLocation !== nextLocation ||
+        (olds !== undefined && sourceChanged);
+      if (!replace) return undefined;
+      return {
+        action: "replace" as const,
+        deleteFirst:
+          previousLocation === nextLocation && previousId !== undefined && nextId === previousId,
+      };
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current;
+      const jobId = try toPhysicalId(
+        id,
+        olds?.notebookExecutionJobId,
+        output?.notebookExecutionJobId,
+      );
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region);
+      const name = output?.name ?? resourceName(env.project, location, jobId);
+      const existing = try getByName(name);
+      if (existing === undefined) return undefined;
+      const attrs = toAttrs(existing, env.project);
+      // Vertex AI replaces a job's labels with its runtime template's, so a
+      // job at the generated (instance-unique) id is ours even when the
+      // ownership labels name the template.
+      const generated = olds?.notebookExecutionJobId === undefined;
+      return generated || (try hasAlchemyLabels(id, tagRecord(existing.labels)))
+        ? attrs
+        : Unowned(attrs);
+    },
+
+    list: effect () => {
+        const env = try GcpEnvironment.current;
+        const pages = (try Effect.forEach(listLocations(env.region), effect (location) => collectPages(
+            aiplatform.listProjectsLocationsNotebookExecutionJobs.pages({
+              parent: locationParent(env.project, location),
+              pageSize: 100,
+            }),
+          ) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; },
+        )).flat();
+        return pages.flatMap((page) =>
+          (page.notebookExecutionJobs ?? [])
+            .filter((job) =>
+              Object.keys(job.labels ?? {}).some((key) => key.startsWith("alchemy-")),
+            )
+            .map((job) => toAttrs(job, env.project)),
+        );
+      },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current;
+      const jobId = try toPhysicalId(
+        id,
+        news.notebookExecutionJobId,
+        output?.notebookExecutionJobId,
+      );
+      const location = normalizeLocation(news.location ?? output?.location, env.region);
+      const name = resourceName(env.project, location, jobId);
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      };
+
+      let current = try getByName(output?.name ?? name);
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsNotebookExecutionJobs({
+            parent: locationParent(env.project, location),
+            notebookExecutionJobId: jobId,
+            body: {
+              displayName: news.displayName ?? jobId,
+              labels: desiredLabels,
+              notebookRuntimeTemplateResourceName: news.notebookRuntimeTemplateResourceName,
+              customEnvironmentSpec: news.customEnvironmentSpec,
+              directNotebookSource: news.directNotebookSource,
+              gcsNotebookSource: news.gcsNotebookSource,
+              dataformRepositorySource: news.dataformRepositorySource,
+              gcsOutputUri: news.gcsOutputUri,
+              serviceAccount: news.serviceAccount,
+              executionUser: news.executionUser,
+              kernelName: news.kernelName,
+              executionTimeout: news.executionTimeout,
+              encryptionSpec: news.encryptionSpec,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; };
+        if (created !== undefined) {
+          try waitForOperation(created, { alreadyExistsOk: true });
+        }
+        const createdName = resourceNameFromOperation(created ?? {}) ?? output?.name ?? name;
+        current = try waitUntilExists(createdName);
+      }
+
+      if (current === undefined) {
+        throw new NotebookExecutionJobNotResolved({ resourceName: name });
+      }
+
+      return toAttrs(current, env.project);
+    },
+
+    delete: effect ({ output }) => {
+      const operation = aiplatform
+        .deleteProjectsLocationsNotebookExecutionJobs({ name: output.name }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; };
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true });
+      }
+      try waitUntilGone(output.name);
+    },
+  });

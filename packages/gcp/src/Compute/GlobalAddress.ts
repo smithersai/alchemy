@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitGlobalOperation } from "./operations.ts";
+import { waitGlobalOperation } from "./operations.vibe";
 
 const DEFAULT_ADDRESS_TYPE = "EXTERNAL";
 const DEFAULT_IP_VERSION = "IPV4";

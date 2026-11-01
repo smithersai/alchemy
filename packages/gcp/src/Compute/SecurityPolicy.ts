@@ -18,8 +18,8 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { ignoredCodes } from "./internal.ts";
-import { waitGlobalOperation } from "./operations.ts";
+import { ignoredCodes } from "./internal.vibe";
+import { waitGlobalOperation } from "./operations.vibe";
 
 const DEFAULT_TYPE = "CLOUD_ARMOR";
 const DEFAULT_RULE_PRIORITY = 2147483647;

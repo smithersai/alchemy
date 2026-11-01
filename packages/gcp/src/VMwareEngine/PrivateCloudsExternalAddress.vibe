@@ -1,0 +1,340 @@
+import * as vmwareengine from "@distilled.cloud/gcp/vmwareengine_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_ZONE,
+  VmwareengineNotResolved,
+  changedFields,
+  collectPages,
+  createInternalLabels,
+  encodeOwnership,
+  expandName,
+  hasAlchemyLabels,
+  hasOwnershipMarker,
+  listAcrossLocations,
+  locationFromName,
+  normalizeLocation,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  rfc1035,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+  waitUntilReady,
+} from "./internal.ts"
+
+const COLLECTION = "externalAddresses"
+const PARENT_COLLECTION = "privateClouds"
+
+export type PrivateCloudsExternalAddressProps = {
+  /**
+   * Parent PrivateCloud resource name
+   * (`projects/{project}/locations/{location}/privateClouds/{privateCloud}`)
+   * or the cloud id. Immutable — changing it replaces the address.
+   */
+  mutable privateCloud: string
+  /**
+   * External address id (the `{externalAddress}` segment of
+   * `.../privateClouds/{privateCloud}/externalAddresses/{externalAddress}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable.
+   */
+  mutable externalAddressId?: string
+  /**
+   * Location of the parent private cloud. Inferred from `privateCloud`
+   * when that value is a full resource name. Immutable.
+   * @default "us-central1-a"
+   */
+  mutable location?: string
+  /**
+   * Internal IP address of the workload VM this mapping points at.
+   */
+  mutable internalIp: string
+  /**
+   * Human-readable description. External addresses have no labels field,
+   * so Alchemy stamps ownership into a `[alchemy …]` prefix and strips
+   * it from attributes.
+   */
+  mutable description?: string
+}
+
+export type PrivateCloudsExternalAddress = Resource<
+  "GCP.VMwareEngine.PrivateCloudsExternalAddress",
+  PrivateCloudsExternalAddressProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** External address id (last path segment). */
+    mutable externalAddressId: string
+    /** Parent PrivateCloud resource name. */
+    mutable privateCloud: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Internal IP of the workload VM. */
+    mutable internalIp: string | undefined
+    /** Allocated external IP. */
+    mutable externalIp: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined
+    /** Server-reported state. */
+    mutable state: string | undefined
+    /** System-generated unique identifier. */
+    mutable uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An allocated external IP address mapped to a workload VM inside a
+ * VMware Engine private cloud. The corresponding network policy must have
+ * `externalIp` enabled.
+ *
+ * External addresses have no labels field, so Alchemy stamps ownership
+ * into the description for `list` / nuke. Changing the parent cloud,
+ * address id, or location replaces the address. Internal IP and
+ * description update in place.
+ *
+ * ### Creating a PrivateCloudsExternalAddress
+ * **Example:** Map a workload VM
+ * ```typescript
+ * const address = yield* GCP.VMwareEngine.PrivateCloudsExternalAddress(
+ *   "Web",
+ *   {
+ *     privateCloud: cloud.name,
+ *     internalIp: "192.168.1.10",
+ *     description: "web vip",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category VMwareEngine
+ */
+export const PrivateCloudsExternalAddress = Resource<PrivateCloudsExternalAddress>(
+  "GCP.VMwareEngine.PrivateCloudsExternalAddress",
+)
+
+const parentCloudName = (project: string, location: string, privateCloud: string): infer _ =>
+  expandName(privateCloud, project, location, PARENT_COLLECTION)
+
+const resourceNameOf = (parent: string, externalAddressId: string): infer _ =>
+  `${parent}/${COLLECTION}/${externalAddressId}`
+
+const toAttrs = (item: vmwareengine.ExternalAddress, project: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, COLLECTION, DEFAULT_ZONE)
+  const ownership = parseOwnership(item.description)
+  return {
+    name,
+    externalAddressId: parsed.id,
+    privateCloud: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    internalIp: item.internalIp,
+    externalIp: item.externalIp,
+    description: ownership.text,
+    state: item.state,
+    uid: item.uid,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  vmwareengine
+    .getProjectsLocationsPrivateCloudsExternalAddresses({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const PrivateCloudsExternalAddressProvider = (): infer _ =>
+  Provider.succeed(PrivateCloudsExternalAddress, {
+    stables: [
+      "name",
+      "externalAddressId",
+      "privateCloud",
+      "project",
+      "location",
+      "uid",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, DEFAULT_ZONE)
+      return replaceOnIdentity({
+        previousId: olds?.externalAddressId ?? output?.externalAddressId,
+        nextId: news.externalAddressId
+          ? rfc1035(news.externalAddressId, "address")
+          : (olds?.externalAddressId ?? output?.externalAddressId),
+        previousLocation,
+        nextLocation: normalizeLocation(
+          news.location ?? locationFromName(news.privateCloud, previousLocation),
+          DEFAULT_ZONE,
+        ),
+        previousParent: olds?.privateCloud ?? output?.privateCloud,
+        nextParent: news.privateCloud,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(
+        olds?.location
+          ?? output?.location
+          ?? (olds?.privateCloud ? locationFromName(olds.privateCloud, DEFAULT_ZONE) : undefined),
+        DEFAULT_ZONE,
+      )
+      const parent = parentCloudName(
+        env.project,
+        location,
+        olds?.privateCloud ?? output?.privateCloud ?? "",
+      )
+      const externalAddressId = try toPhysicalId(
+        id,
+        olds?.externalAddressId,
+        output?.externalAddressId,
+        "address",
+      )
+      const name = output?.name ?? resourceNameOf(parent, externalAddressId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      const { labels } = parseOwnership(existing.description)
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const clouds = try listAcrossLocations(env.project, env.region, effect (parent) =>
+        try collectPages(
+          vmwareengine.listProjectsLocationsPrivateClouds.pages({
+            parent,
+            pageSize: 1000,
+          }),
+          (page) => page.privateClouds,
+        ))
+      const nested = try Effect.forEach(
+        clouds.filter((cloud) => (cloud.name ?? "").length > 0),
+        effect (cloud) =>
+          try collectPages(
+            vmwareengine.listProjectsLocationsPrivateCloudsExternalAddresses.pages({
+              parent: cloud.name ?? "",
+              pageSize: 1000,
+            }),
+            (page) => page.externalAddresses,
+          ),
+        { concurrency: 4 },
+      )
+      return nested
+        .flat()
+        .filter((item) => hasOwnershipMarker(item.description))
+        .map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(
+        news.location ?? output?.location ?? locationFromName(news.privateCloud, DEFAULT_ZONE),
+        DEFAULT_ZONE,
+      )
+      const parent = parentCloudName(env.project, location, news.privateCloud)
+      const externalAddressId = try toPhysicalId(
+        id,
+        news.externalAddressId,
+        output?.externalAddressId,
+        "address",
+      )
+      const name = resourceNameOf(parent, externalAddressId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeOwnership(ownership, news.description)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (try (vmwareengine
+          .createProjectsLocationsPrivateCloudsExternalAddresses({
+            parent,
+            externalAddressId,
+            body: {
+              internalIp: news.internalIp,
+              description: desiredDescription,
+            },
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 5,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new VmwareengineNotResolved({ resourceName: name })
+      }
+
+      current = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item) => item.state,
+      )
+
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const ipChanged = (current.internalIp ?? "") !== news.internalIp
+      const updateMask = changedFields([
+        ["description", descriptionChanged],
+        ["internalIp", ipChanged],
+      ])
+
+      if (updateMask.length > 0) {
+        const operation = try vmwareengine.patchProjectsLocationsPrivateCloudsExternalAddresses({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            description: desiredDescription,
+            internalIp: news.internalIp,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(
+          getByName(current.name ?? name),
+          current.name ?? name,
+          (item) => item.state,
+        )
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (vmwareengine
+        .deleteProjectsLocationsPrivateCloudsExternalAddresses({
+          name: output.name,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

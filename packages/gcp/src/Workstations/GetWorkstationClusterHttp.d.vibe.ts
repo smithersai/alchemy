@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetWorkstationCluster } from "./GetWorkstationCluster.js";
+import { GetWorkstationCluster } from "./GetWorkstationCluster.vibe";
 /**
  * HTTP implementation of {@link GetWorkstationCluster}.
  *

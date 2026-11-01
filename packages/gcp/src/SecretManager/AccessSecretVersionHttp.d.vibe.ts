@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { AccessSecretVersion } from "./AccessSecretVersion.js";
+import { AccessSecretVersion } from "./AccessSecretVersion.vibe";
 /**
  * HTTP implementation of {@link AccessSecretVersion}.
  *

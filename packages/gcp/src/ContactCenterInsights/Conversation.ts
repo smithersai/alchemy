@@ -24,7 +24,7 @@ import {
   sameText,
   toResourceId,
   updateMaskOf,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type ConversationMedium = "MEDIUM_UNSPECIFIED" | "PHONE_CALL" | "CHAT";
 

@@ -1,0 +1,366 @@
+import * as oracle from "@distilled.cloud/gcp/oracledatabase_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  OracleDatabaseNotResolved,
+  collectPages,
+  type CustomerContact,
+  hasAlchemyLabelMap,
+  listAtLocation,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  resourceNameOf,
+  retryConflict,
+  retryQuota,
+  toPhysicalId,
+  userLabels,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+import { waitForOperation } from "./operations.ts"
+
+const COLLECTION = "cloudExadataInfrastructures"
+const FALLBACK_ID = "exadata"
+
+export type MaintenanceWindow = {
+  /** Scheduling preference (`CUSTOM_PREFERENCE`, `NO_PREFERENCE`). */
+  mutable preference?: oracle.MaintenanceWindowPreferenceEnum | (string & {})
+  /** 4-hour UTC slots (`0`, `4`, `8`, `12`, `16`, `20`). */
+  mutable hoursOfDay?: number[]
+  /** Custom action timeout in minutes (15-120). */
+  mutable customActionTimeoutMins?: number
+  /** Months when maintenance should run. */
+  mutable months?: Array<oracle.MaintenanceWindowMonthsItemEnum | (string & {})>
+  /** Patching mode (`ROLLING`, `NONROLLING`). */
+  mutable patchingMode?: oracle.MaintenanceWindowPatchingModeEnum | (string & {})
+  /** Lead time in weeks (1-4). */
+  mutable leadTimeWeek?: number
+  /** Days of week. */
+  mutable daysOfWeek?: Array<oracle.MaintenanceWindowDaysOfWeekItemEnum | (string & {})>
+  /** Enable custom action timeout. */
+  mutable isCustomActionTimeoutEnabled?: boolean
+  /** Weeks of month (1, 2, 3, 4). */
+  mutable weeksOfMonth?: number[]
+}
+
+export type CloudExadataInfrastructurePropertiesInput = {
+  /** Shape (e.g. `Exadata.X9M`). Immutable. */
+  mutable shape?: string
+  /** Number of compute servers. */
+  mutable computeCount?: number
+  /** Number of storage servers. */
+  mutable storageCount?: number
+  /** Total storage size in GB. */
+  mutable totalStorageSizeGb?: number
+  /** Maintenance window. */
+  mutable maintenanceWindow?: MaintenanceWindow
+  /** Customer contacts. */
+  mutable customerContacts?: CustomerContact[]
+}
+
+export type CloudExadataInfrastructureProps = {
+  /**
+   * Exadata Infrastructure id (the `{cloud_exadata_infrastructure}`
+   * segment). If omitted, a unique RFC1035 name is generated. Immutable.
+   */
+  mutable cloudExadataInfrastructureId?: string
+  /**
+   * Region. Immutable.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * User-friendly display name.
+   */
+  mutable displayName?: string
+  /**
+   * GCP Oracle zone (e.g. `us-east4-b-r2`). Immutable. If omitted the
+   * service picks a zone.
+   */
+  mutable gcpOracleZone?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Infrastructure properties. `shape` is required on create.
+   */
+  mutable properties?: CloudExadataInfrastructurePropertiesInput
+  /** Shape. Convenience alias for `properties.shape`. */
+  mutable shape?: string
+  /** Compute server count. Convenience alias for `properties.computeCount`. */
+  mutable computeCount?: number
+  /** Storage server count. Convenience alias for `properties.storageCount`. */
+  mutable storageCount?: number
+}
+
+export type CloudExadataInfrastructure = Resource<
+  "GCP.OracleDatabase.CloudExadataInfrastructure",
+  CloudExadataInfrastructureProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Infrastructure id. */
+    mutable cloudExadataInfrastructureId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** GCP Oracle zone. */
+    mutable gcpOracleZone: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Entitlement id. */
+    mutable entitlementId: string | undefined
+    /** Lifecycle state. */
+    mutable state: string | undefined
+    /** Shape. */
+    mutable shape: string | undefined
+    /** Compute server count. */
+    mutable computeCount: number | undefined
+    /** Storage server count. */
+    mutable storageCount: number | undefined
+    /** OCID. */
+    mutable ocid: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Oracle Exadata Infrastructure on Google Cloud.
+ *
+ * Changing `cloudExadataInfrastructureId`, `location`, `gcpOracleZone`,
+ * or `shape` replaces the infrastructure. There is no patch API in the
+ * distilled SDK, so labels and counts are applied at create.
+ *
+ * Provisioning typically takes tens of minutes and requires an Oracle
+ * Database@Google Cloud entitlement. Delete sends `force=true` so child
+ * VM clusters do not block teardown.
+ *
+ * ### Creating Exadata Infrastructure
+ * **Example:** Generated name
+ * ```typescript
+ * const infra = yield* GCP.OracleDatabase.CloudExadataInfrastructure("Exa", {
+ *   displayName: "exa",
+ *   shape: "Exadata.X9M",
+ *   computeCount: 2,
+ *   storageCount: 3,
+ * });
+ * ```
+ *
+ * @resource
+ * @category OracleDatabase
+ */
+export const CloudExadataInfrastructure = Resource<CloudExadataInfrastructure>(
+  "GCP.OracleDatabase.CloudExadataInfrastructure",
+)
+
+const mergedProperties = (
+  news: CloudExadataInfrastructureProps,
+): CloudExadataInfrastructurePropertiesInput => ({
+  ...news.properties,
+  shape: news.shape ?? news.properties?.shape,
+  computeCount: news.computeCount ?? news.properties?.computeCount,
+  storageCount: news.storageCount ?? news.properties?.storageCount,
+})
+
+const toCreateBody = (
+  news: CloudExadataInfrastructureProps,
+  desiredLabels: Record<string, string>,
+): oracle.CloudExadataInfrastructure => {
+  const props = mergedProperties(news)
+  const properties: oracle.CloudExadataInfrastructureProperties = {}
+  if (props.shape !== undefined) properties.shape = props.shape
+  if (props.computeCount !== undefined) {
+    properties.computeCount = props.computeCount
+  }
+  if (props.storageCount !== undefined) {
+    properties.storageCount = props.storageCount
+  }
+  if (props.totalStorageSizeGb !== undefined) {
+    properties.totalStorageSizeGb = props.totalStorageSizeGb
+  }
+  if (props.maintenanceWindow !== undefined) {
+    properties.maintenanceWindow = props.maintenanceWindow
+  }
+  if (props.customerContacts !== undefined) {
+    properties.customerContacts = props.customerContacts
+  }
+  const body: oracle.CloudExadataInfrastructure = {
+    labels: desiredLabels,
+    properties,
+  }
+  if (news.displayName !== undefined) body.displayName = news.displayName
+  if (news.gcpOracleZone !== undefined) {
+    body.gcpOracleZone = news.gcpOracleZone
+  }
+  return body
+}
+
+const toAttrs = (infra: oracle.CloudExadataInfrastructure, project: string): infer _ => {
+  const name = infra.name ?? ""
+  const parsed = parseName(name, COLLECTION)
+  return {
+    name,
+    cloudExadataInfrastructureId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: infra.displayName,
+    gcpOracleZone: infra.gcpOracleZone,
+    labels: userLabels(infra.labels),
+    entitlementId: infra.entitlementId,
+    state: infra.properties?.state,
+    shape: infra.properties?.shape,
+    computeCount: infra.properties?.computeCount,
+    storageCount: infra.properties?.storageCount,
+    ocid: infra.properties?.ocid,
+    createTime: infra.createTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  retryQuota(oracle.getProjectsLocationsCloudExadataInfrastructures({ name })) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const listInfras = effect (project: string, region: string) => {
+  const collect = effect (parent: string) =>
+    (try collectPages(
+      oracle.listProjectsLocationsCloudExadataInfrastructures.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.cloudExadataInfrastructures,
+    )).filter((item) => hasAlchemyLabelMap(item.labels))
+  return listAtLocation(project, region, collect) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
+}
+
+export const CloudExadataInfrastructureProvider = (): infer _ =>
+  Provider.succeed(CloudExadataInfrastructure, {
+    stables: ["name", "cloudExadataInfrastructureId", "project", "location", "createTime", "ocid"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const props = mergedProperties(news)
+      const previousShape = olds?.shape ?? olds?.properties?.shape ?? output?.shape ?? ""
+      const nextShape = props.shape ?? previousShape
+      const previousZone = olds?.gcpOracleZone ?? output?.gcpOracleZone ?? ""
+      const nextZone = news.gcpOracleZone ?? previousZone
+      return replaceOnIdentity({
+        previousId: olds?.cloudExadataInfrastructureId ?? output?.cloudExadataInfrastructureId,
+        nextId: news.cloudExadataInfrastructureId
+          ?? olds?.cloudExadataInfrastructureId
+          ?? output?.cloudExadataInfrastructureId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location ?? env.region,
+        ),
+        extra: nextShape !== previousShape || nextZone !== previousZone,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const cloudExadataInfrastructureId = try toPhysicalId(
+        id,
+        olds?.cloudExadataInfrastructureId,
+        output?.cloudExadataInfrastructureId,
+        FALLBACK_ID,
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const name = output?.name
+        ?? resourceNameOf(env.project, location, COLLECTION, cloudExadataInfrastructureId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listInfras(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const cloudExadataInfrastructureId = try toPhysicalId(
+        id,
+        news.cloudExadataInfrastructureId,
+        output?.cloudExadataInfrastructureId,
+        FALLBACK_ID,
+      )
+      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const name = resourceNameOf(env.project, location, COLLECTION, cloudExadataInfrastructureId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (try (oracle
+          .createProjectsLocationsCloudExadataInfrastructures({
+            parent: parentOf(env.project, location),
+            cloudExadataInfrastructureId,
+            body: toCreateBody(news, desiredLabels),
+          })
+          |> retryQuota(%))) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try Effect.undefined;
+            default: throw e;
+          }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new OracleDatabaseNotResolved({ resourceName: name })
+      }
+
+      const ready = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (value) => value.properties?.state,
+      )
+
+      return toAttrs(ready, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (oracle
+        .deleteProjectsLocationsCloudExadataInfrastructures({
+          name: output.name,
+          force: true,
+        })
+        |> retryConflict(%))) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

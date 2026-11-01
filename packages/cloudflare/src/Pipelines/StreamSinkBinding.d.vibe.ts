@@ -15,4 +15,4 @@ import * as Layer from "effect/Layer";
  * @product Pipelines
  * @category Storage & Databases
  */
-export declare const StreamSinkBinding: Layer.Layer<import("./StreamSink.js").StreamSink, never, import("../index.js").WorkerEnvironment | import("../index.js").Worker<any>>;
+export declare const StreamSinkBinding: Layer.Layer<import("./StreamSink.vibe").StreamSink, never, import("../index.js").WorkerEnvironment | import("../index.js").Worker<any>>;

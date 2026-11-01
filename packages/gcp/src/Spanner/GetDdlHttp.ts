@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
 import type { Database } from "./Database.ts";
-import { GetDdl, type GetDdlRequest } from "./GetDdl.ts";
+import { GetDdl, type GetDdlRequest } from "./GetDdl.vibe";
 
 /**
  * HTTP implementation of {@link GetDdl}.

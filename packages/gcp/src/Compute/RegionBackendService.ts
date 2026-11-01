@@ -17,7 +17,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitRegionOperation } from "./operations.ts";
+import { waitRegionOperation } from "./operations.vibe";
 
 const DEFAULT_PROTOCOL = "HTTP";
 const DEFAULT_SCHEME = "INTERNAL_MANAGED";

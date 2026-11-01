@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetUserWorkloadsSecret } from "./GetUserWorkloadsSecret.js";
+import { GetUserWorkloadsSecret } from "./GetUserWorkloadsSecret.vibe";
 /**
  * HTTP implementation of {@link GetUserWorkloadsSecret}.
  *

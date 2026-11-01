@@ -1,0 +1,346 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  createInternalLabels,
+  hasAlchemyPrefix,
+  labelsDiffer,
+  listLocations,
+  locationOf,
+  lastSegment,
+  projectOf,
+  stableJson,
+  toDisplayName,
+  toLabels,
+  toResourceId,
+  userLabels,
+} from "./names.ts"
+import { waitForOperation } from "./operations.ts"
+
+const DEFAULT_SCHEMA_TITLE = "system.Run";
+
+export type MetadataStoresExecutionProps = {
+  /**
+   * Parent MetadataStore resource name
+   * `projects/{project}/locations/{location}/metadataStores/{metadatastore}`.
+   * Immutable — changing it replaces the execution.
+   */
+  mutable metadataStore: string;
+  /**
+   * Execution id. If omitted, a unique id is generated. Must be 4-128
+   * characters of `a-z` and `-`. Immutable.
+   */
+  mutable executionId?: string;
+  /**
+   * Display name (max 128 Unicode characters).
+   */
+  mutable displayName?: string;
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string;
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>;
+  /**
+   * Execution lifecycle state.
+   */
+  mutable state?: aiplatform.GoogleCloudAiplatformV1ExecutionStateEnum | (string & {});
+  /**
+   * Schema title registered in the MetadataStore. Vertex AI rejects
+   * entries without one.
+   * @default "system.Run"
+   */
+  mutable schemaTitle?: string;
+  /**
+   * Schema version registered in the MetadataStore.
+   */
+  mutable schemaVersion?: string;
+  /**
+   * Arbitrary metadata properties.
+   */
+  mutable metadata?: aiplatform.DocumentMap;
+};
+
+export type MetadataStoresExecution = Resource<
+  "GCP.AIPlatform.MetadataStoresExecution",
+  MetadataStoresExecutionProps,
+  {
+    /** Full resource name. */
+    mutable name: string;
+    /** Execution id (last path segment). */
+    mutable executionId: string;
+    /** Parent MetadataStore resource name. */
+    mutable metadataStore: string;
+    /** Project id. */
+    mutable project: string;
+    /** Location id. */
+    mutable location: string;
+    /** Display name. */
+    mutable displayName: string | undefined;
+    /** User-provided description. */
+    mutable description: string | undefined;
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>;
+    /** Execution state. */
+    mutable state: string | undefined;
+    /** Schema title. */
+    mutable schemaTitle: string | undefined;
+    /** Schema version. */
+    mutable schemaVersion: string | undefined;
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined;
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined;
+  },
+  never,
+  Providers
+>;
+
+/**
+ * A Vertex ML Metadata Execution associated with a MetadataStore.
+ *
+ * Changing `metadataStore` or `executionId` replaces the execution. Display
+ * name, description, labels, state, schema, and metadata update in place.
+ *
+ * ### Creating an Execution
+ * **Example:** Training execution
+ * ```typescript
+ * const execution = yield* GCP.AIPlatform.MetadataStoresExecution("Train", {
+ *   metadataStore: store.name,
+ *   displayName: "train-step",
+ *   state: "RUNNING",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const MetadataStoresExecution = Resource<MetadataStoresExecution>(
+  "GCP.AIPlatform.MetadataStoresExecution",
+);
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MetadataStoresExecutionNotResolved extends Data.TaggedError(
+  "GCP.AIPlatform.MetadataStoresExecutionNotResolved",
+)<{
+  mutable resourceName: string;
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MetadataStoresExecutionStillExists extends Data.TaggedError(
+  "GCP.AIPlatform.MetadataStoresExecutionStillExists",
+)<{
+  mutable resourceName: string;
+}> {}
+
+const parentOf = (name: string): infer _ => {
+  const at = name.lastIndexOf("/executions/");
+  return at >= 0 ? name.slice(0, at) : name;
+};
+
+const resourceName = (metadataStore: string, executionId: string): infer _ =>
+  `${metadataStore}/executions/${executionId}`;
+
+const toAttrs = (execution: aiplatform.GoogleCloudAiplatformV1Execution, project: string): infer _ => {
+  const name = execution.name ?? "";
+  return {
+    name,
+    executionId: lastSegment(name),
+    metadataStore: parentOf(name),
+    project: projectOf(name, project),
+    location: locationOf(name),
+    displayName: execution.displayName,
+    description: execution.description,
+    labels: userLabels(execution.labels),
+    state: execution.state,
+    schemaTitle: execution.schemaTitle,
+    schemaVersion: execution.schemaVersion,
+    createTime: execution.createTime,
+    updateTime: execution.updateTime,
+  };
+};
+
+const getByName = effect (name: string) => aiplatform
+    .getProjectsLocationsMetadataStoresExecutions({ name }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; };
+
+const listExecutions = effect (parent: string) => (Array.from((try (aiplatform.listProjectsLocationsMetadataStoresExecutions.pages({ parent, pageSize: 100 })
+  |> Stream.runCollect(%)))).flatMap((page) => page.executions ?? [])) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1Execution[]; default: throw e; };
+
+const listStores = effect (parent: string) => (Array.from((try (aiplatform.listProjectsLocationsMetadataStores.pages({ parent, pageSize: 100 })
+  |> Stream.runCollect(%)))).flatMap((page) => page.metadataStores ?? [])) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1MetadataStore[]; default: throw e; };
+
+const waitUntilGone = effect (name: string) => try (getByName(name)
+  |> Effect.filterOrFail(%, (execution) => execution === undefined, () => new MetadataStoresExecutionStillExists({ resourceName: name }))
+  |> Effect.asVoid(%)
+  |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.AIPlatform.MetadataStoresExecutionStillExists",
+      times: 10,
+      schedule: Schedule.spaced("1 second"),
+    }));
+
+export const MetadataStoresExecutionProvider = (): infer _ =>
+  Provider.succeed(MetadataStoresExecution, {
+    stables: ["name", "executionId", "metadataStore", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined;
+      const previousParent = olds?.metadataStore ?? output?.metadataStore;
+      const nextParent = news.metadataStore ?? previousParent;
+      const previousId = olds?.executionId ?? output?.executionId;
+      const nextId = news.executionId ?? previousId;
+      if (
+        (previousParent !== undefined &&
+          nextParent !== undefined &&
+          nextParent !== previousParent) ||
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst:
+            previousParent === nextParent && previousId !== undefined && nextId === previousId,
+        };
+      }
+      return undefined;
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current;
+      const executionId = try toResourceId(id, olds?.executionId, output?.executionId);
+      const metadataStore = olds?.metadataStore ?? output?.metadataStore;
+      const name =
+        output?.name ??
+        (metadataStore !== undefined ? resourceName(metadataStore, executionId) : "");
+      if (name.length === 0) return undefined;
+      const existing = try getByName(name);
+      if (existing === undefined) return undefined;
+      const attrs = toAttrs(existing, env.project);
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs);
+    },
+
+    list: effect () => {
+        const env = try GcpEnvironment.current;
+        const stores = try Effect.forEach(
+          listLocations(env.region),
+          effect (location) => try listStores(`projects/${env.project}/locations/${location}`),
+          { concurrency: 4 },
+        );
+        const executions = try Effect.forEach(
+          stores.flat().filter((store) => store.name !== undefined),
+          effect (store) => try listExecutions(store.name!),
+          { concurrency: 4 },
+        );
+        return executions
+          .flat()
+          .filter((execution) => hasAlchemyPrefix(execution.labels))
+          .map((execution) => toAttrs(execution, env.project));
+      },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current;
+      const executionId = try toResourceId(id, news.executionId, output?.executionId);
+      const metadataStore = news.metadataStore;
+      const name = resourceName(metadataStore, executionId);
+      const displayName = try toDisplayName(id, news.displayName, output?.displayName);
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      };
+
+      let current = try getByName(output?.name ?? name);
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsMetadataStoresExecutions({
+            parent: metadataStore,
+            executionId,
+            body: {
+              displayName,
+              description: news.description,
+              labels: desiredLabels,
+              state: news.state,
+              schemaTitle: news.schemaTitle ?? DEFAULT_SCHEMA_TITLE,
+              schemaVersion: news.schemaVersion,
+              metadata: news.metadata,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; };
+        current = created ?? undefined;
+      }
+
+      if (current === undefined) {
+        throw new MetadataStoresExecutionNotResolved({ resourceName: name });
+      }
+
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "");
+      const displayChanged = (current.displayName ?? "") !== displayName;
+      const labelsChanged = labelsDiffer(current.labels, desiredLabels);
+      const stateChanged = (current.state ?? "") !== (news.state ?? "");
+      const schemaTitleChanged =
+        (current.schemaTitle ?? "") !== (news.schemaTitle ?? DEFAULT_SCHEMA_TITLE);
+      const schemaVersionChanged = (current.schemaVersion ?? "") !== (news.schemaVersion ?? "");
+      const metadataChanged =
+        news.metadata !== undefined && stableJson(current.metadata) !== stableJson(news.metadata);
+
+      if (
+        descriptionChanged ||
+        displayChanged ||
+        labelsChanged ||
+        stateChanged ||
+        schemaTitleChanged ||
+        schemaVersionChanged ||
+        metadataChanged
+      ) {
+        current = try aiplatform.patchProjectsLocationsMetadataStoresExecutions({
+          name,
+          updateMask: [
+            descriptionChanged ? "description" : undefined,
+            displayChanged ? "display_name" : undefined,
+            labelsChanged ? "labels" : undefined,
+            stateChanged ? "state" : undefined,
+            schemaTitleChanged ? "schema_title" : undefined,
+            schemaVersionChanged ? "schema_version" : undefined,
+            metadataChanged ? "metadata" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name,
+            displayName,
+            description: news.description,
+            labels: desiredLabels,
+            state: news.state,
+            schemaTitle: news.schemaTitle ?? DEFAULT_SCHEMA_TITLE,
+            schemaVersion: news.schemaVersion,
+            metadata: news.metadata,
+            etag: current.etag,
+          },
+        });
+      }
+
+      return toAttrs(current, env.project);
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (aiplatform
+        .deleteProjectsLocationsMetadataStoresExecutions({
+          name: output.name,
+        })
+  |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; };
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true });
+      }
+      try waitUntilGone(output.name);
+    },
+  });

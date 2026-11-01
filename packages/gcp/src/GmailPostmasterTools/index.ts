@@ -1,2 +1,2 @@
-export * from "./Domain.ts";
-export * from "./DomainsUser.ts";
+export * from "./Domain.vibe";
+export * from "./DomainsUser.vibe";

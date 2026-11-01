@@ -27,7 +27,7 @@ import {
   waitUntilExists,
   waitUntilGone,
   waitUntilReady,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 const DEFAULT_DEPLOYMENT_TYPE = "DATABASE_ORACLE";
 const DEFAULT_ADMIN_USERNAME = "oggadmin";

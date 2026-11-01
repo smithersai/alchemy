@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GenerateDownloadUrl } from "./GenerateDownloadUrl.js";
+import { GenerateDownloadUrl } from "./GenerateDownloadUrl.vibe";
 /**
  * HTTP implementation of {@link GenerateDownloadUrl}.
  *

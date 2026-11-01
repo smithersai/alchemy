@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetInstancesSnapshot } from "./GetInstancesSnapshot.js";
+import { GetInstancesSnapshot } from "./GetInstancesSnapshot.vibe";
 /**
  * HTTP implementation of {@link GetInstancesSnapshot}.
  *

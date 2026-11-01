@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetEndpoint } from "./GetEndpoint.js";
+import { GetEndpoint } from "./GetEndpoint.vibe";
 /**
  * HTTP implementation of {@link GetEndpoint}.
  *

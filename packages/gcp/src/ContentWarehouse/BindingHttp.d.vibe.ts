@@ -1,0 +1,46 @@
+import type { GcpOpContext } from "@distilled.cloud/gcp/contentwarehouse_v1";
+import * as Effect from "effect/Effect";
+import { type BindingIam } from "../HttpBinding.js";
+import type { Document } from "./Document.js";
+import type { DocumentSchema } from "./DocumentSchema.js";
+import type { RuleSet } from "./RuleSet.js";
+import type { SynonymSet } from "./SynonymSet.js";
+/**
+ * Distilled ops are OperationMethods: yield them once at Layer construction
+ * (after providing Credentials + HttpClient) so the inner runtime Effect is
+ * `Effect<A, E>` and does not leak `GcpOpContext`.
+ */
+type GcpHttpOp<I, A, E> = Effect.Effect<((input: I) => Effect.Effect<A, E>), never, GcpOpContext> & ((input: I) => Effect.Effect<A, E, GcpOpContext>);
+/**
+ * Shared HTTP scaffolding for Content Warehouse bindings.
+ * NOT exported from index.ts.
+ */
+export declare const makeDocumentSchemaHttpBinding: <I extends {
+    name: string;
+}, A, E>(options: {
+    tag: string;
+    iam: BindingIam;
+    operation: GcpHttpOp<I, A, E>;
+}) => Effect.Effect<(resource: DocumentSchema) => Effect.Effect<(request?: Omit<I, "name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
+export declare const makeDocumentHttpBinding: <I extends {
+    name: string;
+}, A, E>(options: {
+    tag: string;
+    iam: BindingIam;
+    operation: GcpHttpOp<I, A, E>;
+}) => Effect.Effect<(resource: Document) => Effect.Effect<(request?: Omit<I, "name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
+export declare const makeRuleSetHttpBinding: <I extends {
+    name: string;
+}, A, E>(options: {
+    tag: string;
+    iam: BindingIam;
+    operation: GcpHttpOp<I, A, E>;
+}) => Effect.Effect<(resource: RuleSet) => Effect.Effect<(request?: Omit<I, "name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
+export declare const makeSynonymSetHttpBinding: <I extends {
+    name: string;
+}, A, E>(options: {
+    tag: string;
+    iam: BindingIam;
+    operation: GcpHttpOp<I, A, E>;
+}) => Effect.Effect<(resource: SynonymSet) => Effect.Effect<(request?: Omit<I, "name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
+export {};

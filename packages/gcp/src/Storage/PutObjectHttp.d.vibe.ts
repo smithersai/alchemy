@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { PutObject } from "./PutObject.js";
+import { PutObject } from "./PutObject.vibe";
 /**
  * HTTP implementation of {@link PutObject}.
  *

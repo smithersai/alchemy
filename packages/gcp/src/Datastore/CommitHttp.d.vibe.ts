@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Commit } from "./Commit.js";
+import { Commit } from "./Commit.vibe";
 /**
  * HTTP implementation of {@link Commit}.
  *

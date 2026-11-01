@@ -1,13 +1,13 @@
 import type * as cf from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import type * as Binding from "./Binding.ts";
-import { makeBindingLayer } from "./BindingLayer.ts";
+import { makeBindingLayer } from "./BindingLayer.vibe";
 import {
   RateLimit,
   RateLimitError,
   type RateLimitClient,
   type RateLimitPeriod,
-} from "./RateLimit.ts";
+} from "./RateLimit.vibe";
 
 /** The binding value produced by calling {@link RateLimit} (declared on `env` or `yield*`-ed). */
 export type RateLimitBinding = Binding.Binding<RateLimit["key"], RateLimitClient, RateLimit> & {

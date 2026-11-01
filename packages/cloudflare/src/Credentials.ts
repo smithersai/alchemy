@@ -15,7 +15,7 @@ import * as Redacted from "effect/Redacted";
 import {
   CLOUDFLARE_AUTH_PROVIDER_NAME,
   type CloudflareResolvedCredentials,
-} from "./Auth/AuthConfig.ts";
+} from "./Auth/AuthConfig.vibe";
 
 export { Credentials, fromEnv } from "@distilled.cloud/cloudflare/Credentials";
 

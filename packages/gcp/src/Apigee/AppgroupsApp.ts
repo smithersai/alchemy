@@ -16,7 +16,7 @@ import {
   sameJson,
   sortedStrings,
   toPhysicalId,
-} from "./operations.ts";
+} from "./operations.vibe";
 import { fromAttributes, toAttributes, userAttributeList, type Attribute } from "./ownership.ts";
 
 const MAX_NAME_LENGTH = 255;

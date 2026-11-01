@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Predict } from "./Predict.js";
+import { Predict } from "./Predict.vibe";
 /**
  * HTTP implementation of {@link Predict}.
  *

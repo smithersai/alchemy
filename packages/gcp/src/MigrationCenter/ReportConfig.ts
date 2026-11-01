@@ -25,7 +25,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type GroupPreferenceSetAssignment = {
   /** Group resource name or group id. */

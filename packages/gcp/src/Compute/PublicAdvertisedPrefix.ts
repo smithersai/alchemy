@@ -17,7 +17,7 @@ import {
   parseDescription,
   runGlobalOp,
   toPhysicalName,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type PublicAdvertisedPrefixPdpScope =
   | compute.PublicAdvertisedPrefixPdpScopeEnum

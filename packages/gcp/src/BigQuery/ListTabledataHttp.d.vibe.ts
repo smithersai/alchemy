@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListTabledata } from "./ListTabledata.js";
+import { ListTabledata } from "./ListTabledata.vibe";
 /**
  * HTTP implementation of {@link ListTabledata}.
  *

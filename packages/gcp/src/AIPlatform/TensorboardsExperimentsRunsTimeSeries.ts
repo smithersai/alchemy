@@ -22,7 +22,7 @@ import {
   parentOf,
   parseOwnership,
   toResourceId,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type TimeSeriesValueType = "SCALAR" | "TENSOR" | "BLOB_SEQUENCE" | (string & {});
 

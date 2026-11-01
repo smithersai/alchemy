@@ -1,0 +1,321 @@
+import * as biglake from "@distilled.cloud/gcp/biglake_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  BiglakeNotResolved,
+  listLocations,
+  createInternalLabels,
+  expandCatalog,
+  hasAlchemyLabelMap,
+  hasAlchemyLabels,
+  ignoreGone,
+  listCatalogs,
+  listChildResources,
+  listDatabases,
+  listTables,
+  locationParent,
+  mergeParameters,
+  missingGet,
+  namedOf,
+  normalizeLocation,
+  parseResourceName,
+  replaceOnIdentity,
+  retryTransient,
+  sameJson,
+  sameText,
+  toPhysicalId,
+  updateMaskOf,
+  userLabels,
+  waitUntilGone,
+} from "./internal.ts"
+
+export type HiveDatabaseOptions = {
+  /**
+   * Cloud Storage folder URI where the database data is stored, starting
+   * with `gs://`.
+   */
+  mutable locationUri?: string
+  /**
+   * User-supplied Hive database parameters. Alchemy ownership keys
+   * (`alchemy-stack`, `alchemy-stage`, `alchemy-id`) are merged in
+   * automatically — BigLake databases have no labels field.
+   */
+  mutable parameters?: Record<string, string>
+}
+
+export type CatalogsDatabaseProps = {
+  /**
+   * Parent catalog. Full name
+   * `projects/{project}/locations/{location}/catalogs/{catalog}` or the
+   * catalog id (combined with `location`). Immutable — changing it
+   * replaces the database.
+   */
+  mutable catalog: string
+  /**
+   * Database id (the `{database}` segment). If omitted, a unique id is
+   * generated. Immutable — changing it replaces the database.
+   */
+  mutable databaseId?: string
+  /**
+   * Location used when `catalog` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Database type.
+   * @default "HIVE"
+   */
+  mutable type?: biglake.DatabaseTypeEnum | (string & {})
+  /**
+   * Hive database options. Required when `type` is `HIVE`.
+   */
+  mutable hiveOptions?: HiveDatabaseOptions
+  /**
+   * Shortcut for `hiveOptions.locationUri`.
+   */
+  mutable locationUri?: string
+  /**
+   * Shortcut for `hiveOptions.parameters`. Alchemy ownership keys are
+   * merged in automatically.
+   */
+  mutable parameters?: Record<string, string>
+}
+
+export type CatalogsDatabase = Resource<
+  "GCP.BigLake.CatalogsDatabase",
+  CatalogsDatabaseProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Database id (last path segment). */
+    mutable databaseId: string
+    /** Parent catalog resource name. */
+    mutable catalog: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Database type. */
+    mutable type: string | undefined
+    /** Hive location URI. */
+    mutable locationUri: string | undefined
+    /** User Hive parameters (Alchemy ownership keys stripped). */
+    mutable parameters: Record<string, string>
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+    /** RFC3339 deletion timestamp, if soft-deleted. */
+    mutable deleteTime: string | undefined
+    /** RFC3339 expire timestamp after delete. */
+    mutable expireTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Hive database inside a BigLake Metastore catalog.
+ *
+ * Databases have no labels field — Alchemy stamps ownership into
+ * `hiveOptions.parameters` so `list` / nuke can find them. Catalog,
+ * database id, and type are immutable. Hive location URI and parameters
+ * update in place.
+ *
+ * ### Creating a Database
+ * **Example:** Hive database on a GCS prefix
+ * ```typescript
+ * const catalog = yield* GCP.BigLake.Catalog("Lake", {});
+ * const database = yield* GCP.BigLake.CatalogsDatabase("Warehouse", {
+ *   catalog: catalog.name,
+ *   locationUri: `gs://${bucket.bucketName}/warehouse`,
+ *   parameters: { owner: "analytics" },
+ * });
+ * ```
+ *
+ * **Example:** Named database
+ * ```typescript
+ * const database = yield* GCP.BigLake.CatalogsDatabase("Warehouse", {
+ *   catalog: catalog.name,
+ *   databaseId: "sales",
+ *   type: "HIVE",
+ *   hiveOptions: {
+ *     locationUri: "gs://my-bucket/sales",
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category BigLake
+ */
+export const CatalogsDatabase = Resource<CatalogsDatabase>("GCP.BigLake.CatalogsDatabase")
+
+const catalogOf = (catalog: string, project: string, location: string): infer _ =>
+  expandCatalog(catalog, project, location)
+
+const resourceName = (catalog: string, databaseId: string): infer _ => `${catalog}/databases/${databaseId}`
+
+const parametersOf = (database: biglake.Database): infer _ => userLabels(database.hiveOptions?.parameters)
+
+const toAttrs = (database: biglake.Database, project: string): infer _ => {
+  const name = database.name ?? ""
+  const parsed = parseResourceName(name, "databases")
+  return {
+    name,
+    databaseId: parsed.id,
+    catalog: parsed.parent,
+    project,
+    location: parsed.location,
+    type: database.type,
+    locationUri: database.hiveOptions?.locationUri,
+    parameters: parametersOf(database),
+    createTime: database.createTime,
+    updateTime: database.updateTime,
+    deleteTime: database.deleteTime,
+    expireTime: database.expireTime,
+  }
+}
+
+const getByName = missingGet(biglake.getProjectsLocationsCatalogsDatabases)
+
+const desiredHiveOptions = (
+  news: CatalogsDatabaseProps,
+  parameters: Record<string, string>,
+): biglake.HiveDatabaseOptions => ({
+  locationUri: news.hiveOptions?.locationUri ?? news.locationUri,
+  parameters,
+})
+
+const emptyAndDeleteDatabase = effect (name: string) => {
+  const tables = try listTables(name)
+  try Effect.forEach(
+    namedOf(tables),
+    effect (table) =>
+      try ignoreGone(
+        biglake.deleteProjectsLocationsCatalogsDatabasesTables({
+          name: table.name!,
+        }),
+      ),
+    { concurrency: 4 },
+  )
+  try ignoreGone(biglake.deleteProjectsLocationsCatalogsDatabases({ name }))
+}
+
+export const CatalogsDatabaseProvider = (): infer _ =>
+  Provider.succeed(CatalogsDatabase, {
+    stables: ["name", "databaseId", "catalog", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      const typeChanged = (olds?.type ?? output?.type) !== undefined
+        && (news.type ?? "HIVE") !== (olds?.type ?? output?.type)
+      if (typeChanged) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return replaceOnIdentity({
+        previousId: olds?.databaseId ?? output?.databaseId,
+        nextId: news.databaseId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: location,
+        previousParent: olds?.catalog ?? output?.catalog,
+        nextParent: catalogOf(news.catalog, env.project, location),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const databaseId = try toPhysicalId(id, olds?.databaseId, output?.databaseId)
+      const catalog = olds?.catalog !== undefined
+        ? catalogOf(olds.catalog, env.project, location)
+        : (output?.catalog ?? "")
+      const name = output?.name ?? (catalog.length > 0 ? resourceName(catalog, databaseId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.hiveOptions?.parameters)))
+        ? attrs
+        : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const catalogs = (try Effect.forEach(listLocations(env.region), effect (location) =>
+        try listCatalogs(locationParent(env.project, location)))).flat()
+      const databases = try listChildResources(namedOf(catalogs), listDatabases)
+      return databases
+        .filter((item) =>
+          hasAlchemyLabelMap(item.hiveOptions?.parameters)
+        )
+        .map((item) =>
+          toAttrs(item, env.project)
+        )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const catalog = catalogOf(news.catalog, env.project, location)
+      const databaseId = try toPhysicalId(id, news.databaseId, output?.databaseId)
+      const name = output?.name ?? resourceName(catalog, databaseId)
+      const type = news.type ?? "HIVE"
+      const parameters = mergeParameters(
+        news.parameters ?? news.hiveOptions?.parameters,
+        try createInternalLabels(id),
+      )
+      const hiveOptions = desiredHiveOptions(news, parameters)
+      const body: biglake.Database = { type, hiveOptions }
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = retryTransient(
+          biglake.createProjectsLocationsCatalogsDatabases({
+            parent: catalog,
+            databaseId,
+            body,
+          }),
+        ) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new BiglakeNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const typeChanged = !sameText(current.type, type)
+      const hiveChanged = !sameJson(current.hiveOptions, hiveOptions)
+
+      if (typeChanged || hiveChanged) {
+        current = try retryTransient(
+          biglake.patchProjectsLocationsCatalogsDatabases({
+            name: currentName,
+            updateMask: updateMaskOf(
+              typeChanged ? "type" : undefined,
+              hiveChanged ? "hiveOptions" : undefined,
+            ),
+            body: { name: currentName, ...body },
+          }),
+        )
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      try emptyAndDeleteDatabase(output.name)
+      try waitUntilGone(getByName(output.name))
+    },
+  })

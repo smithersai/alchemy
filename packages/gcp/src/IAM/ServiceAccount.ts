@@ -12,7 +12,7 @@ import { GcpEnvironment } from "../Environment.ts";
 import { revokeHostIam, syncHostIam, type AppliedIamGrant, type GcpIamGrant } from "../Host.ts";
 import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { encodeOwnedDescription, hasOwnedDescription, parseOwnedDescription } from "./internal.ts";
+import { encodeOwnedDescription, hasOwnedDescription, parseOwnedDescription } from "./internal.vibe";
 
 const ACCOUNT_ID_MAX = 30;
 

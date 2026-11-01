@@ -19,7 +19,7 @@ import {
   replaceOnIdentity,
   toPhysicalId,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type LineageEntityReference = {
   /**

@@ -27,7 +27,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type DiskImageTargetDetails = vm.DiskImageTargetDetails;
 export type MachineImageTargetDetails = vm.MachineImageTargetDetails;

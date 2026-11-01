@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetNode } from "./GetNode.js";
+import { GetNode } from "./GetNode.vibe";
 /**
  * HTTP implementation of {@link GetNode}.
  *

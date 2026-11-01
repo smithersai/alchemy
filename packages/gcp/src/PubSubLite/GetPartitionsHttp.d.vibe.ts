@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetPartitions } from "./GetPartitions.js";
+import { GetPartitions } from "./GetPartitions.vibe";
 /**
  * HTTP implementation of {@link GetPartitions}.
  *

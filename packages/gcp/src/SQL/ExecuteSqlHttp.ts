@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
-import { ExecuteSql, type ExecuteSqlRequest } from "./ExecuteSql.ts";
+import { ExecuteSql, type ExecuteSqlRequest } from "./ExecuteSql.vibe";
 import type { Instance } from "./Instance.ts";
 
 /**

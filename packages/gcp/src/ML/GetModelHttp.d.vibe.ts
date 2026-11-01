@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetModel } from "./GetModel.js";
+import { GetModel } from "./GetModel.vibe";
 /**
  * HTTP implementation of {@link GetModel}.
  *

@@ -8,7 +8,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import type { Providers } from "../Providers.ts";
-import type { StartAt } from "./K2Types.ts";
+import type { StartAt } from "./K2Types.vibe";
 import type { Stream } from "./Stream.ts";
 
 const SubscriptionTypeId = "Cloudflare.K2.Subscription" as const;

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetSubscription } from "./GetSubscription.js";
+import { GetSubscription } from "./GetSubscription.vibe";
 /**
  * HTTP implementation of {@link GetSubscription}.
  *

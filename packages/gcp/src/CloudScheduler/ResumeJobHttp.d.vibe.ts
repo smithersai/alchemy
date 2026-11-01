@@ -1,7 +1,7 @@
 import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
-import { ResumeJob } from "./ResumeJob.js";
+import { ResumeJob } from "./ResumeJob.vibe";
 /**
  * HTTP implementation of {@link ResumeJob}.
  *

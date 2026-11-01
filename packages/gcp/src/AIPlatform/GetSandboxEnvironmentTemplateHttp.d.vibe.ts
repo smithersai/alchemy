@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetSandboxEnvironmentTemplate } from "./GetSandboxEnvironmentTemplate.js";
+import { GetSandboxEnvironmentTemplate } from "./GetSandboxEnvironmentTemplate.vibe";
 /**
  * HTTP implementation of {@link GetSandboxEnvironmentTemplate}.
  *

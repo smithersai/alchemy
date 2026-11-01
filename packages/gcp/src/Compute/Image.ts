@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitGlobalOperation } from "./operations.ts";
+import { waitGlobalOperation } from "./operations.vibe";
 
 export type ImageRawDisk = {
   /** GCS URI of a gzip-compressed tarball (`gs://` or `https://storage.googleapis.com/`). */

@@ -24,7 +24,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type GroupMigrationTargetType = vm.GroupMigrationTargetTypeEnum | (string & {});
 

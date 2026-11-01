@@ -1,0 +1,318 @@
+import * as oracle from "@distilled.cloud/gcp/oracledatabase_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  OracleDatabaseNotResolved,
+  collectPages,
+  hasAlchemyLabelMap,
+  listAtLocation,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  resourceNameOf,
+  retryConflict,
+  retryQuota,
+  toPhysicalId,
+  userLabels,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+import { waitForOperation } from "./operations.ts"
+
+const COLLECTION = "goldengateConnections"
+const FALLBACK_ID = "ggconn"
+
+export type GoldengateConnectionProps = {
+  /**
+   * Connection id. If omitted, a unique RFC1035 name is generated.
+   * Immutable.
+   */
+  mutable goldengateConnectionId?: string
+  /**
+   * Region. Immutable.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * GCP Oracle zone. Immutable.
+   */
+  mutable gcpOracleZone?: string
+  /**
+   * ODB Network. Immutable.
+   */
+  mutable odbNetwork?: string
+  /**
+   * ODB Subnet. Immutable.
+   */
+  mutable odbSubnet?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Connection properties. `connectionType` and `displayName` are
+   * required on create. Type-specific nested objects (Oracle, Kafka,
+   * PostgreSQL, …) are passed through to the API.
+   */
+  mutable properties?: oracle.GoldengateConnectionProperties
+  /** Connection type. Convenience alias for `properties.connectionType`. */
+  mutable connectionType?: oracle.GoldengateConnectionPropertiesConnectionTypeEnum | (string & {})
+  /** Display name. Convenience alias for `properties.displayName`. */
+  mutable displayName?: string
+  /** Description. Convenience alias for `properties.description`. */
+  mutable description?: string
+  /** Routing method. Convenience alias for `properties.routingMethod`. */
+  mutable routingMethod?: oracle.GoldengateConnectionPropertiesRoutingMethodEnum | (string & {})
+}
+
+export type GoldengateConnection = Resource<
+  "GCP.OracleDatabase.GoldengateConnection",
+  GoldengateConnectionProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Connection id. */
+    mutable goldengateConnectionId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** GCP Oracle zone. */
+    mutable gcpOracleZone: string | undefined
+    /** ODB Network. */
+    mutable odbNetwork: string | undefined
+    /** ODB Subnet. */
+    mutable odbSubnet: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Entitlement id. */
+    mutable entitlementId: string | undefined
+    /** Connection type. */
+    mutable connectionType: string | undefined
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** Lifecycle state. */
+    mutable lifecycleState: string | undefined
+    /** OCID. */
+    mutable ocid: string | undefined
+    /** Ingress IPs. */
+    mutable ingressIpAddresses: string[]
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Oracle GoldenGate connection on Google Cloud.
+ *
+ * Changing `goldengateConnectionId`, `location`, `connectionType`, or
+ * ODB identity replaces the connection. There is no patch API in the
+ * distilled SDK, so labels are applied at create.
+ *
+ * ### Creating a GoldenGate connection
+ * **Example:** Generic connection
+ * ```typescript
+ * const conn = yield* GCP.OracleDatabase.GoldengateConnection("Src", {
+ *   connectionType: "GENERIC",
+ *   displayName: "src",
+ *   properties: {
+ *     genericConnectionProperties: {
+ *       host: "db.example.com",
+ *       technologyType: "GENERIC",
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category OracleDatabase
+ */
+export const GoldengateConnection = Resource<GoldengateConnection>(
+  "GCP.OracleDatabase.GoldengateConnection",
+)
+
+const mergedProperties = (
+  news: GoldengateConnectionProps,
+): oracle.GoldengateConnectionProperties => ({
+  ...news.properties,
+  connectionType: news.connectionType ?? news.properties?.connectionType,
+  displayName: news.displayName ?? news.properties?.displayName,
+  description: news.description ?? news.properties?.description,
+  routingMethod: news.routingMethod ?? news.properties?.routingMethod,
+})
+
+const toCreateBody = (
+  news: GoldengateConnectionProps,
+  desiredLabels: Record<string, string>,
+): oracle.GoldengateConnection => {
+  const body: oracle.GoldengateConnection = {
+    labels: desiredLabels,
+    properties: mergedProperties(news),
+  }
+  if (news.gcpOracleZone !== undefined) body.gcpOracleZone = news.gcpOracleZone
+  if (news.odbNetwork !== undefined) body.odbNetwork = news.odbNetwork
+  if (news.odbSubnet !== undefined) body.odbSubnet = news.odbSubnet
+  return body
+}
+
+const toAttrs = (connection: oracle.GoldengateConnection, project: string): infer _ => {
+  const name = connection.name ?? ""
+  const parsed = parseName(name, COLLECTION)
+  return {
+    name,
+    goldengateConnectionId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    gcpOracleZone: connection.gcpOracleZone,
+    odbNetwork: connection.odbNetwork,
+    odbSubnet: connection.odbSubnet,
+    labels: userLabels(connection.labels),
+    entitlementId: connection.entitlementId,
+    connectionType: connection.properties?.connectionType,
+    displayName: connection.properties?.displayName,
+    lifecycleState: connection.properties?.lifecycleState,
+    ocid: connection.properties?.ocid,
+    ingressIpAddresses: [...(connection.properties?.ingressIpAddresses ?? [])],
+    createTime: connection.createTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  retryQuota(oracle.getProjectsLocationsGoldengateConnections({ name })) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const listConnections = effect (project: string, region: string) => {
+  const collect = effect (parent: string) =>
+    (try collectPages(
+      oracle.listProjectsLocationsGoldengateConnections.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.goldengateConnections,
+    )).filter((item) => hasAlchemyLabelMap(item.labels))
+  return listAtLocation(project, region, collect) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
+}
+
+export const GoldengateConnectionProvider = (): infer _ =>
+  Provider.succeed(GoldengateConnection, {
+    stables: ["name", "goldengateConnectionId", "project", "location", "createTime", "ocid"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousType = olds?.connectionType ?? olds?.properties?.connectionType ?? output?.connectionType ?? ""
+      const nextType = news.connectionType ?? news.properties?.connectionType ?? previousType
+      const previousOdb = olds?.odbSubnet ?? output?.odbSubnet ?? ""
+      const nextOdb = news.odbSubnet ?? previousOdb
+      return replaceOnIdentity({
+        previousId: olds?.goldengateConnectionId ?? output?.goldengateConnectionId,
+        nextId: news.goldengateConnectionId
+          ?? olds?.goldengateConnectionId
+          ?? output?.goldengateConnectionId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location ?? env.region,
+        ),
+        extra: nextType !== previousType || nextOdb !== previousOdb,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const goldengateConnectionId = try toPhysicalId(
+        id,
+        olds?.goldengateConnectionId,
+        output?.goldengateConnectionId,
+        FALLBACK_ID,
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const name = output?.name ?? resourceNameOf(env.project, location, COLLECTION, goldengateConnectionId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listConnections(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const goldengateConnectionId = try toPhysicalId(
+        id,
+        news.goldengateConnectionId,
+        output?.goldengateConnectionId,
+        FALLBACK_ID,
+      )
+      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const name = resourceNameOf(env.project, location, COLLECTION, goldengateConnectionId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (try (oracle
+          .createProjectsLocationsGoldengateConnections({
+            parent: parentOf(env.project, location),
+            goldengateConnectionId,
+            body: toCreateBody(news, desiredLabels),
+          })
+          |> retryQuota(%))) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try Effect.undefined;
+            default: throw e;
+          }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new OracleDatabaseNotResolved({ resourceName: name })
+      }
+
+      const ready = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (value) => value.properties?.lifecycleState,
+      )
+
+      return toAttrs(ready, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (oracle
+        .deleteProjectsLocationsGoldengateConnections({
+          name: output.name,
+        })
+        |> retryConflict(%))) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

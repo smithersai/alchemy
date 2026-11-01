@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ExecuteMutation } from "./ExecuteMutation.js";
+import { ExecuteMutation } from "./ExecuteMutation.vibe";
 /**
  * HTTP implementation of {@link ExecuteMutation}.
  *

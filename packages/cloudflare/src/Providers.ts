@@ -12,7 +12,7 @@ import * as AccessApp from "./Access/Application.ts";
 import * as Bookmark from "./Access/Bookmark.ts";
 import * as AccessCert from "./Access/Certificate.ts";
 import * as CustomPage from "./Access/CustomPage.ts";
-import { GetIdentityProviderHttp } from "./Access/GetIdentityProviderHttp.ts";
+import { GetIdentityProviderHttp } from "./Access/GetIdentityProviderHttp.vibe";
 import * as Group from "./Access/Group.ts";
 import * as AccessIdp from "./Access/IdentityProvider.ts";
 import * as AccessInfraTarget from "./Access/InfrastructureTarget.ts";

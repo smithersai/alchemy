@@ -1,0 +1,203 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  defaultOrgName,
+  lastSegment,
+  letterPrefixedId,
+  orgIdOf,
+  orgNameOf,
+  sameStringList,
+  waitForOperation,
+} from "./operations.vibe"
+
+export type EnvgroupProps = {
+  /**
+   * Apigee organization id or `organizations/{org}`. Defaults to the
+   * current GCP project id. Immutable — changing it replaces the group.
+   */
+  mutable organization?: string
+  /**
+   * Environment group id (the `{envgroup}` segment of
+   * `organizations/{org}/envgroups/{envgroup}`). If omitted, a unique
+   * name is generated. Immutable — changing it replaces the group.
+   */
+  mutable envgroupId?: string
+  /**
+   * Host names for this environment group.
+   */
+  mutable hostnames: string[]
+}
+
+export type Envgroup = Resource<
+  "GCP.Apigee.Envgroup",
+  EnvgroupProps,
+  {
+    /** Full resource name `organizations/{org}/envgroups/{envgroup}`. */
+    mutable name: string
+    /** Environment group id (last path segment). */
+    mutable envgroupId: string
+    /** Apigee organization id. */
+    mutable organization: string
+    /** Host names routed to this group. */
+    mutable hostnames: string[]
+    /** Server-reported state (`CREATING`, `ACTIVE`, …). */
+    mutable state: string | undefined
+    /** Creation time in milliseconds since epoch. */
+    mutable createdAt: string | undefined
+    /** Last modification time in milliseconds since epoch. */
+    mutable lastModifiedAt: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Apigee environment group that maps hostnames to one or more
+ * environments.
+ *
+ * The API has no labels or description, so Alchemy identifies its groups
+ * by the generated `envgroupId`: `read` reports a group with an explicit
+ * `envgroupId` as unowned (adopt it with `--adopt`), and nuke cannot
+ * discover groups. Name is identity — changing `envgroupId` replaces the
+ * group. Hostnames update in place.
+ *
+ * ### Creating an Environment Group
+ * **Example:** Group with a hostname
+ * ```typescript
+ * const group = yield* GCP.Apigee.Envgroup("Api", {
+ *   hostnames: ["api.example.com"],
+ * });
+ * ```
+ *
+ * **Example:** Named group
+ * ```typescript
+ * const group = yield* GCP.Apigee.Envgroup("Api", {
+ *   envgroupId: "prod-group",
+ *   hostnames: ["api.example.com", "api.example.net"],
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const Envgroup = Resource<Envgroup>("GCP.Apigee.Envgroup")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class EnvgroupNotResolved extends Data.TaggedError("GCP.Apigee.EnvgroupNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (organization: string, envgroupId: string): infer _ =>
+  `${orgNameOf(organization)}/envgroups/${envgroupId}`
+
+const toAttrs = (group: apigee.GoogleCloudApigeeV1EnvironmentGroup, organization: string): infer _ => {
+  const name = group.name ?? ""
+  return {
+    name,
+    envgroupId: lastSegment(name),
+    organization: orgIdOf(organization),
+    hostnames: [...(group.hostnames ?? [])],
+    state: group.state,
+    createdAt: group.createdAt,
+    lastModifiedAt: group.lastModifiedAt,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsEnvgroups({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const EnvgroupProvider = (): infer _ =>
+  Provider.succeed(Envgroup, {
+    stables: ["name", "envgroupId", "organization", "createdAt"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.envgroupId ?? output?.envgroupId
+      const previousOrg = olds?.organization ?? output?.organization
+      const idChanged = previousId !== undefined && news.envgroupId !== undefined && news.envgroupId !== previousId
+      const orgChanged = previousOrg !== undefined
+        && news.organization !== undefined
+        && orgIdOf(news.organization) !== orgIdOf(previousOrg)
+      if (idChanged || orgChanged) {
+        return {
+          action: "replace" as const,
+          deleteFirst: idChanged && !orgChanged,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = defaultOrgName(env.project, olds?.organization ?? output?.organization)
+      const envgroupId = try letterPrefixedId(id, olds?.envgroupId, output?.envgroupId, 63)
+      const name = output?.name ?? resourceName(organization, envgroupId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization)
+      const generated = try letterPrefixedId(id, undefined, undefined, 63)
+      return attrs.envgroupId === generated ? attrs : Unowned(attrs)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = defaultOrgName(env.project, news.organization)
+      const envgroupId = try letterPrefixedId(id, news.envgroupId, output?.envgroupId, 63)
+      const name = resourceName(organization, envgroupId)
+      const desiredHostnames = news.hostnames
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const operation = apigee
+          .createOrganizationsEnvgroups({
+            parent: organization,
+            name: envgroupId,
+            body: {
+              name: envgroupId,
+              hostnames: desiredHostnames,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (operation !== undefined) {
+          try waitForOperation(operation)
+        }
+        current = try getByName(name)
+      }
+
+      if (current === undefined) {
+        throw new EnvgroupNotResolved({ resourceName: name })
+      }
+
+      if (!sameStringList(current.hostnames, desiredHostnames)) {
+        const operation = try apigee.patchOrganizationsEnvgroups({
+          name,
+          updateMask: "hostnames",
+          body: { hostnames: desiredHostnames },
+        })
+        try waitForOperation(operation)
+        current = (try getByName(name)) ?? current
+      }
+
+      return toAttrs(current, organization)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = apigee
+        .deleteOrganizationsEnvgroups({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+    },
+  })

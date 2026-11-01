@@ -3,8 +3,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
-import { ListDockerImages, type ListDockerImagesRequest } from "./ListDockerImages.ts";
-import type { Repository } from "./Repository.ts";
+import { ListDockerImages, type ListDockerImagesRequest } from "./ListDockerImages.vibe";
+import type { Repository } from "./Repository.vibe";
 
 /**
  * HTTP implementation of {@link ListDockerImages}.

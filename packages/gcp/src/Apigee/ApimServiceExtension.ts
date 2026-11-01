@@ -16,7 +16,7 @@ import {
   sameJson,
   toPhysicalId,
   waitForOperation,
-} from "./operations.ts";
+} from "./operations.vibe";
 import {
   hasOwnershipExtension,
   parseOwnershipExtension,

@@ -16,7 +16,7 @@ import {
   locationParent,
   parentOf,
   toResourceId,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type QaScorecardsRevisionProps = {
   /**

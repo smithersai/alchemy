@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GenerateWallet } from "./GenerateWallet.js";
+import { GenerateWallet } from "./GenerateWallet.vibe";
 /**
  * HTTP implementation of {@link GenerateWallet}.
  *

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { WriteTable } from "./WriteTable.js";
+import { WriteTable } from "./WriteTable.vibe";
 /**
  * HTTP implementation of {@link WriteTable} over the BigQuery REST API.
  *

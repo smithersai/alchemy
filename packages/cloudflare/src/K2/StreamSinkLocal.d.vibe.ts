@@ -26,4 +26,4 @@ import * as Layer from "effect/Layer";
  * @product K2
  * @category Storage & Databases
  */
-export declare const StreamSinkLocal: Layer.Layer<import("./StreamSink.js").StreamSink, never, import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const StreamSinkLocal: Layer.Layer<import("./StreamSink.vibe").StreamSink, never, import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;

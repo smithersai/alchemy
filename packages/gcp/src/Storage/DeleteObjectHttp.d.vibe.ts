@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { DeleteObject } from "./DeleteObject.js";
+import { DeleteObject } from "./DeleteObject.vibe";
 /**
  * HTTP implementation of {@link DeleteObject}.
  *

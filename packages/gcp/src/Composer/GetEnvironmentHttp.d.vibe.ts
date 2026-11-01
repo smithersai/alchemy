@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetEnvironment } from "./GetEnvironment.js";
+import { GetEnvironment } from "./GetEnvironment.vibe";
 /**
  * HTTP implementation of {@link GetEnvironment}.
  *

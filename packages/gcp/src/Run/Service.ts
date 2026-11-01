@@ -51,7 +51,7 @@ import {
   isContainerAttributes,
   type BoundContainer,
   type Container,
-} from "./Container.ts";
+} from "./Container.vibe";
 
 const DEFAULT_IMAGE = "us-docker.pkg.dev/cloudrun/container/hello";
 const MAX_NAME_LENGTH = 49;

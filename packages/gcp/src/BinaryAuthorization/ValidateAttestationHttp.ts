@@ -3,8 +3,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
-import type { Attestor } from "./Attestor.ts";
-import { ValidateAttestation, type ValidateAttestationRequest } from "./ValidateAttestation.ts";
+import type { Attestor } from "./Attestor.vibe";
+import { ValidateAttestation, type ValidateAttestationRequest } from "./ValidateAttestation.vibe";
 
 /**
  * HTTP implementation of {@link ValidateAttestation}.

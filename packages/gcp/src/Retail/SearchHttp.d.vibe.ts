@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Search } from "./Search.js";
+import { Search } from "./Search.vibe";
 /**
  * HTTP implementation of {@link Search}.
  *

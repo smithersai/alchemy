@@ -23,7 +23,7 @@ import {
   waitGlobalOperation,
   waitRegionOperation,
   waitZoneOperation,
-} from "./operations.ts";
+} from "./operations.vibe";
 
 export type SnapshotProps = {
   /**

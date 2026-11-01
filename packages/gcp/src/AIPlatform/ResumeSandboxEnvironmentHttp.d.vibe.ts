@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ResumeSandboxEnvironment } from "./ResumeSandboxEnvironment.js";
+import { ResumeSandboxEnvironment } from "./ResumeSandboxEnvironment.vibe";
 /**
  * HTTP implementation of {@link ResumeSandboxEnvironment}.
  *

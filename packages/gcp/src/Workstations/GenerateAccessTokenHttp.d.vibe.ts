@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GenerateAccessToken } from "./GenerateAccessToken.js";
+import { GenerateAccessToken } from "./GenerateAccessToken.vibe";
 /**
  * HTTP implementation of {@link GenerateAccessToken}.
  *

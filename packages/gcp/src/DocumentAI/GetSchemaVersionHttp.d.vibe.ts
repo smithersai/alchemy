@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetSchemaVersion } from "./GetSchemaVersion.js";
+import { GetSchemaVersion } from "./GetSchemaVersion.vibe";
 /**
  * HTTP implementation of {@link GetSchemaVersion}.
  *

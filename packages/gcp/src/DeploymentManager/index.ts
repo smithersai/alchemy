@@ -1,2 +1,2 @@
-export * from "./Deployment.ts";
+export * from "./Deployment.vibe";
 export * from "./operations.ts";

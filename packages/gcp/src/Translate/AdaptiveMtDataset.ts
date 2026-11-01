@@ -18,7 +18,7 @@ import {
   toPhysicalId,
   waitUntilGone,
   toRestrictedDisplayName,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type AdaptiveMtDatasetProps = {
   /**

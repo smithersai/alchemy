@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetTopic } from "./GetTopic.js";
+import { GetTopic } from "./GetTopic.vibe";
 /**
  * HTTP implementation of {@link GetTopic}.
  *

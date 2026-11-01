@@ -1,0 +1,263 @@
+import * as discoveryengine from "@distilled.cloud/gcp/discoveryengine_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { parentBefore, parseResourceName, sameStringList, toResourceId } from "./internal.ts"
+
+export type CollectionsEnginesSessionProps = {
+  /**
+   * Parent Engine resource name
+   * `projects/{project}/locations/{location}/collections/{collection}/engines/{engine}`.
+   * Immutable — changing it replaces the session.
+   */
+  mutable engine: string
+  /**
+   * Session id. If omitted, a unique id is generated. Immutable —
+   * changing it replaces the session.
+   */
+  mutable sessionId?: string
+  /**
+   * User-facing display name.
+   */
+  mutable displayName?: string
+  /**
+   * User tracking id.
+   */
+  mutable userPseudoId?: string
+  /**
+   * Session state.
+   */
+  mutable state?: discoveryengine.GoogleCloudDiscoveryengineV1SessionStateEnum
+  /**
+   * Pin the session to the top of the session list.
+   * @default false
+   */
+  mutable isPinned?: boolean
+  /**
+   * Free-form session labels.
+   */
+  mutable labels?: string[]
+}
+
+export type CollectionsEnginesSession = Resource<
+  "GCP.DiscoveryEngine.CollectionsEnginesSession",
+  CollectionsEnginesSessionProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Session id (last path segment). */
+    mutable sessionId: string
+    /** Parent engine resource name. */
+    mutable engine: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Collection id. */
+    mutable collectionId: string
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** User tracking id. */
+    mutable userPseudoId: string | undefined
+    /** Session state. */
+    mutable state: string | undefined
+    /** Whether the session is pinned. */
+    mutable isPinned: boolean
+    /** Labels. */
+    mutable labels: string[]
+    /** RFC3339 start timestamp. */
+    mutable startTime: string | undefined
+    /** RFC3339 end timestamp. */
+    mutable endTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Discovery Engine Session on a collection Engine.
+ *
+ * Without labels, ownership rests on the deterministic id: `read` reports a
+ * resource it finds without prior state as unowned (adopt it with `--adopt`).
+ * Parent engine and session id are immutable; display name, pin, and labels
+ * update in place.
+ *
+ * ### Creating a Session
+ * **Example:** Named session
+ * ```typescript
+ * const session = yield* GCP.DiscoveryEngine.CollectionsEnginesSession(
+ *   "Chat",
+ *   {
+ *     engine: engine.name,
+ *     displayName: "support",
+ *   },
+ * );
+ * ```
+ *
+ * ### Updating a Session
+ * **Example:** Pin and rename
+ * ```typescript
+ * // Same logical id as before; only the changed props differ.
+ * const session = yield* GCP.DiscoveryEngine.CollectionsEnginesSession(
+ *   "Chat",
+ *   {
+ *     engine: engine.name,
+ *     displayName: "support-prod",
+ *     isPinned: true,
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category DiscoveryEngine
+ */
+export const CollectionsEnginesSession = Resource<CollectionsEnginesSession>(
+  "GCP.DiscoveryEngine.CollectionsEnginesSession",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class CollectionsEnginesSessionNotResolved extends Data.TaggedError(
+  "GCP.DiscoveryEngine.CollectionsEnginesSessionNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (engine: string, sessionId: string): infer _ => `${engine}/sessions/${sessionId}`
+
+const getByName = effect (name: string) =>
+  discoveryengine
+    .getProjectsLocationsCollectionsEnginesSessions({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const userLabels = (labels: readonly string[] | undefined): infer _ => [...(labels ?? [])]
+
+const toAttrs = (session: discoveryengine.GoogleCloudDiscoveryengineV1Session, project: string): infer _ => {
+  const name = session.name ?? ""
+  const parsed = parseResourceName(name, "sessions")
+  return {
+    name,
+    sessionId: parsed.id,
+    engine: parentBefore(name, "sessions"),
+    project: parsed.project || project,
+    location: parsed.location,
+    collectionId: parsed.collectionId,
+    displayName: session.displayName,
+    userPseudoId: session.userPseudoId,
+    state: session.state,
+    isPinned: session.isPinned === true,
+    labels: userLabels(session.labels),
+    startTime: session.startTime,
+    endTime: session.endTime,
+  }
+}
+
+export const CollectionsEnginesSessionProvider = (): infer _ =>
+  Provider.succeed(CollectionsEnginesSession, {
+    stables: ["name", "sessionId", "engine", "project", "location", "collectionId", "startTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousEngine = olds?.engine ?? output?.engine
+      const previousId = olds?.sessionId ?? output?.sessionId
+      const nextId = news.sessionId ?? previousId
+      if (
+        (previousEngine !== undefined && news.engine !== previousEngine)
+        || (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = olds?.engine ?? output?.engine
+      const childId = try toResourceId(id, olds?.sessionId, output?.sessionId)
+      const name = output?.name ?? (parent !== undefined ? resourceName(parent, childId) : undefined)
+      if (name === undefined) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      // No labels field: without prior state it may not be ours.
+      return output !== undefined ? attrs : Unowned(attrs)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const sessionId = try toResourceId(id, news.sessionId, output?.sessionId)
+      const displayName = news.displayName
+      const isPinned = news.isPinned === true
+      const labels = news.labels
+      const fallbackName = output?.name ?? resourceName(news.engine, sessionId)
+
+      let current = try getByName(fallbackName)
+
+      if (current === undefined) {
+        const created = discoveryengine
+          .createProjectsLocationsCollectionsEnginesSessions({
+            parent: news.engine,
+            sessionId,
+            body: {
+              displayName,
+              userPseudoId: news.userPseudoId,
+              state: news.state,
+              isPinned: isPinned ? true : undefined,
+              labels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(fallbackName); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new CollectionsEnginesSessionNotResolved({
+          resourceName: fallbackName,
+        })
+      }
+
+      const name = current.name ?? fallbackName
+      const displayNameChanged = (current.displayName ?? "") !== (displayName ?? "")
+      const userChanged = (current.userPseudoId ?? "") !== (news.userPseudoId ?? "")
+      const stateChanged = (current.state ?? "") !== (news.state ?? "")
+      const pinnedChanged = (current.isPinned === true) !== isPinned
+      const labelsChanged = !sameStringList(userLabels(current.labels), labels)
+
+      if (displayNameChanged || userChanged || stateChanged || pinnedChanged || labelsChanged) {
+        current = try discoveryengine.patchProjectsLocationsCollectionsEnginesSessions({
+          name,
+          updateMask: [
+            displayNameChanged ? "display_name" : undefined,
+            userChanged ? "user_pseudo_id" : undefined,
+            stateChanged ? "state" : undefined,
+            pinnedChanged ? "is_pinned" : undefined,
+            labelsChanged ? "labels" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name,
+            displayName,
+            userPseudoId: news.userPseudoId,
+            state: news.state,
+            isPinned,
+            labels,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const existing = try getByName(output.name)
+      if (existing === undefined) return
+      discoveryengine
+        .deleteProjectsLocationsCollectionsEnginesSessions({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

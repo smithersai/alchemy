@@ -1,0 +1,105 @@
+import * as d1 from "@distilled.cloud/cloudflare/d1"
+import { md5 } from "alchemy/Util/md5"
+import * as Effect from "effect/Effect"
+
+export interface ImportDatabaseOptions {
+  mutable accountId: string;
+  mutable databaseId: string;
+  mutable sqlData: string | Uint8Array;
+  mutable filename?: string;
+}
+
+export interface ImportDatabaseResult {
+  mutable filename: string;
+  mutable numQueries: number;
+}
+
+/**
+ * A D1 import that Cloudflare accepted but could not finish: the SQL upload
+ * was rejected, ingestion reported `status: "error"`, or an in-progress
+ * response carried no bookmark to poll.
+ */
+export error D1ImportError {
+  mutable databaseId: string;
+  mutable message: string;
+}
+
+/**
+ * Import SQL into a D1 database via the multi-step Cloudflare flow:
+ *   1. POST `action: "init"` -> returns a presigned `upload_url`, unless D1
+ *      already holds a file with this etag, in which case the init response
+ *      is itself the first polling response (the import has started).
+ *   2. PUT raw SQL to `upload_url` (only when one was returned)
+ *   3. POST `action: "ingest"` -> returns the first polling response
+ *   4. POST `action: "poll"` with `at_bookmark` until `status === "complete"`
+ */
+export const importD1Database = effect (options: ImportDatabaseOptions) => {
+  const { accountId, databaseId } = options;
+  const importDb = try d1.importDatabase;
+  const client = try Effect.service(HttpClient.HttpClient);
+  const etag = try md5(options.sqlData);
+
+  const init = try importDb({ accountId, databaseId, action: "init", etag });
+
+  const sqlData = options.sqlData;
+  const uploadUrl = init.uploadUrl;
+  let firstPoll = init;
+  if (uploadUrl) {
+    const bytes =
+      typeof sqlData === "string"
+        ? try Effect.sync(() => new TextEncoder().encode(sqlData))
+        : sqlData;
+    const putRes = try client.execute(
+      HttpClientRequest.put(uploadUrl).pipe(
+        HttpClientRequest.bodyUint8Array(bytes, "application/sql"),
+      ),
+    );
+    if (putRes.status < 200 || putRes.status >= 300) {
+      const text = (try putRes.text) catch () => "";
+      throw new D1ImportError({
+        databaseId,
+        message: `Failed to upload SQL file to D1 (${putRes.status}): ${text}`,
+      });
+    }
+    firstPoll = try importDb({
+      accountId,
+      databaseId,
+      action: "ingest",
+      etag,
+      filename: init.filename ?? undefined,
+    });
+  }
+
+  const poll = effect (
+    response: d1.ImportDatabaseResponse,
+  ): ImportDatabaseResult!d1.ImportDatabaseError | D1ImportError => {
+      if (response.status === "complete") {
+        return {
+          filename: response.filename ?? options.filename ?? init.filename ?? "import.sql",
+          numQueries: response.result?.numQueries ?? 0,
+        };
+      }
+      if (response.status === "error") {
+        throw new D1ImportError({
+          databaseId,
+          message: response.error ?? "Error during D1 import",
+        });
+      }
+      if (!response.atBookmark) {
+        throw new D1ImportError({
+          databaseId,
+          message: response.error ?? "D1 import response is incomplete and has no bookmark to poll",
+        });
+      }
+      return try poll(
+        try importDb({
+          accountId,
+          databaseId,
+          action: "poll",
+          currentBookmark: response.atBookmark,
+        }),
+      );
+    };
+
+  return try poll(firstPoll);
+};

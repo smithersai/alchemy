@@ -1,4 +1,4 @@
-export * from "./CreateAssessment.ts";
+export * from "./CreateAssessment.vibe";
 export * from "./CreateAssessmentHttp.vibe";
-export * from "./Firewallpolicy.ts";
-export * from "./Key.ts";
+export * from "./Firewallpolicy.vibe";
+export * from "./Key.vibe";

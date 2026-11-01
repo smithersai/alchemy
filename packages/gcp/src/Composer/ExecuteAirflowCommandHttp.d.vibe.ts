@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ExecuteAirflowCommand } from "./ExecuteAirflowCommand.js";
+import { ExecuteAirflowCommand } from "./ExecuteAirflowCommand.vibe";
 /**
  * HTTP implementation of {@link ExecuteAirflowCommand}.
  *

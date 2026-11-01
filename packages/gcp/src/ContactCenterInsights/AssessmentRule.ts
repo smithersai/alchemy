@@ -21,7 +21,7 @@ import {
   parseOwnership,
   toResourceId,
   updateMaskOf,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type ScheduleInfo = {
   /** Time zone used to interpret `schedule`. Defaults to UTC. */

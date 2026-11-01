@@ -1,0 +1,264 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  createInternalLabels,
+  encodeDescription,
+  hasOwnershipMarker,
+  listLocations,
+  locationOf,
+  lastSegment,
+  normalizeLocation,
+  parseDescription,
+  projectOf,
+  toResourceId,
+} from "./names.ts"
+import { waitForOperation } from "./operations.ts"
+
+export type MetadataStoreProps = {
+  /**
+   * MetadataStore id (the `{metadatastore}` segment of
+   * `projects/{project}/locations/{location}/metadataStores/{metadatastore}`).
+   * If omitted, a unique name is generated. Must be 4-128 characters of
+   * `a-z` and `-`. Immutable — changing it replaces the store.
+   */
+  mutable metadataStoreId?: string;
+  /**
+   * Vertex AI location. Immutable — changing it replaces the store.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string;
+  /**
+   * Human-readable description. Metadata stores have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  mutable description?: string;
+  /**
+   * Customer-managed encryption key. Immutable.
+   */
+  mutable encryptionSpec?: aiplatform.GoogleCloudAiplatformV1EncryptionSpec;
+  /**
+   * Dataplex integration settings.
+   */
+  mutable dataplexConfig?: aiplatform.GoogleCloudAiplatformV1MetadataStoreDataplexConfig;
+};
+
+export type MetadataStore = Resource<
+  "GCP.AIPlatform.MetadataStore",
+  MetadataStoreProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/metadataStores/{metadatastore}`. */
+    mutable name: string;
+    /** MetadataStore id (last path segment). */
+    mutable metadataStoreId: string;
+    /** Project id. */
+    mutable project: string;
+    /** Location id. */
+    mutable location: string;
+    /** User description with the Alchemy ownership prefix stripped. */
+    mutable description: string | undefined;
+    /** Disk utilization of the store, in bytes. */
+    mutable diskUtilizationBytes: string | undefined;
+    /** KMS key used for encryption, if any. */
+    mutable kmsKeyName: string | undefined;
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined;
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined;
+  },
+  never,
+  Providers
+>;
+
+/**
+ * A Vertex ML Metadata store for artifacts, contexts, and executions.
+ *
+ * Metadata stores have no labels field, so Alchemy stamps ownership into
+ * the description for `list` / nuke. There is no update API — changing
+ * identity, location, encryption, or Dataplex config replaces the store.
+ *
+ * ### Creating a MetadataStore
+ * **Example:** Generated id
+ * ```typescript
+ * const store = yield* GCP.AIPlatform.MetadataStore("Mlmd", {
+ *   description: "pipeline metadata",
+ * });
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const MetadataStore = Resource<MetadataStore>("GCP.AIPlatform.MetadataStore");
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MetadataStoreNotResolved extends Data.TaggedError(
+  "GCP.AIPlatform.MetadataStoreNotResolved",
+)<{
+  mutable resourceName: string;
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MetadataStoreStillExists extends Data.TaggedError(
+  "GCP.AIPlatform.MetadataStoreStillExists",
+)<{
+  mutable resourceName: string;
+}> {}
+
+const resourceName = (project: string, location: string, metadataStoreId: string): infer _ =>
+  `projects/${project}/locations/${location}/metadataStores/${metadataStoreId}`;
+
+const toAttrs = (store: aiplatform.GoogleCloudAiplatformV1MetadataStore, project: string): infer _ => {
+  const name = store.name ?? "";
+  const parsed = parseDescription(store.description);
+  return {
+    name,
+    metadataStoreId: lastSegment(name),
+    project: projectOf(name, project),
+    location: locationOf(name),
+    description: parsed.description,
+    diskUtilizationBytes: store.state?.diskUtilizationBytes,
+    kmsKeyName: store.encryptionSpec?.kmsKeyName,
+    createTime: store.createTime,
+    updateTime: store.updateTime,
+  };
+};
+
+const getByName = effect (name: string) => aiplatform
+    .getProjectsLocationsMetadataStores({ name }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; };
+
+const listPage = effect (parent: string) => (Array.from((try (aiplatform.listProjectsLocationsMetadataStores.pages({ parent, pageSize: 100 })
+  |> Stream.runCollect(%)))).flatMap((page) => page.metadataStores ?? [])) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1MetadataStore[]; default: throw e; };
+
+const waitUntilExists = effect (name: string) => try (getByName(name)
+  |> Effect.filterOrFail(%, (store): store is aiplatform.GoogleCloudAiplatformV1MetadataStore => store !== undefined, () => new MetadataStoreNotResolved({ resourceName: name }))
+  |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.AIPlatform.MetadataStoreNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("2 seconds"),
+    }));
+
+const waitUntilGone = effect (name: string) => try (getByName(name)
+  |> Effect.filterOrFail(%, (store) => store === undefined, () => new MetadataStoreStillExists({ resourceName: name }))
+  |> Effect.asVoid(%)
+  |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.AIPlatform.MetadataStoreStillExists",
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    }));
+
+export const MetadataStoreProvider = (): infer _ =>
+  Provider.succeed(MetadataStore, {
+    stables: ["name", "metadataStoreId", "project", "location", "kmsKeyName", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const env = try GcpEnvironment.current;
+      if (!isResolved(news)) return undefined;
+      const previousId = olds?.metadataStoreId ?? output?.metadataStoreId;
+      const nextId = news.metadataStoreId ?? previousId;
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region);
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      );
+      const previousKms = olds?.encryptionSpec?.kmsKeyName ?? output?.kmsKeyName ?? "";
+      const nextKms = news.encryptionSpec?.kmsKeyName ?? previousKms;
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId) ||
+        previousLocation !== nextLocation ||
+        nextKms !== previousKms
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst:
+            previousLocation === nextLocation && previousId !== undefined && nextId === previousId,
+        };
+      }
+      return undefined;
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current;
+      const metadataStoreId = try toResourceId(
+        id,
+        olds?.metadataStoreId,
+        output?.metadataStoreId,
+      );
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region);
+      const name = output?.name ?? resourceName(env.project, location, metadataStoreId);
+      const existing = try getByName(name);
+      if (existing === undefined) return undefined;
+      const attrs = toAttrs(existing, env.project);
+      const { labels } = parseDescription(existing.description);
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs);
+    },
+
+    list: effect () => {
+        const env = try GcpEnvironment.current;
+        const pages = try Effect.forEach(
+          listLocations(env.region),
+          effect (location) => try listPage(`projects/${env.project}/locations/${location}`),
+          { concurrency: 4 },
+        );
+        return pages
+          .flat()
+          .filter((store) => hasOwnershipMarker(store.description))
+          .map((store) => toAttrs(store, env.project));
+      },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current;
+      const metadataStoreId = try toResourceId(
+        id,
+        news.metadataStoreId,
+        output?.metadataStoreId,
+      );
+      const location = normalizeLocation(news.location ?? output?.location, env.region);
+      const name = resourceName(env.project, location, metadataStoreId);
+      const ownership = try createInternalLabels(id);
+      const desiredDescription = encodeDescription(ownership, news.description);
+
+      let current = try getByName(output?.name ?? name);
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsMetadataStores({
+            parent: `projects/${env.project}/locations/${location}`,
+            metadataStoreId,
+            body: {
+              description: desiredDescription,
+              encryptionSpec: news.encryptionSpec,
+              dataplexConfig: news.dataplexConfig,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; };
+        if (created !== undefined) {
+          try waitForOperation(created);
+        }
+        current = try waitUntilExists(name);
+      }
+
+      return toAttrs(current, env.project);
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (aiplatform
+        .deleteProjectsLocationsMetadataStores({
+          name: output.name,
+          force: true,
+        })
+  |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 8,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; };
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true });
+      }
+      try waitUntilGone(output.name);
+    },
+  });

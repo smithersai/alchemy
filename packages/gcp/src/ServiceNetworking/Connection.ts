@@ -8,7 +8,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { waitGlobalOperation } from "../Compute/operations.ts";
+import { waitGlobalOperation } from "../Compute/operations.vibe";
 import { GcpEnvironment } from "../Environment.ts";
 import { waitForOperation as waitForLongRunning } from "../Operation.ts";
 import type { Providers } from "../Providers.ts";

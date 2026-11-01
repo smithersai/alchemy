@@ -2,10 +2,10 @@ import * as k2 from "@distilled.cloud/cloudflare/k2";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import { fromConsumedRecords } from "./K2Codec.ts";
+import { fromConsumedRecords } from "./K2Codec.vibe";
 import { type K2Auth, makeK2HttpAuth } from "./K2Http.ts";
-import type { Batch } from "./K2Types.ts";
-import { ReadSubscription, type ReadSubscriptionClient } from "./ReadSubscription.ts";
+import type { Batch } from "./K2Types.vibe";
+import { ReadSubscription, type ReadSubscriptionClient } from "./ReadSubscription.vibe";
 import type { Subscription } from "./Subscription.ts";
 
 /** Default `maxRecords` per `consume`. */

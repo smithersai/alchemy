@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { StopWorkstation } from "./StopWorkstation.js";
+import { StopWorkstation } from "./StopWorkstation.vibe";
 /**
  * HTTP implementation of {@link StopWorkstation}.
  *

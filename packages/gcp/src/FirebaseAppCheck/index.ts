@@ -1,4 +1,4 @@
-export * from "./AppsDebugToken.ts";
-export * from "./ExchangeDebugToken.ts";
+export * from "./AppsDebugToken.vibe";
+export * from "./ExchangeDebugToken.vibe";
 export * from "./ExchangeDebugTokenHttp.vibe";
-export * from "./ServicesResourcePolicy.ts";
+export * from "./ServicesResourcePolicy.vibe";

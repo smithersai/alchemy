@@ -19,7 +19,7 @@ import {
   parentOf,
   parseOwnership,
   sameJson,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 type AgentInfo = {
   /** User-specified agent identifier. */

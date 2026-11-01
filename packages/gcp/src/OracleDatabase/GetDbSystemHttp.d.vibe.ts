@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetDbSystem } from "./GetDbSystem.js";
+import { GetDbSystem } from "./GetDbSystem.vibe";
 /**
  * HTTP implementation of {@link GetDbSystem}.
  *

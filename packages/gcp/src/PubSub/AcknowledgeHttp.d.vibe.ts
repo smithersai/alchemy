@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Acknowledge } from "./Acknowledge.js";
+import { Acknowledge } from "./Acknowledge.vibe";
 /**
  * HTTP implementation of {@link Acknowledge}.
  *

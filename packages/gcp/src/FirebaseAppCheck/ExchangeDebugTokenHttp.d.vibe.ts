@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ExchangeDebugToken } from "./ExchangeDebugToken.js";
+import { ExchangeDebugToken } from "./ExchangeDebugToken.vibe";
 /**
  * HTTP implementation of {@link ExchangeDebugToken}.
  *

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Pull } from "./Pull.js";
+import { Pull } from "./Pull.vibe";
 /**
  * HTTP implementation of {@link Pull}.
  *

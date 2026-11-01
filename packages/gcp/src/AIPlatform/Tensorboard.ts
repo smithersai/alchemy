@@ -19,7 +19,7 @@ import {
 import type { Providers } from "../Providers.ts";
 import { listLocations } from "./names.ts";
 import { resourceNameFromOperation, waitForOperation } from "./operations.ts";
-import { lastSegment, locationOf, locationParent } from "./ownership.ts";
+import { lastSegment, locationOf, locationParent } from "./ownership.vibe";
 import type { EncryptionSpec } from "./shared.vibe";
 
 export type TensorboardProps = {

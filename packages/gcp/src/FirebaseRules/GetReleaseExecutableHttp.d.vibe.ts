@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetReleaseExecutable } from "./GetReleaseExecutable.js";
+import { GetReleaseExecutable } from "./GetReleaseExecutable.vibe";
 /**
  * HTTP implementation of {@link GetReleaseExecutable}.
  *

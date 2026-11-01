@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { InsertAll } from "./InsertAll.js";
+import { InsertAll } from "./InsertAll.vibe";
 /**
  * HTTP implementation of {@link InsertAll}.
  *

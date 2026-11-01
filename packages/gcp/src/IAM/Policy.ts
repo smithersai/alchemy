@@ -21,7 +21,7 @@ import {
   toPolicyId,
   waitForDeleteOperation,
   waitForOperation,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type DenyRuleCondition = {
   /** CEL expression. Resource-tag functions only. */

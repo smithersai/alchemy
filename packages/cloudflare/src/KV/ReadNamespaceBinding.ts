@@ -2,7 +2,7 @@ import type * as runtime from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { makeKVNamespaceBinding, makeKVNamespaceHelpers } from "./NamespaceBinding.ts";
-import { ReadNamespace, type ReadNamespaceClient } from "./ReadNamespace.ts";
+import { ReadNamespace, type ReadNamespaceClient } from "./ReadNamespace.vibe";
 
 /**
  * Implementation of the {@link ReadNamespace} binding that uses a Worker

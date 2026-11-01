@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetNote } from "./GetNote.js";
+import { GetNote } from "./GetNote.vibe";
 /**
  * HTTP implementation of {@link GetNote}.
  *

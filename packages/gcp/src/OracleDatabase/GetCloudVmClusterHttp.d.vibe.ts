@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetCloudVmCluster } from "./GetCloudVmCluster.js";
+import { GetCloudVmCluster } from "./GetCloudVmCluster.vibe";
 /**
  * HTTP implementation of {@link GetCloudVmCluster}.
  *

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetAclPolicy } from "./GetAclPolicy.js";
+import { GetAclPolicy } from "./GetAclPolicy.vibe";
 /**
  * HTTP implementation of {@link GetAclPolicy}.
  *

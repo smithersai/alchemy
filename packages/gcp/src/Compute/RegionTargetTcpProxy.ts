@@ -11,7 +11,7 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitRegionOperation } from "./operations.ts";
+import { waitRegionOperation } from "./operations.vibe";
 import type {
   TargetTcpProxyLoadBalancingScheme,
   TargetTcpProxyProxyHeader,

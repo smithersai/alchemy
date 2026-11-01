@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadWriteRedis } from "./ReadWriteRedis.js";
+import { ReadWriteRedis } from "./ReadWriteRedis.vibe";
 /**
  * HTTP/RESP implementation of {@link ReadWriteRedis}.
  *

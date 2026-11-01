@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetPlatformsPolicy } from "./GetPlatformsPolicy.js";
+import { GetPlatformsPolicy } from "./GetPlatformsPolicy.vibe";
 /**
  * HTTP implementation of {@link GetPlatformsPolicy}.
  *

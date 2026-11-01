@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetSynonymSet } from "./GetSynonymSet.js";
+import { GetSynonymSet } from "./GetSynonymSet.vibe";
 /**
  * HTTP implementation of {@link GetSynonymSet}.
  *

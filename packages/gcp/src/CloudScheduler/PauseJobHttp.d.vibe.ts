@@ -1,7 +1,7 @@
 import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
-import { PauseJob } from "./PauseJob.js";
+import { PauseJob } from "./PauseJob.vibe";
 /**
  * HTTP implementation of {@link PauseJob}.
  *

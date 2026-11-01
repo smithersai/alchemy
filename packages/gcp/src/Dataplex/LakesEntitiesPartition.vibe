@@ -1,0 +1,228 @@
+import * as dataplex from "@distilled.cloud/gcp/dataplex_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  listChildResources,
+  listEntities,
+  listLakes,
+  listPartitions,
+  listZones,
+  parseResourceName,
+  replaceIfChanged,
+  hasAlchemyLabelMap,
+} from "./shared.ts"
+
+export type LakesEntitiesPartitionProps = {
+  /**
+   * Parent entity. Full name
+   * `projects/{project}/locations/{location}/lakes/{lake}/zones/{zone}/entities/{entity}`.
+   * Immutable — changing it replaces the partition.
+   */
+  mutable entity: string
+  /**
+   * Ordered partition values matching the parent entity's partition
+   * schema. Immutable — changing them replaces the partition.
+   */
+  mutable values: string[]
+  /**
+   * Location of the partition data (`gs://bucket/path/key=value` or a
+   * BigQuery table). Immutable — changing it replaces the partition.
+   */
+  mutable location: string
+}
+
+export type LakesEntitiesPartition = Resource<
+  "GCP.Dataplex.LakesEntitiesPartition",
+  LakesEntitiesPartitionProps,
+  {
+    /** Full resource name `.../entities/{entity}/partitions/{values}`. */
+    mutable name: string
+    /** Parent entity resource name. */
+    mutable entity: string
+    /** Project id. */
+    mutable project: string
+    /** Region id. */
+    mutable region: string
+    /** Ordered partition values. */
+    mutable values: string[]
+    /** Data location. */
+    mutable location: string
+    /** Server etag. */
+    mutable etag: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataplex metadata partition under a zone entity.
+ *
+ * Partitions have no labels or description field: `read` reports a
+ * partition it finds without prior state as unowned, and `list` returns
+ * the partitions of entities in Alchemy-labeled lakes. Identity is the parent entity plus `values`; changing
+ * `entity`, `values`, or `location` replaces the partition.
+ *
+ * ### Creating a Partition
+ * **Example:** Hive-style date partition
+ * ```typescript
+ * const partition = yield* GCP.Dataplex.LakesEntitiesPartition("Day", {
+ *   entity: entity.name,
+ *   values: ["2024-01-01"],
+ *   location: `gs://${bucket.bucketName}/events/dt=2024-01-01`,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataplex
+ */
+export const LakesEntitiesPartition = Resource<LakesEntitiesPartition>(
+  "GCP.Dataplex.LakesEntitiesPartition",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class LakesEntitiesPartitionNotResolved extends Data.TaggedError(
+  "GCP.Dataplex.LakesEntitiesPartitionNotResolved",
+)<{
+  mutable resourceName: string
+}> {}
+
+const encodeValue = (value: string): infer _ => encodeURIComponent(encodeURIComponent(value))
+
+const resourceNameOf = (entity: string, values: readonly string[]): infer _ =>
+  `${entity}/partitions/${values.map(encodeValue).join("/")}`
+
+const toAttrs = (
+  partition: dataplex.GoogleCloudDataplexV1Partition,
+  project: string,
+  entity: string,
+): infer _ => {
+  const name = partition.name ?? ""
+  const parsed = parseResourceName(name, "partitions")
+  return {
+    name,
+    entity: parsed.parent || entity,
+    project: parsed.project || project,
+    region: parsed.location,
+    values: partition.values ?? [],
+    location: partition.location ?? "",
+    etag: partition.etag,
+  }
+}
+
+const getByName = effect (name: string) =>
+  dataplex
+    .getProjectsLocationsLakesZonesEntitiesPartitions({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwnedEntityNames = effect (project: string, region: string) => {
+  const lakes = (try listLakes(project, region)).filter((lake) => hasAlchemyLabelMap(lake.labels))
+  const zones = try listChildResources(lakes, listZones)
+  const named = zones.filter((zone) => (zone.name ?? "").length > 0)
+  const tables = try Effect.forEach(named, effect (zone) => try listEntities(zone.name!, "TABLES"), {
+    concurrency: 4,
+  })
+  const filesets = try Effect.forEach(named, effect (zone) => try listEntities(zone.name!, "FILESETS"), {
+    concurrency: 4,
+  })
+  return [...tables.flat(), ...filesets.flat()]
+    .map((entity) => entity.name)
+    .filter((name): name is string => (name ?? "").length > 0)
+}
+
+export const LakesEntitiesPartitionProvider = (): infer _ =>
+  Provider.succeed(LakesEntitiesPartition, {
+    stables: ["name", "entity", "project", "region", "values"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousEntity = olds?.entity ?? output?.entity
+      const nextEntity = news.entity ?? previousEntity
+      const previousValues = olds?.values ?? output?.values
+      const nextValues = news.values ?? previousValues
+      const previousLocation = olds?.location ?? output?.location
+      const nextLocation = news.location ?? previousLocation
+      if (
+        replaceIfChanged(previousEntity, nextEntity)
+        || (previousValues !== undefined
+          && nextValues !== undefined
+          && JSON.stringify(previousValues) !== JSON.stringify(nextValues))
+        || replaceIfChanged(previousLocation, nextLocation)
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst: previousEntity === nextEntity
+            && previousLocation === nextLocation
+            && previousValues !== undefined
+            && nextValues !== undefined
+            && JSON.stringify(previousValues) === JSON.stringify(nextValues),
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const entity = olds?.entity ?? output?.entity ?? ""
+      const values = olds?.values ?? output?.values ?? []
+      const name = output?.name ?? (entity ? resourceNameOf(entity, values) : "")
+      if (name.length === 0) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, entity)
+      // No labels field: without prior state the partition may not be ours.
+      return output !== undefined ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const entities = try listOwnedEntityNames(env.project, env.region)
+      const groups = try Effect.forEach(
+        entities,
+        effect (entity) => (try listPartitions(entity)).map((partition) => toAttrs(partition, env.project, entity)),
+        { concurrency: 4 },
+      )
+      return groups.flat()
+    },
+
+    reconcile: effect ({ news, output }) => {
+      const env = try GcpEnvironment.current
+      const entity = news.entity
+      const name = output?.name ?? resourceNameOf(entity, news.values)
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = dataplex
+          .createProjectsLocationsLakesZonesEntitiesPartitions({
+            parent: entity,
+            body: {
+              values: news.values,
+              location: news.location,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+        if (current === undefined) {
+          current = try getByName(name)
+        }
+      }
+
+      if (current === undefined) {
+        throw new LakesEntitiesPartitionNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project, entity)
+    },
+
+    delete: effect ({ output }) => {
+      dataplex
+        .deleteProjectsLocationsLakesZonesEntitiesPartitions({
+          name: output.name,
+          etag: output.etag,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

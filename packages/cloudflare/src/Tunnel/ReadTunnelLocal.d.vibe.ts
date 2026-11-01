@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadTunnel } from "./ReadTunnel.js";
+import { ReadTunnel } from "./ReadTunnel.vibe";
 /**
  * Local implementation of the {@link ReadTunnel} binding — reads Cloudflare
  * Tunnels over the cfd_tunnel HTTP API using the **current credentials**

@@ -19,7 +19,7 @@ import {
   locationParent,
   ownedByAlchemy,
   parseOwnership,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type PipelineJobRequest = {
   /**

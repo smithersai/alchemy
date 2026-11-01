@@ -26,7 +26,7 @@ import {
   sameText,
   toPhysicalId,
   updateMaskOf,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type FeedContentType = cloudasset.FeedContentTypeEnum | (string & {});
 

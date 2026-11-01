@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ExecuteGraphql } from "./ExecuteGraphql.js";
+import { ExecuteGraphql } from "./ExecuteGraphql.vibe";
 /**
  * HTTP implementation of {@link ExecuteGraphql}.
  *

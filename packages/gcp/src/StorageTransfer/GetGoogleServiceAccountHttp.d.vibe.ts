@@ -1,7 +1,7 @@
 import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
-import { GetGoogleServiceAccount } from "./GetGoogleServiceAccount.js";
+import { GetGoogleServiceAccount } from "./GetGoogleServiceAccount.vibe";
 /**
  * HTTP implementation of {@link GetGoogleServiceAccount}.
  *

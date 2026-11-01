@@ -24,7 +24,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type AwsSourceDetails = vm.AwsSourceDetails;
 export type AzureSourceDetails = vm.AzureSourceDetails;

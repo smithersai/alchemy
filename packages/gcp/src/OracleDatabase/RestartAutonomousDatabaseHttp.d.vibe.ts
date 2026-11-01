@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RestartAutonomousDatabase } from "./RestartAutonomousDatabase.js";
+import { RestartAutonomousDatabase } from "./RestartAutonomousDatabase.vibe";
 /**
  * HTTP implementation of {@link RestartAutonomousDatabase}.
  *

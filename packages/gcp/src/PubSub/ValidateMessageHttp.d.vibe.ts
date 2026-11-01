@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ValidateMessage } from "./ValidateMessage.js";
+import { ValidateMessage } from "./ValidateMessage.vibe";
 /**
  * HTTP implementation of {@link ValidateMessage}.
  *

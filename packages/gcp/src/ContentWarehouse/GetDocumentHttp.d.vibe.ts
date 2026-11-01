@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetDocument } from "./GetDocument.js";
+import { GetDocument } from "./GetDocument.vibe";
 /**
  * HTTP implementation of {@link GetDocument}.
  *

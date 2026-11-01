@@ -21,7 +21,7 @@ import {
   parseOwnership,
   sameText,
   updateMaskOf,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type PhraseMatcherType = "PHRASE_MATCHER_TYPE_UNSPECIFIED" | "ALL_OF" | "ANY_OF";
 

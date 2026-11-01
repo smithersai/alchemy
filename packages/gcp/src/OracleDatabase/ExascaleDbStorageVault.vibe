@@ -1,0 +1,331 @@
+import * as oracle from "@distilled.cloud/gcp/oracledatabase_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  OracleDatabaseNotResolved,
+  collectPages,
+  hasAlchemyLabelMap,
+  listAtLocation,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  resourceNameOf,
+  retryConflict,
+  retryQuota,
+  toPhysicalId,
+  userLabels,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.vibe"
+import { waitForOperation } from "./operations.ts"
+
+const COLLECTION = "exascaleDbStorageVaults"
+const FALLBACK_ID = "exavault"
+
+export type ExascaleDbStorageDetails = {
+  /** Total storage allocation in GB. Required on create. */
+  mutable totalSizeGbs?: number
+}
+
+export type ExascaleDbStorageVaultPropertiesInput = {
+  /** Additional flash cache as a percent of high-capacity storage. */
+  mutable additionalFlashCachePercent?: number
+  /** Storage details. Required on create. */
+  mutable exascaleDbStorageDetails?: ExascaleDbStorageDetails
+  /** Vault description. */
+  mutable description?: string
+}
+
+export type ExascaleDbStorageVaultProps = {
+  /**
+   * Vault id. If omitted, a unique RFC1035 name is generated. Immutable.
+   */
+  mutable exascaleDbStorageVaultId?: string
+  /**
+   * Region. Immutable.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Display name. Required on create.
+   */
+  mutable displayName?: string
+  /**
+   * GCP Oracle zone. Immutable.
+   */
+  mutable gcpOracleZone?: string
+  /**
+   * Exadata Infrastructure this vault is created on. Immutable.
+   */
+  mutable exadataInfrastructure?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Vault properties.
+   */
+  mutable properties?: ExascaleDbStorageVaultPropertiesInput
+  /** Total size in GB. Convenience alias. */
+  mutable totalSizeGbs?: number
+  /** Vault description. Convenience alias. */
+  mutable description?: string
+}
+
+export type ExascaleDbStorageVault = Resource<
+  "GCP.OracleDatabase.ExascaleDbStorageVault",
+  ExascaleDbStorageVaultProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Vault id. */
+    mutable exascaleDbStorageVaultId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** GCP Oracle zone. */
+    mutable gcpOracleZone: string | undefined
+    /** Exadata Infrastructure. */
+    mutable exadataInfrastructure: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Entitlement id. */
+    mutable entitlementId: string | undefined
+    /** Lifecycle state. */
+    mutable state: string | undefined
+    /** Total size in GB. */
+    mutable totalSizeGbs: number | undefined
+    /** Available size in GB. */
+    mutable availableSizeGbs: number | undefined
+    /** Description. */
+    mutable description: string | undefined
+    /** OCID. */
+    mutable ocid: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Oracle Exascale DB storage vault on Google Cloud.
+ *
+ * Changing `exascaleDbStorageVaultId`, `location`,
+ * `exadataInfrastructure`, or `gcpOracleZone` replaces the vault. There
+ * is no patch API in the distilled SDK, so labels are applied at create.
+ *
+ * ### Creating a storage vault
+ * **Example:** Generated name
+ * ```typescript
+ * const vault = yield* GCP.OracleDatabase.ExascaleDbStorageVault("Vault", {
+ *   displayName: "vault",
+ *   totalSizeGbs: 300,
+ * });
+ * ```
+ *
+ * @resource
+ * @category OracleDatabase
+ */
+export const ExascaleDbStorageVault = Resource<ExascaleDbStorageVault>(
+  "GCP.OracleDatabase.ExascaleDbStorageVault",
+)
+
+const mergedProperties = (
+  news: ExascaleDbStorageVaultProps,
+): ExascaleDbStorageVaultPropertiesInput => ({
+  ...news.properties,
+  description: news.description ?? news.properties?.description,
+  exascaleDbStorageDetails: {
+    ...news.properties?.exascaleDbStorageDetails,
+    totalSizeGbs: news.totalSizeGbs ?? news.properties?.exascaleDbStorageDetails?.totalSizeGbs,
+  },
+})
+
+const toCreateBody = (
+  news: ExascaleDbStorageVaultProps,
+  desiredLabels: Record<string, string>,
+): oracle.ExascaleDbStorageVault => {
+  const props = mergedProperties(news)
+  const properties: oracle.ExascaleDbStorageVaultProperties = {}
+  if (props.additionalFlashCachePercent !== undefined) {
+    properties.additionalFlashCachePercent = props.additionalFlashCachePercent
+  }
+  if (props.exascaleDbStorageDetails !== undefined) {
+    properties.exascaleDbStorageDetails = props.exascaleDbStorageDetails
+  }
+  if (props.description !== undefined) properties.description = props.description
+  const body: oracle.ExascaleDbStorageVault = {
+    labels: desiredLabels,
+    properties,
+  }
+  if (news.displayName !== undefined) body.displayName = news.displayName
+  if (news.gcpOracleZone !== undefined) body.gcpOracleZone = news.gcpOracleZone
+  if (news.exadataInfrastructure !== undefined) {
+    body.exadataInfrastructure = news.exadataInfrastructure
+  }
+  return body
+}
+
+const toAttrs = (vault: oracle.ExascaleDbStorageVault, project: string): infer _ => {
+  const name = vault.name ?? ""
+  const parsed = parseName(name, COLLECTION)
+  return {
+    name,
+    exascaleDbStorageVaultId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: vault.displayName,
+    gcpOracleZone: vault.gcpOracleZone,
+    exadataInfrastructure: vault.exadataInfrastructure,
+    labels: userLabels(vault.labels),
+    entitlementId: vault.entitlementId,
+    state: vault.properties?.state,
+    totalSizeGbs: vault.properties?.exascaleDbStorageDetails?.totalSizeGbs,
+    availableSizeGbs: vault.properties?.exascaleDbStorageDetails?.availableSizeGbs,
+    description: vault.properties?.description,
+    ocid: vault.properties?.ocid,
+    createTime: vault.createTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  retryQuota(oracle.getProjectsLocationsExascaleDbStorageVaults({ name })) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  }
+
+const listVaults = effect (project: string, region: string) => {
+  const collect = effect (parent: string) =>
+    (try collectPages(
+      oracle.listProjectsLocationsExascaleDbStorageVaults.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.exascaleDbStorageVaults,
+    )).filter((item) => hasAlchemyLabelMap(item.labels))
+  return listAtLocation(project, region, collect) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [];
+    default: throw e;
+  }
+}
+
+export const ExascaleDbStorageVaultProvider = (): infer _ =>
+  Provider.succeed(ExascaleDbStorageVault, {
+    stables: ["name", "exascaleDbStorageVaultId", "project", "location", "createTime", "ocid"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousInfra = olds?.exadataInfrastructure ?? output?.exadataInfrastructure ?? ""
+      const nextInfra = news.exadataInfrastructure ?? previousInfra
+      const previousZone = olds?.gcpOracleZone ?? output?.gcpOracleZone ?? ""
+      const nextZone = news.gcpOracleZone ?? previousZone
+      return replaceOnIdentity({
+        previousId: olds?.exascaleDbStorageVaultId ?? output?.exascaleDbStorageVaultId,
+        nextId: news.exascaleDbStorageVaultId
+          ?? olds?.exascaleDbStorageVaultId
+          ?? output?.exascaleDbStorageVaultId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location ?? env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location ?? env.region,
+        ),
+        extra: nextInfra !== previousInfra || nextZone !== previousZone,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const exascaleDbStorageVaultId = try toPhysicalId(
+        id,
+        olds?.exascaleDbStorageVaultId,
+        output?.exascaleDbStorageVaultId,
+        FALLBACK_ID,
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const name = output?.name ?? resourceNameOf(env.project, location, COLLECTION, exascaleDbStorageVaultId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listVaults(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const exascaleDbStorageVaultId = try toPhysicalId(
+        id,
+        news.exascaleDbStorageVaultId,
+        output?.exascaleDbStorageVaultId,
+        FALLBACK_ID,
+      )
+      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const name = resourceNameOf(env.project, location, COLLECTION, exascaleDbStorageVaultId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = (try (oracle
+          .createProjectsLocationsExascaleDbStorageVaults({
+            parent: parentOf(env.project, location),
+            exascaleDbStorageVaultId,
+            body: toCreateBody(news, desiredLabels),
+          })
+          |> retryQuota(%))) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try Effect.undefined;
+            default: throw e;
+          }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new OracleDatabaseNotResolved({ resourceName: name })
+      }
+
+      const ready = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (value) => value.properties?.state,
+      )
+
+      return toAttrs(ready, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (oracle
+        .deleteProjectsLocationsExascaleDbStorageVaults({
+          name: output.name,
+        })
+        |> retryConflict(%))) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

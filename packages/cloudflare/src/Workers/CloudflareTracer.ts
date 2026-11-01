@@ -14,7 +14,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
 import * as Tracer from "effect/Tracer";
-import cloudflare_workers from "./cloudflare_workers.ts";
+import cloudflare_workers from "./cloudflare_workers.vibe";
 
 type SpanOptions = Parameters<Tracer.Tracer["span"]>[0];
 type RunInContext = ReturnType<typeof AsyncLocalStorage.snapshot>;

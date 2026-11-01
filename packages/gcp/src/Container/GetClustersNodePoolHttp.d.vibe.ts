@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetClustersNodePool } from "./GetClustersNodePool.js";
+import { GetClustersNodePool } from "./GetClustersNodePool.vibe";
 /**
  * HTTP implementation of {@link GetClustersNodePool}.
  *

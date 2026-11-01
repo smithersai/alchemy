@@ -1,0 +1,307 @@
+import * as workloadmanager from "@distilled.cloud/gcp/workloadmanager_v1"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  expandNamed,
+  hasAlchemyActuationId,
+  lastSegment,
+  listAtNested,
+  listPages,
+  normalizeLocation,
+  parseName,
+  replaceOnIdentity,
+  resourceNameFromOperation,
+  ResourceNotResolved,
+  toActuationId,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type ActuationOutput = {
+  /** Blueprint Controller deployment and revision resource. */
+  mutable blueprintId?: string
+  /** Terraform template used. */
+  mutable terraformTemplate?: string
+  /** Cloud Storage file that stores build logs. */
+  mutable actuateLogs?: string
+  /** Error code when actuation failed. */
+  mutable errorCode?: string
+  /** Error message returned from Ansible. */
+  mutable ansibleError?: string
+  /** Error message returned from Terraform. */
+  mutable terraformError?: string
+  /** Cloud Build instance UUID. */
+  mutable cloudbuildId?: string
+  /** Failed Ansible task names. */
+  mutable ansibleFailedTask?: string[]
+  /** Link to the actuation Cloud Build log. */
+  mutable errorLogs?: string
+  /** Whether the error message is user facing. */
+  mutable hasUserFacingErrorMsg?: boolean
+}
+
+export type DeploymentOutput = {
+  /** Type of the deployed resource. */
+  mutable type?: string
+  /** Name of the deployed resource. */
+  mutable name?: string
+}
+
+export type DeploymentsActuationProps = {
+  /**
+   * Parent Deployment. Full name
+   * `projects/{project}/locations/{location}/deployments/{deployment}`
+   * or the deployment id (combined with `location`). Immutable —
+   * changing it replaces the actuation.
+   */
+  mutable deployment: string
+  /**
+   * Region used when `deployment` is a bare id.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Actuation id (the `{actuation}` segment). If omitted, a unique
+   * RFC1035 name prefixed `alch-` is generated from the stack, stage,
+   * and logical id so `list` / nuke can find it (actuations have no
+   * labels or description). Immutable — changing it replaces the
+   * actuation. The API has no patch — actuations are existence-only.
+   */
+  mutable actuationId?: string
+}
+
+export type DeploymentsActuation = Resource<
+  "GCP.WorkloadManager.DeploymentsActuation",
+  DeploymentsActuationProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Actuation id (last path segment). */
+    mutable actuationId: string
+    /** Parent Deployment name. */
+    mutable deployment: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Server-reported actuation state. */
+    mutable state: string | undefined
+    /** Actuation output (logs, errors, Cloud Build id). */
+    mutable actuationOutput: ActuationOutput | undefined
+    /** Resources produced by the deployment. */
+    mutable deploymentOutput: DeploymentOutput[]
+    /** RFC3339 start timestamp. */
+    mutable startTime: string | undefined
+    /** RFC3339 end timestamp. */
+    mutable endTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Workload Manager actuation — a bootstrap run of a Deployment that
+ * applies Terraform/Ansible and records infrastructure output.
+ *
+ * Actuations have no labels, description, or patch API. Identity is
+ * `deployment` + `location` + `actuationId`; changing any replaces the
+ * actuation. Generated ids are prefixed `alch-` so `list` / nuke can
+ * find Alchemy-owned rows.
+ *
+ * ### Creating an Actuation
+ * **Example:** Generated name
+ * ```typescript
+ * const actuation = yield* GCP.WorkloadManager.DeploymentsActuation(
+ *   "Bootstrap",
+ *   { deployment: existingDeployment.name },
+ * );
+ * ```
+ *
+ * **Example:** Explicit id
+ * ```typescript
+ * const actuation = yield* GCP.WorkloadManager.DeploymentsActuation(
+ *   "Bootstrap",
+ *   {
+ *     deployment: existingDeployment.name,
+ *     actuationId: "alch-bootstrap-1",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category WorkloadManager
+ */
+export const DeploymentsActuation = Resource<DeploymentsActuation>(
+  "GCP.WorkloadManager.DeploymentsActuation",
+)
+
+const resourceName = (deployment: string, actuationId: string): infer _ => `${deployment}/actuations/${actuationId}`
+
+const toOutput = (
+  output: workloadmanager.ActuationOutput | undefined,
+): ActuationOutput | undefined =>
+  output === undefined
+    ? undefined
+    : {
+      blueprintId: output.blueprintId,
+      terraformTemplate: output.terraformTemplate,
+      actuateLogs: output.actuateLogs,
+      errorCode: output.errorCode,
+      ansibleError: output.ansibleError,
+      terraformError: output.terraformError,
+      cloudbuildId: output.cloudbuildId,
+      ansibleFailedTask: output.ansibleFailedTask,
+      errorLogs: output.errorLogs,
+      hasUserFacingErrorMsg: output.hasUserFacingErrorMsg,
+    }
+
+const toAttrs = (item: workloadmanager.Actuation, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "actuations", region)
+  return {
+    name,
+    actuationId: parsed.id,
+    deployment: parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    state: item.state,
+    actuationOutput: toOutput(item.actuationOutput),
+    deploymentOutput: (item.deploymentOutput ?? []).map((entry) => ({
+      type: entry.type,
+      name: entry.name,
+    })),
+    startTime: item.startTime,
+    endTime: item.endTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  workloadmanager
+    .getProjectsLocationsDeploymentsActuations({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwned = effect (project: string, region: string) =>
+  try listAtNested(project, region, "deployments/-", effect (parent) =>
+    try listPages(
+      workloadmanager.listProjectsLocationsDeploymentsActuations.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.actuations,
+      (item) => hasAlchemyActuationId(lastSegment(item.name ?? "")),
+    ))
+
+export const DeploymentsActuationProvider = (): infer _ =>
+  Provider.succeed(DeploymentsActuation, {
+    stables: ["name", "actuationId", "deployment", "project", "location", "startTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      const previousParent = (olds?.deployment ?? output?.deployment)
+        ? expandNamed(
+          olds?.deployment ?? output?.deployment ?? "",
+          env.project,
+          previousLocation,
+          "deployments",
+        )
+        : undefined
+      const nextParent = expandNamed(news.deployment, env.project, nextLocation, "deployments")
+      return replaceOnIdentity({
+        previousId: olds?.actuationId ?? output?.actuationId,
+        nextId: news.actuationId ?? olds?.actuationId ?? output?.actuationId,
+        previousLocation,
+        nextLocation,
+        previousParent,
+        nextParent,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const actuationId = try toActuationId(id, olds?.actuationId, output?.actuationId)
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const deployment = expandNamed(
+        olds?.deployment ?? output?.deployment ?? "",
+        env.project,
+        location,
+        "deployments",
+      )
+      const name = output?.name ?? resourceName(deployment, actuationId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      return toAttrs(existing, env.project, env.region)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const actuationId = try toActuationId(id, news.actuationId, output?.actuationId)
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const deployment = expandNamed(news.deployment, env.project, location, "deployments")
+      const name = resourceName(deployment, actuationId)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = workloadmanager
+          .createProjectsLocationsDeploymentsActuations({
+            parent: deployment,
+            body: { name },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          // ALREADY_EXISTS (6): a concurrent create won the race.
+          waitForOperation(created) catch effect (error) => match (error) {
+            when { _tag: "GCP.OperationFailed" }: try (error.code === 6 ? Effect.void : throw error);
+            default: throw error;
+          }
+          const fromOp = resourceNameFromOperation(created)
+          current = try waitUntilExists(getByName(fromOp ?? name), fromOp ?? name)
+        } else {
+          current = try waitUntilExists(getByName(name), name)
+        }
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (workloadmanager
+        .deleteProjectsLocationsDeploymentsActuations({
+          name: output.name,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        // NOT_FOUND (5): already gone.
+        waitForOperation(operation) catch effect (error) => match (error) {
+          when { _tag: "GCP.OperationFailed" }: try (error.code === 5 ? Effect.void : throw error);
+          default: throw error;
+        }
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

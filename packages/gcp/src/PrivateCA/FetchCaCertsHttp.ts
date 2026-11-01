@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
 import type { CaPool } from "./CaPool.ts";
-import { FetchCaCerts, type FetchCaCertsRequest } from "./FetchCaCerts.ts";
+import { FetchCaCerts, type FetchCaCertsRequest } from "./FetchCaCerts.vibe";
 
 /**
  * HTTP implementation of {@link FetchCaCerts}.

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetQueuedResource } from "./GetQueuedResource.js";
+import { GetQueuedResource } from "./GetQueuedResource.vibe";
 /**
  * HTTP implementation of {@link GetQueuedResource}.
  *

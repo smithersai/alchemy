@@ -3,11 +3,11 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import * as Sink from "effect/Sink";
-import { wireSize } from "./K2Codec.ts";
-import type { EncodedRecord } from "./K2Types.ts";
+import { wireSize } from "./K2Codec.vibe";
+import type { EncodedRecord } from "./K2Types.vibe";
 import type { Stream } from "./Stream.ts";
-import { StreamSink, type StreamSinkClient } from "./StreamSink.ts";
-import { WriteStream, type WriteStreamClient } from "./WriteStream.ts";
+import { StreamSink, type StreamSinkClient } from "./StreamSink.vibe";
+import { WriteStream, type WriteStreamClient } from "./WriteStream.vibe";
 
 /**
  * Batch packing for {@link StreamSink}. Internal — not exported from the K2

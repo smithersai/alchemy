@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetBackup } from "./GetBackup.js";
+import { GetBackup } from "./GetBackup.vibe";
 /**
  * HTTP implementation of {@link GetBackup}.
  *

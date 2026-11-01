@@ -18,7 +18,7 @@ import {
   ownedByAlchemy,
   parentOf,
   parseOwnership,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type AgentInfo = {
   /** Opaque agent id the assessment is for. Required on create. */

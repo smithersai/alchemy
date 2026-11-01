@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RunQuery } from "./RunQuery.js";
+import { RunQuery } from "./RunQuery.vibe";
 /**
  * HTTP implementation of {@link RunQuery}.
  *

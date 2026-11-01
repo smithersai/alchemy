@@ -12,7 +12,7 @@ import * as RpcSerialization from "effect/rpc/RpcSerialization";
 import * as RpcServer from "effect/rpc/RpcServer";
 import * as Schema from "effect/Schema";
 import { DurableObjectState } from "./DurableObjectState.ts";
-import { fromWebSocket, type WebSocket } from "./WebSocket.ts";
+import { fromWebSocket, type WebSocket } from "./WebSocket.vibe";
 
 const socketTag = "alchemy:rpc";
 const attachmentKey = "__alchemyRpcWebSocket";

@@ -1,15 +1,15 @@
 import * as queues from "@distilled.cloud/cloudflare/queues";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { authorizeWith } from "../HttpClientUtils.ts";
+import { authorizeWith } from "../HttpClientUtils.vibe";
 import {
   makeHttpQueueBinding,
   makeQueueHttpScope,
   toQueueSendError,
   type QueueAuth,
 } from "./QueueHttp.ts";
-import { SendError, type SendMessage } from "./QueueTypes.ts";
-import { WriteQueue, type WriteQueueClient } from "./WriteQueue.ts";
+import { SendError, type SendMessage } from "./QueueTypes.vibe";
+import { WriteQueue, type WriteQueueClient } from "./WriteQueue.vibe";
 
 /**
  * HTTP-backed implementation of the {@link WriteQueue} service.

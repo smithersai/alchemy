@@ -10,7 +10,7 @@ import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
 import type { AnnotatorSelector } from "./AnalysisRule.ts";
 import { resourceNameFromOperation, waitForOperation } from "./operations.ts";
-import { lastSegment, locationOf, locationParent, parentOf, sameJson } from "./ownership.ts";
+import { lastSegment, locationOf, locationParent, parentOf, sameJson } from "./ownership.vibe";
 
 type AnalysisAnnotatorSelector = AnnotatorSelector & {
   /** Summarization annotator configuration. */

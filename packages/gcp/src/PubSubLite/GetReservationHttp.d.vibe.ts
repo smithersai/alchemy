@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetReservation } from "./GetReservation.js";
+import { GetReservation } from "./GetReservation.vibe";
 /**
  * HTTP implementation of {@link GetReservation}.
  *

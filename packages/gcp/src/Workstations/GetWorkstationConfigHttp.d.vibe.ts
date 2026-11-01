@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetWorkstationConfig } from "./GetWorkstationConfig.js";
+import { GetWorkstationConfig } from "./GetWorkstationConfig.vibe";
 /**
  * HTTP implementation of {@link GetWorkstationConfig}.
  *

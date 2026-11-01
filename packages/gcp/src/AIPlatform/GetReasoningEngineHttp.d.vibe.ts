@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetReasoningEngine } from "./GetReasoningEngine.js";
+import { GetReasoningEngine } from "./GetReasoningEngine.vibe";
 /**
  * HTTP implementation of {@link GetReasoningEngine}.
  *

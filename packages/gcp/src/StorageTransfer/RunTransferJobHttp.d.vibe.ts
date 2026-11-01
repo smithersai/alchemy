@@ -1,7 +1,7 @@
 import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
-import { RunTransferJob } from "./RunTransferJob.js";
+import { RunTransferJob } from "./RunTransferJob.vibe";
 /**
  * HTTP implementation of {@link RunTransferJob}.
  *

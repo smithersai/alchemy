@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadWriteBucket } from "./ReadWriteBucket.js";
+import { ReadWriteBucket } from "./ReadWriteBucket.vibe";
 /**
  * HTTP implementation of {@link ReadWriteBucket} over the Cloud Storage JSON API.
  *

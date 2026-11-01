@@ -13,7 +13,7 @@ import {
   SignedUrlFailed,
   SignGetObjectUrl,
   type SignGetObjectUrlRequest,
-} from "./SignGetObjectUrl.ts";
+} from "./SignGetObjectUrl.vibe";
 
 const EMAIL_ENDPOINT =
   "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email";

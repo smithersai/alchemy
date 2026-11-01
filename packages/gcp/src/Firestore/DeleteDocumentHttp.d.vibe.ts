@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { DeleteDocument } from "./DeleteDocument.js";
+import { DeleteDocument } from "./DeleteDocument.vibe";
 /**
  * HTTP implementation of {@link DeleteDocument}.
  *

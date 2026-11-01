@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetCertificateAuthority } from "./GetCertificateAuthority.js";
+import { GetCertificateAuthority } from "./GetCertificateAuthority.vibe";
 /**
  * HTTP implementation of {@link GetCertificateAuthority}.
  *

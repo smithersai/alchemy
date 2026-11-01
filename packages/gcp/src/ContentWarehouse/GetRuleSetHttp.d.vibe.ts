@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetRuleSet } from "./GetRuleSet.js";
+import { GetRuleSet } from "./GetRuleSet.vibe";
 /**
  * HTTP implementation of {@link GetRuleSet}.
  *

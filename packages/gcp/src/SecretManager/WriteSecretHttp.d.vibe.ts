@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { WriteSecret } from "./WriteSecret.js";
+import { WriteSecret } from "./WriteSecret.vibe";
 /**
  * HTTP implementation of {@link WriteSecret} over the Secret Manager REST API.
  *

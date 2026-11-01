@@ -7,7 +7,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { databaseNameOf, lastSegment, parseDatabaseName, toResourceId } from "./internal.ts";
+import { databaseNameOf, lastSegment, parseDatabaseName, toResourceId } from "./internal.vibe";
 
 const DEFAULT_DATABASE = "(default)";
 const DEFAULT_COLLECTION = "_alchemy";

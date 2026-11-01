@@ -9,7 +9,7 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
 import { lastSegment, orgParent, organizationFromName, toResourceId } from "./names.vibe";
-import { waitForOperation } from "./operations.ts";
+import { waitForOperation } from "./operations.vibe";
 import { listOwnedInstances } from "./org.ts";
 
 const MAX_NAME_LENGTH = 32;

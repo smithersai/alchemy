@@ -27,7 +27,7 @@ import {
   userAnnotations,
   userLabels,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 const COLLECTION = "unitKinds";
 

@@ -16,7 +16,7 @@ import {
   organizationIdOf,
   parseOrgEnv,
   sameText,
-} from "./common.ts";
+} from "./common.vibe";
 
 export type TraceSamplingConfig = {
   /**

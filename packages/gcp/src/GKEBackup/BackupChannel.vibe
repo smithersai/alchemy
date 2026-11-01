@@ -1,0 +1,296 @@
+import * as gkebackup from "@distilled.cloud/gcp/gkebackup_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  fieldMask,
+  listAtLocation,
+  listLabeledPages,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  projectName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  sameText,
+  toPhysicalId,
+  userLabels,
+  waitForDeleteOperation,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type BackupChannelProps = {
+  /**
+   * Backup channel id (the `{backupChannel}` segment of
+   * `projects/{project}/locations/{location}/backupChannels/{backupChannel}`).
+   * If omitted, a unique RFC1035 name is generated from the stack, stage,
+   * and logical id. Immutable — changing it replaces the channel.
+   */
+  mutable backupChannelId?: string
+  /**
+   * Region (`us-central1`, `us-east1`, …). Immutable — changing it
+   * replaces the channel. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Project that is allowed to store backups created via this channel.
+   * Full name `projects/{project}` or a project id. Must differ from
+   * the source project. Immutable — changing it replaces the channel.
+   */
+  mutable destinationProject: string
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type BackupChannel = Resource<
+  "GCP.GKEBackup.BackupChannel",
+  BackupChannelProps,
+  {
+    /** Full resource name. */
+    mutable name: string
+    /** Backup channel id (last path segment). */
+    mutable backupChannelId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Destination project resource name. */
+    mutable destinationProject: string | undefined
+    /** Destination project id. */
+    mutable destinationProjectId: string | undefined
+    /** Human-readable description. */
+    mutable description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Server-generated resource uid. */
+    mutable uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Backup for GKE backup channel that authorizes storing backups in a
+ * destination project.
+ *
+ * Changing `backupChannelId`, `location`, or `destinationProject` replaces
+ * the channel. Description and labels update in place.
+ *
+ * ### Creating a Backup Channel
+ * **Example:** Generated name
+ * ```typescript
+ * const channel = yield* GCP.GKEBackup.BackupChannel("CrossProject", {
+ *   destinationProject: "projects/my-backup-project",
+ * });
+ * ```
+ *
+ * **Example:** Explicit id, destination, and labels
+ * ```typescript
+ * const channel = yield* GCP.GKEBackup.BackupChannel("CrossProject", {
+ *   backupChannelId: "app-backups",
+ *   destinationProject: "projects/my-backup-project",
+ *   description: "cross-project backups",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating a Backup Channel
+ * **Example:** Description and labels
+ * ```typescript
+ * const channel = yield* GCP.GKEBackup.BackupChannel("CrossProject", {
+ *   destinationProject: "projects/my-backup-project",
+ *   description: "cross-project backups v2",
+ *   labels: { env: "prod", team: "platform" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category GKEBackup
+ */
+export const BackupChannel = Resource<BackupChannel>("GCP.GKEBackup.BackupChannel")
+
+const resourceName = (project: string, location: string, backupChannelId: string): infer _ =>
+  `projects/${project}/locations/${location}/backupChannels/${backupChannelId}`
+
+const toAttrs = (item: gkebackup.BackupChannel, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "backupChannels", region)
+  return {
+    name,
+    backupChannelId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    destinationProject: item.destinationProject,
+    destinationProjectId: item.destinationProjectId,
+    description: item.description,
+    labels: userLabels(item.labels),
+    uid: item.uid,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  gkebackup
+    .getProjectsLocationsBackupChannels({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwned = effect (project: string) =>
+  try listAtLocation(project, effect (parent) =>
+    try listLabeledPages(
+      gkebackup.listProjectsLocationsBackupChannels.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.backupChannels,
+      (item) => item.labels,
+    ))
+
+export const BackupChannelProvider = (): infer _ =>
+  Provider.succeed(BackupChannel, {
+    stables: ["name", "backupChannelId", "project", "location", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousDest = olds?.destinationProject ?? output?.destinationProject
+      const nextDest = news.destinationProject
+      return replaceOnIdentity({
+        previousId: olds?.backupChannelId ?? output?.backupChannelId,
+        nextId: news.backupChannelId ?? olds?.backupChannelId ?? output?.backupChannelId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: previousDest !== undefined
+          && nextDest !== undefined
+          && previousDest !== nextDest
+          && !previousDest.endsWith(`/${nextDest}`)
+          && previousDest !== `projects/${nextDest}`,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const backupChannelId = try toPhysicalId(
+        id,
+        olds?.backupChannelId,
+        output?.backupChannelId,
+        "backupchannel",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, backupChannelId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const backupChannelId = try toPhysicalId(
+        id,
+        news.backupChannelId,
+        output?.backupChannelId,
+        "backupchannel",
+      )
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, backupChannelId)
+      const destinationProject = projectName(news.destinationProject, env.project)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = gkebackup
+          .createProjectsLocationsBackupChannels({
+            parent: parentOf(env.project, location),
+            backupChannelId,
+            body: {
+              destinationProject,
+              description: news.description,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const mask = fieldMask([
+        (upsert.length > 0 || removed.length > 0) && "labels",
+        !sameText(current.description, news.description) && "description",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try gkebackup.patchProjectsLocationsBackupChannels({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            etag: current.etag,
+            labels: desiredLabels,
+            description: news.description,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (gkebackup
+        .deleteProjectsLocationsBackupChannels({
+          name: output.name,
+          force: true,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForDeleteOperation(operation)
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

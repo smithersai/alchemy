@@ -8,7 +8,7 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
 import { lastSegment, orgParent, organizationFromName } from "./names.vibe";
-import { waitForOperation } from "./operations.ts";
+import { waitForOperation } from "./operations.vibe";
 import { listOwnedInstances } from "./org.ts";
 
 export type InstancesAttachmentProps = {

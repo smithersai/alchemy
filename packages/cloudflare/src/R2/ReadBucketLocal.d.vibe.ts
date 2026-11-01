@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ReadBucket } from "./ReadBucket.js";
+import { ReadBucket } from "./ReadBucket.vibe";
 /**
  * Local implementation of the {@link ReadBucket} binding — reads R2 objects
  * over the Cloudflare HTTP API using the **current credentials** instead of a

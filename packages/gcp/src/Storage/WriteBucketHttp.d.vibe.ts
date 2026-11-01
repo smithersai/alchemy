@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { WriteBucket } from "./WriteBucket.js";
+import { WriteBucket } from "./WriteBucket.vibe";
 /**
  * HTTP implementation of {@link WriteBucket} over the Cloud Storage JSON API.
  *

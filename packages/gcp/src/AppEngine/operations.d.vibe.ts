@@ -1,0 +1,15 @@
+import * as appengine from "@distilled.cloud/gcp/appengine_v1";
+import * as Effect from "effect/Effect";
+export declare const parseOperationName: (name: string) => {
+    appsId: string | undefined;
+    operationsId: string;
+};
+/**
+ * Wait for an App Engine operation. Version deploys take several minutes.
+ * `notFoundOk` accepts an operation that finished with `NOT_FOUND` (5) or
+ * has itself been garbage-collected.
+ */
+export declare const waitForOperation: (operation: appengine.Operation, options: {
+    appsId: string;
+    notFoundOk?: boolean;
+}) => Effect.Effect<void, appengine.Forbidden | appengine.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | appengine.ServiceDisabled | appengine.GcpOpError, appengine.GcpOpContext>;

@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitRegionOperation } from "./operations.ts";
+import { waitRegionOperation } from "./operations.vibe";
 
 const DEFAULT_SCHEME = "EXTERNAL";
 const DEFAULT_NETWORK_TIER = "PREMIUM";

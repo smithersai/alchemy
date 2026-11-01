@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
-import { GetService, type GetServiceRequest } from "./GetService.ts";
+import { GetService, type GetServiceRequest } from "./GetService.vibe";
 import type { Service } from "./Service.ts";
 
 /**

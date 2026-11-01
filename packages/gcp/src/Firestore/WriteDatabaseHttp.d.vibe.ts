@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { WriteDatabase } from "./WriteDatabase.js";
+import { WriteDatabase } from "./WriteDatabase.vibe";
 /**
  * HTTP implementation of {@link WriteDatabase} over the Firestore REST API.
  *

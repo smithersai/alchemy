@@ -25,7 +25,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type SchedulePolicy = vm.SchedulePolicy;
 export type ComputeEngineTargetDefaults = vm.ComputeEngineTargetDefaults;

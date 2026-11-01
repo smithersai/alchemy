@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
 import type { ParametersVersion } from "./ParametersVersion.ts";
-import { RenderParameterVersion } from "./RenderParameterVersion.ts";
+import { RenderParameterVersion } from "./RenderParameterVersion.vibe";
 
 /**
  * HTTP implementation of {@link RenderParameterVersion}.

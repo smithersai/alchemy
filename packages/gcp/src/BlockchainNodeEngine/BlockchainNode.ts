@@ -36,7 +36,7 @@ import {
   waitUntilExists,
   waitUntilGone,
   waitUntilReady,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type ValidatorConfig = {
   /**

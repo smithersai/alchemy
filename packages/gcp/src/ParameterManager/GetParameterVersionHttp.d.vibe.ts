@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetParameterVersion } from "./GetParameterVersion.js";
+import { GetParameterVersion } from "./GetParameterVersion.vibe";
 /**
  * HTTP implementation of {@link GetParameterVersion}.
  *

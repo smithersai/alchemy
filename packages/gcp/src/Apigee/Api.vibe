@@ -1,0 +1,230 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import { lastSegment, orgParent, resolveOrgId, toPhysicalId } from "./operations.vibe"
+
+const MAX_NAME_LENGTH = 255
+
+export type ApiProps = {
+  /**
+   * Apigee organization id. Defaults to the GCP project id. Immutable.
+   */
+  mutable organizationId?: string
+  /**
+   * API proxy id (`A-Za-z0-9._-`). If omitted, a unique name is
+   * generated. Immutable.
+   */
+  mutable apiId?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Parent Space resource id. Only applied on create.
+   */
+  mutable space?: string
+}
+
+export type Api = Resource<
+  "GCP.Apigee.Api",
+  ApiProps,
+  {
+    /** Full resource name `organizations/{org}/apis/{api}`. */
+    mutable name: string
+    /** API proxy id. */
+    mutable apiId: string
+    /** Organization id. */
+    mutable organizationId: string
+    /** Project id. */
+    mutable project: string
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Parent Space id, if any. */
+    mutable space: string | undefined
+    /** Latest revision id. */
+    mutable latestRevisionId: string | undefined
+    /** Defined revisions. */
+    mutable revision: string[]
+    /** API proxy type. */
+    mutable apiProxyType: string | undefined
+    /** Whether the proxy is read-only (archive-generated). */
+    mutable readOnly: boolean
+    /** Creation time in milliseconds since epoch. */
+    mutable createdAt: string | undefined
+    /** Last modification time in milliseconds since epoch. */
+    mutable lastModifiedAt: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An Apigee API proxy. The proxy is not serving traffic until a revision
+ * is deployed to an environment.
+ *
+ * Labels (`alchemy-stack` / `alchemy-stage` / `alchemy-id`) stamp
+ * ownership so `list` / nuke can find proxies. Changing `apiId` or
+ * `organizationId` replaces the proxy.
+ *
+ * ### Creating a Proxy
+ * **Example:** Generated name
+ * ```typescript
+ * const proxy = yield* GCP.Apigee.Api("Orders", {});
+ * ```
+ *
+ * **Example:** Explicit id and labels
+ * ```typescript
+ * const proxy = yield* GCP.Apigee.Api("Orders", {
+ *   apiId: "orders-v1",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const Api = Resource<Api>("GCP.Apigee.Api")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ApiNotResolved extends Data.TaggedError("GCP.Apigee.ApiNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+const resourceName = (organizationId: string, apiId: string): infer _ => `${orgParent(organizationId)}/apis/${apiId}`
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const toAttrs = (
+  proxy: apigee.GoogleCloudApigeeV1ApiProxy,
+  project: string,
+  organizationId: string,
+): infer _ => {
+  const apiId = lastSegment(proxy.name ?? "")
+  return {
+    name: resourceName(organizationId, apiId),
+    apiId,
+    organizationId,
+    project,
+    labels: userLabels(proxy.labels),
+    space: proxy.space,
+    latestRevisionId: proxy.latestRevisionId,
+    revision: [...(proxy.revision ?? [])],
+    apiProxyType: proxy.apiProxyType,
+    readOnly: proxy.readOnly === true,
+    createdAt: proxy.metaData?.createdAt,
+    lastModifiedAt: proxy.metaData?.lastModifiedAt,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsApis({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const ApiProvider = (): infer _ =>
+  Provider.succeed(Api, {
+    stables: ["name", "apiId", "organizationId", "project", "createdAt"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.apiId ?? output?.apiId
+      const previousOrg = olds?.organizationId ?? output?.organizationId
+      if (
+        (previousId !== undefined && news.apiId !== undefined && news.apiId !== previousId)
+        || (previousOrg !== undefined
+          && news.organizationId !== undefined
+          && news.organizationId !== previousOrg)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organizationId = olds?.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
+      const apiId = try toPhysicalId(id, olds?.apiId, output?.apiId, MAX_NAME_LENGTH)
+      const name = output?.name ?? resourceName(organizationId, apiId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, organizationId)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organizationId = try resolveOrgId(env.project)
+      const page = apigee
+        .listOrganizationsApis({
+          parent: orgParent(organizationId),
+          includeMetaData: true,
+        }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: { proxies: [] };
+          default: throw e;
+        }
+      return (page.proxies ?? [])
+        .filter((proxy) => Object.keys(proxy.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+        .map((proxy) => toAttrs(proxy, env.project, organizationId))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organizationId = news.organizationId ?? output?.organizationId ?? (try resolveOrgId(env.project))
+      const apiId = try toPhysicalId(id, news.apiId, output?.apiId, MAX_NAME_LENGTH)
+      const name = resourceName(organizationId, apiId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        apigee
+          .createOrganizationsApis({
+            parent: orgParent(organizationId),
+            name: apiId,
+            space: news.space,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.void; default: throw e; }
+        current = try getByName(name)
+      }
+
+      if (current === undefined) {
+        throw new ApiNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+
+      if (labelsChanged) {
+        current = try apigee.patchOrganizationsApis({
+          name,
+          updateMask: "labels",
+          body: {
+            labels: desiredLabels,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, organizationId)
+    },
+
+    delete: effect ({ output }) => {
+      apigee
+        .deleteOrganizationsApis({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

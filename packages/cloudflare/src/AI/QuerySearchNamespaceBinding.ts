@@ -2,8 +2,8 @@ import type * as runtime from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
-import { makeClient, tryAiSearch } from "./QuerySearch.ts";
-import { QuerySearchNamespace, type QuerySearchNamespaceClient } from "./QuerySearchNamespace.ts";
+import { makeClient, tryAiSearch } from "./QuerySearch.vibe";
+import { QuerySearchNamespace, type QuerySearchNamespaceClient } from "./QuerySearchNamespace.vibe";
 import type { SearchNamespace } from "./SearchNamespace.ts";
 
 /**

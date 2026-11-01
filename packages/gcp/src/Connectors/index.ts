@@ -1,3 +1,3 @@
-export * from "./ConnectionsEntityTypesEntity.ts";
-export * from "./GetEntity.ts";
+export * from "./ConnectionsEntityTypesEntity.vibe";
+export * from "./GetEntity.vibe";
 export * from "./GetEntityHttp.vibe";

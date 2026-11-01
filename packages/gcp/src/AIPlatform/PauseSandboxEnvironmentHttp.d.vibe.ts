@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { PauseSandboxEnvironment } from "./PauseSandboxEnvironment.js";
+import { PauseSandboxEnvironment } from "./PauseSandboxEnvironment.vibe";
 /**
  * HTTP implementation of {@link PauseSandboxEnvironment}.
  *

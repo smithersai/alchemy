@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { PatchDocument } from "./PatchDocument.js";
+import { PatchDocument } from "./PatchDocument.vibe";
 /**
  * HTTP implementation of {@link PatchDocument}.
  *

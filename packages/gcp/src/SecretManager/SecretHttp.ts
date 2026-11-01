@@ -2,9 +2,9 @@ import * as secretmanager from "@distilled.cloud/gcp/secretmanager_v1";
 import * as Effect from "effect/Effect";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor, type BindingIam } from "../HttpBinding.ts";
-import type { SecretBindingTarget } from "./BindingHttp.ts";
-import type { ReadSecretClient } from "./ReadSecret.ts";
-import type { WriteSecretClient } from "./WriteSecret.ts";
+import type { SecretBindingTarget } from "./BindingHttp.vibe";
+import type { ReadSecretClient } from "./ReadSecret.vibe";
+import type { WriteSecretClient } from "./WriteSecret.vibe";
 
 /**
  * Shared HTTP scaffolding for the Secret Manager Read/Write/ReadWrite

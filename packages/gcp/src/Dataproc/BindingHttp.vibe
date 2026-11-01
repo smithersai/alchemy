@@ -1,0 +1,45 @@
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.ts"
+import { type BindingIam, type GcpHttpOp, grantFor } from "../HttpBinding.ts"
+import type { Cluster } from "./Cluster.ts"
+
+/**
+ * Shared HTTP scaffolding for Dataproc cluster bindings.
+ * NOT exported from index.ts.
+ */
+export const makeDataprocClusterHttpBinding = effect <
+  I extends { mutable projectId?: string; mutable region?: string; mutable clusterName?: string },
+  A,
+  E,
+>(options: {
+  mutable tag: string
+  mutable iam: BindingIam
+  mutable operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (cluster: Cluster) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${cluster})`({
+        iam: [grantFor(options.iam, cluster.name)],
+      })
+    }
+    const clusterName = try cluster.clusterName.asEffect()
+    const region = try cluster.region.asEffect()
+    const project = try cluster.project.asEffect()
+    return effect (
+      request?: Omit<I, "projectId" | "region" | "clusterName"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try run({
+            ...(request as I),
+            clusterName: try clusterName,
+            region: try region,
+            projectId: try project,
+          } as I)
+        },
+        `${options.tag}(${cluster.LogicalId})`,
+      )
+  }
+}

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { TestRuleset } from "./TestRuleset.js";
+import { TestRuleset } from "./TestRuleset.vibe";
 /**
  * HTTP implementation of {@link TestRuleset}.
  *

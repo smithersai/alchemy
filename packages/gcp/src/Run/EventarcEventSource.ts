@@ -12,17 +12,17 @@ import {
   type CloudEvent,
   type EventarcEventSourceProps,
   type EventarcEventSourceService,
-} from "../Eventarc/EventSource.ts";
+} from "../Eventarc/EventSource.vibe";
 import { Trigger, type EventFilter } from "../Eventarc/Trigger.ts";
 import * as GCPBindings from "../GCPBindings.ts";
-import { Member } from "../IAM/Member.ts";
+import { Member } from "../IAM/Member.vibe";
 import {
   grantSelfInvoker,
   hostEndpoint,
   listenForDeliveries,
   pathSegment,
   pushHost,
-} from "../PushDelivery.ts";
+} from "../PushDelivery.vibe";
 
 const lastSegment = (value: string) => value.split("/").pop() ?? value;
 

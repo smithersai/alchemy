@@ -3,8 +3,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Sink from "effect/Sink";
 import type { Queue } from "./Queue.ts";
-import { QueueSink, type QueueSinkClient } from "./QueueSink.ts";
-import { WriteQueue, type WriteQueueClient } from "./WriteQueue.ts";
+import { QueueSink, type QueueSinkClient } from "./QueueSink.vibe";
+import { WriteQueue, type WriteQueueClient } from "./WriteQueue.vibe";
 
 /** Cloudflare's `sendBatch` limit on messages per call. */
 export const MAX_BATCH_MESSAGES = 100;

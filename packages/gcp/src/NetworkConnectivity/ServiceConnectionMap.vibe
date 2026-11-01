@@ -1,0 +1,429 @@
+import * as networkconnectivity from "@distilled.cloud/gcp/networkconnectivity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  NetworkConnectivityNotResolved,
+  changedFields,
+  collectPages,
+  hasAlchemyLabelKeys,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  rfc1035,
+  sameJson,
+  toNetworkResource,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+} from "./internal.ts"
+
+const COLLECTION = "serviceConnectionMaps"
+
+export type AutomatedDnsCreationSpec = {
+  /** DNS suffix with trailing dot, e.g. `"internal."`. */
+  mutable dnsSuffix?: string
+  /** Hostname (first label of the FQDN). */
+  mutable hostname?: string
+  /** TTL as a duration string, e.g. `"30s"`. */
+  mutable ttl?: string
+}
+
+export type ProducerPscConfig = {
+  /** Service attachment URI. */
+  mutable serviceAttachmentUri?: string
+  /** Optional spec for automatically creating a DNS record. */
+  mutable automatedDnsCreationSpec?: AutomatedDnsCreationSpec
+}
+
+export type ConsumerPscConfig = {
+  /** Consumer project id or number. */
+  mutable project?: string
+  /** Consumer instance project path (`projects/{project}`). */
+  mutable consumerInstanceProject?: string
+  /** Consumer VPC (`projects/{project}/global/networks/{network}`). */
+  mutable network?: string
+  /** Disable global access on the PSC endpoint. */
+  mutable disableGlobalAccess?: boolean
+  /** Requested IP version (`IPV4` or `IPV6`). */
+  mutable ipVersion?: string
+  /** Static IP map from VIP to service attachment. */
+  mutable serviceAttachmentIpAddressMap?: Record<string, string>
+  /** Producer instance metadata. Immutable on the producer. */
+  mutable producerInstanceMetadata?: Record<string, string>
+  /** Deprecated producer instance id. */
+  mutable producerInstanceId?: string
+  /** Output-only overall state. */
+  mutable state?: string
+}
+
+export type ServiceConnectionMapProps = {
+  /**
+   * Map id (the `{service_connection_map}` segment). If omitted, a unique
+   * name is generated. Immutable — changing it replaces the map.
+   */
+  mutable serviceConnectionMapId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * map. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  mutable location?: string
+  /**
+   * Service class identifier this map is for. Callers need
+   * `networkconnectivity.serviceClasses.use`.
+   */
+  mutable serviceClass?: string
+  /**
+   * Consumer-provided token that authenticates PSC connection creation.
+   */
+  mutable token?: string
+  /**
+   * Producer-side PSC configurations (service attachments).
+   */
+  mutable producerPscConfigs?: ProducerPscConfig[]
+  /**
+   * Consumer-side PSC configurations (allowed networks/projects).
+   */
+  mutable consumerPscConfigs?: ConsumerPscConfig[]
+  /**
+   * Human-readable description.
+   */
+  mutable description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  mutable labels?: Record<string, string>
+}
+
+export type ServiceConnectionMap = Resource<
+  "GCP.NetworkConnectivity.ServiceConnectionMap",
+  ServiceConnectionMapProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/serviceConnectionMaps/{id}`. */
+    mutable name: string
+    /** Map id (last path segment). */
+    mutable serviceConnectionMapId: string
+    /** Project id. */
+    mutable project: string
+    /** Location id. */
+    mutable location: string
+    /** Service class identifier. */
+    mutable serviceClass: string | undefined
+    /** Service class URI (output-only). */
+    mutable serviceClassUri: string | undefined
+    /** Consumer-provided token. */
+    mutable token: string | undefined
+    /** Producer PSC configs. */
+    mutable producerPscConfigs: ProducerPscConfig[]
+    /** Consumer PSC configs. */
+    mutable consumerPscConfigs: ConsumerPscConfig[]
+    /** Infrastructure used for connections (`PSC`, …). */
+    mutable infrastructure: string | undefined
+    /** User-provided description. */
+    mutable description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    mutable labels: Record<string, string>
+    /** Server etag. */
+    mutable etag: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A PSC Service Connection Map that pairs producer service attachments
+ * with consumer networks for Cross-Cloud / producer-consumer
+ * connectivity.
+ *
+ * Changing `serviceConnectionMapId` or `location` replaces the map.
+ * Description, labels, token, and PSC configs update in place.
+ *
+ * ### Creating a ServiceConnectionMap
+ * **Example:** Producer map for a service class
+ * ```typescript
+ * const map = yield* GCP.NetworkConnectivity.ServiceConnectionMap("Sql", {
+ *   serviceClass: "gcp-cloud-sql",
+ *   description: "sql psc map",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating a ServiceConnectionMap
+ * **Example:** Description and labels
+ * ```typescript
+ * const map = yield* GCP.NetworkConnectivity.ServiceConnectionMap("Sql", {
+ *   serviceClass: "gcp-cloud-sql",
+ *   description: "sql psc map v2",
+ *   labels: { env: "prod", role: "psc" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category NetworkConnectivity
+ */
+export const ServiceConnectionMap = Resource<ServiceConnectionMap>(
+  "GCP.NetworkConnectivity.ServiceConnectionMap",
+)
+
+const resourceName = (project: string, location: string, serviceConnectionMapId: string): infer _ =>
+  `projects/${project}/locations/${location}/serviceConnectionMaps/${serviceConnectionMapId}`
+
+const toStringMap = (
+  value: Record<string, string | undefined> | null | undefined,
+): Record<string, string> | undefined => {
+  if (value === undefined || value === null) return undefined
+  const entries = Object.entries(value).filter(
+    (entry): entry is [string, string] => entry[1] !== undefined,
+  )
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
+const toProducer = (
+  config: ProducerPscConfig | networkconnectivity.ProducerPscConfig,
+): ProducerPscConfig => ({
+  serviceAttachmentUri: config.serviceAttachmentUri,
+  automatedDnsCreationSpec: config.automatedDnsCreationSpec
+    ? {
+      dnsSuffix: config.automatedDnsCreationSpec.dnsSuffix,
+      hostname: config.automatedDnsCreationSpec.hostname,
+      ttl: config.automatedDnsCreationSpec.ttl,
+    }
+    : undefined,
+})
+
+const toConsumer = (
+  config: ConsumerPscConfig | networkconnectivity.ConsumerPscConfig,
+  project: string,
+): ConsumerPscConfig => ({
+  project: config.project,
+  consumerInstanceProject: config.consumerInstanceProject,
+  network: config.network !== undefined ? toNetworkResource(project, config.network) : undefined,
+  disableGlobalAccess: config.disableGlobalAccess,
+  ipVersion: config.ipVersion,
+  serviceAttachmentIpAddressMap: toStringMap(config.serviceAttachmentIpAddressMap),
+  producerInstanceMetadata: toStringMap(config.producerInstanceMetadata),
+  producerInstanceId: config.producerInstanceId,
+  state: config.state,
+})
+
+const desiredConsumer = (config: ConsumerPscConfig, project: string): infer _ => ({
+  project: config.project,
+  consumerInstanceProject: config.consumerInstanceProject,
+  network: config.network !== undefined ? toNetworkResource(project, config.network) : undefined,
+  disableGlobalAccess: config.disableGlobalAccess,
+  ipVersion: config.ipVersion,
+  serviceAttachmentIpAddressMap: toStringMap(config.serviceAttachmentIpAddressMap),
+  producerInstanceMetadata: toStringMap(config.producerInstanceMetadata),
+  producerInstanceId: config.producerInstanceId,
+})
+
+const toAttrs = (
+  map: networkconnectivity.ServiceConnectionMap,
+  project: string,
+  region: string,
+): infer _ => {
+  const name = map.name ?? ""
+  const parsed = parseName(name, COLLECTION, region)
+  return {
+    name,
+    serviceConnectionMapId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || region,
+    serviceClass: map.serviceClass,
+    serviceClassUri: map.serviceClassUri,
+    token: map.token,
+    producerPscConfigs: (map.producerPscConfigs ?? []).map(toProducer),
+    consumerPscConfigs: (map.consumerPscConfigs ?? []).map((config) => toConsumer(config, parsed.project || project)),
+    infrastructure: map.infrastructure,
+    description: map.description,
+    labels: userLabels(map.labels),
+    etag: map.etag,
+    createTime: map.createTime,
+    updateTime: map.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networkconnectivity
+    .getProjectsLocationsServiceConnectionMaps({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const ServiceConnectionMapProvider = (): infer _ =>
+  Provider.succeed(ServiceConnectionMap, {
+    stables: ["name", "serviceConnectionMapId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousId = olds?.serviceConnectionMapId ?? output?.serviceConnectionMapId
+      const nextId = news.serviceConnectionMapId
+        ? rfc1035(news.serviceConnectionMapId, "service-connection-map")
+        : previousId
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceConnectionMapId = try toPhysicalId(
+        id,
+        olds?.serviceConnectionMapId,
+        output?.serviceConnectionMapId,
+        "service-connection-map",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, serviceConnectionMapId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try collectPages(
+        networkconnectivity.listProjectsLocationsServiceConnectionMaps.pages({
+          parent: parentOf(env.project, "-"),
+          pageSize: 1000,
+        }),
+        (page) => page.serviceConnectionMaps,
+      )
+      return items
+        .filter((item) => hasAlchemyLabelKeys(item.labels))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceConnectionMapId = try toPhysicalId(
+        id,
+        news.serviceConnectionMapId,
+        output?.serviceConnectionMapId,
+        "service-connection-map",
+      )
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, serviceConnectionMapId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const producerPscConfigs = (news.producerPscConfigs ?? []).map(toProducer)
+      const consumerPscConfigs = (news.consumerPscConfigs ?? []).map((config) => desiredConsumer(config, env.project))
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (try (networkconnectivity
+          .createProjectsLocationsServiceConnectionMaps({
+            parent: parentOf(env.project, location),
+            serviceConnectionMapId,
+            body: {
+              serviceClass: news.serviceClass,
+              token: news.token,
+              producerPscConfigs,
+              consumerPscConfigs,
+              description: news.description,
+              labels: desiredLabels,
+            },
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 5,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new NetworkConnectivityNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const tokenChanged = (current.token ?? "") !== (news.token ?? "")
+      const producerChanged = !sameJson(
+        (current.producerPscConfigs ?? []).map(toProducer),
+        producerPscConfigs,
+      )
+      const consumerChanged = !sameJson(
+        (current.consumerPscConfigs ?? []).map((config) =>
+          desiredConsumer(toConsumer(config, env.project), env.project)
+        ),
+        consumerPscConfigs,
+      )
+      const updateMask = changedFields([
+        ["labels", labelsChanged],
+        ["description", descriptionChanged],
+        ["token", tokenChanged],
+        ["producerPscConfigs", producerChanged],
+        ["consumerPscConfigs", consumerChanged],
+      ])
+
+      if (updateMask.length > 0) {
+        const operation = try networkconnectivity.patchProjectsLocationsServiceConnectionMaps({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+            token: news.token,
+            producerPscConfigs,
+            consumerPscConfigs,
+            etag: current.etag,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilPresent(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (networkconnectivity
+        .deleteProjectsLocationsServiceConnectionMaps({
+          name: output.name,
+          etag: output.etag,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

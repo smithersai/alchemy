@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetOdbNetwork } from "./GetOdbNetwork.js";
+import { GetOdbNetwork } from "./GetOdbNetwork.vibe";
 /**
  * HTTP implementation of {@link GetOdbNetwork}.
  *

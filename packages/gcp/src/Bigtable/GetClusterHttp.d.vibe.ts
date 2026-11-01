@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetCluster } from "./GetCluster.js";
+import { GetCluster } from "./GetCluster.vibe";
 /**
  * HTTP implementation of {@link GetCluster}.
  *

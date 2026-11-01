@@ -23,7 +23,7 @@ import {
   sameText,
   toResourceId,
   updateMaskOf,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type QaQuestionType = "QA_QUESTION_TYPE_UNSPECIFIED" | "CUSTOMIZABLE" | "PREDEFINED";
 

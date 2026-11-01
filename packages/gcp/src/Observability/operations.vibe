@@ -1,0 +1,32 @@
+import * as observability from "@distilled.cloud/gcp/observability_v1"
+import * as Effect from "effect/Effect"
+import { waitForOperation as waitForGcpOperation } from "../Operation.ts"
+
+/** Wait for an operation through the shared GCP waiter. */
+export const waitForOperation = effect (
+  operation: observability.Operation,
+  options?: { mutable notFoundOk?: boolean; mutable alreadyExistsOk?: boolean },
+) =>
+  try effect {
+    try (waitForGcpOperation(
+      operation,
+      effect (name) =>
+        observability
+          .getProjectsLocationsOperations({ name }) catch effect (error) => match (error) {
+            when { _tag: "NotFound" }: try (options?.notFoundOk === true
+              ? Effect.succeed<observability.Operation>({ name, done: true })
+              : throw error);
+            default: throw error;
+          },
+      { budget: "10 minutes" },
+    )
+      |> Effect.catchIf(%, (error) =>
+        error._tag === "GCP.OperationFailed"
+        && ((options?.alreadyExistsOk !== false && error.code === 6)
+          || (options?.notFoundOk === true && error.code === 5)), effect () => try Effect.void))
+    return (operation.name === undefined || operation.name.length === 0 ? operation : observability
+      .getProjectsLocationsOperations({ name: operation.name }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: operation;
+        default: throw e;
+      })
+  }

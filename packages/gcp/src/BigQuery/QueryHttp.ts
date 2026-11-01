@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
 import type { Dataset } from "./Dataset.ts";
-import { Query, type QueryRequest } from "./Query.ts";
+import { Query, type QueryRequest } from "./Query.vibe";
 
 /**
  * HTTP implementation of {@link Query}.

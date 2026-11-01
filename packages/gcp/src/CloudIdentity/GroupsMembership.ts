@@ -17,7 +17,7 @@ import {
   sameJson,
   sameText,
 } from "./internal.ts";
-import { resourceNameFromOperation, waitForOperation, waitUntilPresent } from "./operations.ts";
+import { resourceNameFromOperation, waitForOperation, waitUntilPresent } from "./operations.vibe";
 
 export type GroupsMembershipRole = {
   /** Role name: `OWNER`, `MANAGER`, or `MEMBER`. */

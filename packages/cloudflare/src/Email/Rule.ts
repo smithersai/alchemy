@@ -11,7 +11,7 @@ import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Providers } from "../Providers.ts";
 import { resolveZoneId, type Reference } from "../Zone/index.ts";
 import { listAllZones } from "../Zone/lookup.ts";
-import { retryWorkerScriptNotFound } from "./retry.ts";
+import { retryWorkerScriptNotFound } from "./retry.vibe";
 
 export type Matcher = { type: "all" } | { type: "literal"; field: "to"; value: string };
 

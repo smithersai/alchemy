@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { StartInstance } from "./StartInstance.js";
+import { StartInstance } from "./StartInstance.vibe";
 /**
  * HTTP implementation of {@link StartInstance}.
  *

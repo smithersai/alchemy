@@ -1,4 +1,4 @@
-export * from "./BackupPlan.ts";
+export * from "./BackupPlan.vibe";
 export * from "./BackupPlanAssociation.ts";
-export * from "./BackupVault.ts";
-export * from "./ManagementServer.ts";
+export * from "./BackupVault.vibe";
+export * from "./ManagementServer.vibe";

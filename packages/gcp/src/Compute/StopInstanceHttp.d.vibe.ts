@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { StopInstance } from "./StopInstance.js";
+import { StopInstance } from "./StopInstance.vibe";
 /**
  * HTTP implementation of {@link StopInstance}.
  *
