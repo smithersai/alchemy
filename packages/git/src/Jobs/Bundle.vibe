@@ -32,8 +32,8 @@ import { bundleKey, bundleSidebandKey } from "../Store/Keys.ts"
 
 /** A ref as it appears in a bundle's covered snapshot. */
 export interface BundleRef {
-  readonly name: string;
-  readonly oid: string;
+  readonly name: string
+  readonly oid: string
 }
 
 /**
@@ -42,17 +42,17 @@ export interface BundleRef {
  */
 export interface BundleInfo {
   /** sha1 over the sorted `name oid` lines the bundle covers. */
-  readonly refsHash: string;
+  readonly refsHash: string
   /** Full R2 key of the pack. */
-  readonly key: string;
+  readonly key: string
   /** Object count inside the pack. */
-  readonly objectCount: number;
+  readonly objectCount: number
   /** Exact byte length of the pack. */
-  readonly size: number;
+  readonly size: number
   /** The ref snapshot this bundle covers. */
-  readonly refs: ReadonlyArray<BundleRef>;
+  readonly refs: ReadonlyArray<BundleRef>
   /** Epoch millis the bundle was cut. */
-  readonly createdAt: number;
+  readonly createdAt: number
 }
 
 /**
@@ -60,7 +60,7 @@ export interface BundleInfo {
  * absorption on ordinary repos, and an unbounded bundle job would monopolise
  * the alarm budget. (The streaming multipart upgrade lifts this.)
  */
-export const MAX_BUNDLE_BYTES = 512 * 1024 * 1024;
+export const MAX_BUNDLE_BYTES = 512 * 1024 * 1024
 
 /**
  * sha1 over the sorted `"<name> <oid>"` lines — the identity of a ref
@@ -68,14 +68,14 @@ export const MAX_BUNDLE_BYTES = 512 * 1024 * 1024;
  * the bundle key is stable and immutable.
  */
 export const hashRefs = (refs: ReadonlyArray<BundleRef>): string => {
-  const hash = makeSha1();
+  const hash = makeSha1()
   const lines = [...refs]
     .map((ref) => `${ref.name} ${ref.oid}`)
     .sort()
-    .join("\n");
-  hash.update(new TextEncoder().encode(lines));
-  return hash.digestHex();
-};
+    .join("\n")
+  hash.update(new TextEncoder().encode(lines))
+  return hash.digestHex()
+}
 
 /**
  * Exact byte length of the pack `entries` will produce: the 12-byte header,
@@ -84,25 +84,25 @@ export const hashRefs = (refs: ReadonlyArray<BundleRef>): string => {
  * buffering.
  */
 export const packByteLength = (entries: ReadonlyArray<ManifestEntry>): number => {
-  let total = 12 + 20;
+  let total = 12 + 20
   for (const entry of entries) {
-    total += encodeTypeSize(entry.type as PackEntryType, entry.size).length + entry.zsize;
+    total += encodeTypeSize(entry.type as PackEntryType, entry.size).length + entry.zsize
   }
-  return total;
-};
+  return total
+}
 
 /** Dependencies of {@link runBundleJob}. */
 export interface BundleJobOptions {
-  readonly repoId: string;
-  readonly refs: ReadonlyArray<BundleRef>;
+  readonly repoId: string
+  readonly refs: ReadonlyArray<BundleRef>
   /** The full-clone manifest (closure of every ref). */
-  readonly entries: ReadonlyArray<ManifestEntry>;
+  readonly entries: ReadonlyArray<ManifestEntry>
   /** Emits the pack for `entries` — `RepoObject`'s `packStream`. */
   readonly packStream: (
     entries: ReadonlyArray<ManifestEntry>,
-  ) => Stream.Stream<Uint8Array, StoreError>;
-  readonly blobs: BlobStoreShape;
-  readonly maxBytes?: number | undefined;
+  ) => Stream.Stream<Uint8Array, StoreError>
+  readonly blobs: BlobStoreShape
+  readonly maxBytes?: number | undefined
 }
 
 /**
@@ -113,52 +113,64 @@ export interface BundleJobOptions {
 export const runBundleJob = effect (
   options: BundleJobOptions,
 ): BundleInfo | undefined!StoreError => {
-    if (options.refs.length === 0 || options.entries.length === 0) {
-      return undefined;
-    }
-    const size = packByteLength(options.entries);
-    if (size > (options.maxBytes ?? MAX_BUNDLE_BYTES)) {
-      return undefined;
-    }
-    const refsHash = try Effect.sync(() => hashRefs(options.refs));
-    const key = bundleKey(options.repoId, refsHash);
+  if (options.refs.length === 0 || options.entries.length === 0) {
+    return undefined
+  }
+  const size = packByteLength(options.entries)
+  if (size > (options.maxBytes ?? MAX_BUNDLE_BYTES)) {
+    return undefined
+  }
+  const refsHash = try Effect.sync(() => hashRefs(options.refs))
+  const key = bundleKey(options.repoId, refsHash)
 
-    // The pack streams straight into R2 (its byte length is known up front),
-    // so a large bundle is never buffered. StoreError may surface from the
-    // stream itself (an object read failing mid-pack); R2Error from the put.
-    try effect { provide RuntimeContext.phantom { return options.blobs
-      .put(
-        key,
-        options
-          .packStream(options.entries)
-          .pipe(Stream.mapError((error) => new BlobStoreError({ reason: error.reason }))),
-        { contentLength: size },
-      ) catch effect (error) => { throw StoreError.make({ reason: `blob put ${key}: ${error.reason}` }) } } };
+  // The pack streams straight into R2 (its byte length is known up front),
+  // so a large bundle is never buffered. StoreError may surface from the
+  // stream itself (an object read failing mid-pack); R2Error from the put.
+  try effect {
+    provide RuntimeContext.phantom {
+      return options.blobs
+        .put(
+          key,
+          options
+            .packStream(options.entries)
+            .pipe(Stream.mapError((error) => new BlobStoreError({ reason: error.reason }))),
+          { contentLength: size },
+        ) catch effect (error) => {
+          throw StoreError.make({ reason: `blob put ${key}: ${error.reason}` })
+        }
+    }
+  }
 
-    // The pre-framed twin (Keys.ts `bundleSidebandKey`): one more pass over
-    // the same entries, framed deterministically so the length is known.
-    const sidebandKey = bundleSidebandKey(options.repoId, refsHash);
-    try effect { provide RuntimeContext.phantom { return options.blobs
-      .put(
-        sidebandKey,
-        options.packStream(options.entries).pipe(
-          Stream.mapError((error) => new BlobStoreError({ reason: error.reason })),
-          sidebandRechunk(1),
-        ),
-        { contentLength: sidebandFramedLength(size) },
-      ) catch effect (error) => { throw StoreError.make({
+  // The pre-framed twin (Keys.ts `bundleSidebandKey`): one more pass over
+  // the same entries, framed deterministically so the length is known.
+  const sidebandKey = bundleSidebandKey(options.repoId, refsHash)
+  try effect {
+    provide RuntimeContext.phantom {
+      return options.blobs
+        .put(
+          sidebandKey,
+          options.packStream(options.entries).pipe(
+            Stream.mapError((error) => new BlobStoreError({ reason: error.reason })),
+            sidebandRechunk(1),
+          ),
+          { contentLength: sidebandFramedLength(size) },
+        ) catch effect (error) => {
+          throw StoreError.make({
             reason: `blob put ${sidebandKey}: ${error.reason}`,
-          }) } } };
+          })
+        }
+    }
+  }
 
-    return {
-      refsHash,
-      key,
-      objectCount: options.entries.length,
-      size,
-      refs: options.refs,
-      createdAt: Date.now(),
-    } satisfies BundleInfo;
-  };
+  return {
+    refsHash,
+    key,
+    objectCount: options.entries.length,
+    size,
+    refs: options.refs,
+    createdAt: Date.now(),
+  } satisfies BundleInfo
+}
 
 /**
  * Decides whether a recorded bundle can serve this fetch (DESIGN.md §12.2,
@@ -179,15 +191,15 @@ export const runBundleJob = effect (
 export const bundleCovers = (
   bundle: BundleInfo,
   request: {
-    readonly wants: ReadonlyArray<Oid>;
-    readonly haves: ReadonlyArray<Oid>;
-    readonly depth?: number | undefined;
-    readonly clientShallow: ReadonlyArray<Oid>;
+    readonly wants: ReadonlyArray<Oid>
+    readonly haves: ReadonlyArray<Oid>
+    readonly depth?: number | undefined
+    readonly clientShallow: ReadonlyArray<Oid>
   },
 ): boolean => {
-  const uncovered = bundleUncovered(bundle, request);
-  return uncovered !== undefined && uncovered.length === 0;
-};
+  const uncovered = bundleUncovered(bundle, request)
+  return uncovered !== undefined && uncovered.length === 0
+}
 
 /**
  * How much of a request this bundle can serve (DESIGN.md §21.2).
@@ -215,20 +227,20 @@ export const bundleCovers = (
 export const bundleUncovered = (
   bundle: BundleInfo,
   request: {
-    readonly wants: ReadonlyArray<Oid>;
-    readonly haves: ReadonlyArray<Oid>;
-    readonly depth?: number | undefined;
-    readonly clientShallow: ReadonlyArray<Oid>;
+    readonly wants: ReadonlyArray<Oid>
+    readonly haves: ReadonlyArray<Oid>
+    readonly depth?: number | undefined
+    readonly clientShallow: ReadonlyArray<Oid>
   },
 ): ReadonlyArray<Oid> | undefined => {
   if (
-    request.haves.length > 0 ||
-    request.depth !== undefined ||
-    request.clientShallow.length > 0 ||
-    request.wants.length === 0
+    request.haves.length > 0
+    || request.depth !== undefined
+    || request.clientShallow.length > 0
+    || request.wants.length === 0
   ) {
-    return undefined;
+    return undefined
   }
-  const covered = new Set(bundle.refs.map((ref) => ref.oid));
-  return request.wants.filter((want) => !covered.has(want));
-};
+  const covered = new Set(bundle.refs.map((ref) => ref.oid))
+  return request.wants.filter((want) => !covered.has(want))
+}

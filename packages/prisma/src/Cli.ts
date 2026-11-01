@@ -6,7 +6,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { ChildProcess } from "effect/process";
 import * as Stream from "effect/Stream";
-import { generate, loadGeneratorConfig } from "./ORM/Generate.vibe";
+import { generate, loadGeneratorConfig } from "./ORM/Generate.ts";
 import { CliError } from "./ORM/internal.ts";
 
 const generateCommand = Command.make(

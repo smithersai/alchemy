@@ -15,8 +15,8 @@ import {
 import { isAiGateway } from "../AI/Gateway.ts";
 import { isSearchInstance } from "../AI/SearchInstance.ts";
 import { isSearchNamespace } from "../AI/SearchNamespace.ts";
-import { isDataset } from "../AnalyticsEngine/Dataset.vibe";
-import { isNamespace } from "../Artifacts/Namespace.vibe";
+import { isDataset } from "../AnalyticsEngine/Dataset.ts";
+import { isNamespace } from "../Artifacts/Namespace.ts";
 import type { Container } from "../Containers/Container.ts";
 import type { ContainerApplication } from "../Containers/ContainerApplication.ts";
 import {
@@ -28,7 +28,7 @@ import {
 } from "../Containers/ContainerConfiguration.ts";
 import { declareDurableObjectApplication } from "../Containers/DurableObjectApplication.ts";
 import { isDatabase } from "../D1/Database.ts";
-import { isSendEmail } from "../Email/SendEmail.vibe";
+import { isSendEmail } from "../Email/SendEmail.ts";
 import { isApp } from "../Flagship/App.ts";
 import { getHyperdriveDevOriginForHost } from "../Hyperdrive/ConnectBinding.ts";
 import { isHyperdriveConnection } from "../Hyperdrive/Connection.ts";
@@ -50,19 +50,19 @@ import { isVpcService } from "../VpcService/VpcService.ts";
 import type { VpcServiceLookup } from "../VpcService/VpcServiceLookup.ts";
 import { isDispatchNamespace } from "../WorkersForPlatforms/DispatchNamespace.ts";
 import { isWorkflowLike, WorkflowResource, type WorkflowBinding } from "../Workflows/Workflow.ts";
-import { asScriptNameOutput, makeWorkflowName } from "../Workflows/WorkflowName.vibe";
-import { isAI } from "./AI.vibe";
+import { asScriptNameOutput, makeWorkflowName } from "../Workflows/WorkflowName.ts";
+import { isAI } from "./AI.ts";
 import { isAssets } from "./Assets.ts";
 import { isBinding as isWorkerOnlyBinding } from "./Binding.ts";
-import { isBrowser } from "./Browser.vibe";
+import { isBrowser } from "./Browser.ts";
 import {
   type DurableObjectLike,
   isDurableObjectLike,
   normalizeTransferredFrom,
 } from "./DurableObject.ts";
-import { isRateLimit } from "./RateLimit.vibe";
+import { isRateLimit } from "./RateLimit.ts";
 import { isSecretKey } from "./SecretKey.ts";
-import { isVersionMetadata } from "./VersionMetadata.vibe";
+import { isVersionMetadata } from "./VersionMetadata.ts";
 import type { WorkerBindingProps } from "./Worker.ts";
 import {
   isSelf,
@@ -72,7 +72,7 @@ import {
   type WorkerObservability,
   type WorkerProps,
 } from "./Worker.ts";
-import type { WorkerAccessApplication } from "./WorkerAccess.vibe";
+import type { WorkerAccessApplication } from "./WorkerAccess.ts";
 import type { WorkerBinding, WorkerBindingResource } from "./WorkerBinding.ts";
 import { isWorkerEntrypoint } from "./WorkerEntrypoint.ts";
 import { isWorkerLoader } from "./WorkerLoader.ts";

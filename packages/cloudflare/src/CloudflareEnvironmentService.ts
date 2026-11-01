@@ -1,6 +1,6 @@
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
-import type { CloudflareResolvedCredentials } from "./Auth/AuthConfig.vibe";
+import type { CloudflareResolvedCredentials } from "./Auth/AuthConfig.ts";
 
 export class CloudflareEnvironment extends Context.Service<
   CloudflareEnvironment,

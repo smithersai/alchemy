@@ -2,7 +2,7 @@ import * as r2 from "@distilled.cloud/cloudflare/r2";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import { authorizeWith } from "../HttpClientUtils.vibe";
+import { authorizeWith } from "../HttpClientUtils.ts";
 import {
   baseObject,
   makeHttpBucketBinding,

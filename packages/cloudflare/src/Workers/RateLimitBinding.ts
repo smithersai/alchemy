@@ -7,7 +7,7 @@ import {
   RateLimitError,
   type RateLimitClient,
   type RateLimitPeriod,
-} from "./RateLimit.vibe";
+} from "./RateLimit.ts";
 
 /** The binding value produced by calling {@link RateLimit} (declared on `env` or `yield*`-ed). */
 export type RateLimitBinding = Binding.Binding<RateLimit["key"], RateLimitClient, RateLimit> & {

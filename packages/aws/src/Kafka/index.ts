@@ -1,4 +1,4 @@
-export * from "./ClusterEventSource.vibe";
+export * from "./ClusterEventSource.ts";
 export * from "./Connect.vibe";
 export * from "./ConnectReadHttp.vibe";
 export * from "./ConnectReadWriteHttp.vibe";

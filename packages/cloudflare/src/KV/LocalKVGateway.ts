@@ -25,7 +25,7 @@ import * as Effect from "effect/Effect";
 import { gatewayName, localGatewayRuntime } from "../LocalGateway.ts";
 import { isInstantNamespaceLocalId } from "./InstantNamespaceLocal.ts";
 import type { makeKVNamespaceHelpers } from "./NamespaceBinding.ts";
-import { NamespaceError } from "./NamespaceTypes.vibe";
+import { NamespaceError } from "./NamespaceTypes.ts";
 
 const tryPromise = <T>(fn: () => Promise<T>): Effect.Effect<T, NamespaceError> =>
   Effect.tryPromise({

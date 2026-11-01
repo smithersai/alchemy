@@ -10,6 +10,6 @@ export * from "./RoutingSubdomain.ts";
 export * from "./Rule.ts";
 export * from "./Send.vibe";
 export * from "./SendBinding.vibe";
-export * from "./SendEmail.vibe";
+export * from "./SendEmail.ts";
 export * from "./SendingSubdomain.ts";
 export * from "./TrustedDomain.ts";

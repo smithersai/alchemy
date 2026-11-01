@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import type { EventBus } from "../EventBridge/EventBus.js";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 import { EventIntegration } from "./EventIntegration.js";
 /** A partner event delivered to the handler through an event integration. */
 export type IntegrationEvent<Detail = unknown> = EventRecord<Detail>;
@@ -84,4 +84,4 @@ export interface IntegrationEventsProps {
  * );
  * ```
  */
-export declare const consumeIntegrationEvents: <Detail = unknown, StreamReq = never, Req = never>(id: string, props: IntegrationEventsProps, process: (events: Stream.Stream<IntegrationEvent<Detail>, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<EventIntegration, never, import("../EventBridge/EventSource.vibe").EventSource | import("../Providers.js").Providers>;
+export declare const consumeIntegrationEvents: <Detail = unknown, StreamReq = never, Req = never>(id: string, props: IntegrationEventsProps, process: (events: Stream.Stream<IntegrationEvent<Detail>, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<EventIntegration, never, import("../EventBridge/EventSource.js").EventSource | import("../Providers.js").Providers>;

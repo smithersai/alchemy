@@ -12,7 +12,7 @@ import * as Effect from "effect/Effect";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
 import { App, AppProvider } from "./App.ts";
-import { PrismaAuth } from "./AuthProvider.vibe";
+import { PrismaAuth } from "./AuthProvider.ts";
 import { Branch, BranchProvider } from "./Branch.ts";
 import { Bucket, BucketProvider } from "./Bucket.ts";
 import { BucketAccessKey, BucketAccessKeyProvider } from "./BucketAccessKey.ts";

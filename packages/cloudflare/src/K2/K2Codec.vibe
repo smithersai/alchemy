@@ -14,38 +14,38 @@ import {
  * not exported from the K2 barrel.
  */
 
-const encoder = new TextEncoder();
-const decoder = new TextDecoder();
+const encoder = new TextEncoder()
+const decoder = new TextDecoder()
 
 /** Header K2 producers set on schema-encoded (JSON) records. */
-export const JSON_HEADERS = { "content-type": "application/json" } as const;
+export const JSON_HEADERS = { "content-type": "application/json" } as const
 
 /** Normalize record content to bytes; strings are UTF-8 encoded. */
 export const toBytes = (content: Uint8Array | ArrayBuffer | string): Uint8Array =>
   typeof content === "string"
     ? encoder.encode(content)
     : content instanceof Uint8Array
-      ? content
-      : new Uint8Array(content);
+    ? content
+    : new Uint8Array(content)
 
 /** Standard (padded) base64, chunked so large payloads don't overflow `apply`. */
 export const toBase64 = (bytes: Uint8Array): string => {
-  let binary = "";
-  const chunk = 0x8000;
+  let binary = ""
+  const chunk = 0x8000
   for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk))
   }
-  return btoa(binary);
-};
+  return btoa(binary)
+}
 
 export const fromBase64 = (base64: string): Uint8Array => {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
   for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+    bytes[i] = binary.charCodeAt(i)
   }
-  return bytes;
-};
+  return bytes
+}
 
 /** Encode untyped records: content to bytes, headers passed through. */
 export const encodeRecords = (records: ReadonlyArray<K2Record>): ReadonlyArray<EncodedRecord> =>
@@ -54,31 +54,35 @@ export const encodeRecords = (records: ReadonlyArray<K2Record>): ReadonlyArray<E
     ...(record.headers && Object.keys(record.headers).length > 0
       ? { headers: record.headers }
       : {}),
-  }));
+  }))
 
 /** Encode typed values to JSON records with the binding's schema. */
 export const encodeWithSchema =
   <A>(schema: RecordSchema<A>): infer _ =>
-  effect (values: ReadonlyArray<A>): ReadonlyArray<EncodedRecord>!K2SchemaError => try Effect.forEach(values, effect (value) => try effect { const encoded = Schema.encodeEffect(schema)(value) catch effect (cause) => { throw new K2SchemaError({
-              message: `Could not encode K2 record: ${cause.message}`,
-              cause,
-            }) }
-return try Effect.try({
-            try: (): EncodedRecord => ({
-              content: encoder.encode(JSON.stringify(encoded)),
-              headers: { ...JSON_HEADERS },
-            }),
-            catch: (cause) =>
-              new K2SchemaError({ message: "Could not serialize K2 record as JSON", cause }),
-          }) },
-    );
+  effect (values: ReadonlyArray<A>): ReadonlyArray<EncodedRecord>!K2SchemaError =>
+    try Effect.forEach(values, effect (value) =>
+      try effect {
+        const encoded = Schema.encodeEffect(schema)(value) catch effect (cause) => {
+          throw new K2SchemaError({
+            message: `Could not encode K2 record: ${cause.message}`,
+            cause,
+          })
+        }
+        return try Effect.try({
+          try: (): EncodedRecord => ({
+            content: encoder.encode(JSON.stringify(encoded)),
+            headers: { ...JSON_HEADERS },
+          }),
+          catch: (cause) => new K2SchemaError({ message: "Could not serialize K2 record as JSON", cause }),
+        })
+      })
 
 /** The `produce` request body shape for encoded records. */
 export const toProduceRecords = (records: ReadonlyArray<EncodedRecord>): Array<k2.ProduceRecord> =>
   records.map((record) => ({
     content: toBase64(record.content),
     ...(record.headers ? { headers: record.headers } : {}),
-  }));
+  }))
 
 /** Decode the `consume` response records into bytes + headers + timestamp. */
 export const fromConsumedRecords = (
@@ -92,41 +96,48 @@ export const fromConsumedRecords = (
       ),
     ),
     timestamp: new Date(record.timestampMs),
-  }));
+  }))
 
 /** Decode JSON record content with a schema into `record.value`. */
-export const decodeWithSchema =
-  <A>(schema: RecordSchema<A>): infer _ =>
-  effect (
-    records: ReadonlyArray<ConsumedRecord>,
-  ): ReadonlyArray<DecodedRecord<A>>!K2SchemaError => try Effect.forEach(records, effect (record) => try effect { const value = try effect { return Schema.decodeUnknownEffect(schema)((try Effect.try({
-        try: () => JSON.parse(decoder.decode(record.content)) as unknown,
-        catch: (cause) =>
-          new K2SchemaError({ message: "K2 record content is not valid JSON", cause }),
-      }))) catch effect (cause) => { throw new K2SchemaError({
-                  message: `Could not decode K2 record: ${cause.message}`,
-                  cause,
-                }) } }
-return ({ ...record, value }) },
-    );
+export const decodeWithSchema = <A>(schema: RecordSchema<A>): infer _ =>
+effect (
+  records: ReadonlyArray<ConsumedRecord>,
+): ReadonlyArray<DecodedRecord<A>>!K2SchemaError =>
+  try Effect.forEach(records, effect (record) =>
+    try effect {
+      const value = try effect {
+        return Schema.decodeUnknownEffect(schema)(
+          try Effect.try({
+            try: () => JSON.parse(decoder.decode(record.content)) as unknown,
+            catch: (cause) => new K2SchemaError({ message: "K2 record content is not valid JSON", cause }),
+          }),
+        ) catch effect (cause) => {
+          throw new K2SchemaError({
+            message: `Could not decode K2 record: ${cause.message}`,
+            cause,
+          })
+        }
+      }
+      return ({ ...record, value })
+    })
 
 /**
  * Approximate size K2 counts against the 1 MB record limit: content plus
  * header names and values.
  */
 export const recordSize = (record: EncodedRecord): number => {
-  let size = record.content.byteLength;
+  let size = record.content.byteLength
   for (const [key, value] of Object.entries(record.headers ?? {})) {
-    size += encoder.encode(key).byteLength + encoder.encode(value).byteLength;
+    size += encoder.encode(key).byteLength + encoder.encode(value).byteLength
   }
-  return size;
-};
+  return size
+}
 
 /**
  * Approximate wire size of a record inside a `produce` request: base64
  * content (4/3 of the bytes) plus headers and JSON framing.
  */
 export const wireSize = (record: EncodedRecord): number =>
-  Math.ceil(record.content.byteLength / 3) * 4 +
-  (recordSize(record) - record.content.byteLength) +
-  64;
+  Math.ceil(record.content.byteLength / 3) * 4
+  + (recordSize(record) - record.content.byteLength)
+  + 64

@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { Dataset as AnalyticsEngineDatasetLike } from "./Dataset.vibe";
+import type { Dataset as AnalyticsEngineDatasetLike } from "./Dataset.js";
 /**
  * Bind an {@link AnalyticsEngineDatasetLike} dataset to a Worker and obtain the
  * Effect-native client (`writeDataPoint`, `raw`).

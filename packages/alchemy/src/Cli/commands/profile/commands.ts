@@ -9,7 +9,7 @@ import * as Match from "effect/Match";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Alchemist from "../../../Alchemist/index.ts";
-import { getEnv } from "../../../Auth/Env.vibe";
+import { getEnv } from "../../../Auth/Env.ts";
 import { resolveProfileName } from "../../../Auth/Resolve.ts";
 import * as Interaction from "../../../Interaction.ts";
 import { loadConfigProvider } from "../../../Util/ConfigProvider.ts";

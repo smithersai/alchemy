@@ -18,7 +18,7 @@ import { deepEqual } from "./Diff.ts";
 import { captureEmit, emit } from "./Events.ts";
 import type { Apply, Plan } from "./Plan.ts";
 import { findProviderByType, Provider } from "./Provider.ts";
-import { stampedMode } from "./ProviderMode.vibe";
+import { stampedMode } from "./ProviderMode.ts";
 import { resourceSession } from "./Report.ts";
 import type { ResourceLike } from "./Resource.ts";
 import { ResourceContext } from "./ResourceContext.ts";

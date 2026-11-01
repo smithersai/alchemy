@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload the EventBridge schema registry delivers when a
  * schema is created or a new version is published. Fields are optional
@@ -84,4 +84,4 @@ export interface SchemaEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeSchemaEvents: <StreamReq = never, Req = never>(props: SchemaEventSourceProps, process: (events: Stream.Stream<SchemaEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeSchemaEvents: <StreamReq = never, Req = never>(props: SchemaEventSourceProps, process: (events: Stream.Stream<SchemaEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

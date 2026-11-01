@@ -1,4 +1,4 @@
-import type { ProviderMode } from "../ProviderMode.vibe";
+import type { ProviderMode } from "../ProviderMode.ts";
 
 /**
  * Pure formatting shared by the plan/deploy renderers (Sigil TUI +

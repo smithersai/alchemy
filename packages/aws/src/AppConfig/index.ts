@@ -3,7 +3,7 @@ export * from "./ConfigurationProfile.ts";
 export * from "./CreateHostedConfigurationVersion.vibe";
 export * from "./CreateHostedConfigurationVersionHttp.ts";
 export * from "./Deployment.ts";
-export * from "./DeploymentEventSource.vibe";
+export * from "./DeploymentEventSource.ts";
 export * from "./DeploymentStrategy.ts";
 export * from "./Environment.ts";
 export * from "./Extension.ts";

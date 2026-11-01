@@ -49,7 +49,7 @@ export * from "./RestoreTableToPointInTime.vibe";
 export * from "./RestoreTableToPointInTimeHttp.ts";
 export * from "./Scan.vibe";
 export * from "./ScanHttp.vibe";
-export * from "./Stream.vibe";
+export * from "./Stream.ts";
 export * from "./Table.ts";
 export * from "./TableSink.vibe";
 export * from "./TableSinkHttp.vibe";

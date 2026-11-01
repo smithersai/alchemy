@@ -1,5 +1,5 @@
 import * as microvms from "@distilled.cloud/aws/lambda-microvms";
-import { ListMicrovms } from "./ListMicrovms.vibe";
+import { ListMicrovms } from "./ListMicrovms.ts";
 import { makeImageBinding } from "./MicrovmBinding.ts";
 
 export const ListMicrovmsHttp = makeImageBinding({

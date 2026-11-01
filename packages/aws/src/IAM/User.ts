@@ -8,7 +8,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { parsePolicyDocument, stringifyPolicyDocument, toTagRecord } from "./common.vibe";
+import { parsePolicyDocument, stringifyPolicyDocument, toTagRecord } from "./common.ts";
 import type { PolicyDocument } from "./Policy.ts";
 
 export class UserConflict extends Data.TaggedError("UserConflict")<{

@@ -5,7 +5,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import type { TraceInput } from "./Trace.vibe";
+import type { TraceInput } from "./Trace.ts";
 
 export class TraceRunnerInvalidProps extends Data.TaggedError("TraceRunnerInvalidProps")<{
   readonly message: string;

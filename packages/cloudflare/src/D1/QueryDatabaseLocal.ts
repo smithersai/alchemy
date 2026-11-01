@@ -5,7 +5,7 @@ import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Credentials } from "../Credentials.ts";
 import { isLocalId } from "../LocalRuntime.ts";
 import type { Database } from "./Database.ts";
-import { localD1GatewayRuntime, withLocalD1Query } from "./LocalD1Gateway.vibe";
+import { localD1GatewayRuntime, withLocalD1Query } from "./LocalD1Gateway.ts";
 import { QueryDatabase } from "./QueryDatabase.ts";
 import {
   makeD1DatabaseFromTransport,

@@ -1,7 +1,7 @@
 import * as queues from "@distilled.cloud/cloudflare/queues";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { authorizeWith } from "../HttpClientUtils.vibe";
+import { authorizeWith } from "../HttpClientUtils.ts";
 import {
   makeHttpQueueBinding,
   makeQueueHttpScope,

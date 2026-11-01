@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload Amazon Inspector delivers to EventBridge for a
  * finding — the full finding document. Only the commonly-matched fields are
@@ -83,4 +83,4 @@ export interface FindingEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeFindings: <StreamReq = never, Req = never>(props: FindingEventSourceProps, process: (events: Stream.Stream<FindingEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeFindings: <StreamReq = never, Req = never>(props: FindingEventSourceProps, process: (events: Stream.Stream<FindingEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

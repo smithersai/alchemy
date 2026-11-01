@@ -6,7 +6,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import { ProcessEnv } from "../Secrets/ProcessEnv.ts";
-import { resolveSecretsOption } from "../Secrets/Provider.vibe";
+import { resolveSecretsOption } from "../Secrets/Provider.ts";
 import type { StackSecrets, StackServices } from "../Stack.ts";
 
 /**

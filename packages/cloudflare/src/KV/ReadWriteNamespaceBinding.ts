@@ -2,7 +2,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { makeKVNamespaceBinding, type makeKVNamespaceHelpers } from "./NamespaceBinding.ts";
 import { makeReadKVClient } from "./ReadNamespaceBinding.ts";
-import { ReadWriteNamespace, type ReadWriteNamespaceClient } from "./ReadWriteNamespace.vibe";
+import { ReadWriteNamespace, type ReadWriteNamespaceClient } from "./ReadWriteNamespace.ts";
 import { makeWriteKVClient } from "./WriteNamespaceBinding.ts";
 
 /**

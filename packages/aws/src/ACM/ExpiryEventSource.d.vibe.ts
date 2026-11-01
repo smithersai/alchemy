@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload of an `ACM Certificate Approaching Expiration`
  * EventBridge event. ACM emits one event per day per certificate starting
@@ -76,4 +76,4 @@ export interface ExpiryEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeExpiryEvents: <StreamReq = never, Req = never>(props: ExpiryEventSourceProps, process: (events: Stream.Stream<ExpiryEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeExpiryEvents: <StreamReq = never, Req = never>(props: ExpiryEventSourceProps, process: (events: Stream.Stream<ExpiryEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

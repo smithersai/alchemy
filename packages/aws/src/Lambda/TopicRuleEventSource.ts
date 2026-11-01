@@ -9,7 +9,7 @@ import {
   TopicRuleEventSource as IoTTopicRuleEventSource,
   type TopicRuleEventSourceProps,
   type TopicRuleEventSourceService,
-} from "../IoT/TopicRuleEventSource.vibe";
+} from "../IoT/TopicRuleEventSource.ts";
 import * as Lambda from "./Function.ts";
 import { Permission as LambdaPermission } from "./Permission.ts";
 

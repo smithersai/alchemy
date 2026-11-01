@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload Amazon EMR Serverless delivers to EventBridge.
  * Job-run state-change events describe the run's transition; application
@@ -81,4 +81,4 @@ export interface JobRunEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeJobRunEvents: <StreamReq = never, Req = never>(props: JobRunEventSourceProps, process: (events: Stream.Stream<JobRunEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeJobRunEvents: <StreamReq = never, Req = never>(props: JobRunEventSourceProps, process: (events: Stream.Stream<JobRunEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

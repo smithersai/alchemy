@@ -9,12 +9,12 @@ import { applySqlImports, splitSqlStatements } from "@alchemy.run/sql/SqlFile"
 import * as ps from "@distilled.cloud/planetscale"
 import * as Effect from "effect/Effect"
 
-const MIGRATION_PASSWORD_TTL_SECONDS = 600;
+const MIGRATION_PASSWORD_TTL_SECONDS = 600
 
 export interface MySQLMigrationTarget {
-  mutable organization: string;
-  mutable database: string;
-  mutable branch: string;
+  mutable organization: string
+  mutable database: string
+  mutable branch: string
 }
 
 /**
@@ -30,7 +30,7 @@ export const runMySQLMigrations = effect (
     input,
     stamped,
     withExecutor: effect (apply) => try withMySQLExecutor(target, apply),
-  });
+  })
 
 /**
  * Apply `importFiles`, each once and again only when it changes. Vitess
@@ -48,11 +48,12 @@ export const runMySQLImports = effect (
     rootDir,
     previous,
     apply: effect (file) =>
-      try withMySQLExecutor(target, effect (executor) => try Effect.forEach(splitSqlStatements(file.sql), effect (statement) => try executor.query(statement), {
+      try withMySQLExecutor(target, effect (executor) =>
+        try Effect.forEach(splitSqlStatements(file.sql), effect (statement) =>
+          try executor.query(statement), {
           discard: true,
-        }),
-      ),
-  });
+        })),
+  })
 
 /** A verified-TLS `mysql2` session as a short-lived admin password. */
 const withMySQLExecutor = effect <A, E, R>(
@@ -70,18 +71,18 @@ const withMySQLExecutor = effect <A, E, R>(
         ssl: { rejectUnauthorized: true },
       },
       use,
-    ),
-  );
+    ))
 
 const withTemporaryMySQLPassword = effect <A, E, R>(
   target: MySQLMigrationTarget,
   use: (password: {
-    mutable id: string;
-    mutable host: string;
-    mutable username: string;
-    mutable password: Redacted.Redacted<string>;
+    mutable id: string
+    mutable host: string
+    mutable username: string
+    mutable password: Redacted.Redacted<string>
   }) => A!E!R,
-) => try Effect.acquireUseRelease(
+) =>
+  try Effect.acquireUseRelease(
     effect {
       const created = try ps.createPassword({
         organization: target.organization,
@@ -89,30 +90,34 @@ const withTemporaryMySQLPassword = effect <A, E, R>(
         branch: target.branch,
         role: "admin",
         ttl: MIGRATION_PASSWORD_TTL_SECONDS,
-      });
+      })
 
       return {
         id: created.id,
         host: created.access_host_url,
         username: created.username,
         password: created.plain_text,
-      };
+      }
     },
     use,
-    effect (password) => (try (effect { return ps
-        .deletePassword({
-          organization: target.organization,
-          database: target.database,
-          branch: target.branch,
-          id: password.id,
-        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; } }
-  |> Effect.retry(%, {
-            schedule: Schedule.max([Schedule.exponential("500 millis"), Schedule.recurs(5)]),
-          }))) catch effect (cause) => try Effect.logWarning(
-              `Failed to delete temporary Planetscale migration password after retries. ` +
-                `It will expire via TTL (~${MIGRATION_PASSWORD_TTL_SECONDS}s). ` +
-                `organization=${target.organization} database=${target.database} ` +
-                `branch=${target.branch} id=${password.id}`,
-              cause,
-            ),
-  );
+    effect (password) =>
+      (try (effect {
+        return ps
+          .deletePassword({
+            organization: target.organization,
+            database: target.database,
+            branch: target.branch,
+            id: password.id,
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+        |> Effect.retry(%, {
+          schedule: Schedule.max([Schedule.exponential("500 millis"), Schedule.recurs(5)]),
+        }))) catch effect (cause) =>
+          try Effect.logWarning(
+            `Failed to delete temporary Planetscale migration password after retries. `
+              + `It will expire via TTL (~${MIGRATION_PASSWORD_TTL_SECONDS}s). `
+              + `organization=${target.organization} database=${target.database} `
+              + `branch=${target.branch} id=${password.id}`,
+            cause,
+          ),
+  )

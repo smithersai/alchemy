@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer";
 import { AlchemyContext } from "../AlchemyContext.ts";
 import type { Platform } from "../Platform.ts";
 import { Provider, type ProviderService } from "../Provider.ts";
-import { defaultProviderMode, type ProviderMode } from "../ProviderMode.vibe";
+import { defaultProviderMode, type ProviderMode } from "../ProviderMode.ts";
 import type { ResourceClassLike, ResourceLike } from "../Resource.ts";
 
 /**

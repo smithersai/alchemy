@@ -37,17 +37,17 @@ import type { CommitParentRow, CommitRow, ObjectRow, RefRow, SqlClient } from ".
  * `{"0":31,"1":139,...}` and silently corrupt every forked object.
  */
 export interface SnapshotObjectRow {
-  readonly oid: string;
-  readonly type: number;
-  readonly size: number;
-  readonly zsize: number;
-  readonly location: string;
+  readonly oid: string
+  readonly type: number
+  readonly size: number
+  readonly zsize: number
+  readonly location: string
   /** base64 of `zlib(content)`, or `null` when the bytes live in R2. */
-  readonly zdata: string | null;
+  readonly zdata: string | null
   /** Full R2 key — may point into the PARENT repo's prefix (shared). */
-  readonly r2_key: string | null;
-  readonly pack_id: string | null;
-  readonly pack_offset: number | null;
+  readonly r2_key: string | null
+  readonly pack_id: string | null
+  readonly pack_offset: number | null
 }
 
 /**
@@ -56,45 +56,47 @@ export interface SnapshotObjectRow {
  */
 export type SnapshotChunk =
   | {
-      readonly table: "config";
-      readonly rows: ReadonlyArray<{ readonly key: string; readonly value: string }>;
-    }
+    readonly table: "config"
+    readonly rows: ReadonlyArray<{ readonly key: string; readonly value: string }>
+  }
   | {
-      readonly table: "refs";
-      readonly rows: ReadonlyArray<{ readonly name: string; readonly oid: string }>;
-    }
+    readonly table: "refs"
+    readonly rows: ReadonlyArray<{ readonly name: string; readonly oid: string }>
+  }
   | { readonly table: "objects"; readonly rows: ReadonlyArray<SnapshotObjectRow> }
   | {
-      readonly table: "commits";
-      readonly rows: ReadonlyArray<{
-        readonly oid: string;
-        readonly tree: string;
-        readonly gen: number;
-        readonly commit_time: number;
-      }>;
-    }
+    readonly table: "commits"
+    readonly rows: ReadonlyArray<{
+      readonly oid: string
+      readonly tree: string
+      readonly gen: number
+      readonly commit_time: number
+    }>
+  }
   | {
-      readonly table: "commit_parents";
-      readonly rows: ReadonlyArray<{
-        readonly oid: string;
-        readonly parent: string;
-        readonly ord: number;
-      }>;
-    };
+    readonly table: "commit_parents"
+    readonly rows: ReadonlyArray<{
+      readonly oid: string
+      readonly parent: string
+      readonly ord: number
+    }>
+  }
 
 /** Decodes a snapshot row's base64 `zdata` back into bytes. */
 const decodeZData = effect (row: SnapshotObjectRow): Uint8Array!StoreError => {
-  const decoded = Base64.decode(row.zdata ?? "");
-  return (Result.isSuccess(decoded) ? decoded.success : throw StoreError.make({ reason: `fork: corrupt zdata for ${row.oid}` }));
-};
+  const decoded = Base64.decode(row.zdata ?? "")
+  return (Result.isSuccess(decoded)
+    ? decoded.success
+    : throw StoreError.make({ reason: `fork: corrupt zdata for ${row.oid}` }))
+}
 
 /** Config keys that transfer from parent to fork. */
-const FORKED_CONFIG_KEYS = ["default_branch", "description"] as const;
+const FORKED_CONFIG_KEYS = ["default_branch", "description"] as const
 
 /** Rows per page for small-row tables. */
-const PAGE_SIZE = 400;
+const PAGE_SIZE = 400
 /** Rows per page for `objects` (each `zdata` BLOB may be up to 1 MiB). */
-const OBJECTS_PAGE_SIZE = 8;
+const OBJECTS_PAGE_SIZE = 8
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Parent side: produce the snapshot stream
@@ -117,86 +119,79 @@ export const snapshotStream = (sql: SqlClient): Stream.Stream<SnapshotChunk, Sto
       const rows = try sql.all<{ mutable key: string; mutable value: string }>(
         `SELECT key, value FROM config WHERE key IN (${FORKED_CONFIG_KEYS.map(() => "?").join(", ")})`,
         ...FORKED_CONFIG_KEYS,
-      );
-      return { table: "config", rows } satisfies SnapshotChunk;
+      )
+      return { table: "config", rows } satisfies SnapshotChunk
     },
-  );
+  )
 
   const refs: Stream.Stream<SnapshotChunk, StoreError> = Stream.paginate("", effect (after: string) => {
-      const rows = try sql.all<RefRow>(
-        `SELECT name, oid FROM refs WHERE name > ? ORDER BY name LIMIT ?`,
-        after,
-        PAGE_SIZE,
-      );
-      const chunk: SnapshotChunk = { table: "refs", rows };
-      const next =
-        rows.length < PAGE_SIZE ? Option.none<string>() : Option.some(rows[rows.length - 1]!.name);
-      return [rows.length > 0 ? [chunk] : [], next] as const;
-    },
-  );
+    const rows = try sql.all<RefRow>(
+      `SELECT name, oid FROM refs WHERE name > ? ORDER BY name LIMIT ?`,
+      after,
+      PAGE_SIZE,
+    )
+    const chunk: SnapshotChunk = { table: "refs", rows }
+    const next = rows.length < PAGE_SIZE ? Option.none<string>() : Option.some(rows[rows.length - 1]!.name)
+    return [rows.length > 0 ? [chunk] : [], next] as const
+  })
 
   const objects: Stream.Stream<SnapshotChunk, StoreError> = Stream.paginate("", effect (after: string) => {
-      const rows = try sql.all<ObjectRow>(
-        `SELECT oid, type, size, zsize, location, zdata, r2_key, pack_id, pack_offset, staged_push
+    const rows = try sql.all<ObjectRow>(
+      `SELECT oid, type, size, zsize, location, zdata, r2_key, pack_id, pack_offset, staged_push
            FROM objects WHERE oid > ? AND ${LIVE_OBJECTS} ORDER BY oid LIMIT ?`,
-        after,
-        OBJECTS_PAGE_SIZE,
-      );
-      const chunk: SnapshotChunk = {
-        table: "objects",
-        rows: rows.map((row): SnapshotObjectRow => ({
-          oid: row.oid,
-          type: row.type,
-          size: row.size,
-          zsize: row.zsize,
-          location: row.location,
-          zdata: row.zdata === null ? null : Base64.encode(new Uint8Array(row.zdata)),
-          r2_key: row.r2_key,
-          pack_id: row.pack_id,
-          pack_offset: row.pack_offset,
-        })),
-      };
-      const next =
-        rows.length < OBJECTS_PAGE_SIZE
-          ? Option.none<string>()
-          : Option.some(rows[rows.length - 1]!.oid);
-      return [rows.length > 0 ? [chunk] : [], next] as const;
-    },
-  );
+      after,
+      OBJECTS_PAGE_SIZE,
+    )
+    const chunk: SnapshotChunk = {
+      table: "objects",
+      rows: rows.map((row): SnapshotObjectRow => ({
+        oid: row.oid,
+        type: row.type,
+        size: row.size,
+        zsize: row.zsize,
+        location: row.location,
+        zdata: row.zdata === null ? null : Base64.encode(new Uint8Array(row.zdata)),
+        r2_key: row.r2_key,
+        pack_id: row.pack_id,
+        pack_offset: row.pack_offset,
+      })),
+    }
+    const next = rows.length < OBJECTS_PAGE_SIZE
+      ? Option.none<string>()
+      : Option.some(rows[rows.length - 1]!.oid)
+    return [rows.length > 0 ? [chunk] : [], next] as const
+  })
 
   const commits: Stream.Stream<SnapshotChunk, StoreError> = Stream.paginate("", effect (after: string) => {
-      const rows = try sql.all<CommitRow>(
-        `SELECT oid, tree, gen, commit_time FROM commits WHERE oid > ? ORDER BY oid LIMIT ?`,
-        after,
-        PAGE_SIZE,
-      );
-      const chunk: SnapshotChunk = { table: "commits", rows };
-      const next =
-        rows.length < PAGE_SIZE ? Option.none<string>() : Option.some(rows[rows.length - 1]!.oid);
-      return [rows.length > 0 ? [chunk] : [], next] as const;
-    },
-  );
+    const rows = try sql.all<CommitRow>(
+      `SELECT oid, tree, gen, commit_time FROM commits WHERE oid > ? ORDER BY oid LIMIT ?`,
+      after,
+      PAGE_SIZE,
+    )
+    const chunk: SnapshotChunk = { table: "commits", rows }
+    const next = rows.length < PAGE_SIZE ? Option.none<string>() : Option.some(rows[rows.length - 1]!.oid)
+    return [rows.length > 0 ? [chunk] : [], next] as const
+  })
 
   const commitParents: Stream.Stream<SnapshotChunk, StoreError> = Stream.paginate(
     ["", ""] as readonly [string, string],
     effect (after) => {
-        const rows = try sql.all<CommitParentRow>(
-          `SELECT oid, parent, ord FROM commit_parents
+      const rows = try sql.all<CommitParentRow>(
+        `SELECT oid, parent, ord FROM commit_parents
            WHERE (oid > ? OR (oid = ? AND parent > ?)) ORDER BY oid, parent LIMIT ?`,
-          after[0],
-          after[0],
-          after[1],
-          PAGE_SIZE,
-        );
-        const chunk: SnapshotChunk = { table: "commit_parents", rows };
-        const last = rows[rows.length - 1];
-        const next =
-          rows.length < PAGE_SIZE || last === undefined
-            ? Option.none<readonly [string, string]>()
-            : Option.some([last.oid, last.parent] as const);
-        return [rows.length > 0 ? [chunk] : [], next] as const;
-      },
-  );
+        after[0],
+        after[0],
+        after[1],
+        PAGE_SIZE,
+      )
+      const chunk: SnapshotChunk = { table: "commit_parents", rows }
+      const last = rows[rows.length - 1]
+      const next = rows.length < PAGE_SIZE || last === undefined
+        ? Option.none<readonly [string, string]>()
+        : Option.some([last.oid, last.parent] as const)
+      return [rows.length > 0 ? [chunk] : [], next] as const
+    },
+  )
 
   // Objects before refs: a partially-copied fork must never advertise a ref
   // whose closure is missing (the job is re-run from scratch anyway, but
@@ -206,8 +201,8 @@ export const snapshotStream = (sql: SqlClient): Stream.Stream<SnapshotChunk, Sto
     Stream.concat(commits),
     Stream.concat(commitParents),
     Stream.concat(refs),
-  );
-};
+  )
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fork side: apply the snapshot
@@ -215,11 +210,11 @@ export const snapshotStream = (sql: SqlClient): Stream.Stream<SnapshotChunk, Sto
 
 /** Zero-copy-when-possible Uint8Array → ArrayBuffer for BLOB binding. */
 const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer =>
-  bytes.byteOffset === 0 &&
-  bytes.byteLength === bytes.buffer.byteLength &&
-  bytes.buffer instanceof ArrayBuffer
+  bytes.byteOffset === 0
+    && bytes.byteLength === bytes.buffer.byteLength
+    && bytes.buffer instanceof ArrayBuffer
     ? bytes.buffer
-    : (bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer);
+    : (bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer)
 
 /**
  * Applies one snapshot chunk to the fork's own SQLite. All inserts are
@@ -235,15 +230,15 @@ export const applySnapshotChunk = effect (sql: SqlClient, chunk: SnapshotChunk) 
            ON CONFLICT (key) DO UPDATE SET value = excluded.value`,
           row.key,
           row.value,
-        );
+        )
       }
-      return;
+      return
     }
     case "refs": {
       for (const row of chunk.rows) {
-        try sql.run(`INSERT OR IGNORE INTO refs (name, oid) VALUES (?, ?)`, row.name, row.oid);
+        try sql.run(`INSERT OR IGNORE INTO refs (name, oid) VALUES (?, ?)`, row.name, row.oid)
       }
-      return;
+      return
     }
     case "objects": {
       for (const row of chunk.rows) {
@@ -259,9 +254,9 @@ export const applySnapshotChunk = effect (sql: SqlClient, chunk: SnapshotChunk) 
           row.r2_key,
           row.pack_id,
           row.pack_offset,
-        );
+        )
       }
-      return;
+      return
     }
     case "commits": {
       for (const row of chunk.rows) {
@@ -271,9 +266,9 @@ export const applySnapshotChunk = effect (sql: SqlClient, chunk: SnapshotChunk) 
           row.tree,
           row.gen,
           row.commit_time,
-        );
+        )
       }
-      return;
+      return
     }
     case "commit_parents": {
       for (const row of chunk.rows) {
@@ -282,23 +277,23 @@ export const applySnapshotChunk = effect (sql: SqlClient, chunk: SnapshotChunk) 
           row.oid,
           row.parent,
           row.ord,
-        );
+        )
       }
-      return;
+      return
     }
   }
-};
+}
 
 /** Dependencies of {@link runForkJob}. */
 export interface ForkJobOptions {
   /** The fork's own SQL client. */
-  readonly sql: SqlClient;
+  readonly sql: SqlClient
   /**
    * The parent's snapshot stream — `parentStub.snapshotRows()` from the
    * fork DO's alarm handler. Error type is widened to `unknown` because
    * the stream crosses the RPC boundary.
    */
-  readonly snapshot: Stream.Stream<SnapshotChunk, unknown>;
+  readonly snapshot: Stream.Stream<SnapshotChunk, unknown>
 }
 
 /**
@@ -308,12 +303,11 @@ export interface ForkJobOptions {
  */
 export const runForkJob = effect (options: ForkJobOptions): number!StoreError =>
   try options.snapshot.pipe(
-    Stream.mapError((error) =>
-      StoreError.make({ reason: `fork snapshot stream failed: ${String(error)}` }),
-    ),
+    Stream.mapError((error) => StoreError.make({ reason: `fork snapshot stream failed: ${String(error)}` })),
     Stream.runFoldEffect(
       () => 0,
-      effect (count, chunk) => try (applySnapshotChunk(options.sql, chunk)
-  |> Effect.as(%, count + 1)),
+      effect (count, chunk) =>
+        try (applySnapshotChunk(options.sql, chunk)
+          |> Effect.as(%, count + 1)),
     ),
-  );
+  )

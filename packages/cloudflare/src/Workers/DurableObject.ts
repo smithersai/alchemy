@@ -19,7 +19,7 @@ import type { Scope } from "effect/Scope";
 import type { Container } from "../Containers/Container.ts";
 import { DurableObjectState, fromDurableObjectState } from "./DurableObjectState.ts";
 import { makeRpcStub, type RpcErrorClass } from "./Rpc.ts";
-import { type WebSocket } from "./WebSocket.vibe";
+import { type WebSocket } from "./WebSocket.ts";
 import { isWorker, Worker, WorkerEnvironment, type WorkerServices } from "./Worker.ts";
 
 export interface DurableObjectExport {

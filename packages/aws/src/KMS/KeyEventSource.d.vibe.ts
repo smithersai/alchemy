@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload AWS KMS delivers to EventBridge. Rotation and
  * deletion events carry the affected key's id; fields not shared by every
@@ -76,4 +76,4 @@ export interface KeyEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeKeyEvents: <StreamReq = never, Req = never>(props: KeyEventSourceProps, process: (events: Stream.Stream<KeyEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeKeyEvents: <StreamReq = never, Req = never>(props: KeyEventSourceProps, process: (events: Stream.Stream<KeyEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

@@ -121,7 +121,10 @@ import {
 } from "./AIPlatform/NotebookRuntimeTemplate.vibe";
 import { OnlineEvaluator, OnlineEvaluatorProvider } from "./AIPlatform/OnlineEvaluator.vibe";
 import { PauseSandboxEnvironmentHttp } from "./AIPlatform/PauseSandboxEnvironmentHttp.vibe";
-import { PersistentResource, PersistentResourceProvider } from "./AIPlatform/PersistentResource.vibe";
+import {
+  PersistentResource,
+  PersistentResourceProvider,
+} from "./AIPlatform/PersistentResource.vibe";
 import { PipelineJob, PipelineJobProvider } from "./AIPlatform/PipelineJob.vibe";
 import { QueryReasoningEngineHttp } from "./AIPlatform/QueryReasoningEngineHttp.vibe";
 import { RagCorpora, RagCorporaProvider } from "./AIPlatform/RagCorpora.vibe";
@@ -235,7 +238,10 @@ import {
   ApimServiceExtensionProvider,
 } from "./Apigee/ApimServiceExtension.ts";
 import { Apiproduct, ApiproductProvider } from "./Apigee/Apiproduct.vibe";
-import { ApiproductsRateplan, ApiproductsRateplanProvider } from "./Apigee/ApiproductsRateplan.vibe";
+import {
+  ApiproductsRateplan,
+  ApiproductsRateplanProvider,
+} from "./Apigee/ApiproductsRateplan.vibe";
 import { ApisKeyvaluemap, ApisKeyvaluemapProvider } from "./Apigee/ApisKeyvaluemap.vibe";
 import {
   ApisKeyvaluemapsEntry,
@@ -251,7 +257,10 @@ import { DevelopersAppsKey, DevelopersAppsKeyProvider } from "./Apigee/Developer
 import { DnsZone, DnsZoneProvider } from "./Apigee/DnsZone.vibe";
 import { EndpointAttachment, EndpointAttachmentProvider } from "./Apigee/EndpointAttachment.vibe";
 import { Envgroup, EnvgroupProvider } from "./Apigee/Envgroup.vibe";
-import { EnvgroupsAttachment, EnvgroupsAttachmentProvider } from "./Apigee/EnvgroupsAttachment.vibe";
+import {
+  EnvgroupsAttachment,
+  EnvgroupsAttachmentProvider,
+} from "./Apigee/EnvgroupsAttachment.vibe";
 import {
   Environment as ApigeeEnvironment,
   EnvironmentProvider as ApigeeEnvironmentProvider,
@@ -383,7 +392,10 @@ import {
   RepositoriesPackagesTag,
   RepositoriesPackagesTagProvider,
 } from "./ArtifactRegistry/RepositoriesPackagesTag.vibe";
-import { RepositoriesRule, RepositoriesRuleProvider } from "./ArtifactRegistry/RepositoriesRule.vibe";
+import {
+  RepositoriesRule,
+  RepositoriesRuleProvider,
+} from "./ArtifactRegistry/RepositoriesRule.vibe";
 import { Repository, RepositoryProvider } from "./ArtifactRegistry/Repository.vibe";
 import {
   Workload as AssuredworkloadsWorkload,
@@ -508,7 +520,10 @@ import {
 import { EvaluateGkePolicyHttp } from "./BinaryAuthorization/EvaluateGkePolicyHttp.vibe";
 import { GetAttestorHttp } from "./BinaryAuthorization/GetAttestorHttp.ts";
 import { GetPlatformsPolicyHttp } from "./BinaryAuthorization/GetPlatformsPolicyHttp.vibe";
-import { PlatformsPolicy, PlatformsPolicyProvider } from "./BinaryAuthorization/PlatformsPolicy.vibe";
+import {
+  PlatformsPolicy,
+  PlatformsPolicyProvider,
+} from "./BinaryAuthorization/PlatformsPolicy.vibe";
 import { ValidateAttestationHttp } from "./BinaryAuthorization/ValidateAttestationHttp.ts";
 import { BlockchainNode, BlockchainNodeProvider } from "./BlockchainNodeEngine/BlockchainNode.ts";
 import { Certificate, CertificateProvider } from "./CertificateManager/Certificate.ts";
@@ -741,7 +756,10 @@ import {
   PublicDelegatedPrefixProvider,
 } from "./Compute/PublicDelegatedPrefix.vibe";
 import { RegionAutoscaler, RegionAutoscalerProvider } from "./Compute/RegionAutoscaler.ts";
-import { RegionBackendBucket, RegionBackendBucketProvider } from "./Compute/RegionBackendBucket.vibe";
+import {
+  RegionBackendBucket,
+  RegionBackendBucketProvider,
+} from "./Compute/RegionBackendBucket.vibe";
 import {
   RegionBackendService,
   RegionBackendServiceProvider,
@@ -1796,7 +1814,10 @@ import {
   StoragePool as NetappStoragePool,
   StoragePoolProvider as NetappStoragePoolProvider,
 } from "./NetApp/StoragePool.vibe";
-import { Volume as NetappVolume, VolumeProvider as NetappVolumeProvider } from "./NetApp/Volume.vibe";
+import {
+  Volume as NetappVolume,
+  VolumeProvider as NetappVolumeProvider,
+} from "./NetApp/Volume.vibe";
 import {
   VolumesQuotaRule as NetappVolumesQuotaRule,
   VolumesQuotaRuleProvider as NetappVolumesQuotaRuleProvider,
@@ -1874,7 +1895,10 @@ import {
   DnsThreatDetector,
   DnsThreatDetectorProvider,
 } from "./NetworkSecurity/DnsThreatDetector.vibe";
-import { FirewallEndpoint, FirewallEndpointProvider } from "./NetworkSecurity/FirewallEndpoint.vibe";
+import {
+  FirewallEndpoint,
+  FirewallEndpointProvider,
+} from "./NetworkSecurity/FirewallEndpoint.vibe";
 import {
   FirewallEndpointAssociation,
   FirewallEndpointAssociationProvider,
@@ -1958,7 +1982,10 @@ import {
 import { GrpcRoute, GrpcRouteProvider } from "./NetworkServices/GrpcRoute.vibe";
 import { HttpRoute, HttpRouteProvider } from "./NetworkServices/HttpRoute.vibe";
 import { LbEdgeExtension, LbEdgeExtensionProvider } from "./NetworkServices/LbEdgeExtension.vibe";
-import { LbRouteExtension, LbRouteExtensionProvider } from "./NetworkServices/LbRouteExtension.vibe";
+import {
+  LbRouteExtension,
+  LbRouteExtensionProvider,
+} from "./NetworkServices/LbRouteExtension.vibe";
 import {
   LbTrafficExtension,
   LbTrafficExtensionProvider,
@@ -2418,7 +2445,10 @@ import {
 import { SslCert as SqlSslCert, SslCertProvider as SqlSslCertProvider } from "./SQL/SslCert.ts";
 import { User as SqlUser, UserProvider as SqlUserProvider } from "./SQL/User.ts";
 import { Bucket, BucketProvider } from "./Storage/Bucket.ts";
-import { BucketAccessControl, BucketAccessControlProvider } from "./Storage/BucketAccessControl.vibe";
+import {
+  BucketAccessControl,
+  BucketAccessControlProvider,
+} from "./Storage/BucketAccessControl.vibe";
 import {
   DefaultObjectAccessControl,
   DefaultObjectAccessControlProvider,
@@ -2433,7 +2463,10 @@ import {
   Object as StorageObject,
   ObjectProvider as StorageObjectProvider,
 } from "./Storage/Object.ts";
-import { ObjectAccessControl, ObjectAccessControlProvider } from "./Storage/ObjectAccessControl.vibe";
+import {
+  ObjectAccessControl,
+  ObjectAccessControlProvider,
+} from "./Storage/ObjectAccessControl.vibe";
 import { PutObjectHttp } from "./Storage/PutObjectHttp.vibe";
 import { AgentPool, AgentPoolProvider } from "./StorageTransfer/AgentPool.vibe";
 import { GetGoogleServiceAccountHttp } from "./StorageTransfer/GetGoogleServiceAccountHttp.vibe";

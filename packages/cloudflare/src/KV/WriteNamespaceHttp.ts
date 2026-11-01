@@ -8,8 +8,8 @@ import {
   toKVNamespaceError,
   type KVAuth,
 } from "./NamespaceHttp.ts";
-import { NamespaceError } from "./NamespaceTypes.vibe";
-import { WriteNamespace, type WriteNamespaceClient } from "./WriteNamespace.vibe";
+import { NamespaceError } from "./NamespaceTypes.ts";
+import { WriteNamespace, type WriteNamespaceClient } from "./WriteNamespace.ts";
 
 /**
  * HTTP-backed implementation of the {@link WriteNamespace} binding.

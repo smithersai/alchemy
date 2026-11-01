@@ -16,4 +16,4 @@ export * from "./UserPoolAuth.vibe";
 export * from "./UserPoolAuthHttp.vibe";
 export * from "./UserPoolClient.ts";
 export * from "./UserPoolDomain.ts";
-export * from "./UserPoolTriggerEventSource.vibe";
+export * from "./UserPoolTriggerEventSource.ts";

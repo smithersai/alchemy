@@ -9,7 +9,11 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { RailwayEnvironment } from "./Environment.ts";
 import { waitUntilDeleted } from "./GraphQL.vibe";
-import { createRailwayName, matchesAlchemyPhysicalName, sanitizeRailwayName } from "./Metadata.vibe";
+import {
+  createRailwayName,
+  matchesAlchemyPhysicalName,
+  sanitizeRailwayName,
+} from "./Metadata.vibe";
 import type { Providers } from "./Providers.ts";
 import { waitOutCreateRateLimit } from "./transient.vibe";
 

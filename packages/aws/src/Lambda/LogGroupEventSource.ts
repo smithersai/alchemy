@@ -13,7 +13,7 @@ import {
   type LogGroupEventSourceProps,
   type LogGroupEventSourceService,
   type LogsSubscriptionPayload,
-} from "../Logs/LogGroupEventSource.vibe";
+} from "../Logs/LogGroupEventSource.ts";
 import { SubscriptionFilter } from "../Logs/SubscriptionFilter.ts";
 import * as Lambda from "./Function.ts";
 import { Permission as LambdaPermission } from "./Permission.ts";

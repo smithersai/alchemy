@@ -4,7 +4,7 @@ import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { fromCloudflareFetcher, type Fetcher } from "../Fetcher.ts";
-import { resolveAccessContext, type WorkerExecutionContextAccess } from "./WorkerAccess.vibe";
+import { resolveAccessContext, type WorkerExecutionContextAccess } from "./WorkerAccess.ts";
 
 export const WorkerTypeId = "Cloudflare.Worker";
 export type WorkerTypeId = typeof WorkerTypeId;

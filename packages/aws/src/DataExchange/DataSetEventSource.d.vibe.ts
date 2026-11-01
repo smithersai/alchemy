@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload AWS Data Exchange delivers to EventBridge. Revision
  * events carry the published/revoked `RevisionIds`; product events carry
@@ -87,4 +87,4 @@ export interface DataSetEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeDataSetEvents: <StreamReq = never, Req = never>(props: DataSetEventSourceProps, process: (events: Stream.Stream<DataSetEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeDataSetEvents: <StreamReq = never, Req = never>(props: DataSetEventSourceProps, process: (events: Stream.Stream<DataSetEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

@@ -9,7 +9,7 @@ import {
   type RoomMessageReviewEventSourceService,
   type RoomMessageReviewHandlerFn,
   type RoomMessageReviewProps,
-} from "../IVSChat/RoomMessageReviewEventSource.vibe";
+} from "../IVSChat/RoomMessageReviewEventSource.ts";
 import * as Lambda from "./Function.ts";
 import { Permission as LambdaPermission } from "./Permission.ts";
 

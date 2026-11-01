@@ -14,7 +14,7 @@ import {
   createInstantNamespaceLocalId,
   isInstantNamespaceLocalId,
 } from "./InstantNamespaceLocal.ts";
-import { NamespaceModeMismatch } from "./NamespaceTypes.vibe";
+import { NamespaceModeMismatch } from "./NamespaceTypes.ts";
 
 export const isInstantNamespace = (value: unknown): value is InstantNamespace =>
   isResourceOfType(value, "Cloudflare.KV.InstantNamespace");

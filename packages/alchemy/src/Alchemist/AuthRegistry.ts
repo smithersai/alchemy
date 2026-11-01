@@ -12,7 +12,7 @@ import { AuthError, AuthProviders } from "../Auth/AuthProvider.ts";
 import { SuppressMissingProviderConfig } from "../Auth/Profile.ts";
 import * as Contributions from "../Contributions.ts";
 import type { ContributionError } from "../Contributions.ts";
-import { makeCachedFunction } from "../Util/cached-function.vibe";
+import { makeCachedFunction } from "../Util/cached-function.ts";
 import { DEFAULT_ENTRYPOINT, importStack } from "./Entrypoint.ts";
 import * as Operations from "./Operations.ts";
 import type { Services } from "./Runtime.ts";

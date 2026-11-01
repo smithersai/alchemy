@@ -2,7 +2,7 @@ import type * as runtime from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { makeKVNamespaceBinding, makeKVNamespaceHelpers } from "./NamespaceBinding.ts";
-import { WriteNamespace, type WriteNamespaceClient } from "./WriteNamespace.vibe";
+import { WriteNamespace, type WriteNamespaceClient } from "./WriteNamespace.ts";
 
 /**
  * Implementation of the {@link WriteNamespace} binding that uses a Worker

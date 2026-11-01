@@ -14,9 +14,9 @@ import {
   ConflictingProviderModeError,
   ProviderModePolicy,
   type ProviderMode,
-} from "./ProviderMode.vibe";
+} from "./ProviderMode.ts";
 import { ref as makeRef } from "./Ref.ts";
-import { RemovalPolicy } from "./RemovalPolicy.vibe";
+import { RemovalPolicy } from "./RemovalPolicy.ts";
 import { RenamePolicy } from "./Rename.ts";
 import { Self } from "./Self.ts";
 import { StackContext } from "./StackContext.ts";

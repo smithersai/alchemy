@@ -7,7 +7,7 @@ import * as Match from "effect/Match";
 import { onEvent, type Event } from "../../../Events.ts";
 import { Interaction } from "../../../Interaction.ts";
 import type { Result as NukeResult, Target } from "../../../Nuke.ts";
-import type { ProviderMode } from "../../../ProviderMode.vibe";
+import type { ProviderMode } from "../../../ProviderMode.ts";
 import { currentConsoleSettings } from "../../GlobalLog.ts";
 import { present } from "../../Present.ts";
 import {

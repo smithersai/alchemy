@@ -7,7 +7,7 @@
  */
 import * as ecs from "@distilled.cloud/aws/ecs";
 import * as Effect from "effect/Effect";
-export { imageSourceTrigger } from "../Local/ImageSourceTrigger.vibe";
+export { imageSourceTrigger } from "../Local/ImageSourceTrigger.js";
 /**
  * Restart every RUNNING task of `family` that is not yet on
  * `nextTaskDefinitionArn`:

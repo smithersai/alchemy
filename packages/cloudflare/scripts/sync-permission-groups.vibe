@@ -15,61 +15,67 @@
  *   - a group the listing no longer returns is retained. The listing is
  *     filtered by what the account can see, so absence doesn't mean retired.
  */
-import * as accounts from "@distilled.cloud/cloudflare/accounts";
-import * as Credentials from "@distilled.cloud/cloudflare/Credentials";
-import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
-import * as NodeServices from "@effect/platform-node/NodeServices";
-import * as Config from "effect/Config";
-import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
-import { FetchHttpClient } from "effect/http";
-import * as Layer from "effect/Layer";
-import * as Path from "effect/Path";
-import { ChildProcess } from "effect/process";
-import { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";
-import { PERMISSION_GROUPS } from "../src/ApiToken/PermissionGroups.ts";
+import * as accounts from "@distilled.cloud/cloudflare/accounts"
+import * as Credentials from "@distilled.cloud/cloudflare/Credentials"
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
+import * as NodeServices from "@effect/platform-node/NodeServices"
+import * as Config from "effect/Config"
+import * as Effect from "effect/Effect"
+import * as FileSystem from "effect/FileSystem"
+import { FetchHttpClient } from "effect/http"
+import * as Layer from "effect/Layer"
+import * as Path from "effect/Path"
+import { ChildProcess } from "effect/process"
+import { ChildProcessSpawner } from "effect/process/ChildProcessSpawner"
+import { PERMISSION_GROUPS } from "../src/ApiToken/PermissionGroups.ts"
 
 interface Group {
-  mutable id: string;
-  mutable name: string;
-  mutable description: string;
-  mutable scopes: readonly string[];
+  mutable id: string
+  mutable name: string
+  mutable description: string
+  mutable scopes: readonly string[]
 }
 
-const CATALOG = "src/ApiToken/PermissionGroups.ts";
+const CATALOG = "src/ApiToken/PermissionGroups.ts"
 
-const fetchGroups = effect { return try effect { provide Layer.mergeAll(Credentials.fromEnv(), FetchHttpClient.layer) { return try effect {
-  const accountId = try Config.String("CLOUDFLARE_ACCOUNT_ID");
-  const groups = try accounts.listTokensPermissionGroups({ accountId });
-  return groups.map((group): Group => ({
-    id: group.id ?? "",
-    name: group.name ?? "",
-    description: group.description ?? "",
-    scopes: group.scopes ?? [],
-  }));
-} } } };
+const fetchGroups = effect {
+  return try effect {
+    provide Layer.mergeAll(Credentials.fromEnv(), FetchHttpClient.layer) {
+      return try effect {
+        const accountId = try Config.String("CLOUDFLARE_ACCOUNT_ID")
+        const groups = try accounts.listTokensPermissionGroups({ accountId })
+        return groups.map((group): Group => ({
+          id: group.id ?? "",
+          name: group.name ?? "",
+          description: group.description ?? "",
+          scopes: group.scopes ?? [],
+        }))
+      }
+    }
+  }
+}
 
 const readGroups = effect (file: string) => {
-  const fs = try Effect.service(FileSystem.FileSystem);
-  return JSON.parse(try fs.readFileString(file)) as Group[];
-};
+  const fs = try Effect.service(FileSystem.FileSystem)
+  return JSON.parse(try fs.readFileString(file)) as Group[]
+}
 
 /** Live groups first, then the previous catalog's names the listing lacks. */
 const merge = (live: Group[], previous: readonly Group[]): infer _ => {
-  const key = (group: Group): infer _ => `${group.id}\0${group.name}`;
-  const seen = new Set<string>();
-  const unique = (group: Group): infer _ => !seen.has(key(group)) && !!seen.add(key(group));
-  const liveById = new Map(live.map((group) => [group.id, group]));
+  const key = (group: Group): infer _ => `${group.id}\0${group.name}`
+  const seen = new Set<string>()
+  const unique = (group: Group): infer _ => !seen.has(key(group)) && !!seen.add(key(group))
+  const liveById = new Map(live.map((group) => [group.id, group]))
 
-  const groups = live.filter(unique);
-  const unlisted = previous.filter((group) => !liveById.has(group.id)).filter(unique);
+  const groups = live.filter(unique)
+  const unlisted = previous.filter((group) => !liveById.has(group.id)).filter(unique)
   const renamed = previous
     .filter((group) => liveById.has(group.id))
     .filter(unique)
     // Keep the old name, but describe the group as Cloudflare does today.
-    .map((group) => ({ ...liveById.get(group.id)!, name: group.name }));
-  return { groups, unlisted, renamed };
-};
+    .map((group) => ({ ...liveById.get(group.id)!, name: group.name }))
+  return { groups, unlisted, renamed }
+}
 
 const entry = (group: Group): infer _ =>
   `  {
@@ -77,12 +83,13 @@ const entry = (group: Group): infer _ =>
     name: ${JSON.stringify(group.name)},
     description: ${JSON.stringify(group.description)},
     scopes: ${JSON.stringify(group.scopes)},
-  },`;
+  },`
 
 const section = (comment: string, groups: Group[]): infer _ =>
-  groups.length === 0 ? [] : [comment, ...groups.map(entry)];
+  groups.length === 0 ? [] : [comment, ...groups.map(entry)]
 
-const render = ({ groups, unlisted, renamed }: ReturnType<typeof merge>): infer _ => `/**
+const render = ({ groups, unlisted, renamed }: ReturnType<typeof merge>): infer _ =>
+  `/**
  * Static catalog of Cloudflare API token permission groups, copied from the
  * upstream \`alchemy\` repo so we can offer typed permission-group names without
  * a network round-trip on every token create/update.
@@ -100,17 +107,19 @@ export interface PermissionGroup {
 }
 
 export const PERMISSION_GROUPS = [
-${[
-  ...groups.map(entry),
-  ...section(
-    "  // No longer listed by Cloudflare's permission-groups API; kept so existing\n  // configs that reference them keep resolving.",
-    unlisted,
-  ),
-  ...section(
-    "  // Former names of groups Cloudflare has since renamed, kept so existing\n  // configs that reference them by name keep resolving.",
-    renamed,
-  ),
-].join("\n")}
+${
+    [
+      ...groups.map(entry),
+      ...section(
+        "  // No longer listed by Cloudflare's permission-groups API; kept so existing\n  // configs that reference them keep resolving.",
+        unlisted,
+      ),
+      ...section(
+        "  // Former names of groups Cloudflare has since renamed, kept so existing\n  // configs that reference them by name keep resolving.",
+        renamed,
+      ),
+    ].join("\n")
+  }
 ] as const;
 
 export type PermissionGroupName = (typeof PERMISSION_GROUPS)[number]["name"];
@@ -131,29 +140,28 @@ export const PERMISSION_GROUPS_BY_NAME: Record<PermissionGroupName, PermissionGr
   }
   return map;
 })();
-`;
+`
 
 const main = effect {
-  const fs = try Effect.service(FileSystem.FileSystem);
-  const path = try Effect.service(Path.Path);
-  const inputIndex = process.argv.indexOf("--input");
-  const live =
-    inputIndex === -1 ? try fetchGroups : try readGroups(process.argv[inputIndex + 1]!);
+  const fs = try Effect.service(FileSystem.FileSystem)
+  const path = try Effect.service(Path.Path)
+  const inputIndex = process.argv.indexOf("--input")
+  const live = inputIndex === -1 ? try fetchGroups : try readGroups(process.argv[inputIndex + 1]!)
   if (live.length === 0) {
-    return try Effect.die("Cloudflare returned no permission groups; refusing to sync.");
+    return try Effect.die("Cloudflare returned no permission groups; refusing to sync.")
   }
 
-  const merged = merge(live, PERMISSION_GROUPS);
-  const file = path.join(import.meta.dirname, "..", CATALOG);
-  try fs.writeFileString(file, render(merged));
-  const spawner = try Effect.service(ChildProcessSpawner);
-  const exitCode = try spawner.exitCode(ChildProcess.make("pnpm", ["exec", "oxfmt", file]));
+  const merged = merge(live, PERMISSION_GROUPS)
+  const file = path.join(import.meta.dirname, "..", CATALOG)
+  try fs.writeFileString(file, render(merged))
+  const spawner = try Effect.service(ChildProcessSpawner)
+  const exitCode = try spawner.exitCode(ChildProcess.make("pnpm", ["exec", "oxfmt", file]))
   if (exitCode !== 0) {
-    return try Effect.die(`oxfmt exited with code ${exitCode}`);
+    return try Effect.die(`oxfmt exited with code ${exitCode}`)
   }
   try Effect.log(
     `${CATALOG}: ${merged.groups.length} listed, ${merged.unlisted.length} unlisted, ${merged.renamed.length} renamed`,
-  );
-};
+  )
+}
 
-main.pipe(Effect.scoped, Effect.provide(NodeServices.layer), NodeRuntime.runMain);
+main.pipe(Effect.scoped, Effect.provide(NodeServices.layer), NodeRuntime.runMain)

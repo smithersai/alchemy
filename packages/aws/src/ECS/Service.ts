@@ -41,7 +41,7 @@ import {
   type DockerfileImageSource,
   type ImageSourceLike,
   type RegistryImageSource,
-} from "../ECR/ImageSource.vibe";
+} from "../ECR/ImageSource.ts";
 import type { ListenerAction, ListenerRuleCondition } from "../ELBv2/common.vibe";
 import { Listener } from "../ELBv2/Listener.vibe";
 import { ListenerRule } from "../ELBv2/ListenerRule.ts";
@@ -52,7 +52,7 @@ import { plainJson } from "../internal/Observe.ts";
 import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.ts";
 import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
-import { findPublicHostedZoneId } from "../Route53/HostedZoneLookup.vibe";
+import { findPublicHostedZoneId } from "../Route53/HostedZoneLookup.ts";
 import type { ClusterArn } from "./Cluster.ts";
 import {
   attachTaskBindings,

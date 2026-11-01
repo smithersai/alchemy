@@ -8,7 +8,7 @@ import { AccountApiToken } from "../ApiToken/AccountApiToken.ts";
 import type { PermissionGroupRef } from "../ApiToken/Common.ts";
 import type { Credentials } from "../Credentials.ts";
 import { requireLiveResource } from "../HttpBindingDev.ts";
-import { authorizeWith } from "../HttpClientUtils.vibe";
+import { authorizeWith } from "../HttpClientUtils.ts";
 import type { Zone } from "../Zone/Zone.ts";
 
 /**

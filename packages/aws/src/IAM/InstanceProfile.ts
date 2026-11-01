@@ -9,7 +9,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { toTagRecord } from "./common.vibe";
+import { toTagRecord } from "./common.ts";
 
 export class InstanceProfileConflict extends Data.TaggedError("InstanceProfileConflict")<{
   readonly message: string;

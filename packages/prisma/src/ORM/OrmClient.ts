@@ -16,7 +16,7 @@ import type {
 import type { PostgresClient } from "@prisma/orm-postgres/runtime";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { type ClientError, wrapPrismaError } from "./Errors.vibe";
+import { type ClientError, wrapPrismaError } from "./Errors.ts";
 
 type AnyContract = Contract<SqlStorage>;
 type Simplify<T> = { [K in keyof T]: T[K] } & {};

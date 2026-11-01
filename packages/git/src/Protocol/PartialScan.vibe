@@ -30,62 +30,56 @@ import {
   type Oid,
 } from "./ObjectCodec.ts"
 import { ObjectTooLargeError, PackFormatError } from "./PackParser.ts"
-import {
-  deflate,
-  inflate,
-  inflateEntrySync,
-  inflateExactSpan,
-  type InflatedEntry,
-} from "./Zlib.ts"
+import { deflate, inflate, inflateEntrySync, inflateExactSpan, type InflatedEntry } from "./Zlib.ts"
 
 export interface ScannedEntry {
-  readonly oid: Oid;
-  readonly type: ObjectType;
+  readonly oid: Oid
+  readonly type: ObjectType
   /** Absolute pack offset of the entry HEADER (what OFS_DELTAs point at). */
-  readonly offset: number;
+  readonly offset: number
   /** Uncompressed size. */
-  readonly size: number;
+  readonly size: number
   /** Absolute pack offset of the entry's zdata (its header precedes it). */
-  readonly dataOffset: number;
+  readonly dataOffset: number
   /** Compressed span at `dataOffset` — verbatim for non-delta entries. */
-  readonly span: number;
+  readonly span: number
   /** Set for delta-resolved entries: a fresh deflate to store as the row. */
-  readonly zdata?: Uint8Array | undefined;
+  readonly zdata?: Uint8Array | undefined
   /** Inflated content for commits, trees and tags (the store parses them). */
-  readonly content?: Uint8Array | undefined;
+  readonly content?: Uint8Array | undefined
   /**
    * For a delta-resolved entry, its base reference — so a hasher that must
    * bound its response can demote the entry back to `unresolved`.
    */
-  readonly baseOffset?: number | undefined;
-  readonly baseOid?: Oid | undefined;
+  readonly baseOffset?: number | undefined
+  readonly baseOid?: Oid | undefined
 }
 
 export interface UnresolvedDelta {
   /** Absolute pack offset of the entry header. */
-  readonly offset: number;
+  readonly offset: number
   /** Absolute offset of the delta payload's zdata and its span. */
-  readonly dataOffset: number;
-  readonly span: number;
+  readonly dataOffset: number
+  readonly span: number
   /** The base: an absolute pack offset (OFS_DELTA) or an oid (REF_DELTA). */
-  readonly baseOffset?: number | undefined;
-  readonly baseOid?: Oid | undefined;
+  readonly baseOffset?: number | undefined
+  readonly baseOid?: Oid | undefined
   /** Declared (uncompressed) size of the delta payload. */
-  readonly size: number;
+  readonly size: number
 }
 
 export interface ScanResult {
   /** Absolute offset of the first entry scanned (after resync), or -1 if none. */
-  readonly firstOffset: number;
-  readonly entries: ReadonlyArray<ScannedEntry>;
-  readonly unresolved: ReadonlyArray<UnresolvedDelta>;
+  readonly firstOffset: number
+  readonly entries: ReadonlyArray<ScannedEntry>
+  readonly unresolved: ReadonlyArray<UnresolvedDelta>
   /** Absolute offset of the first entry NOT consumed (carry from here). */
-  readonly consumedTo: number;
+  readonly consumedTo: number
   /** Entries consumed (resolved + unresolved). */
-  readonly count: number;
+  readonly count: number
 }
 
-const isDelta = (type: number): infer _ => type === 6 || type === 7;
+const isDelta = (type: number): infer _ => type === 6 || type === 7
 
 /**
  * Scans `buf`, whose byte 0 is at absolute pack offset `base`. `remaining`
@@ -96,216 +90,220 @@ const isDelta = (type: number): infer _ => type === 6 || type === 7;
 export const scanPart = effect (
   buf: Uint8Array,
   options: {
-    readonly base: number;
-    readonly remaining: number;
-    readonly maxObjectSize: number;
+    readonly base: number
+    readonly remaining: number
+    readonly maxObjectSize: number
     /** Resolved content LRU budget for in-buffer delta bases. */
-    readonly cacheBytes?: number | undefined;
+    readonly cacheBytes?: number | undefined
     /**
      * `buf` does NOT necessarily start at an entry boundary (a raw chunk of
      * a pack, DESIGN §22.9): find the first boundary with {@link findBoundary}
      * and scan from there. No boundary within the chunk ⇒ no entries.
      */
-    readonly resync?: boolean | undefined;
+    readonly resync?: boolean | undefined
   },
 ): ScanResult!PackFormatError | ObjectTooLargeError => {
-    const entries: Array<ScannedEntry> = [];
-    const unresolved: Array<UnresolvedDelta> = [];
-    let firstOffset = -1;
-    let startAt = 0;
-    if (options.resync === true) {
-      const found = findBoundary(buf, { maxObjectSize: options.maxObjectSize });
-      if (found === undefined) {
-        return {
-          firstOffset: -1,
-          entries,
-          unresolved,
-          consumedTo: options.base,
-          count: 0,
-        };
+  const entries: Array<ScannedEntry> = []
+  const unresolved: Array<UnresolvedDelta> = []
+  let firstOffset = -1
+  let startAt = 0
+  if (options.resync === true) {
+    const found = findBoundary(buf, { maxObjectSize: options.maxObjectSize })
+    if (found === undefined) {
+      return {
+        firstOffset: -1,
+        entries,
+        unresolved,
+        consumedTo: options.base,
+        count: 0,
       }
-      startAt = found;
-      firstOffset = options.base + found;
     }
-    // In resync mode `remaining` is only an upper bound and the buffer may
-    // run into the pack trailer: anything that does not parse as an entry
-    // ends the scan instead of failing it (the pipeline validates the count,
-    // the trailer hash and every object id downstream).
-    const lenient = options.resync === true;
-    // Content of resolved entries in this buffer, by absolute offset and by
-    // oid, for in-buffer delta bases. Bounded; a miss becomes unresolved.
-    const byOffset = new Map<number, { mutable type: ObjectType; mutable content: Uint8Array }>();
-    const byOid = new Map<string, { mutable type: ObjectType; mutable content: Uint8Array }>();
-    let cached = 0;
-    const budget = options.cacheBytes ?? 20 * 1024 * 1024;
-    const remember = (offset: number, oid: Oid, type: ObjectType, content: Uint8Array): infer _ => {
-      if (content.length > budget / 4) return;
-      while (cached + content.length > budget && byOffset.size > 0) {
-        const oldest = byOffset.keys().next().value!;
-        const dropped = byOffset.get(oldest)!;
-        byOffset.delete(oldest);
-        cached -= dropped.content.length;
-      }
-      byOffset.set(offset, { type, content });
-      byOid.set(oid, { type, content });
-      cached += content.length;
-    };
+    startAt = found
+    firstOffset = options.base + found
+  }
+  // In resync mode `remaining` is only an upper bound and the buffer may
+  // run into the pack trailer: anything that does not parse as an entry
+  // ends the scan instead of failing it (the pipeline validates the count,
+  // the trailer hash and every object id downstream).
+  const lenient = options.resync === true
+  // Content of resolved entries in this buffer, by absolute offset and by
+  // oid, for in-buffer delta bases. Bounded; a miss becomes unresolved.
+  const byOffset = new Map<number, { mutable type: ObjectType; mutable content: Uint8Array }>()
+  const byOid = new Map<string, { mutable type: ObjectType; mutable content: Uint8Array }>()
+  let cached = 0
+  const budget = options.cacheBytes ?? 20 * 1024 * 1024
+  const remember = (offset: number, oid: Oid, type: ObjectType, content: Uint8Array): infer _ => {
+    if (content.length > budget / 4) return
+    while (cached + content.length > budget && byOffset.size > 0) {
+      const oldest = byOffset.keys().next().value!
+      const dropped = byOffset.get(oldest)!
+      byOffset.delete(oldest)
+      cached -= dropped.content.length
+    }
+    byOffset.set(offset, { type, content })
+    byOid.set(oid, { type, content })
+    cached += content.length
+  }
 
-    let pos = startAt;
-    let count = 0;
-    while (count < options.remaining && pos < buf.length) {
-      const offset = options.base + pos;
-      const headerResult = try Effect.result(
-        Effect.try({
-          try: () => decodeTypeSize(buf, pos),
-          catch: (error) =>
-            PackFormatError.make({
-              reason: Schema.is(ObjectParseError)(error)
-                ? `entry at ${offset}: ${error.reason}`
-                : `entry at ${offset}: ${String(error)}`,
-            }),
-        }),
-      );
-      if (Result.isFailure(headerResult)) {
-        // A header cut by the buffer edge: stop here, carry the tail.
-        if (lenient || buf.length - pos < 16) break;
-        throw headerResult.failure;
-      }
-      const header = headerResult.success;
-      if (header.size > options.maxObjectSize) {
-        if (lenient) break;
-        throw ObjectTooLargeError.make({
-          size: header.size,
-          limit: options.maxObjectSize,
-        });
-      }
-      let at = header.next;
-      let baseOffset: number | undefined;
-      let baseOid: Oid | undefined;
-      if (header.type === 6) {
-        const ofsResult = try Effect.result(
-          Effect.try({
-            try: () => decodeOfsDeltaOffset(buf, at),
-            catch: () => PackFormatError.make({ reason: `entry at ${offset}: bad ofs-delta` }),
+  let pos = startAt
+  let count = 0
+  while (count < options.remaining && pos < buf.length) {
+    const offset = options.base + pos
+    const headerResult = try Effect.result(
+      Effect.try({
+        try: () => decodeTypeSize(buf, pos),
+        catch: (error) =>
+          PackFormatError.make({
+            reason: Schema.is(ObjectParseError)(error)
+              ? `entry at ${offset}: ${error.reason}`
+              : `entry at ${offset}: ${String(error)}`,
           }),
-        );
-        if (Result.isFailure(ofsResult)) {
-          if (lenient || buf.length - at < 16) break;
-          throw ofsResult.failure;
-        }
-        const ofs = ofsResult.success;
-        at = ofs.next;
-        baseOffset = offset - ofs.value;
-      } else if (header.type === 7) {
-        if (at + 20 > buf.length) break;
-        baseOid = bytesToHex(buf.subarray(at, at + 20)) as Oid;
-        at += 20;
+      }),
+    )
+    if (Result.isFailure(headerResult)) {
+      // A header cut by the buffer edge: stop here, carry the tail.
+      if (lenient || buf.length - pos < 16) break
+      throw headerResult.failure
+    }
+    const header = headerResult.success
+    if (header.size > options.maxObjectSize) {
+      if (lenient) break
+      throw ObjectTooLargeError.make({
+        size: header.size,
+        limit: options.maxObjectSize,
+      })
+    }
+    let at = header.next
+    let baseOffset: number | undefined
+    let baseOid: Oid | undefined
+    if (header.type === 6) {
+      const ofsResult = try Effect.result(
+        Effect.try({
+          try: () => decodeOfsDeltaOffset(buf, at),
+          catch: () => PackFormatError.make({ reason: `entry at ${offset}: bad ofs-delta` }),
+        }),
+      )
+      if (Result.isFailure(ofsResult)) {
+        if (lenient || buf.length - at < 16) break
+        throw ofsResult.failure
       }
-      const inflated: InflatedEntry | undefined = inflateEntrySync(buf, at, {
-        maxOutput: options.maxObjectSize,
-        expectedSize: header.size,
-      });
-      if (inflated === undefined) {
-        // The compressed stream runs past the buffer (or is corrupt — the
-        // next attempt, with more bytes, decides): carry from this entry.
-        break;
-      }
-      const { bytesConsumed, content: payload } = inflated;
-      // A stream cut inside its last bytes (end-of-block bits, adler32) can
-      // inflate to exactly the declared size without having ended, and the
-      // consumed count would then be short. An entry is complete only when
-      // the buffer extends PAST it: callers always append what follows
-      // (the next part, or the pack trailer for the last one).
-      if (at + bytesConsumed >= buf.length) break;
-      if (payload.length !== header.size) {
-        if (lenient) break;
-        throw PackFormatError.make({
-          reason: `entry at ${offset}: inflated ${payload.length} bytes, header declared ${header.size}`,
-        });
-      }
-      const dataOffset = options.base + at;
-      if (!isDelta(header.type)) {
-        const type = header.type as ObjectType;
-        const oid = hashObjectSync(type, payload);
-        entries.push({
-          oid,
-          type,
+      const ofs = ofsResult.success
+      at = ofs.next
+      baseOffset = offset - ofs.value
+    } else if (header.type === 7) {
+      if (at + 20 > buf.length) break
+      baseOid = bytesToHex(buf.subarray(at, at + 20)) as Oid
+      at += 20
+    }
+    const inflated: InflatedEntry | undefined = inflateEntrySync(buf, at, {
+      maxOutput: options.maxObjectSize,
+      expectedSize: header.size,
+    })
+    if (inflated === undefined) {
+      // The compressed stream runs past the buffer (or is corrupt — the
+      // next attempt, with more bytes, decides): carry from this entry.
+      break
+    }
+    const { bytesConsumed, content: payload } = inflated
+    // A stream cut inside its last bytes (end-of-block bits, adler32) can
+    // inflate to exactly the declared size without having ended, and the
+    // consumed count would then be short. An entry is complete only when
+    // the buffer extends PAST it: callers always append what follows
+    // (the next part, or the pack trailer for the last one).
+    if (at + bytesConsumed >= buf.length) break
+    if (payload.length !== header.size) {
+      if (lenient) break
+      throw PackFormatError.make({
+        reason: `entry at ${offset}: inflated ${payload.length} bytes, header declared ${header.size}`,
+      })
+    }
+    const dataOffset = options.base + at
+    if (!isDelta(header.type)) {
+      const type = header.type as ObjectType
+      const oid = hashObjectSync(type, payload)
+      entries.push({
+        oid,
+        type,
+        offset,
+        size: payload.length,
+        dataOffset,
+        span: bytesConsumed,
+        content: type === 3 ? undefined : payload,
+      })
+      remember(offset, oid, type, payload)
+    } else {
+      const found = baseOffset !== undefined ? byOffset.get(baseOffset) : byOid.get(baseOid!)
+      if (found === undefined) {
+        unresolved.push({
           offset,
-          size: payload.length,
           dataOffset,
           span: bytesConsumed,
-          content: type === 3 ? undefined : payload,
-        });
-        remember(offset, oid, type, payload);
+          baseOffset,
+          baseOid,
+          size: header.size,
+        })
       } else {
-        const found = baseOffset !== undefined ? byOffset.get(baseOffset) : byOid.get(baseOid!);
-        if (found === undefined) {
-          unresolved.push({
-            offset,
-            dataOffset,
-            span: bytesConsumed,
-            baseOffset,
-            baseOid,
-            size: header.size,
-          });
-        } else {
-          const content = applyDelta(found.content, payload) catch effect (error) => { throw PackFormatError.make({
-                reason: `entry at ${offset}: ${error.reason}`,
-              }) };
-          if (content.length > options.maxObjectSize) {
-            throw ObjectTooLargeError.make({
-              size: content.length,
-              limit: options.maxObjectSize,
-            });
-          }
-          const oid = hashObjectSync(found.type, content);
-          const zdata = deflate(content) catch effect (error) => { throw PackFormatError.make({ reason: error.reason }) };
-          entries.push({
-            oid,
-            type: found.type,
-            offset,
-            size: content.length,
-            dataOffset,
-            span: bytesConsumed,
-            zdata,
-            content: found.type === 3 ? undefined : content,
-            baseOffset,
-            baseOid,
-          });
-          remember(offset, oid, found.type, content);
+        const content = applyDelta(found.content, payload) catch effect (error) => {
+          throw PackFormatError.make({
+            reason: `entry at ${offset}: ${error.reason}`,
+          })
         }
+        if (content.length > options.maxObjectSize) {
+          throw ObjectTooLargeError.make({
+            size: content.length,
+            limit: options.maxObjectSize,
+          })
+        }
+        const oid = hashObjectSync(found.type, content)
+        const zdata = deflate(content) catch effect (error) => {
+          throw PackFormatError.make({ reason: error.reason })
+        }
+        entries.push({
+          oid,
+          type: found.type,
+          offset,
+          size: content.length,
+          dataOffset,
+          span: bytesConsumed,
+          zdata,
+          content: found.type === 3 ? undefined : content,
+          baseOffset,
+          baseOid,
+        })
+        remember(offset, oid, found.type, content)
       }
-      pos = at + bytesConsumed;
-      count += 1;
     }
-    return {
-      firstOffset: firstOffset >= 0 ? firstOffset : entries.length > 0 ? options.base : -1,
-      entries,
-      unresolved,
-      consumedTo: options.base + pos,
-      count,
-    };
-  };
+    pos = at + bytesConsumed
+    count += 1
+  }
+  return {
+    firstOffset: firstOffset >= 0 ? firstOffset : entries.length > 0 ? options.base : -1,
+    entries,
+    unresolved,
+    consumedTo: options.base + pos,
+    count,
+  }
+}
 
 /** One entry's coordinates from a boundary-only scan (DESIGN §22.8). */
 export interface EntryBounds {
   /** Absolute pack offset of the entry header. */
-  readonly offset: number;
+  readonly offset: number
   /** 1–4 for full objects, 6/7 for OFS/REF deltas. */
-  readonly type: number;
+  readonly type: number
   /** Declared (uncompressed) size. */
-  readonly size: number;
+  readonly size: number
   /** Absolute offset and length of the compressed span. */
-  readonly dataOffset: number;
-  readonly span: number;
-  readonly baseOffset?: number | undefined;
-  readonly baseOid?: Oid | undefined;
+  readonly dataOffset: number
+  readonly span: number
+  readonly baseOffset?: number | undefined
+  readonly baseOid?: Oid | undefined
 }
 
 export interface BoundsResult {
-  readonly entries: ReadonlyArray<EntryBounds>;
+  readonly entries: ReadonlyArray<EntryBounds>
   /** Absolute offset of the first entry NOT consumed (carry from here). */
-  readonly consumedTo: number;
+  readonly consumedTo: number
 }
 
 /**
@@ -320,85 +318,85 @@ export interface BoundsResult {
 export const scanBounds = effect (
   buf: Uint8Array,
   options: {
-    readonly base: number;
-    readonly remaining: number;
-    readonly maxObjectSize: number;
+    readonly base: number
+    readonly remaining: number
+    readonly maxObjectSize: number
   },
 ): BoundsResult!PackFormatError | ObjectTooLargeError => {
-    const entries: Array<EntryBounds> = [];
-    let pos = 0;
-    let count = 0;
-    while (count < options.remaining && pos < buf.length) {
-      const offset = options.base + pos;
-      const headerResult = try Effect.result(
-        Effect.try({
-          try: () => decodeTypeSize(buf, pos),
-          catch: (error) =>
-            PackFormatError.make({
-              reason: Schema.is(ObjectParseError)(error)
-                ? `entry at ${offset}: ${error.reason}`
-                : `entry at ${offset}: ${String(error)}`,
-            }),
-        }),
-      );
-      if (Result.isFailure(headerResult)) {
-        if (buf.length - pos < 16) break;
-        throw headerResult.failure;
-      }
-      const header = headerResult.success;
-      if (header.size > options.maxObjectSize) {
-        throw ObjectTooLargeError.make({
-          size: header.size,
-          limit: options.maxObjectSize,
-        });
-      }
-      let at = header.next;
-      let baseOffset: number | undefined;
-      let baseOid: Oid | undefined;
-      if (header.type === 6) {
-        const ofsResult = try Effect.result(
-          Effect.try({
-            try: () => decodeOfsDeltaOffset(buf, at),
-            catch: () => PackFormatError.make({ reason: `entry at ${offset}: bad ofs-delta` }),
+  const entries: Array<EntryBounds> = []
+  let pos = 0
+  let count = 0
+  while (count < options.remaining && pos < buf.length) {
+    const offset = options.base + pos
+    const headerResult = try Effect.result(
+      Effect.try({
+        try: () => decodeTypeSize(buf, pos),
+        catch: (error) =>
+          PackFormatError.make({
+            reason: Schema.is(ObjectParseError)(error)
+              ? `entry at ${offset}: ${error.reason}`
+              : `entry at ${offset}: ${String(error)}`,
           }),
-        );
-        if (Result.isFailure(ofsResult)) {
-          if (buf.length - at < 16) break;
-          throw ofsResult.failure;
-        }
-        const ofs = ofsResult.success;
-        at = ofs.next;
-        baseOffset = offset - ofs.value;
-      } else if (header.type === 7) {
-        if (at + 20 > buf.length) break;
-        baseOid = bytesToHex(buf.subarray(at, at + 20)) as Oid;
-        at += 20;
-      }
-      const inflated = inflateEntrySync(buf, at, {
-        maxOutput: options.maxObjectSize,
-        expectedSize: header.size,
-      });
-      if (inflated === undefined) break;
-      if (at + inflated.bytesConsumed >= buf.length) break;
-      if (inflated.content.length !== header.size) {
-        throw PackFormatError.make({
-          reason: `entry at ${offset}: inflated ${inflated.content.length} bytes, header declared ${header.size}`,
-        });
-      }
-      entries.push({
-        offset,
-        type: header.type,
-        size: header.size,
-        dataOffset: options.base + at,
-        span: inflated.bytesConsumed,
-        baseOffset,
-        baseOid,
-      });
-      pos = at + inflated.bytesConsumed;
-      count += 1;
+      }),
+    )
+    if (Result.isFailure(headerResult)) {
+      if (buf.length - pos < 16) break
+      throw headerResult.failure
     }
-    return { entries, consumedTo: options.base + pos };
-  };
+    const header = headerResult.success
+    if (header.size > options.maxObjectSize) {
+      throw ObjectTooLargeError.make({
+        size: header.size,
+        limit: options.maxObjectSize,
+      })
+    }
+    let at = header.next
+    let baseOffset: number | undefined
+    let baseOid: Oid | undefined
+    if (header.type === 6) {
+      const ofsResult = try Effect.result(
+        Effect.try({
+          try: () => decodeOfsDeltaOffset(buf, at),
+          catch: () => PackFormatError.make({ reason: `entry at ${offset}: bad ofs-delta` }),
+        }),
+      )
+      if (Result.isFailure(ofsResult)) {
+        if (buf.length - at < 16) break
+        throw ofsResult.failure
+      }
+      const ofs = ofsResult.success
+      at = ofs.next
+      baseOffset = offset - ofs.value
+    } else if (header.type === 7) {
+      if (at + 20 > buf.length) break
+      baseOid = bytesToHex(buf.subarray(at, at + 20)) as Oid
+      at += 20
+    }
+    const inflated = inflateEntrySync(buf, at, {
+      maxOutput: options.maxObjectSize,
+      expectedSize: header.size,
+    })
+    if (inflated === undefined) break
+    if (at + inflated.bytesConsumed >= buf.length) break
+    if (inflated.content.length !== header.size) {
+      throw PackFormatError.make({
+        reason: `entry at ${offset}: inflated ${inflated.content.length} bytes, header declared ${header.size}`,
+      })
+    }
+    entries.push({
+      offset,
+      type: header.type,
+      size: header.size,
+      dataOffset: options.base + at,
+      span: inflated.bytesConsumed,
+      baseOffset,
+      baseOid,
+    })
+    pos = at + inflated.bytesConsumed
+    count += 1
+  }
+  return { entries, consumedTo: options.base + pos }
+}
 
 /**
  * Hashes entries whose spans are already known (DESIGN §22.8): the parallel
@@ -412,84 +410,91 @@ export const hashBounds = effect (
   buf: Uint8Array,
   bounds: ReadonlyArray<EntryBounds>,
   options: {
-    readonly base: number;
-    readonly maxObjectSize: number;
-    readonly cacheBytes?: number | undefined;
+    readonly base: number
+    readonly maxObjectSize: number
+    readonly cacheBytes?: number | undefined
   },
 ): ScanResult!PackFormatError | ObjectTooLargeError => {
-    const entries: Array<ScannedEntry> = [];
-    const unresolved: Array<UnresolvedDelta> = [];
-    const byOffset = new Map<number, { mutable type: ObjectType; mutable content: Uint8Array }>();
-    const byOid = new Map<string, { mutable type: ObjectType; mutable content: Uint8Array }>();
-    const inflateExact = effect (b: EntryBounds) => inflateExactSpan(
-        buf.subarray(b.dataOffset - options.base, b.dataOffset - options.base + b.span),
-        b.size,
-      ) catch effect (error) => { throw PackFormatError.make({
-            reason: `entry at ${b.offset}: ${error.reason}`,
-          }) };
-    for (const b of bounds) {
-      const payload = try inflateExact(b);
-      if (!isDelta(b.type)) {
-        const type = b.type as ObjectType;
-        const oid = hashObjectSync(type, payload);
-        entries.push({
-          oid,
-          type,
-          offset: b.offset,
-          size: payload.length,
-          dataOffset: b.dataOffset,
-          span: b.span,
-          content: type === 3 ? undefined : payload,
-        });
-        byOffset.set(b.offset, { type, content: payload });
-        byOid.set(oid, { type, content: payload });
-        continue;
-      }
-      const found = b.baseOffset !== undefined ? byOffset.get(b.baseOffset) : byOid.get(b.baseOid!);
-      if (found === undefined) {
-        unresolved.push({
-          offset: b.offset,
-          dataOffset: b.dataOffset,
-          span: b.span,
-          baseOffset: b.baseOffset,
-          baseOid: b.baseOid,
-          size: b.size,
-        });
-        continue;
-      }
-      const content = applyDelta(found.content, payload) catch effect (error) => { throw PackFormatError.make({
-            reason: `entry at ${b.offset}: ${error.reason}`,
-          }) };
-      if (content.length > options.maxObjectSize) {
-        throw ObjectTooLargeError.make({
-          size: content.length,
-          limit: options.maxObjectSize,
-        });
-      }
-      const oid = hashObjectSync(found.type, content);
-      const zdata = deflate(content) catch effect (error) => { throw PackFormatError.make({ reason: error.reason }) };
+  const entries: Array<ScannedEntry> = []
+  const unresolved: Array<UnresolvedDelta> = []
+  const byOffset = new Map<number, { mutable type: ObjectType; mutable content: Uint8Array }>()
+  const byOid = new Map<string, { mutable type: ObjectType; mutable content: Uint8Array }>()
+  const inflateExact = effect (b: EntryBounds) =>
+    inflateExactSpan(
+      buf.subarray(b.dataOffset - options.base, b.dataOffset - options.base + b.span),
+      b.size,
+    ) catch effect (error) => {
+      throw PackFormatError.make({
+        reason: `entry at ${b.offset}: ${error.reason}`,
+      })
+    }
+  for (const b of bounds) {
+    const payload = try inflateExact(b)
+    if (!isDelta(b.type)) {
+      const type = b.type as ObjectType
+      const oid = hashObjectSync(type, payload)
       entries.push({
         oid,
-        type: found.type,
+        type,
         offset: b.offset,
-        size: content.length,
+        size: payload.length,
         dataOffset: b.dataOffset,
         span: b.span,
-        zdata,
-        content: found.type === 3 ? undefined : content,
-      });
-      byOffset.set(b.offset, { type: found.type, content });
-      byOid.set(oid, { type: found.type, content });
+        content: type === 3 ? undefined : payload,
+      })
+      byOffset.set(b.offset, { type, content: payload })
+      byOid.set(oid, { type, content: payload })
+      continue
     }
-    const last = bounds[bounds.length - 1];
-    return {
-      firstOffset: bounds[0]?.offset ?? -1,
-      entries,
-      unresolved,
-      consumedTo: last === undefined ? options.base : last.dataOffset + last.span,
-      count: bounds.length,
-    };
-  };
+    const found = b.baseOffset !== undefined ? byOffset.get(b.baseOffset) : byOid.get(b.baseOid!)
+    if (found === undefined) {
+      unresolved.push({
+        offset: b.offset,
+        dataOffset: b.dataOffset,
+        span: b.span,
+        baseOffset: b.baseOffset,
+        baseOid: b.baseOid,
+        size: b.size,
+      })
+      continue
+    }
+    const content = applyDelta(found.content, payload) catch effect (error) => {
+      throw PackFormatError.make({
+        reason: `entry at ${b.offset}: ${error.reason}`,
+      })
+    }
+    if (content.length > options.maxObjectSize) {
+      throw ObjectTooLargeError.make({
+        size: content.length,
+        limit: options.maxObjectSize,
+      })
+    }
+    const oid = hashObjectSync(found.type, content)
+    const zdata = deflate(content) catch effect (error) => {
+      throw PackFormatError.make({ reason: error.reason })
+    }
+    entries.push({
+      oid,
+      type: found.type,
+      offset: b.offset,
+      size: content.length,
+      dataOffset: b.dataOffset,
+      span: b.span,
+      zdata,
+      content: found.type === 3 ? undefined : content,
+    })
+    byOffset.set(b.offset, { type: found.type, content })
+    byOid.set(oid, { type: found.type, content })
+  }
+  const last = bounds[bounds.length - 1]
+  return {
+    firstOffset: bounds[0]?.offset ?? -1,
+    entries,
+    unresolved,
+    consumedTo: last === undefined ? options.base : last.dataOffset + last.span,
+    count: bounds.length,
+  }
+}
 
 /**
  * Finds the first entry boundary inside `buf` (DESIGN §22.9): the parallel
@@ -512,87 +517,87 @@ export const hashBounds = effect (
 export const findBoundary = (
   buf: Uint8Array,
   options: {
-    readonly maxObjectSize: number;
-    readonly maxSearch?: number | undefined;
+    readonly maxObjectSize: number
+    readonly maxSearch?: number | undefined
   },
 ): number | undefined => {
-  const limit = Math.min(buf.length, options.maxSearch ?? buf.length);
+  const limit = Math.min(buf.length, options.maxSearch ?? buf.length)
   const isZlibHeader = (i: number): infer _ =>
-    i + 1 < buf.length &&
-    buf[i] === 0x78 &&
-    (buf[i + 1] === 0x01 || buf[i + 1] === 0x5e || buf[i + 1] === 0x9c || buf[i + 1] === 0xda);
+    i + 1 < buf.length
+    && buf[i] === 0x78
+    && (buf[i + 1] === 0x01 || buf[i + 1] === 0x5e || buf[i + 1] === 0x9c || buf[i + 1] === 0xda)
   const parses = (pos: number): number | undefined => {
-    let header;
+    let header
     try {
-      header = decodeTypeSize(buf, pos);
+      header = decodeTypeSize(buf, pos)
     } catch {
-      return undefined;
+      return undefined
     }
-    if (header.type < 1 || header.type > 7) return undefined;
-    if (header.size > options.maxObjectSize) return undefined;
-    let at = header.next;
+    if (header.type < 1 || header.type > 7) return undefined
+    if (header.size > options.maxObjectSize) return undefined
+    let at = header.next
     if (header.type === 6) {
       try {
-        at = decodeOfsDeltaOffset(buf, at).next;
+        at = decodeOfsDeltaOffset(buf, at).next
       } catch {
-        return undefined;
+        return undefined
       }
     } else if (header.type === 7) {
-      at += 20;
+      at += 20
     }
-    if (!isZlibHeader(at)) return undefined;
+    if (!isZlibHeader(at)) return undefined
     const inflated = inflateEntrySync(buf, at, {
       maxOutput: options.maxObjectSize,
       expectedSize: header.size,
-    });
-    if (inflated === undefined || inflated.content.length !== header.size) return undefined;
-    const end = at + inflated.bytesConsumed;
-    return end >= buf.length ? undefined : end;
-  };
+    })
+    if (inflated === undefined || inflated.content.length !== header.size) return undefined
+    const end = at + inflated.bytesConsumed
+    return end >= buf.length ? undefined : end
+  }
   for (let pos = 0; pos < limit; pos++) {
     // Cheap pre-filter: a zlib header must appear within the next 32 bytes
     // (header varint + optional base ref).
-    let plausible = false;
+    let plausible = false
     for (let k = pos + 1; k <= pos + 32 && k < buf.length; k++) {
       if (isZlibHeader(k)) {
-        plausible = true;
-        break;
+        plausible = true
+        break
       }
     }
-    if (!plausible) continue;
-    const next = parses(pos);
-    if (next === undefined) continue;
+    if (!plausible) continue
+    const next = parses(pos)
+    if (next === undefined) continue
     // Second entry must parse too (or the buffer ends right after — accept
     // only if the first entry ended cleanly inside the buffer).
-    const after = parses(next);
-    if (after !== undefined) return pos;
+    const after = parses(next)
+    if (after !== undefined) return pos
   }
-  return undefined;
-};
+  return undefined
+}
 
 // ── delta resolution as a job (DESIGN §22.13) ──────────────────────────────
 
 /** One base a batch of delta jobs refers to: zlib bytes, or already-inflated content. */
 export interface DeltaBase {
-  readonly bytes: Uint8Array;
-  readonly isContent: boolean;
+  readonly bytes: Uint8Array
+  readonly isContent: boolean
 }
 
 /** One delta to apply: its base (by index into the batch's bases) and its zlib bytes. */
 export interface DeltaJob {
-  readonly id: number;
-  readonly type: ObjectType;
-  readonly base: number;
-  readonly delta: Uint8Array;
+  readonly id: number
+  readonly type: ObjectType
+  readonly base: number
+  readonly delta: Uint8Array
 }
 
 /** A resolved delta: the object's oid and a fresh deflate; content for non-blobs. */
 export interface DeltaResolved {
-  readonly id: number;
-  readonly oid: Oid;
-  readonly size: number;
-  readonly zdata: Uint8Array;
-  readonly content?: Uint8Array | undefined;
+  readonly id: number
+  readonly oid: Oid
+  readonly size: number
+  readonly zdata: Uint8Array
+  readonly content?: Uint8Array | undefined
 }
 
 /**
@@ -605,42 +610,50 @@ export const resolveDeltas = effect (
   jobs: ReadonlyArray<DeltaJob>,
   options: { readonly maxObjectSize: number },
 ): Array<DeltaResolved>!PackFormatError | ObjectTooLargeError => {
-    const inflated = new Map<number, Uint8Array>();
-    const baseContent = effect (index: number) => {
-        const cached = inflated.get(index);
-        if (cached !== undefined) return cached;
-        const base = bases[index];
-        if (base === undefined) {
-          throw PackFormatError.make({
-            reason: `delta base ${index} missing`,
-          });
-        }
-        const content = base.isContent
-          ? base.bytes
-          : inflate(base.bytes) catch effect (error) => { throw PackFormatError.make({ reason: error.reason }) };
-        inflated.set(index, content);
-        return content;
-      };
-    const out: Array<DeltaResolved> = [];
-    for (const job of jobs) {
-      const base = try baseContent(job.base);
-      const delta = inflate(job.delta) catch effect (error) => { throw PackFormatError.make({ reason: error.reason }) };
-      const content = applyDelta(base, delta) catch effect (error) => { throw PackFormatError.make({ reason: error.reason }) };
-      if (content.length > options.maxObjectSize) {
-        throw ObjectTooLargeError.make({
-          size: content.length,
-          limit: options.maxObjectSize,
-        });
-      }
-      const oid = hashObjectSync(job.type, content);
-      const zdata = deflate(content) catch effect (error) => { throw PackFormatError.make({ reason: error.reason }) };
-      out.push({
-        id: job.id,
-        oid,
-        size: content.length,
-        zdata,
-        content: job.type === 3 ? undefined : content,
-      });
+  const inflated = new Map<number, Uint8Array>()
+  const baseContent = effect (index: number) => {
+    const cached = inflated.get(index)
+    if (cached !== undefined) return cached
+    const base = bases[index]
+    if (base === undefined) {
+      throw PackFormatError.make({
+        reason: `delta base ${index} missing`,
+      })
     }
-    return out;
-  };
+    const content = base.isContent
+      ? base.bytes
+      : inflate(base.bytes) catch effect (error) => {
+        throw PackFormatError.make({ reason: error.reason })
+      }
+    inflated.set(index, content)
+    return content
+  }
+  const out: Array<DeltaResolved> = []
+  for (const job of jobs) {
+    const base = try baseContent(job.base)
+    const delta = inflate(job.delta) catch effect (error) => {
+      throw PackFormatError.make({ reason: error.reason })
+    }
+    const content = applyDelta(base, delta) catch effect (error) => {
+      throw PackFormatError.make({ reason: error.reason })
+    }
+    if (content.length > options.maxObjectSize) {
+      throw ObjectTooLargeError.make({
+        size: content.length,
+        limit: options.maxObjectSize,
+      })
+    }
+    const oid = hashObjectSync(job.type, content)
+    const zdata = deflate(content) catch effect (error) => {
+      throw PackFormatError.make({ reason: error.reason })
+    }
+    out.push({
+      id: job.id,
+      oid,
+      size: content.length,
+      zdata,
+      content: job.type === 3 ? undefined : content,
+    })
+  }
+  return out
+}

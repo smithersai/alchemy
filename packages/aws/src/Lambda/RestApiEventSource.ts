@@ -13,7 +13,7 @@ import {
   type RestApiEventSourceService,
   type RestApiResult,
   type RestApiRouteProps,
-} from "../ApiGateway/RestApiEventSource.vibe";
+} from "../ApiGateway/RestApiEventSource.ts";
 import * as Lambda from "./Function.ts";
 import { Permission as LambdaPermission } from "./Permission.ts";
 

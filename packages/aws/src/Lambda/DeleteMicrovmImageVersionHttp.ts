@@ -1,5 +1,5 @@
 import * as microvms from "@distilled.cloud/aws/lambda-microvms";
-import { DeleteMicrovmImageVersion } from "./DeleteMicrovmImageVersion.vibe";
+import { DeleteMicrovmImageVersion } from "./DeleteMicrovmImageVersion.ts";
 import { makeImageBinding } from "./MicrovmBinding.ts";
 
 export const DeleteMicrovmImageVersionHttp = makeImageBinding({

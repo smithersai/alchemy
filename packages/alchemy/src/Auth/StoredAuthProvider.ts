@@ -10,7 +10,7 @@ import {
   type EnvironmentVariable,
 } from "./AuthProvider.ts";
 import { displayRedacted } from "./Credentials.ts";
-import { mapPromptCancellation } from "./Env.vibe";
+import { mapPromptCancellation } from "./Env.ts";
 
 /**
  * Collected field values: one string per non-omitted field, keyed by

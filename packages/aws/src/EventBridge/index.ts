@@ -17,7 +17,7 @@ export * from "./DisableRuleHttp.vibe";
 export * from "./EnableRule.vibe";
 export * from "./EnableRuleHttp.vibe";
 export * from "./EventBus.ts";
-export * from "./EventSource.vibe";
+export * from "./EventSource.ts";
 export * from "./ListEventBuses.vibe";
 export * from "./ListEventBusesHttp.vibe";
 export * from "./ListReplays.vibe";

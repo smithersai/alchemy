@@ -5,7 +5,7 @@ import * as Redacted from "effect/Redacted";
 import * as Alchemist from "../../../Alchemist/index.ts";
 import * as Interaction from "../../../Interaction.ts";
 import { glyphsFor } from "../../../Util/Theme.ts";
-import { confirmOrDecline } from "../confirm.vibe";
+import { confirmOrDecline } from "../confirm.ts";
 import { isPromptCancellation } from "../errors.ts";
 
 export const profileTui = Effect.promise(() => import("../../../Cli/components/view/Profile.tsx"));

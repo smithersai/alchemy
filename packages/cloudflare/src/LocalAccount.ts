@@ -3,7 +3,7 @@ import * as Config from "effect/Config";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { CLOUDFLARE_AUTH_PROVIDER_NAME, CloudflareAuthConfigSchema } from "./Auth/AuthConfig.vibe";
+import { CLOUDFLARE_AUTH_PROVIDER_NAME, CloudflareAuthConfigSchema } from "./Auth/AuthConfig.ts";
 
 /** Fallback identity when local dev has no configured Cloudflare account. */
 export const LOCAL_ACCOUNT_ID = "00000000000000000000000000000000";

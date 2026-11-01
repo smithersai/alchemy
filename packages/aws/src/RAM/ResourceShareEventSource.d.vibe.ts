@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `event` values RAM publishes inside the `Resource Sharing State
  * Change` detail — which sharing activity changed state.
@@ -74,4 +74,4 @@ export interface ResourceShareEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeResourceShareEvents: <StreamReq = never, Req = never>(props: ResourceShareEventSourceProps, process: (events: Stream.Stream<ResourceShareEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeResourceShareEvents: <StreamReq = never, Req = never>(props: ResourceShareEventSourceProps, process: (events: Stream.Stream<ResourceShareEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

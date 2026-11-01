@@ -72,7 +72,7 @@ export {
   type RelayOptions,
   relay,
   type Signal as RelaySignal,
-} from "./TelemetryRelay.vibe";
+} from "./TelemetryRelay.ts";
 
 const reference = Telemetry;
 

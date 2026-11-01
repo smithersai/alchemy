@@ -14,12 +14,12 @@ import { makeExecutionMemo } from "alchemy/Runtime/ExecutionMemo";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { type ClientError, RollbackError, wrapPrismaError } from "./Errors.vibe";
+import { type ClientError, RollbackError, wrapPrismaError } from "./Errors.ts";
 import { type EffectOrm, makeOrmProxy } from "./OrmClient.ts";
-import { type Prepare, makePrepare } from "./Prepared.vibe";
-export type { Prepare, Prepared, PreparedQuery, PreparedMutation } from "./Prepared.vibe";
+import { type Prepare, makePrepare } from "./Prepared.ts";
+export type { Prepare, Prepared, PreparedQuery, PreparedMutation } from "./Prepared.ts";
 
-export * from "./Errors.vibe";
+export * from "./Errors.ts";
 export type { EffectCollection, EffectOrm, WhereFilter } from "./OrmClient.ts";
 
 /** A Prisma Postgres contract, authored directly or described by emitted types. */

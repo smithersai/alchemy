@@ -12,7 +12,11 @@ import { GcpEnvironment } from "../Environment.ts";
 import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
 import { waitForOperation } from "../Operation.ts";
 import type { Providers } from "../Providers.ts";
-import { encodeOwnedDescription, hasOwnedDescription, parseOwnedDescription } from "./internal.vibe";
+import {
+  encodeOwnedDescription,
+  hasOwnedDescription,
+  parseOwnedDescription,
+} from "./internal.vibe";
 
 const POOL_ID_MAX = 32;
 

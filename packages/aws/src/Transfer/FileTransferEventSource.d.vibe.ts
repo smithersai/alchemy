@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload AWS Transfer Family delivers to EventBridge for
  * server file-transfer events. Fields not shared by every event kind are
@@ -79,4 +79,4 @@ export interface FileTransferEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeFileTransferEvents: <StreamReq = never, Req = never>(props: FileTransferEventSourceProps, process: (events: Stream.Stream<FileTransferEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeFileTransferEvents: <StreamReq = never, Req = never>(props: FileTransferEventSourceProps, process: (events: Stream.Stream<FileTransferEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

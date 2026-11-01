@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The AWS Health services that carry Shield Advanced DDoS attack events.
  * Attacks against most resources surface as `SHIELD` events; attacks against
@@ -94,4 +94,4 @@ export interface AttackEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeAttackEvents: <StreamReq = never, Req = never>(props: AttackEventSourceProps, process: (events: Stream.Stream<AttackEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeAttackEvents: <StreamReq = never, Req = never>(props: AttackEventSourceProps, process: (events: Stream.Stream<AttackEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

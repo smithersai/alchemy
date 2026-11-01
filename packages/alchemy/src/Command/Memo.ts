@@ -11,7 +11,7 @@ import {
   listFileSystemDirectory,
   parseIgnoreRules,
   walkIgnoring,
-} from "../Util/Ignore.vibe";
+} from "../Util/Ignore.ts";
 import { isPathWithin } from "../Util/isPathWithin.ts";
 import { initialCwd } from "../Util/Node.ts";
 import { sha256, sha256Object } from "../Util/sha256.ts";

@@ -21,7 +21,7 @@ import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import { localAccountId } from "../LocalAccount.ts";
 import { generateLocalId } from "../LocalRuntime.ts";
 import { Worker, WorkerEnvironment, type WorkerServices } from "../Workers/Worker.ts";
-import { generateWorkflowName } from "./WorkflowName.vibe";
+import { generateWorkflowName } from "./WorkflowName.ts";
 import { type WorkflowEvent, WorkflowStep, WorkflowStepContext } from "./WorkflowRuntime.ts";
 
 export class WorkflowInvalidProps extends Data.TaggedError("WorkflowInvalidProps")<{

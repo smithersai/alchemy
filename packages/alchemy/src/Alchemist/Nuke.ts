@@ -1,7 +1,7 @@
 import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Nuke from "../Nuke.ts";
-import type { ProviderMode } from "../ProviderMode.vibe";
+import type { ProviderMode } from "../ProviderMode.ts";
 import type { ConfiguredStack } from "../Stack.ts";
 import { buildProviders, type ConfigOptions } from "./Operations.ts";
 

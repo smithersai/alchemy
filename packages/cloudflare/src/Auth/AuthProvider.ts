@@ -37,7 +37,7 @@ import {
   validateAccountIdField,
   type CloudflareAuthConfig,
   type CloudflareResolvedCredentials,
-} from "./AuthConfig.vibe";
+} from "./AuthConfig.ts";
 import * as OAuthClient from "./OAuthClient.ts";
 import {
   ALL_SCOPE_IDS,

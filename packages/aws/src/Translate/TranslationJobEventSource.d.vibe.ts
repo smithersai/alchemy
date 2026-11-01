@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload Amazon Translate delivers to EventBridge when a
  * batch translation job changes state
@@ -62,4 +62,4 @@ export interface TranslationJobEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeTranslationJobEvents: <StreamReq = never, Req = never>(props: TranslationJobEventSourceProps, process: (events: Stream.Stream<TranslationJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeTranslationJobEvents: <StreamReq = never, Req = never>(props: TranslationJobEventSourceProps, process: (events: Stream.Stream<TranslationJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

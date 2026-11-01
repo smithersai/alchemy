@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
-import type { Dataset as AnalyticsEngineDatasetLike } from "./Dataset.vibe";
+import type { Dataset as AnalyticsEngineDatasetLike } from "./Dataset.ts";
 import {
   DatasetError,
   type DatasetClient,

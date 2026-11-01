@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload Amazon Transcribe delivers to EventBridge when a
  * batch transcription job finishes (`Transcribe Job State Change`, statuses
@@ -129,7 +129,7 @@ export interface TranscriptionJobEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeTranscriptionJobEvents: <StreamReq = never, Req = never>(props: TranscriptionJobEventSourceProps, process: (events: Stream.Stream<TranscriptionJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeTranscriptionJobEvents: <StreamReq = never, Req = never>(props: TranscriptionJobEventSourceProps, process: (events: Stream.Stream<TranscriptionJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
 export interface CallAnalyticsJobEventSourceProps extends EventRouteProps {
     /**
      * Logical id for the backing EventBridge rule.
@@ -159,7 +159,7 @@ export interface CallAnalyticsJobEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeCallAnalyticsJobEvents: <StreamReq = never, Req = never>(props: CallAnalyticsJobEventSourceProps, process: (events: Stream.Stream<CallAnalyticsJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeCallAnalyticsJobEvents: <StreamReq = never, Req = never>(props: CallAnalyticsJobEventSourceProps, process: (events: Stream.Stream<CallAnalyticsJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
 export interface MedicalScribeJobEventSourceProps extends EventRouteProps {
     /**
      * Logical id for the backing EventBridge rule.
@@ -189,7 +189,7 @@ export interface MedicalScribeJobEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeMedicalScribeJobEvents: <StreamReq = never, Req = never>(props: MedicalScribeJobEventSourceProps, process: (events: Stream.Stream<MedicalScribeJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeMedicalScribeJobEvents: <StreamReq = never, Req = never>(props: MedicalScribeJobEventSourceProps, process: (events: Stream.Stream<MedicalScribeJobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
 export interface VocabularyEventSourceProps extends EventRouteProps {
     /**
      * Logical id for the backing EventBridge rule.
@@ -222,7 +222,7 @@ export interface VocabularyEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeVocabularyEvents: <StreamReq = never, Req = never>(props: VocabularyEventSourceProps, process: (events: Stream.Stream<VocabularyEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeVocabularyEvents: <StreamReq = never, Req = never>(props: VocabularyEventSourceProps, process: (events: Stream.Stream<VocabularyEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
 export interface LanguageModelEventSourceProps extends EventRouteProps {
     /**
      * Logical id for the backing EventBridge rule.
@@ -253,4 +253,4 @@ export interface LanguageModelEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeLanguageModelEvents: <StreamReq = never, Req = never>(props: LanguageModelEventSourceProps, process: (events: Stream.Stream<LanguageModelEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeLanguageModelEvents: <StreamReq = never, Req = never>(props: LanguageModelEventSourceProps, process: (events: Stream.Stream<LanguageModelEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

@@ -8,10 +8,10 @@ import type { PermissionGroupRef } from "../ApiToken/Common.ts";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Credentials } from "../Credentials.ts";
 import { requireLiveResource } from "../HttpBindingDev.ts";
-import { authorizeWith } from "../HttpClientUtils.vibe";
+import { authorizeWith } from "../HttpClientUtils.ts";
 import type { InstantNamespace } from "./InstantNamespace.ts";
 import type { Namespace } from "./Namespace.ts";
-import { NamespaceError } from "./NamespaceTypes.vibe";
+import { NamespaceError } from "./NamespaceTypes.ts";
 
 /**
  * Shared scaffolding for the HTTP-backed KV services.

@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
-import type { CallbackFactory } from "./Callback.vibe";
+import type { CallbackFactory } from "./Callback.ts";
 import type { HttpEffect } from "./Http.ts";
 import type { Output } from "./Output.ts";
 

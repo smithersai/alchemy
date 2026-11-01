@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /** S3 object attributes attached to B2BI EventBridge event details. */
 export interface TransformationFileS3Attributes {
     /** The bucket containing the object. */
@@ -154,7 +154,7 @@ export interface AcknowledgementEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeTransformationEvents: <StreamReq = never, Req = never>(props: TransformationEventSourceProps, process: (events: Stream.Stream<TransformationEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeTransformationEvents: <StreamReq = never, Req = never>(props: TransformationEventSourceProps, process: (events: Stream.Stream<TransformationEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;
 /**
  * Deliver B2BI acknowledgement results (`aws.b2bi` / `"Acknowledgement
  * Completed"` and `"Acknowledgement Failed"` EventBridge events) to the host
@@ -176,4 +176,4 @@ export declare const consumeTransformationEvents: <StreamReq = never, Req = neve
  * );
  * ```
  */
-export declare const consumeAcknowledgementEvents: <StreamReq = never, Req = never>(props: AcknowledgementEventSourceProps, process: (events: Stream.Stream<AcknowledgementEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeAcknowledgementEvents: <StreamReq = never, Req = never>(props: AcknowledgementEventSourceProps, process: (events: Stream.Stream<AcknowledgementEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

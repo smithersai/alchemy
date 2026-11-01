@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload Redshift Serverless delivers to EventBridge. Every
  * field is optional (the schema grows over time and varies by event kind).
@@ -78,4 +78,4 @@ export interface RedshiftServerlessEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeRedshiftServerlessEvents: <StreamReq = never, Req = never>(props: RedshiftServerlessEventSourceProps, process: (events: Stream.Stream<RedshiftServerlessEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeRedshiftServerlessEvents: <StreamReq = never, Req = never>(props: RedshiftServerlessEventSourceProps, process: (events: Stream.Stream<RedshiftServerlessEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

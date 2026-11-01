@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Topic } from "../SNS/Topic.js";
-import { type TopicNotification } from "../SNS/TopicEventSource.vibe";
+import { type TopicNotification } from "../SNS/TopicEventSource.js";
 import type { Directory } from "./Directory.js";
 /**
  * A directory status notification delivered to the handler. Directory
@@ -47,4 +47,4 @@ export interface DirectoryStatusEvent {
  * );
  * ```
  */
-export declare const consumeDirectoryStatus: <StreamReq = never, Req = never>(directory: Directory, topic: Topic, process: (events: Stream.Stream<DirectoryStatusEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../Providers.js").Providers | import("../SNS/TopicEventSource.vibe").TopicEventSource>;
+export declare const consumeDirectoryStatus: <StreamReq = never, Req = never>(directory: Directory, topic: Topic, process: (events: Stream.Stream<DirectoryStatusEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../Providers.js").Providers | import("../SNS/TopicEventSource.js").TopicEventSource>;

@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 import type { StateMachine } from "./StateMachine.js";
 /**
  * The `detail` payload Step Functions delivers to EventBridge when an
@@ -89,4 +89,4 @@ export interface ExecutionEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeExecutionEvents: <StreamReq = never, Req = never>(props: ExecutionEventSourceProps, process: (events: Stream.Stream<ExecutionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeExecutionEvents: <StreamReq = never, Req = never>(props: ExecutionEventSourceProps, process: (events: Stream.Stream<ExecutionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

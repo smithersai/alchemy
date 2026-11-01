@@ -11,7 +11,7 @@ import {
   providerForMode,
   type ProviderService,
 } from "./Provider.ts";
-import type { ProviderMode } from "./ProviderMode.vibe";
+import type { ProviderMode } from "./ProviderMode.ts";
 import { stronglyConnectedComponents } from "./Util/scc.ts";
 
 // Account-wide teardown: enumerate everything the registered providers can see

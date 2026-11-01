@@ -12,8 +12,8 @@ import * as Effect from "effect/Effect"
  * (each migration's `.sql` file imported as a text module).
  */
 export interface DurableObjectMigrations {
-  readonly migrations: Record<string, string>;
-  readonly migrationsTable?: string | undefined;
+  readonly migrations: Record<string, string>
+  readonly migrationsTable?: string | undefined
 }
 
 export interface DurableObjectConfig<
@@ -26,7 +26,7 @@ export interface DurableObjectConfig<
    * The generated Drizzle `migrations.js` input remains supported and uses
    * Drizzle's own migrator; its SQL imports still require loader support.
    */
-  readonly migrations?: SqlMigrations | DurableObjectMigrations | undefined;
+  readonly migrations?: SqlMigrations | DurableObjectMigrations | undefined
 }
 
 /**
@@ -106,36 +106,45 @@ export interface DurableObjectConfig<
  */
 export const DurableObject = effect <
   TRelations extends AnyRelations = EmptyRelations,
->(config?: DurableObjectConfig<TRelations> | undefined) => try withSpan(effect {
-  const state = try Effect.service(DurableObjectState);
-  const storage = state.raw.storage;
-  const { migrations, ...drizzleConfig } = config ?? {};
-  // Built on the ambient (instance) Scope — the client wraps the DO's
-  // local SQLite storage, so there is no disposable resource behind it.
-  const services = try Layer.build(SqliteDoClient.layer({ storage }));
-  const client = Context.get(services, SqliteDoClient.SqliteClient);
-  const original = client.withTransaction;
-  const scheduler = new Scheduler.MixedScheduler("sync");
-  const withTransaction: typeof client.withTransaction = effect (body) => try effect { provide Scheduler.Scheduler = scheduler { return try original(body) } };
-  // A parent input-gate timer can block later transaction timers. Yield through
-  // microtasks while retaining the adapter's client, SQL permit, and context.
-  try Effect.sync(() => Object.assign(client, { withTransaction }));
-  const db = try (SQLiteDoDrizzle.makeWithDefaults(drizzleConfig)
-  |> Effect.provideContext(%, services));
-  if (migrations !== undefined && "_tag" in migrations) {
-    try (migrations.apply()
-  |> Effect.orDie(%));
-  } else if (migrations !== undefined) {
-    // A migration that cannot apply leaves the instance unusable — there
-    // is no meaningful recovery at init, so it dies rather than forcing
-    // every caller to handle (or orDie) an error channel.
-    try (migrate(db, {
-      migrations: migrations.migrations,
-      ...(migrations.migrationsTable !== undefined
-        ? { migrationsTable: migrations.migrationsTable }
-        : {}),
-    })
-  |> Effect.orDie(%));
-  }
-  return db;
-}, "Drizzle.DurableObject");
+>(config?: DurableObjectConfig<TRelations> | undefined) =>
+  try withSpan(
+    effect {
+      const state = try Effect.service(DurableObjectState)
+      const storage = state.raw.storage
+      const { migrations, ...drizzleConfig } = config ?? {}
+      // Built on the ambient (instance) Scope — the client wraps the DO's
+      // local SQLite storage, so there is no disposable resource behind it.
+      const services = try Layer.build(SqliteDoClient.layer({ storage }))
+      const client = Context.get(services, SqliteDoClient.SqliteClient)
+      const original = client.withTransaction
+      const scheduler = new Scheduler.MixedScheduler("sync")
+      const withTransaction: typeof client.withTransaction = effect (body) =>
+        try effect {
+          provide Scheduler.Scheduler = scheduler {
+            return try original(body)
+          }
+        }
+      // A parent input-gate timer can block later transaction timers. Yield through
+      // microtasks while retaining the adapter's client, SQL permit, and context.
+      try Effect.sync(() => Object.assign(client, { withTransaction }))
+      const db = try (SQLiteDoDrizzle.makeWithDefaults(drizzleConfig)
+        |> Effect.provideContext(%, services))
+      if (migrations !== undefined && "_tag" in migrations) {
+        try (migrations.apply()
+          |> Effect.orDie(%))
+      } else if (migrations !== undefined) {
+        // A migration that cannot apply leaves the instance unusable — there
+        // is no meaningful recovery at init, so it dies rather than forcing
+        // every caller to handle (or orDie) an error channel.
+        try (migrate(db, {
+          migrations: migrations.migrations,
+          ...(migrations.migrationsTable !== undefined
+            ? { migrationsTable: migrations.migrationsTable }
+            : {}),
+        })
+          |> Effect.orDie(%))
+      }
+      return db
+    },
+    "Drizzle.DurableObject",
+  )

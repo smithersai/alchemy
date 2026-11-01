@@ -1,8 +1,8 @@
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import { envKeys } from "./Log.vibe";
-import { resolveSecretsOption, type SecretsLayer, type SecretsOption } from "./Provider.vibe";
+import { envKeys } from "./Log.ts";
+import { resolveSecretsOption, type SecretsLayer, type SecretsOption } from "./Provider.ts";
 
 export interface ProcessEnvOptions {
   /**

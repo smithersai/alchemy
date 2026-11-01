@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload Amazon EMR delivers to EventBridge when a cluster,
  * step, instance group/fleet, or auto-scaling policy changes state. EMR uses
@@ -89,4 +89,4 @@ export interface ClusterEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeClusterEvents: <StreamReq = never, Req = never>(props: ClusterEventSourceProps, process: (events: Stream.Stream<ClusterEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeClusterEvents: <StreamReq = never, Req = never>(props: ClusterEventSourceProps, process: (events: Stream.Stream<ClusterEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

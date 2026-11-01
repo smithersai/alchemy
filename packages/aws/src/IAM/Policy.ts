@@ -17,7 +17,7 @@ import {
   policyArnFromParts,
   stringifyPolicyDocument,
   toTagRecord,
-} from "./common.vibe";
+} from "./common.ts";
 
 export class PolicyConflict extends Data.TaggedError("PolicyConflict")<{
   readonly message: string;
@@ -25,7 +25,7 @@ export class PolicyConflict extends Data.TaggedError("PolicyConflict")<{
 }> {}
 
 export type { IamAction } from "./actions.generated.ts";
-export { stringifyPolicyDocument } from "./common.vibe";
+export { stringifyPolicyDocument } from "./common.ts";
 
 export interface PolicyDocument {
   Version: "2012-10-17";

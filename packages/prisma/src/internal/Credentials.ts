@@ -3,7 +3,7 @@ import { Credentials } from "@distilled.cloud/prisma";
 import { deferUntilFirstUse, lazyCredentials } from "alchemy/Auth/Resolve";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { PRISMA_AUTH_PROVIDER_NAME, type PrismaResolvedCredentials } from "../AuthProvider.vibe";
+import { PRISMA_AUTH_PROVIDER_NAME, type PrismaResolvedCredentials } from "../AuthProvider.ts";
 import { PrismaEnvironment } from "../PrismaEnvironment.ts";
 import { resolveBaseUrl } from "./BaseUrl.ts";
 

@@ -66,8 +66,10 @@ import { REGISTRY_DDL, type RegistryRepoRow } from "./Store/Sql.ts"
 const d1 = effect <A>(
   what: string,
   effect: A!!RuntimeContext,
-): A!StoreError!RuntimeContext => try Effect.catchCause(effect, effect (cause) => { throw StoreError.make({ reason: `registry ${what}: ${Cause.pretty(cause)}` }) },
-  );
+): A!StoreError!RuntimeContext =>
+  try Effect.catchCause(effect, effect (cause) => {
+    throw StoreError.make({ reason: `registry ${what}: ${Cause.pretty(cause)}` })
+  })
 
 /**
  * The repo index on D1. The database must already exist; the table is
@@ -78,31 +80,33 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
   Layer.effect(
     RegistryStore,
     effect {
-      const db: QueryDatabaseClient = try Cloudflare.D1.QueryDatabase(database);
+      const db: QueryDatabaseClient = try Cloudflare.D1.QueryDatabase(database)
 
       // The DDL is shared with the DO (Store/Sql.ts) — one definition, so
       // the backends can never drift apart.
-      const ready = effect { return try (Effect.suspend(effect () => try Effect.forEach(REGISTRY_DDL, effect (statement) => try d1("schema", db.prepare(statement).run())),
-      )
-  |> Effect.asVoid(%)
-  |> Effect.cached(%)) };
-      const schema = try ready;
+      const ready = effect {
+        return try (Effect.suspend(effect () =>
+          try Effect.forEach(REGISTRY_DDL, effect (statement) => try d1("schema", db.prepare(statement).run()))
+        )
+          |> Effect.asVoid(%)
+          |> Effect.cached(%))
+      }
+      const schema = try ready
 
-      const rows = <T>(result: runtime.D1Result<T>): ReadonlyArray<T> =>
-        (result.results ?? []) as ReadonlyArray<T>;
+      const rows = <T>(result: runtime.D1Result<T>): ReadonlyArray<T> => (result.results ?? []) as ReadonlyArray<T>
 
       const shape: RegistryShape = {
         createRepo: effect (input: CreateRepoInput) => {
-          const owner = input.owner.toLowerCase();
-          const name = input.name.toLowerCase();
+          const owner = input.owner.toLowerCase()
+          const name = input.name.toLowerCase()
           if (RESERVED_OWNERS.has(owner)) {
             throw ValidationError.make({
               message: `owner name '${owner}' is reserved`,
-            });
+            })
           }
-          try schema;
-          const repoId = try ulid();
-          const createdAt = Date.now();
+          try schema
+          const repoId = try ulid()
+          const createdAt = Date.now()
 
           // Guarded insert: SQLite evaluates the NOT EXISTS and the write
           // atomically, so this is the CAS the DO gets from its single
@@ -131,9 +135,9 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
                 name,
               )
               .run(),
-          );
+          )
           if ((inserted.meta?.changes ?? 0) === 0) {
-            throw RepoAlreadyExists.make({ owner, repo: name });
+            throw RepoAlreadyExists.make({ owner, repo: name })
           }
           if (input.forkOf !== undefined) {
             // Deliberately not batched with the insert: the fork count is
@@ -146,7 +150,7 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
                 .prepare(`UPDATE repos SET fork_count = fork_count + 1 WHERE repo_id = ?`)
                 .bind(input.forkOf)
                 .run(),
-            );
+            )
           }
           return {
             owner,
@@ -161,11 +165,11 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
             forkCount: 0,
             createdAt,
             deletedAt: null,
-          } satisfies RegistryEntry;
+          } satisfies RegistryEntry
         },
 
         resolve: effect (owner: string, name: string) => {
-          try schema;
+          try schema
           // Soft-deleted rows ARE returned (with `deletedAt` set) so the
           // Worker can report `status: "deleting"` rather than a 404 that
           // would race a re-create against the purge.
@@ -175,26 +179,26 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
               .prepare(`SELECT * FROM repos WHERE owner = ? AND name = ?`)
               .bind(owner.toLowerCase(), name.toLowerCase())
               .first<RegistryRepoRow>(),
-          );
-          return row === null ? undefined : toEntry(row);
+          )
+          return row === null ? undefined : toEntry(row)
         },
 
         list: effect (input: ListReposInput) => {
-          try schema;
-          const limit = Math.max(1, Math.min(input.limit ?? DEFAULT_LIST_LIMIT, 100));
-          const after = input.cursor === undefined ? undefined : decodeCursor(input.cursor);
-          const conditions: Array<string> = ["deleted_at IS NULL"];
-          const bindings: Array<string | number> = [];
+          try schema
+          const limit = Math.max(1, Math.min(input.limit ?? DEFAULT_LIST_LIMIT, 100))
+          const after = input.cursor === undefined ? undefined : decodeCursor(input.cursor)
+          const conditions: Array<string> = ["deleted_at IS NULL"]
+          const bindings: Array<string | number> = []
           if (input.publicOnly === true) {
-            conditions.push("is_public = 1");
+            conditions.push("is_public = 1")
           }
           if (input.owner !== undefined) {
-            conditions.push("owner = ?");
-            bindings.push(input.owner.toLowerCase());
+            conditions.push("owner = ?")
+            bindings.push(input.owner.toLowerCase())
           }
           if (after !== undefined) {
-            conditions.push("(owner > ? OR (owner = ? AND name > ?))");
-            bindings.push(after[0], after[0], after[1]);
+            conditions.push("(owner > ? OR (owner = ? AND name > ?))")
+            bindings.push(after[0], after[0], after[1])
           }
           const page = try d1(
             "list",
@@ -205,22 +209,22 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
               )
               .bind(...bindings, limit + 1)
               .all<RegistryRepoRow>(),
-          );
-          const all = rows(page);
-          const hasMore = all.length > limit;
-          const items = hasMore ? all.slice(0, limit) : all;
-          const last = items[items.length - 1];
+          )
+          const all = rows(page)
+          const hasMore = all.length > limit
+          const items = hasMore ? all.slice(0, limit) : all
+          const last = items[items.length - 1]
           return {
             items: items.map(toEntry),
             nextCursor: hasMore && last !== undefined ? encodeCursor(last.owner, last.name) : null,
             hasMore,
-          } satisfies ListReposResult;
+          } satisfies ListReposResult
         },
 
         recordFork: effect (parentRepoId) => try shape.bumpForkCount(parentRepoId, 1),
 
         bumpForkCount: effect (repoId: string, delta: number) => {
-          try schema;
+          try schema
           if (delta !== 0) {
             try d1(
               "bumpForkCount",
@@ -228,15 +232,15 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
                 .prepare(`UPDATE repos SET fork_count = MAX(0, fork_count + ?) WHERE repo_id = ?`)
                 .bind(delta, repoId)
                 .run(),
-            );
+            )
             const row = try d1(
               "bumpForkCount read",
               db
                 .prepare(`SELECT fork_count FROM repos WHERE repo_id = ?`)
                 .bind(repoId)
                 .first<{ mutable fork_count: number }>(),
-            );
-            return row?.fork_count ?? 0;
+            )
+            return row?.fork_count ?? 0
           }
           // Delta 0 DERIVES the count from live fork rows rather than the
           // stored column, so the purge fork-pin keeps working after the
@@ -247,23 +251,23 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
               .prepare(`SELECT COUNT(*) AS n FROM repos WHERE fork_of = ?`)
               .bind(repoId)
               .first<{ mutable n: number }>(),
-          );
-          return row?.n ?? 0;
+          )
+          return row?.n ?? 0
         },
 
         markDeleted: effect (repoId: string) => {
-          try schema;
+          try schema
           try d1(
             "markDeleted",
             db
               .prepare(`UPDATE repos SET deleted_at = ? WHERE repo_id = ? AND deleted_at IS NULL`)
               .bind(Date.now(), repoId)
               .run(),
-          );
+          )
         },
 
         updateSummary: effect (repoId: string, summary: RepoSummary) => {
-          try schema;
+          try schema
           try d1(
             "updateSummary",
             db
@@ -279,20 +283,20 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
                 repoId,
               )
               .run(),
-          );
+          )
         },
 
         removeRow: effect (repoId: string) => {
-          try schema;
+          try schema
           const row = try d1(
             "removeRow read",
             db
               .prepare(`SELECT * FROM repos WHERE repo_id = ?`)
               .bind(repoId)
               .first<RegistryRepoRow>(),
-          );
+          )
           if (row === null) {
-            return; // idempotent — purge re-runs are expected
+            return // idempotent — purge re-runs are expected
           }
           // One batch: the row goes and the fork parent is decremented
           // together, or neither happens.
@@ -300,18 +304,18 @@ export const RegistryD1 = (database: Database): Layer.Layer<RegistryStore> =>
             db.prepare(`DELETE FROM repos WHERE repo_id = ?`).bind(repoId),
             ...(row.fork_of !== null
               ? [
-                  db
-                    .prepare(
-                      `UPDATE repos SET fork_count = MAX(0, fork_count - 1) WHERE repo_id = ?`,
-                    )
-                    .bind(row.fork_of),
-                ]
+                db
+                  .prepare(
+                    `UPDATE repos SET fork_count = MAX(0, fork_count - 1) WHERE repo_id = ?`,
+                  )
+                  .bind(row.fork_of),
+              ]
               : []),
-          ];
-          try d1("removeRow", db.batch(statements));
+          ]
+          try d1("removeRow", db.batch(statements))
         },
-      };
+      }
 
-      return shape;
+      return shape
     },
-  ).pipe(Layer.provide(Cloudflare.D1.QueryDatabaseBinding)) as never;
+  ).pipe(Layer.provide(Cloudflare.D1.QueryDatabaseBinding)) as never

@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload AWS Deadline Cloud delivers to EventBridge. Every
  * event kind identifies the farm and the affected resource (queue, job,
@@ -101,4 +101,4 @@ export interface FarmEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeFarmEvents: <StreamReq = never, Req = never>(props: FarmEventSourceProps, process: (events: Stream.Stream<FarmEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeFarmEvents: <StreamReq = never, Req = never>(props: FarmEventSourceProps, process: (events: Stream.Stream<FarmEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

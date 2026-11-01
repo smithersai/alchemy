@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload EventBridge delivers for a CloudTrail-recorded API
  * call (`AWS API Call via CloudTrail`). The shape mirrors the CloudTrail
@@ -94,4 +94,4 @@ export interface ApiCallEventsProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeApiCallEvents: <StreamReq = never, Req = never>(props: ApiCallEventsProps, process: (events: Stream.Stream<ApiCallEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeApiCallEvents: <StreamReq = never, Req = never>(props: ApiCallEventsProps, process: (events: Stream.Stream<ApiCallEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

@@ -9,7 +9,7 @@ import {
   type DeploymentEventSourceProps,
   type DeploymentEventSourceService,
   type DeploymentEventType,
-} from "../AppConfig/DeploymentEventSource.vibe";
+} from "../AppConfig/DeploymentEventSource.ts";
 import type { Environment } from "../AppConfig/Environment.ts";
 import { Extension } from "../AppConfig/Extension.ts";
 import { ExtensionAssociation } from "../AppConfig/ExtensionAssociation.ts";

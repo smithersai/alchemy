@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload DataBrew delivers to EventBridge when a job run
  * changes state. Fields not shared by every event kind are optional (the
@@ -77,4 +77,4 @@ export interface JobEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeJobEvents: <StreamReq = never, Req = never>(props: JobEventSourceProps, process: (events: Stream.Stream<JobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeJobEvents: <StreamReq = never, Req = never>(props: JobEventSourceProps, process: (events: Stream.Stream<JobEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

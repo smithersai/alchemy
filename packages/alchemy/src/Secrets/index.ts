@@ -7,4 +7,4 @@ export {
   type SecretsLayer,
   type SecretsOption,
   type SecretsServices,
-} from "./Provider.vibe";
+} from "./Provider.ts";

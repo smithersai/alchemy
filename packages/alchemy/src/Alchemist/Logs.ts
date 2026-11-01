@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { findProviderByType } from "../Provider.ts";
-import { stampedMode } from "../ProviderMode.vibe";
+import { stampedMode } from "../ProviderMode.ts";
 import type { ConfiguredStack } from "../Stack.ts";
 import * as State from "../State/index.ts";
 import { AlchemistInvalidInput } from "./Errors.ts";

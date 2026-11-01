@@ -26,10 +26,10 @@ import {
   readArtifactFile,
   type ArtifactFile,
 } from "./internal/ArtifactFile.ts";
-import { executeArtifactUpload } from "./internal/ArtifactUpload.vibe";
+import { executeArtifactUpload } from "./internal/ArtifactUpload.ts";
 import { aggregateCleanupFailure } from "./internal/CleanupFailure.ts";
 import { startDeploymentIdempotent } from "./internal/DeploymentActions.ts";
-import { ensureDeploymentMembership } from "./internal/DeploymentIdentity.vibe";
+import { ensureDeploymentMembership } from "./internal/DeploymentIdentity.ts";
 import { observeDeployment } from "./internal/DeploymentObserve.ts";
 import { DEV_TIMESTAMP, attrOrString, devId, devProvider } from "./internal/DevStub.ts";
 import type { ObservedDeployment } from "./internal/Observed.ts";

@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload ElastiCache delivers to EventBridge. The schema is
  * loosely specified and differs slightly per event kind, so every field is
@@ -71,4 +71,4 @@ export interface CacheEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeCacheEvents: <StreamReq = never, Req = never>(props: CacheEventSourceProps, process: (events: Stream.Stream<CacheEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeCacheEvents: <StreamReq = never, Req = never>(props: CacheEventSourceProps, process: (events: Stream.Stream<CacheEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

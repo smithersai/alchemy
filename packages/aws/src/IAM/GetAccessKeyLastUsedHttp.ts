@@ -2,8 +2,8 @@ import * as iam from "@distilled.cloud/aws/iam";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import type { AccessKey } from "./AccessKey.vibe";
-import { GetAccessKeyLastUsed } from "./GetAccessKeyLastUsed.vibe";
+import type { AccessKey } from "./AccessKey.ts";
+import { GetAccessKeyLastUsed } from "./GetAccessKeyLastUsed.ts";
 
 /**
  * Bespoke (resource-bound) IAM HTTP binding: unlike the account-level

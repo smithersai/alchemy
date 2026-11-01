@@ -3,7 +3,7 @@ import * as Contributions from "alchemy/Contributions";
 export default Contributions.make({
   name: "prisma",
   auth: Contributions.lazy(
-    () => import("./AuthProvider.vibe"),
+    () => import("./AuthProvider.ts"),
     (module) => module.PrismaAuth,
   ),
   cli: {

@@ -17,7 +17,7 @@ import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import { generateLocalId, LOCAL_PROVIDERS_URL, localRuntimeServices } from "../LocalRuntime.ts";
 import type { Providers } from "../Providers.ts";
-import { deleteLocalSecret, seedLocalSecret } from "./LocalSecretsStoreGateway.vibe";
+import { deleteLocalSecret, seedLocalSecret } from "./LocalSecretsStoreGateway.ts";
 
 export type StoreSecretProps = {
   /**

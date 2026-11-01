@@ -28,6 +28,6 @@ export * from "./SendDirectMessageHttp.vibe";
 export * from "./Thing.ts";
 export * from "./ThingType.ts";
 export * from "./TopicRule.ts";
-export * from "./TopicRuleEventSource.vibe";
+export * from "./TopicRuleEventSource.ts";
 export * from "./UpdateThingShadow.vibe";
 export * from "./UpdateThingShadowHttp.vibe";

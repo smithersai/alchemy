@@ -35,7 +35,7 @@ import type { VpcService } from "../VpcService/VpcService.ts";
 import type { VpcServiceLookup } from "../VpcService/VpcServiceLookup.ts";
 import type { DispatchNamespace as DispatchNamespaceResource } from "../WorkersForPlatforms/DispatchNamespace.ts";
 import type { WorkflowBinding, WorkflowLike } from "../Workflows/Workflow.ts";
-import type { AIBinding } from "./AIBinding.vibe";
+import type { AIBinding } from "./AIBinding.ts";
 import type { Assets } from "./Assets.ts";
 import type * as WorkerOnlyBinding from "./Binding.ts";
 import type { BrowserBinding } from "./BrowserBinding.ts";

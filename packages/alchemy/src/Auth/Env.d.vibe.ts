@@ -1,9 +1,0 @@
-import * as Effect from "effect/Effect";
-import * as Interaction from "../Interaction.js";
-import { AuthError } from "./AuthProvider.js";
-export declare const getEnv: (key: string) => Effect.Effect<string | undefined, AuthError, never>;
-export declare const getEnvRequired: (key: string) => Effect.Effect<string, AuthError, never>;
-export declare const getEnvRedacted: (key: string) => Effect.Effect<import("effect/Redacted").Redacted<string> | undefined, AuthError, never>;
-export declare const getEnvRedactedRequired: (key: string) => Effect.Effect<import("effect/Redacted").Redacted<string>, AuthError, never>;
-/** Turn a cancelled or unavailable prompt into an `AuthError`; other errors pass through. */
-export declare const mapPromptCancellation: <A, E, R>(self: Effect.Effect<A, E, R>) => Effect.Effect<A, AuthError | Exclude<E, Extract<E, Interaction.InteractionError>>, R>;

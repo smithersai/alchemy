@@ -4,7 +4,7 @@ import {
   VersionMetadata,
   type VersionMetadataAccessor,
   type WorkerVersionMetadata,
-} from "./VersionMetadata.vibe";
+} from "./VersionMetadata.ts";
 
 /** The binding value produced by calling {@link VersionMetadata} (declared on `env` or `yield*`-ed). */
 export type VersionMetadataBinding = Binding.Binding<

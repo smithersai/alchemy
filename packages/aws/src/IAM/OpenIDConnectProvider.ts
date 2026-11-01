@@ -6,7 +6,7 @@ import { diffTags } from "alchemy/Tags";
 import * as Effect from "effect/Effect";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { toTagRecord } from "./common.vibe";
+import { toTagRecord } from "./common.ts";
 
 export interface OpenIDConnectProviderProps {
   /**

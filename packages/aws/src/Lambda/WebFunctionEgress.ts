@@ -13,7 +13,7 @@ import type { ScopedPlanStatusSession } from "alchemy/Report";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { getConnector, waitForDeleted } from "./NetworkConnectorLifecycle.vibe";
+import { getConnector, waitForDeleted } from "./NetworkConnectorLifecycle.ts";
 
 /** Inline policy on the egress operator role. */
 export const EGRESS_POLICY = "AlchemyWebFunctionEgress";

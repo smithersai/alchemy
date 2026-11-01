@@ -7,7 +7,7 @@ import { AccountApiToken } from "../ApiToken/AccountApiToken.ts"
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts"
 import type { Credentials } from "../Credentials.ts"
 import { requireLiveResource } from "../HttpBindingDev.ts"
-import { authorizeWith } from "../HttpClientUtils.vibe"
+import { authorizeWith } from "../HttpClientUtils.ts"
 import { isLegacyPipeline, type LegacyPipeline } from "./LegacyPipeline.ts"
 import type { Stream } from "./Stream.ts"
 import { makeStreamClient, recordSchemaOf, toStreamSendError } from "./StreamCodec.vibe"
@@ -28,16 +28,17 @@ import { StreamSendError, type WriteStreamClient } from "./WriteStream.vibe"
 export interface StreamAuth {
   mutable authorize: <A, E>(
     eff: A!E!Credentials | HttpClient.HttpClient,
-  ) => A!E!RuntimeContext;
+  ) => A!E!RuntimeContext
 }
 
 /** Legacy pipelines have their own ingest endpoint; only streams are supported. */
-export const legacyPipelineUnsupported = effect (layer: string) => try Effect.die(
+export const legacyPipelineUnsupported = effect (layer: string) =>
+  try Effect.die(
     new StreamSendError({
       message: `${layer} supports Pipelines streams only; bind a LegacyPipeline with WriteStreamBinding.`,
       reason: "SendFailed",
     }),
-  );
+  )
 
 /**
  * Build the producer client over the stream's HTTP ingest endpoint
@@ -57,9 +58,15 @@ export const makeWriteStreamHttpClient = (
         reason: "SendFailed",
       }),
     ),
-    sendEncoded: effect (records) => try (effect { return (try auth.authorize(pipelines.sendStreamRecords({ streamId: (try streamId), records: [...records] }))) catch effect (e) => { throw toStreamSendError(e) } }
-  |> Effect.asVoid(%)),
-  });
+    sendEncoded: effect (records) =>
+      try (effect {
+        return (try auth.authorize(pipelines.sendStreamRecords({ streamId: (try streamId), records: [...records] })))
+          catch effect (e) => {
+            throw toStreamSendError(e)
+          }
+      }
+        |> Effect.asVoid(%)),
+  })
 
 /**
  * Mint (or reuse) the host's scoped {@link AccountApiToken}, grant it
@@ -67,60 +74,63 @@ export const makeWriteStreamHttpClient = (
  * build the client with it.
  */
 export const makeHttpStreamBinding = effect <Client>(options: {
-  mutable layer: string;
-  mutable makeClient: (client: WriteStreamClient<any>) => Client;
+  mutable layer: string
+  mutable makeClient: (client: WriteStreamClient<any>) => Client
 }) => {
-    const Token = try AccountApiToken;
-    const self = try Effect.service(Self);
+  const Token = try AccountApiToken
+  const self = try Effect.service(Self)
 
-    return effect (stream: Stream<any> | LegacyPipeline) => {
-      if (isLegacyPipeline(stream)) return try legacyPipelineUnsupported(options.layer);
-      if (!globalThis.__ALCHEMY_RUNTIME__) try requireLiveResource(stream);
-      const token = try Token(`${self.LogicalId}Token`);
-      if (!globalThis.__ALCHEMY_RUNTIME__) {
-        const { accountId } = try CloudflareEnvironment.current;
-        try token.bind`${stream.LogicalId}`({
-          policies: [
-            {
-              effect: "allow",
-              permissionGroups: ["Pipelines Send"],
-              resources: {
-                [`com.cloudflare.api.account.${accountId}`]: "*",
-              },
+  return effect (stream: Stream<any> | LegacyPipeline) => {
+    if (isLegacyPipeline(stream)) return try legacyPipelineUnsupported(options.layer)
+    if (!globalThis.__ALCHEMY_RUNTIME__) try requireLiveResource(stream)
+    const token = try Token(`${self.LogicalId}Token`)
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const { accountId } = try CloudflareEnvironment.current
+      try token.bind`${stream.LogicalId}`({
+        policies: [
+          {
+            effect: "allow",
+            permissionGroups: ["Pipelines Send"],
+            resources: {
+              [`com.cloudflare.api.account.${accountId}`]: "*",
             },
-          ],
-        });
-      }
-      const value = try token.value.asEffect();
-      const streamId = try stream.streamId.asEffect();
-      return options.makeClient(
-        makeWriteStreamHttpClient({ authorize: authorizeWith({ value }) }, stream, streamId),
-      );
-    };
-  };
+          },
+        ],
+      })
+    }
+    const value = try token.value.asEffect()
+    const streamId = try stream.streamId.asEffect()
+    return options.makeClient(
+      makeWriteStreamHttpClient({ authorize: authorizeWith({ value }) }, stream, streamId),
+    )
+  }
+}
 
 /**
  * Build the client with the **current credentials** captured at layer
  * build (no Worker host, no minted token).
  */
 export const makeLocalStreamBinding = effect <Client>(options: {
-  mutable layer: string;
-  mutable makeClient: (client: WriteStreamClient<any>) => Client;
+  mutable layer: string
+  mutable makeClient: (client: WriteStreamClient<any>) => Client
 }) => {
-    const context = try Effect.context<Credentials | HttpClient.HttpClient>();
+  const context = try Effect.context<Credentials | HttpClient.HttpClient>()
 
-    return effect (stream: Stream<any> | LegacyPipeline) => {
-      if (isLegacyPipeline(stream)) return try legacyPipelineUnsupported(options.layer);
-      // Deferred accessor — resolves the stream id at apply time, so a
-      // stream created in the same deploy works. No `host.bind`.
-      const streamId = try stream.streamId.asEffect();
-      return options.makeClient(
-        makeWriteStreamHttpClient(
-          { authorize: effect (eff) => try (eff
-  |> Effect.provideContext(%, context)) },
-          stream,
-          streamId,
-        ),
-      );
-    };
-  };
+  return effect (stream: Stream<any> | LegacyPipeline) => {
+    if (isLegacyPipeline(stream)) return try legacyPipelineUnsupported(options.layer)
+    // Deferred accessor — resolves the stream id at apply time, so a
+    // stream created in the same deploy works. No `host.bind`.
+    const streamId = try stream.streamId.asEffect()
+    return options.makeClient(
+      makeWriteStreamHttpClient(
+        {
+          authorize: effect (eff) =>
+            try (eff
+              |> Effect.provideContext(%, context)),
+        },
+        stream,
+        streamId,
+      ),
+    )
+  }
+}

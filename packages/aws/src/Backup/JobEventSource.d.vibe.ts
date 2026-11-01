@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload AWS Backup delivers to EventBridge when a backup,
  * restore, or copy job — or a recovery point / vault — changes state. Job
@@ -84,4 +84,4 @@ export interface BackupEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeBackupEvents: <StreamReq = never, Req = never>(props: BackupEventSourceProps, process: (events: Stream.Stream<BackupEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeBackupEvents: <StreamReq = never, Req = never>(props: BackupEventSourceProps, process: (events: Stream.Stream<BackupEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

@@ -19,7 +19,7 @@ import {
   type BucketObject,
   type BucketObjectBody,
   type BucketRange,
-} from "../BucketTypes.vibe";
+} from "../BucketTypes.ts";
 
 /**
  * SigV4 credential scope used for Prisma Object Store requests. Prisma

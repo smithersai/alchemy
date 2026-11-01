@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord } from "../EventBridge/EventSource.vibe";
+import { type EventRecord } from "../EventBridge/EventSource.js";
 import type { AutoScalingGroup } from "./AutoScalingGroup.js";
 /**
  * EventBridge `detail-type`s EC2 Auto Scaling emits when a scaling activity
@@ -114,4 +114,4 @@ export interface InstanceEventSourceProps {
  * );
  * ```
  */
-export declare const consumeInstanceEvents: <StreamReq = never, Req = never>(group: AutoScalingGroup, props: InstanceEventSourceProps, process: (events: Stream.Stream<InstanceEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeInstanceEvents: <StreamReq = never, Req = never>(group: AutoScalingGroup, props: InstanceEventSourceProps, process: (events: Stream.Stream<InstanceEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

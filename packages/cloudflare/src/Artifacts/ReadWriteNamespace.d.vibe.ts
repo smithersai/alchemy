@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type * as Artifacts from "./Namespace.vibe";
+import type * as Artifacts from "./Namespace.js";
 /**
  * Bind a Cloudflare Artifacts namespace ({@link Namespace}) to a Worker and
  * obtain the Effect-native {@link ReadWriteNamespaceClient} (read + write:

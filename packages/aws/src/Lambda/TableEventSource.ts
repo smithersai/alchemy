@@ -9,9 +9,9 @@ import {
   type StreamsProps,
   type TableChangesHandler,
   type TableEventSourceService,
-} from "../DynamoDB/Stream.vibe";
+} from "../DynamoDB/Stream.ts";
 import type { Table } from "../DynamoDB/Table.ts";
-import { processBatch } from "../internal/EventSourceBatch.vibe";
+import { processBatch } from "../internal/EventSourceBatch.ts";
 import { EventSourceMapping } from "./EventSourceMapping.ts";
 import * as Lambda from "./Function.ts";
 

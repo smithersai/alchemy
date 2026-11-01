@@ -3,8 +3,8 @@ import * as ConfigProvider from "effect/ConfigProvider";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { FileSystem } from "effect/FileSystem";
-import { envKeys, logLoadedKeys } from "./Log.vibe";
-import { resolveSecretsOption, type SecretsLayer, type SecretsOption } from "./Provider.vibe";
+import { envKeys, logLoadedKeys } from "./Log.ts";
+import { resolveSecretsOption, type SecretsLayer, type SecretsOption } from "./Provider.ts";
 
 export interface DotEnvOptions {
   /**

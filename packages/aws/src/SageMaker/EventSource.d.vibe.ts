@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.js";
 /**
  * The `detail` payload Amazon SageMaker delivers to EventBridge. SageMaker
  * mirrors the corresponding `Describe*` output in PascalCase; only the
@@ -86,4 +86,4 @@ export interface SageMakerEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeSageMakerEvents: <StreamReq = never, Req = never>(props: SageMakerEventSourceProps, process: (events: Stream.Stream<SageMakerEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeSageMakerEvents: <StreamReq = never, Req = never>(props: SageMakerEventSourceProps, process: (events: Stream.Stream<SageMakerEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.js").EventSource>;

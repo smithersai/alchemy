@@ -71,7 +71,7 @@ export * from "./Subscription.ts";
 export * from "./TagResource.vibe";
 export * from "./TagResourceHttp.vibe";
 export * from "./Topic.ts";
-export * from "./TopicEventSource.vibe";
+export * from "./TopicEventSource.ts";
 export * from "./TopicSink.vibe";
 export * from "./TopicSinkHttp.vibe";
 export * from "./Unsubscribe.vibe";

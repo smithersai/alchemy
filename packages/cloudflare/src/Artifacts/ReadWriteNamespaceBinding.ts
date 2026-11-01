@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
-import { type Namespace as ArtifactsLike } from "./Namespace.vibe";
+import { type Namespace as ArtifactsLike } from "./Namespace.ts";
 import {
   ArtifactsError,
   ReadNamespace,

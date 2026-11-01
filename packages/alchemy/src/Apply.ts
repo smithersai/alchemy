@@ -31,7 +31,7 @@ import {
   type CredentialsRequired,
   failCredentialsRequired,
   demandPlanCredentials,
-} from "./Auth/Demand.vibe";
+} from "./Auth/Demand.ts";
 import { havePropsChanged, isResolved, stripEffects, stripUnresolved } from "./Diff.ts";
 import { captureEmit, type ApplyEvent, type ApplyStatus } from "./Events.ts";
 import type { Input } from "./Input.ts";
@@ -45,7 +45,7 @@ import {
   missingProviderError,
   tryFindProviderByType,
 } from "./Provider.ts";
-import { stampedMode, type ProviderMode } from "./ProviderMode.vibe";
+import { stampedMode, type ProviderMode } from "./ProviderMode.ts";
 import { resourceSession } from "./Report.ts";
 import type { ResourceBinding } from "./Resource.ts";
 import { ResourceContext } from "./ResourceContext.ts";
