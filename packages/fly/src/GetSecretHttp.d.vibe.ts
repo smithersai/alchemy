@@ -4,7 +4,6 @@ import { GetSecret } from "./GetSecret.vibe";
  * HTTP implementation of {@link GetSecret}. Provide it on the
  * {@link Service} or Action Effect.
  *
- *
  * ### Provide the layer
  * **Example:** On a Service
  * ```typescript

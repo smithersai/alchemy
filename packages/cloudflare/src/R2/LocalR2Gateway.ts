@@ -24,7 +24,7 @@ import type * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import { gatewayName, localGatewayRuntime } from "../LocalGateway.ts";
 import { makeR2ObjectWrappers, type makeHelpers } from "./BucketBinding.ts";
-import { R2Error } from "./BucketTypes.vibe";
+import { R2Error } from "./BucketTypes.ts";
 
 const tryPromise = <T>(fn: () => Promise<T>): Effect.Effect<T, R2Error> =>
   Effect.tryPromise({

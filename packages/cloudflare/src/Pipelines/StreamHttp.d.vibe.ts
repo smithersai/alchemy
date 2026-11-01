@@ -5,7 +5,7 @@ import type * as HttpClient from "effect/http/HttpClient";
 import type { Credentials } from "../Credentials.js";
 import { type LegacyPipeline } from "./LegacyPipeline.js";
 import type { Stream } from "./Stream.js";
-import { type WriteStreamClient } from "./WriteStream.vibe";
+import { type WriteStreamClient } from "./WriteStream.js";
 /**
  * Shared scaffolding for the HTTP-ingest Pipelines clients
  * (`WriteStreamHttp`, `WriteStreamLocal` and the matching StreamSink

@@ -9,7 +9,6 @@ import type { WriteRedisClient } from "./WriteRedis.vibe";
  * `ReadWriteRedis` is the Context tag, the type, and the callable —
  * `yield* Railway.ReadWriteRedis(Cache)`. Provide {@link ReadWriteRedisHttp}.
  *
- *
  * ### Read and write
  * **Example:** Round-trip a key
  * ```typescript

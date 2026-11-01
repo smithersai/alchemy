@@ -1,3 +1,3 @@
 export * from "./Namespace.ts";
-export * from "./ReadWriteNamespace.vibe";
+export * from "./ReadWriteNamespace.ts";
 export * from "./ReadWriteNamespaceBinding.ts";

@@ -18,7 +18,6 @@ import { DurableObjectState } from "./DurableObjectState.js";
  * a periodic `clear`.
  * :::
  *
- *
  * ### Wiring it into a chat-backing DO
  * **Example:** Persisted chat history per DO instance
  * `Persistence.layerResultPersisted({ storeId })` is the seam Effect

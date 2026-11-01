@@ -16,7 +16,6 @@ export interface EncryptResult {
  * Encrypt with a Fly {@link SecretKey} (`nacl_box`, `nacl_secretbox`,
  * `xaes256gcm`, …). The App and key name are fixed by `Encrypt(key)`.
  *
- *
  * ### Encrypt a payload
  * Provide {@link EncryptHttp} on the Action or Service Effect. Fly
  * crypto ops need a KMS token. Org API tokens are typed `Forbidden`.

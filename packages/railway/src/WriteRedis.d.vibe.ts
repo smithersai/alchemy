@@ -8,7 +8,6 @@ import type { Redis } from "./Redis.js";
  * `WriteRedis` is the Context tag, the type, and the callable —
  * `yield* Railway.WriteRedis(Cache)`. Provide {@link WriteRedisHttp}.
  *
- *
  * ### Write
  * **Example:** Set a key
  * ```typescript

@@ -20,7 +20,6 @@ export interface ExecRequest {
 /**
  * Run a command on a {@link Sprite} via `POST /sprites/{name}/exec`.
  *
- *
  * ### Exec a command
  * Bind the client in init. Provide {@link ExecHttp}. The Sprite name
  * is fixed by `Exec(box)`. Alchemy transports that name and the

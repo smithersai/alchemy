@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import { type LegacyPipeline } from "./LegacyPipeline.js";
 import type { Stream } from "./Stream.js";
-import { StreamSendError, type WriteStreamClient } from "./WriteStream.vibe";
+import { StreamSendError, type WriteStreamClient } from "./WriteStream.js";
 /**
  * Shared record encoding + client assembly for the WriteStream / StreamSink
  * implementations. Internal — not exported from the Pipelines barrel.
@@ -18,7 +18,7 @@ export declare const recordSchemaOf: (stream: Stream<any> | LegacyPipeline) => S
  * Build the batch encoder: `Schema.toCodecJson(schema)` per record when
  * the stream has an Effect Schema, identity otherwise.
  */
-export declare const makeRecordEncoder: (schema: Schema.Top | undefined) => ((records: ReadonlyArray<unknown>) => Effect.Effect<ReadonlyArray<PipelineRecord>, StreamSendError>);
+export declare const makeRecordEncoder: (schema: Schema.Top | undefined) => (records: ReadonlyArray<unknown>) => Effect.Effect<ReadonlyArray<PipelineRecord>, StreamSendError>;
 /** Wrap any transport failure as a `SendFailed` {@link StreamSendError}. */
 export declare const toStreamSendError: (error: unknown) => StreamSendError;
 /** Assemble a {@link WriteStreamClient} from an encoder and a transport. */

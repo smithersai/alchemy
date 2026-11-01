@@ -17,7 +17,7 @@ import * as Layer from "effect/Layer";
  * @product Queues
  * @category Storage & Databases
  */
-export declare const QueueSinkHttp: Layer.Layer<import("./QueueSink.vibe").QueueSink, never, import("alchemy/Self").Self<{
+export declare const QueueSinkHttp: Layer.Layer<import("./QueueSink.js").QueueSink, never, import("alchemy/Self").Self<{
     Type: string;
     LogicalId: string;
 }>>;

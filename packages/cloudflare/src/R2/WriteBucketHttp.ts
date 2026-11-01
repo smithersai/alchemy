@@ -12,8 +12,8 @@ import {
   toR2Error,
   type R2Auth,
 } from "./BucketHttp.ts";
-import { R2Error, type PutOptions } from "./BucketTypes.vibe";
-import { WriteBucket, type WriteBucketClient } from "./WriteBucket.vibe";
+import { R2Error, type PutOptions } from "./BucketTypes.ts";
+import { WriteBucket, type WriteBucketClient } from "./WriteBucket.ts";
 
 /**
  * HTTP-backed implementation of the {@link WriteBucket} binding.

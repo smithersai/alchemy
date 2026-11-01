@@ -8,8 +8,8 @@ import {
   toQueueSendError,
   type QueueAuth,
 } from "./QueueHttp.ts";
-import { SendError, type SendMessage } from "./QueueTypes.vibe";
-import { WriteQueue, type WriteQueueClient } from "./WriteQueue.vibe";
+import { SendError, type SendMessage } from "./QueueTypes.ts";
+import { WriteQueue, type WriteQueueClient } from "./WriteQueue.ts";
 
 /**
  * HTTP-backed implementation of the {@link WriteQueue} service.

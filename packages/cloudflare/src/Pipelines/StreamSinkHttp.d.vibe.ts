@@ -15,7 +15,7 @@ import * as Layer from "effect/Layer";
  * @product Pipelines
  * @category Storage & Databases
  */
-export declare const StreamSinkHttp: Layer.Layer<import("./StreamSink.vibe").StreamSink, never, import("alchemy/Self").Self<{
+export declare const StreamSinkHttp: Layer.Layer<import("./StreamSink.js").StreamSink, never, import("alchemy/Self").Self<{
     Type: string;
     LogicalId: string;
 }>>;

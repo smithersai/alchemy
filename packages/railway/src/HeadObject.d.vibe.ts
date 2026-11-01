@@ -13,7 +13,6 @@ export interface HeadObjectRequest extends Omit<S3.HeadObjectRequest, "Bucket"> 
  * Bind this operation to a {@link Bucket} in Service init. Provide
  * {@link HeadObjectHttp}.
  *
- *
  * ### Inspecting Objects
  * **Example:** Check an Object's Metadata
  * ```typescript

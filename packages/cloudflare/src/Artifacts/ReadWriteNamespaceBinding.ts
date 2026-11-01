@@ -9,7 +9,7 @@ import {
   type ReadWriteNamespaceClient,
   type RepoClient,
   WriteNamespace,
-} from "./ReadWriteNamespace.vibe";
+} from "./ReadWriteNamespace.ts";
 
 const tryPromise = <T>(fn: () => Promise<T>): Effect.Effect<T, ArtifactsError> =>
   Effect.tryPromise({

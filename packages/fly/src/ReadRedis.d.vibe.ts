@@ -8,7 +8,6 @@ import type { Redis } from "./Redis.vibe";
  * `ReadRedis` is the Context tag, the type, and the callable —
  * `yield* Fly.ReadRedis(Cache)`. Provide {@link ReadRedisHttp}.
  *
- *
  * ### Read
  * **Example:** Get a key
  * ```typescript

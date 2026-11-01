@@ -8,7 +8,6 @@ import { ConnectPostgres } from "./ConnectPostgres.vibe";
  * transports each cluster's connection URIs through resource Outputs,
  * so callers do not configure connection-string environment variables.
  *
- *
  * ### Provide the layer
  * **Example:** On a Service
  * ```typescript

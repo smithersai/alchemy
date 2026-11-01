@@ -12,7 +12,6 @@ export interface GetObjectRequest extends Omit<S3.GetObjectRequest, "Bucket"> {
  * Bind this operation to a {@link Bucket} in Service init. Provide
  * {@link GetObjectHttp}.
  *
- *
  * ### Reading Objects
  * **Example:** Read an Object and Decode Its Body
  * ```typescript

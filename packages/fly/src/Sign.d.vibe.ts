@@ -14,7 +14,6 @@ export interface SignResult {
  * Sign with a Fly {@link SecretKey} (`nacl_sign`, `hs256`, `es256`,
  * …). The private key never leaves Fly KMS.
  *
- *
  * ### Sign a payload
  * The App and key name are fixed by `Sign(key)`. Provide
  * {@link SignHttp} on the Action or Service Effect.

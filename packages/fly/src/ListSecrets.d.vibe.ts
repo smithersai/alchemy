@@ -7,7 +7,6 @@ import type { App } from "./App.vibe";
  * List Fly.io App secrets. Scoped to an {@link App}. Fly's list API
  * is `GET /apps/{app}/secrets`, not a single Secret.
  *
- *
  * ### List this App
  * The App is fixed by `ListSecrets(app)`. Calls take no `app_name`.
  * Provide {@link ListSecretsHttp}.

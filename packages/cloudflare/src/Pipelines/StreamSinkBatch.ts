@@ -7,8 +7,8 @@ import * as Layer from "effect/Layer";
 import * as Sink from "effect/Sink";
 import type { Stream } from "./Stream.ts";
 import { recordSize } from "./StreamCodec.vibe";
-import { StreamSink, type StreamSinkClient } from "./StreamSink.vibe";
-import { StreamSendError, WriteStream, type WriteStreamClient } from "./WriteStream.vibe";
+import { StreamSink, type StreamSinkClient } from "./StreamSink.ts";
+import { StreamSendError, WriteStream, type WriteStreamClient } from "./WriteStream.ts";
 
 /**
  * Batch packing for {@link StreamSink}. Internal — not exported from the

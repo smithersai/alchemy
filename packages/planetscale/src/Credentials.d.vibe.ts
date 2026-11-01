@@ -2,7 +2,7 @@ import { Credentials } from "@distilled.cloud/planetscale/Credentials";
 import * as Config from "effect/Config";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
-export { Credentials, CredentialsFromEnv, DEFAULT_API_BASE_URL, } from "@distilled.cloud/planetscale/Credentials";
+export { Credentials, CredentialsFromEnv, DEFAULT_API_BASE_URL } from "@distilled.cloud/planetscale/Credentials";
 /**
  * Build a PlanetScale `Credentials` Layer from an explicit token. Useful for
  * tests or when the caller already has credentials in hand.

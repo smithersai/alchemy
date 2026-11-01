@@ -17,7 +17,6 @@ export interface VerifyResult {
  * Verify a signature with a Fly {@link SecretKey}. The App and key
  * name are fixed by `Verify(key)`.
  *
- *
  * ### Verify a signature
  * Provide {@link VerifyHttp}. A bad signature is a typed error from
  * the Machines API, not `valid: false`.

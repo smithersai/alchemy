@@ -14,7 +14,6 @@ export interface PutObjectRequest extends Omit<S3.PutObjectRequest, "Bucket"> {
  * name, endpoint, and credentials are injected automatically. Provide
  * {@link PutObjectHttp}.
  *
- *
  * ### Writing Objects
  * **Example:** Put an Object
  * ```typescript

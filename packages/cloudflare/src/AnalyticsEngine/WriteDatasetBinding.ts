@@ -7,7 +7,7 @@ import {
   type DatasetClient,
   type RuntimeAnalyticsEngineDataset,
   WriteDataset,
-} from "./WriteDataset.vibe";
+} from "./WriteDataset.ts";
 
 export const WriteDatasetBinding = Layer.effect(
   WriteDataset,

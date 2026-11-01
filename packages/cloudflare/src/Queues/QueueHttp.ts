@@ -9,7 +9,7 @@ import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Credentials } from "../Credentials.ts";
 import { requireLiveResource } from "../HttpBindingDev.ts";
 import type { Queue } from "./Queue.ts";
-import { SendError } from "./QueueTypes.vibe";
+import { SendError } from "./QueueTypes.ts";
 
 /**
  * Injectable auth used by the Queue HTTP client builder. Both the

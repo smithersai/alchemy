@@ -13,7 +13,6 @@ export interface ListObjectsV2Request extends Omit<S3.ListObjectsV2Request, "Buc
  * Bind this operation to a {@link Bucket} in Service init. Provide
  * {@link ListObjectsV2Http}.
  *
- *
  * ### Listing Objects
  * **Example:** List Objects Under a Prefix
  * ```typescript

@@ -8,7 +8,6 @@ import type { Redis } from "./Redis.vibe";
  * `WriteRedis` is the Context tag, the type, and the callable —
  * `yield* Fly.WriteRedis(Cache)`. Provide {@link WriteRedisHttp}.
  *
- *
  * ### Write
  * **Example:** Set a key
  * ```typescript

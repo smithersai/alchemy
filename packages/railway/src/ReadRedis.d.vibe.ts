@@ -8,7 +8,6 @@ import type { Redis } from "./Redis.js";
  * `ReadRedis` is the Context tag, the type, and the callable —
  * `yield* Railway.ReadRedis(Cache)`. Provide {@link ReadRedisHttp}.
  *
- *
  * ### Read
  * **Example:** Get a key
  * ```typescript

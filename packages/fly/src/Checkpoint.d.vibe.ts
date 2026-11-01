@@ -24,7 +24,6 @@ export interface CheckpointClient {
 /**
  * Checkpoint and restore a {@link Sprite} filesystem.
  *
- *
  * ### Create a checkpoint
  * Bind the client in init. Provide {@link CheckpointHttp}.
  *

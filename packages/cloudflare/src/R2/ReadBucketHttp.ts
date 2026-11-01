@@ -11,8 +11,8 @@ import {
   type HttpMetadata,
   type R2Auth,
 } from "./BucketHttp.ts";
-import { R2Error, type GetOptions, type ListOptions, type Objects } from "./BucketTypes.vibe";
-import { ReadBucket, type ReadBucketClient } from "./ReadBucket.vibe";
+import { R2Error, type GetOptions, type ListOptions, type Objects } from "./BucketTypes.ts";
+import { ReadBucket, type ReadBucketClient } from "./ReadBucket.ts";
 
 /**
  * HTTP-backed implementation of the {@link ReadBucket} binding.

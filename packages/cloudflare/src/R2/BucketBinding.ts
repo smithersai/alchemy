@@ -4,8 +4,8 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
 import type { Bucket } from "./Bucket.ts";
-import type { R2Object, ObjectBody } from "./BucketTypes.vibe";
-import { R2Error } from "./BucketTypes.vibe";
+import type { R2Object, ObjectBody } from "./BucketTypes.ts";
+import { R2Error } from "./BucketTypes.ts";
 
 /**
  * Shared scaffolding for the Worker-binding implementations of the R2 services.

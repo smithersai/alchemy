@@ -7,7 +7,6 @@ import type { Secret } from "./Secret.js";
  * Fetch one Fly.io App secret. The App and name are fixed by
  * `GetSecret(secret)`. Calls take no `app_name`.
  *
- *
  * ### Read a secret
  * Bind the client in init. Call it from `fetch` or an Action body.
  * Provide {@link GetSecretHttp}. Alchemy transports the bound App name,

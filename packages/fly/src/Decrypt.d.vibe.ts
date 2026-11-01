@@ -18,7 +18,6 @@ export interface DecryptResult {
  * Decrypt with a Fly {@link SecretKey}. The App and key name are fixed
  * by `Decrypt(key)`.
  *
- *
  * ### Decrypt a payload
  * Provide {@link DecryptHttp}. Plaintext comes back `Redacted`. Unwrap
  * with `Redacted.value` only where you need the raw bytes.

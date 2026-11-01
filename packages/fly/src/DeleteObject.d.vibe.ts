@@ -12,7 +12,6 @@ export interface DeleteObjectRequest extends Omit<S3.DeleteObjectRequest, "Bucke
  * Bind this operation to a {@link Bucket} in Service init. Provide
  * {@link DeleteObjectHttp}.
  *
- *
  * ### Deleting Objects
  * **Example:** Delete an Object
  * ```typescript
