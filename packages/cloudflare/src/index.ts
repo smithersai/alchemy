@@ -109,7 +109,7 @@ export * as Zone from "./Zone/index.ts";
 
 // ── convenience root re-exports (common building blocks) ──
 export * from "./Containers/index.ts";
-export * from "./Images/Images.vibe";
+export * from "./Images/Images.ts";
 export * from "./Workers/index.ts";
 // Only the Workflow resource: the workflow engines stay under `Cloudflare.Workflows`.
 export * from "./Workflows/Workflow.ts";

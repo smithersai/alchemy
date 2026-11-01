@@ -11,7 +11,6 @@ import { type WriteDnsClient } from "./WriteDns.vibe";
  * and `DNS Write` permissions, scoped to the single zone passed to `bind`, and
  * binds its value into the Worker so runtime code can authenticate.
  *
- *
  * ### Managing DNS records at runtime
  * **Example:** Full CRUD from inside a Worker
  * Bind the client in the Worker's Init phase and provide

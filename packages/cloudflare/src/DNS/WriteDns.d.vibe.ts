@@ -11,7 +11,6 @@ import type { Zone } from "../Zone/Zone.js";
  * permission, scoped to the single zone passed to `bind`, and binds its value
  * into the Worker so runtime code can authenticate.
  *
- *
  * ### Mutating DNS records at runtime
  * **Example:** Create, update, and delete records from inside a Worker
  * Bind the client in the Worker's Init phase and provide {@link WriteDnsBinding}.
