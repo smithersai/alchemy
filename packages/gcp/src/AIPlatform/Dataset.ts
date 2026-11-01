@@ -24,7 +24,7 @@ import {
   waitForOperation,
 } from "./internal.ts";
 import { listLocations } from "./names.ts";
-import type { EncryptionSpec } from "./shared.ts";
+import type { EncryptionSpec } from "./shared.vibe";
 
 export type DatasetProps = {
   /**

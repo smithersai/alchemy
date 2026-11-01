@@ -12,7 +12,7 @@
  * mutation (the post-push bundle alarm rewrites it seconds later). The
  * DO remains authoritative: authenticated traffic never reads this.
  */
-import type { BundleInfo } from "../Jobs/Bundle.ts";
+import type { BundleInfo } from "../Jobs/Bundle.vibe";
 
 /** One advertised ref (peeled target present for annotated tags). */
 export interface HeadRef {

@@ -23,7 +23,7 @@ import {
   toPathId,
   type SiteType,
   type VerificationMethod,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type { SiteType, VerificationMethod };
 export { getWebResourceToken };

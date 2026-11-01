@@ -12,7 +12,7 @@ import {
   findSfdcChannelByDescription,
   listOwnedSfdcChannels,
   parseResourceName,
-} from "./internal.ts";
+} from "./internal.vibe";
 import {
   encodeOwnership,
   expandSfdcInstance,
@@ -28,7 +28,7 @@ import {
   sameText,
   toResourceId,
   updateMaskOf,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type SfdcInstancesSfdcChannelProps = {
   /**

@@ -1,0 +1,9 @@
+import * as Layer from "effect/Layer";
+import { RestartAutonomousDatabase } from "./RestartAutonomousDatabase.js";
+/**
+ * HTTP implementation of {@link RestartAutonomousDatabase}.
+ *
+ * @layer
+ * @provides GCP.OracleDatabase.RestartAutonomousDatabase
+ */
+export declare const RestartAutonomousDatabaseHttp: Layer.Layer<RestartAutonomousDatabase, never, never>;

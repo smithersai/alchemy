@@ -5,9 +5,9 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import { Acknowledge } from "../PubSub/Acknowledge.ts";
-import { AcknowledgeHttp } from "../PubSub/AcknowledgeHttp.ts";
+import { AcknowledgeHttp } from "../PubSub/AcknowledgeHttp.vibe";
 import { Pull } from "../PubSub/Pull.ts";
-import { PullHttp } from "../PubSub/PullHttp.ts";
+import { PullHttp } from "../PubSub/PullHttp.vibe";
 import { Subscription } from "../PubSub/Subscription.ts";
 import type { Topic } from "../PubSub/Topic.ts";
 import {

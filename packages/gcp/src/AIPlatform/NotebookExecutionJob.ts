@@ -25,7 +25,7 @@ import {
   type MachineSpec,
   type NetworkSpec,
   type PersistentDiskSpec,
-} from "./shared.ts";
+} from "./shared.vibe";
 
 const COLLECTION = "notebookExecutionJobs";
 

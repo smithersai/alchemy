@@ -36,7 +36,7 @@ import { Base64 } from "effect/encoding";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import type { DiffEntryData } from "./Protocol/TreeDiff.ts";
+import type { DiffEntryData } from "./Protocol/TreeDiff.vibe";
 import type { RegistryEntry } from "./RegistryObject.ts";
 import type {
   CommitData,

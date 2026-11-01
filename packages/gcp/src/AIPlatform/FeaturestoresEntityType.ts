@@ -20,7 +20,7 @@ import {
   specifiedEquals,
   toPhysicalSnake,
   userLabels,
-} from "./helpers.ts";
+} from "./helpers.vibe";
 import { listLocations } from "./names.ts";
 import { waitForOperation } from "./operations.ts";
 

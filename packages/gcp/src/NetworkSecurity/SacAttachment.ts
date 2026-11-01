@@ -20,7 +20,7 @@ import {
   toId,
   toResourcePath,
   userLabels,
-} from "./names.ts";
+} from "./names.vibe";
 import { waitForOperation } from "./operations.ts";
 
 const COLLECTION = "sacAttachments";

@@ -23,21 +23,21 @@ import * as HttpApi from "effect/http-api/HttpApi";
  * errors live in `Api/Schema.ts` and are re-exported flatly from here.
  */
 import type * as HttpServerRequest from "effect/http/HttpServerRequest";
-import { GitHub } from "./Api/GitHub.ts";
-import { Objects } from "./Api/Objects.ts";
-import { Protocol } from "./Api/Protocol.ts";
-import { Pulls } from "./Api/Pulls.ts";
-import { Refs } from "./Api/Refs.ts";
-import { Repos } from "./Api/Repos.ts";
+import { GitHub } from "./Api/GitHub.vibe";
+import { Objects } from "./Api/Objects.vibe";
+import { Protocol } from "./Api/Protocol.vibe";
+import { Pulls } from "./Api/Pulls.vibe";
+import { Refs } from "./Api/Refs.vibe";
+import { Repos } from "./Api/Repos.vibe";
 
 export * from "./Api/Schema.ts";
-export * from "./Api/GitHub.ts";
-export * from "./Api/Internal.ts";
-export * from "./Api/Objects.ts";
-export * from "./Api/Protocol.ts";
-export * from "./Api/Pulls.ts";
-export * from "./Api/Refs.ts";
-export * from "./Api/Repos.ts";
+export * from "./Api/GitHub.vibe";
+export * from "./Api/Internal.vibe";
+export * from "./Api/Objects.vibe";
+export * from "./Api/Protocol.vibe";
+export * from "./Api/Pulls.vibe";
+export * from "./Api/Refs.vibe";
+export * from "./Api/Repos.vibe";
 
 /**
  * The complete git-service API: the REST plane at `/api/v1`, the git wire

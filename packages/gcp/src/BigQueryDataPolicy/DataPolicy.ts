@@ -26,7 +26,7 @@ import {
   sortedStrings,
   toDataPolicyId,
   updateMaskOf,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type DataPolicyType = bqdp.DataPolicyDataPolicyTypeEnum | (string & {});
 

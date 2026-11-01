@@ -3,8 +3,8 @@ import { Resource } from "alchemy/Resource";
 import * as Duration from "effect/Duration";
 import type * as Redacted from "effect/Redacted";
 import type { Account } from "./Account.vibe";
-import type { PropagationOptions } from "./Dns.vibe";
-import { type DnsSolverDescriptor } from "./DnsSolver.vibe";
+import type { PropagationOptions } from "./Dns.js";
+import { type DnsSolverDescriptor } from "./DnsSolver.js";
 import type { KeyAlgorithm } from "./Pki.js";
 import type { Providers } from "./Providers.js";
 export interface CertificateProps {

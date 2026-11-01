@@ -8,13 +8,13 @@ export * from "../Pipelines/Sink.ts";
 export * from "../Pipelines/Stream.ts";
 export * from "../Pipelines/StreamSchema.ts";
 export * from "../Pipelines/StreamSink.ts";
-export * from "../Pipelines/StreamSinkBinding.ts";
-export * from "../Pipelines/StreamSinkHttp.ts";
-export * from "../Pipelines/StreamSinkLocal.ts";
+export * from "../Pipelines/StreamSinkBinding.vibe";
+export * from "../Pipelines/StreamSinkHttp.vibe";
+export * from "../Pipelines/StreamSinkLocal.vibe";
 export * from "../Pipelines/WriteStream.ts";
 export * from "../Pipelines/WriteStreamBinding.ts";
-export * from "../Pipelines/WriteStreamHttp.ts";
-export * from "../Pipelines/WriteStreamLocal.ts";
+export * from "../Pipelines/WriteStreamHttp.vibe";
+export * from "../Pipelines/WriteStreamLocal.vibe";
 export {
   DataCatalog as Catalog,
   DataCatalogProvider as CatalogProvider,

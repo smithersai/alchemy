@@ -9,7 +9,7 @@ import type { GcpHostBinding } from "../Host.ts";
 import { CLOUD_SQL_MOUNT_PATH } from "../HostRuntime.ts";
 import { grantFor } from "../HttpBinding.ts";
 import { ReadSecret } from "../SecretManager/ReadSecret.ts";
-import { ReadSecretHttp } from "../SecretManager/ReadSecretHttp.ts";
+import { ReadSecretHttp } from "../SecretManager/ReadSecretHttp.vibe";
 import { Connect, PasswordMissing, type ConnectionInfo, type ConnectOptions } from "./Connect.ts";
 import type { Instance } from "./Instance.ts";
 

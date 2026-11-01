@@ -4,7 +4,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { isTransientGcpError } from "../Errors.ts";
+import { isTransientGcpError } from "../Errors.vibe";
 import { alchemyLabelKeys, hasAlchemyLabels } from "../Labels.ts";
 
 export const MAX_TEMPLATE_ID_LENGTH = 64;

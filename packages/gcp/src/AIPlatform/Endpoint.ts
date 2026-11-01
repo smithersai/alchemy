@@ -20,10 +20,10 @@ import {
   specifiedEquals,
   toPhysicalRfc1035,
   userLabels,
-} from "./helpers.ts";
+} from "./helpers.vibe";
 import { listLocations } from "./names.ts";
 import { settlePendingCreates, waitForOperation } from "./operations.ts";
-import type { EncryptionSpec } from "./shared.ts";
+import type { EncryptionSpec } from "./shared.vibe";
 
 const MAX_NAME_LENGTH = 63;
 

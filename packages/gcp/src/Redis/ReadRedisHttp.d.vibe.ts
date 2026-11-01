@@ -1,0 +1,9 @@
+import * as Layer from "effect/Layer";
+import { ReadRedis } from "./ReadRedis.js";
+/**
+ * HTTP/RESP implementation of {@link ReadRedis}.
+ *
+ * @layer
+ * @provides GCP.Redis.ReadRedis
+ */
+export declare const ReadRedisHttp: Layer.Layer<ReadRedis, never, never>;

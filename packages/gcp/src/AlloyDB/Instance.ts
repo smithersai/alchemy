@@ -29,8 +29,8 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { runInstanceMigrations } from "./Migrations.ts";
-import { waitForDeleteOperation, waitForOperation } from "./operations.ts";
+import { runInstanceMigrations } from "./Migrations.vibe";
+import { waitForDeleteOperation, waitForOperation } from "./operations.vibe";
 
 const DEFAULT_INSTANCE_TYPE = "PRIMARY";
 const DEFAULT_CPU_COUNT = 2;

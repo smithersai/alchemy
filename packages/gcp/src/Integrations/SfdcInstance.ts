@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect";
 import { GcpEnvironment } from "../Environment.ts";
 import { createInternalLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { findSfdcInstanceByDescription, listSfdcInstances } from "./internal.ts";
+import { findSfdcInstanceByDescription, listSfdcInstances } from "./internal.vibe";
 import {
   encodeOwnership,
   hasOwnershipMarker,
@@ -24,7 +24,7 @@ import {
   sameText,
   toResourceId,
   updateMaskOf,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 
 export type SfdcInstanceProps = {
   /**

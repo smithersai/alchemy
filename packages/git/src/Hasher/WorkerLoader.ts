@@ -30,7 +30,7 @@ import * as Effect from "effect/Effect";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Layer from "effect/Layer";
 import * as Semaphore from "effect/Semaphore";
-import { hashBounds, resolveDeltas, scanPart } from "../Protocol/PartialScan.ts";
+import { hashBounds, resolveDeltas, scanPart } from "../Protocol/PartialScan.vibe";
 import { Hasher, type HasherShape } from "./Hasher.ts";
 import {
   decodeDeltaResults,
@@ -38,7 +38,7 @@ import {
   encodeDeltaBatch,
   HASH_ROUTE,
   HashError,
-} from "./Protocol.ts";
+} from "./Protocol.vibe";
 import hasherSource from "./WorkerLoaderModule.ts?worker";
 
 /** The runtime allows four concurrent dynamic-worker invocations per request. */

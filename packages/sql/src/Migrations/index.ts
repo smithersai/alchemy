@@ -1,11 +1,11 @@
-export { ALCHEMY_DEFAULT_TABLE, applyAlchemyFormat } from "./AlchemyFormat.vibe";
+export { ALCHEMY_DEFAULT_TABLE, applyAlchemyFormat } from "./AlchemyFormat.ts";
 export {
   findForeignHistory,
   matchForeignRows,
   type ConvertedRow,
   type ForeignHistory,
-} from "./Convert.vibe";
-export { detectLayout, type MigrationLayout } from "./Detect.vibe";
+} from "./Convert.ts";
+export { detectLayout, type MigrationLayout } from "./Detect.ts";
 export {
   makeStatementExecutor,
   migrationError,
@@ -18,7 +18,7 @@ export {
   withPgExecutor,
   type ConnectOptions,
   type Rows,
-} from "./Executors.vibe";
+} from "./Executors.ts";
 export {
   describeRewrittenHistory,
   DrizzleV0LayoutError,
@@ -29,10 +29,10 @@ export {
   type MigrationDialect,
   type MigrationRecord,
   type SqlExecutor,
-} from "./Format.vibe";
-export { classifyTable, tableColumns, type TableShape } from "./Introspect.vibe";
-export { makeMySQLMigrationExecutor } from "./MySQLExecutor.vibe";
-export { makePgMigrationExecutor } from "./PgExecutor.vibe";
+} from "./Format.ts";
+export { classifyTable, tableColumns, type TableShape } from "./Introspect.ts";
+export { makeMySQLMigrationExecutor } from "./MySQLExecutor.ts";
+export { makePgMigrationExecutor } from "./PgExecutor.ts";
 export {
   inlineSqlParams,
   quoteIdentifier,
@@ -40,7 +40,7 @@ export {
   readFlatRecords,
   readMigrationRecords,
   timestampPrefixMillis,
-} from "./Records.vibe";
+} from "./Records.ts";
 export {
   applyMigrations,
   migrationAttributesOf,
@@ -60,7 +60,7 @@ export {
   type NormalizedMigrationsInput,
   type ResolvedMigrations,
   type StampedMigrationsState,
-} from "./Registry.vibe";
+} from "./Registry.ts";
 export {
   scanSqlScript,
   splitSqlScript,

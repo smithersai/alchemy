@@ -20,7 +20,7 @@ import { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import type { BlobStoreShape } from "../BlobStore.ts";
 import type { RandomAccess } from "../Protocol/PackParser.ts";
-import { StoreError } from "../Protocol/Store.ts";
+import { StoreError } from "../Protocol/Store.vibe";
 
 /** Bytes fetched per window. */
 export const PACK_WINDOW_BYTES = 4 * 1024 * 1024;

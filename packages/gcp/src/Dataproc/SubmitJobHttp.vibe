@@ -1,0 +1,66 @@
+import * as dataproc from "@distilled.cloud/gcp/dataproc_v1"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as GCPBindings from "../GCPBindings.ts"
+import type { Cluster } from "./Cluster.ts"
+import { SubmitJob, type SubmitJobRequest } from "./SubmitJob.ts"
+
+/**
+ * HTTP implementation of {@link SubmitJob}.
+ *
+ * Grants `roles/dataproc.editor` on the project because
+ * `dataproc.jobs.create` is checked on the project (jobs are not children
+ * of the cluster, so neither a cluster-level grant nor an IAM Condition on
+ * the cluster name applies) and no narrower predefined role contains it.
+ *
+ * @layer
+ * @provides GCP.Dataproc.SubmitJob
+ */
+export const SubmitJobHttp = Layer.effect(
+  SubmitJob,
+  effect {
+    const bind = try GCPBindings.Bind
+    const submitProjectsRegionsJobs = try GCPBindings.withCredentials(
+      dataproc.submitProjectsRegionsJobs,
+    )
+    return effect <T extends Cluster>(cluster: T) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`GCP.Dataproc.SubmitJob(${cluster})`({
+          // dataproc.jobs.create is checked on the project (jobs are not
+          // children of the cluster); no narrower predefined role contains it.
+          iam: [{ role: "roles/dataproc.editor" }],
+        })
+      }
+      const projectId = try cluster.project.asEffect()
+      const region = try cluster.region.asEffect()
+      const clusterName = try cluster.clusterName.asEffect()
+      return effect (
+        request: SubmitJobRequest,
+      ) =>
+        try withSpan(
+          effect {
+            const resolvedProject = try projectId
+            const resolvedRegion = try region
+            const resolvedCluster = try clusterName
+            const job = request.body?.job
+            return try submitProjectsRegionsJobs({
+              ...request,
+              projectId: resolvedProject,
+              region: resolvedRegion,
+              body: {
+                ...request?.body,
+                job: {
+                  ...job,
+                  placement: {
+                    ...job?.placement,
+                    clusterName: job?.placement?.clusterName ?? resolvedCluster,
+                  },
+                },
+              },
+            })
+          },
+          `GCP.Dataproc.SubmitJob(${cluster.LogicalId})`,
+        )
+    }
+  },
+)

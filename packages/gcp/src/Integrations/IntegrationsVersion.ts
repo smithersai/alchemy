@@ -22,7 +22,7 @@ import {
   sameText,
   toResourceId,
   updateMaskOf,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 import type { TriggerConfig } from "./shared.ts";
 
 export type IntegrationsVersionProps = {

@@ -19,7 +19,7 @@ import {
   toUserDisplayName,
   unspecified,
   updateMaskOf,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type ScanConfigSchedule = {
   /**

@@ -1,0 +1,329 @@
+import * as resourcemanager from "@distilled.cloud/gcp/cloudresourcemanager_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
+import type { Providers } from "../Providers.ts"
+import {
+  FOLDER_DISPLAY_MAX,
+  collectPages,
+  isDeleteRequested,
+  resolveParent,
+  resourceNameFromOperation,
+  sameHierarchyParent,
+  waitForOperation,
+  waitForCreate,
+} from "./internal.ts"
+
+export type FolderProps = {
+  /**
+   * User-visible display name. Unique among sibling folders. 1-30
+   * characters, starting and ending with a letter or digit. If omitted,
+   * a unique name is generated from the stack, stage, and logical id.
+   */
+  mutable displayName?: string
+  /**
+   * Parent `organizations/{org}` or `folders/{folder}`. Defaults to the
+   * current project's parent. Changing parent moves the folder.
+   */
+  mutable parent?: string
+}
+
+export type Folder = Resource<
+  "GCP.ResourceManager.Folder",
+  FolderProps,
+  {
+    /** Resource name `folders/{folder_id}`. */
+    mutable name: string
+    /** User-visible display name as stored in Cloud Resource Manager. */
+    mutable displayName: string
+    /** Parent `organizations/{org}` or `folders/{folder}`. */
+    mutable parent: string
+    /** Lifecycle state (`ACTIVE` or `DELETE_REQUESTED`). */
+    mutable state: string | undefined
+    /** Server etag for optimistic concurrency. */
+    mutable etag: string | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+    /** RFC3339 time a delete was requested, if any. */
+    mutable deleteTime: string | undefined
+    /** Configured folder capabilities, if any. */
+    mutable configuredCapabilities: string[]
+    /** Management project when app-management is enabled. */
+    mutable managementProject: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Resource Manager folder — a node in an organization's resource
+ * hierarchy used to group projects and other folders.
+ *
+ * Folders have no labels, so a folder found without prior state is
+ * reported as unowned and only taken over with `--adopt`. `displayName`
+ * updates in place; changing `parent` moves the folder. Delete is a 30-day
+ * soft-delete (`DELETE_REQUESTED`).
+ *
+ * ### Creating a Folder
+ * **Example:** Generated display name under the current project's parent
+ * ```typescript
+ * const folder = yield* GCP.ResourceManager.Folder("Team", {});
+ * ```
+ *
+ * **Example:** Explicit display name and parent
+ * ```typescript
+ * const folder = yield* GCP.ResourceManager.Folder("Team", {
+ *   displayName: "platform",
+ *   parent: "organizations/123456789",
+ * });
+ * ```
+ *
+ * ### Updating a Folder
+ * **Example:** Rename
+ * ```typescript
+ * const folder = yield* GCP.ResourceManager.Folder("Team", {
+ *   displayName: "platform-prod",
+ * });
+ * ```
+ *
+ * @resource
+ * @category ResourceManager
+ */
+export const Folder = Resource<Folder>("GCP.ResourceManager.Folder")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class FolderNotResolved extends Data.TaggedError("GCP.ResourceManager.FolderNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class FolderStillExists extends Data.TaggedError("GCP.ResourceManager.FolderStillExists")<{
+  mutable resourceName: string
+}> {}
+
+const sanitizeDisplayName = (value: string): infer _ => {
+  let next = value
+    .replace(/[^a-zA-Z0-9_ -]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (next.length > FOLDER_DISPLAY_MAX) {
+    next = next.slice(0, FOLDER_DISPLAY_MAX)
+  }
+  if (!/^[a-zA-Z0-9]/.test(next)) next = `a${next}`.slice(0, FOLDER_DISPLAY_MAX)
+  next = next.replace(/[^a-zA-Z0-9]+$/g, "")
+  if (next.length === 0) next = "az0"
+  return next
+}
+
+const toDisplayName = effect (id: string, displayName: string | undefined, existing?: string) => {
+  if (displayName !== undefined) return sanitizeDisplayName(displayName)
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: FOLDER_DISPLAY_MAX,
+    lowercase: true,
+    suffixLength: 8,
+  })
+  return sanitizeDisplayName(generated)
+}
+
+const toAttrs = (folder: resourcemanager.Folder): infer _ => ({
+  name: folder.name ?? "",
+  displayName: folder.displayName ?? "",
+  parent: folder.parent ?? "",
+  state: folder.state,
+  etag: folder.etag,
+  createTime: folder.createTime,
+  updateTime: folder.updateTime,
+  deleteTime: folder.deleteTime,
+  configuredCapabilities: folder.configuredCapabilities ?? [],
+  managementProject: folder.managementProject,
+})
+
+const getByName = effect (name: string) =>
+  resourcemanager
+    .getFolders({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "FolderNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listChildren = effect (parent: string, showDeleted = true) =>
+  collectPages(
+    resourcemanager.listFolders.pages({
+      parent,
+      pageSize: 300,
+      showDeleted,
+    }),
+    (page) => page.folders,
+  ) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as resourcemanager.Folder[]; default: throw e; }
+
+const findByDisplayName = effect (parent: string, displayName: string, resourceName?: string) => {
+  if (resourceName !== undefined && resourceName.length > 0) {
+    const byName = try getByName(resourceName)
+    if (byName !== undefined) return byName
+  }
+  const children = try listChildren(parent, true)
+  return children.find((folder) => folder.displayName === displayName)
+}
+
+const observe = effect (resourceName: string | undefined, parent: string, displayName: string) => {
+  if (resourceName !== undefined && resourceName.length > 0) {
+    const byName = try getByName(resourceName)
+    if (byName !== undefined) return byName
+  }
+  return try findByDisplayName(parent, displayName, resourceName)
+}
+
+const waitUntilExists = effect (resourceName: string | undefined, parent: string, displayName: string) =>
+  try (observe(resourceName, parent, displayName)
+    |> Effect.filterOrFail(
+      %,
+      (folder): folder is resourcemanager.Folder => folder !== undefined,
+      () =>
+        new FolderNotResolved({
+          resourceName: resourceName ?? `${parent}/${displayName}`,
+        }),
+    )
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.ResourceManager.FolderNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+const waitUntilGone = effect (name: string) =>
+  try (effect {
+    return try effect {
+      const folder = try getByName(name)
+      return (folder === undefined || isDeleteRequested(folder.state)
+        ? try Effect.void
+        : throw new FolderStillExists({ resourceName: name }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.ResourceManager.FolderStillExists",
+      times: 10,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+const ensureActive = effect (folder: resourcemanager.Folder) => {
+  if (!isDeleteRequested(folder.state) || folder.name === undefined) {
+    return folder
+  }
+  const operation = try resourcemanager.undeleteFolders({
+    name: folder.name,
+    body: {},
+  })
+  try waitForOperation(operation)
+  return (
+    (try waitUntilExists(folder.name, folder.parent ?? "", folder.displayName ?? "")) ?? folder
+  )
+}
+
+export const FolderProvider = (): infer _ =>
+  Provider.succeed(Folder, {
+    stables: ["name", "createTime"],
+
+    read: effect ({ id, olds, output }) => {
+      const displayName = try toDisplayName(id, olds?.displayName, output?.displayName)
+      const parent = resolveParent(olds?.parent, output?.parent) catch effect (e) => match (e) {
+        when { _tag: "GCP.ResourceManager.ParentRequired" }: output?.parent ?? "";
+        default: throw e;
+      }
+      if (parent.length === 0 && output?.name === undefined) return undefined
+      const existing = try observe(output?.name, parent || (output?.parent ?? ""), displayName)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing)
+      // No labels field: without prior state it may not be ours.
+      return output !== undefined ? attrs : Unowned(attrs)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const displayName = try toDisplayName(id, news.displayName, output?.displayName)
+      const parent = try resolveParent(news.parent, output?.parent)
+
+      let current = try observe(output?.name, parent, displayName)
+
+      if (current === undefined) {
+        const created = resourcemanager
+          .createFolders({
+            body: {
+              parent,
+              displayName,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          const settled = try waitForCreate(created)
+          current = try waitUntilExists(
+            resourceNameFromOperation(settled, "folders/")
+              ?? resourceNameFromOperation(created, "folders/"),
+            parent,
+            displayName,
+          )
+        } else {
+          current = try waitUntilExists(undefined, parent, displayName)
+        }
+      }
+
+      if (current === undefined || current.name === undefined) {
+        throw new FolderNotResolved({
+          resourceName: output?.name ?? `${parent}/${displayName}`,
+        })
+      }
+
+      const name = current.name
+      current = try ensureActive(current)
+
+      if ((current.displayName ?? "") !== displayName) {
+        const operation = try resourcemanager.patchFolders({
+          name: current.name ?? name,
+          updateMask: "displayName",
+          body: {
+            name: current.name ?? name,
+            displayName,
+            etag: current.etag,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(current.name ?? name, parent, displayName)
+      }
+
+      if (current.parent !== undefined && !sameHierarchyParent(current.parent, parent)) {
+        const operation = try resourcemanager.moveFolders({
+          name: current.name ?? name,
+          body: { destinationParent: parent },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(current.name ?? name, parent, displayName)
+      }
+
+      if (current === undefined) {
+        throw new FolderNotResolved({
+          resourceName: output?.name ?? `${parent}/${displayName}`,
+        })
+      }
+
+      return toAttrs(current)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (resourcemanager.deleteFolders({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "FolderNotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(output.name)
+    },
+  })

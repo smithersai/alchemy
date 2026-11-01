@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { lastSegment, orgParent, organizationFromName } from "./names.ts";
+import { lastSegment, orgParent, organizationFromName } from "./names.vibe";
 import { waitForOperation } from "./operations.ts";
 import { listOwnedInstances } from "./org.ts";
 

@@ -8,7 +8,7 @@ import type { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import { isGcpListenHost, type GcpHostRuntimeContext } from "./HostContext.ts";
 import { Member } from "./IAM/Member.ts";
-import { unverifiedAudience, verifyGoogleIdToken } from "./Oidc.ts";
+import { unverifiedAudience, verifyGoogleIdToken } from "./Oidc.vibe";
 
 /**
  * Shared scaffolding for event sources that deliver over HTTPS to a GCP

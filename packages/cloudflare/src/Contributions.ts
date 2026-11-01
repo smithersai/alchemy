@@ -19,7 +19,7 @@ export default Contributions.make({
     provider: {
       description: "Manage Cloudflare provider prerequisites",
       load: Contributions.lazy(
-        () => import("./Cli.ts"),
+        () => import("./Cli.vibe"),
         (module) => module.cloudflareCommand,
       ),
     },

@@ -8,7 +8,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { lastSegment, orgParent, organizationFromName, toResourceId } from "./names.ts";
+import { lastSegment, orgParent, organizationFromName, toResourceId } from "./names.vibe";
 import { waitForOperation } from "./operations.ts";
 import { listOwnedInstances } from "./org.ts";
 

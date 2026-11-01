@@ -20,7 +20,7 @@
  */
 import { concatBytes, utf8Encode, ZERO_OID } from "./ObjectCodec.ts";
 import { flushPkt, pktLine } from "./Pkt.ts";
-import type { RefRecord, RefsSnapshot } from "./Store.ts";
+import type { RefRecord, RefsSnapshot } from "./Store.vibe";
 
 /** The agent string advertised by both services. */
 export const AGENT = "git-service/1";

@@ -27,7 +27,7 @@ import {
   environmentServiceInstances,
   waitUntilDeleted,
   projectServices as fetchProjectServices,
-} from "./GraphQL.ts";
+} from "./GraphQL.vibe";
 import {
   collectBindingState,
   createRailwayFunctionSupport,
@@ -39,7 +39,7 @@ import {
   type RailwayBuildOptions,
   type RailwayHostRuntimeContext,
 } from "./hosted.ts";
-import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.ts";
+import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { assertHostDisk, type MountSpec, type ServiceBinding } from "./MountVolume.ts";
 import { ownedProjects, projectEnvironmentIds, type Project } from "./Project.ts";
 import type { Providers } from "./Providers.ts";
@@ -75,7 +75,7 @@ type AttributeInstance = UnwrapPlan<ReturnType<typeof attributeInstanceFields>>;
 type ServiceInstanceResponse = UnwrapPlan<ReturnType<typeof instanceFields>>;
 
 export { FunctionBundleNotSingleFile } from "./hosted.ts";
-export type { InferEnv } from "./InferEnv.ts";
+export type { InferEnv } from "./InferEnv.vibe";
 
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces

@@ -21,7 +21,7 @@ import {
   sameText,
   toResourceId,
   updateMaskOf,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 import type { AuthConfigVisibility, CredentialType, DecryptedCredential } from "./shared.ts";
 import { credentialBody } from "./shared.ts";
 

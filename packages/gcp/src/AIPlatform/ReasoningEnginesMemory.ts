@@ -26,7 +26,7 @@ import {
   parseDescription,
   parseResourceName,
   toPhysicalId,
-} from "./shared.ts";
+} from "./shared.vibe";
 
 const COLLECTION = "memories";
 

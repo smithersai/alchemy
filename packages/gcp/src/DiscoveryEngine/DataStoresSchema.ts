@@ -17,7 +17,7 @@ import {
   toPhysical,
   withSchemaVersion,
 } from "./internal.ts";
-import { waitForOperation } from "./operations.ts";
+import { waitForOperation } from "./operations.vibe";
 
 export type DataStoresSchemaProps = {
   /**

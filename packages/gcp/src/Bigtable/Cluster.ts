@@ -23,7 +23,7 @@ import {
   waitForOperation,
   zoneOf,
   collectPages,
-} from "./operations.ts";
+} from "./operations.vibe";
 
 const DEFAULT_STORAGE_TYPE = "SSD";
 

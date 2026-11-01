@@ -41,7 +41,7 @@ import {
   type DeltaBase,
   type DeltaJob,
   type DeltaResolved,
-} from "../Protocol/PartialScan.ts";
+} from "../Protocol/PartialScan.vibe";
 
 export {
   decodeBoundsRequest,
@@ -52,7 +52,7 @@ export {
   HASH_ROUTE,
   HashError,
   makeFrameReader,
-} from "./Protocol.ts";
+} from "./Protocol.vibe";
 import {
   decodeDeltaResults,
   decodeScanResult,
@@ -61,7 +61,7 @@ import {
   HASH_ROUTE,
   HashError,
   makeFrameReader,
-} from "./Protocol.ts";
+} from "./Protocol.vibe";
 
 export interface HashPartOptions {
   /** Pack-relative offset of `payload[skip]`. */

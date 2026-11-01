@@ -11,7 +11,7 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { hasAlchemyLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { toPhysicalSnake } from "./helpers.ts";
+import { toPhysicalSnake } from "./helpers.vibe";
 import {
   createInternalLabels,
   hasAlchemyPrefix,

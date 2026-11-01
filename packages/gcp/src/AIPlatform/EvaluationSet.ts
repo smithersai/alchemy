@@ -16,7 +16,7 @@ import {
   parseResourceName,
   specifiedEquals,
   toPhysicalRfc1035,
-} from "./helpers.ts";
+} from "./helpers.vibe";
 import { waitForOperation } from "./operations.ts";
 
 const MAX_NAME_LENGTH = 63;

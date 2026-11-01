@@ -4,7 +4,7 @@ import * as Provider from "alchemy/Provider";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
 import { PlanetscaleAuth } from "./AuthProvider.ts";
-import * as Credentials from "./Credentials.ts";
+import * as Credentials from "./Credentials.vibe";
 import { MySQLBranch, MySQLBranchProvider } from "./MySQL/MySQLBranch.ts";
 import { MySQLDatabase, MySQLDatabaseProvider } from "./MySQL/MySQLDatabase.ts";
 import { MySQLPassword, MySQLPasswordProvider } from "./MySQL/MySQLPassword.ts";

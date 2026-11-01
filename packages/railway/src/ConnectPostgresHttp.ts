@@ -11,7 +11,7 @@ import {
   PostgresUrlMissing,
   connectEnvKeys,
   type ConnectPostgresClient,
-} from "./ConnectPostgres.ts";
+} from "./ConnectPostgres.vibe";
 import { isRailwayHost } from "./MountVolume.ts";
 import type { Postgres } from "./Postgres.ts";
 

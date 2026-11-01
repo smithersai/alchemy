@@ -24,7 +24,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type * as Types from "effect/Types";
-import { waitUntilDeleted, projectServices } from "./GraphQL.ts";
+import { waitUntilDeleted, projectServices } from "./GraphQL.vibe";
 import {
   collectBindingState,
   createRailwayHostedSupport,
@@ -39,7 +39,7 @@ import {
   ServiceSourceInvalid,
   type RailwayLocalContextSource,
 } from "./local-context.ts";
-import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.ts";
+import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { assertHostDisk, type MountSpec } from "./MountVolume.ts";
 import { ownedProjects } from "./Project.ts";
 import { RPC_TOKEN_ENV } from "./rpc-token.ts";
@@ -51,7 +51,7 @@ import {
   type ServiceDomainRecord,
 } from "./ServiceDomain.ts";
 import { readServiceRegion, syncServiceRegion } from "./ServiceRegion.ts";
-import { withEnvironmentConfigLock } from "./transient.ts";
+import { withEnvironmentConfigLock } from "./transient.vibe";
 import { uploadDeployTarball } from "./Up.ts";
 import { attachVolumeToService, listServiceVolumes } from "./Volume.ts";
 

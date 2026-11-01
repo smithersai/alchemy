@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { lastSegment, orgParent, organizationFromName, sameJson, toResourceId } from "./names.ts";
+import { lastSegment, orgParent, organizationFromName, sameJson, toResourceId } from "./names.vibe";
 
 const MAX_NAME_LENGTH = 59;
 const ALCHEMY_ID_PREFIX = "alc-";

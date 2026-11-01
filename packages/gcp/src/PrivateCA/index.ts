@@ -10,4 +10,4 @@ export type { CertificateTemplateProps } from "./CertificateTemplate.ts";
 export * from "./FetchCaCerts.ts";
 export * from "./FetchCaCertsHttp.ts";
 export * from "./GetCertificateAuthority.ts";
-export * from "./GetCertificateAuthorityHttp.ts";
+export * from "./GetCertificateAuthorityHttp.vibe";

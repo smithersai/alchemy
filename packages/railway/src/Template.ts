@@ -15,8 +15,8 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { RailwayEnvironment } from "./Environment.ts";
-import { projectServices as fetchProjectServices } from "./GraphQL.ts";
-import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.ts";
+import { projectServices as fetchProjectServices } from "./GraphQL.vibe";
+import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import {
   createProject,
   environmentIdOf as projectEnvironmentId,

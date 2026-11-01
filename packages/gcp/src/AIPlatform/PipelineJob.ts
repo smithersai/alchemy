@@ -23,7 +23,7 @@ import {
   toPhysicalId,
   userLabels,
   type EncryptionSpec,
-} from "./shared.ts";
+} from "./shared.vibe";
 
 const COLLECTION = "pipelineJobs";
 

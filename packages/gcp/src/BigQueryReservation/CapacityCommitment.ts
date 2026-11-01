@@ -19,7 +19,7 @@ import {
   parentOf,
   parseResourceName,
   toResourceId,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 const DEFAULT_EDITION = "ENTERPRISE";
 

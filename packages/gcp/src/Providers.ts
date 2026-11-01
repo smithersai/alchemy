@@ -38,7 +38,7 @@ import {
 import { Agent, AgentProvider } from "./AIPlatform/Agent.ts";
 import { BatchPredictionJob, BatchPredictionJobProvider } from "./AIPlatform/BatchPredictionJob.ts";
 import { CachedContent, CachedContentProvider } from "./AIPlatform/CachedContent.ts";
-import { CancelTrainingPipelineHttp } from "./AIPlatform/CancelTrainingPipelineHttp.ts";
+import { CancelTrainingPipelineHttp } from "./AIPlatform/CancelTrainingPipelineHttp.vibe";
 import { CustomJob, CustomJobProvider } from "./AIPlatform/CustomJob.ts";
 import { DataLabelingJob, DataLabelingJobProvider } from "./AIPlatform/DataLabelingJob.ts";
 import {
@@ -79,11 +79,11 @@ import {
   FeaturestoresEntityTypesFeature,
   FeaturestoresEntityTypesFeatureProvider,
 } from "./AIPlatform/FeaturestoresEntityTypesFeature.ts";
-import { GenerateContentHttp } from "./AIPlatform/GenerateContentHttp.ts";
-import { GetReasoningEngineHttp } from "./AIPlatform/GetReasoningEngineHttp.ts";
-import { GetSandboxEnvironmentHttp } from "./AIPlatform/GetSandboxEnvironmentHttp.ts";
-import { GetSandboxEnvironmentTemplateHttp } from "./AIPlatform/GetSandboxEnvironmentTemplateHttp.ts";
-import { GetTrainingPipelineHttp } from "./AIPlatform/GetTrainingPipelineHttp.ts";
+import { GenerateContentHttp } from "./AIPlatform/GenerateContentHttp.vibe";
+import { GetReasoningEngineHttp } from "./AIPlatform/GetReasoningEngineHttp.vibe";
+import { GetSandboxEnvironmentHttp } from "./AIPlatform/GetSandboxEnvironmentHttp.vibe";
+import { GetSandboxEnvironmentTemplateHttp } from "./AIPlatform/GetSandboxEnvironmentTemplateHttp.vibe";
+import { GetTrainingPipelineHttp } from "./AIPlatform/GetTrainingPipelineHttp.vibe";
 import {
   HyperparameterTuningJob,
   HyperparameterTuningJobProvider,
@@ -120,10 +120,10 @@ import {
   NotebookRuntimeTemplateProvider,
 } from "./AIPlatform/NotebookRuntimeTemplate.ts";
 import { OnlineEvaluator, OnlineEvaluatorProvider } from "./AIPlatform/OnlineEvaluator.ts";
-import { PauseSandboxEnvironmentHttp } from "./AIPlatform/PauseSandboxEnvironmentHttp.ts";
+import { PauseSandboxEnvironmentHttp } from "./AIPlatform/PauseSandboxEnvironmentHttp.vibe";
 import { PersistentResource, PersistentResourceProvider } from "./AIPlatform/PersistentResource.ts";
 import { PipelineJob, PipelineJobProvider } from "./AIPlatform/PipelineJob.ts";
-import { QueryReasoningEngineHttp } from "./AIPlatform/QueryReasoningEngineHttp.ts";
+import { QueryReasoningEngineHttp } from "./AIPlatform/QueryReasoningEngineHttp.vibe";
 import { RagCorpora, RagCorporaProvider } from "./AIPlatform/RagCorpora.ts";
 import { ReasoningEngine, ReasoningEngineProvider } from "./AIPlatform/ReasoningEngine.ts";
 import {
@@ -142,7 +142,7 @@ import {
   ReasoningEnginesSession,
   ReasoningEnginesSessionProvider,
 } from "./AIPlatform/ReasoningEnginesSession.ts";
-import { ResumeSandboxEnvironmentHttp } from "./AIPlatform/ResumeSandboxEnvironmentHttp.ts";
+import { ResumeSandboxEnvironmentHttp } from "./AIPlatform/ResumeSandboxEnvironmentHttp.vibe";
 import { Schedule, ScheduleProvider } from "./AIPlatform/Schedule.ts";
 import {
   SemanticGovernancePolicy,
@@ -178,11 +178,11 @@ import {
   ClustersUser as AlloyDbClustersUser,
   ClustersUserProvider as AlloyDbClustersUserProvider,
 } from "./AlloyDB/ClustersUser.ts";
-import { GetBackupHttp as GetAlloyDbBackupHttp } from "./AlloyDB/GetBackupHttp.ts";
-import { GetClusterHttp as GetAlloyDbClusterHttp } from "./AlloyDB/GetClusterHttp.ts";
-import { GetConnectionInfoHttp as GetAlloyDbConnectionInfoHttp } from "./AlloyDB/GetConnectionInfoHttp.ts";
-import { GetInstanceHttp as GetAlloyDbInstanceHttp } from "./AlloyDB/GetInstanceHttp.ts";
-import { GetUserHttp as GetAlloyDbUserHttp } from "./AlloyDB/GetUserHttp.ts";
+import { GetBackupHttp as GetAlloyDbBackupHttp } from "./AlloyDB/GetBackupHttp.vibe";
+import { GetClusterHttp as GetAlloyDbClusterHttp } from "./AlloyDB/GetClusterHttp.vibe";
+import { GetConnectionInfoHttp as GetAlloyDbConnectionInfoHttp } from "./AlloyDB/GetConnectionInfoHttp.vibe";
+import { GetInstanceHttp as GetAlloyDbInstanceHttp } from "./AlloyDB/GetInstanceHttp.vibe";
+import { GetUserHttp as GetAlloyDbUserHttp } from "./AlloyDB/GetUserHttp.vibe";
 import {
   Instance as AlloyDbInstance,
   InstanceProvider as AlloyDbInstanceProvider,
@@ -339,7 +339,7 @@ import {
   RuntimeProjectAttachment,
   RuntimeProjectAttachmentProvider,
 } from "./ApiHub/RuntimeProjectAttachment.ts";
-import { GetKeyStringHttp } from "./ApiKeys/GetKeyStringHttp.ts";
+import { GetKeyStringHttp } from "./ApiKeys/GetKeyStringHttp.vibe";
 import { Key, KeyProvider } from "./ApiKeys/Key.ts";
 import { ObservationJob, ObservationJobProvider } from "./Apim/ObservationJob.ts";
 import { ObservationSource, ObservationSourceProvider } from "./Apim/ObservationSource.ts";
@@ -436,9 +436,9 @@ import {
   CatalogsDatabasesTableProvider,
 } from "./BigLake/CatalogsDatabasesTable.ts";
 import { Dataset, DatasetProvider } from "./BigQuery/Dataset.ts";
-import { InsertAllHttp } from "./BigQuery/InsertAllHttp.ts";
+import { InsertAllHttp } from "./BigQuery/InsertAllHttp.vibe";
 import { Job as BigQueryJob, JobProvider as BigQueryJobProvider } from "./BigQuery/Job.ts";
-import { ListTabledataHttp } from "./BigQuery/ListTabledataHttp.ts";
+import { ListTabledataHttp } from "./BigQuery/ListTabledataHttp.vibe";
 import { QueryHttp } from "./BigQuery/QueryHttp.ts";
 import { Routine, RoutineProvider } from "./BigQuery/Routine.ts";
 import { RowAccessPolicy, RowAccessPolicyProvider } from "./BigQuery/RowAccessPolicy.ts";
@@ -447,9 +447,9 @@ import {
   Connection as BigQueryConnection,
   ConnectionProvider as BigQueryConnectionProvider,
 } from "./BigQueryConnection/Connection.ts";
-import { GetConnectionHttp as BigQueryGetConnectionHttp } from "./BigQueryConnection/GetConnectionHttp.ts";
+import { GetConnectionHttp as BigQueryGetConnectionHttp } from "./BigQueryConnection/GetConnectionHttp.vibe";
 import { DataPolicy, DataPolicyProvider } from "./BigQueryDataPolicy/DataPolicy.ts";
-import { StartManualRunsHttp } from "./BigQueryDataTransfer/StartManualRunsHttp.ts";
+import { StartManualRunsHttp } from "./BigQueryDataTransfer/StartManualRunsHttp.vibe";
 import { TransferConfig, TransferConfigProvider } from "./BigQueryDataTransfer/TransferConfig.ts";
 import { Assignment, AssignmentProvider } from "./BigQueryReservation/Assignment.ts";
 import {
@@ -469,9 +469,9 @@ import {
   Cluster as BigtableCluster,
   ClusterProvider as BigtableClusterProvider,
 } from "./Bigtable/Cluster.ts";
-import { GetClusterHttp as GetBigtableClusterHttp } from "./Bigtable/GetClusterHttp.ts";
-import { GetInstanceHttp as GetBigtableInstanceHttp } from "./Bigtable/GetInstanceHttp.ts";
-import { GetTableHttp as GetBigtableTableHttp } from "./Bigtable/GetTableHttp.ts";
+import { GetClusterHttp as GetBigtableClusterHttp } from "./Bigtable/GetClusterHttp.vibe";
+import { GetInstanceHttp as GetBigtableInstanceHttp } from "./Bigtable/GetInstanceHttp.vibe";
+import { GetTableHttp as GetBigtableTableHttp } from "./Bigtable/GetTableHttp.vibe";
 import {
   Instance as BigtableInstance,
   InstanceProvider as BigtableInstanceProvider,
@@ -505,9 +505,9 @@ import {
   Attestor as BinaryauthorizationAttestor,
   AttestorProvider as BinaryauthorizationAttestorProvider,
 } from "./BinaryAuthorization/Attestor.ts";
-import { EvaluateGkePolicyHttp } from "./BinaryAuthorization/EvaluateGkePolicyHttp.ts";
+import { EvaluateGkePolicyHttp } from "./BinaryAuthorization/EvaluateGkePolicyHttp.vibe";
 import { GetAttestorHttp } from "./BinaryAuthorization/GetAttestorHttp.ts";
-import { GetPlatformsPolicyHttp } from "./BinaryAuthorization/GetPlatformsPolicyHttp.ts";
+import { GetPlatformsPolicyHttp } from "./BinaryAuthorization/GetPlatformsPolicyHttp.vibe";
 import { PlatformsPolicy, PlatformsPolicyProvider } from "./BinaryAuthorization/PlatformsPolicy.ts";
 import { ValidateAttestationHttp } from "./BinaryAuthorization/ValidateAttestationHttp.ts";
 import { BlockchainNode, BlockchainNodeProvider } from "./BlockchainNodeEngine/BlockchainNode.ts";
@@ -552,7 +552,7 @@ import {
   Connection as CloudBuildConnection,
   ConnectionProvider as CloudBuildConnectionProvider,
 } from "./CloudBuild/Connection.ts";
-import { FetchGitRefsHttp as CloudBuildFetchGitRefsHttp } from "./CloudBuild/FetchGitRefsHttp.ts";
+import { FetchGitRefsHttp as CloudBuildFetchGitRefsHttp } from "./CloudBuild/FetchGitRefsHttp.vibe";
 import {
   Repository as CloudBuildRepository,
   RepositoryProvider as CloudBuildRepositoryProvider,
@@ -560,19 +560,19 @@ import {
 import {
   ChannelPartnerLinksChannelPartnerRepricingConfig,
   ChannelPartnerLinksChannelPartnerRepricingConfigProvider,
-} from "./CloudChannel/ChannelPartnerLinksChannelPartnerRepricingConfig.ts";
+} from "./CloudChannel/ChannelPartnerLinksChannelPartnerRepricingConfig.vibe";
 import {
   ChannelPartnerLinksCustomer,
   ChannelPartnerLinksCustomerProvider,
-} from "./CloudChannel/ChannelPartnerLinksCustomer.ts";
+} from "./CloudChannel/ChannelPartnerLinksCustomer.vibe";
 import {
   Customer as CloudchannelCustomer,
   CustomerProvider as CloudchannelCustomerProvider,
-} from "./CloudChannel/Customer.ts";
+} from "./CloudChannel/Customer.vibe";
 import {
   CustomersCustomerRepricingConfig,
   CustomersCustomerRepricingConfigProvider,
-} from "./CloudChannel/CustomersCustomerRepricingConfig.ts";
+} from "./CloudChannel/CustomersCustomerRepricingConfig.vibe";
 import {
   Customer as CloudcontrolspartnerCustomer,
   CustomerProvider as CloudcontrolspartnerCustomerProvider,
@@ -589,8 +589,8 @@ import {
   TargetProvider as ClouddeployTargetProvider,
 } from "./CloudDeploy/Target.ts";
 import { Function as CloudFunction, FunctionProvider } from "./CloudFunctions/Function.ts";
-import { GenerateDownloadUrlHttp } from "./CloudFunctions/GenerateDownloadUrlHttp.ts";
-import { GetFunctionHttp } from "./CloudFunctions/GetFunctionHttp.ts";
+import { GenerateDownloadUrlHttp } from "./CloudFunctions/GenerateDownloadUrlHttp.vibe";
+import { GetFunctionHttp } from "./CloudFunctions/GetFunctionHttp.vibe";
 import {
   Device as CloudidentityDevice,
   DeviceProvider as CloudidentityDeviceProvider,
@@ -598,7 +598,7 @@ import {
 import {
   Group as CloudidentityGroup,
   GroupProvider as CloudidentityGroupProvider,
-} from "./CloudIdentity/Group.ts";
+} from "./CloudIdentity/Group.vibe";
 import { GroupsMembership, GroupsMembershipProvider } from "./CloudIdentity/GroupsMembership.ts";
 import {
   InboundOidcSsoProfile,
@@ -617,9 +617,9 @@ import { IpamAdminScope, IpamAdminScopeProvider } from "./CloudNumberRegistry/Ip
 import { Realm, RealmProvider } from "./CloudNumberRegistry/Realm.ts";
 import { RegistryBook, RegistryBookProvider } from "./CloudNumberRegistry/RegistryBook.ts";
 import { Job, JobProvider } from "./CloudScheduler/Job.ts";
-import { PauseJobHttp } from "./CloudScheduler/PauseJobHttp.ts";
-import { ResumeJobHttp } from "./CloudScheduler/ResumeJobHttp.ts";
-import { RunJobHttp } from "./CloudScheduler/RunJobHttp.ts";
+import { PauseJobHttp } from "./CloudScheduler/PauseJobHttp.vibe";
+import { ResumeJobHttp } from "./CloudScheduler/ResumeJobHttp.vibe";
+import { RunJobHttp } from "./CloudScheduler/RunJobHttp.vibe";
 import {
   SettingsDatasource,
   SettingsDatasourceProvider,
@@ -646,10 +646,10 @@ import {
   EnvironmentsUserWorkloadsSecret,
   EnvironmentsUserWorkloadsSecretProvider,
 } from "./Composer/EnvironmentsUserWorkloadsSecret.ts";
-import { ExecuteAirflowCommandHttp } from "./Composer/ExecuteAirflowCommandHttp.ts";
-import { GetEnvironmentHttp } from "./Composer/GetEnvironmentHttp.ts";
-import { GetUserWorkloadsConfigMapHttp } from "./Composer/GetUserWorkloadsConfigMapHttp.ts";
-import { GetUserWorkloadsSecretHttp } from "./Composer/GetUserWorkloadsSecretHttp.ts";
+import { ExecuteAirflowCommandHttp } from "./Composer/ExecuteAirflowCommandHttp.vibe";
+import { GetEnvironmentHttp } from "./Composer/GetEnvironmentHttp.vibe";
+import { GetUserWorkloadsConfigMapHttp } from "./Composer/GetUserWorkloadsConfigMapHttp.vibe";
+import { GetUserWorkloadsSecretHttp } from "./Composer/GetUserWorkloadsSecretHttp.vibe";
 import { Address, AddressProvider } from "./Compute/Address.ts";
 import { Autoscaler, AutoscalerProvider } from "./Compute/Autoscaler.ts";
 import { BackendBucket, BackendBucketProvider } from "./Compute/BackendBucket.ts";
@@ -661,7 +661,7 @@ import { Firewall, FirewallProvider } from "./Compute/Firewall.ts";
 import { FirewallPolicy, FirewallPolicyProvider } from "./Compute/FirewallPolicy.ts";
 import { ForwardingRule, ForwardingRuleProvider } from "./Compute/ForwardingRule.ts";
 import { FutureReservation, FutureReservationProvider } from "./Compute/FutureReservation.ts";
-import { GetInstanceHttp } from "./Compute/GetInstanceHttp.ts";
+import { GetInstanceHttp } from "./Compute/GetInstanceHttp.vibe";
 import { GlobalAddress, GlobalAddressProvider } from "./Compute/GlobalAddress.ts";
 import {
   GlobalForwardingRule,
@@ -829,8 +829,8 @@ import { ServiceAttachment, ServiceAttachmentProvider } from "./Compute/ServiceA
 import { Snapshot, SnapshotProvider } from "./Compute/Snapshot.ts";
 import { SslCertificate, SslCertificateProvider } from "./Compute/SslCertificate.ts";
 import { SslPolicy, SslPolicyProvider } from "./Compute/SslPolicy.ts";
-import { StartInstanceHttp } from "./Compute/StartInstanceHttp.ts";
-import { StopInstanceHttp } from "./Compute/StopInstanceHttp.ts";
+import { StartInstanceHttp } from "./Compute/StartInstanceHttp.vibe";
+import { StopInstanceHttp } from "./Compute/StopInstanceHttp.vibe";
 import { StoragePool, StoragePoolProvider } from "./Compute/StoragePool.ts";
 import { Subnetwork, SubnetworkProvider } from "./Compute/Subnetwork.ts";
 import { TargetGrpcProxy, TargetGrpcProxyProvider } from "./Compute/TargetGrpcProxy.ts";
@@ -861,7 +861,7 @@ import {
   ConnectionsEntityTypesEntity,
   ConnectionsEntityTypesEntityProvider,
 } from "./Connectors/ConnectionsEntityTypesEntity.ts";
-import { GetEntityHttp } from "./Connectors/GetEntityHttp.ts";
+import { GetEntityHttp } from "./Connectors/GetEntityHttp.vibe";
 import { ContactCenter, ContactCenterProvider } from "./ContactCenterAIPlatform/ContactCenter.ts";
 import { AnalysisRule, AnalysisRuleProvider } from "./ContactCenterInsights/AnalysisRule.ts";
 import { AssessmentRule, AssessmentRuleProvider } from "./ContactCenterInsights/AssessmentRule.ts";
@@ -926,13 +926,13 @@ import {
 import { View, ViewProvider } from "./ContactCenterInsights/View.ts";
 import { Cluster, ClusterProvider } from "./Container/Cluster.ts";
 import { ClustersNodePool, ClustersNodePoolProvider } from "./Container/ClustersNodePool.ts";
-import { GetClusterHttp } from "./Container/GetClusterHttp.ts";
-import { GetClustersNodePoolHttp } from "./Container/GetClustersNodePoolHttp.ts";
-import { GetNodePoolHttp } from "./Container/GetNodePoolHttp.ts";
+import { GetClusterHttp } from "./Container/GetClusterHttp.vibe";
+import { GetClustersNodePoolHttp } from "./Container/GetClustersNodePoolHttp.vibe";
+import { GetNodePoolHttp } from "./Container/GetNodePoolHttp.vibe";
 import { GkeKubernetesAdapter } from "./Container/KubernetesAdapter.ts";
 import { NodePool, NodePoolProvider } from "./Container/NodePool.ts";
-import { GetNoteHttp } from "./ContainerAnalysis/GetNoteHttp.ts";
-import { GetOccurrenceHttp } from "./ContainerAnalysis/GetOccurrenceHttp.ts";
+import { GetNoteHttp } from "./ContainerAnalysis/GetNoteHttp.vibe";
+import { GetOccurrenceHttp } from "./ContainerAnalysis/GetOccurrenceHttp.vibe";
 import { LocationsNote, LocationsNoteProvider } from "./ContainerAnalysis/LocationsNote.ts";
 import {
   LocationsOccurrence,
@@ -954,10 +954,10 @@ import {
   DocumentSchema as ContentwarehouseDocumentSchema,
   DocumentSchemaProvider as ContentwarehouseDocumentSchemaProvider,
 } from "./ContentWarehouse/DocumentSchema.ts";
-import { GetDocumentHttp as GetContentwarehouseDocumentHttp } from "./ContentWarehouse/GetDocumentHttp.ts";
-import { GetDocumentSchemaHttp } from "./ContentWarehouse/GetDocumentSchemaHttp.ts";
-import { GetRuleSetHttp } from "./ContentWarehouse/GetRuleSetHttp.ts";
-import { GetSynonymSetHttp } from "./ContentWarehouse/GetSynonymSetHttp.ts";
+import { GetDocumentHttp as GetContentwarehouseDocumentHttp } from "./ContentWarehouse/GetDocumentHttp.vibe";
+import { GetDocumentSchemaHttp } from "./ContentWarehouse/GetDocumentSchemaHttp.vibe";
+import { GetRuleSetHttp } from "./ContentWarehouse/GetRuleSetHttp.vibe";
+import { GetSynonymSetHttp } from "./ContentWarehouse/GetSynonymSetHttp.vibe";
 import {
   RuleSet as ContentwarehouseRuleSet,
   RuleSetProvider as ContentwarehouseRuleSetProvider,
@@ -1052,8 +1052,8 @@ import {
   Pipeline as DatapipelinesPipeline,
   PipelineProvider as DatapipelinesPipelineProvider,
 } from "./DataPipelines/Pipeline.ts";
-import { RunPipelineHttp } from "./DataPipelines/RunPipelineHttp.ts";
-import { StopPipelineHttp } from "./DataPipelines/StopPipelineHttp.ts";
+import { RunPipelineHttp } from "./DataPipelines/RunPipelineHttp.vibe";
+import { StopPipelineHttp } from "./DataPipelines/StopPipelineHttp.vibe";
 import { AspectType, AspectTypeProvider } from "./Dataplex/AspectType.ts";
 import { DataDomain, DataDomainProvider } from "./Dataplex/DataDomain.ts";
 import { DataDomainsBinding, DataDomainsBindingProvider } from "./Dataplex/DataDomainsBinding.ts";
@@ -1096,7 +1096,7 @@ import {
   Cluster as DataprocCluster,
   ClusterProvider as DataprocClusterProvider,
 } from "./Dataproc/Cluster.ts";
-import { GetClusterHttp as GetDataprocClusterHttp } from "./Dataproc/GetClusterHttp.ts";
+import { GetClusterHttp as GetDataprocClusterHttp } from "./Dataproc/GetClusterHttp.vibe";
 import {
   RegionsAutoscalingPolicy as DataprocRegionsAutoscalingPolicy,
   RegionsAutoscalingPolicyProvider as DataprocRegionsAutoscalingPolicyProvider,
@@ -1113,18 +1113,18 @@ import {
   SessionTemplate as DataprocSessionTemplate,
   SessionTemplateProvider as DataprocSessionTemplateProvider,
 } from "./Dataproc/SessionTemplate.ts";
-import { SubmitJobHttp as DataprocSubmitJobHttp } from "./Dataproc/SubmitJobHttp.ts";
+import { SubmitJobHttp as DataprocSubmitJobHttp } from "./Dataproc/SubmitJobHttp.vibe";
 import {
   WorkflowTemplate as DataprocWorkflowTemplate,
   WorkflowTemplateProvider as DataprocWorkflowTemplateProvider,
 } from "./Dataproc/WorkflowTemplate.ts";
-import { CommitHttp } from "./Datastore/CommitHttp.ts";
+import { CommitHttp } from "./Datastore/CommitHttp.vibe";
 import {
   Index as DatastoreIndex,
   IndexProvider as DatastoreIndexProvider,
 } from "./Datastore/Indexes.ts";
-import { LookupHttp } from "./Datastore/LookupHttp.ts";
-import { RunQueryHttp } from "./Datastore/RunQueryHttp.ts";
+import { LookupHttp } from "./Datastore/LookupHttp.vibe";
+import { RunQueryHttp } from "./Datastore/RunQueryHttp.vibe";
 import {
   ConnectionProfile as DatastreamConnectionProfile,
   ConnectionProfileProvider as DatastreamConnectionProfileProvider,
@@ -1154,9 +1154,9 @@ import {
   ConnectionsGitRepositoryLink,
   ConnectionsGitRepositoryLinkProvider,
 } from "./DeveloperConnect/ConnectionsGitRepositoryLink.ts";
-import { FetchGitRefsHttp as DeveloperconnectFetchGitRefsHttp } from "./DeveloperConnect/FetchGitRefsHttp.ts";
-import { FetchReadTokenHttp as DeveloperconnectFetchReadTokenHttp } from "./DeveloperConnect/FetchReadTokenHttp.ts";
-import { FetchReadWriteTokenHttp as DeveloperconnectFetchReadWriteTokenHttp } from "./DeveloperConnect/FetchReadWriteTokenHttp.ts";
+import { FetchGitRefsHttp as DeveloperconnectFetchGitRefsHttp } from "./DeveloperConnect/FetchGitRefsHttp.vibe";
+import { FetchReadTokenHttp as DeveloperconnectFetchReadTokenHttp } from "./DeveloperConnect/FetchReadTokenHttp.vibe";
+import { FetchReadWriteTokenHttp as DeveloperconnectFetchReadWriteTokenHttp } from "./DeveloperConnect/FetchReadWriteTokenHttp.vibe";
 import { InsightsConfig, InsightsConfigProvider } from "./DeveloperConnect/InsightsConfig.ts";
 import { AgentsEntityType, AgentsEntityTypeProvider } from "./Dialogflow/AgentsEntityType.ts";
 import { AgentsEnvironment, AgentsEnvironmentProvider } from "./Dialogflow/AgentsEnvironment.ts";
@@ -1350,10 +1350,10 @@ import { Policy as DnsPolicy, PolicyProvider as DnsPolicyProvider } from "./DNS/
 import { ResourceRecordSet, ResourceRecordSetProvider } from "./DNS/ResourceRecordSet.ts";
 import { ResponsePolicy, ResponsePolicyProvider } from "./DNS/ResponsePolicy.ts";
 import { ResponsePolicyRule, ResponsePolicyRuleProvider } from "./DNS/ResponsePolicyRule.ts";
-import { GetProcessorHttp } from "./DocumentAI/GetProcessorHttp.ts";
-import { GetSchemaHttp as DocumentaiGetSchemaHttp } from "./DocumentAI/GetSchemaHttp.ts";
-import { GetSchemaVersionHttp } from "./DocumentAI/GetSchemaVersionHttp.ts";
-import { ProcessHttp as DocumentaiProcessHttp } from "./DocumentAI/ProcessHttp.ts";
+import { GetProcessorHttp } from "./DocumentAI/GetProcessorHttp.vibe";
+import { GetSchemaHttp as DocumentaiGetSchemaHttp } from "./DocumentAI/GetSchemaHttp.vibe";
+import { GetSchemaVersionHttp } from "./DocumentAI/GetSchemaVersionHttp.vibe";
+import { ProcessHttp as DocumentaiProcessHttp } from "./DocumentAI/ProcessHttp.vibe";
 import {
   Processor as DocumentaiProcessor,
   ProcessorProvider as DocumentaiProcessorProvider,
@@ -1387,9 +1387,9 @@ import {
   Backup as FilestoreBackup,
   BackupProvider as FilestoreBackupProvider,
 } from "./Filestore/Backup.ts";
-import { GetBackupHttp as GetFilestoreBackupHttp } from "./Filestore/GetBackupHttp.ts";
-import { GetInstanceHttp as GetFilestoreInstanceHttp } from "./Filestore/GetInstanceHttp.ts";
-import { GetInstancesSnapshotHttp as GetFilestoreInstancesSnapshotHttp } from "./Filestore/GetInstancesSnapshotHttp.ts";
+import { GetBackupHttp as GetFilestoreBackupHttp } from "./Filestore/GetBackupHttp.vibe";
+import { GetInstanceHttp as GetFilestoreInstanceHttp } from "./Filestore/GetInstanceHttp.vibe";
+import { GetInstancesSnapshotHttp as GetFilestoreInstancesSnapshotHttp } from "./Filestore/GetInstancesSnapshotHttp.vibe";
 import {
   Instance as FilestoreInstance,
   InstanceProvider as FilestoreInstanceProvider,
@@ -1400,7 +1400,7 @@ import {
 } from "./Filestore/InstancesSnapshot.ts";
 import { AndroidApp, AndroidAppProvider } from "./Firebase/AndroidApp.ts";
 import { AppsDebugToken, AppsDebugTokenProvider } from "./FirebaseAppCheck/AppsDebugToken.ts";
-import { ExchangeDebugTokenHttp } from "./FirebaseAppCheck/ExchangeDebugTokenHttp.ts";
+import { ExchangeDebugTokenHttp } from "./FirebaseAppCheck/ExchangeDebugTokenHttp.vibe";
 import {
   ServicesResourcePolicy,
   ServicesResourcePolicyProvider,
@@ -1415,10 +1415,10 @@ import {
 } from "./FirebaseAppHosting/Backend.ts";
 import { BackendsBuild, BackendsBuildProvider } from "./FirebaseAppHosting/BackendsBuild.ts";
 import { BackendsDomain, BackendsDomainProvider } from "./FirebaseAppHosting/BackendsDomain.ts";
-import { ExecuteGraphqlHttp } from "./FirebaseDataConnect/ExecuteGraphqlHttp.ts";
-import { ExecuteGraphqlReadHttp } from "./FirebaseDataConnect/ExecuteGraphqlReadHttp.ts";
-import { ExecuteMutationHttp } from "./FirebaseDataConnect/ExecuteMutationHttp.ts";
-import { ExecuteQueryHttp } from "./FirebaseDataConnect/ExecuteQueryHttp.ts";
+import { ExecuteGraphqlHttp } from "./FirebaseDataConnect/ExecuteGraphqlHttp.vibe";
+import { ExecuteGraphqlReadHttp } from "./FirebaseDataConnect/ExecuteGraphqlReadHttp.vibe";
+import { ExecuteMutationHttp } from "./FirebaseDataConnect/ExecuteMutationHttp.vibe";
+import { ExecuteQueryHttp } from "./FirebaseDataConnect/ExecuteQueryHttp.vibe";
 import {
   Service as FirebasedataconnectService,
   ServiceProvider as FirebasedataconnectServiceProvider,
@@ -1428,7 +1428,7 @@ import {
   ServicesConnectorProvider,
 } from "./FirebaseDataConnect/ServicesConnector.ts";
 import { ServicesSchema, ServicesSchemaProvider } from "./FirebaseDataConnect/ServicesSchema.ts";
-import { GetReleaseExecutableHttp } from "./FirebaseRules/GetReleaseExecutableHttp.ts";
+import { GetReleaseExecutableHttp } from "./FirebaseRules/GetReleaseExecutableHttp.vibe";
 import {
   Release as FirebaserulesRelease,
   ReleaseProvider as FirebaserulesReleaseProvider,
@@ -1437,7 +1437,7 @@ import {
   Ruleset as FirebaserulesRuleset,
   RulesetProvider as FirebaserulesRulesetProvider,
 } from "./FirebaseRules/Ruleset.ts";
-import { TestRulesetHttp } from "./FirebaseRules/TestRulesetHttp.ts";
+import { TestRulesetHttp } from "./FirebaseRules/TestRulesetHttp.vibe";
 import { Database, DatabaseProvider } from "./Firestore/Database.ts";
 import {
   DatabasesBackupSchedule,
@@ -1448,9 +1448,9 @@ import {
   DatabasesCollectionGroupsIndexProvider,
 } from "./Firestore/DatabasesCollectionGroupsIndex.ts";
 import { DatabasesUserCred, DatabasesUserCredProvider } from "./Firestore/DatabasesUserCred.ts";
-import { DeleteDocumentHttp } from "./Firestore/DeleteDocumentHttp.ts";
-import { GetDocumentHttp } from "./Firestore/GetDocumentHttp.ts";
-import { PatchDocumentHttp } from "./Firestore/PatchDocumentHttp.ts";
+import { DeleteDocumentHttp } from "./Firestore/DeleteDocumentHttp.vibe";
+import { GetDocumentHttp } from "./Firestore/GetDocumentHttp.vibe";
+import { PatchDocumentHttp } from "./Firestore/PatchDocumentHttp.vibe";
 import {
   AchievementConfiguration,
   AchievementConfigurationProvider,
@@ -1528,7 +1528,7 @@ import {
 import {
   ServiceAccountKey as IamServiceAccountKey,
   ServiceAccountKeyProvider as IamServiceAccountKeyProvider,
-} from "./IAM/ServiceAccountKey.ts";
+} from "./IAM/ServiceAccountKey.vibe";
 import { WorkloadIdentityPool, WorkloadIdentityPoolProvider } from "./IAM/WorkloadIdentityPool.ts";
 import {
   WorkloadIdentityProvider,
@@ -1582,8 +1582,8 @@ import { TenantsCompany, TenantsCompanyProvider } from "./Jobs/TenantsCompany.ts
 import { TenantsJob, TenantsJobProvider } from "./Jobs/TenantsJob.ts";
 import { CryptoKey, CryptoKeyProvider } from "./KMS/CryptoKey.ts";
 import { CryptoKeyVersion, CryptoKeyVersionProvider } from "./KMS/CryptoKeyVersion.ts";
-import { DecryptHttp } from "./KMS/DecryptHttp.ts";
-import { EncryptHttp } from "./KMS/EncryptHttp.ts";
+import { DecryptHttp } from "./KMS/DecryptHttp.vibe";
+import { EncryptHttp } from "./KMS/EncryptHttp.vibe";
 import { ImportJob, ImportJobProvider } from "./KMS/ImportJob.ts";
 import { KeyRing, KeyRingProvider } from "./KMS/KeyRing.ts";
 import {
@@ -1673,10 +1673,10 @@ import {
   ConnectClustersConnector,
   ConnectClustersConnectorProvider,
 } from "./ManagedKafka/ConnectClustersConnector.ts";
-import { GetClusterHttp as GetManagedKafkaClusterHttp } from "./ManagedKafka/GetClusterHttp.ts";
-import { GetConnectClusterHttp as GetManagedKafkaConnectClusterHttp } from "./ManagedKafka/GetConnectClusterHttp.ts";
-import { GetSchemaRegistryHttp as GetManagedKafkaSchemaRegistryHttp } from "./ManagedKafka/GetSchemaRegistryHttp.ts";
-import { GetTopicHttp as GetManagedKafkaTopicHttp } from "./ManagedKafka/GetTopicHttp.ts";
+import { GetClusterHttp as GetManagedKafkaClusterHttp } from "./ManagedKafka/GetClusterHttp.vibe";
+import { GetConnectClusterHttp as GetManagedKafkaConnectClusterHttp } from "./ManagedKafka/GetConnectClusterHttp.vibe";
+import { GetSchemaRegistryHttp as GetManagedKafkaSchemaRegistryHttp } from "./ManagedKafka/GetSchemaRegistryHttp.vibe";
+import { GetTopicHttp as GetManagedKafkaTopicHttp } from "./ManagedKafka/GetTopicHttp.vibe";
 import {
   SchemaRegistriesContextsSubjectsVersion,
   SchemaRegistriesContextsSubjectsVersionProvider,
@@ -1689,7 +1689,7 @@ import {
   SchemaRegistry as ManagedKafkaSchemaRegistry,
   SchemaRegistryProvider as ManagedKafkaSchemaRegistryProvider,
 } from "./ManagedKafka/SchemaRegistry.ts";
-import { GetInstanceHttp as GetMemcacheInstanceHttp } from "./Memcache/GetInstanceHttp.ts";
+import { GetInstanceHttp as GetMemcacheInstanceHttp } from "./Memcache/GetInstanceHttp.vibe";
 import {
   Instance as MemcacheInstance,
   InstanceProvider as MemcacheInstanceProvider,
@@ -1744,11 +1744,11 @@ import {
   Source as MigrationcenterSource,
   SourceProvider as MigrationcenterSourceProvider,
 } from "./MigrationCenter/Source.ts";
-import { GetModelHttp as GetMlModelHttp } from "./ML/GetModelHttp.ts";
-import { GetVersionHttp as GetMlVersionHttp } from "./ML/GetVersionHttp.ts";
+import { GetModelHttp as GetMlModelHttp } from "./ML/GetModelHttp.vibe";
+import { GetVersionHttp as GetMlVersionHttp } from "./ML/GetVersionHttp.vibe";
 import { Model as MlModel, ModelProvider as MlModelProvider } from "./ML/Model.ts";
 import { ModelsVersion, ModelsVersionProvider } from "./ML/ModelsVersion.ts";
-import { PredictHttp as PredictMlHttp } from "./ML/PredictHttp.ts";
+import { PredictHttp as PredictMlHttp } from "./ML/PredictHttp.vibe";
 import { AlertPolicy, AlertPolicyProvider } from "./Monitoring/AlertPolicy.ts";
 import {
   Group as MonitoringGroup,
@@ -2001,18 +2001,18 @@ import {
   ExascaleDbStorageVault,
   ExascaleDbStorageVaultProvider,
 } from "./OracleDatabase/ExascaleDbStorageVault.ts";
-import { GenerateWalletHttp } from "./OracleDatabase/GenerateWalletHttp.ts";
-import { GetAutonomousDatabaseHttp } from "./OracleDatabase/GetAutonomousDatabaseHttp.ts";
-import { GetCloudExadataInfrastructureHttp } from "./OracleDatabase/GetCloudExadataInfrastructureHttp.ts";
-import { GetCloudVmClusterHttp } from "./OracleDatabase/GetCloudVmClusterHttp.ts";
-import { GetDbSystemHttp } from "./OracleDatabase/GetDbSystemHttp.ts";
-import { GetExadbVmClusterHttp } from "./OracleDatabase/GetExadbVmClusterHttp.ts";
-import { GetExascaleDbStorageVaultHttp } from "./OracleDatabase/GetExascaleDbStorageVaultHttp.ts";
-import { GetGoldengateConnectionAssignmentHttp } from "./OracleDatabase/GetGoldengateConnectionAssignmentHttp.ts";
-import { GetGoldengateConnectionHttp } from "./OracleDatabase/GetGoldengateConnectionHttp.ts";
-import { GetGoldengateDeploymentHttp } from "./OracleDatabase/GetGoldengateDeploymentHttp.ts";
-import { GetOdbNetworkHttp } from "./OracleDatabase/GetOdbNetworkHttp.ts";
-import { GetOdbNetworksOdbSubnetHttp } from "./OracleDatabase/GetOdbNetworksOdbSubnetHttp.ts";
+import { GenerateWalletHttp } from "./OracleDatabase/GenerateWalletHttp.vibe";
+import { GetAutonomousDatabaseHttp } from "./OracleDatabase/GetAutonomousDatabaseHttp.vibe";
+import { GetCloudExadataInfrastructureHttp } from "./OracleDatabase/GetCloudExadataInfrastructureHttp.vibe";
+import { GetCloudVmClusterHttp } from "./OracleDatabase/GetCloudVmClusterHttp.vibe";
+import { GetDbSystemHttp } from "./OracleDatabase/GetDbSystemHttp.vibe";
+import { GetExadbVmClusterHttp } from "./OracleDatabase/GetExadbVmClusterHttp.vibe";
+import { GetExascaleDbStorageVaultHttp } from "./OracleDatabase/GetExascaleDbStorageVaultHttp.vibe";
+import { GetGoldengateConnectionAssignmentHttp } from "./OracleDatabase/GetGoldengateConnectionAssignmentHttp.vibe";
+import { GetGoldengateConnectionHttp } from "./OracleDatabase/GetGoldengateConnectionHttp.vibe";
+import { GetGoldengateDeploymentHttp } from "./OracleDatabase/GetGoldengateDeploymentHttp.vibe";
+import { GetOdbNetworkHttp } from "./OracleDatabase/GetOdbNetworkHttp.vibe";
+import { GetOdbNetworksOdbSubnetHttp } from "./OracleDatabase/GetOdbNetworksOdbSubnetHttp.vibe";
 import {
   GoldengateConnection,
   GoldengateConnectionProvider,
@@ -2030,9 +2030,9 @@ import {
   OdbNetworksOdbSubnet,
   OdbNetworksOdbSubnetProvider,
 } from "./OracleDatabase/OdbNetworksOdbSubnet.ts";
-import { RestartAutonomousDatabaseHttp } from "./OracleDatabase/RestartAutonomousDatabaseHttp.ts";
-import { StartAutonomousDatabaseHttp } from "./OracleDatabase/StartAutonomousDatabaseHttp.ts";
-import { StopAutonomousDatabaseHttp } from "./OracleDatabase/StopAutonomousDatabaseHttp.ts";
+import { RestartAutonomousDatabaseHttp } from "./OracleDatabase/RestartAutonomousDatabaseHttp.vibe";
+import { StartAutonomousDatabaseHttp } from "./OracleDatabase/StartAutonomousDatabaseHttp.vibe";
+import { StopAutonomousDatabaseHttp } from "./OracleDatabase/StopAutonomousDatabaseHttp.vibe";
 import { CustomConstraint, CustomConstraintProvider } from "./OrgPolicy/CustomConstraint.ts";
 import { Policy, PolicyProvider } from "./OrgPolicy/Policy.ts";
 import {
@@ -2049,7 +2049,7 @@ import {
 } from "./OSConfig/ProjectsLocationsGlobalPolicyOrchestrator.ts";
 import { UsersSshPublicKey, UsersSshPublicKeyProvider } from "./OSLogin/UsersSshPublicKey.ts";
 import { GetParameterHttp } from "./ParameterManager/GetParameterHttp.ts";
-import { GetParameterVersionHttp } from "./ParameterManager/GetParameterVersionHttp.ts";
+import { GetParameterVersionHttp } from "./ParameterManager/GetParameterVersionHttp.vibe";
 import { Parameter, ParameterProvider } from "./ParameterManager/Parameter.ts";
 import {
   ParametersVersion,
@@ -2066,11 +2066,11 @@ import {
   CertificateTemplateProvider,
 } from "./PrivateCA/CertificateTemplate.ts";
 import { FetchCaCertsHttp } from "./PrivateCA/FetchCaCertsHttp.ts";
-import { GetCertificateAuthorityHttp } from "./PrivateCA/GetCertificateAuthorityHttp.ts";
-import { AcknowledgeHttp } from "./PubSub/AcknowledgeHttp.ts";
+import { GetCertificateAuthorityHttp } from "./PrivateCA/GetCertificateAuthorityHttp.vibe";
+import { AcknowledgeHttp } from "./PubSub/AcknowledgeHttp.vibe";
 import { GetSchemaHttp } from "./PubSub/GetSchemaHttp.ts";
-import { PublishHttp } from "./PubSub/PublishHttp.ts";
-import { PullHttp } from "./PubSub/PullHttp.ts";
+import { PublishHttp } from "./PubSub/PublishHttp.vibe";
+import { PullHttp } from "./PubSub/PullHttp.vibe";
 import { Schema, SchemaProvider } from "./PubSub/Schema.ts";
 import {
   Snapshot as PubSubSnapshot,
@@ -2078,28 +2078,28 @@ import {
 } from "./PubSub/Snapshot.ts";
 import { Subscription, SubscriptionProvider } from "./PubSub/Subscription.ts";
 import { Topic, TopicProvider } from "./PubSub/Topic.ts";
-import { ValidateMessageHttp } from "./PubSub/ValidateMessageHttp.ts";
+import { ValidateMessageHttp } from "./PubSub/ValidateMessageHttp.vibe";
 import { AdminReservation, AdminReservationProvider } from "./PubSubLite/AdminReservation.ts";
 import { AdminSubscription, AdminSubscriptionProvider } from "./PubSubLite/AdminSubscription.ts";
 import { AdminTopic, AdminTopicProvider } from "./PubSubLite/AdminTopic.ts";
-import { CommitCursorHttp } from "./PubSubLite/CommitCursorHttp.ts";
-import { ComputeHeadCursorHttp } from "./PubSubLite/ComputeHeadCursorHttp.ts";
-import { GetPartitionsHttp } from "./PubSubLite/GetPartitionsHttp.ts";
-import { GetReservationHttp as GetPubsubliteReservationHttp } from "./PubSubLite/GetReservationHttp.ts";
-import { GetSubscriptionHttp as GetPubsubliteSubscriptionHttp } from "./PubSubLite/GetSubscriptionHttp.ts";
-import { GetTopicHttp as GetPubsubliteTopicHttp } from "./PubSubLite/GetTopicHttp.ts";
+import { CommitCursorHttp } from "./PubSubLite/CommitCursorHttp.vibe";
+import { ComputeHeadCursorHttp } from "./PubSubLite/ComputeHeadCursorHttp.vibe";
+import { GetPartitionsHttp } from "./PubSubLite/GetPartitionsHttp.vibe";
+import { GetReservationHttp as GetPubsubliteReservationHttp } from "./PubSubLite/GetReservationHttp.vibe";
+import { GetSubscriptionHttp as GetPubsubliteSubscriptionHttp } from "./PubSubLite/GetSubscriptionHttp.vibe";
+import { GetTopicHttp as GetPubsubliteTopicHttp } from "./PubSubLite/GetTopicHttp.vibe";
 import {
   Collector as RapidmigrationassessmentCollector,
   CollectorProvider as RapidmigrationassessmentCollectorProvider,
 } from "./RapidMigrationAssessment/Collector.ts";
-import { PauseCollectorHttp } from "./RapidMigrationAssessment/PauseCollectorHttp.ts";
-import { RegisterCollectorHttp } from "./RapidMigrationAssessment/RegisterCollectorHttp.ts";
-import { ResumeCollectorHttp } from "./RapidMigrationAssessment/ResumeCollectorHttp.ts";
+import { PauseCollectorHttp } from "./RapidMigrationAssessment/PauseCollectorHttp.vibe";
+import { RegisterCollectorHttp } from "./RapidMigrationAssessment/RegisterCollectorHttp.vibe";
+import { ResumeCollectorHttp } from "./RapidMigrationAssessment/ResumeCollectorHttp.vibe";
 import {
   BiddersPretargetingConfig,
   BiddersPretargetingConfigProvider,
 } from "./RealTimeBidding/BiddersPretargetingConfig.ts";
-import { CreateAssessmentHttp as RecaptchaenterpriseCreateAssessmentHttp } from "./RecaptchaEnterprise/CreateAssessmentHttp.ts";
+import { CreateAssessmentHttp as RecaptchaenterpriseCreateAssessmentHttp } from "./RecaptchaEnterprise/CreateAssessmentHttp.vibe";
 import {
   Firewallpolicy as RecaptchaenterpriseFirewallpolicy,
   FirewallpolicyProvider as RecaptchaenterpriseFirewallpolicyProvider,
@@ -2112,27 +2112,27 @@ import {
   CatalogsCatalogItem,
   CatalogsCatalogItemProvider,
 } from "./RecommendationEngine/CatalogsCatalogItem.ts";
-import { GetCatalogItemHttp } from "./RecommendationEngine/GetCatalogItemHttp.ts";
+import { GetCatalogItemHttp } from "./RecommendationEngine/GetCatalogItemHttp.vibe";
 import { AclPolicy, AclPolicyProvider } from "./Redis/AclPolicy.ts";
-import { GetAclPolicyHttp } from "./Redis/GetAclPolicyHttp.ts";
-import { GetAuthStringHttp } from "./Redis/GetAuthStringHttp.ts";
-import { GetInstanceHttp as GetRedisInstanceHttp } from "./Redis/GetInstanceHttp.ts";
+import { GetAclPolicyHttp } from "./Redis/GetAclPolicyHttp.vibe";
+import { GetAuthStringHttp } from "./Redis/GetAuthStringHttp.vibe";
+import { GetInstanceHttp as GetRedisInstanceHttp } from "./Redis/GetInstanceHttp.vibe";
 import {
   Instance as RedisInstance,
   InstanceProvider as RedisInstanceProvider,
 } from "./Redis/Instance.ts";
-import { ReadRedisHttp } from "./Redis/ReadRedisHttp.ts";
-import { ReadWriteRedisHttp } from "./Redis/ReadWriteRedisHttp.ts";
-import { WriteRedisHttp } from "./Redis/WriteRedisHttp.ts";
+import { ReadRedisHttp } from "./Redis/ReadRedisHttp.vibe";
+import { ReadWriteRedisHttp } from "./Redis/ReadWriteRedisHttp.vibe";
+import { WriteRedisHttp } from "./Redis/WriteRedisHttp.vibe";
 import {
   Folder as ResourceManagerFolder,
   FolderProvider as ResourceManagerFolderProvider,
-} from "./ResourceManager/Folder.ts";
+} from "./ResourceManager/Folder.vibe";
 import { Lien, LienProvider } from "./ResourceManager/Lien.ts";
 import {
   Project as ResourceManagerProject,
   ProjectProvider as ResourceManagerProjectProvider,
-} from "./ResourceManager/Project.ts";
+} from "./ResourceManager/Project.vibe";
 import { TagBinding, TagBindingProvider } from "./ResourceManager/TagBinding.ts";
 import { TagKey, TagKeyProvider } from "./ResourceManager/TagKey.ts";
 import { TagValue, TagValueProvider } from "./ResourceManager/TagValue.ts";
@@ -2146,8 +2146,8 @@ import {
   CatalogsServingConfig,
   CatalogsServingConfigProvider,
 } from "./Retail/CatalogsServingConfig.ts";
-import { PredictHttp as RetailPredictHttp } from "./Retail/PredictHttp.ts";
-import { SearchHttp as RetailSearchHttp } from "./Retail/SearchHttp.ts";
+import { PredictHttp as RetailPredictHttp } from "./Retail/PredictHttp.vibe";
+import { SearchHttp as RetailSearchHttp } from "./Retail/SearchHttp.vibe";
 import {
   Container as RunContainer,
   ContainerProvider as RunContainerProvider,
@@ -2266,8 +2266,8 @@ import {
   SignedNodesNodesDevice as SasportalSignedNodesNodesDevice,
   SignedNodesNodesDeviceProvider as SasportalSignedNodesNodesDeviceProvider,
 } from "./SasPortal/SignedNodesNodesDevice.ts";
-import { AccessSecretVersionHttp } from "./SecretManager/AccessSecretVersionHttp.ts";
-import { AddSecretVersionHttp } from "./SecretManager/AddSecretVersionHttp.ts";
+import { AccessSecretVersionHttp } from "./SecretManager/AccessSecretVersionHttp.vibe";
+import { AddSecretVersionHttp } from "./SecretManager/AddSecretVersionHttp.vibe";
 import { LocationsSecret, LocationsSecretProvider } from "./SecretManager/LocationsSecret.ts";
 import { Secret, SecretProvider } from "./SecretManager/Secret.ts";
 import {
@@ -2350,7 +2350,7 @@ import {
   Endpoint as ServiceDirectoryEndpoint,
   EndpointProvider as ServiceDirectoryEndpointProvider,
 } from "./ServiceDirectory/Endpoint.ts";
-import { GetEndpointHttp as ServiceDirectoryGetEndpointHttp } from "./ServiceDirectory/GetEndpointHttp.ts";
+import { GetEndpointHttp as ServiceDirectoryGetEndpointHttp } from "./ServiceDirectory/GetEndpointHttp.vibe";
 import { Namespace, NamespaceProvider } from "./ServiceDirectory/Namespace.ts";
 import { ResolveHttp as ServiceDirectoryResolveHttp } from "./ServiceDirectory/ResolveHttp.ts";
 import {
@@ -2370,7 +2370,7 @@ import {
 } from "./Spanner/Database.ts";
 import { ExecuteSqlHttp as SpannerExecuteSqlHttp } from "./Spanner/ExecuteSqlHttp.ts";
 import { GetDdlHttp as SpannerGetDdlHttp } from "./Spanner/GetDdlHttp.ts";
-import { GetInstanceHttp as GetSpannerInstanceHttp } from "./Spanner/GetInstanceHttp.ts";
+import { GetInstanceHttp as GetSpannerInstanceHttp } from "./Spanner/GetInstanceHttp.vibe";
 import {
   Instance as SpannerInstance,
   InstanceProvider as SpannerInstanceProvider,
@@ -2392,10 +2392,10 @@ import {
   InstancesInstancePartitionProvider as SpannerInstancesInstancePartitionProvider,
 } from "./Spanner/InstancesInstancePartition.ts";
 import { CustomClass, CustomClassProvider } from "./Speech/CustomClass.ts";
-import { GetCustomClassHttp } from "./Speech/GetCustomClassHttp.ts";
-import { GetPhraseSetHttp } from "./Speech/GetPhraseSetHttp.ts";
+import { GetCustomClassHttp } from "./Speech/GetCustomClassHttp.vibe";
+import { GetPhraseSetHttp } from "./Speech/GetPhraseSetHttp.vibe";
 import { PhraseSet, PhraseSetProvider } from "./Speech/PhraseSet.ts";
-import { RecognizeHttp } from "./Speech/RecognizeHttp.ts";
+import { RecognizeHttp } from "./Speech/RecognizeHttp.vibe";
 import {
   Backup as SqlBackupBackup,
   BackupProvider as SqlBackupBackupProvider,
@@ -2409,8 +2409,8 @@ import {
   DatabaseProvider as SqlDatabaseProvider,
 } from "./SQL/Database.ts";
 import { ExecuteSqlHttp } from "./SQL/ExecuteSqlHttp.ts";
-import { GetInstanceHttp as GetSqlInstanceHttp } from "./SQL/GetInstanceHttp.ts";
-import { GetUserHttp as GetSqlUserHttp } from "./SQL/GetUserHttp.ts";
+import { GetInstanceHttp as GetSqlInstanceHttp } from "./SQL/GetInstanceHttp.vibe";
+import { GetUserHttp as GetSqlUserHttp } from "./SQL/GetUserHttp.vibe";
 import {
   Instance as SqlInstance,
   InstanceProvider as SqlInstanceProvider,
@@ -2423,9 +2423,9 @@ import {
   DefaultObjectAccessControl,
   DefaultObjectAccessControlProvider,
 } from "./Storage/DefaultObjectAccessControl.ts";
-import { DeleteObjectHttp } from "./Storage/DeleteObjectHttp.ts";
+import { DeleteObjectHttp } from "./Storage/DeleteObjectHttp.vibe";
 import { Folder, FolderProvider } from "./Storage/Folder.ts";
-import { GetObjectHttp } from "./Storage/GetObjectHttp.ts";
+import { GetObjectHttp } from "./Storage/GetObjectHttp.vibe";
 import { HmacKey, HmacKeyProvider } from "./Storage/HmacKey.ts";
 import { Managed, ManagedProvider } from "./Storage/Managed.ts";
 import { Notification, NotificationProvider } from "./Storage/Notification.ts";
@@ -2434,19 +2434,19 @@ import {
   ObjectProvider as StorageObjectProvider,
 } from "./Storage/Object.ts";
 import { ObjectAccessControl, ObjectAccessControlProvider } from "./Storage/ObjectAccessControl.ts";
-import { PutObjectHttp } from "./Storage/PutObjectHttp.ts";
+import { PutObjectHttp } from "./Storage/PutObjectHttp.vibe";
 import { AgentPool, AgentPoolProvider } from "./StorageTransfer/AgentPool.ts";
-import { GetGoogleServiceAccountHttp } from "./StorageTransfer/GetGoogleServiceAccountHttp.ts";
-import { RunTransferJobHttp } from "./StorageTransfer/RunTransferJobHttp.ts";
+import { GetGoogleServiceAccountHttp } from "./StorageTransfer/GetGoogleServiceAccountHttp.vibe";
+import { RunTransferJobHttp } from "./StorageTransfer/RunTransferJobHttp.vibe";
 import { TransferJob, TransferJobProvider } from "./StorageTransfer/TransferJob.ts";
-import { GetNodeHttp as GetTpuNodeHttp } from "./TPU/GetNodeHttp.ts";
-import { GetQueuedResourceHttp as GetTpuQueuedResourceHttp } from "./TPU/GetQueuedResourceHttp.ts";
+import { GetNodeHttp as GetTpuNodeHttp } from "./TPU/GetNodeHttp.vibe";
+import { GetQueuedResourceHttp as GetTpuQueuedResourceHttp } from "./TPU/GetQueuedResourceHttp.vibe";
 import { Node as TpuNode, NodeProvider as TpuNodeProvider } from "./TPU/Node.ts";
 import {
   QueuedResource as TpuQueuedResource,
   QueuedResourceProvider as TpuQueuedResourceProvider,
 } from "./TPU/QueuedResource.ts";
-import { CreateJobHttp } from "./Transcoder/CreateJobHttp.ts";
+import { CreateJobHttp } from "./Transcoder/CreateJobHttp.vibe";
 import { JobTemplate, JobTemplateProvider } from "./Transcoder/JobTemplate.ts";
 import { AdaptiveMtDataset, AdaptiveMtDatasetProvider } from "./Translate/AdaptiveMtDataset.ts";
 import { AdaptiveMtTranslateHttp } from "./Translate/AdaptiveMtTranslateHttp.ts";
@@ -2547,7 +2547,7 @@ import {
 } from "./VMwareEngine/VmwareEngineNetwork.ts";
 import { Connector, ConnectorProvider } from "./VpcAccess/Connector.ts";
 import { ScanConfig, ScanConfigProvider } from "./WebSecurityScanner/ScanConfig.ts";
-import { CreateExecutionHttp } from "./Workflows/CreateExecutionHttp.ts";
+import { CreateExecutionHttp } from "./Workflows/CreateExecutionHttp.vibe";
 import { Workflow, WorkflowProvider } from "./Workflows/Workflow.ts";
 import {
   DeploymentsActuation,
@@ -2561,12 +2561,12 @@ import {
   Subscription as WorkspaceeventsSubscription,
   SubscriptionProvider as WorkspaceeventsSubscriptionProvider,
 } from "./WorkspaceEvents/Subscription.ts";
-import { GenerateAccessTokenHttp } from "./Workstations/GenerateAccessTokenHttp.ts";
-import { GetWorkstationClusterHttp } from "./Workstations/GetWorkstationClusterHttp.ts";
-import { GetWorkstationConfigHttp } from "./Workstations/GetWorkstationConfigHttp.ts";
-import { GetWorkstationHttp } from "./Workstations/GetWorkstationHttp.ts";
-import { StartWorkstationHttp } from "./Workstations/StartWorkstationHttp.ts";
-import { StopWorkstationHttp } from "./Workstations/StopWorkstationHttp.ts";
+import { GenerateAccessTokenHttp } from "./Workstations/GenerateAccessTokenHttp.vibe";
+import { GetWorkstationClusterHttp } from "./Workstations/GetWorkstationClusterHttp.vibe";
+import { GetWorkstationConfigHttp } from "./Workstations/GetWorkstationConfigHttp.vibe";
+import { GetWorkstationHttp } from "./Workstations/GetWorkstationHttp.vibe";
+import { StartWorkstationHttp } from "./Workstations/StartWorkstationHttp.vibe";
+import { StopWorkstationHttp } from "./Workstations/StopWorkstationHttp.vibe";
 import {
   WorkstationCluster,
   WorkstationClusterProvider,

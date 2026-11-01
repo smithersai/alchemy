@@ -1,0 +1,13 @@
+import * as Layer from "effect/Layer";
+import { TestRuleset } from "./TestRuleset.js";
+/**
+ * HTTP implementation of {@link TestRuleset}.
+ *
+ * Grants `roles/firebaserules.admin` on the project because it is the
+ * narrowest predefined role containing `firebaserules.rulesets.test`, and Firebase
+ * Rules has no resource-level IAM.
+ *
+ * @layer
+ * @provides GCP.FirebaseRules.TestRuleset
+ */
+export declare const TestRulesetHttp: Layer.Layer<TestRuleset, never, never>;

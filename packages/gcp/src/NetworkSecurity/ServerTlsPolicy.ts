@@ -19,7 +19,7 @@ import {
   resourceName,
   toId,
   userLabels,
-} from "./names.ts";
+} from "./names.vibe";
 import { waitForOperation } from "./operations.ts";
 import { sameJson } from "./ownership.ts";
 

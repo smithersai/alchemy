@@ -27,8 +27,8 @@ import {
   waitUntilDeleted,
   projectServices,
   environmentVolumes,
-} from "./GraphQL.ts";
-import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.ts";
+} from "./GraphQL.vibe";
+import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { ownedProjects, type Project } from "./Project.ts";
 import type { Providers } from "./Providers.ts";
 

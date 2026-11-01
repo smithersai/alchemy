@@ -4,7 +4,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { isTransientGcpError } from "../Errors.ts";
+import { isTransientGcpError } from "../Errors.vibe";
 import { alchemyLabelKeys, hasAlchemyLabels } from "../Labels.ts";
 import { waitForOperation as waitForGcpOperation } from "../Operation.ts";
 

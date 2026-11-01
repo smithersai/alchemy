@@ -11,7 +11,7 @@ import { PushDenied, RefConflict, RepoNotFound } from "./Api/Schema.ts";
 import { BlobStore } from "./BlobStore.ts";
 import { Hasher } from "./Hasher/Hasher.ts";
 import { Operations, OperationsLive } from "./Operations.ts";
-import { StoreError } from "./Protocol/Store.ts";
+import { StoreError } from "./Protocol/Store.vibe";
 import {
   incomingStates,
   invalidPush,
@@ -19,7 +19,7 @@ import {
   type PreparedPush,
   type PushInput,
   type RefUpdate,
-} from "./Push.ts";
+} from "./Push.vibe";
 import { encodeStagedBatch } from "./PushWire.ts";
 import { ulid } from "./RegistryObject.ts";
 import {

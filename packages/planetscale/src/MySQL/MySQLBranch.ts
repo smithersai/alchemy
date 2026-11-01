@@ -3,7 +3,7 @@ import { type BaseBranchAttributes, type BaseBranchProps, makeBranchProvider } f
 import type { Providers } from "../Providers.ts";
 import type { MySQLClusterSize } from "./MySQLClusterSize.ts";
 import type { MySQLDatabase } from "./MySQLDatabase.ts";
-import { runMySQLImports, runMySQLMigrations } from "./MySQLMigrations.ts";
+import { runMySQLImports, runMySQLMigrations } from "./MySQLMigrations.vibe";
 
 /**
  * Properties for creating or updating a {@link MySQLBranch}.

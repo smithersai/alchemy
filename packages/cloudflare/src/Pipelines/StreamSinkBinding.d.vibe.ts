@@ -1,0 +1,18 @@
+import * as Layer from "effect/Layer";
+/**
+ * Implementation of the {@link StreamSink} service over the native Worker `pipelines` binding ({@link WriteStreamBinding}). Registers the same binding as `WriteStream`, so a Worker can use both on one stream.
+ * ### Providing the Layer
+ * **Example:** Provide the sink layer
+ * ```typescript
+ * Effect.gen(function* () {
+ *   const sink = yield* Cloudflare.Basin.StreamSink(PageViews);
+ *   // ...
+ * }).pipe(Effect.provide(Cloudflare.Basin.StreamSinkBinding));
+ * ```
+ *
+ * @layer
+ * @provides Cloudflare.Pipelines.StreamSink
+ * @product Pipelines
+ * @category Storage & Databases
+ */
+export declare const StreamSinkBinding: Layer.Layer<import("./StreamSink.js").StreamSink, never, import("../index.js").WorkerEnvironment | import("../index.js").Worker<any>>;

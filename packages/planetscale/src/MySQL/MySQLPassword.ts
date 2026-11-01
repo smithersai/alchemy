@@ -10,7 +10,7 @@ import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
 import type { MySQLBranch } from "./MySQLBranch.ts";
 import type { MySQLDatabase } from "./MySQLDatabase.ts";
-import type { MySQLOrigin } from "./MySQLOrigin.ts";
+import type { MySQLOrigin } from "./MySQLOrigin.vibe";
 
 /**
  * Properties for creating or updating a PlanetScale MySQL password.

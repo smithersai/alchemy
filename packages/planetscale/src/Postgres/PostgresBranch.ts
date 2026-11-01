@@ -3,7 +3,7 @@ import { type BaseBranchAttributes, type BaseBranchProps, makeBranchProvider } f
 import type { Providers } from "../Providers.ts";
 import type { PostgresClusterSize } from "./PostgresClusterSize.ts";
 import type { PostgresDatabase } from "./PostgresDatabase.ts";
-import { runPostgresImports, runPostgresMigrations } from "./PostgresMigrations.ts";
+import { runPostgresImports, runPostgresMigrations } from "./PostgresMigrations.vibe";
 
 /**
  * Properties for creating or updating a {@link PostgresBranch}.

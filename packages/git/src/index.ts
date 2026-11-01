@@ -23,12 +23,12 @@
 export * from "./Api.ts";
 export { GitApi as Api } from "./Api.ts";
 export { Engine, EngineLive } from "./Engine.ts";
-export type { PushInput, PreparedPush, RefUpdate } from "./Push.ts";
+export type { PushInput, PreparedPush, RefUpdate } from "./Push.vibe";
 export * as Http from "./Http.ts";
-export * as Push from "./PushInput.ts";
+export * as Push from "./PushInput.vibe";
 export * from "./Server.ts";
 export { parseCommit, parseTree, ZERO_OID, ObjectType } from "./Protocol/ObjectCodec.ts";
-export { StoreError } from "./Protocol/Store.ts";
+export { StoreError } from "./Protocol/Store.vibe";
 export { WireProtocolError, PackIngestError } from "./RepoObject.ts";
 export {
   BlobStore,
@@ -40,7 +40,7 @@ export {
 } from "./BlobStore.ts";
 export { BlobStoreR2 } from "./BlobStoreR2.ts";
 export { BlobStoreS3 } from "./BlobStoreS3.ts";
-export { RegistryD1 } from "./RegistryD1.ts";
+export { RegistryD1 } from "./RegistryD1.vibe";
 export {
   GitRepo,
   GitRepoLive,

@@ -27,7 +27,7 @@ import {
   parentBefore,
   parseDisplayName,
   parseResourceName,
-} from "./shared.ts";
+} from "./shared.vibe";
 
 const COLLECTION = "sandboxEnvironments";
 

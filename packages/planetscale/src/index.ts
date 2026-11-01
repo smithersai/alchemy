@@ -6,7 +6,7 @@ export {
   DEFAULT_API_BASE_URL,
   fromAuthProvider,
   fromToken,
-} from "./Credentials.ts";
+} from "./Credentials.vibe";
 export * from "./Database.ts";
 export * from "./MySQL/index.ts";
 export * from "./Postgres/index.ts";

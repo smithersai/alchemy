@@ -1,0 +1,365 @@
+import * as cloudidentity from "@distilled.cloud/gcp/cloudidentity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import type { Providers } from "../Providers.ts"
+import {
+  compactStringMap,
+  getGroup,
+  getGroupByKey,
+  lastSegment,
+  MAX_DISPLAY_NAME_LENGTH,
+  normalizeCustomer,
+  replaceOnIdentity,
+  sameJson,
+  sameText,
+  toGroupKeyId,
+  toPhysicalId,
+  typeLabels,
+  updateMaskOf,
+} from "./internal.ts"
+import { resourceNameFromOperation, waitForOperation, waitUntilPresent } from "./operations.ts"
+
+export type GroupEntityKey = {
+  /** Email address (Google-managed) or identity-source id. */
+  mutable id?: string
+  /** `identitysources/{identity_source}` for external-mapped groups. */
+  mutable namespace?: string
+}
+
+export type GroupDynamicGroupQuery = {
+  /** Resource type for the query. Currently `USER`. */
+  mutable resourceType?: cloudidentity.DynamicGroupQueryResourceTypeEnum | (string & {})
+  /** CEL membership query. */
+  mutable query?: string
+}
+
+export type GroupDynamicGroupMetadata = {
+  /** Membership queries. Only one `USER` query is supported. */
+  mutable queries?: GroupDynamicGroupQuery[]
+}
+
+export type GroupProps = {
+  /**
+   * Cloud Identity customer or identity source, as
+   * `customers/{customer}` (the id must start with `C`) or
+   * `identitysources/{identity_source}`. `customers/my_customer`
+   * refers to the caller's customer. Immutable — changing it replaces
+   * the group.
+   * @default "customers/my_customer"
+   */
+  mutable parent?: string
+  /**
+   * Group email (`group@example.com`) or identity-source id. If
+   * omitted, a unique local part is generated and combined with
+   * `domain` when set. Immutable — changing it replaces the group.
+   */
+  mutable groupKeyId?: string
+  /**
+   * Entity-key namespace for external-identity-mapped groups
+   * (`identitysources/{identity_source}`).
+   */
+  mutable groupKeyNamespace?: string
+  /**
+   * Domain used to build `groupKeyId` when that prop is omitted
+   * (`{generated}@{domain}`).
+   */
+  mutable domain?: string
+  /**
+   * Display name shown to members.
+   */
+  mutable displayName?: string
+  /**
+   * Extended description shown to members (max 4,096 characters).
+   */
+  mutable description?: string
+  /**
+   * Cloud Identity type labels (empty values). Google Groups need
+   * `cloudidentity.googleapis.com/groups.discussion_forum`. Adding
+   * `cloudidentity.googleapis.com/groups.security` is immutable.
+   */
+  mutable labels?: Record<string, string>
+  /**
+   * Initial membership config on create.
+   * @default "EMPTY"
+   */
+  mutable initialGroupConfig?: cloudidentity.CreateGroupsInitialGroupConfigEnum | (string & {})
+  /**
+   * Dynamic group queries. Sets the dynamic type label.
+   */
+  mutable dynamicGroupMetadata?: GroupDynamicGroupMetadata
+}
+
+export type Group = Resource<
+  "GCP.CloudIdentity.Group",
+  GroupProps,
+  {
+    /** Resource name `groups/{group}`. */
+    mutable name: string
+    /** Group id (last path segment). */
+    mutable groupId: string
+    /** Customer or identity-source parent. */
+    mutable parent: string
+    /** Group entity key id (email). */
+    mutable groupKeyId: string
+    /** Entity-key namespace, if any. */
+    mutable groupKeyNamespace: string | undefined
+    /** Display name. */
+    mutable displayName: string | undefined
+    /** Description. */
+    mutable description: string | undefined
+    /** Cloud Identity type labels. */
+    mutable labels: Record<string, string>
+    /** Additional group keys. */
+    mutable additionalGroupKeys: GroupEntityKey[] | undefined
+    /** RFC3339 creation timestamp. */
+    mutable createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    mutable updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Identity / Google Group.
+ *
+ * Groups have no user labels, so Alchemy identifies a group by its key
+ * (email): a group found under the generated key is adopted, one found
+ * under an explicit `groupKeyId` without state is reported as unowned.
+ * `parent` and `groupKeyId` are identity; display name, description, and labels update in place.
+ *
+ * ### Creating a Group
+ * **Example:** Generated email on a Workspace domain
+ * ```typescript
+ * const group = yield* GCP.CloudIdentity.Group("Eng", {
+ *   parent: "customers/my_customer",
+ *   domain: "example.com",
+ *   displayName: "Engineering",
+ * });
+ * ```
+ *
+ * **Example:** Explicit group key
+ * ```typescript
+ * const group = yield* GCP.CloudIdentity.Group("Eng", {
+ *   parent: "customers/C046psxkn",
+ *   groupKeyId: "eng@example.com",
+ *   displayName: "Engineering",
+ *   description: "product engineering",
+ * });
+ * ```
+ *
+ * ### Updating a Group
+ * **Example:** Rename
+ * ```typescript
+ * const group = yield* GCP.CloudIdentity.Group("Eng", {
+ *   groupKeyId: "eng@example.com",
+ *   displayName: "Engineering 2026",
+ * });
+ * ```
+ *
+ * @resource
+ * @category CloudIdentity
+ */
+export const Group = Resource<Group>("GCP.CloudIdentity.Group")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class GroupNotResolved extends Data.TaggedError("GCP.CloudIdentity.GroupNotResolved")<{
+  mutable resourceName: string
+}> {}
+
+const toAttrs = (group: cloudidentity.Group): infer _ => {
+  const name = group.name ?? ""
+  return {
+    name,
+    groupId: lastSegment(name),
+    parent: group.parent ?? "",
+    groupKeyId: group.groupKey?.id ?? "",
+    groupKeyNamespace: group.groupKey?.namespace,
+    displayName: group.displayName,
+    description: group.description,
+    labels: compactStringMap(group.labels),
+    additionalGroupKeys: group.additionalGroupKeys?.map((key) => ({
+      id: key.id,
+      namespace: key.namespace,
+    })),
+    createTime: group.createTime,
+    updateTime: group.updateTime,
+  }
+}
+
+const observeGroup = effect (input: {
+  mutable id: string
+  mutable name?: string
+  mutable groupKeyId?: string
+  mutable groupKeyNamespace?: string
+  mutable parent?: string
+}) => {
+  const byName = try getGroup(input.name ?? "")
+  if (byName !== undefined) return byName
+  const byKey = try getGroupByKey(input.groupKeyId ?? "", input.groupKeyNamespace)
+  return byKey
+}
+
+export const GroupProvider = (): infer _ =>
+  Provider.succeed(Group, {
+    stables: ["name", "groupId", "parent", "groupKeyId", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      const nextParent = news.parent !== undefined ? normalizeCustomer(news.parent) : previousParent
+      const previousKey = olds?.groupKeyId ?? output?.groupKeyId
+      return replaceOnIdentity({
+        previousId: previousKey,
+        nextId: news.groupKeyId,
+        previousParent,
+        nextParent,
+        extra: news.groupKeyNamespace !== undefined
+          && output?.groupKeyNamespace !== undefined
+          && news.groupKeyNamespace !== output.groupKeyNamespace,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const groupKeyId = try toGroupKeyId(
+        id,
+        olds?.groupKeyId,
+        output?.groupKeyId,
+        olds?.domain,
+      )
+      const existing = try observeGroup({
+        id,
+        name: output?.name,
+        groupKeyId,
+        groupKeyNamespace: olds?.groupKeyNamespace ?? output?.groupKeyNamespace,
+        parent: olds?.parent ?? output?.parent,
+      })
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing)
+      // State or the generated group key proves ownership.
+      return output !== undefined || olds?.groupKeyId === undefined ? attrs : Unowned(attrs)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const parent = normalizeCustomer(news.parent ?? output?.parent)
+      const groupKeyId = try toGroupKeyId(id, news.groupKeyId, output?.groupKeyId, news.domain)
+      const groupKeyNamespace = news.groupKeyNamespace ?? output?.groupKeyNamespace
+      const displayName = try toPhysicalId(
+        id,
+        news.displayName,
+        output?.displayName,
+        MAX_DISPLAY_NAME_LENGTH,
+      )
+      const description = news.description
+      const labels = typeLabels(news.labels)
+      const desired: cloudidentity.Group = {
+        parent,
+        groupKey: {
+          id: groupKeyId,
+          namespace: groupKeyNamespace,
+        },
+        displayName,
+        description,
+        labels,
+        dynamicGroupMetadata: news.dynamicGroupMetadata,
+      }
+
+      let current = try observeGroup({
+        id,
+        name: output?.name,
+        groupKeyId,
+        groupKeyNamespace,
+        parent,
+      })
+
+      if (current === undefined) {
+        const created = cloudidentity
+          .createGroups({
+            initialGroupConfig: news.initialGroupConfig ?? "EMPTY",
+            body: desired,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          waitForOperation(created) catch effect (e) => match (e) {
+            when { _tag: "GCP.CloudIdentity.OperationPending" }: try Effect.void;
+            default: throw e;
+          }
+          const createdName = resourceNameFromOperation(created)
+          if (createdName !== undefined) {
+            current = try getGroup(createdName)
+          }
+        }
+        if (current === undefined) {
+          current = waitUntilPresent(
+            observeGroup({
+              id,
+              name: output?.name,
+              groupKeyId,
+              groupKeyNamespace,
+              parent,
+            }),
+            groupKeyId,
+          ) catch effect (e) => match (e) {
+            when { _tag: "GCP.CloudIdentity.OperationPending" }: try observeGroup({
+              id,
+              groupKeyId,
+              groupKeyNamespace,
+              parent,
+            });
+            default: throw e;
+          }
+        }
+      }
+
+      if (current === undefined) {
+        throw new GroupNotResolved({
+          resourceName: output?.name ?? groupKeyId,
+        })
+      }
+
+      const name = current.name ?? output?.name ?? ""
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = !sameText(current.description, description)
+      const labelsChanged = !sameJson(compactStringMap(current.labels), labels)
+
+      const updateMask = updateMaskOf(
+        displayChanged ? "display_name" : undefined,
+        descriptionChanged ? "description" : undefined,
+        labelsChanged ? "labels" : undefined,
+      )
+
+      if (updateMask.length > 0 && name.length > 0) {
+        const patched = try cloudidentity.patchGroups({
+          name,
+          updateMask,
+          body: {
+            displayName,
+            description,
+            labels,
+          },
+        })
+        waitForOperation(patched) catch effect (e) => match (e) {
+          when { _tag: "GCP.CloudIdentity.OperationPending" }: try Effect.void;
+          default: throw e;
+        }
+        current = (try getGroup(name)) ?? current
+      }
+
+      return toAttrs(current)
+    },
+
+    delete: effect ({ output }) => {
+      if (output.name.length === 0) return
+      const deleted = cloudidentity
+        .deleteGroups({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (deleted !== undefined) {
+        try waitForOperation(deleted, { notFoundOk: true })
+      }
+    },
+  })

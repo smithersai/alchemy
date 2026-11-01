@@ -17,7 +17,7 @@ import {
   parentOf,
   parseResourceName,
   toResourceId,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type ReservationGroupProps = {
   /**

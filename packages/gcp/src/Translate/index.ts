@@ -11,4 +11,4 @@ export * from "./GlossariesGlossaryEntry.ts";
 export * from "./Model.ts";
 export * from "./TranslateText.ts";
 export * from "./TranslateTextHttp.ts";
-export { waitForOperation } from "./operations.ts";
+export { waitForOperation } from "./operations.vibe";

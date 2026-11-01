@@ -1,0 +1,53 @@
+import * as transcoder from "@distilled.cloud/gcp/transcoder_v1"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as GCPBindings from "../GCPBindings.ts"
+import { CreateJob, type CreateJobRequest } from "./CreateJob.ts"
+import { lastSegment, parentOfName } from "./internal.ts"
+import type { JobTemplate } from "./JobTemplate.ts"
+
+/**
+ * HTTP implementation of {@link CreateJob}.
+ *
+ * @layer
+ * @provides GCP.Transcoder.CreateJob
+ */
+export const CreateJobHttp = Layer.effect(
+  CreateJob,
+  effect {
+    const bind = try GCPBindings.Bind
+    const createProjectsLocationsJobs = try GCPBindings.withCredentials(
+      transcoder.createProjectsLocationsJobs,
+    )
+    return effect (template: JobTemplate) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`GCP.Transcoder.CreateJob(${template})`({
+          // Narrowest predefined role with transcoder.jobs.create; Transcoder
+          // has no resource-level IAM, so this is a project grant.
+          iam: [{ role: "roles/transcoder.editor" }],
+        })
+      }
+      const name = try template.name.asEffect()
+      const location = try template.location.asEffect()
+      return effect (
+        request?: CreateJobRequest | undefined,
+      ) =>
+        try withSpan(
+          effect {
+            const templateName = try name
+            const templateLocation = try location
+            const templateId = lastSegment(templateName)
+            const config = request?.body?.config
+            return try createProjectsLocationsJobs({
+              parent: parentOfName(templateName, templateLocation),
+              body: {
+                ...request?.body,
+                templateId: request?.body?.templateId ?? (config === undefined ? templateId : undefined),
+              },
+            })
+          },
+          `GCP.Transcoder.CreateJob(${template.LogicalId})`,
+        )
+    }
+  },
+)

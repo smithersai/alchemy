@@ -5,7 +5,7 @@ import {
   makeFrameworkSite,
   staticConfigFromAssets,
   type FrameworkSiteProps,
-} from "./FrameworkSite.ts";
+} from "./FrameworkSite.vibe";
 
 /** The framework-integration package that drives the Astro build. */
 export const ASTRO_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/astro";

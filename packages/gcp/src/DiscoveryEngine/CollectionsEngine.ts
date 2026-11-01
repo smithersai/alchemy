@@ -19,7 +19,7 @@ import {
   sameStringList,
   toResourceId,
 } from "./internal.ts";
-import { waitForOperation } from "./operations.ts";
+import { waitForOperation } from "./operations.vibe";
 
 export type CollectionsEngineSearchEngineConfig = {
   /**

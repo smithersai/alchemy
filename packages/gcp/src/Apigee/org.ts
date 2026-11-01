@@ -2,7 +2,7 @@ import * as apigee from "@distilled.cloud/gcp/apigee_v1";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
-import { orgParent, organizationOf } from "./names.ts";
+import { orgParent, organizationOf } from "./names.vibe";
 import { hasOwnershipMarker } from "./ownership.ts";
 
 export const currentOrganization = (explicit: string | undefined, existing?: string) =>

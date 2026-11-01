@@ -1,0 +1,13 @@
+import * as websecurityscanner from "@distilled.cloud/gcp/websecurityscanner_v1";
+import * as Effect from "effect/Effect";
+export declare const lastSegment: (value: string) => string;
+export declare const projectParent: (project: string) => string;
+export declare const scanConfigNameOf: (project: string, scanConfigId: string) => string;
+export declare const sameText: (left: string | undefined, right: string | undefined) => boolean;
+export declare const jsonEqual: (left: unknown, right: unknown) => boolean;
+export declare const sortedStrings: (values: readonly string[] | undefined) => string[];
+export declare const stringList: (values: readonly (string | undefined)[] | null | undefined) => string[];
+export declare const unspecified: (value: string | undefined) => string;
+export declare const updateMaskOf: (...fields: Array<string | undefined>) => string;
+export declare const toUserDisplayName: (id: string, requested: string | undefined, existing: string | undefined, maxLength?: number) => Effect.Effect<string, never, import("alchemy/ResourceContext").ResourceContext | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
+export declare const getScanConfig: (name: string) => Effect.Effect<websecurityscanner.ScanConfig | undefined, websecurityscanner.Forbidden | websecurityscanner.GcpOpError, websecurityscanner.GcpOpContext>;

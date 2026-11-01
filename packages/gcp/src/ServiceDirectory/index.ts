@@ -1,6 +1,6 @@
 export * from "./Endpoint.ts";
 export * from "./GetEndpoint.ts";
-export * from "./GetEndpointHttp.ts";
+export * from "./GetEndpointHttp.vibe";
 export * from "./Namespace.ts";
 export * from "./Resolve.ts";
 export * from "./ResolveHttp.ts";

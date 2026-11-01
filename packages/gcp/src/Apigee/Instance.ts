@@ -16,7 +16,7 @@ import {
   sameJson,
   sameStringList,
   toResourceId,
-} from "./names.ts";
+} from "./names.vibe";
 import { waitForOperation } from "./operations.ts";
 import {
   createInternalLabels,

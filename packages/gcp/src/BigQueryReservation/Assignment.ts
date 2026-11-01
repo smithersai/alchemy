@@ -17,7 +17,7 @@ import {
   ownedByAlchemy,
   parentOf,
   toResourceId,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type AssignmentJobType = bigqueryreservation.AssignmentJobTypeEnum | (string & {});
 

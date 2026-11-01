@@ -14,8 +14,8 @@
  * before the pack has arrived.
  */
 import * as Effect from "effect/Effect";
-import { StoreError } from "../Protocol/Store.ts";
-import type { StreamingFeeder } from "./StreamingSource.ts";
+import { StoreError } from "../Protocol/Store.vibe";
+import type { StreamingFeeder } from "./StreamingSource.vibe";
 
 /** Head prefix that is enough for command-section parsing. */
 export const HEAD_BYTES = 1024 * 1024;

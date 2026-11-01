@@ -17,7 +17,7 @@ import {
   toPhysicalId,
   waitForOperation,
   collectPages,
-} from "./operations.ts";
+} from "./operations.vibe";
 
 export type SingleClusterRouting = {
   /** Cluster id to route all requests to. */

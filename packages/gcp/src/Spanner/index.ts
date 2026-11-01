@@ -4,7 +4,7 @@ export * from "./ExecuteSqlHttp.ts";
 export * from "./GetDdl.ts";
 export * from "./GetDdlHttp.ts";
 export * from "./GetInstance.ts";
-export * from "./GetInstanceHttp.ts";
+export * from "./GetInstanceHttp.vibe";
 export * from "./Instance.ts";
 export * from "./InstanceConfig.ts";
 export * from "./InstancesBackup.ts";

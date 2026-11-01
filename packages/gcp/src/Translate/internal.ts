@@ -2,7 +2,7 @@ import { createPhysicalName } from "alchemy/PhysicalName";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { isTransientGcpError } from "../Errors.ts";
+import { isTransientGcpError } from "../Errors.vibe";
 
 // Translation Advanced glossaries, AutoML models, and Adaptive MT live only in us-central1 (or global).
 export const DEFAULT_LOCATION = "us-central1";

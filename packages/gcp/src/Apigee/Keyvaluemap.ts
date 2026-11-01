@@ -7,7 +7,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { lastSegment, orgParent, organizationFromName, toResourceId } from "./names.ts";
+import { lastSegment, orgParent, organizationFromName, toResourceId } from "./names.vibe";
 import {
   createInternalLabels,
   encodeOwnership,

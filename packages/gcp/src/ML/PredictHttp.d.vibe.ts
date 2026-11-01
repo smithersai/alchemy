@@ -1,0 +1,9 @@
+import * as Layer from "effect/Layer";
+import { Predict } from "./Predict.js";
+/**
+ * HTTP implementation of {@link Predict}.
+ *
+ * @layer
+ * @provides GCP.ML.Predict
+ */
+export declare const PredictHttp: Layer.Layer<Predict, never, never>;

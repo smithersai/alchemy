@@ -4,7 +4,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { isTransientGcpError } from "../Errors.ts";
+import { isTransientGcpError } from "../Errors.vibe";
 
 export const MAX_DISPLAY_NAME = 1024;
 export const MAX_GROUP_ID = 63;

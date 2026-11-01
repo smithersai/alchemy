@@ -21,7 +21,7 @@ import {
   toId,
   toNetworkResource,
   userLabels,
-} from "./names.ts";
+} from "./names.vibe";
 import { waitForOperation } from "./operations.ts";
 
 const COLLECTION = "mirroringDeploymentGroups";

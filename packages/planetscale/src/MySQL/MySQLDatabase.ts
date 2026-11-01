@@ -28,7 +28,7 @@ import {
   observeDefaultKeyspaceReplicas,
   type MySQLClusterSize,
 } from "./MySQLClusterSize.ts";
-import { runMySQLImports, runMySQLMigrations } from "./MySQLMigrations.ts";
+import { runMySQLImports, runMySQLMigrations } from "./MySQLMigrations.vibe";
 
 /**
  * Properties for creating or updating a MySQL PlanetScale database.

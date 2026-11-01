@@ -25,7 +25,7 @@ import {
   type DiskSpec,
   type EncryptionSpec,
   type MachineSpec,
-} from "./shared.ts";
+} from "./shared.vibe";
 
 const COLLECTION = "persistentResources";
 const DEFAULT_MACHINE_TYPE = "n1-standard-4";

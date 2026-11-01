@@ -29,7 +29,7 @@ import {
   toPostgresClusterSku,
   type PostgresClusterSize,
 } from "./PostgresClusterSize.ts";
-import { runPostgresImports, runPostgresMigrations } from "./PostgresMigrations.ts";
+import { runPostgresImports, runPostgresMigrations } from "./PostgresMigrations.vibe";
 
 /**
  * Properties for creating or updating a PostgreSQL PlanetScale database.

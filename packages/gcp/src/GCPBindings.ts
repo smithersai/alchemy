@@ -18,7 +18,7 @@ import type * as rolldown from "rolldown";
 import type { GcpIamGrant } from "./Host.ts";
 import { Member } from "./IAM/Member.ts";
 import { ServiceAccount } from "./IAM/ServiceAccount.ts";
-import { ServiceAccountKey } from "./IAM/ServiceAccountKey.ts";
+import { ServiceAccountKey } from "./IAM/ServiceAccountKey.vibe";
 import { WorkloadIdentityPool } from "./IAM/WorkloadIdentityPool.ts";
 import { WorkloadIdentityProvider } from "./IAM/WorkloadIdentityProvider.ts";
 

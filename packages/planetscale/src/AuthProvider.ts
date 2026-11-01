@@ -28,7 +28,7 @@ import * as Layer from "effect/Layer";
 import * as Match from "effect/Match";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
-import * as OAuthClient from "./OAuthClient.ts";
+import * as OAuthClient from "./OAuthClient.vibe";
 
 /**
  * Canonical name registered in {@link AuthProviders}. Use this key to look

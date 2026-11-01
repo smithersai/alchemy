@@ -32,7 +32,7 @@ import {
   waitUntilGone,
   waitUntilReady,
 } from "./internal.ts";
-import { waitForDeleteOperation, waitForOperation } from "./operations.ts";
+import { waitForDeleteOperation, waitForOperation } from "./operations.vibe";
 
 export type ContactCenterProps = {
   /**

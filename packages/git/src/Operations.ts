@@ -51,7 +51,7 @@ import {
   type Oid,
 } from "./Api.ts";
 import { parseCommit, parseTree, treeEntryKind } from "./Protocol/ObjectCodec.ts";
-import type { StoreError } from "./Protocol/Store.ts";
+import type { StoreError } from "./Protocol/Store.vibe";
 import { RegistryStore, type RegistryEntry } from "./RegistryObject.ts";
 import {
   RepoStore,

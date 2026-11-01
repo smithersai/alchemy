@@ -19,7 +19,7 @@ import {
   toPhysicalId,
   waitForOperation,
   collectPages,
-} from "./operations.ts";
+} from "./operations.vibe";
 
 export type InstancesMaterializedViewProps = {
   /**

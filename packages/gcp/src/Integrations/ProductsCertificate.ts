@@ -24,7 +24,7 @@ import {
   sameText,
   toResourceId,
   updateMaskOf,
-} from "./ownership.ts";
+} from "./ownership.vibe";
 import type { ClientCertificate } from "./shared.ts";
 
 export type ProductsCertificateProps = {

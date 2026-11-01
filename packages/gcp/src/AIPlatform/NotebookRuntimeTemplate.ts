@@ -26,7 +26,7 @@ import {
   type MachineSpec,
   type NetworkSpec,
   type PersistentDiskSpec,
-} from "./shared.ts";
+} from "./shared.vibe";
 
 const COLLECTION = "notebookRuntimeTemplates";
 const DEFAULT_MACHINE_TYPE = "e2-standard-4";

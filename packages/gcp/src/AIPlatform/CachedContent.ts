@@ -21,7 +21,7 @@ import {
   rfc1035,
 } from "./internal.ts";
 import { listLocations } from "./names.ts";
-import type { EncryptionSpec } from "./shared.ts";
+import type { EncryptionSpec } from "./shared.vibe";
 
 export type CachedContentPart = {
   /** Text content of the part. */

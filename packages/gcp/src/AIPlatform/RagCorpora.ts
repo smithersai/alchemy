@@ -23,7 +23,7 @@ import {
   parseDescription,
   parseResourceName,
   type EncryptionSpec,
-} from "./shared.ts";
+} from "./shared.vibe";
 
 const COLLECTION = "ragCorpora";
 

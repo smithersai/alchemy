@@ -24,7 +24,7 @@ import {
   waitUntilExists,
   waitUntilGone,
   type IndexedProperty,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type IndexAncestor = datastore.GoogleDatastoreAdminV1IndexAncestorEnum | (string & {});
 
@@ -115,7 +115,7 @@ export type Index = Resource<
  */
 export const Index = Resource<Index>("GCP.Datastore.Index");
 
-export { IndexNotResolved, IndexStillExists } from "./internal.ts";
+export { IndexNotResolved, IndexStillExists } from "./internal.vibe";
 
 const replaceOnIdentity = (input: {
   previousKind: string;
