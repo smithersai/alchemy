@@ -5,8 +5,8 @@ import * as Path from "effect/Path";
 import type * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import type * as Scope from "effect/Scope";
 import { describe, expect, it } from "vitest";
-import { resolveConfigPath, runOpenNextBuild } from "../Runner.vibe";
-import source from "../source.vibe";
+import { resolveConfigPath, runOpenNextBuild } from "../Runner.ts";
+import source from "../source.ts";
 
 const run = <A, E>(
   effect: Effect.Effect<

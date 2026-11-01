@@ -13,7 +13,7 @@ import cloudflareTarget, {
   IMAGE_PASSTHROUGH_ENDPOINT,
   makeIntegrationPluginOptions,
   SERVER_ENTRYPOINT,
-} from "../cloudflare.vibe";
+} from "../cloudflare.ts";
 import { createConfigPlugin } from "../config-plugin.ts";
 import framework, {
   DEFAULT_TARGET_SPECIFIER,

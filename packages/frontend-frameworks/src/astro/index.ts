@@ -1,4 +1,4 @@
-import { layer } from "./Astro.vibe";
+import { layer } from "./Astro.ts";
 
 export {
   layer,
@@ -6,14 +6,14 @@ export {
   makeAstroInlineConfig,
   type AstroConfigInputs,
   type AstroFrameworkOptions,
-} from "./Astro.vibe";
+} from "./Astro.ts";
 export { NODE_ENVIRONMENTS } from "./environments.ts";
 export {
   DEFAULT_TARGET_SPECIFIER,
   isAstroTarget,
   type AstroTarget,
   type AstroTargetInput,
-} from "./Target.vibe";
+} from "./Target.ts";
 
 /**
  * The slice of the e2e harness's options this factory reads, structurally

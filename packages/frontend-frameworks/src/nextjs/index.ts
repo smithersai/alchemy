@@ -1,4 +1,4 @@
-import { make, type NextjsFrameworkOptions } from "./Nextjs.vibe";
+import { make, type NextjsFrameworkOptions } from "./Nextjs.ts";
 
 export {
   BundleError,
@@ -8,7 +8,7 @@ export {
   WORKER_ENTRY_NAME,
   type BundleWorkerOptions,
   type BundleWorkerResult,
-} from "./Bundle.vibe";
+} from "./Bundle.ts";
 export {
   DEFAULT_COMPATIBILITY_DATE,
   DO_QUEUE_BINDING,
@@ -21,9 +21,9 @@ export {
   WORKER_ENTRY_MODULE,
   type NextjsFrameworkOptions,
   type NextjsWorkerConfig,
-} from "./Nextjs.vibe";
-export { RunnerError, runnerPath, runOpenNextBuild, type RunnerConfig } from "./Runner.vibe";
-export * as DevServer from "./DevServer.vibe";
+} from "./Nextjs.ts";
+export { RunnerError, runnerPath, runOpenNextBuild, type RunnerConfig } from "./Runner.ts";
+export * as DevServer from "./DevServer.ts";
 
 /**
  * The e2e-harness framework factory contract: default-export a

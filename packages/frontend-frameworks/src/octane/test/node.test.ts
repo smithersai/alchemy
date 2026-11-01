@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.vibe";
+import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.ts";
 import { ADAPTER_NAME as MARKER_NAME, node } from "../node-adapter.ts";
 import {
   ADAPTER_NAME,
@@ -7,7 +7,7 @@ import {
   SERVER_ENTRY_FILE_NAME,
   makeNodeTarget,
   target,
-} from "../node.vibe";
+} from "../node.ts";
 
 describe("makeNodeTarget", () => {
   it("accepts native Node output without an application adapter", () => {

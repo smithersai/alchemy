@@ -569,7 +569,7 @@ export function distilledCloudflare(options: DistilledCloudflareOptions = {}): A
         }
         // Lazy: the prerenderer pulls Effect + cloudflare-runtime, which
         // `astro dev` and node-mode builds never need.
-        const { createWorkerdPrerenderer } = await import("./prerenderer.vibe");
+        const { createWorkerdPrerenderer } = await import("./prerenderer.ts");
         setPrerenderer(
           createWorkerdPrerenderer({
             serverDir: _config.build.server,

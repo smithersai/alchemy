@@ -8,15 +8,15 @@ import * as Path from "effect/Path";
 import * as Schedule from "effect/Schedule";
 import type * as Scope from "effect/Scope";
 import { describe, expect, it } from "vitest";
-import { makeNeonServeEntrySource } from "../../core/NeonServe.vibe";
-import { NODE_BUNDLE_CONDITIONS, makeNodeServeEntrySource } from "../../core/NodeServe.vibe";
+import { makeNeonServeEntrySource } from "../../core/NeonServe.ts";
+import { NODE_BUNDLE_CONDITIONS, makeNodeServeEntrySource } from "../../core/NodeServe.ts";
 import {
   NEXT_PRODUCTION_APP_SOURCE,
   SERVER_ENTRY_NAME,
   makeNodeTarget,
   nextNodeServeHandler,
   target,
-} from "../node.vibe";
+} from "../node.ts";
 
 describe("makeNodeTarget", () => {
   it("declares the node platform and a wholesale next build (not OpenNext)", () => {

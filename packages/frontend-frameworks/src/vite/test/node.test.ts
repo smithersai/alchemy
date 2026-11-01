@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.vibe";
-import { makeNodeTarget, target } from "../node.vibe";
+import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.ts";
+import { makeNodeTarget, target } from "../node.ts";
 
 describe("makeNodeTarget", () => {
   it("is an assets-only node target whose only seam is the wholesale child build", () => {

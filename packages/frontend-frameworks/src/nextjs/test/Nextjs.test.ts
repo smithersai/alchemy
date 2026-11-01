@@ -7,7 +7,7 @@ import {
   makeRunnerConfig,
   toRuntimeModules,
   WORKER_ENTRY_MODULE,
-} from "../Nextjs.vibe";
+} from "../Nextjs.ts";
 
 const file = (name: string, content: string | Uint8Array): OutputFile => ({
   name,

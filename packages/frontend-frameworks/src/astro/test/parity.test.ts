@@ -17,9 +17,9 @@ import cloudflareTarget, {
   withDevSessionKv,
   withPrerenderSessionKv,
   type DistilledCloudflareOptions,
-} from "../cloudflare.vibe";
+} from "../cloudflare.ts";
 import { buildAssetsHeadersContent, headersFileHasCacheControlForPath } from "../headers.ts";
-import { applyWorkerEnvToProcess } from "../source.vibe";
+import { applyWorkerEnvToProcess } from "../source.ts";
 
 const noopLogger = {
   info: () => {},

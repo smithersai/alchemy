@@ -4,7 +4,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type * as Scope from "effect/Scope";
 import { describe, expect, it } from "vitest";
-import { runBuildChild } from "../../core/BuildChild.vibe";
+import { runBuildChild } from "../../core/BuildChild.ts";
 
 const run = <A, E>(effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path | Scope.Scope>) =>
   Effect.runPromise(Effect.scoped(effect).pipe(Effect.provide(NodeServices.layer)));

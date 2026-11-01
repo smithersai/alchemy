@@ -32,7 +32,7 @@
  *   dev SSR worker thread (see `./dev/host.ts`).
  */
 import { makeDeployTarget } from "../core/index.ts";
-import { makeCloudflareDevPlatform } from "./dev/host.vibe";
+import { makeCloudflareDevPlatform } from "./dev/host.ts";
 import type { NuxtTarget, NuxtTargetConfig } from "./Nuxt.ts";
 
 /** The nitro deployment preset this target builds with. */

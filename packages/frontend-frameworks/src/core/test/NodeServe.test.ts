@@ -7,7 +7,7 @@ import {
   makeNodeServeEntrySource,
   pinNodeServeModule,
   relativeClientDirExpression,
-} from "../NodeServe.vibe";
+} from "../NodeServe.ts";
 
 describe("NODE_BUNDLE_CONDITIONS", () => {
   it("is node-first and excludes workerd / aws-sdk", () => {

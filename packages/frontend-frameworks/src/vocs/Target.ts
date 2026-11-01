@@ -1,5 +1,5 @@
 import { isDeployTarget, type DeployTargetInput } from "../core/index.ts";
-import type { WakuTarget } from "../waku/Waku.vibe";
+import type { WakuTarget } from "../waku/Waku.ts";
 
 /**
  * A deploy target capable of hosting Vocs' Waku/RSC runtime.

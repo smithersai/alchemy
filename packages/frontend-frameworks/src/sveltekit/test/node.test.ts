@@ -5,9 +5,9 @@ import * as net from "node:net";
 import * as path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { isDeployTarget } from "../../core/index.ts";
-import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.vibe";
+import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.ts";
 import { makeProject, run } from "../../core/test/helpers.ts";
-import { makeNodeAdapter, makeNodeTarget, target } from "../node.vibe";
+import { makeNodeAdapter, makeNodeTarget, target } from "../node.ts";
 
 describe("makeNodeTarget", () => {
   it("is a DeployTarget for the node platform with a finish pass", () => {

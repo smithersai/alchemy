@@ -1,4 +1,4 @@
-import { layer, type WakuFrameworkOptions } from "./Waku.vibe";
+import { layer, type WakuFrameworkOptions } from "./Waku.ts";
 
 export {
   DEFAULT_TARGET_SPECIFIER,
@@ -20,7 +20,7 @@ export {
   type WakuTargetContext,
   type WakuTargetInputSelection,
   type WakuTargetOption,
-} from "./Waku.vibe";
+} from "./Waku.ts";
 
 /**
  * The e2e-harness framework factory contract: default-export a

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.vibe";
-import { makeNodeTarget, target } from "../node.vibe";
+import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.ts";
+import { makeNodeTarget, target } from "../node.ts";
 
 describe("makeNodeTarget", () => {
   it("is a node target with a wholesale child build and a serve-entry finish", () => {

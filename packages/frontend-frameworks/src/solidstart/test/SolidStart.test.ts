@@ -4,8 +4,8 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type * as Scope from "effect/Scope";
 import { describe, expect, it } from "vitest";
-import { makeAwsTarget } from "../aws.vibe";
-import { fromHarnessOptions } from "../index.vibe";
+import { makeAwsTarget } from "../aws.ts";
+import { fromHarnessOptions } from "../index.ts";
 import {
   DEFAULT_TARGET_SPECIFIER,
   make,

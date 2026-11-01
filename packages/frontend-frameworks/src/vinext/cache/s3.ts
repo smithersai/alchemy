@@ -11,9 +11,9 @@
  * falls back to the in-memory handler.
  */
 import { fileURLToPath } from "node:url";
-import type { S3AdapterOptions } from "./s3-runtime.vibe";
+import type { S3AdapterOptions } from "./s3-runtime.ts";
 
-export type { S3AdapterOptions } from "./s3-runtime.vibe";
+export type { S3AdapterOptions } from "./s3-runtime.ts";
 
 export const DEFAULT_CACHE_BUCKET_ENV = "CACHE_BUCKET_NAME";
 export const DEFAULT_CACHE_PREFIX = "vinext-cache/";

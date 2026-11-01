@@ -4,8 +4,8 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type * as Scope from "effect/Scope";
 import { describe, expect, it } from "vitest";
-import { NODE_BUNDLE_CONDITIONS, NODE_SERVE_ENTRY_FILE_NAME } from "../../core/NodeServe.vibe";
-import { SERVER_ENTRY_FILE_NAME, makeNodeTarget, target } from "../node.vibe";
+import { NODE_BUNDLE_CONDITIONS, NODE_SERVE_ENTRY_FILE_NAME } from "../../core/NodeServe.ts";
+import { SERVER_ENTRY_FILE_NAME, makeNodeTarget, target } from "../node.ts";
 
 const runWithNode = <A, E>(
   effect: Effect.Effect<A, E, FileSystem.FileSystem | Path.Path | Scope.Scope>,

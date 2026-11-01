@@ -2,8 +2,8 @@ import * as NodePath from "node:path";
 import * as Effect from "effect/Effect";
 import { describe, expect, it } from "vitest";
 import { isDeployTarget } from "../../core/index.ts";
-import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.vibe";
-import { makeNodeTarget, target } from "../node.vibe";
+import { NODE_BUNDLE_CONDITIONS } from "../../core/NodeServe.ts";
+import { makeNodeTarget, target } from "../node.ts";
 
 const context = {
   root: "/project",

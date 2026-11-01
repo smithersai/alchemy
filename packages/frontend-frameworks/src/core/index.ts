@@ -5,8 +5,8 @@ export {
   stringifyBuildOutput,
   toOutputFile,
   writeBuildOutput,
-} from "./BuildOutput.vibe";
-export type { BuildOutput, OutputFile } from "./BuildOutput.vibe";
+} from "./BuildOutput.ts";
+export type { BuildOutput, OutputFile } from "./BuildOutput.ts";
 export {
   collectExternalWorkspaces,
   CollectorError,
@@ -15,14 +15,14 @@ export {
   readServerModulesFromDisk,
   selectEntryByFacade,
   WORKER_ENTRY_PREFIX,
-} from "./Collector.vibe";
+} from "./Collector.ts";
 export type {
   BuildOutputCollector,
   CollectOptions,
   CollectorOptions,
   ReadServerModulesOptions,
   ServerEntryChunk,
-} from "./Collector.vibe";
+} from "./Collector.ts";
 export {
   applyDeployTargetFinish,
   DeployTargetError,
@@ -30,7 +30,7 @@ export {
   makeDeployTarget,
   resolveDeployTarget,
   resolveDeployTargetEntry,
-} from "./DeployTarget.vibe";
+} from "./DeployTarget.ts";
 export type {
   DeployTarget,
   DeployTargetBuildContext,
@@ -42,10 +42,10 @@ export type {
   DeployTargetServeContext,
   DeployTargetServer,
   DeployTargetServices,
-} from "./DeployTarget.vibe";
-export { isInsideDevChild, isJsonSerializable, runDevChild } from "./DevChild.vibe";
-export type { DevChildOptions, DevChildPayload } from "./DevChild.vibe";
-export { findEphemeralPort, resolveViteDevPort } from "./DevPort.vibe";
+} from "./DeployTarget.ts";
+export { isInsideDevChild, isJsonSerializable, runDevChild } from "./DevChild.ts";
+export type { DevChildOptions, DevChildPayload } from "./DevChild.ts";
+export { findEphemeralPort, resolveViteDevPort } from "./DevPort.ts";
 export {
   NODE_BUNDLE_CONDITIONS,
   NODE_DEFAULT_PORT,
@@ -54,29 +54,29 @@ export {
   pinNodeServeModule,
   relativeClientDirExpression,
   writeNodeServeEntry,
-} from "./NodeServe.vibe";
+} from "./NodeServe.ts";
 export type {
   NodeServeEntryOptions,
   NodeServeHandler,
   NodeServeHtmlHandling,
   NodeServeNotFoundHandling,
   WriteNodeServeEntryOptions,
-} from "./NodeServe.vibe";
+} from "./NodeServe.ts";
 export {
   NEON_SERVE_ENTRY_FILE_NAME,
   makeNeonServeEntrySource,
   finishNeonOutput,
   makeNeonTarget,
-} from "./NeonServe.vibe";
-export { Framework, FrameworkError } from "./Framework.vibe";
+} from "./NeonServe.ts";
+export { Framework, FrameworkError } from "./Framework.ts";
 export type {
   FrameworkBuildOptions,
   FrameworkDevOptions,
   FrameworkDevServer,
-} from "./Framework.vibe";
+} from "./Framework.ts";
 export {
   loadProjectModule,
   ModuleLoadError,
   resolveInstalledPackageVersion,
   resolveProjectPackageDirectory,
-} from "./Loader.vibe";
+} from "./Loader.ts";

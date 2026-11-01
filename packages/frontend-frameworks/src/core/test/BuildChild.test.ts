@@ -1,7 +1,7 @@
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, expect, it, vi } from "vitest";
-import { runBuildChild, type BuildChildOptions } from "../BuildChild.vibe";
+import { runBuildChild, type BuildChildOptions } from "../BuildChild.ts";
 import { makeProject, run } from "./helpers.ts";
 
 afterEach(() => vi.unstubAllEnvs());
