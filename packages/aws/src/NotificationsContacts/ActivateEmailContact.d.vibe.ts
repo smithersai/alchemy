@@ -1,7 +1,7 @@
 import type * as contacts from "@distilled.cloud/aws/notificationscontacts";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { EmailContact } from "./EmailContact.js";
+import type { EmailContact } from "./EmailContact.vibe";
 /**
  * Request for {@link ActivateEmailContact} — the bound contact's ARN is
  * injected automatically. The activation `code` is the one AWS emailed to

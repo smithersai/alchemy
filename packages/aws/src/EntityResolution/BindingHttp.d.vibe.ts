@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import type { IdMappingWorkflow } from "./IdMappingWorkflow.js";
-import type { MatchingWorkflow } from "./MatchingWorkflow.js";
+import type { IdMappingWorkflow } from "./IdMappingWorkflow.vibe";
+import type { MatchingWorkflow } from "./MatchingWorkflow.vibe";
 /**
  * Shared scaffolding for Entity Resolution HTTP bindings.
  *

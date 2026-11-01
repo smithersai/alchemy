@@ -24,7 +24,7 @@ export { UpdateKeysHttp } from "./UpdateKeysHttp.vibe";
 export { Function, FunctionProvider } from "./Function.vibe";
 export { Invalidation, InvalidationProvider } from "./Invalidation.vibe";
 export { KeyGroup, KeyGroupProvider } from "./KeyGroup.vibe";
-export { KeyValueStore, KeyValueStoreProvider } from "./KeyValueStore.ts";
+export { KeyValueStore, KeyValueStoreProvider } from "./KeyValueStore.vibe";
 export { KvEntries, KvEntriesProvider } from "./KvEntries.vibe";
 export { KvRoutesUpdate, KvRoutesUpdateProvider } from "./KvRoutesUpdate.ts";
 export {
@@ -32,9 +32,9 @@ export {
   MANAGED_CACHING_DISABLED_POLICY_ID,
   MANAGED_CACHING_OPTIMIZED_POLICY_ID,
 } from "./ManagedPolicies.ts";
-export { OriginAccessControl, OriginAccessControlProvider } from "./OriginAccessControl.ts";
+export { OriginAccessControl, OriginAccessControlProvider } from "./OriginAccessControl.vibe";
 export { OriginRequestPolicy, OriginRequestPolicyProvider } from "./OriginRequestPolicy.vibe";
-export { PublicKey, PublicKeyProvider } from "./PublicKey.ts";
+export { PublicKey, PublicKeyProvider } from "./PublicKey.vibe";
 export {
   RealtimeLogConfig,
   RealtimeLogConfigProvider,

@@ -1,6 +1,6 @@
 export * from "./CopyImageSet.vibe";
 export * from "./CopyImageSetHttp.vibe";
-export * from "./Datastore.ts";
+export * from "./Datastore.vibe";
 export * from "./DeleteImageSet.vibe";
 export * from "./DeleteImageSetHttp.vibe";
 export * from "./GetDICOMImportJob.vibe";

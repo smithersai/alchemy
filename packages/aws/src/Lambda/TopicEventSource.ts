@@ -3,8 +3,8 @@ import type lambda from "aws-lambda";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import { Subscription as SNSSubscription } from "../SNS/Subscription.ts";
-import type { Topic } from "../SNS/Topic.ts";
+import { Subscription as SNSSubscription } from "../SNS/Subscription.vibe";
+import type { Topic } from "../SNS/Topic.vibe";
 import {
   TopicEventSource as SNSTopicEventSource,
   type TopicEventSourceProps,

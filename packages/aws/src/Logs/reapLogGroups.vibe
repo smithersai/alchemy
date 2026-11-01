@@ -1,0 +1,49 @@
+import * as logs from "@distilled.cloud/aws/cloudwatch-logs"
+import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
+
+/**
+ * Delete every CloudWatch log group whose name starts with `prefix`.
+ *
+ * For resources whose SERVICE (not alchemy) creates per-resource log groups
+ * on their behalf — RDS log exports (`/aws/rds/instance/<id>/<type>`),
+ * CloudHSM audit logs (`/aws/cloudhsm/<clusterId>`) — and leaves them behind
+ * when the resource is deleted. The owning provider calls this after the
+ * resource is gone so the groups don't leak (cf. Lambda's `/aws/lambda/<fn>`
+ * reap in `Lambda/Function.ts`).
+ *
+ * Callers must pass a prefix that is unique to the resource (end it with `/`
+ * when the id is a path segment) so a sibling's groups are never matched.
+ *
+ * Best-effort and bounded: log cleanup is auxiliary to the already-completed
+ * resource delete, so a missing group is success and any other failure or a
+ * slow API only logs a warning.
+ *
+ * Internal scaffolding — NOT exported from the Logs service `index.ts`.
+ */
+export const reapLogGroupsByPrefix = effect (prefix: string) =>
+  (try (logs.describeLogGroups.pages({ logGroupNamePrefix: prefix })
+    |> Stream.flatMap(%, (page) => Stream.fromIterable(page.logGroups ?? []))
+    |> Stream.mapEffect(
+      %,
+      effect (group) => (group.logGroupName === undefined
+        ? try Effect.void
+        : (try (logs.deleteLogGroup({ logGroupName: group.logGroupName })
+          |> Effect.retry(%, {
+            while: (e) =>
+              e._tag === "OperationAbortedException"
+              || e._tag === "ServiceUnavailableException",
+            schedule: Schedule.exponential("250 millis"),
+            times: 6,
+          }))) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            default: throw e;
+          }),
+      { concurrency: 4 },
+    )
+    |> Stream.runDrain(%)
+    |> Effect.timeoutOrElse(%, {
+      duration: "30 seconds",
+      orElse: effect () => try Effect.logWarning(`Timed out reaping log groups ${prefix}*`),
+    }))) catch effect (e) => try Effect.logWarning(`Failed to reap log groups ${prefix}*: ${e._tag}`)

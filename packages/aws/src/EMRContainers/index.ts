@@ -35,4 +35,4 @@ export * from "./ListVirtualClusters.vibe";
 export * from "./ListVirtualClustersHttp.vibe";
 export * from "./StartJobRun.vibe";
 export * from "./StartJobRunHttp.ts";
-export * from "./VirtualCluster.ts";
+export * from "./VirtualCluster.vibe";

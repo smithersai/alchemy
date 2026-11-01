@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Topic } from "../SNS/Topic.js";
+import type { Topic } from "../SNS/Topic.vibe";
 import { type TopicNotification } from "../SNS/TopicEventSource.js";
 import type { Directory } from "./Directory.js";
 /**

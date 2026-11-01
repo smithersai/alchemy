@@ -5,7 +5,7 @@ export {
   CertificateProvider,
   validationRecordsOf,
   type CertificateProps,
-} from "./Certificate.ts";
+} from "./Certificate.vibe";
 export {
   CertificateValidation,
   CertificateValidationProvider,

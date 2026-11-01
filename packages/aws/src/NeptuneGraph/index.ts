@@ -20,7 +20,7 @@ export * from "./GetImportTask.vibe";
 export * from "./GetImportTaskHttp.vibe";
 export * from "./GetQuery.vibe";
 export * from "./GetQueryHttp.vibe";
-export * from "./Graph.ts";
+export * from "./Graph.vibe";
 export * from "./ListExportTasks.vibe";
 export * from "./ListExportTasksHttp.vibe";
 export * from "./ListGraphSnapshots.vibe";

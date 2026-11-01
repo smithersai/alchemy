@@ -1,0 +1,378 @@
+import * as medicalimaging from "@distilled.cloud/aws/medical-imaging"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+
+export interface DatastoreProps {
+  /**
+   * Name of the data store. If omitted, a deterministic physical name is
+   * generated. AWS HealthImaging has no update operation, so changing the
+   * name replaces the data store.
+   */
+  mutable datastoreName?: string
+  /**
+   * ARN of a customer-managed KMS key used to encrypt the data store at
+   * rest. Changing the key replaces the data store.
+   * @default AWS-owned key
+   */
+  mutable kmsKeyArn?: string
+  /**
+   * ARN of a Lambda authorizer used to gate data access. Changing the
+   * authorizer replaces the data store.
+   */
+  mutable lambdaAuthorizerArn?: string
+  /**
+   * Lossless compression format for stored image frames — `"HTJ2K"` or
+   * `"JPEG_2000_LOSSLESS"`. Changing the format replaces the data store.
+   * @default "HTJ2K"
+   */
+  mutable losslessStorageFormat?: string
+  /**
+   * User-defined tags for the data store.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Datastore extends
+  Resource<
+    "AWS.MedicalImaging.Datastore",
+    DatastoreProps,
+    {
+      /** Server-assigned unique id of the data store. */
+      mutable datastoreId: string
+      /** Name of the data store. */
+      mutable datastoreName: string
+      /** ARN of the data store. */
+      mutable datastoreArn: string
+      /** Current lifecycle status (e.g. `CREATING`, `ACTIVE`). */
+      mutable datastoreStatus: string
+      /** ARN of the KMS key encrypting the data store, if customer-managed. */
+      mutable kmsKeyArn: string | undefined
+      /** Tags on the data store (user + internal Alchemy tags). */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS HealthImaging data store — a HIPAA-eligible store for DICOM P10
+ * medical images with sub-second image-frame retrieval.
+ *
+ * Data stores provision asynchronously (CREATING → ACTIVE, typically a few
+ * minutes) and must be empty (no image sets) before they can be deleted.
+ * HealthImaging has no update API, so every property except tags triggers a
+ * replacement.
+ * ### Creating a Data Store
+ * **Example:** Basic Data Store
+ * ```typescript
+ * const datastore = yield* Datastore("Imaging", {});
+ * ```
+ *
+ * **Example:** Data Store with a Customer-Managed KMS Key
+ * ```typescript
+ * const datastore = yield* Datastore("Imaging", {
+ *   kmsKeyArn: key.keyArn,
+ *   tags: { team: "radiology" },
+ * });
+ * ```
+ *
+ * ### Importing DICOM Data
+ * **Example:** Reference the Data Store Id
+ * ```typescript
+ * const datastore = yield* Datastore("Imaging", {});
+ * // startDICOMImportJob and image-set APIs address the store by id
+ * const id = datastore.datastoreId;
+ * ```
+ *
+ * @resource
+ */
+export const Datastore = Resource<Datastore>("AWS.MedicalImaging.Datastore")
+
+/**
+ * Raised when a data store never reaches `ACTIVE` (or its create fails)
+ * within the bounded provisioning wait.
+ */
+export error DatastoreNotReady {
+  mutable message: string
+}
+
+/**
+ * Raised when the HealthImaging API omits an expected field (e.g. the
+ * data store ARN) from a response.
+ */
+export error DatastoreIncomplete {
+  mutable message: string
+}
+
+/** CreateDatastore requires a client token; derive it from the instance id
+ * so engine retries of the same instance are idempotent. */
+const createToken = (instanceId: string): string => instanceId.replaceAll(/[^a-zA-Z0-9]/g, "").slice(0, 64) || "alchemy"
+
+/** Provisioning typically completes in a few minutes; budget 40 × 15s. */
+const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "DatastoreNotReady",
+    schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(40)]),
+  })
+
+/** A data store mid-create rejects deletion with ConflictException — retry
+ * (bounded) while it settles. */
+const retryWhileConflict = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "ConflictException",
+    schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(20)]),
+  })
+
+const toTagRecord = (
+  tags: { mutable [key: string]: string | undefined } | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(tags ?? {}).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+
+export const DatastoreProvider = (): infer _ =>
+  Provider.effect(
+    Datastore,
+    effect {
+      const toName = effect (
+        id: string,
+        props: Partial<DatastoreProps>,
+      ) => (props.datastoreName ? props.datastoreName : try createPhysicalName({ id, maxLength: 64 }))
+
+      const getById = effect (datastoreId: string) => {
+        const response = medicalimaging
+          .getDatastore({ datastoreId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        const properties = response?.datastoreProperties
+        if (properties === undefined) return undefined
+        if (properties.datastoreStatus === "DELETED" || properties.datastoreStatus === "DELETING") {
+          return undefined
+        }
+        return properties
+      }
+
+      // Data stores are addressed by a server-generated id; a name-based
+      // lookup scans the paginated list (names are not unique — take the
+      // first live match).
+      const findByName = effect (name: string) => {
+        const matches = try medicalimaging.listDatastores.items({}).pipe(
+          Stream.filter(
+            (summary) =>
+              summary.datastoreName === name
+              && summary.datastoreStatus !== "DELETED"
+              && summary.datastoreStatus !== "DELETING",
+          ),
+          Stream.take(1),
+          Stream.runCollect,
+        )
+        const summary = Array.from(matches)[0]
+        if (summary === undefined) return undefined
+        return try getById(summary.datastoreId)
+      }
+
+      const observe = effect (datastoreId: string | undefined, name: string) => {
+        if (datastoreId !== undefined) {
+          const properties = try getById(datastoreId)
+          if (properties !== undefined) return properties
+        }
+        return try findByName(name)
+      }
+
+      const requireArn = effect (properties: medicalimaging.DatastoreProperties) => {
+        if (properties.datastoreArn === undefined) {
+          throw new DatastoreIncomplete({
+            message: `data store '${properties.datastoreId}' has no ARN in the GetDatastore response`,
+          })
+        }
+        return properties.datastoreArn
+      }
+
+      const readTags = effect (arn: string) => {
+        const response = medicalimaging
+          .listTagsForResource({ resourceArn: arn }) catch () => undefined
+        return toTagRecord(response?.tags)
+      }
+
+      const toAttrs = effect (properties: medicalimaging.DatastoreProperties) => {
+        const arn = try requireArn(properties)
+        return {
+          datastoreId: properties.datastoreId,
+          datastoreName: properties.datastoreName,
+          datastoreArn: arn,
+          datastoreStatus: properties.datastoreStatus as string,
+          kmsKeyArn: properties.kmsKeyArn,
+          tags: try readTags(arn),
+        }
+      }
+
+      const waitForActive = effect (datastoreId: string) =>
+        try (effect {
+          const properties = try getById(datastoreId)
+          if (properties === undefined) {
+            throw new DatastoreNotReady({
+              message: `data store '${datastoreId}' disappeared while waiting for ACTIVE`,
+            })
+          }
+          if (properties.datastoreStatus === "CREATE_FAILED") {
+            throw new DatastoreIncomplete({
+              message: `data store '${datastoreId}' failed to create (status: CREATE_FAILED)`,
+            })
+          }
+          if (properties.datastoreStatus !== "ACTIVE") {
+            throw new DatastoreNotReady({
+              message: `data store '${datastoreId}' not active (status: ${properties.datastoreStatus})`,
+            })
+          }
+          return properties
+        }
+          |> retryWhileNotReady(%))
+
+      return {
+        stables: ["datastoreId", "datastoreArn", "datastoreName"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          const n = news
+          const o = olds
+          if (n === undefined || o === undefined) return undefined
+          // HealthImaging has no UpdateDatastore — every property except
+          // tags is create-only and forces a replacement.
+          if ((try toName(id, o)) !== (try toName(id, n))) {
+            return { action: "replace" } as const
+          }
+          if ((n.kmsKeyArn ?? undefined) !== (o.kmsKeyArn ?? undefined)) {
+            return { action: "replace" } as const
+          }
+          if ((n.lambdaAuthorizerArn ?? undefined) !== (o.lambdaAuthorizerArn ?? undefined)) {
+            return { action: "replace" } as const
+          }
+          if ((n.losslessStorageFormat ?? undefined) !== (o.losslessStorageFormat ?? undefined)) {
+            return { action: "replace" } as const
+          }
+          // tags → default update
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.datastoreName ?? (try toName(id, olds ?? {}))
+          const properties = try observe(output?.datastoreId, name)
+          if (properties === undefined) return undefined
+          const attrs = try toAttrs(properties)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session, instanceId }) => {
+          const props = news!
+          const name = output?.datastoreName ?? (try toName(id, props))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...props.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative; output is only an
+          // id cache.
+          let observed = try observe(output?.datastoreId, name)
+
+          // 2. ENSURE — create if missing; a ConflictException is a create
+          // race (or a leftover CREATE_FAILED store), resolved by re-reading.
+          if (observed === undefined) {
+            const created = medicalimaging
+              .createDatastore({
+                datastoreName: name,
+                clientToken: createToken(instanceId),
+                kmsKeyArn: props.kmsKeyArn,
+                lambdaAuthorizerArn: props.lambdaAuthorizerArn,
+                losslessStorageFormat: props.losslessStorageFormat,
+                tags: desiredTags,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try Effect.undefined;
+                default: throw e;
+              }
+            observed = created !== undefined ? try getById(created.datastoreId) : try findByName(name)
+          }
+          if (observed === undefined) {
+            throw new DatastoreIncomplete({
+              message: `data store '${name}' not found after create`,
+            })
+          }
+
+          // Provisioning is async (CREATING → ACTIVE); wait bounded so tag
+          // syncs and dependents see an ACTIVE store.
+          observed = try waitForActive(observed.datastoreId)
+          const arn = try requireArn(observed)
+
+          // 3. SYNC TAGS — diff against OBSERVED cloud tags.
+          const observedTags = try readTags(arn)
+          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0) {
+            try medicalimaging.tagResource({
+              resourceArn: arn,
+              tags: Object.fromEntries(upsert.map((tag) => [tag.Key, tag.Value])),
+            })
+          }
+          if (removed.length > 0) {
+            try medicalimaging.untagResource({
+              resourceArn: arn,
+              tagKeys: removed,
+            })
+          }
+
+          try session.note(observed.datastoreId)
+          return try toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          // Already deleting or gone is success; a store mid-create rejects
+          // deletion with ConflictException (retried, bounded). A non-empty
+          // store also raises ConflictException and surfaces the typed error
+          // once the retry budget is exhausted.
+          const observed = medicalimaging
+            .getDatastore({ datastoreId: output.datastoreId }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+          const status = observed?.datastoreProperties.datastoreStatus
+          if (status === undefined || status === "DELETING" || status === "DELETED") {
+            return
+          }
+          try (effect {
+            return medicalimaging.deleteDatastore({ datastoreId: output.datastoreId }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          }
+            |> retryWhileConflict(%))
+        },
+
+        list: effect () =>
+          (try Effect.forEach(
+            Array.from(
+              try (medicalimaging.listDatastores.items({})
+                |> Stream.filter(
+                  %,
+                  (summary) => summary.datastoreStatus !== "DELETED" && summary.datastoreStatus !== "DELETING",
+                )
+                |> Stream.runCollect(%)),
+            ),
+            effect (summary) =>
+              try effect {
+                const properties = try getById(summary.datastoreId)
+                return (properties === undefined ? try Effect.undefined : try toAttrs(properties))
+              },
+            { concurrency: 4 },
+          )).filter((a): a is NonNullable<typeof a> => a !== undefined),
+      }
+    },
+  )

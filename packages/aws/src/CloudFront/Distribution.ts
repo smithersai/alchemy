@@ -24,7 +24,7 @@ import {
   MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID,
   MANAGED_CACHING_DISABLED_POLICY_ID,
 } from "./ManagedPolicies.ts";
-import { OriginAccessControl } from "./OriginAccessControl.ts";
+import { OriginAccessControl } from "./OriginAccessControl.vibe";
 
 export class DistributionConflict extends Data.TaggedError("DistributionConflict")<{
   readonly message: string;

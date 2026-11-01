@@ -8,7 +8,7 @@ import {
   GetManagedEndpointSessionCredentials,
   type GetManagedEndpointSessionCredentialsRequest,
 } from "./GetManagedEndpointSessionCredentials.vibe";
-import type { VirtualCluster } from "./VirtualCluster.ts";
+import type { VirtualCluster } from "./VirtualCluster.vibe";
 
 export const GetManagedEndpointSessionCredentialsHttp = Layer.effect(
   GetManagedEndpointSessionCredentials,

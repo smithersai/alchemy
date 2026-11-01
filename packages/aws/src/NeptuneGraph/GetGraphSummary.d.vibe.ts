@@ -1,7 +1,7 @@
 import type * as neptunegraph from "@distilled.cloud/aws/neptune-graph";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Graph } from "./Graph.js";
+import type { Graph } from "./Graph.vibe";
 /**
  * Runtime binding for the `GetGraphSummary` operation (IAM action `neptune-graph:GetGraphSummary`),
  * scoped to one {@link Graph}.

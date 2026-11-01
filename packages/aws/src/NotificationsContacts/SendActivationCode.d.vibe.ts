@@ -1,7 +1,7 @@
 import type * as contacts from "@distilled.cloud/aws/notificationscontacts";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { EmailContact } from "./EmailContact.js";
+import type { EmailContact } from "./EmailContact.vibe";
 /**
  * Runtime binding for `notifications-contacts:SendActivationCode`.
  *

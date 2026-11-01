@@ -2,7 +2,7 @@ import type * as emrc from "@distilled.cloud/aws/emr-containers";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
-import type { VirtualCluster } from "./VirtualCluster.js";
+import type { VirtualCluster } from "./VirtualCluster.vibe";
 export interface GetManagedEndpointSessionCredentialsRequest extends Omit<emrc.GetManagedEndpointSessionCredentialsRequest, "virtualClusterIdentifier" | "durationInSeconds"> {
     /**
      * How long the session token stays valid (wire unit: seconds).

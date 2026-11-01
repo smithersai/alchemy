@@ -1,7 +1,7 @@
 import type * as dataexchange from "@distilled.cloud/aws/dataexchange";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Revision } from "./Revision.js";
+import type { Revision } from "./Revision.vibe";
 /**
  * Runtime binding for `dataexchange:RevokeRevision`.
  *

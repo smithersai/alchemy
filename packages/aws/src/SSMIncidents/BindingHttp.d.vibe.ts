@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { ResponsePlan } from "./ResponsePlan.js";
+import type { ResponsePlan } from "./ResponsePlan.vibe";
 /**
  * Shared scaffolding for AWS Systems Manager Incident Manager HTTP bindings.
  *

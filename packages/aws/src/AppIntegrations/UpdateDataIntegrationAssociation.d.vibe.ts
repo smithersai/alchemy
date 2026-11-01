@@ -1,7 +1,7 @@
 import type * as appintegrations from "@distilled.cloud/aws/appintegrations";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DataIntegration } from "./DataIntegration.js";
+import type { DataIntegration } from "./DataIntegration.vibe";
 export interface UpdateDataIntegrationAssociationRequest extends Omit<appintegrations.UpdateDataIntegrationAssociationRequest, "DataIntegrationIdentifier"> {
 }
 /**

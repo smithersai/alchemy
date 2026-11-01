@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { ResolverEndpoint } from "./ResolverEndpoint.js";
+import type { ResolverEndpoint } from "./ResolverEndpoint.vibe";
 import type { ResolverRule } from "./ResolverRule.js";
 /**
  * Shared scaffolding for AWS Route 53 Resolver HTTP bindings.

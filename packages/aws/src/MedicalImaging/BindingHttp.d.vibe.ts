@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { Role } from "../IAM/Role.js";
-import type { Datastore } from "./Datastore.js";
+import type { Datastore } from "./Datastore.vibe";
 /**
  * Shared scaffolding for AWS HealthImaging (medical-imaging) HTTP bindings.
  *

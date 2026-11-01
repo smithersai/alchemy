@@ -1,7 +1,7 @@
 import * as sns from "@distilled.cloud/aws/sns";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Topic } from "./Topic.js";
+import type { Topic } from "./Topic.vibe";
 export interface ListSubscriptionsByTopicRequest extends Omit<sns.ListSubscriptionsByTopicInput, "TopicArn"> {
 }
 /**

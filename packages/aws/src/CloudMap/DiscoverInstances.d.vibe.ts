@@ -1,7 +1,7 @@
 import type * as SD from "@distilled.cloud/aws/servicediscovery";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Service } from "./Service.js";
+import type { Service } from "./Service.vibe";
 export interface DiscoverInstancesRequest extends Omit<SD.DiscoverInstancesRequest, "NamespaceName" | "ServiceName"> {
 }
 /**

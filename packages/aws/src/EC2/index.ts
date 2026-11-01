@@ -50,7 +50,7 @@ export * from "./StopInstance.vibe";
 export * from "./StopInstanceHttp.vibe";
 export * from "./Subnet.ts";
 export * from "./Volume.vibe";
-export * from "./VolumeAttachment.ts";
+export * from "./VolumeAttachment.vibe";
 export * from "./Vpc.vibe";
 export * from "./VpcEndpoint.ts";
 export * from "./VpcPeeringConnection.vibe";

@@ -1,7 +1,7 @@
 import * as sns from "@distilled.cloud/aws/sns";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Subscription } from "./Subscription.js";
+import type { Subscription } from "./Subscription.vibe";
 export interface ConfirmSubscriptionRequest extends Omit<sns.ConfirmSubscriptionInput, "TopicArn"> {
 }
 /**

@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/emr";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 /**
  * Runtime binding for `elasticmapreduce:DescribeStep` — reads one step of the bound cluster — status, config, and failure details.
  * ### Running Steps

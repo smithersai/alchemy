@@ -14,7 +14,7 @@ export * from "./ModifyCapacityReservation.vibe";
 export * from "./ModifyCapacityReservationHttp.vibe";
 export * from "./RegisterTargets.vibe";
 export * from "./RegisterTargetsHttp.vibe";
-export { ListenerCertificate, ListenerCertificateProvider } from "./ListenerCertificate.ts";
+export { ListenerCertificate, ListenerCertificateProvider } from "./ListenerCertificate.vibe";
 export { ListenerRule, ListenerRuleProvider } from "./ListenerRule.ts";
 export { LoadBalancer, LoadBalancerProvider } from "./LoadBalancer.vibe";
 export { TargetGroup, TargetGroupProvider } from "./TargetGroup.vibe";

@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Graph } from "./Graph.js";
+import type { Graph } from "./Graph.vibe";
 /**
  * Shared scaffolding for the AWS NeptuneGraph (Neptune Analytics) HTTP
  * bindings.

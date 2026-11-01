@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { ManagedThing } from "./ManagedThing.js";
+import type { ManagedThing } from "./ManagedThing.vibe";
 /**
  * Shared scaffolding for the AWS IoT Managed Integrations HTTP bindings.
  *

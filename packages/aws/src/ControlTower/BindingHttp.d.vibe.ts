@@ -2,7 +2,7 @@ import type * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import type { EnabledBaseline } from "./EnabledBaseline.vibe";
 import type { EnabledControl } from "./EnabledControl.vibe";
-import type { LandingZone } from "./LandingZone.js";
+import type { LandingZone } from "./LandingZone.vibe";
 /**
  * Shared HTTP scaffolding for the AWS Control Tower runtime bindings.
  *

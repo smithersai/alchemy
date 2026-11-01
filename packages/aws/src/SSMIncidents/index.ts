@@ -19,7 +19,7 @@ export * from "./ListRelatedItemsHttp.vibe";
 export * from "./ListTimelineEvents.vibe";
 export * from "./ListTimelineEventsHttp.vibe";
 export * from "./ReplicationSet.vibe";
-export * from "./ResponsePlan.ts";
+export * from "./ResponsePlan.vibe";
 export * from "./StartIncident.vibe";
 export * from "./StartIncidentHttp.vibe";
 export * from "./UpdateIncidentRecord.vibe";

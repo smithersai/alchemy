@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { Distribution } from "./Distribution.js";
-import type { KeyValueStore } from "./KeyValueStore.js";
+import type { KeyValueStore } from "./KeyValueStore.vibe";
 /**
  * Shared scaffolding for CloudFront HTTP bindings.
  *

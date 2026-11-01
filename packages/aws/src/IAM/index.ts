@@ -29,7 +29,7 @@ export { SimulateCustomPolicyHttp } from "./SimulateCustomPolicyHttp.vibe";
 export { SimulatePrincipalPolicy } from "./SimulatePrincipalPolicy.ts";
 export { SimulatePrincipalPolicyHttp } from "./SimulatePrincipalPolicyHttp.vibe";
 export { AccountPasswordPolicy, AccountPasswordPolicyProvider } from "./AccountPasswordPolicy.ts";
-export { Group, GroupProvider } from "./Group.ts";
+export { Group, GroupProvider } from "./Group.vibe";
 export { GroupMembership, GroupMembershipProvider } from "./GroupMembership.ts";
 export { InstanceProfile, InstanceProfileProvider } from "./InstanceProfile.vibe";
 export { LoginProfile, LoginProfileProvider } from "./LoginProfile.ts";
@@ -59,5 +59,5 @@ export {
 } from "./ServiceSpecificCredential.ts";
 export { SigningCertificate, SigningCertificateProvider } from "./SigningCertificate.ts";
 export { SSHPublicKey, SSHPublicKeyProvider } from "./SSHPublicKey.ts";
-export { User, UserProvider } from "./User.ts";
-export { VirtualMFADevice, VirtualMFADeviceProvider } from "./VirtualMFADevice.ts";
+export { User, UserProvider } from "./User.vibe";
+export { VirtualMFADevice, VirtualMFADeviceProvider } from "./VirtualMFADevice.vibe";

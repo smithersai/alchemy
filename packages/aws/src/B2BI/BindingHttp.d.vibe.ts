@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
-import type { Transformer } from "./Transformer.js";
+import type { Transformer } from "./Transformer.vibe";
 /**
  * Shared scaffolding for B2BI HTTP bindings.
  *

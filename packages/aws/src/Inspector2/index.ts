@@ -28,7 +28,7 @@ export * from "./DisassociateMemberHttp.vibe";
 export * from "./Enabler.vibe";
 export * from "./EnableDelegatedAdminAccount.vibe";
 export * from "./EnableDelegatedAdminAccountHttp.vibe";
-export * from "./Filter.ts";
+export * from "./Filter.vibe";
 export * from "./FindingEventSource.vibe";
 export * from "./GetCisScanReport.vibe";
 export * from "./GetCisScanReportHttp.vibe";

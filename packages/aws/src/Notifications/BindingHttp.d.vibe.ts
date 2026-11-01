@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { NotificationConfiguration } from "./NotificationConfiguration.js";
+import type { NotificationConfiguration } from "./NotificationConfiguration.vibe";
 /**
  * Shared HTTP scaffolding for the AWS User Notifications runtime bindings.
  *

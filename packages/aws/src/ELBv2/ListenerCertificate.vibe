@@ -1,0 +1,161 @@
+import * as elbv2 from "@distilled.cloud/aws/elastic-load-balancing-v2"
+import { isResolved } from "alchemy/Diff"
+import type { Input } from "alchemy/Input"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as Stream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+import type { Listener, ListenerArn } from "./Listener.vibe"
+
+export interface ListenerCertificateProps {
+  /** The HTTPS/TLS listener to attach the certificate to. Changing it replaces the attachment. */
+  mutable listenerArn: Input<ListenerArn> | Listener
+  /** The ARN of the ACM (or IAM) certificate to add to the listener's SNI certificate list. Changing it replaces the attachment. */
+  mutable certificateArn: string
+}
+
+export interface ListenerCertificate extends
+  Resource<
+    "AWS.ELBv2.ListenerCertificate",
+    ListenerCertificateProps,
+    {
+      /** The ARN of the listener the certificate is attached to. */
+      mutable listenerArn: ListenerArn
+      /** The ARN of the ACM/IAM certificate. */
+      mutable certificateArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Attaches an additional SNI certificate to an ELBv2 HTTPS/TLS listener. The
+ * listener's default certificate is configured on the {@link Listener} itself;
+ * `ListenerCertificate` adds extra certificates that the load balancer selects
+ * via Server Name Indication (SNI) based on the requested hostname.
+ *
+ * Use this resource when the certificates are managed independently of the
+ * listener (e.g. one certificate per tenant domain). When the full certificate
+ * list is known up front, prefer the listener's `certificates` prop, which
+ * declaratively syncs the whole set.
+ * ### Attaching Certificates
+ * **Example:** Additional SNI certificate
+ * ```typescript
+ * const listener = yield* Listener("https", {
+ *   loadBalancerArn: lb.loadBalancerArn,
+ *   targetGroupArn: tg.targetGroupArn,
+ *   port: 443,
+ *   protocol: "HTTPS",
+ *   certificateArn: defaultCertArn,
+ * });
+ * yield* ListenerCertificate("tenant-cert", {
+ *   listenerArn: listener.listenerArn,
+ *   certificateArn: tenantCertArn,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ListenerCertificate = Resource<ListenerCertificate>("AWS.ELBv2.ListenerCertificate")
+
+export const ListenerCertificateProvider = (): infer _ =>
+  Provider.succeed(ListenerCertificate, {
+    stables: ["listenerArn", "certificateArn"],
+    diff: effect ({ olds, news }) => {
+      if (!isResolved(news)) return
+      // Existence-only resource — both identity props force replacement.
+      if (olds.listenerArn !== news.listenerArn || olds.certificateArn !== news.certificateArn) {
+        return { action: "replace" } as const
+      }
+    },
+    read: effect ({ output }) => {
+      if (!output) {
+        return undefined
+      }
+      const attached = (Option.isSome(
+        try (elbv2.describeListenerCertificates
+          .items({ ListenerArn: output.listenerArn })
+          |> Stream.filter(%, (c) => !c.IsDefault && c.CertificateArn === output.certificateArn)
+          |> Stream.runHead(%)),
+      )) catch effect (e) => match (e) { when { _tag: "ListenerNotFoundException" }: false; default: throw e; }
+      return attached ? output : undefined
+    },
+    // Certificates belong to a listener, which belongs to a load balancer.
+    // Enumerate every load balancer, then every listener, then every
+    // non-default certificate.
+    list: effect () => {
+      const loadBalancerArns = Array.from(
+        try (elbv2.describeLoadBalancers.pages({})
+          |> Stream.runCollect(%)),
+      ).flatMap((page) => (page.LoadBalancers ?? []).flatMap((lb) => lb.LoadBalancerArn ? [lb.LoadBalancerArn] : []))
+      const listenerArns = try Effect.forEach(
+        loadBalancerArns,
+        effect (loadBalancerArn) =>
+          (Array.from(
+            try (elbv2.describeListeners.pages({ LoadBalancerArn: loadBalancerArn })
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.Listeners ?? []).flatMap((l) => l.ListenerArn ? [l.ListenerArn as ListenerArn] : [])
+          )) catch effect (e) => match (e) {
+            when { _tag: "LoadBalancerNotFoundException" }: [];
+            when { _tag: "ListenerNotFoundException" }: [];
+            default: throw e;
+          },
+        { concurrency: 10 },
+      )
+      const rows = try Effect.forEach(
+        listenerArns.flat(),
+        effect (listenerArn) =>
+          (Array.from(
+            try (elbv2.describeListenerCertificates.items({ ListenerArn: listenerArn })
+              |> Stream.filter(%, (c) => !c.IsDefault && c.CertificateArn != null)
+              |> Stream.map(%, (c) => ({
+                listenerArn,
+                certificateArn: c.CertificateArn!,
+              }))
+              |> Stream.runCollect(%)),
+          )) catch effect (e) => match (e) { when { _tag: "ListenerNotFoundException" }: []; default: throw e; },
+        { concurrency: 10 },
+      )
+      const result: ListenerCertificate["Attributes"][] = rows.flat()
+      return result
+    },
+    reconcile: effect ({ news, session }) => {
+      const listenerArn = news.listenerArn as ListenerArn
+
+      // Observe — is the certificate already attached?
+      const attached = Option.isSome(
+        try (elbv2.describeListenerCertificates
+          .items({ ListenerArn: listenerArn })
+          |> Stream.filter(%, (c) => !c.IsDefault && c.CertificateArn === news.certificateArn)
+          |> Stream.runHead(%)),
+      )
+
+      // Ensure — the API is an idempotent add, but skip the call on no-op.
+      if (!attached) {
+        try elbv2.addListenerCertificates({
+          ListenerArn: listenerArn,
+          Certificates: [{ CertificateArn: news.certificateArn }],
+        })
+      }
+
+      try session.note(`${news.certificateArn} -> ${listenerArn}`)
+      return {
+        listenerArn,
+        certificateArn: news.certificateArn,
+      }
+    },
+    delete: effect ({ output }) => {
+      elbv2
+        .removeListenerCertificates({
+          ListenerArn: output.listenerArn,
+          Certificates: [{ CertificateArn: output.certificateArn }],
+        }) catch effect (e) => match (e) {
+          when { _tag: "ListenerNotFoundException" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

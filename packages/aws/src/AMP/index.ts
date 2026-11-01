@@ -1,5 +1,5 @@
 export * from "./AlertManagerDefinition.vibe";
-export * from "./AnomalyDetector.ts";
+export * from "./AnomalyDetector.vibe";
 export * from "./DescribeWorkspace.vibe";
 export * from "./DescribeWorkspaceHttp.vibe";
 export * from "./GetDefaultScraperConfiguration.vibe";

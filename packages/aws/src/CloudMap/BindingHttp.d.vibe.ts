@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
-import type { Service } from "./Service.js";
+import type { Service } from "./Service.vibe";
 /**
  * Shared scaffolding for AWS Cloud Map HTTP bindings.
  *

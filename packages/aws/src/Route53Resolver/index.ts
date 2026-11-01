@@ -6,7 +6,7 @@ export * from "./ListResolverEndpointIpAddresses.vibe";
 export * from "./ListResolverEndpointIpAddressesHttp.vibe";
 export * from "./ListResolverRuleAssociations.vibe";
 export * from "./ListResolverRuleAssociationsHttp.vibe";
-export * from "./ResolverEndpoint.ts";
+export * from "./ResolverEndpoint.vibe";
 export * from "./ResolverRule.ts";
 export * from "./ResolverRuleAssociation.vibe";
 export * from "./UpdateResolverRule.vibe";

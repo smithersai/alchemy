@@ -1,7 +1,7 @@
 import type * as notifications from "@distilled.cloud/aws/notifications";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { NotificationConfiguration } from "./NotificationConfiguration.js";
+import type { NotificationConfiguration } from "./NotificationConfiguration.vibe";
 /**
  * Request for {@link ListChannels} — the bound configuration's ARN is
  * injected automatically.

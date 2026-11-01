@@ -1,5 +1,5 @@
 export * from "./ChannelAssociation.vibe";
-export * from "./EventRule.ts";
+export * from "./EventRule.vibe";
 export * from "./GetManagedNotificationChildEvent.vibe";
 export * from "./GetManagedNotificationChildEventHttp.vibe";
 export * from "./GetManagedNotificationConfiguration.vibe";
@@ -20,6 +20,6 @@ export * from "./ListManagedNotificationEvents.vibe";
 export * from "./ListManagedNotificationEventsHttp.vibe";
 export * from "./ListNotificationEvents.vibe";
 export * from "./ListNotificationEventsHttp.vibe";
-export * from "./NotificationConfiguration.ts";
-export * from "./NotificationHub.ts";
+export * from "./NotificationConfiguration.vibe";
+export * from "./NotificationHub.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding and intentionally NOT exported.

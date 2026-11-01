@@ -1,7 +1,7 @@
 import type * as appintegrations from "@distilled.cloud/aws/appintegrations";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.vibe";
 export interface ListApplicationAssociationsRequest extends Omit<appintegrations.ListApplicationAssociationsRequest, "ApplicationId"> {
 }
 /**

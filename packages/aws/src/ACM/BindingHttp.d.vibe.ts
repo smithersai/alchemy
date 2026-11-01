@@ -2,7 +2,7 @@ import type { Credentials } from "@distilled.cloud/aws/Credentials";
 import { Region as AwsRegion } from "@distilled.cloud/aws/Region";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import type { Certificate } from "./Certificate.js";
+import type { Certificate } from "./Certificate.vibe";
 type AcmRequirements = Credentials | AwsRegion | HttpClient.HttpClient;
 export interface AcmHttpBindingConfig<Req extends object, Out, Err> {
     /**

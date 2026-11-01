@@ -1,7 +1,7 @@
 import type * as apprunner from "@distilled.cloud/aws/apprunner";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Service } from "./Service.js";
+import type { Service } from "./Service.vibe";
 /**
  * Resume a paused App Runner {@link Service} from a Lambda (or other AWS
  * runtime). App Runner re-provisions compute capacity and the endpoint

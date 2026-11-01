@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { BatchRetryExhaustedError } from "alchemy/Util/BatchedSink";
 import type * as Effect from "effect/Effect";
 import type * as Sink from "effect/Sink";
-import type { Topic } from "./Topic.js";
+import type { Topic } from "./Topic.vibe";
 /**
  * A raw `PublishBatchRequestEntry` minus the batch-correlation `Id`, which
  * the sink assigns per API call. Callers stay in control of `Message`,

@@ -14,7 +14,7 @@ import {
   type LogGroupEventSourceService,
   type LogsSubscriptionPayload,
 } from "../Logs/LogGroupEventSource.ts";
-import { SubscriptionFilter } from "../Logs/SubscriptionFilter.ts";
+import { SubscriptionFilter } from "../Logs/SubscriptionFilter.vibe";
 import * as Lambda from "./Function.ts";
 import { Permission as LambdaPermission } from "./Permission.vibe";
 

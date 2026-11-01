@@ -1,4 +1,4 @@
-export * from "./CredentialLocker.ts";
+export * from "./CredentialLocker.vibe";
 export * from "./Destination.vibe";
 export * from "./GetCustomEndpoint.vibe";
 export * from "./GetCustomEndpointHttp.vibe";
@@ -24,7 +24,7 @@ export * from "./ListManagedThingSchemas.vibe";
 export * from "./ListManagedThingSchemasHttp.vibe";
 export * from "./ListSchemaVersions.vibe";
 export * from "./ListSchemaVersionsHttp.vibe";
-export * from "./ManagedThing.ts";
+export * from "./ManagedThing.vibe";
 export * from "./NotificationConfiguration.vibe";
 export * from "./SendConnectorEvent.vibe";
 export * from "./SendConnectorEventHttp.vibe";

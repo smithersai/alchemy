@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { Contact } from "./Contact.vibe";
-import type { ContactChannel } from "./ContactChannel.js";
+import type { ContactChannel } from "./ContactChannel.vibe";
 import type { Rotation } from "./Rotation.vibe";
 /**
  * Build the impl Effect for an SSM Contacts operation scoped to a

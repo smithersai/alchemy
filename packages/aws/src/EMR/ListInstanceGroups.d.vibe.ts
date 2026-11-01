@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/emr";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 /**
  * Runtime binding for `elasticmapreduce:ListInstanceGroups` — lists the bound cluster's instance groups (instance-group clusters only) with requested/running counts — the ids feed {@link ModifyInstanceGroups} and {@link PutAutoScalingPolicy}.
  * ### Inspecting the Cluster

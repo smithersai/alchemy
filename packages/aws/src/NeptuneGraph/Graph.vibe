@@ -1,0 +1,461 @@
+import * as neptunegraph from "@distilled.cloud/aws/neptune-graph"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+
+export error NeptuneGraphGraphUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface GraphProps {
+  /**
+   * Name of the graph (lowercase letters, numbers, and hyphens; must start
+   * with a letter). If omitted, a deterministic name is generated.
+   * Changing it forces replacement.
+   */
+  mutable graphName?: string
+  /**
+   * Provisioned memory-optimized Neptune Capacity Units (m-NCUs) for the
+   * graph, e.g. `16`, `32`, `64`. In-place modify.
+   */
+  mutable provisionedMemory: number
+  /**
+   * Whether the graph endpoint is reachable from the public internet
+   * (requests are still IAM-authenticated). In-place modify.
+   * @default false
+   */
+  mutable publicConnectivity?: boolean
+  /**
+   * Number of replicas in other AZs. Replicas incur additional cost.
+   * Immutable — forces replacement.
+   * @default 1
+   */
+  mutable replicaCount?: number
+  /**
+   * KMS key used to encrypt data in the graph. Immutable — forces
+   * replacement.
+   */
+  mutable kmsKeyIdentifier?: string
+  /**
+   * Vector-search configuration (dimension of vectors, 1-65535). Immutable —
+   * forces replacement.
+   */
+  mutable vectorSearchConfiguration?: {
+    /**
+     * Number of dimensions per vector.
+     */
+    mutable dimension: number
+  }
+  /**
+   * Block accidental deletion. In-place modify.
+   * @default true
+   */
+  mutable deletionProtection?: boolean
+  /**
+   * User-defined tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface Graph extends
+  Resource<
+    "AWS.NeptuneGraph.Graph",
+    GraphProps,
+    {
+      /** Server-assigned unique id of the graph (e.g. `g-abc123`). */
+      mutable graphId: string
+      /** Name of the graph. */
+      mutable graphName: string
+      /** ARN of the graph. */
+      mutable graphArn: string
+      /** HTTPS query endpoint of the graph. */
+      mutable endpoint: string | undefined
+      /** Current lifecycle status (e.g. `CREATING`, `AVAILABLE`). */
+      mutable status: string | undefined
+      /** Provisioned memory in m-NCUs. */
+      mutable provisionedMemory: number | undefined
+      /** Whether the endpoint is reachable from the public internet. */
+      mutable publicConnectivity: boolean | undefined
+      /** Number of read replicas. */
+      mutable replicaCount: number | undefined
+      /** KMS key encrypting the graph, if customer-managed. */
+      mutable kmsKeyIdentifier: string | undefined
+      /** Vector search embedding dimension, if enabled. */
+      mutable vectorSearchDimension: number | undefined
+      /** Whether deletion protection is enabled. */
+      mutable deletionProtection: boolean | undefined
+      /** Creation time of the graph (ISO 8601). */
+      mutable createTime: string | undefined
+      /** Tags on the graph (user + internal Alchemy tags). */
+      mutable tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Neptune Analytics graph — a serverless, memory-optimized graph
+ * that serves openCypher queries over an IAM-authenticated HTTPS endpoint.
+ * Unlike classic Neptune, a graph with `publicConnectivity: true` needs no
+ * VPC plumbing at all. Provisioning takes several minutes and the graph
+ * bills per m-NCU-hour while it exists.
+ *
+ * Mutable fields (`provisionedMemory`, `publicConnectivity`,
+ * `deletionProtection`) are reconciled in place; immutable fields
+ * (`replicaCount`, `kmsKeyIdentifier`, `vectorSearchConfiguration`) force a
+ * replacement.
+ * ### Creating a Graph
+ * **Example:** Publicly reachable analytics graph
+ * ```typescript
+ * const graph = yield* Graph("Knowledge", {
+ *   provisionedMemory: 16,
+ *   publicConnectivity: true,
+ *   replicaCount: 0,
+ *   deletionProtection: false,
+ * });
+ * ```
+ *
+ * ### Vector Search
+ * **Example:** Graph with vector search enabled
+ * ```typescript
+ * const graph = yield* Graph("Embeddings", {
+ *   provisionedMemory: 16,
+ *   vectorSearchConfiguration: { dimension: 1536 },
+ * });
+ * ```
+ *
+ * ### Querying
+ * **Example:** Query from a Lambda function via the ExecuteQuery binding
+ * ```typescript
+ * const executeQuery = yield* AWS.NeptuneGraph.ExecuteQuery(graph);
+ * const result = yield* executeQuery({
+ *   queryString: "MATCH (n) RETURN count(n) AS n",
+ *   language: "OPEN_CYPHER",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Graph = Resource<Graph>("AWS.NeptuneGraph.Graph")
+
+type GraphOutput = neptunegraph.GetGraphOutput
+
+/**
+ * The graph entered the terminal `FAILED` state during provisioning or a
+ * modification. Not retried.
+ */
+export error GraphProvisioningFailed {
+  graphId: string
+  reason: string
+}
+
+error GraphNotReady {
+  graphId: string
+  status: string
+}
+
+const toTagRecord = (
+  tags: { mutable [key: string]: string | undefined } | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(tags ?? {}).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  )
+
+const toAttrs = ({
+  graph,
+  tags,
+}: {
+  mutable graph: GraphOutput
+  mutable tags: Record<string, string>
+}): Graph["Attributes"] => ({
+  graphId: graph.id,
+  graphName: graph.name,
+  graphArn: graph.arn,
+  endpoint: graph.endpoint,
+  status: graph.status,
+  provisionedMemory: graph.provisionedMemory,
+  publicConnectivity: graph.publicConnectivity,
+  replicaCount: graph.replicaCount,
+  kmsKeyIdentifier: graph.kmsKeyIdentifier,
+  vectorSearchDimension: graph.vectorSearchConfiguration?.dimension,
+  deletionProtection: graph.deletionProtection,
+  createTime: graph.createTime?.toISOString(),
+  tags,
+})
+
+export const GraphProvider = (): infer _ =>
+  Provider.effect(
+    Graph,
+    effect {
+      const toName = effect (
+        id: string,
+        props: GraphProps,
+      ) => (props.graphName ? props.graphName : try createPhysicalName({ id, maxLength: 63, lowercase: true }))
+
+      const getGraph = effect (graphId: string) =>
+        neptunegraph
+          .getGraph({ graphIdentifier: graphId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      // Graph names are unique per account/region — resolve a graph by name
+      // when no id is cached (state-persistence failure recovery).
+      const findGraphByName = effect (name: string) => {
+        const summary = Option.getOrUndefined(
+          try (neptunegraph.listGraphs.items({})
+            |> Stream.filter(%, (graph) => graph.name === name)
+            |> Stream.runHead(%)),
+        )
+        if (summary === undefined) return undefined
+        return try getGraph(summary.id)
+      }
+
+      const observeGraph = effect (graphId: string | undefined, name: string) => {
+        if (graphId !== undefined) {
+          const graph = try getGraph(graphId)
+          if (graph !== undefined) return graph
+        }
+        return try findGraphByName(name)
+      }
+
+      const readTags = effect (arn: string) => {
+        const response = neptunegraph
+          .listTagsForResource({ resourceArn: arn }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return toTagRecord(response?.tags)
+      }
+
+      // Explicitly-typed pipeable retry helper. Inlining `Effect.retry` in a
+      // provider lifecycle op leaks `Retry.Return`'s conditional into
+      // declaration emit and widens the provider layer to `unknown` R for
+      // every consumer of `AWS.providers()`.
+      const retryWhileGraphNotReady = effect <A, E extends { readonly _tag: string }, R>(
+        self: A!E!R,
+      ): A!E!R =>
+        try Effect.retry(self, {
+          while: (e) => e._tag === "GraphNotReady",
+          schedule: Schedule.max([Schedule.fixed("10 seconds"), Schedule.recurs(90)]),
+        })
+
+      // Bounded readiness wait: graph creation/modification takes several
+      // minutes. Budgets ~15 min (90 * 10s). Fails fast on FAILED.
+      const waitForGraph = effect (graphId: string) =>
+        try retryWhileGraphNotReady(
+          effect {
+            const graph = try getGraph(graphId)
+            if (graph === undefined) {
+              throw new GraphNotReady({ graphId, status: "missing" })
+            }
+            if (graph.status === "FAILED") {
+              throw new GraphProvisioningFailed({
+                graphId,
+                reason: graph.statusReason ?? "unknown",
+              })
+            }
+            if (graph.status !== "AVAILABLE") {
+              throw new GraphNotReady({
+                graphId,
+                status: graph.status ?? "unknown",
+              })
+            }
+            return graph
+          },
+        )
+
+      return {
+        stables: ["graphId", "graphArn", "graphName"],
+        // AWS account/region collection: enumerate every Neptune Analytics
+        // graph via the paginated `listGraphs`. Summaries omit create time,
+        // vector-search config, and tags — emit undefined/empty for those
+        // rather than a per-item `getGraph`/`listTagsForResource` fan-out.
+        list: effect () =>
+          Array.from(
+            try (neptunegraph.listGraphs.items({})
+              |> Stream.runCollect(%)),
+          ).map((graph) => ({
+            graphId: graph.id,
+            graphName: graph.name,
+            graphArn: graph.arn,
+            endpoint: graph.endpoint,
+            status: graph.status,
+            provisionedMemory: graph.provisionedMemory,
+            publicConnectivity: graph.publicConnectivity,
+            replicaCount: graph.replicaCount,
+            kmsKeyIdentifier: graph.kmsKeyIdentifier,
+            vectorSearchDimension: undefined,
+            deletionProtection: graph.deletionProtection,
+            createTime: undefined,
+            tags: {} as Record<string, string>,
+          })),
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toName(id, olds ?? { provisionedMemory: 0 })) !== (try toName(id, news))) {
+            return { action: "replace" } as const
+          }
+          // Immutable props — any change forces a fresh graph.
+          if (
+            olds !== undefined
+            && (olds.replicaCount !== news.replicaCount
+              || olds.kmsKeyIdentifier !== news.kmsKeyIdentifier
+              || olds.vectorSearchConfiguration?.dimension
+                !== news.vectorSearchConfiguration?.dimension)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const name = output?.graphName
+            ?? (try toName(id, olds ?? ({ provisionedMemory: 0 } as GraphProps)))
+          const graph = try observeGraph(output?.graphId, name)
+          if (graph === undefined) {
+            return undefined
+          }
+          const tags = try readTags(graph.arn)
+          return toAttrs({ graph, tags })
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.graphName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — fetch live graph state (by cached id, else by name).
+          let observed = try observeGraph(output?.graphId, name)
+
+          // Ensure — create if missing. A ConflictException here means a
+          // peer reconciler won the create race — re-resolve by name.
+          if (observed === undefined) {
+            const created = neptunegraph
+              .createGraph({
+                graphName: name,
+                provisionedMemory: news.provisionedMemory,
+                publicConnectivity: news.publicConnectivity,
+                replicaCount: news.replicaCount,
+                kmsKeyIdentifier: news.kmsKeyIdentifier,
+                vectorSearchConfiguration: news.vectorSearchConfiguration,
+                deletionProtection: news.deletionProtection,
+                tags: desiredTags,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try Effect.undefined;
+                default: throw e;
+              }
+            const graphId = created?.id ?? (try findGraphByName(name))?.id
+            if (graphId === undefined) {
+              throw new NeptuneGraphGraphUnexpectedResponse({
+                message: `Failed to create graph '${name}'`,
+              })
+            }
+            observed = try waitForGraph(graphId)
+          } else {
+            // Wait for the graph to settle before any modify so the call
+            // doesn't hit ConflictException(CONCURRENT_MODIFICATION).
+            observed = try waitForGraph(observed.id)
+
+            // Sync — single `updateGraph` carrying only the in-place fields
+            // whose desired value differs from the observed cloud state.
+            const update: Omit<neptunegraph.UpdateGraphInput, "graphIdentifier"> = {}
+            let dirty = false
+            if (
+              news.provisionedMemory !== undefined
+              && news.provisionedMemory !== observed.provisionedMemory
+            ) {
+              update.provisionedMemory = news.provisionedMemory
+              dirty = true
+            }
+            if (
+              news.publicConnectivity !== undefined
+              && news.publicConnectivity !== observed.publicConnectivity
+            ) {
+              update.publicConnectivity = news.publicConnectivity
+              dirty = true
+            }
+            if (
+              news.deletionProtection !== undefined
+              && news.deletionProtection !== observed.deletionProtection
+            ) {
+              update.deletionProtection = news.deletionProtection
+              dirty = true
+            }
+            if (dirty) {
+              try neptunegraph.updateGraph({
+                graphIdentifier: observed.id,
+                ...update,
+              })
+              observed = try waitForGraph(observed.id)
+            }
+          }
+
+          // Sync tags — diff observed cloud tags against desired.
+          const observedTags = try readTags(observed.arn)
+          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0) {
+            try neptunegraph.tagResource({
+              resourceArn: observed.arn,
+              tags: Object.fromEntries(upsert.map(({ Key, Value }) => [Key, Value])),
+            })
+          }
+          if (removed.length > 0) {
+            try neptunegraph.untagResource({
+              resourceArn: observed.arn,
+              tagKeys: removed,
+            })
+          }
+
+          try session.note(observed.arn)
+          return toAttrs({ graph: observed, tags: desiredTags })
+        },
+        delete: effect ({ output }) => {
+          // Deletion is blocked while delete-protection is on — disable it
+          // first if the live graph still has it enabled.
+          const observed = try getGraph(output.graphId)
+          if (observed === undefined) return
+          if (observed.deletionProtection === true) {
+            neptunegraph
+              .updateGraph({
+                graphIdentifier: output.graphId,
+                deletionProtection: false,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                default: throw e;
+              }
+          }
+          neptunegraph
+            .deleteGraph({
+              graphIdentifier: output.graphId,
+              skipSnapshot: true,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+          // Block until the graph is fully gone — deletion is async and the
+          // graph bills until it disappears.
+          Effect.repeat(
+            effect {
+              return (try (neptunegraph.getGraph({ graphIdentifier: output.graphId })
+                |> Effect.as(%, true))) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: false;
+                  default: throw e;
+                }
+            },
+            {
+              schedule: Schedule.max([Schedule.fixed("10 seconds"), Schedule.recurs(60)]),
+              until: (exists) => exists === false,
+            },
+          ) catch effect (e) => try Effect.void
+        },
+      }
+    },
+  )

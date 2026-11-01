@@ -1,7 +1,7 @@
 import * as omics from "@distilled.cloud/aws/omics";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { VariantStore } from "./VariantStore.js";
+import type { VariantStore } from "./VariantStore.vibe";
 export interface StartVariantImportJobRequest extends Omit<omics.StartVariantImportRequest, "destinationName"> {
 }
 /**

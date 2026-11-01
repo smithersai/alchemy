@@ -1,7 +1,7 @@
 import type * as entityresolution from "@distilled.cloud/aws/entityresolution";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { IdMappingWorkflow } from "./IdMappingWorkflow.js";
+import type { IdMappingWorkflow } from "./IdMappingWorkflow.vibe";
 /**
  * Runtime binding for `entityresolution:GetIdMappingJob`.
  *

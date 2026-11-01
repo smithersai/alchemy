@@ -1,7 +1,7 @@
 import type * as medicalimaging from "@distilled.cloud/aws/medical-imaging";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Datastore } from "./Datastore.js";
+import type { Datastore } from "./Datastore.vibe";
 /**
  * `GetImageFrame` request with `datastoreId` injected from the bound data
  * store.

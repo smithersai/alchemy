@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/emr";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.vibe";
 /**
  * Runtime binding for `elasticmapreduce:RemoveManagedScalingPolicy` — detaches the bound cluster's managed scaling policy.
  * ### Scaling the Cluster

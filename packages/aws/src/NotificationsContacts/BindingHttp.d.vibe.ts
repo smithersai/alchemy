@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { EmailContact } from "./EmailContact.js";
+import type { EmailContact } from "./EmailContact.vibe";
 /**
  * Build the impl Effect for a User Notifications Contacts operation scoped
  * to one {@link EmailContact}: the deploy-time half grants `actions` on the

@@ -3,7 +3,7 @@ export * from "./AcceptPageHttp.vibe";
 export * from "./ActivateContactChannel.vibe";
 export * from "./ActivateContactChannelHttp.vibe";
 export * from "./Contact.vibe";
-export * from "./ContactChannel.ts";
+export * from "./ContactChannel.vibe";
 export * from "./CreateRotationOverride.vibe";
 export * from "./CreateRotationOverrideHttp.vibe";
 export * from "./DeactivateContactChannel.vibe";

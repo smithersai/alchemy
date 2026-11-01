@@ -24,7 +24,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { ScalableTarget } from "../ApplicationAutoScaling/ScalableTarget.vibe";
 import { ScalingPolicy } from "../ApplicationAutoScaling/ScalingPolicy.vibe";
-import { Service as CloudMapService } from "../CloudMap/Service.ts";
+import { Service as CloudMapService } from "../CloudMap/Service.vibe";
 import type { Credentials } from "../Credentials.ts";
 import { domainCertificate, isRoute53Dns, resolveDomainDns } from "../CustomDomain.ts";
 import {

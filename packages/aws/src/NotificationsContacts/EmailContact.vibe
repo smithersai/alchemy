@@ -1,0 +1,229 @@
+import * as contacts from "@distilled.cloud/aws/notificationscontacts"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import * as Option from "effect/Option"
+import * as Redacted from "effect/Redacted"
+import * as Stream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+
+export interface EmailContactProps {
+  /**
+   * Display name of the contact (1–64 characters). If omitted, a unique
+   * name is generated from the app, stage and logical ID. Contacts have no
+   * update API, so changing the name replaces the contact.
+   */
+  mutable name?: string
+
+  /**
+   * The email address that receives notifications. Unique per account —
+   * AWS rejects a second contact with the same address. Changing the
+   * address replaces the contact.
+   *
+   * A new contact is created in the unverified `inactive` state; AWS sends
+   * notifications to it only after the address owner confirms the
+   * activation email (`SendActivationCode` / the console).
+   */
+  mutable emailAddress: string
+
+  /**
+   * User tags to attach to the contact. Merged with internal Alchemy tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface EmailContact extends
+  Resource<
+    "AWS.NotificationsContacts.EmailContact",
+    EmailContactProps,
+    {
+      /** The ARN of the email contact (regionless). */
+      mutable emailContactArn: string
+      /** The display name of the contact. */
+      mutable name: string
+      /** The email address of the contact. */
+      mutable emailAddress: string
+      /**
+       * Verification status: `inactive` until the address owner confirms the
+       * activation email, then `active`.
+       */
+      mutable status: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS User Notifications Contacts **email contact** — an email address
+ * that can be attached to a notification configuration as a delivery
+ * channel.
+ *
+ * Contacts are created in the unverified `inactive` state; activation is a
+ * human email-confirmation loop (AWS emails the address a confirmation
+ * link), so Alchemy provisions the contact and leaves activation to the
+ * address owner. Contacts are immutable (no update API) — changing the
+ * name or address replaces the contact; tags update in place.
+ *
+ * ### Creating an Email Contact
+ * **Example:** Basic email contact
+ * ```typescript
+ * import * as NotificationsContacts from "@alchemy.run/aws/NotificationsContacts";
+ *
+ * const contact = yield* NotificationsContacts.EmailContact("OnCall", {
+ *   emailAddress: "oncall@example.com",
+ * });
+ * // contact.status === "inactive" until the address owner confirms
+ * ```
+ *
+ * **Example:** Named contact with tags
+ * ```typescript
+ * const contact = yield* NotificationsContacts.EmailContact("OnCall", {
+ *   name: "platform-oncall",
+ *   emailAddress: "oncall@example.com",
+ *   tags: { team: "platform" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const EmailContact = Resource<EmailContact>("AWS.NotificationsContacts.EmailContact")
+
+/** Unwrap distilled `SensitiveString` values into plain strings. */
+const unwrapSensitive = (value: string | Redacted.Redacted<string>): string =>
+  typeof value === "string" ? value : Redacted.value(value)
+
+const readContactTags = effect (arn: string) =>
+  (((try contacts.listTagsForResource({ arn })).tags ?? {}) as Record<string, string>) catch effect (e) => match (e) {
+    when { _tag: "ResourceNotFoundException" } or { _tag: "ValidationException" }: {} as Record<string, string>;
+    default: throw e;
+  }
+
+const syncContactTags = effect (
+  arn: string,
+  id: string,
+  userTags: Record<string, string> | undefined,
+) => {
+  const internalTags = try createInternalTags(id)
+  const desired = { ...userTags, ...internalTags }
+  const observed = try readContactTags(arn)
+  const { upsert, removed } = diffTags(observed, desired)
+  if (upsert.length > 0) {
+    try contacts.tagResource({
+      arn,
+      tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+    })
+  }
+  if (removed.length > 0) {
+    try contacts.untagResource({ arn, tagKeys: removed })
+  }
+}
+
+export const EmailContactProvider = (): infer _ =>
+  Provider.effect(
+    EmailContact,
+    effect {
+      const createName = effect (id: string, props: EmailContactProps) => props.name ?? (try createPhysicalName({ id }))
+
+      // Email addresses are unique account-wide (CreateEmailContact rejects
+      // duplicates with ConflictException), so an address scan is a
+      // reliable identity fallback when the ARN cache is missing.
+      const findByAddress = effect (emailAddress: string) =>
+        Option.getOrUndefined(
+          try (contacts.listEmailContacts.items({})
+            |> Stream.filter(%, (contact) => unwrapSensitive(contact.address) === emailAddress)
+            |> Stream.runHead(%)),
+        )
+
+      const getByArn = effect (arn: string) =>
+        (try contacts.getEmailContact({ arn })).emailContact catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      const toAttrs = (live: contacts.EmailContact): infer _ => ({
+        emailContactArn: live.arn,
+        name: unwrapSensitive(live.name),
+        emailAddress: unwrapSensitive(live.address),
+        status: live.status,
+      })
+
+      return EmailContact.Provider.of({
+        stables: ["emailContactArn", "name", "emailAddress"],
+
+        list: effect () =>
+          Array.from(
+            try (contacts.listEmailContacts.items({})
+              |> Stream.runCollect(%)),
+          ).map(toAttrs),
+
+        read: effect ({ id, olds, output }) => {
+          const found = output?.emailContactArn
+            ? try getByArn(output.emailContactArn)
+            : olds?.emailAddress
+            ? try findByAddress(olds.emailAddress)
+            : undefined
+          if (!found) return undefined
+          const attrs = toAttrs(found)
+          const tags = try readContactTags(found.arn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          // No update API — any change to the contact itself replaces it.
+          if (oldName !== newName || news.emailAddress !== olds.emailAddress) {
+            return { action: "replace" } as const
+          }
+          return undefined
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try createName(id, news)
+
+          // OBSERVE — cloud state is authoritative; the cached ARN falls
+          // through to an address scan when it no longer resolves.
+          let live = output?.emailContactArn
+            ? try getByArn(output.emailContactArn)
+            : try findByAddress(news.emailAddress)
+
+          // ENSURE — create when missing; ConflictException means a
+          // same-address contact already exists (race) → re-observe.
+          if (live === undefined) {
+            const created = contacts
+              .createEmailContact({
+                name,
+                emailAddress: news.emailAddress,
+                tags: news.tags,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try Effect.undefined;
+                default: throw e;
+              }
+            live = created ? try getByArn(created.arn) : try findByAddress(news.emailAddress)
+          }
+          const arn = live!.arn
+
+          // SYNC tags — the contact itself is immutable; tags are the only
+          // mutable aspect (diffed against observed cloud tags).
+          try syncContactTags(arn, id, news.tags)
+
+          try session.note(arn)
+          return toAttrs(live!)
+        },
+
+        delete: effect ({ output }) => {
+          contacts
+            .deleteEmailContact({ arn: output.emailContactArn }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

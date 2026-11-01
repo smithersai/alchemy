@@ -17,7 +17,7 @@ import * as Output from "alchemy/Output";
  * Not exported from the AWS barrel.
  */
 import * as Effect from "effect/Effect";
-import { Certificate, validationRecordsOf, type CertificateProps } from "./ACM/Certificate.ts";
+import { Certificate, validationRecordsOf, type CertificateProps } from "./ACM/Certificate.vibe";
 import { CertificateValidation } from "./ACM/CertificateValidation.ts";
 import type { Providers } from "./Providers.vibe";
 import { adapter as route53Adapter, ROUTE53_DNS } from "./Route53/Adapter.ts";

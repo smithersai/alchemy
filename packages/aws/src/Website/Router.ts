@@ -10,7 +10,7 @@ import { CachePolicy } from "../CloudFront/CachePolicy.vibe";
 import { Distribution, type DistributionBehavior } from "../CloudFront/Distribution.ts";
 import { Function as CloudFrontFunction } from "../CloudFront/Function.vibe";
 import { Invalidation } from "../CloudFront/Invalidation.vibe";
-import { KeyValueStore } from "../CloudFront/KeyValueStore.ts";
+import { KeyValueStore } from "../CloudFront/KeyValueStore.vibe";
 import { KvEntries } from "../CloudFront/KvEntries.vibe";
 import { KvRoutesUpdate } from "../CloudFront/KvRoutesUpdate.ts";
 import { MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID } from "../CloudFront/ManagedPolicies.ts";

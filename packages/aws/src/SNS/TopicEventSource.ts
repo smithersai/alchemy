@@ -2,7 +2,7 @@ import * as Binding from "alchemy/Binding";
 import type * as lambda from "aws-lambda";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Topic } from "./Topic.ts";
+import type { Topic } from "./Topic.vibe";
 
 export type TopicNotification = lambda.SNSMessage;
 

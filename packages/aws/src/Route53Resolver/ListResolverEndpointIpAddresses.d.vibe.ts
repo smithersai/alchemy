@@ -1,7 +1,7 @@
 import type * as r53r from "@distilled.cloud/aws/route53resolver";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ResolverEndpoint } from "./ResolverEndpoint.js";
+import type { ResolverEndpoint } from "./ResolverEndpoint.vibe";
 export interface ListResolverEndpointIpAddressesRequest extends Omit<r53r.ListResolverEndpointIpAddressesRequest, "ResolverEndpointId"> {
 }
 /**

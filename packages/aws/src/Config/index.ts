@@ -1,4 +1,4 @@
-export * from "./AggregationAuthorization.ts";
+export * from "./AggregationAuthorization.vibe";
 export * from "./BatchGetResourceConfig.vibe";
 export * from "./BatchGetResourceConfigHttp.vibe";
 export * from "./ConfigEventSource.vibe";

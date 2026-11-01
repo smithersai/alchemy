@@ -1,6 +1,6 @@
 import type { DnsAliasSet, DnsConfig } from "alchemy/DNS/Adapter";
 import type { Input } from "alchemy/Input";
-import type { Certificate } from "../ACM/Certificate.ts";
+import type { Certificate } from "../ACM/Certificate.vibe";
 import type { Distribution } from "../CloudFront/Distribution.ts";
 import type { Bucket } from "../S3/Bucket.ts";
 import type { AssetFileOption } from "./AssetDeployment.ts";

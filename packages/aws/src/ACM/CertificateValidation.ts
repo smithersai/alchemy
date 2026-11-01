@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import type { Providers } from "../Providers.vibe";
-import { describeCertificateDetail, waitForCertificateIssued } from "./Certificate.ts";
+import { describeCertificateDetail, waitForCertificateIssued } from "./Certificate.vibe";
 
 export interface CertificateValidationProps {
   /**

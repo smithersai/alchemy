@@ -1,6 +1,6 @@
 export * from "./Alarm.vibe";
 export * from "./AlarmMuteRule.ts";
-export * from "./AnomalyDetector.ts";
+export * from "./AnomalyDetector.vibe";
 export * from "./CompositeAlarm.vibe";
 export * from "./Dashboard.vibe";
 export * from "./DescribeAlarmContributors.vibe";

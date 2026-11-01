@@ -12,7 +12,7 @@ export * from "./PauseService.vibe";
 export * from "./PauseServiceHttp.ts";
 export * from "./ResumeService.vibe";
 export * from "./ResumeServiceHttp.ts";
-export * from "./Service.ts";
+export * from "./Service.vibe";
 export * from "./ServiceEventSource.vibe";
 export * from "./StartDeployment.vibe";
 export * from "./StartDeploymentHttp.ts";

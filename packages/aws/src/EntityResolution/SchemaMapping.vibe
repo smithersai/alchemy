@@ -1,0 +1,212 @@
+import * as entityresolution from "@distilled.cloud/aws/entityresolution"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { deepEqual, isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
+import type { Providers } from "../Providers.vibe"
+import { readEntityResolutionTags, syncEntityResolutionTags } from "./internal.ts"
+
+export interface SchemaMappingProps {
+  /**
+   * Name of the schema mapping. Must be unique per account/region and match
+   * `[a-zA-Z_0-9-]*`. If omitted, a unique name is generated from the app,
+   * stage, and logical ID. Changing the name replaces the schema mapping.
+   */
+  mutable schemaName?: string
+  /**
+   * A description of the schema mapping.
+   */
+  mutable description?: string
+  /**
+   * The columns of the input records table and how Entity Resolution should
+   * interpret them: the attribute `type` (e.g. `UNIQUE_ID`, `EMAIL_ADDRESS`,
+   * `NAME`, `PHONE_NUMBER`), an optional `matchKey` used by rule-based
+   * matching, and optional `groupName`/`subType`/`hashed` metadata.
+   *
+   * Mutable in place — but a schema mapping becomes immutable while it is
+   * referenced by a matching workflow.
+   */
+  mutable mappedInputFields: entityresolution.SchemaInputAttribute[]
+  /**
+   * Tags to apply to the schema mapping. Merged with internal Alchemy tags.
+   */
+  mutable tags?: Record<string, string>
+}
+
+export interface SchemaMapping extends
+  Resource<
+    "AWS.EntityResolution.SchemaMapping",
+    SchemaMappingProps,
+    {
+      /**
+       * The name of the schema mapping.
+       */
+      mutable schemaName: string
+      /**
+       * The ARN of the schema mapping.
+       */
+      mutable schemaArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Entity Resolution schema mapping — the schema of an input customer
+ * records table. It tells Entity Resolution the attribute type of each column
+ * (name, email, phone, unique id, …) and which columns rule-based matching
+ * compares via `matchKey`.
+ *
+ * ### Creating Schema Mappings
+ * **Example:** Customer records schema
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const schema = yield* AWS.EntityResolution.SchemaMapping("Customers", {
+ *   mappedInputFields: [
+ *     { fieldName: "id", type: "UNIQUE_ID" },
+ *     { fieldName: "email", type: "EMAIL_ADDRESS", matchKey: "email" },
+ *     { fieldName: "name", type: "NAME", matchKey: "name" },
+ *   ],
+ * });
+ * ```
+ *
+ * ### Matching Workflows
+ * **Example:** Use the schema in a matching workflow input source
+ * ```typescript
+ * const workflow = yield* AWS.EntityResolution.MatchingWorkflow("Dedupe", {
+ *   inputSourceConfig: [
+ *     { inputSourceARN: table.tableArn, schemaName: schema.schemaName },
+ *   ],
+ *   // ...
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const SchemaMapping = Resource<SchemaMapping>("AWS.EntityResolution.SchemaMapping")
+
+export const SchemaMappingProvider = (): infer _ =>
+  Provider.effect(
+    SchemaMapping,
+    effect {
+      const createName = effect (
+        id: string,
+        props: { mutable schemaName?: string | undefined },
+      ) => props.schemaName ?? (try createPhysicalName({ id, maxLength: 255 }))
+
+      /** Get a schema mapping by name; typed not-found → undefined. */
+      const getByName = effect (schemaName: string) =>
+        entityresolution
+          .getSchemaMapping({ schemaName }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      return {
+        stables: ["schemaName", "schemaArn"],
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.schemaName ?? (try createName(id, olds ?? {}))
+          const mapping = try getByName(name)
+          if (mapping === undefined) return undefined
+          const attrs = {
+            schemaName: mapping.schemaName,
+            schemaArn: mapping.schemaArn,
+          }
+          // getSchemaMapping does not return tags — read them via
+          // listTagsForResource for the ownership check.
+          const tags = try readEntityResolutionTags(mapping.schemaArn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.schemaName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. Observe — names are unique, so the name IS the identity.
+          let mapping = try getByName(name)
+
+          // 2. Ensure — create when missing; tolerate the concurrent-create
+          //    race, then re-observe: the create response is a structural
+          //    subset of the Get shape (it omits createdAt/updatedAt/
+          //    hasWorkflows).
+          if (mapping === undefined) {
+            entityresolution
+              .createSchemaMapping({
+                schemaName: name,
+                description: news.description,
+                mappedInputFields: news.mappedInputFields,
+                tags: desiredTags,
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            mapping = try entityresolution.getSchemaMapping({
+              schemaName: name,
+            })
+          }
+
+          // 3. Sync — description and mapped fields update in place (fails
+          //    with a typed ConflictException while a workflow references
+          //    the schema). Only call the API on an actual delta.
+          if (
+            !deepEqual(mapping.mappedInputFields, news.mappedInputFields)
+            || (mapping.description || undefined) !== (news.description ?? undefined)
+          ) {
+            // The update response omits createdAt/updatedAt/hasWorkflows;
+            // name and ARN are stable, so keep the observed Get shape.
+            try entityresolution.updateSchemaMapping({
+              schemaName: name,
+              description: news.description,
+              mappedInputFields: news.mappedInputFields,
+            })
+          }
+
+          // 3b. Sync tags against OBSERVED cloud tags (adoption-safe).
+          try syncEntityResolutionTags(mapping.schemaArn, desiredTags)
+
+          try session.note(mapping.schemaArn)
+          return {
+            schemaName: mapping.schemaName,
+            schemaArn: mapping.schemaArn,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          // deleteSchemaMapping succeeds even when the mapping is already
+          // gone; it conflicts while a matching workflow still references
+          // the schema (the engine deletes dependents first — retry the
+          // eventual-consistency window).
+          try (entityresolution.deleteSchemaMapping({ schemaName: output.schemaName })
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "ConflictException",
+              schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(10)]),
+            }))
+        },
+
+        list: effect () =>
+          Array.from(
+            try (entityresolution.listSchemaMappings.items({})
+              |> Stream.map(%, (summary) => ({
+                schemaName: summary.schemaName,
+                schemaArn: summary.schemaArn,
+              }))
+              |> Stream.runCollect(%)),
+          ),
+      }
+    },
+  )
