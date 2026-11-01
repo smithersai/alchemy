@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import { processBatch, traceparentLink } from "../internal/EventSourceBatch.ts";
+import { processBatch, traceparentLink } from "../internal/EventSourceBatch.vibe";
 import * as SQS from "../SQS/index.ts";
 
 export const SQSQueueEventSource = Layer.effect(

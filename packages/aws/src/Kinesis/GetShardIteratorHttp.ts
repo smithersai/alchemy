@@ -1,7 +1,7 @@
 import * as Kinesis from "@distilled.cloud/aws/kinesis";
 import * as Layer from "effect/Layer";
 import { makeStreamHttpBinding } from "./BindingHttp.ts";
-import { GetShardIterator } from "./GetShardIterator.ts";
+import { GetShardIterator } from "./GetShardIterator.vibe";
 
 export const GetShardIteratorHttp = Layer.effect(
   GetShardIterator,

@@ -9,7 +9,7 @@ import {
   observePrincipalPermissions,
   retryWhileConcurrentModification,
   retryWhileInvalidPrincipal,
-} from "./internal.ts";
+} from "./internal.vibe";
 import { type LakeFormationResourceSpec, toWireResource } from "./ResourceSpec.ts";
 
 export interface PermissionsProps {

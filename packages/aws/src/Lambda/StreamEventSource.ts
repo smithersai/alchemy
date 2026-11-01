@@ -2,14 +2,14 @@ import * as Namespace from "alchemy/Namespace";
 import type lambda from "aws-lambda";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { processBatch } from "../internal/EventSourceBatch.ts";
+import { processBatch } from "../internal/EventSourceBatch.vibe";
 import type { Stream as KinesisStream } from "../Kinesis/Stream.ts";
 import {
   StreamEventSource as KinesisStreamEventSource,
   type StreamEventSourceProps,
   type StreamEventSourceService,
   type StreamRecordsHandler,
-} from "../Kinesis/StreamEventSource.ts";
+} from "../Kinesis/StreamEventSource.vibe";
 import { EventSourceMapping } from "./EventSourceMapping.ts";
 import * as Lambda from "./Function.ts";
 

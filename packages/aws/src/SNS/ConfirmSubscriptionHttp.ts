@@ -1,7 +1,7 @@
 import * as sns from "@distilled.cloud/aws/sns";
 import * as Layer from "effect/Layer";
 import { makeSnsSubscriptionHttpBinding } from "./BindingHttp.ts";
-import { ConfirmSubscription } from "./ConfirmSubscription.ts";
+import { ConfirmSubscription } from "./ConfirmSubscription.vibe";
 
 export const ConfirmSubscriptionHttp = Layer.effect(
   ConfirmSubscription,

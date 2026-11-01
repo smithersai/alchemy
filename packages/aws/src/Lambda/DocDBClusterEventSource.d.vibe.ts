@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ClusterEventSource as DocDBClusterEventSourceContract } from "../DocDB/ClusterEventSource.js";
+import { ClusterEventSource as DocDBClusterEventSourceContract } from "../DocDB/ClusterEventSource.vibe";
 import * as Lambda from "./Function.js";
 export declare const isDocumentDBEvent: (event: any) => event is {
     eventSourceArn?: string;

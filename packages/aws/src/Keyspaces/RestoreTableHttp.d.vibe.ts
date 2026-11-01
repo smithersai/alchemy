@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { RestoreTable } from "./RestoreTable.js";
+import { RestoreTable } from "./RestoreTable.vibe";
 /**
  * HTTP implementation of {@link RestoreTable}: grants `cassandra:Select` on
  * the source table plus `cassandra:Restore` (and the `Create`/`TagResource`

@@ -12,8 +12,8 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import type { ConverseRequest } from "./Converse.ts";
-import type { ConverseStreamRequest } from "./ConverseStream.ts";
+import type { ConverseRequest } from "./Converse.vibe";
+import type { ConverseStreamRequest } from "./ConverseStream.vibe";
 
 /**
  * Inference parameters applied to every request made through the

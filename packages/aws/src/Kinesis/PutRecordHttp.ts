@@ -1,7 +1,7 @@
 import * as Kinesis from "@distilled.cloud/aws/kinesis";
 import * as Layer from "effect/Layer";
 import { makeStreamHttpBinding } from "./BindingHttp.ts";
-import { PutRecord } from "./PutRecord.ts";
+import { PutRecord } from "./PutRecord.vibe";
 
 export const PutRecordHttp = Layer.effect(
   PutRecord,

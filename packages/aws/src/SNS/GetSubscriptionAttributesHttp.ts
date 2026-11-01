@@ -1,7 +1,7 @@
 import * as sns from "@distilled.cloud/aws/sns";
 import * as Layer from "effect/Layer";
 import { makeSnsSubscriptionHttpBinding } from "./BindingHttp.ts";
-import { GetSubscriptionAttributes } from "./GetSubscriptionAttributes.ts";
+import { GetSubscriptionAttributes } from "./GetSubscriptionAttributes.vibe";
 
 export const GetSubscriptionAttributesHttp = Layer.effect(
   GetSubscriptionAttributes,

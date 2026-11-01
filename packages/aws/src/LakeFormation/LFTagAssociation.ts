@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import type { Providers } from "../Providers.ts";
-import { retryWhileConcurrentModification } from "./internal.ts";
+import { retryWhileConcurrentModification } from "./internal.vibe";
 import { type LakeFormationResourceSpec, toWireResource } from "./ResourceSpec.ts";
 
 /**

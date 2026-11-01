@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import { AWSEnvironment } from "../Environment.ts";
 import { bedrockModelArns } from "./ModelArns.ts";
-import { Rerank, type RerankRequest } from "./Rerank.ts";
+import { Rerank, type RerankRequest } from "./Rerank.vibe";
 
 // Bespoke (not the shared model-scoped scaffold): Rerank authorizes the
 // `bedrock:Rerank` action only against `*`, alongside model-scoped

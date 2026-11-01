@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { retryWhileInvalidPrincipal } from "./internal.ts";
+import { retryWhileInvalidPrincipal } from "./internal.vibe";
 import { type LakeFormationResourceSpec, toWireResource } from "./ResourceSpec.ts";
 
 export interface OptInProps {

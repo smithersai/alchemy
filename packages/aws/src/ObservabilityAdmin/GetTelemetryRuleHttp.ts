@@ -2,7 +2,7 @@ import * as obs from "@distilled.cloud/aws/observabilityadmin";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { GetTelemetryRule } from "./GetTelemetryRule.ts";
+import { GetTelemetryRule } from "./GetTelemetryRule.vibe";
 import type { TelemetryRule } from "./TelemetryRule.ts";
 
 /**

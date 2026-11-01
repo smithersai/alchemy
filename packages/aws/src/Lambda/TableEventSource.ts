@@ -11,7 +11,7 @@ import {
   type TableEventSourceService,
 } from "../DynamoDB/Stream.vibe";
 import type { Table } from "../DynamoDB/Table.ts";
-import { processBatch } from "../internal/EventSourceBatch.ts";
+import { processBatch } from "../internal/EventSourceBatch.vibe";
 import { EventSourceMapping } from "./EventSourceMapping.ts";
 import * as Lambda from "./Function.ts";
 

@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { retryWhileInvalidPrincipal } from "./internal.ts";
+import { retryWhileInvalidPrincipal } from "./internal.vibe";
 
 /**
  * A principal/permissions pair used for database and table default

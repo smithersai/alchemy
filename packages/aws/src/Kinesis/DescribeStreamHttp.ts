@@ -1,7 +1,7 @@
 import * as Kinesis from "@distilled.cloud/aws/kinesis";
 import * as Layer from "effect/Layer";
 import { makeStreamHttpBinding } from "./BindingHttp.ts";
-import { DescribeStream } from "./DescribeStream.ts";
+import { DescribeStream } from "./DescribeStream.vibe";
 
 export const DescribeStreamHttp = Layer.effect(
   DescribeStream,

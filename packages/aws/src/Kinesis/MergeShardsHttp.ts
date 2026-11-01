@@ -1,7 +1,7 @@
 import * as Kinesis from "@distilled.cloud/aws/kinesis";
 import * as Layer from "effect/Layer";
 import { makeStreamHttpBinding } from "./BindingHttp.ts";
-import { MergeShards } from "./MergeShards.ts";
+import { MergeShards } from "./MergeShards.vibe";
 
 export const MergeShardsHttp = Layer.effect(
   MergeShards,

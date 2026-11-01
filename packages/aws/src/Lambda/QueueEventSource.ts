@@ -3,7 +3,7 @@ import type lambda from "aws-lambda";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import { processBatch, traceparentLink } from "../internal/EventSourceBatch.ts";
+import { processBatch, traceparentLink } from "../internal/EventSourceBatch.vibe";
 import type { Queue } from "../SQS/Queue.ts";
 import {
   QueueEventSource as SQSQueueEventSource,

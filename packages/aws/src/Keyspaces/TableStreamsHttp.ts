@@ -8,7 +8,7 @@ import {
   TableStreams,
   type ListTableStreamsRequest,
   type TableStreamsClient,
-} from "./TableStreams.ts";
+} from "./TableStreams.vibe";
 
 /**
  * HTTP implementation of {@link TableStreams}: grants the CDC stream read

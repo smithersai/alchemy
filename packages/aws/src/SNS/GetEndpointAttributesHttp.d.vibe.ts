@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { GetEndpointAttributes } from "./GetEndpointAttributes.js";
+import { GetEndpointAttributes } from "./GetEndpointAttributes.vibe";
 export declare const GetEndpointAttributesHttp: Layer.Layer<GetEndpointAttributes, never, never>;
