@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as AWSBindings from "../AWSBindings.ts";
-import { inChatbotRegion } from "./internal.ts";
+import { inChatbotRegion } from "./internal.vibe";
 
 /**
  * Shared scaffolding for AWS Chatbot HTTP bindings.

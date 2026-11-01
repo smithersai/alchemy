@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { inChatbotRegion } from "./internal.ts";
+import { inChatbotRegion } from "./internal.vibe";
 
 /**
  * Raised when a freshly created Chatbot association has not become visible
