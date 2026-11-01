@@ -21,6 +21,6 @@ export interface GetSchemaVersionRequest extends Omit<documentai.GetProjectsLoca
  * @binding
  * @category DocumentAI
  */
-export interface GetSchemaVersion extends Binding.Service<GetSchemaVersion, "GCP.DocumentAI.GetSchemaVersion", (version: SchemasSchemaVersion) => Effect.Effect<(request?: GetSchemaVersionRequest) => Effect.Effect<documentai.GoogleCloudDocumentaiV1SchemaVersion, documentai.GetProjectsLocationsSchemasSchemaVersionsError, RuntimeContext>>> {
+export interface GetSchemaVersion extends Binding.Service<GetSchemaVersion, "GCP.DocumentAI.GetSchemaVersion", (version: SchemasSchemaVersion) => Effect.Effect<((request?: GetSchemaVersionRequest) => Effect.Effect<documentai.GoogleCloudDocumentaiV1SchemaVersion, documentai.GetProjectsLocationsSchemasSchemaVersionsError, RuntimeContext>)>> {
 }
 export declare const GetSchemaVersion: GetSchemaVersion;

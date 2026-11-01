@@ -26,6 +26,6 @@ export interface ComputeHeadCursorRequest extends Omit<pubsublite.ComputeHeadCur
  * @binding
  * @category PubSubLite
  */
-export interface ComputeHeadCursor extends Binding.Service<ComputeHeadCursor, "GCP.PubSubLite.ComputeHeadCursor", (topic: AdminTopic) => Effect.Effect<(request?: ComputeHeadCursorRequest) => Effect.Effect<pubsublite.ComputeHeadCursorResponse, pubsublite.ComputeHeadCursorTopicStatsProjectsLocationsTopicsError, RuntimeContext>>> {
+export interface ComputeHeadCursor extends Binding.Service<ComputeHeadCursor, "GCP.PubSubLite.ComputeHeadCursor", (topic: AdminTopic) => Effect.Effect<((request?: ComputeHeadCursorRequest) => Effect.Effect<pubsublite.ComputeHeadCursorResponse, pubsublite.ComputeHeadCursorTopicStatsProjectsLocationsTopicsError, RuntimeContext>)>> {
 }
 export declare const ComputeHeadCursor: ComputeHeadCursor;

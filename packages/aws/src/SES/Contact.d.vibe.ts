@@ -1,7 +1,7 @@
 import * as sesv2 from "@distilled.cloud/aws/sesv2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * A contact's subscription preference for a single topic. Pass the distilled
  * shape directly: `TopicName` and a `SubscriptionStatus` of `"OPT_IN"` or

@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * Configuration for how the CloudWatch RUM web client collects data from
  * your application's user sessions.

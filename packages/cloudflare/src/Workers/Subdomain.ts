@@ -4,7 +4,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 
 const TypeId = "Cloudflare.Workers.Subdomain" as const;
 type TypeId = typeof TypeId;

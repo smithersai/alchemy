@@ -24,6 +24,6 @@ export interface GetReservationRequest extends Omit<pubsublite.GetAdminProjectsL
  * @binding
  * @category PubSubLite
  */
-export interface GetReservation extends Binding.Service<GetReservation, "GCP.PubSubLite.GetReservation", (reservation: AdminReservation) => Effect.Effect<(request?: GetReservationRequest) => Effect.Effect<pubsublite.Reservation, pubsublite.GetAdminProjectsLocationsReservationsError, RuntimeContext>>> {
+export interface GetReservation extends Binding.Service<GetReservation, "GCP.PubSubLite.GetReservation", (reservation: AdminReservation) => Effect.Effect<((request?: GetReservationRequest) => Effect.Effect<pubsublite.Reservation, pubsublite.GetAdminProjectsLocationsReservationsError, RuntimeContext>)>> {
 }
 export declare const GetReservation: GetReservation;

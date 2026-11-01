@@ -13,7 +13,7 @@ import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
 import * as EffectStream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import type {
   ConsumedRecord,
   DecodedRecord,

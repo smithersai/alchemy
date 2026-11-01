@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /** The kind of security policy — encryption at rest or network access. */
 export type SecurityPolicyType = "encryption" | "network";
 /** A security policy document — a JSON object/array or a pre-serialized string. */

@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  * @binding
  * @product Customer
  */
-export interface CreateCustomer extends Binding.Service<CreateCustomer, "Stripe.CreateCustomer", () => Effect.Effect<(request: CreateCustomerRequest) => Effect.Effect<StripeCustomer, CreateCustomerError, RuntimeContext>>> {
+export interface CreateCustomer extends Binding.Service<CreateCustomer, "Stripe.CreateCustomer", () => Effect.Effect<((request: CreateCustomerRequest) => Effect.Effect<StripeCustomer, CreateCustomerError, RuntimeContext>)>> {
 }
 export declare const CreateCustomer: CreateCustomer;

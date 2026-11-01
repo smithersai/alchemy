@@ -1,7 +1,7 @@
 import * as inspector2 from "@distilled.cloud/aws/inspector2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * Action applied to findings that match the filter's criteria: `NONE` keeps
  * them visible (a saved view), `SUPPRESS` hides them from default views.

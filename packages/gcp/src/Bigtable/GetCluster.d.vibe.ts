@@ -21,6 +21,6 @@ export interface GetClusterRequest extends Omit<bigtable.GetProjectsInstancesClu
  * @binding
  * @category Bigtable
  */
-export interface GetCluster extends Binding.Service<GetCluster, "GCP.Bigtable.GetCluster", (cluster: Cluster) => Effect.Effect<(request?: GetClusterRequest) => Effect.Effect<bigtable.Cluster, bigtable.GetProjectsInstancesClustersError, RuntimeContext>>> {
+export interface GetCluster extends Binding.Service<GetCluster, "GCP.Bigtable.GetCluster", (cluster: Cluster) => Effect.Effect<((request?: GetClusterRequest) => Effect.Effect<bigtable.Cluster, bigtable.GetProjectsInstancesClustersError, RuntimeContext>)>> {
 }
 export declare const GetCluster: GetCluster;

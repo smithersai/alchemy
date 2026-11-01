@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import {
   normalizePolicyRules,
   type PolicyDecision,

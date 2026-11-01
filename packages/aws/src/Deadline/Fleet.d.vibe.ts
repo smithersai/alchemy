@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
 import type * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 declare const DeadlineFleetInvalidProps_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "DeadlineFleetInvalidProps";
 } & Readonly<A>;

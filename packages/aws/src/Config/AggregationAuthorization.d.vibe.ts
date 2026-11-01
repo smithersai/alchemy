@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface AggregationAuthorizationProps {
     /**
      * The 12-digit account ID of the aggregator account that is authorized to

@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface EntityTypeProps {
     /**
      * Name of the entity type. If omitted, a unique lowercase name is generated

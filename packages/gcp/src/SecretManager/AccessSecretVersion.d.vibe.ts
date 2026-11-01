@@ -35,6 +35,6 @@ export interface AccessSecretVersionRequest {
  * @binding
  * @category SecretManager
  */
-export interface AccessSecretVersion extends Binding.Service<AccessSecretVersion, "GCP.SecretManager.AccessSecretVersion", (secret: Secret | LocationsSecret) => Effect.Effect<(request?: AccessSecretVersionRequest) => Effect.Effect<secretmanager.AccessSecretVersionResponse, secretmanager.AccessProjectsSecretsVersionsError, RuntimeContext>>> {
+export interface AccessSecretVersion extends Binding.Service<AccessSecretVersion, "GCP.SecretManager.AccessSecretVersion", (secret: Secret | LocationsSecret) => Effect.Effect<((request?: AccessSecretVersionRequest) => Effect.Effect<secretmanager.AccessSecretVersionResponse, secretmanager.AccessProjectsSecretsVersionsError, RuntimeContext>)>> {
 }
 export declare const AccessSecretVersion: AccessSecretVersion;

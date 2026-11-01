@@ -18,6 +18,6 @@ export interface GetCloudVmClusterRequest extends Omit<oracle.GetProjectsLocatio
  * @binding
  * @category OracleDatabase
  */
-export interface GetCloudVmCluster extends Binding.Service<GetCloudVmCluster, "GCP.OracleDatabase.GetCloudVmCluster", (cluster: CloudVmCluster) => Effect.Effect<(request?: GetCloudVmClusterRequest) => Effect.Effect<oracle.CloudVmCluster, oracle.GetProjectsLocationsCloudVmClustersError, RuntimeContext>>> {
+export interface GetCloudVmCluster extends Binding.Service<GetCloudVmCluster, "GCP.OracleDatabase.GetCloudVmCluster", (cluster: CloudVmCluster) => Effect.Effect<((request?: GetCloudVmClusterRequest) => Effect.Effect<oracle.CloudVmCluster, oracle.GetProjectsLocationsCloudVmClustersError, RuntimeContext>)>> {
 }
 export declare const GetCloudVmCluster: GetCloudVmCluster;

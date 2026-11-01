@@ -2,7 +2,7 @@ import type { Input } from "alchemy/Input";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { AppSyncDomainName } from "./DomainName.vibe";
 import type { GraphqlApi } from "./GraphqlApi.vibe";
 export interface ApiAssociationProps {

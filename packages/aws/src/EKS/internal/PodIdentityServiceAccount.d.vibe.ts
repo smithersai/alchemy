@@ -77,4 +77,4 @@ export declare const PodIdentityServiceAccount: (id: string, props: PodIdentityS
     podIdentityAssociation: PodIdentityAssociation;
     role: Role | undefined;
     roleArn: string | import("alchemy").Output<`arn:aws:iam::${string}:role/${string}`, never>;
-}, never, import("../../Providers.vibe").Providers>;
+}, never, import("../../Providers.js").Providers>;

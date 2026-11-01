@@ -21,6 +21,6 @@ export interface GetConnectionRequest extends Omit<bigqueryconnection.GetProject
  * @binding
  * @category BigQueryConnection
  */
-export interface GetConnection extends Binding.Service<GetConnection, "GCP.BigQueryConnection.GetConnection", (connection: Connection) => Effect.Effect<(request?: GetConnectionRequest) => Effect.Effect<bigqueryconnection.Connection, bigqueryconnection.GetProjectsLocationsConnectionsError, RuntimeContext>>> {
+export interface GetConnection extends Binding.Service<GetConnection, "GCP.BigQueryConnection.GetConnection", (connection: Connection) => Effect.Effect<((request?: GetConnectionRequest) => Effect.Effect<bigqueryconnection.Connection, bigqueryconnection.GetProjectsLocationsConnectionsError, RuntimeContext>)>> {
 }
 export declare const GetConnection: GetConnection;

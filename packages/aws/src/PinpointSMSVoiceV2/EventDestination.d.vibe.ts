@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface CloudWatchLogsDestinationProps {
     /**
      * ARN of an IAM role that End User Messaging SMS assumes to write to

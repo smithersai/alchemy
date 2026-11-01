@@ -23,6 +23,6 @@ export interface StartWorkstationRequest extends Omit<workstations.StartProjects
  * @binding
  * @category Workstations
  */
-export interface StartWorkstation extends Binding.Service<StartWorkstation, "GCP.Workstations.StartWorkstation", (workstation: WorkstationClustersWorkstationConfigsWorkstation) => Effect.Effect<(request?: StartWorkstationRequest) => Effect.Effect<workstations.Operation, workstations.StartProjectsLocationsWorkstationClustersWorkstationConfigsWorkstationsError, RuntimeContext>>> {
+export interface StartWorkstation extends Binding.Service<StartWorkstation, "GCP.Workstations.StartWorkstation", (workstation: WorkstationClustersWorkstationConfigsWorkstation) => Effect.Effect<((request?: StartWorkstationRequest) => Effect.Effect<workstations.Operation, workstations.StartProjectsLocationsWorkstationClustersWorkstationConfigsWorkstationsError, RuntimeContext>)>> {
 }
 export declare const StartWorkstation: StartWorkstation;

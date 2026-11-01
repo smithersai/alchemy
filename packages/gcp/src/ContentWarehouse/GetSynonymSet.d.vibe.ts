@@ -25,6 +25,6 @@ export interface GetSynonymSetRequest extends Omit<cw.GetProjectsLocationsSynony
  * @binding
  * @category ContentWarehouse
  */
-export interface GetSynonymSet extends Binding.Service<GetSynonymSet, "GCP.ContentWarehouse.GetSynonymSet", (synonymSet: SynonymSet) => Effect.Effect<(request?: GetSynonymSetRequest) => Effect.Effect<cw.GoogleCloudContentwarehouseV1SynonymSet, cw.GetProjectsLocationsSynonymSetsError, RuntimeContext>>> {
+export interface GetSynonymSet extends Binding.Service<GetSynonymSet, "GCP.ContentWarehouse.GetSynonymSet", (synonymSet: SynonymSet) => Effect.Effect<((request?: GetSynonymSetRequest) => Effect.Effect<cw.GoogleCloudContentwarehouseV1SynonymSet, cw.GetProjectsLocationsSynonymSetsError, RuntimeContext>)>> {
 }
 export declare const GetSynonymSet: GetSynonymSet;

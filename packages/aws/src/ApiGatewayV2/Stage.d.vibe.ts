@@ -4,7 +4,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { Api } from "./Api.vibe";
 export interface StageProps {
     /**

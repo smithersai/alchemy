@@ -10,7 +10,7 @@ import type { SynonymSet } from "./SynonymSet.vibe";
  * (after providing Credentials + HttpClient) so the inner runtime Effect is
  * `Effect<A, E>` and does not leak `GcpOpContext`.
  */
-type GcpHttpOp<I, A, E> = Effect.Effect<(input: I) => Effect.Effect<A, E>, never, GcpOpContext> & ((input: I) => Effect.Effect<A, E, GcpOpContext>);
+type GcpHttpOp<I, A, E> = Effect.Effect<((input: I) => Effect.Effect<A, E>), never, GcpOpContext> & ((input: I) => Effect.Effect<A, E, GcpOpContext>);
 /**
  * Shared HTTP scaffolding for Content Warehouse bindings.
  * NOT exported from index.ts.

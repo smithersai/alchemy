@@ -21,6 +21,6 @@ export interface GetSchemaRequest extends Omit<pubsub.GetProjectsSchemasRequest,
  * @binding
  * @category PubSub
  */
-export interface GetSchema extends Binding.Service<GetSchema, "GCP.PubSub.GetSchema", (schema: Schema) => Effect.Effect<(request?: GetSchemaRequest) => Effect.Effect<pubsub.Pubsub_Schema, pubsub.GetProjectsSchemasError, RuntimeContext>>> {
+export interface GetSchema extends Binding.Service<GetSchema, "GCP.PubSub.GetSchema", (schema: Schema) => Effect.Effect<((request?: GetSchemaRequest) => Effect.Effect<pubsub.Pubsub_Schema, pubsub.GetProjectsSchemasError, RuntimeContext>)>> {
 }
 export declare const GetSchema: GetSchema;

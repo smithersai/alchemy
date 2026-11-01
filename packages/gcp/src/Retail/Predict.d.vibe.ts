@@ -29,6 +29,6 @@ export interface PredictRequest extends Omit<retail.PredictProjectsLocationsCata
  * @binding
  * @category Retail
  */
-export interface Predict extends Binding.Service<Predict, "GCP.Retail.Predict", (servingConfig: CatalogsServingConfig) => Effect.Effect<(request: PredictRequest) => Effect.Effect<retail.GoogleCloudRetailV2PredictResponse, retail.PredictProjectsLocationsCatalogsServingConfigsError, RuntimeContext>>> {
+export interface Predict extends Binding.Service<Predict, "GCP.Retail.Predict", (servingConfig: CatalogsServingConfig) => Effect.Effect<((request: PredictRequest) => Effect.Effect<retail.GoogleCloudRetailV2PredictResponse, retail.PredictProjectsLocationsCatalogsServingConfigsError, RuntimeContext>)>> {
 }
 export declare const Predict: Predict;

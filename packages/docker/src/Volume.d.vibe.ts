@@ -47,7 +47,6 @@ export interface Volume extends Resource<"Docker.Volume", VolumeProps, {
  * Pre-existing same-name volumes are treated as foreign until the engine is
  * allowed to adopt them with `--adopt` or `adopt(true)`.
  *
- *
  * ### Creating Volumes
  * **Example:** Basic volume
  * ```typescript

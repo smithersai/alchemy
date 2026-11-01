@@ -21,6 +21,6 @@ export interface GetTrainingPipelineRequest extends Omit<aiplatform.GetProjectsL
  * @binding
  * @category AIPlatform
  */
-export interface GetTrainingPipeline extends Binding.Service<GetTrainingPipeline, "GCP.AIPlatform.GetTrainingPipeline", (pipeline: TrainingPipeline) => Effect.Effect<(request?: GetTrainingPipelineRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1TrainingPipeline, aiplatform.GetProjectsLocationsTrainingPipelinesError, RuntimeContext>>> {
+export interface GetTrainingPipeline extends Binding.Service<GetTrainingPipeline, "GCP.AIPlatform.GetTrainingPipeline", (pipeline: TrainingPipeline) => Effect.Effect<((request?: GetTrainingPipelineRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1TrainingPipeline, aiplatform.GetProjectsLocationsTrainingPipelinesError, RuntimeContext>)>> {
 }
 export declare const GetTrainingPipeline: GetTrainingPipeline;

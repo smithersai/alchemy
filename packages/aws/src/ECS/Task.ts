@@ -33,7 +33,7 @@ import {
 import { AWSEnvironment } from "../Environment.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 
 export class TaskConflict extends Data.TaggedError("TaskConflict")<{
   readonly message: string;

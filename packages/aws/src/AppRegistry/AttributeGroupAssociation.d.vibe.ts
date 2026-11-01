@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface AttributeGroupAssociationProps {
     /**
      * The application to associate the attribute group with: its ID, name, or

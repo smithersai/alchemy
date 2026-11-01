@@ -2,7 +2,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type { AccountID } from "../Environment.js";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RegionID } from "../Region.js";
 export type FlowLogId<ID extends string = string> = `fl-${ID}`;
 export type FlowLogArn<ID extends FlowLogId = FlowLogId> = `arn:aws:ec2:${RegionID}:${AccountID}:vpc-flow-log/${ID}`;

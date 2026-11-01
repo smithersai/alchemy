@@ -1,7 +1,7 @@
 import * as ses from "@distilled.cloud/aws/ses";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * Whether SES requires (`Require`) or merely prefers (`Optional`) a TLS
  * connection from the sending mail server before accepting a message that

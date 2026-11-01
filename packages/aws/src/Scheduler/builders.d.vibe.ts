@@ -137,9 +137,9 @@ export declare const every: (value: string, options?: ScheduleOptions) => {
      */
     state: ScheduleBuilderState;
     named: (name: string) => /*elided*/ any;
-    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
-    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
-    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
+    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
 };
 export declare const cron: (expression: string, options?: ScheduleOptions) => {
     /**
@@ -148,9 +148,9 @@ export declare const cron: (expression: string, options?: ScheduleOptions) => {
      */
     state: ScheduleBuilderState;
     named: (name: string) => /*elided*/ any;
-    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
-    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
-    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
+    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
 };
 export declare const at: (date: Date, options?: ScheduleOptions) => {
     /**
@@ -159,9 +159,9 @@ export declare const at: (date: Date, options?: ScheduleOptions) => {
      */
     state: ScheduleBuilderState;
     named: (name: string) => /*elided*/ any;
-    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
-    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
-    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
+    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
 };
 /**
  * The fluent schedule builder returned by `every`/`cron`/`at`. Route it to a
@@ -176,8 +176,8 @@ declare const makeBuilder: (state: ScheduleBuilderState) => {
      */
     state: ScheduleBuilderState;
     named: (name: string) => /*elided*/ any;
-    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
-    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
-    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
+    toLambda: (fn: Function, props?: LambdaTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toQueue: (queue: Queue, payload?: unknown, props?: Omit<QueueTargetProps, "input">) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
+    toEcsTask: (props: EcsTaskTargetProps) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;
 };
 export {};

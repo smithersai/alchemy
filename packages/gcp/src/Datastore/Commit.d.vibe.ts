@@ -40,6 +40,6 @@ export type CommitRequest = DatastoreDatabaseRequest<datastore.CommitProjectsReq
  * @binding
  * @category Datastore
  */
-export interface Commit extends Binding.Service<Commit, "GCP.Datastore.Commit", (database: Database) => Effect.Effect<(request: CommitRequest) => Effect.Effect<datastore.CommitResponse, datastore.CommitProjectsError, RuntimeContext>>> {
+export interface Commit extends Binding.Service<Commit, "GCP.Datastore.Commit", (database: Database) => Effect.Effect<((request: CommitRequest) => Effect.Effect<datastore.CommitResponse, datastore.CommitProjectsError, RuntimeContext>)>> {
 }
 export declare const Commit: Commit;

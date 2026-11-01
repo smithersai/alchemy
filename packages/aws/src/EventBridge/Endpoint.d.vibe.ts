@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type { AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RegionID } from "../Region.js";
 export type { EndpointState } from "@distilled.cloud/aws/eventbridge";
 export type EndpointName = string;

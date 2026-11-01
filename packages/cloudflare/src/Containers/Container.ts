@@ -8,7 +8,7 @@ import * as Config from "effect/Config";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import { type WorkerShape } from "../Workers/Worker.ts";
 import type { ContainerApplication } from "./ContainerApplication.ts";
 import {

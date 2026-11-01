@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * Whether the classification job runs once (`ONE_TIME`) or on a recurring
  * schedule (`SCHEDULED`).

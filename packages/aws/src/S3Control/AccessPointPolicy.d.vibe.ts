@@ -2,7 +2,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment } from "../Environment.js";
 import { type PolicyDocument } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface AccessPointPolicyProps {
     /**
      * Name of the access point the policy is attached to.

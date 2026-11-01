@@ -2,7 +2,7 @@ import * as mediapackagev2 from "@distilled.cloud/aws/mediapackagev2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Duration from "effect/Duration";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface OriginEndpointProps {
     /**
      * Name of the channel group the endpoint belongs to. Changing it replaces

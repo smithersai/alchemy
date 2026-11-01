@@ -23,6 +23,6 @@ export interface DeleteObjectRequest extends Omit<S3.DeleteObjectRequest, "Bucke
  * @binding
  * @product Bucket
  */
-export interface DeleteObject extends Binding.Service<DeleteObject, "Railway.DeleteObject", (bucket: Bucket) => Effect.Effect<(request?: DeleteObjectRequest) => Effect.Effect<S3.DeleteObjectOutput, S3.DeleteObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>>> {
+export interface DeleteObject extends Binding.Service<DeleteObject, "Railway.DeleteObject", (bucket: Bucket) => Effect.Effect<((request?: DeleteObjectRequest) => Effect.Effect<S3.DeleteObjectOutput, S3.DeleteObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>)>> {
 }
 export declare const DeleteObject: DeleteObject;

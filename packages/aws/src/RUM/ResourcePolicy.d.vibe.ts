@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface ResourcePolicyProps {
     /**
      * Name of the CloudWatch RUM app monitor the policy is attached to. An app

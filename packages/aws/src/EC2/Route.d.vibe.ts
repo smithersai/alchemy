@@ -1,7 +1,7 @@
 import type * as EC2 from "@distilled.cloud/aws/ec2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RouteTableId } from "./RouteTable.vibe";
 export interface RouteProps {
     /**

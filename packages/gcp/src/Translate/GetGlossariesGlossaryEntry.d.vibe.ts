@@ -21,6 +21,6 @@ export interface GetGlossariesGlossaryEntryRequest extends Omit<translate.GetPro
  * @binding
  * @category Translate
  */
-export interface GetGlossariesGlossaryEntry extends Binding.Service<GetGlossariesGlossaryEntry, "GCP.Translate.GetGlossariesGlossaryEntry", (entry: GlossariesGlossaryEntry) => Effect.Effect<(request?: GetGlossariesGlossaryEntryRequest) => Effect.Effect<translate.GlossaryEntry, translate.GetProjectsLocationsGlossariesGlossaryEntriesError, RuntimeContext>>> {
+export interface GetGlossariesGlossaryEntry extends Binding.Service<GetGlossariesGlossaryEntry, "GCP.Translate.GetGlossariesGlossaryEntry", (entry: GlossariesGlossaryEntry) => Effect.Effect<((request?: GetGlossariesGlossaryEntryRequest) => Effect.Effect<translate.GlossaryEntry, translate.GetProjectsLocationsGlossariesGlossaryEntriesError, RuntimeContext>)>> {
 }
 export declare const GetGlossariesGlossaryEntry: GetGlossariesGlossaryEntry;

@@ -33,8 +33,8 @@ export type GetPullRequestResponse = Pulls.PullRequest;
  * @binding
  * @product Pull Request
  */
-export interface GetPullRequest extends Binding.Service<GetPullRequest, "GitHub.GetPullRequest", (repo: Repository) => Effect.Effect<<Accept extends GetPullRequestRequest["accept"] = undefined>(request: GetPullRequestRequest & {
+export interface GetPullRequest extends Binding.Service<GetPullRequest, "GitHub.GetPullRequest", (repo: Repository) => Effect.Effect<(<Accept extends GetPullRequestRequest["accept"] = undefined>(request: GetPullRequestRequest & {
     readonly accept?: Accept;
-}) => Effect.Effect<Accept extends PullRequestTextMediaType ? string : GetPullRequestResponse, Pulls.GetError, RuntimeContext>>> {
+}) => Effect.Effect<(Accept extends PullRequestTextMediaType ? string : GetPullRequestResponse), Pulls.GetError, RuntimeContext>)>> {
 }
 export declare const GetPullRequest: GetPullRequest;

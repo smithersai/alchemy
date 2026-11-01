@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  * @binding
  * @product Billing
  */
-export interface CreateCreditGrant extends Binding.Service<CreateCreditGrant, "Stripe.CreateCreditGrant", () => Effect.Effect<(request: CreateBillingCreditGrantRequest) => Effect.Effect<StripeCreditGrant, CreateBillingCreditGrantError, RuntimeContext>>> {
+export interface CreateCreditGrant extends Binding.Service<CreateCreditGrant, "Stripe.CreateCreditGrant", () => Effect.Effect<((request: CreateBillingCreditGrantRequest) => Effect.Effect<StripeCreditGrant, CreateBillingCreditGrantError, RuntimeContext>)>> {
 }
 export declare const CreateCreditGrant: CreateCreditGrant;

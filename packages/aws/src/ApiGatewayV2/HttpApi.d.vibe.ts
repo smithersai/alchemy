@@ -88,4 +88,4 @@ export declare const HttpApi: (id: string, props: HttpApiProps) => Effect.Effect
     stage: import("./Stage.vibe").ApiGatewayV2Stage;
     /** The URL clients call. */
     url: Output.Output<string, never>;
-}, never, import("../Providers.vibe").Providers>;
+}, never, import("../Providers.js").Providers>;

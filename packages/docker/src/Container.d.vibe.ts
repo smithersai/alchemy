@@ -167,7 +167,6 @@ export interface Container extends Resource<"Docker.Container", ContainerProps, 
  * manages Cloudflare's container platform; use pushed image references to bridge
  * Docker-built images into cloud container runtimes.
  *
- *
  * ### Running Containers
  * **Example:** Nginx with a published port
  * ```typescript

@@ -2,7 +2,7 @@ import * as contacts from "@distilled.cloud/aws/ssm-contacts";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface RotationProps {
     /**
      * The name of the rotation. Changing it replaces the rotation.

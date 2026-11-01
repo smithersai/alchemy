@@ -153,4 +153,4 @@ export declare const createScheduleRouteId: (descriptor: ScheduleDescriptor, fn:
  *
  * @binding
  */
-export declare const createScheduleRoute: (routeId: string, descriptor: ScheduleDescriptor, fn: LambdaFunction) => Effect.Effect<Schedule, never, import("../Providers.vibe").Providers>;
+export declare const createScheduleRoute: (routeId: string, descriptor: ScheduleDescriptor, fn: LambdaFunction) => Effect.Effect<Schedule, never, import("../Providers.js").Providers>;

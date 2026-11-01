@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment, type AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RegionID } from "../Region.js";
 export type JobQueueName = string;
 export type JobQueueArn = `arn:aws:batch:${RegionID}:${AccountID}:job-queue/${JobQueueName}`;

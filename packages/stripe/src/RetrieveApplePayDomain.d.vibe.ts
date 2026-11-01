@@ -18,6 +18,6 @@ export interface RetrieveApplePayDomainRequest extends Omit<GetApplePayDomainReq
  * @binding
  * @product Payment Methods
  */
-export interface RetrieveApplePayDomain extends Binding.Service<RetrieveApplePayDomain, "Stripe.RetrieveApplePayDomain", (applePayDomain: ApplePayDomain) => Effect.Effect<(request?: RetrieveApplePayDomainRequest) => Effect.Effect<StripeApplePayDomain, GetApplePayDomainError, RuntimeContext>>> {
+export interface RetrieveApplePayDomain extends Binding.Service<RetrieveApplePayDomain, "Stripe.RetrieveApplePayDomain", (applePayDomain: ApplePayDomain) => Effect.Effect<((request?: RetrieveApplePayDomainRequest) => Effect.Effect<StripeApplePayDomain, GetApplePayDomainError, RuntimeContext>)>> {
 }
 export declare const RetrieveApplePayDomain: RetrieveApplePayDomain;

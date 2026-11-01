@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * Password complexity requirements enforced by the user pool at sign-up and
  * password change.

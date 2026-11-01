@@ -1,7 +1,7 @@
 import * as accounts from "@distilled.cloud/cloudflare/accounts";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 declare const TypeId: "Cloudflare.Account.Account";
 type TypeId = typeof TypeId;
 /**

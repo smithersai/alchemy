@@ -181,4 +181,4 @@ export declare const Astro: (id: string, props?: InputProps<AstroProps, "server"
     build: import("alchemy/Website/Server").Server;
     server: import("../Lambda/Function.js").Function;
     serverUrl: import("alchemy").Output<string | undefined, never>;
-}, never, import("alchemy").AlchemyContext | import("alchemy").Provider<import("alchemy/Command/Build").Build> | import("alchemy").Provider<import("alchemy/Website/Server").Server> | import("../Providers.vibe").Providers | import("alchemy").Stack | import("alchemy").Stage>;
+}, never, import("alchemy").AlchemyContext | import("alchemy").Provider<import("alchemy/Command/Build").Build> | import("alchemy").Provider<import("alchemy/Website/Server").Server> | import("../Providers.js").Providers | import("alchemy").Stack | import("alchemy").Stage>;

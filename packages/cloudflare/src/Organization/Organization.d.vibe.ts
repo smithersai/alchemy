@@ -1,7 +1,7 @@
 import * as organizations from "@distilled.cloud/cloudflare/organizations";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 declare const TypeId: "Cloudflare.Organization.Organization";
 type TypeId = typeof TypeId;
 /**

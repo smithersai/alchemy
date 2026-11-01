@@ -5,7 +5,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 
 const TypeId = "Cloudflare.OriginTlsClientAuth.HostnameAssociation" as const;
 type TypeId = typeof TypeId;

@@ -21,6 +21,6 @@ export interface GetDocumentSchemaRequest extends Omit<cw.GetProjectsLocationsDo
  * @binding
  * @category ContentWarehouse
  */
-export interface GetDocumentSchema extends Binding.Service<GetDocumentSchema, "GCP.ContentWarehouse.GetDocumentSchema", (schema: DocumentSchema) => Effect.Effect<(request?: GetDocumentSchemaRequest) => Effect.Effect<cw.GoogleCloudContentwarehouseV1DocumentSchema, cw.GetProjectsLocationsDocumentSchemasError, RuntimeContext>>> {
+export interface GetDocumentSchema extends Binding.Service<GetDocumentSchema, "GCP.ContentWarehouse.GetDocumentSchema", (schema: DocumentSchema) => Effect.Effect<((request?: GetDocumentSchemaRequest) => Effect.Effect<cw.GoogleCloudContentwarehouseV1DocumentSchema, cw.GetProjectsLocationsDocumentSchemasError, RuntimeContext>)>> {
 }
 export declare const GetDocumentSchema: GetDocumentSchema;

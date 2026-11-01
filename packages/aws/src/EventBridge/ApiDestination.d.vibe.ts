@@ -2,7 +2,7 @@ import * as eventbridge from "@distilled.cloud/aws/eventbridge";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type { AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RegionID } from "../Region.js";
 export type { ApiDestinationHttpMethod, ApiDestinationState } from "@distilled.cloud/aws/eventbridge";
 export type ApiDestinationName = string;

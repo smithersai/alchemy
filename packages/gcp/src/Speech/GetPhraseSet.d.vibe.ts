@@ -24,6 +24,6 @@ export interface GetPhraseSetRequest extends Omit<speech.GetProjectsLocationsPhr
  * @binding
  * @category Speech
  */
-export interface GetPhraseSet extends Binding.Service<GetPhraseSet, "GCP.Speech.GetPhraseSet", (phraseSet: PhraseSet) => Effect.Effect<(request?: GetPhraseSetRequest) => Effect.Effect<speech.PhraseSet, speech.GetProjectsLocationsPhraseSetsError, RuntimeContext>>> {
+export interface GetPhraseSet extends Binding.Service<GetPhraseSet, "GCP.Speech.GetPhraseSet", (phraseSet: PhraseSet) => Effect.Effect<((request?: GetPhraseSetRequest) => Effect.Effect<speech.PhraseSet, speech.GetProjectsLocationsPhraseSetsError, RuntimeContext>)>> {
 }
 export declare const GetPhraseSet: GetPhraseSet;

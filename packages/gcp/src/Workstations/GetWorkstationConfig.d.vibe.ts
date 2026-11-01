@@ -22,6 +22,6 @@ export interface GetWorkstationConfigRequest extends Omit<workstations.GetProjec
  * @binding
  * @category Workstations
  */
-export interface GetWorkstationConfig extends Binding.Service<GetWorkstationConfig, "GCP.Workstations.GetWorkstationConfig", (config: WorkstationClustersWorkstationConfig) => Effect.Effect<(request?: GetWorkstationConfigRequest) => Effect.Effect<workstations.WorkstationConfig, workstations.GetProjectsLocationsWorkstationClustersWorkstationConfigsError, RuntimeContext>>> {
+export interface GetWorkstationConfig extends Binding.Service<GetWorkstationConfig, "GCP.Workstations.GetWorkstationConfig", (config: WorkstationClustersWorkstationConfig) => Effect.Effect<((request?: GetWorkstationConfigRequest) => Effect.Effect<workstations.WorkstationConfig, workstations.GetProjectsLocationsWorkstationClustersWorkstationConfigsError, RuntimeContext>)>> {
 }
 export declare const GetWorkstationConfig: GetWorkstationConfig;

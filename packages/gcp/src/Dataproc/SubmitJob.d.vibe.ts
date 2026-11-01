@@ -34,6 +34,6 @@ export interface SubmitJobRequest extends Omit<dataproc.SubmitProjectsRegionsJob
  * @binding
  * @category Dataproc
  */
-export interface SubmitJob extends Binding.Service<SubmitJob, "GCP.Dataproc.SubmitJob", (cluster: Cluster) => Effect.Effect<(request: SubmitJobRequest) => Effect.Effect<dataproc.Job, dataproc.SubmitProjectsRegionsJobsError, RuntimeContext>>> {
+export interface SubmitJob extends Binding.Service<SubmitJob, "GCP.Dataproc.SubmitJob", (cluster: Cluster) => Effect.Effect<((request: SubmitJobRequest) => Effect.Effect<dataproc.Job, dataproc.SubmitProjectsRegionsJobsError, RuntimeContext>)>> {
 }
 export declare const SubmitJob: SubmitJob;

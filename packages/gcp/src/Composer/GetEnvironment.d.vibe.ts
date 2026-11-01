@@ -21,6 +21,6 @@ export interface GetEnvironmentRequest extends Omit<composer.GetProjectsLocation
  * @binding
  * @category Composer
  */
-export interface GetEnvironment extends Binding.Service<GetEnvironment, "GCP.Composer.GetEnvironment", (environment: Environment) => Effect.Effect<(request?: GetEnvironmentRequest) => Effect.Effect<composer.Environment, composer.GetProjectsLocationsEnvironmentsError, RuntimeContext>>> {
+export interface GetEnvironment extends Binding.Service<GetEnvironment, "GCP.Composer.GetEnvironment", (environment: Environment) => Effect.Effect<((request?: GetEnvironmentRequest) => Effect.Effect<composer.Environment, composer.GetProjectsLocationsEnvironmentsError, RuntimeContext>)>> {
 }
 export declare const GetEnvironment: GetEnvironment;

@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface PlaybackRestrictionPolicyProps {
     /**
      * ISO 3166-1 alpha-2 country codes playback is allowed from. An empty

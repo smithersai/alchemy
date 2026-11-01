@@ -15,7 +15,7 @@ import { waitForSecretActive } from "../SecretsStore/Secret.ts";
 import { getCompatibility } from "../Workers/Compatibility.ts";
 import { WorkerBundle } from "../Workers/Sources/Rolldown.ts";
 import { contentTypeForModule, putWorkerScript } from "../Workers/WorkerProvider.ts";
-import { resolveZoneId } from "../Zone/lookup.vibe";
+import { resolveZoneId } from "../Zone/lookup.ts";
 import { API_MAIN, STATE_STORE_VERSION } from "./Api.ts";
 import {
   AuthTokenBinding,

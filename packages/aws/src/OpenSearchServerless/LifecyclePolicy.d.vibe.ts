@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { SecurityPolicyDocument } from "./SecurityPolicy.vibe";
 /** The kind of lifecycle policy. OpenSearch Serverless only defines `retention`. */
 export type LifecyclePolicyType = "retention";

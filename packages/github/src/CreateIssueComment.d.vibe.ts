@@ -23,6 +23,6 @@ export type CreateIssueCommentResponse = Issues.IssueComment;
  * @binding
  * @product Issue
  */
-export interface CreateIssueComment extends Binding.Service<CreateIssueComment, "GitHub.CreateIssueComment", (repo: Repository) => Effect.Effect<(request: CreateIssueCommentRequest) => Effect.Effect<CreateIssueCommentResponse, Issues.CreateCommentError, RuntimeContext>>> {
+export interface CreateIssueComment extends Binding.Service<CreateIssueComment, "GitHub.CreateIssueComment", (repo: Repository) => Effect.Effect<((request: CreateIssueCommentRequest) => Effect.Effect<CreateIssueCommentResponse, Issues.CreateCommentError, RuntimeContext>)>> {
 }
 export declare const CreateIssueComment: CreateIssueComment;

@@ -10,7 +10,7 @@ import * as Predicate from "effect/Predicate";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 
 const TypeId = "Cloudflare.Tunnel.WarpConnector" as const;
 type TypeId = typeof TypeId;

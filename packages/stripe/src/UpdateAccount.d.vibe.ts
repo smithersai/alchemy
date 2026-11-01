@@ -18,6 +18,6 @@ export interface UpdateAccountRequest extends Omit<DistilledUpdateAccountRequest
  * @binding
  * @product Account
  */
-export interface UpdateAccount extends Binding.Service<UpdateAccount, "Stripe.UpdateAccount", (account: Account) => Effect.Effect<(request?: UpdateAccountRequest) => Effect.Effect<StripeAccount, UpdateAccountError, RuntimeContext>>> {
+export interface UpdateAccount extends Binding.Service<UpdateAccount, "Stripe.UpdateAccount", (account: Account) => Effect.Effect<((request?: UpdateAccountRequest) => Effect.Effect<StripeAccount, UpdateAccountError, RuntimeContext>)>> {
 }
 export declare const UpdateAccount: UpdateAccount;

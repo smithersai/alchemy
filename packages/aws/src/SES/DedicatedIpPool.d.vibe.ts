@@ -2,7 +2,7 @@ import * as sesv2 from "@distilled.cloud/aws/sesv2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * The pool's scaling mode. `STANDARD` pools use a fixed set of dedicated IPs
  * you request and warm up yourself; `MANAGED` pools let SES automatically

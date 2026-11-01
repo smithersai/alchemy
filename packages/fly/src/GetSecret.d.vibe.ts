@@ -37,6 +37,6 @@ import type { Secret } from "./Secret.js";
  * @binding
  * @product Secret
  */
-export interface GetSecret extends Binding.Service<GetSecret, "Fly.GetSecret", (secret: Secret) => Effect.Effect<() => Effect.Effect<AppSecret, GetSecretError, RuntimeContext>>> {
+export interface GetSecret extends Binding.Service<GetSecret, "Fly.GetSecret", (secret: Secret) => Effect.Effect<(() => Effect.Effect<AppSecret, GetSecretError, RuntimeContext>)>> {
 }
 export declare const GetSecret: GetSecret;

@@ -1,7 +1,7 @@
 import * as securitylake from "@distilled.cloud/aws/securitylake";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * The AWS identity (principal + external ID) that a subscriber authenticates
  * with when consuming data from Security Lake.

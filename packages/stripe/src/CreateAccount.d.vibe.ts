@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  * @binding
  * @product Account
  */
-export interface CreateAccount extends Binding.Service<CreateAccount, "Stripe.CreateAccount", () => Effect.Effect<(request: CreateAccountRequest) => Effect.Effect<StripeAccount, CreateAccountError, RuntimeContext>>> {
+export interface CreateAccount extends Binding.Service<CreateAccount, "Stripe.CreateAccount", () => Effect.Effect<((request: CreateAccountRequest) => Effect.Effect<StripeAccount, CreateAccountError, RuntimeContext>)>> {
 }
 export declare const CreateAccount: CreateAccount;

@@ -18,6 +18,6 @@ export interface RetrieveTerminalConfigurationRequest extends Omit<GetTerminalCo
  * @binding
  * @product Terminal
  */
-export interface RetrieveTerminalConfiguration extends Binding.Service<RetrieveTerminalConfiguration, "Stripe.RetrieveTerminalConfiguration", (configuration: TerminalConfiguration) => Effect.Effect<(request?: RetrieveTerminalConfigurationRequest) => Effect.Effect<GetTerminalConfigurationResponse, GetTerminalConfigurationError, RuntimeContext>>> {
+export interface RetrieveTerminalConfiguration extends Binding.Service<RetrieveTerminalConfiguration, "Stripe.RetrieveTerminalConfiguration", (configuration: TerminalConfiguration) => Effect.Effect<((request?: RetrieveTerminalConfigurationRequest) => Effect.Effect<GetTerminalConfigurationResponse, GetTerminalConfigurationError, RuntimeContext>)>> {
 }
 export declare const RetrieveTerminalConfiguration: RetrieveTerminalConfiguration;

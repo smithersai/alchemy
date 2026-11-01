@@ -1,7 +1,7 @@
 import * as macie2 from "@distilled.cloud/aws/macie2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * Action applied to findings that match the filter's criteria: `ARCHIVE`
  * suppresses them, `NOOP` keeps them visible.

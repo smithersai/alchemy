@@ -73,9 +73,9 @@ export type EventSourceService = <Detail = unknown, StreamReq = never, Req = nev
  * To consume events locally with a handler, use {@link consumeBusEvents}.
  */
 export declare const events: (...args: any[]) => {
-    toLambda: (fn: LambdaFunction, props?: LambdaRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.vibe").Providers>;
-    toQueue: (queue: Queue, props?: QueueRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.vibe").Providers>;
-    toEcsTask: (cluster: Cluster, props: EcsRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.vibe").Providers>;
+    toLambda: (fn: LambdaFunction, props?: LambdaRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.js").Providers>;
+    toQueue: (queue: Queue, props?: QueueRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.js").Providers>;
+    toEcsTask: (cluster: Cluster, props: EcsRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.js").Providers>;
 };
 /**
  * Consume events from an EventBridge event bus with a handler. The handler is

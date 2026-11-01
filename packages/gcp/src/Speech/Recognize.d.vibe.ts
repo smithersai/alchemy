@@ -35,6 +35,6 @@ export interface RecognizeRequest {
  * @binding
  * @category Speech
  */
-export interface Recognize extends Binding.Service<Recognize, "GCP.Speech.Recognize", (phraseSet: PhraseSet) => Effect.Effect<(request?: RecognizeRequest) => Effect.Effect<speech.RecognizeResponse, speech.RecognizeSpeechError, RuntimeContext>>> {
+export interface Recognize extends Binding.Service<Recognize, "GCP.Speech.Recognize", (phraseSet: PhraseSet) => Effect.Effect<((request?: RecognizeRequest) => Effect.Effect<speech.RecognizeResponse, speech.RecognizeSpeechError, RuntimeContext>)>> {
 }
 export declare const Recognize: Recognize;

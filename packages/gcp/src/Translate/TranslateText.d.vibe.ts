@@ -33,6 +33,6 @@ export interface TranslateTextRequest {
  * @binding
  * @category Translate
  */
-export interface TranslateText extends Binding.Service<TranslateText, "GCP.Translate.TranslateText", (model: Model) => Effect.Effect<(request?: TranslateTextRequest) => Effect.Effect<translate.TranslateTextResponse, translate.TranslateTextProjectsLocationsError, RuntimeContext>>> {
+export interface TranslateText extends Binding.Service<TranslateText, "GCP.Translate.TranslateText", (model: Model) => Effect.Effect<((request?: TranslateTextRequest) => Effect.Effect<translate.TranslateTextResponse, translate.TranslateTextProjectsLocationsError, RuntimeContext>)>> {
 }
 export declare const TranslateText: TranslateText;

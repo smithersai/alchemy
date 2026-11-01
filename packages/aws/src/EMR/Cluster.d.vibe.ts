@@ -2,7 +2,7 @@ import * as emr from "@distilled.cloud/aws/emr";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 declare const EMRClusterOperationFailed_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "EMRClusterOperationFailed";
 } & Readonly<A>;

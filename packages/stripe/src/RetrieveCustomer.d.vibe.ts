@@ -18,6 +18,6 @@ export interface RetrieveCustomerRequest extends Omit<GetCustomerRequest, "custo
  * @binding
  * @product Customer
  */
-export interface RetrieveCustomer extends Binding.Service<RetrieveCustomer, "Stripe.RetrieveCustomer", (customer: Customer) => Effect.Effect<(request?: RetrieveCustomerRequest) => Effect.Effect<GetCustomerResponse, GetCustomerError, RuntimeContext>>> {
+export interface RetrieveCustomer extends Binding.Service<RetrieveCustomer, "Stripe.RetrieveCustomer", (customer: Customer) => Effect.Effect<((request?: RetrieveCustomerRequest) => Effect.Effect<GetCustomerResponse, GetCustomerError, RuntimeContext>)>> {
 }
 export declare const RetrieveCustomer: RetrieveCustomer;

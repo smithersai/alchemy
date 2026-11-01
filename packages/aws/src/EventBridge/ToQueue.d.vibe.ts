@@ -24,5 +24,5 @@ export interface QueueRouteTargetProps extends Pick<RuleTarget, "Input" | "Input
  *
  * @binding
  */
-export declare const toQueue: (descriptor: EventDescriptor, queue: Queue, props?: QueueRouteTargetProps) => Effect.Effect<Rule, never, import("../Providers.vibe").Providers>;
+export declare const toQueue: (descriptor: EventDescriptor, queue: Queue, props?: QueueRouteTargetProps) => Effect.Effect<Rule, never, import("../Providers.js").Providers>;
 export {};

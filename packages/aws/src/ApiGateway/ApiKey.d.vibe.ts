@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface ApiKeyProps {
     /**
      * Friendly name for the API key.

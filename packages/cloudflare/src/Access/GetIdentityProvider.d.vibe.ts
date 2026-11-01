@@ -72,7 +72,7 @@ export type FindIdentityProviderOptions = {
  *
  * @binding
  */
-export interface GetIdentityProvider extends Binding.Service<GetIdentityProvider, "Cloudflare.Access.GetIdentityProvider", (options: FindIdentityProviderOptions) => Effect.Effect<() => Effect.Effect<IdentityProviderAttributes | undefined, zeroTrust.ListIdentityProvidersForAccountError | zeroTrust.ListIdentityProvidersForZoneError, RuntimeContext>, never, CloudflareEnvironment>> {
+export interface GetIdentityProvider extends Binding.Service<GetIdentityProvider, "Cloudflare.Access.GetIdentityProvider", (options: FindIdentityProviderOptions) => Effect.Effect<(() => Effect.Effect<IdentityProviderAttributes | undefined, zeroTrust.ListIdentityProvidersForAccountError | zeroTrust.ListIdentityProvidersForZoneError, RuntimeContext>), never, CloudflareEnvironment>> {
 }
 export declare const GetIdentityProvider: GetIdentityProvider;
 /**

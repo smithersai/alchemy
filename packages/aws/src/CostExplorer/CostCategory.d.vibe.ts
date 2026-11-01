@@ -1,7 +1,7 @@
 import * as ce from "@distilled.cloud/aws/cost-explorer";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface CostCategoryProps {
     /**
      * Name of the cost category. Must be unique within the account and between

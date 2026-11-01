@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * A data-event resource selection inside a basic event selector. Mirrors the
  * CloudTrail `DataResource` wire shape.

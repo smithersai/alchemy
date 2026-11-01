@@ -1,7 +1,7 @@
 import * as entityresolution from "@distilled.cloud/aws/entityresolution";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface IdNamespaceProps {
     /**
      * Name of the ID namespace. Must be unique per account/region and match

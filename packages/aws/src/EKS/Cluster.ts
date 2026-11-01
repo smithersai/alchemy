@@ -18,7 +18,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { AccountID } from "../Environment.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
 import { eksConnectionOf, makeEksTransport } from "./KubernetesAdapter.ts";
 

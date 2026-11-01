@@ -27,6 +27,6 @@ export type GetIssueResponse = Issues.Issue;
  * @binding
  * @product Issue
  */
-export interface GetIssue extends Binding.Service<GetIssue, "GitHub.GetIssue", (repo: Repository) => Effect.Effect<(request: GetIssueRequest) => Effect.Effect<GetIssueResponse, Exclude<Issues.GetError, NotFound> | IssueNotFound, RuntimeContext>>> {
+export interface GetIssue extends Binding.Service<GetIssue, "GitHub.GetIssue", (repo: Repository) => Effect.Effect<((request: GetIssueRequest) => Effect.Effect<GetIssueResponse, Exclude<Issues.GetError, NotFound> | IssueNotFound, RuntimeContext>)>> {
 }
 export declare const GetIssue: GetIssue;

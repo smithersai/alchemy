@@ -9,7 +9,7 @@ import * as Duration from "effect/Duration";
 import { Assets } from "../Assets.js";
 import { AWSEnvironment } from "../Environment.js";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { FunctionBuildOptions } from "./Function.js";
 import { type WebFunctionAuthType, type WebFunctionCanary, type WebFunctionEndpointType, type WebFunctionRevisionWeight } from "./WebFunctionEndpointSync.js";
 export type { WebFunctionAuthType, WebFunctionCanary, WebFunctionEndpointType, WebFunctionRevisionWeight, } from "./WebFunctionEndpointSync.js";

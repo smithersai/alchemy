@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type { SubnetId } from "../EC2/Subnet.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 declare const NeptuneDBSubnetGroupUnexpectedResponse_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "NeptuneDBSubnetGroupUnexpectedResponse";
 } & Readonly<A>;

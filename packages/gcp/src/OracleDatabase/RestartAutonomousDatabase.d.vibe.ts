@@ -22,6 +22,6 @@ export interface RestartAutonomousDatabaseRequest extends Omit<oracle.RestartPro
  * @binding
  * @category OracleDatabase
  */
-export interface RestartAutonomousDatabase extends Binding.Service<RestartAutonomousDatabase, "GCP.OracleDatabase.RestartAutonomousDatabase", (database: AutonomousDatabase) => Effect.Effect<(request?: RestartAutonomousDatabaseRequest) => Effect.Effect<oracle.Operation, oracle.RestartProjectsLocationsAutonomousDatabasesError, RuntimeContext>>> {
+export interface RestartAutonomousDatabase extends Binding.Service<RestartAutonomousDatabase, "GCP.OracleDatabase.RestartAutonomousDatabase", (database: AutonomousDatabase) => Effect.Effect<((request?: RestartAutonomousDatabaseRequest) => Effect.Effect<oracle.Operation, oracle.RestartProjectsLocationsAutonomousDatabasesError, RuntimeContext>)>> {
 }
 export declare const RestartAutonomousDatabase: RestartAutonomousDatabase;

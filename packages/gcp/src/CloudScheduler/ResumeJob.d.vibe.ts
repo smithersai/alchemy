@@ -25,6 +25,6 @@ export interface ResumeJobRequest extends Omit<scheduler.ResumeProjectsLocations
  * @binding
  * @category CloudScheduler
  */
-export interface ResumeJob extends Binding.Service<ResumeJob, "GCP.CloudScheduler.ResumeJob", (job: Job) => Effect.Effect<(request?: ResumeJobRequest) => Effect.Effect<scheduler.Job, scheduler.ResumeProjectsLocationsJobsError, RuntimeContext>>> {
+export interface ResumeJob extends Binding.Service<ResumeJob, "GCP.CloudScheduler.ResumeJob", (job: Job) => Effect.Effect<((request?: ResumeJobRequest) => Effect.Effect<scheduler.Job, scheduler.ResumeProjectsLocationsJobsError, RuntimeContext>)>> {
 }
 export declare const ResumeJob: ResumeJob;

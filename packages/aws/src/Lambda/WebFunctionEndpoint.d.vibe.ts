@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import { type WebFunctionAuthType, type WebFunctionCanary, type WebFunctionEndpointType, type WebFunctionRevisionWeight } from "./WebFunctionEndpointSync.js";
 export declare const WebFunctionEndpointTypeId: "AWS.Lambda.WebFunctionEndpoint";
 export type WebFunctionEndpointTypeId = typeof WebFunctionEndpointTypeId;

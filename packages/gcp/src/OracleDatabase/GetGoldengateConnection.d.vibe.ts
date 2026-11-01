@@ -18,6 +18,6 @@ export interface GetGoldengateConnectionRequest extends Omit<oracle.GetProjectsL
  * @binding
  * @category OracleDatabase
  */
-export interface GetGoldengateConnection extends Binding.Service<GetGoldengateConnection, "GCP.OracleDatabase.GetGoldengateConnection", (connection: GoldengateConnection) => Effect.Effect<(request?: GetGoldengateConnectionRequest) => Effect.Effect<oracle.GoldengateConnection, oracle.GetProjectsLocationsGoldengateConnectionsError, RuntimeContext>>> {
+export interface GetGoldengateConnection extends Binding.Service<GetGoldengateConnection, "GCP.OracleDatabase.GetGoldengateConnection", (connection: GoldengateConnection) => Effect.Effect<((request?: GetGoldengateConnectionRequest) => Effect.Effect<oracle.GoldengateConnection, oracle.GetProjectsLocationsGoldengateConnectionsError, RuntimeContext>)>> {
 }
 export declare const GetGoldengateConnection: GetGoldengateConnection;

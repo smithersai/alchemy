@@ -9,8 +9,8 @@ import { organization } from "./Credentials.ts"
 import type { Providers } from "./Providers.vibe"
 
 export error ApiTokenUnexpectedResponse {
-  message: string;
-  cause?: unknown;
+  message: string
+  cause?: unknown
 }
 
 /**
@@ -28,40 +28,40 @@ export type ApiTokenScope =
   | "group:mint-token"
   | "group:rotate-creds"
   | "read-only"
-  | "full-access";
+  | "full-access"
 
 export interface ApiTokenProps {
   /**
    * Token name, unique within your account. If omitted, a unique name is
    * generated from the stack, stage, and logical ID.
    */
-  mutable name?: string;
+  mutable name?: string
   /**
    * Restrict the token to one group of the organization (e.g.
    * `group.name`). Requires `scopes`. Omit for an organization-scoped token.
    */
-  mutable group?: string;
+  mutable group?: string
   /**
    * Permissions of a group-scoped token. Required (and non-empty) when
    * `group` is set. `db:mint-token` issues new SQL tokens;
    * `db:rotate-creds` invalidates every SQL token of a database.
    */
-  mutable scopes?: ApiTokenScope[];
+  mutable scopes?: ApiTokenScope[]
 }
 
 export interface ApiTokenAttributes {
   /** Token ID. */
-  mutable id: string;
+  mutable id: string
   /** Token name. */
-  mutable name: string;
+  mutable name: string
   /** The organization slug the token is restricted to. */
-  mutable organization: string;
+  mutable organization: string
   /** The group the token is restricted to, if group-scoped. */
-  mutable group: string | undefined;
+  mutable group: string | undefined
   /** The expanded scopes of a group-scoped token. */
-  mutable scopes: string[];
+  mutable scopes: string[]
   /** The Platform API token, sent as `Authorization: Bearer <token>`. */
-  mutable token: Redacted.Redacted<string>;
+  mutable token: Redacted.Redacted<string>
 }
 
 export type ApiToken = Resource<
@@ -70,7 +70,7 @@ export type ApiToken = Resource<
   ApiTokenAttributes,
   never,
   Providers
->;
+>
 
 /**
  * A Turso API token. It lets an app create and delete groups and databases.
@@ -99,46 +99,56 @@ export type ApiToken = Resource<
  * @resource
  * @product API Token
  */
-export const ApiToken = Resource<ApiToken>("Turso.ApiToken");
+export const ApiToken = Resource<ApiToken>("Turso.ApiToken")
 
-const tokenName = effect (id: string, name: string | undefined) => (name ? name : try createPhysicalName({ id, maxLength: 64, delimiter: "-" }));
+const tokenName = effect (
+  id: string,
+  name: string | undefined,
+) => (name ? name : try createPhysicalName({ id, maxLength: 64, delimiter: "-" }))
 
 export const ApiTokenProvider = (): infer _ =>
   Provider.effect(
     ApiToken,
     effect {
-      const observe = effect (name: string) => try effect { const { tokens } = try turso
-          .listAPITokens({})
-return (tokens ?? []).find((t) => t.name === name) };
+      const observe = effect (name: string) =>
+        try effect {
+          const { tokens } = try turso
+            .listAPITokens({})
+          return (tokens ?? []).find((t) => t.name === name)
+        }
 
-      const revoke = effect (name: string) => (try (turso.revokeAPIToken({ tokenName: name })
-  |> Effect.asVoid(%))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; };
+      const revoke = effect (name: string) =>
+        (try (turso.revokeAPIToken({ tokenName: name })
+          |> Effect.asVoid(%))) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.void;
+            default: throw e;
+          }
 
       return {
         stables: ["id", "name", "organization", "group", "scopes", "token"],
         diff: effect ({ id, olds, news, output }) => {
-          if (!isResolved(news)) return undefined;
-          const name = output?.name ?? (try tokenName(id, olds?.name));
+          if (!isResolved(news)) return undefined
+          const name = output?.name ?? (try tokenName(id, olds?.name))
           // Turso tokens are immutable: any change mints a new one.
           if (
-            (news.name !== undefined && news.name !== name) ||
-            news.group !== olds?.group ||
-            !deepEqual(news.scopes ?? [], olds?.scopes ?? [])
+            (news.name !== undefined && news.name !== name)
+            || news.group !== olds?.group
+            || !deepEqual(news.scopes ?? [], olds?.scopes ?? [])
           ) {
             // A pinned name can't be held by two tokens at once.
             return {
               action: "replace",
               deleteFirst: news.name !== undefined && news.name === name,
-            } as const;
+            } as const
           }
         },
         read: effect ({ id, olds, output, previous }) => {
-          const name = output?.name ?? (try tokenName(id, olds?.name));
-          const observed = try observe(name);
-          if (!observed) return undefined;
-          if (output !== undefined && output.id === observed.id) return output;
+          const name = output?.name ?? (try tokenName(id, olds?.name))
+          const observed = try observe(name)
+          if (!observed) return undefined
+          if (output !== undefined && output.id === observed.id) return output
           // The generation a delete-first replacement is about to revoke.
-          if (previous !== undefined && previous.id === observed.id) return previous;
+          if (previous !== undefined && previous.id === observed.id) return previous
           // The secret is only revealed at creation, so a token we have no
           // state for can't be adopted with its value — reconcile re-mints.
           return Unowned({
@@ -148,41 +158,41 @@ return (tokens ?? []).find((t) => t.name === name) };
             group: observed.group,
             scopes: observed.scopes ?? [],
             token: Redacted.make(""),
-          });
+          })
         },
         reconcile: effect ({ id, news, output, session }) => {
-          const org = output?.organization ?? (try organization);
-          const name = output?.name ?? (try tokenName(id, news.name));
+          const org = output?.organization ?? (try organization)
+          const name = output?.name ?? (try tokenName(id, news.name))
 
           // Observe
-          const observed = try observe(name);
+          const observed = try observe(name)
           if (
-            observed &&
-            output &&
-            Redacted.value(output.token) !== "" &&
-            output.id === observed.id
+            observed
+            && output
+            && Redacted.value(output.token) !== ""
+            && output.id === observed.id
           ) {
-            return output;
+            return output
           }
 
           // Ensure — a token we hold no secret for (a lost create, or an
           // adoption) is revoked and re-minted.
           if (observed) {
-            try session.note(`Re-minting API token ${name}...`);
-            try revoke(name);
+            try session.note(`Re-minting API token ${name}...`)
+            try revoke(name)
           }
           const created = try turso.createAPIToken({
             tokenName: name,
             organization: org,
             group: news.group,
             scopes: news.scopes,
-          });
+          })
           if (!created.token || !created.id) {
             throw new ApiTokenUnexpectedResponse({
               message: `Turso returned no token for ${name}`,
-            });
+            })
           }
-          const minted = try observe(name);
+          const minted = try observe(name)
           return {
             id: created.id,
             name,
@@ -190,11 +200,11 @@ return (tokens ?? []).find((t) => t.name === name) };
             group: minted?.group ?? news.group,
             scopes: minted?.scopes ?? [],
             token: created.token,
-          };
+          }
         },
         delete: effect ({ output }) => {
-          try revoke(output.name);
+          try revoke(output.name)
         },
-      };
+      }
     },
-  );
+  )

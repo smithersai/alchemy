@@ -4,7 +4,7 @@ import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
 import * as Redacted from "effect/Redacted";
 import { type PolicyDocument } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import { type MigrationsTransport } from "./Migrations.vibe";
 export interface DBInstanceProps {
     /**

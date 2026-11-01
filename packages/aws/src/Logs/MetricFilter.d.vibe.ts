@@ -1,7 +1,7 @@
 import * as logs from "@distilled.cloud/aws/cloudwatch-logs";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export type MetricTransformation = logs.MetricTransformation;
 export interface MetricFilterProps {
     /**

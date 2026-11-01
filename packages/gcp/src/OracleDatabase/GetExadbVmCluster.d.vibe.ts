@@ -18,6 +18,6 @@ export interface GetExadbVmClusterRequest extends Omit<oracle.GetProjectsLocatio
  * @binding
  * @category OracleDatabase
  */
-export interface GetExadbVmCluster extends Binding.Service<GetExadbVmCluster, "GCP.OracleDatabase.GetExadbVmCluster", (cluster: ExadbVmCluster) => Effect.Effect<(request?: GetExadbVmClusterRequest) => Effect.Effect<oracle.ExadbVmCluster, oracle.GetProjectsLocationsExadbVmClustersError, RuntimeContext>>> {
+export interface GetExadbVmCluster extends Binding.Service<GetExadbVmCluster, "GCP.OracleDatabase.GetExadbVmCluster", (cluster: ExadbVmCluster) => Effect.Effect<((request?: GetExadbVmClusterRequest) => Effect.Effect<oracle.ExadbVmCluster, oracle.GetProjectsLocationsExadbVmClustersError, RuntimeContext>)>> {
 }
 export declare const GetExadbVmCluster: GetExadbVmCluster;

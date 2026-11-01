@@ -16,6 +16,6 @@ export declare const makeTransferJobHttpBinding: <I extends {
 }, A, E>(options: {
     tag: string;
     iam: BindingIam;
-    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
+    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
     projectInBody?: boolean;
 }) => Effect.Effect<(job: TransferJob) => Effect.Effect<(request?: Omit<I, "jobName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

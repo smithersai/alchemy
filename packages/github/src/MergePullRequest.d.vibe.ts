@@ -28,6 +28,6 @@ export type MergePullRequestResponse = Pulls.PullRequestMergeResult;
  * @binding
  * @product Pull Request
  */
-export interface MergePullRequest extends Binding.Service<MergePullRequest, "GitHub.MergePullRequest", (repo: Repository) => Effect.Effect<(request: MergePullRequestRequest) => Effect.Effect<MergePullRequestResponse, Pulls.MergeError, RuntimeContext>>> {
+export interface MergePullRequest extends Binding.Service<MergePullRequest, "GitHub.MergePullRequest", (repo: Repository) => Effect.Effect<((request: MergePullRequestRequest) => Effect.Effect<MergePullRequestResponse, Pulls.MergeError, RuntimeContext>)>> {
 }
 export declare const MergePullRequest: MergePullRequest;

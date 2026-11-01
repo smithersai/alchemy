@@ -1,7 +1,7 @@
 import * as eventbridge from "@distilled.cloud/aws/eventbridge";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface PermissionProps {
     /**
      * Event bus name. Defaults to the account default bus.

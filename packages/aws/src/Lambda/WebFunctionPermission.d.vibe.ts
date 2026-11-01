@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { WebFunctionAuthType } from "./WebFunctionEndpointSync.js";
 export declare const WebFunctionPermissionTypeId: "AWS.Lambda.WebFunctionPermission";
 export type WebFunctionPermissionTypeId = typeof WebFunctionPermissionTypeId;

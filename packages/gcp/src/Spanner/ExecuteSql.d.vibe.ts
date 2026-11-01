@@ -24,6 +24,6 @@ export type ExecuteSqlError = spanner.CreateProjectsInstancesDatabasesSessionsEr
  * @binding
  * @category Spanner
  */
-export interface ExecuteSql extends Binding.Service<ExecuteSql, "GCP.Spanner.ExecuteSql", (database: Database) => Effect.Effect<(request: ExecuteSqlRequest) => Effect.Effect<spanner.ResultSet, ExecuteSqlError, RuntimeContext>>> {
+export interface ExecuteSql extends Binding.Service<ExecuteSql, "GCP.Spanner.ExecuteSql", (database: Database) => Effect.Effect<((request: ExecuteSqlRequest) => Effect.Effect<spanner.ResultSet, ExecuteSqlError, RuntimeContext>)>> {
 }
 export declare const ExecuteSql: ExecuteSql;

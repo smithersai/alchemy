@@ -4,7 +4,7 @@ import { effectClass } from "alchemy/Util/effect";
 import { resolveAstroSettings } from "alchemy/Website/AstroOutput";
 import * as Effect from "effect/Effect";
 import { Namespace } from "../KV/Namespace.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import type { AssetsConfig } from "../Workers/Assets.ts";
 import {
   Worker,

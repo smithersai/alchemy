@@ -8,7 +8,7 @@ import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import { localAccountId } from "../LocalAccount.ts";
 import { generateLocalId } from "../LocalRuntime.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 
 export type Store = Resource<
   "Cloudflare.SecretsStore",

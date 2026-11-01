@@ -8,7 +8,7 @@ import { createInternalTags, hasAlchemyTags } from "alchemy/Tags";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import {
   driftedFrom,
   imageBuilderArn,

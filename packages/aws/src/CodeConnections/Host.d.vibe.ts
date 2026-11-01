@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * VPC configuration provisioned for a {@link Host} whose self-managed
  * provider is only reachable from inside a VPC.

@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * A field selector inside an advanced event selector. Mirrors the
  * CloudTrail `AdvancedFieldSelector` wire shape.

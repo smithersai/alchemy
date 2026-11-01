@@ -7,50 +7,52 @@ import type { Providers } from "./Providers.vibe"
 
 export interface SwarmProps {
   /** Docker context name or context resource of the engine to initialize. */
-  mutable context?: Docker.ContextRef;
+  mutable context?: Docker.ContextRef
   /**
    * Address advertised to other swarm members, e.g. `"10.0.0.1"` or
    * `"eth0"`. Required by Docker when the host has several network
    * interfaces. Applied only when the swarm is first initialized.
    */
-  mutable advertiseAddr?: string;
+  mutable advertiseAddr?: string
   /**
    * Listen address for swarm traffic, e.g. `"0.0.0.0:2377"`. Applied only
    * when the swarm is first initialized.
    */
-  mutable listenAddr?: string;
+  mutable listenAddr?: string
   /**
    * Address pools for global-scope (overlay) networks, e.g.
    * `["10.20.0.0/16"]`. Applied only when the swarm is first initialized.
    */
-  mutable defaultAddrPool?: string[];
+  mutable defaultAddrPool?: string[]
   /**
    * CIDR mask length for each subnet carved from `defaultAddrPool`.
    * Applied only when the swarm is first initialized.
    *
    * @default 24
    */
-  mutable subnetSize?: number;
+  mutable subnetSize?: number
 }
 
-export interface Swarm extends Resource<
-  "Docker.Swarm",
-  SwarmProps,
-  {
-    /** Swarm cluster id. */
-    mutable id: string;
-    /** This node's id in the swarm (a manager). */
-    mutable nodeId: string;
-    /** Docker context the swarm was initialized on. */
-    mutable context?: string;
-    /** Number of manager nodes. */
-    mutable managers: number;
-    /** Number of nodes in the swarm. */
-    mutable nodes: number;
-  },
-  never,
-  Providers
-> {}
+export interface Swarm extends
+  Resource<
+    "Docker.Swarm",
+    SwarmProps,
+    {
+      /** Swarm cluster id. */
+      mutable id: string
+      /** This node's id in the swarm (a manager). */
+      mutable nodeId: string
+      /** Docker context the swarm was initialized on. */
+      mutable context?: string
+      /** Number of manager nodes. */
+      mutable managers: number
+      /** Number of nodes in the swarm. */
+      mutable nodes: number
+    },
+    never,
+    Providers
+  >
+{}
 
 /**
  * Swarm mode on a Docker engine — an idempotent `docker swarm init`.
@@ -124,49 +126,49 @@ export interface Swarm extends Resource<
  * @resource
  * @product Swarm
  */
-export const Swarm = Resource<Swarm>("Docker.Swarm");
+export const Swarm = Resource<Swarm>("Docker.Swarm")
 
 export const SwarmProvider = (): infer _ =>
   Provider.effect(
     Swarm,
     effect {
-      const docker = try Effect.service(Docker);
+      const docker = try Effect.service(Docker)
 
       /** Active-manager info, or undefined when the engine isn't one. */
       const observe = effect (context: string | undefined) => {
-        const info = try docker.swarm.info(context);
+        const info = try docker.swarm.info(context)
         if (info.LocalNodeState !== "active" || !info.ControlAvailable || !info.Cluster?.ID) {
-          return undefined;
+          return undefined
         }
-        return info;
-      };
+        return info
+      }
 
       return Swarm.Provider.of({
         list: effect () => [],
         read: effect ({ olds, output }) => {
-          const context = dockerContextName(olds?.context);
-          const info = try observe(context);
-          if (!info) return undefined;
-          const attrs = toSwarmAttributes(info, context);
-          if (output) return attrs;
+          const context = dockerContextName(olds?.context)
+          const info = try observe(context)
+          if (!info) return undefined
+          const attrs = toSwarmAttributes(info, context)
+          if (output) return attrs
           // A swarm carries no labels to brand, so an already-initialized
           // engine can never be proven ours — adoption is gated behind
           // `--adopt` / `adopt(true)`.
-          return Unowned(attrs);
+          return Unowned(attrs)
         },
         diff: effect ({ news, olds }) => {
-          if (!isResolved(news)) return undefined;
+          if (!isResolved(news)) return undefined
           if (dockerContextName(olds?.context) !== dockerContextName(news?.context)) {
-            return { action: "replace" as const, deleteFirst: true };
+            return { action: "replace" as const, deleteFirst: true }
           }
           // The remaining props only apply at `swarm init`; changing them on
           // a live swarm is a no-op rather than a destructive re-init.
-          return { action: "noop" as const };
+          return { action: "noop" as const }
         },
         reconcile: effect ({ news }) => {
-          const context = dockerContextName(news?.context);
-          const existing = try observe(context);
-          if (existing) return toSwarmAttributes(existing, context);
+          const context = dockerContextName(news?.context)
+          const existing = try observe(context)
+          if (existing) return toSwarmAttributes(existing, context)
 
           try (docker.swarm
             .init({
@@ -176,24 +178,28 @@ export const SwarmProvider = (): infer _ =>
               "default-addr-pool": news?.defaultAddrPool,
               "default-addr-pool-mask-length": news?.subnetSize,
             })
-  |> Effect.catchIf(%, (error) => /already part of a swarm/i.test(String(error)), effect () => try Effect.void));
+            |> Effect.catchIf(%, (error) =>
+              /already part of a swarm/i.test(String(error)), effect () =>
+              try Effect.void))
 
-          const info = try observe(context);
+          const info = try observe(context)
           if (!info) {
             return try Effect.die(
               new Error(
                 "docker swarm init succeeded but the engine did not become an active swarm manager",
               ),
-            );
+            )
           }
-          return toSwarmAttributes(info, context);
+          return toSwarmAttributes(info, context)
         },
-        delete: effect ({ output }) => try (docker.swarm.leave(true, output.context)
-  |> Effect.catchIf(%, (error) => /not part of a swarm/i.test(String(error)), effect () => try Effect.void)
-  |> Effect.asVoid(%)),
-      });
+        delete: effect ({ output }) =>
+          try (docker.swarm.leave(true, output.context)
+            |> Effect.catchIf(%, (error) =>
+              /not part of a swarm/i.test(String(error)), effect () => try Effect.void)
+            |> Effect.asVoid(%)),
+      })
     },
-  );
+  )
 
 const toSwarmAttributes = (
   info: Docker.SwarmInfo,
@@ -204,4 +210,4 @@ const toSwarmAttributes = (
   context,
   managers: info.Managers ?? 1,
   nodes: info.Nodes ?? 1,
-});
+})

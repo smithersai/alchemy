@@ -21,6 +21,6 @@ export interface GetVersionRequest extends Omit<ml.GetProjectsModelsVersionsRequ
  * @binding
  * @category ML
  */
-export interface GetVersion extends Binding.Service<GetVersion, "GCP.ML.GetVersion", (version: ModelsVersion) => Effect.Effect<(request?: GetVersionRequest) => Effect.Effect<ml.GoogleCloudMlV1__Version, ml.GetProjectsModelsVersionsError, RuntimeContext>>> {
+export interface GetVersion extends Binding.Service<GetVersion, "GCP.ML.GetVersion", (version: ModelsVersion) => Effect.Effect<((request?: GetVersionRequest) => Effect.Effect<ml.GoogleCloudMlV1__Version, ml.GetProjectsModelsVersionsError, RuntimeContext>)>> {
 }
 export declare const GetVersion: GetVersion;

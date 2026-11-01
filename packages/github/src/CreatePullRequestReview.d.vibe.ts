@@ -29,6 +29,6 @@ export type CreatePullRequestReviewResponse = Pulls.PullRequestReview;
  * @binding
  * @product Pull Request
  */
-export interface CreatePullRequestReview extends Binding.Service<CreatePullRequestReview, "GitHub.CreatePullRequestReview", (repo: Repository) => Effect.Effect<(request: CreatePullRequestReviewRequest) => Effect.Effect<CreatePullRequestReviewResponse, Pulls.CreateReviewError, RuntimeContext>>> {
+export interface CreatePullRequestReview extends Binding.Service<CreatePullRequestReview, "GitHub.CreatePullRequestReview", (repo: Repository) => Effect.Effect<((request: CreatePullRequestReviewRequest) => Effect.Effect<CreatePullRequestReviewResponse, Pulls.CreateReviewError, RuntimeContext>)>> {
 }
 export declare const CreatePullRequestReview: CreatePullRequestReview;

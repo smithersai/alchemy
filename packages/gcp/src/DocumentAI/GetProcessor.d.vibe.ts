@@ -21,6 +21,6 @@ export interface GetProcessorRequest extends Omit<documentai.GetProjectsLocation
  * @binding
  * @category DocumentAI
  */
-export interface GetProcessor extends Binding.Service<GetProcessor, "GCP.DocumentAI.GetProcessor", (processor: Processor) => Effect.Effect<(request?: GetProcessorRequest) => Effect.Effect<documentai.GoogleCloudDocumentaiV1Processor, documentai.GetProjectsLocationsProcessorsError, RuntimeContext>>> {
+export interface GetProcessor extends Binding.Service<GetProcessor, "GCP.DocumentAI.GetProcessor", (processor: Processor) => Effect.Effect<((request?: GetProcessorRequest) => Effect.Effect<documentai.GoogleCloudDocumentaiV1Processor, documentai.GetProjectsLocationsProcessorsError, RuntimeContext>)>> {
 }
 export declare const GetProcessor: GetProcessor;

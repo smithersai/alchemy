@@ -21,6 +21,6 @@ export interface GetTableRequest extends Omit<bigtable.GetProjectsInstancesTable
  * @binding
  * @category Bigtable
  */
-export interface GetTable extends Binding.Service<GetTable, "GCP.Bigtable.GetTable", (table: Table) => Effect.Effect<(request?: GetTableRequest) => Effect.Effect<bigtable.Table, bigtable.GetProjectsInstancesTablesError, RuntimeContext>>> {
+export interface GetTable extends Binding.Service<GetTable, "GCP.Bigtable.GetTable", (table: Table) => Effect.Effect<((request?: GetTableRequest) => Effect.Effect<bigtable.Table, bigtable.GetProjectsInstancesTablesError, RuntimeContext>)>> {
 }
 export declare const GetTable: GetTable;

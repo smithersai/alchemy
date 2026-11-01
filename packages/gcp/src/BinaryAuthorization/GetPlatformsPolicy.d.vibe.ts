@@ -23,6 +23,6 @@ export interface GetPlatformsPolicyRequest extends Omit<binaryauthorization.GetP
  * @binding
  * @category BinaryAuthorization
  */
-export interface GetPlatformsPolicy extends Binding.Service<GetPlatformsPolicy, "GCP.BinaryAuthorization.GetPlatformsPolicy", (policy: PlatformsPolicy) => Effect.Effect<(request?: GetPlatformsPolicyRequest) => Effect.Effect<binaryauthorization.PlatformPolicy, binaryauthorization.GetProjectsPlatformsPoliciesError, RuntimeContext>>> {
+export interface GetPlatformsPolicy extends Binding.Service<GetPlatformsPolicy, "GCP.BinaryAuthorization.GetPlatformsPolicy", (policy: PlatformsPolicy) => Effect.Effect<((request?: GetPlatformsPolicyRequest) => Effect.Effect<binaryauthorization.PlatformPolicy, binaryauthorization.GetProjectsPlatformsPoliciesError, RuntimeContext>)>> {
 }
 export declare const GetPlatformsPolicy: GetPlatformsPolicy;

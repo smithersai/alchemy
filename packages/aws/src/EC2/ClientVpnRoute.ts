@@ -6,7 +6,7 @@ import { canonicalCidr } from "alchemy/Util/ip-address";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import type { ClientVpnEndpointId } from "./ClientVpnEndpoint.ts";
 import { retryClientVpn } from "./ClientVpnWait.vibe";
 import type { SubnetId } from "./Subnet.ts";

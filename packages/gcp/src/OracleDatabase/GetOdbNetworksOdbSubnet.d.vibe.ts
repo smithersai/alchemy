@@ -18,6 +18,6 @@ export interface GetOdbNetworksOdbSubnetRequest extends Omit<oracle.GetProjectsL
  * @binding
  * @category OracleDatabase
  */
-export interface GetOdbNetworksOdbSubnet extends Binding.Service<GetOdbNetworksOdbSubnet, "GCP.OracleDatabase.GetOdbNetworksOdbSubnet", (subnet: OdbNetworksOdbSubnet) => Effect.Effect<(request?: GetOdbNetworksOdbSubnetRequest) => Effect.Effect<oracle.OdbSubnet, oracle.GetProjectsLocationsOdbNetworksOdbSubnetsError, RuntimeContext>>> {
+export interface GetOdbNetworksOdbSubnet extends Binding.Service<GetOdbNetworksOdbSubnet, "GCP.OracleDatabase.GetOdbNetworksOdbSubnet", (subnet: OdbNetworksOdbSubnet) => Effect.Effect<((request?: GetOdbNetworksOdbSubnetRequest) => Effect.Effect<oracle.OdbSubnet, oracle.GetProjectsLocationsOdbNetworksOdbSubnetsError, RuntimeContext>)>> {
 }
 export declare const GetOdbNetworksOdbSubnet: GetOdbNetworksOdbSubnet;

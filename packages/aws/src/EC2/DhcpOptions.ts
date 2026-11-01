@@ -9,7 +9,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { AccountID } from "../Environment.ts";
 import { AWSEnvironment } from "../Environment.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
 import { getDefaultVpcScope } from "./defaultVpcScope.ts";
 import type { VpcId } from "./Vpc.vibe";

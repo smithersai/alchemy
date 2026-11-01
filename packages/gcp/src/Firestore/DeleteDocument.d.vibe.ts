@@ -25,6 +25,6 @@ export interface DeleteDocumentRequest extends Omit<firestore.DeleteProjectsData
  * @binding
  * @category Firestore
  */
-export interface DeleteDocument extends Binding.Service<DeleteDocument, "GCP.Firestore.DeleteDocument", (database: Database) => Effect.Effect<(request: DeleteDocumentRequest) => Effect.Effect<firestore.Empty, firestore.DeleteProjectsDatabasesDocumentsError, RuntimeContext>>> {
+export interface DeleteDocument extends Binding.Service<DeleteDocument, "GCP.Firestore.DeleteDocument", (database: Database) => Effect.Effect<((request: DeleteDocumentRequest) => Effect.Effect<firestore.Empty, firestore.DeleteProjectsDatabasesDocumentsError, RuntimeContext>)>> {
 }
 export declare const DeleteDocument: DeleteDocument;

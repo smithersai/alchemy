@@ -21,6 +21,6 @@ export interface GetModelRequest extends Omit<translate.GetProjectsLocationsMode
  * @binding
  * @category Translate
  */
-export interface GetModel extends Binding.Service<GetModel, "GCP.Translate.GetModel", (model: Model) => Effect.Effect<(request?: GetModelRequest) => Effect.Effect<translate.Model, translate.GetProjectsLocationsModelsError, RuntimeContext>>> {
+export interface GetModel extends Binding.Service<GetModel, "GCP.Translate.GetModel", (model: Model) => Effect.Effect<((request?: GetModelRequest) => Effect.Effect<translate.Model, translate.GetProjectsLocationsModelsError, RuntimeContext>)>> {
 }
 export declare const GetModel: GetModel;

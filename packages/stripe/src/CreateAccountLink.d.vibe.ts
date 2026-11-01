@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  * @binding
  * @product Account
  */
-export interface CreateAccountLink extends Binding.Service<CreateAccountLink, "Stripe.CreateAccountLink", () => Effect.Effect<(request: CreateAccountLinkRequest) => Effect.Effect<AccountLink, CreateAccountLinkError, RuntimeContext>>> {
+export interface CreateAccountLink extends Binding.Service<CreateAccountLink, "Stripe.CreateAccountLink", () => Effect.Effect<((request: CreateAccountLinkRequest) => Effect.Effect<AccountLink, CreateAccountLinkError, RuntimeContext>)>> {
 }
 export declare const CreateAccountLink: CreateAccountLink;

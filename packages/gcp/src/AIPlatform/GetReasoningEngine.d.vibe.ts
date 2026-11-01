@@ -21,6 +21,6 @@ export interface GetReasoningEngineRequest extends Omit<aiplatform.GetReasoningE
  * @binding
  * @category AIPlatform
  */
-export interface GetReasoningEngine extends Binding.Service<GetReasoningEngine, "GCP.AIPlatform.GetReasoningEngine", (engine: ReasoningEngine) => Effect.Effect<(request?: GetReasoningEngineRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1ReasoningEngine, aiplatform.GetReasoningEnginesError, RuntimeContext>>> {
+export interface GetReasoningEngine extends Binding.Service<GetReasoningEngine, "GCP.AIPlatform.GetReasoningEngine", (engine: ReasoningEngine) => Effect.Effect<((request?: GetReasoningEngineRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1ReasoningEngine, aiplatform.GetReasoningEnginesError, RuntimeContext>)>> {
 }
 export declare const GetReasoningEngine: GetReasoningEngine;

@@ -29,7 +29,7 @@ export * from "./RpcDurableObject.ts";
 export * as RpcWebSocketClient from "./RpcWebSocketClient.ts";
 export * from "./RpcWorker.ts";
 export * from "./RuntimeBindings.ts";
-export * from "./ScheduledEvents.vibe";
+export * from "./ScheduledEvents.ts";
 export * from "./SecretKey.ts";
 export * from "./SecretKeyBinding.ts";
 export * from "./Source.ts";

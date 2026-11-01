@@ -21,6 +21,6 @@ export interface GetTopicRequest extends Omit<kafka.GetProjectsLocationsClusters
  * @binding
  * @category ManagedKafka
  */
-export interface GetTopic extends Binding.Service<GetTopic, "GCP.ManagedKafka.GetTopic", (topic: ClustersTopic) => Effect.Effect<(request?: GetTopicRequest) => Effect.Effect<kafka.Topic, kafka.GetProjectsLocationsClustersTopicsError, RuntimeContext>>> {
+export interface GetTopic extends Binding.Service<GetTopic, "GCP.ManagedKafka.GetTopic", (topic: ClustersTopic) => Effect.Effect<((request?: GetTopicRequest) => Effect.Effect<kafka.Topic, kafka.GetProjectsLocationsClustersTopicsError, RuntimeContext>)>> {
 }
 export declare const GetTopic: GetTopic;

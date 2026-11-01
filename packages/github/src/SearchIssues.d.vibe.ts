@@ -28,6 +28,6 @@ export type SearchIssuesResponse = Search.IssuesAndPullRequestsResponse;
  * @binding
  * @product Issue
  */
-export interface SearchIssues extends Binding.Service<SearchIssues, "GitHub.SearchIssues", (repo: Repository) => Effect.Effect<(request: SearchIssuesRequest) => Effect.Effect<SearchIssuesResponse, Search.IssuesAndPullRequestsError, RuntimeContext>>> {
+export interface SearchIssues extends Binding.Service<SearchIssues, "GitHub.SearchIssues", (repo: Repository) => Effect.Effect<((request: SearchIssuesRequest) => Effect.Effect<SearchIssuesResponse, Search.IssuesAndPullRequestsError, RuntimeContext>)>> {
 }
 export declare const SearchIssues: SearchIssues;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  * @binding
  * @product Issuing
  */
-export interface CreateIssuingCard extends Binding.Service<CreateIssuingCard, "Stripe.CreateIssuingCard", () => Effect.Effect<(request: CreateIssuingCardRequest) => Effect.Effect<StripeIssuingCard, CreateIssuingCardError, RuntimeContext>>> {
+export interface CreateIssuingCard extends Binding.Service<CreateIssuingCard, "Stripe.CreateIssuingCard", () => Effect.Effect<((request: CreateIssuingCardRequest) => Effect.Effect<StripeIssuingCard, CreateIssuingCardError, RuntimeContext>)>> {
 }
 export declare const CreateIssuingCard: CreateIssuingCard;

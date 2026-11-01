@@ -84,4 +84,4 @@ export interface IntegrationEventsProps {
  * );
  * ```
  */
-export declare const consumeIntegrationEvents: <Detail = unknown, StreamReq = never, Req = never>(id: string, props: IntegrationEventsProps, process: (events: Stream.Stream<IntegrationEvent<Detail>, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<EventIntegration, never, import("../EventBridge/EventSource.vibe").EventSource | import("../Providers.vibe").Providers>;
+export declare const consumeIntegrationEvents: <Detail = unknown, StreamReq = never, Req = never>(id: string, props: IntegrationEventsProps, process: (events: Stream.Stream<IntegrationEvent<Detail>, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<EventIntegration, never, import("../EventBridge/EventSource.vibe").EventSource | import("../Providers.js").Providers>;

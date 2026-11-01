@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface GroupProps {
     /**
      * Name of the group (1-32 characters). `Default` is reserved by X-Ray for

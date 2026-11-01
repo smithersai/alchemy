@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource as makeResource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface CloudControlResourceProps {
     /**
      * The CloudFormation resource type name, e.g. `"AWS::SNS::Topic"` or

@@ -21,6 +21,6 @@ export interface GetAclPolicyRequest extends Omit<redis.GetProjectsLocationsAclP
  * @binding
  * @category Redis
  */
-export interface GetAclPolicy extends Binding.Service<GetAclPolicy, "GCP.Redis.GetAclPolicy", (policy: AclPolicy) => Effect.Effect<(request?: GetAclPolicyRequest) => Effect.Effect<redis.AclPolicy, redis.GetProjectsLocationsAclPoliciesError, RuntimeContext>>> {
+export interface GetAclPolicy extends Binding.Service<GetAclPolicy, "GCP.Redis.GetAclPolicy", (policy: AclPolicy) => Effect.Effect<((request?: GetAclPolicyRequest) => Effect.Effect<redis.AclPolicy, redis.GetProjectsLocationsAclPoliciesError, RuntimeContext>)>> {
 }
 export declare const GetAclPolicy: GetAclPolicy;

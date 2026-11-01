@@ -23,6 +23,6 @@ export interface PullRequest extends Omit<pubsub.PullProjectsSubscriptionsReques
  * @binding
  * @category PubSub
  */
-export interface Pull extends Binding.Service<Pull, "GCP.PubSub.Pull", (subscription: Subscription) => Effect.Effect<(request: PullRequest) => Effect.Effect<pubsub.PullResponse, pubsub.PullProjectsSubscriptionsError, RuntimeContext>>> {
+export interface Pull extends Binding.Service<Pull, "GCP.PubSub.Pull", (subscription: Subscription) => Effect.Effect<((request: PullRequest) => Effect.Effect<pubsub.PullResponse, pubsub.PullProjectsSubscriptionsError, RuntimeContext>)>> {
 }
 export declare const Pull: Pull;

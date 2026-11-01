@@ -24,6 +24,6 @@ export interface GetTopicRequest extends Omit<pubsublite.GetAdminProjectsLocatio
  * @binding
  * @category PubSubLite
  */
-export interface GetTopic extends Binding.Service<GetTopic, "GCP.PubSubLite.GetTopic", (topic: AdminTopic) => Effect.Effect<(request?: GetTopicRequest) => Effect.Effect<pubsublite.Topic, pubsublite.GetAdminProjectsLocationsTopicsError, RuntimeContext>>> {
+export interface GetTopic extends Binding.Service<GetTopic, "GCP.PubSubLite.GetTopic", (topic: AdminTopic) => Effect.Effect<((request?: GetTopicRequest) => Effect.Effect<pubsublite.Topic, pubsublite.GetAdminProjectsLocationsTopicsError, RuntimeContext>)>> {
 }
 export declare const GetTopic: GetTopic;

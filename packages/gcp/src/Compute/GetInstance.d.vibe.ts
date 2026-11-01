@@ -21,6 +21,6 @@ export interface GetInstanceRequest extends Omit<compute.GetInstancesRequest, "i
  * @binding
  * @category Compute
  */
-export interface GetInstance extends Binding.Service<GetInstance, "GCP.Compute.GetInstance", (instance: Instance) => Effect.Effect<(request?: GetInstanceRequest) => Effect.Effect<compute.Instance, compute.GetInstancesError, RuntimeContext>>> {
+export interface GetInstance extends Binding.Service<GetInstance, "GCP.Compute.GetInstance", (instance: Instance) => Effect.Effect<((request?: GetInstanceRequest) => Effect.Effect<compute.Instance, compute.GetInstancesError, RuntimeContext>)>> {
 }
 export declare const GetInstance: GetInstance;

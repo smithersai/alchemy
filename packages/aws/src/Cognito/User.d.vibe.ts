@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface UserProps {
     /**
      * The ID of the user pool the user belongs to. Changing this triggers a

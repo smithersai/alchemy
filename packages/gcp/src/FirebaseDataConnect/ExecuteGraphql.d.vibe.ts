@@ -25,6 +25,6 @@ export interface ExecuteGraphqlRequest extends Omit<firebasedataconnect.ExecuteG
  * @binding
  * @category FirebaseDataConnect
  */
-export interface ExecuteGraphql extends Binding.Service<ExecuteGraphql, "GCP.FirebaseDataConnect.ExecuteGraphql", (service: Service) => Effect.Effect<(request: ExecuteGraphqlRequest) => Effect.Effect<firebasedataconnect.GraphqlResponse, firebasedataconnect.ExecuteGraphqlProjectsLocationsServicesError, RuntimeContext>>> {
+export interface ExecuteGraphql extends Binding.Service<ExecuteGraphql, "GCP.FirebaseDataConnect.ExecuteGraphql", (service: Service) => Effect.Effect<((request: ExecuteGraphqlRequest) => Effect.Effect<firebasedataconnect.GraphqlResponse, firebasedataconnect.ExecuteGraphqlProjectsLocationsServicesError, RuntimeContext>)>> {
 }
 export declare const ExecuteGraphql: ExecuteGraphql;

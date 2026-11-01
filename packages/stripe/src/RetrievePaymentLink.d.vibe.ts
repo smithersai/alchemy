@@ -18,6 +18,6 @@ export interface RetrievePaymentLinkRequest extends Omit<GetPaymentLinkRequest, 
  * @binding
  * @product Checkout
  */
-export interface RetrievePaymentLink extends Binding.Service<RetrievePaymentLink, "Stripe.RetrievePaymentLink", (paymentLink: PaymentLink) => Effect.Effect<(request?: RetrievePaymentLinkRequest) => Effect.Effect<StripePaymentLink, GetPaymentLinkError, RuntimeContext>>> {
+export interface RetrievePaymentLink extends Binding.Service<RetrievePaymentLink, "Stripe.RetrievePaymentLink", (paymentLink: PaymentLink) => Effect.Effect<((request?: RetrievePaymentLinkRequest) => Effect.Effect<StripePaymentLink, GetPaymentLinkError, RuntimeContext>)>> {
 }
 export declare const RetrievePaymentLink: RetrievePaymentLink;

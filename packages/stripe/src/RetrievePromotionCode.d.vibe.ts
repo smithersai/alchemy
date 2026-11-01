@@ -18,6 +18,6 @@ export interface RetrievePromotionCodeRequest extends Omit<GetPromotionCodeReque
  * @binding
  * @product Product
  */
-export interface RetrievePromotionCode extends Binding.Service<RetrievePromotionCode, "Stripe.RetrievePromotionCode", (promotionCode: PromotionCode) => Effect.Effect<(request?: RetrievePromotionCodeRequest) => Effect.Effect<StripePromotionCode, GetPromotionCodeError, RuntimeContext>>> {
+export interface RetrievePromotionCode extends Binding.Service<RetrievePromotionCode, "Stripe.RetrievePromotionCode", (promotionCode: PromotionCode) => Effect.Effect<((request?: RetrievePromotionCodeRequest) => Effect.Effect<StripePromotionCode, GetPromotionCodeError, RuntimeContext>)>> {
 }
 export declare const RetrievePromotionCode: RetrievePromotionCode;

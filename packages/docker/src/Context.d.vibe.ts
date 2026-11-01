@@ -42,7 +42,6 @@ export interface Context extends Resource<"Docker.Context", ContextProps, {
  * default one. Changing the endpoint updates the context in place; renaming
  * it, or clearing a previously-set endpoint, replaces it.
  *
- *
  * ### Creating Contexts
  * **Example:** Remote engine over SSH
  * ```typescript

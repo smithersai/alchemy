@@ -21,6 +21,6 @@ export interface GetInstanceRequest extends Omit<alloydb.GetProjectsLocationsClu
  * @binding
  * @category AlloyDB
  */
-export interface GetInstance extends Binding.Service<GetInstance, "GCP.AlloyDB.GetInstance", (instance: Instance) => Effect.Effect<(request?: GetInstanceRequest) => Effect.Effect<alloydb.Instance, alloydb.GetProjectsLocationsClustersInstancesError, RuntimeContext>>> {
+export interface GetInstance extends Binding.Service<GetInstance, "GCP.AlloyDB.GetInstance", (instance: Instance) => Effect.Effect<((request?: GetInstanceRequest) => Effect.Effect<alloydb.Instance, alloydb.GetProjectsLocationsClustersInstancesError, RuntimeContext>)>> {
 }
 export declare const GetInstance: GetInstance;

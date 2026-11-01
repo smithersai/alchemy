@@ -28,6 +28,6 @@ export interface AdaptiveMtTranslateRequest {
  * @binding
  * @category Translate
  */
-export interface AdaptiveMtTranslate extends Binding.Service<AdaptiveMtTranslate, "GCP.Translate.AdaptiveMtTranslate", (dataset: AdaptiveMtDataset) => Effect.Effect<(request?: AdaptiveMtTranslateRequest) => Effect.Effect<translate.AdaptiveMtTranslateResponse, translate.AdaptiveMtTranslateProjectsLocationsError, RuntimeContext>>> {
+export interface AdaptiveMtTranslate extends Binding.Service<AdaptiveMtTranslate, "GCP.Translate.AdaptiveMtTranslate", (dataset: AdaptiveMtDataset) => Effect.Effect<((request?: AdaptiveMtTranslateRequest) => Effect.Effect<translate.AdaptiveMtTranslateResponse, translate.AdaptiveMtTranslateProjectsLocationsError, RuntimeContext>)>> {
 }
 export declare const AdaptiveMtTranslate: AdaptiveMtTranslate;

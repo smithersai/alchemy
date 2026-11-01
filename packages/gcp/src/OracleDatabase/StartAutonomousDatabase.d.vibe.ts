@@ -22,6 +22,6 @@ export interface StartAutonomousDatabaseRequest extends Omit<oracle.StartProject
  * @binding
  * @category OracleDatabase
  */
-export interface StartAutonomousDatabase extends Binding.Service<StartAutonomousDatabase, "GCP.OracleDatabase.StartAutonomousDatabase", (database: AutonomousDatabase) => Effect.Effect<(request?: StartAutonomousDatabaseRequest) => Effect.Effect<oracle.Operation, oracle.StartProjectsLocationsAutonomousDatabasesError, RuntimeContext>>> {
+export interface StartAutonomousDatabase extends Binding.Service<StartAutonomousDatabase, "GCP.OracleDatabase.StartAutonomousDatabase", (database: AutonomousDatabase) => Effect.Effect<((request?: StartAutonomousDatabaseRequest) => Effect.Effect<oracle.Operation, oracle.StartProjectsLocationsAutonomousDatabasesError, RuntimeContext>)>> {
 }
 export declare const StartAutonomousDatabase: StartAutonomousDatabase;

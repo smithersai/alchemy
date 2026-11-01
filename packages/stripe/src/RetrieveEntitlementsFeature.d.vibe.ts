@@ -18,6 +18,6 @@ export interface RetrieveEntitlementsFeatureRequest extends Omit<GetEntitlements
  * @binding
  * @product Entitlements
  */
-export interface RetrieveEntitlementsFeature extends Binding.Service<RetrieveEntitlementsFeature, "Stripe.RetrieveEntitlementsFeature", (feature: EntitlementsFeature) => Effect.Effect<(request?: RetrieveEntitlementsFeatureRequest) => Effect.Effect<StripeEntitlementsFeature, GetEntitlementsFeatureError, RuntimeContext>>> {
+export interface RetrieveEntitlementsFeature extends Binding.Service<RetrieveEntitlementsFeature, "Stripe.RetrieveEntitlementsFeature", (feature: EntitlementsFeature) => Effect.Effect<((request?: RetrieveEntitlementsFeatureRequest) => Effect.Effect<StripeEntitlementsFeature, GetEntitlementsFeatureError, RuntimeContext>)>> {
 }
 export declare const RetrieveEntitlementsFeature: RetrieveEntitlementsFeature;

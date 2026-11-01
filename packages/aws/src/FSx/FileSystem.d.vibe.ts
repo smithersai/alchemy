@@ -2,7 +2,7 @@ import * as fsx from "@distilled.cloud/aws/fsx";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface FileSystemProps {
     /**
      * The type of file system to create. Cannot be changed after creation

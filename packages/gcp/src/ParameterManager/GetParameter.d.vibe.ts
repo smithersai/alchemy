@@ -23,6 +23,6 @@ import type { Parameter } from "./Parameter.js";
  * @binding
  * @category ParameterManager
  */
-export interface GetParameter extends Binding.Service<GetParameter, "GCP.ParameterManager.GetParameter", (parameter: Parameter) => Effect.Effect<() => Effect.Effect<parametermanager.Parameter, parametermanager.GetProjectsLocationsParametersError, RuntimeContext>>> {
+export interface GetParameter extends Binding.Service<GetParameter, "GCP.ParameterManager.GetParameter", (parameter: Parameter) => Effect.Effect<(() => Effect.Effect<parametermanager.Parameter, parametermanager.GetProjectsLocationsParametersError, RuntimeContext>)>> {
 }
 export declare const GetParameter: GetParameter;

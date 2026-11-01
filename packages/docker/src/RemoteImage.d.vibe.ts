@@ -65,7 +65,6 @@ export interface RemoteImage extends Resource<"Docker.RemoteImage", RemoteImageP
  * to re-tag the source image, and `registry` to push it (mirroring it from a
  * source registry into your own, for example).
  *
- *
  * ### Pulling Images
  * **Example:** Pull nginx
  * ```typescript

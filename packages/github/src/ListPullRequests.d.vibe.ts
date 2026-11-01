@@ -22,6 +22,6 @@ export type ListPullRequestsResponse = Pulls.ListResponse;
  * @binding
  * @product Pull Request
  */
-export interface ListPullRequests extends Binding.Service<ListPullRequests, "GitHub.ListPullRequests", (repo: Repository) => Effect.Effect<(request?: ListPullRequestsRequest) => Effect.Effect<ListPullRequestsResponse, Pulls.ListError, RuntimeContext>>> {
+export interface ListPullRequests extends Binding.Service<ListPullRequests, "GitHub.ListPullRequests", (repo: Repository) => Effect.Effect<((request?: ListPullRequestsRequest) => Effect.Effect<ListPullRequestsResponse, Pulls.ListError, RuntimeContext>)>> {
 }
 export declare const ListPullRequests: ListPullRequests;

@@ -5,7 +5,7 @@ import { Stack } from "alchemy/Stack";
 import type * as Duration from "effect/Duration";
 import { AWSEnvironment, type AccountID } from "../Environment.js";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RegionID } from "../Region.js";
 export type QueueName = string;
 export type QueueArn = `arn:aws:sqs:${RegionID}:${AccountID}:${QueueName}`;

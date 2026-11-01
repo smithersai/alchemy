@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * Server-side encryption configuration for a vector bucket. Immutable —
  * changing it replaces the bucket.

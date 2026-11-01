@@ -4,7 +4,7 @@ import { Resource } from "alchemy/Resource";
 import type * as lambda from "aws-lambda";
 import type * as Duration from "effect/Duration";
 import { AWSEnvironment, type AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RegionID } from "../Region.js";
 declare const KinesisStreamInvalidProps_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "KinesisStreamInvalidProps";

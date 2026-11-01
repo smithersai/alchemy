@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface DomainNameProps {
     /**
      * The custom domain name, e.g. `api.example.com`. Changing it triggers

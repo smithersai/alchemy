@@ -25,6 +25,6 @@ export interface RegisterCollectorRequest extends Omit<rma.RegisterProjectsLocat
  * @binding
  * @category RapidMigrationAssessment
  */
-export interface RegisterCollector extends Binding.Service<RegisterCollector, "GCP.RapidMigrationAssessment.RegisterCollector", (collector: Collector) => Effect.Effect<(request?: RegisterCollectorRequest) => Effect.Effect<rma.Operation, rma.RegisterProjectsLocationsCollectorsError, RuntimeContext>>> {
+export interface RegisterCollector extends Binding.Service<RegisterCollector, "GCP.RapidMigrationAssessment.RegisterCollector", (collector: Collector) => Effect.Effect<((request?: RegisterCollectorRequest) => Effect.Effect<rma.Operation, rma.RegisterProjectsLocationsCollectorsError, RuntimeContext>)>> {
 }
 export declare const RegisterCollector: RegisterCollector;

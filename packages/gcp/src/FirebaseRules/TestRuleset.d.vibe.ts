@@ -29,6 +29,6 @@ export interface TestRulesetRequest extends Omit<firebaserules.TestProjectsReque
  * @binding
  * @category FirebaseRules
  */
-export interface TestRuleset extends Binding.Service<TestRuleset, "GCP.FirebaseRules.TestRuleset", (ruleset: Ruleset) => Effect.Effect<(request?: TestRulesetRequest) => Effect.Effect<firebaserules.TestRulesetResponse, firebaserules.TestProjectsError, RuntimeContext>>> {
+export interface TestRuleset extends Binding.Service<TestRuleset, "GCP.FirebaseRules.TestRuleset", (ruleset: Ruleset) => Effect.Effect<((request?: TestRulesetRequest) => Effect.Effect<firebaserules.TestRulesetResponse, firebaserules.TestProjectsError, RuntimeContext>)>> {
 }
 export declare const TestRuleset: TestRuleset;

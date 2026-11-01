@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface AcceleratorProps {
     /**
      * Name of the accelerator. Up to 64 characters; letters, digits, and

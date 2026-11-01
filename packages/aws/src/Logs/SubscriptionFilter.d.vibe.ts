@@ -1,7 +1,7 @@
 import * as logs from "@distilled.cloud/aws/cloudwatch-logs";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export type SubscriptionDistribution = logs.Distribution;
 export interface SubscriptionFilterProps {
     /**
@@ -67,7 +67,7 @@ export interface SubscriptionFilter extends Resource<"AWS.Logs.SubscriptionFilte
  *
  * For the Lambda-consumer DX (subscribe a Lambda to a log group with automatic
  * permission wiring and payload decoding), prefer
- * {@link import("./LogGroupEventSource.ts").consumeLogEvents}.
+ * {@link import("./LogGroupEventSource.vibe").consumeLogEvents}.
  * ### Subscribing a Lambda Function
  * **Example:** Deliver Error Logs to a Lambda Function
  * ```typescript

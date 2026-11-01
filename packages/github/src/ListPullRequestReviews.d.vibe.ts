@@ -23,6 +23,6 @@ export type ListPullRequestReviewsResponse = Pulls.ListReviewsResponse;
  * @binding
  * @product Pull Request
  */
-export interface ListPullRequestReviews extends Binding.Service<ListPullRequestReviews, "GitHub.ListPullRequestReviews", (repo: Repository) => Effect.Effect<(request: ListPullRequestReviewsRequest) => Effect.Effect<ListPullRequestReviewsResponse, Pulls.ListReviewsError, RuntimeContext>>> {
+export interface ListPullRequestReviews extends Binding.Service<ListPullRequestReviews, "GitHub.ListPullRequestReviews", (repo: Repository) => Effect.Effect<((request: ListPullRequestReviewsRequest) => Effect.Effect<ListPullRequestReviewsResponse, Pulls.ListReviewsError, RuntimeContext>)>> {
 }
 export declare const ListPullRequestReviews: ListPullRequestReviews;

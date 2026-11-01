@@ -18,6 +18,6 @@ export interface RetrieveCustomerTaxIdRequest extends Omit<GetCustomerTaxIdsById
  * @binding
  * @product Customer
  */
-export interface RetrieveCustomerTaxId extends Binding.Service<RetrieveCustomerTaxId, "Stripe.RetrieveCustomerTaxId", (taxId: CustomerTaxId) => Effect.Effect<(request?: RetrieveCustomerTaxIdRequest) => Effect.Effect<StripeTaxId, GetCustomerTaxIdsByIdError, RuntimeContext>>> {
+export interface RetrieveCustomerTaxId extends Binding.Service<RetrieveCustomerTaxId, "Stripe.RetrieveCustomerTaxId", (taxId: CustomerTaxId) => Effect.Effect<((request?: RetrieveCustomerTaxIdRequest) => Effect.Effect<StripeTaxId, GetCustomerTaxIdsByIdError, RuntimeContext>)>> {
 }
 export declare const RetrieveCustomerTaxId: RetrieveCustomerTaxId;

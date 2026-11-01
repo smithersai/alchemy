@@ -1,7 +1,7 @@
 import * as devopsguru from "@distilled.cloud/aws/devops-guru";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface ServiceIntegrationProps {
     /**
      * Create an AWS Systems Manager OpsItem for each new insight so incidents

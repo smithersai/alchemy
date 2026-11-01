@@ -24,7 +24,7 @@ import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import { localAccountId } from "../LocalAccount.ts";
 import { generateLocalId, LOCAL_PROVIDERS_URL, localRuntimeServices } from "../LocalRuntime.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import { makeD1MigrationExecutor } from "./ApplyMigrations.ts";
 import { cloneDatabase } from "./CloneDatabase.ts";
 import { importD1Database } from "./ImportDatabase.ts";

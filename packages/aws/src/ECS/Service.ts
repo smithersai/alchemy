@@ -50,7 +50,7 @@ import { TargetGroup, type TargetGroupArn } from "../ELBv2/TargetGroup.vibe";
 import { AWSEnvironment, type AccountID } from "../Environment.ts";
 import { plainJson } from "../internal/Observe.ts";
 import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
 import { findPublicHostedZoneId } from "../Route53/HostedZoneLookup.vibe";
 import type { ClusterArn } from "./Cluster.vibe";

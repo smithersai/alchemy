@@ -21,6 +21,6 @@ export interface CancelTrainingPipelineRequest extends Omit<aiplatform.CancelPro
  * @binding
  * @category AIPlatform
  */
-export interface CancelTrainingPipeline extends Binding.Service<CancelTrainingPipeline, "GCP.AIPlatform.CancelTrainingPipeline", (pipeline: TrainingPipeline) => Effect.Effect<(request?: CancelTrainingPipelineRequest) => Effect.Effect<aiplatform.GoogleProtobufEmpty, aiplatform.CancelProjectsLocationsTrainingPipelinesError, RuntimeContext>>> {
+export interface CancelTrainingPipeline extends Binding.Service<CancelTrainingPipeline, "GCP.AIPlatform.CancelTrainingPipeline", (pipeline: TrainingPipeline) => Effect.Effect<((request?: CancelTrainingPipelineRequest) => Effect.Effect<aiplatform.GoogleProtobufEmpty, aiplatform.CancelProjectsLocationsTrainingPipelinesError, RuntimeContext>)>> {
 }
 export declare const CancelTrainingPipeline: CancelTrainingPipeline;

@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Redacted from "effect/Redacted";
 import type { AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RegionID } from "../Region.js";
 export type { ConnectionAuthorizationType, ConnectionHttpParameters, ConnectionOAuthHttpMethod, ConnectionState, } from "@distilled.cloud/aws/eventbridge";
 export type ConnectionName = string;

@@ -22,6 +22,6 @@ export interface AccessReadWriteTokenRequest extends Omit<cloudbuild.AccessReadW
  * @binding
  * @category CloudBuild
  */
-export interface AccessReadWriteToken extends Binding.Service<AccessReadWriteToken, "GCP.CloudBuild.AccessReadWriteToken", (repository: Repository) => Effect.Effect<(request?: AccessReadWriteTokenRequest) => Effect.Effect<cloudbuild.FetchReadWriteTokenResponse, cloudbuild.AccessReadWriteTokenProjectsLocationsConnectionsRepositoriesError, RuntimeContext>>> {
+export interface AccessReadWriteToken extends Binding.Service<AccessReadWriteToken, "GCP.CloudBuild.AccessReadWriteToken", (repository: Repository) => Effect.Effect<((request?: AccessReadWriteTokenRequest) => Effect.Effect<cloudbuild.FetchReadWriteTokenResponse, cloudbuild.AccessReadWriteTokenProjectsLocationsConnectionsRepositoriesError, RuntimeContext>)>> {
 }
 export declare const AccessReadWriteToken: AccessReadWriteToken;

@@ -21,6 +21,6 @@ export interface GetSchemaRequest extends Omit<documentai.GetProjectsLocationsSc
  * @binding
  * @category DocumentAI
  */
-export interface GetSchema extends Binding.Service<GetSchema, "GCP.DocumentAI.GetSchema", (schema: Schema) => Effect.Effect<(request?: GetSchemaRequest) => Effect.Effect<documentai.GoogleCloudDocumentaiV1NextSchema, documentai.GetProjectsLocationsSchemasError, RuntimeContext>>> {
+export interface GetSchema extends Binding.Service<GetSchema, "GCP.DocumentAI.GetSchema", (schema: Schema) => Effect.Effect<((request?: GetSchemaRequest) => Effect.Effect<documentai.GoogleCloudDocumentaiV1NextSchema, documentai.GetProjectsLocationsSchemasError, RuntimeContext>)>> {
 }
 export declare const GetSchema: GetSchema;

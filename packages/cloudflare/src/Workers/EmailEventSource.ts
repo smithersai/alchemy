@@ -12,7 +12,7 @@ import * as Layer from "effect/Layer";
 import { CatchAll } from "../Email/CatchAll.ts";
 import { Routing } from "../Email/Routing.ts";
 import { Rule, type Matcher } from "../Email/Rule.ts";
-import type { Reference } from "../Zone/lookup.vibe";
+import type { Reference } from "../Zone/lookup.ts";
 import { isWorkerEvent, Worker } from "./Worker.ts";
 
 /**

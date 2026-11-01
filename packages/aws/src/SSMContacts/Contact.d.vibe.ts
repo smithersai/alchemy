@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /** The kind of contact: a person, an escalation plan, or an on-call schedule. */
 export type ContactType = "PERSONAL" | "ESCALATION" | "ONCALL_SCHEDULE";
 export interface ContactProps {

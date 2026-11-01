@@ -2,7 +2,7 @@ import * as secretsmanager from "@distilled.cloud/aws/secrets-manager";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface RotationRules {
     /**
      * Rotate automatically after this interval (e.g. `"30 days"`). Rounded to

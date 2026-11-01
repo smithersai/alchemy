@@ -8,7 +8,7 @@ import type { Resource } from "alchemy/Resource";
 import type { ProcessContext } from "alchemy/Runtime/Process";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import type { Role } from "../IAM/Role.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export { MicrovmImageTypeId } from "./MicrovmRuntimeContext.js";
 export interface MicrovmImageProps {
     /**

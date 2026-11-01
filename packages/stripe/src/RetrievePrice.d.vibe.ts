@@ -18,6 +18,6 @@ export interface RetrievePriceRequest extends Omit<GetPriceRequest, "price"> {
  * @binding
  * @product Product
  */
-export interface RetrievePrice extends Binding.Service<RetrievePrice, "Stripe.RetrievePrice", (price: Price) => Effect.Effect<(request?: RetrievePriceRequest) => Effect.Effect<StripePrice, GetPriceError, RuntimeContext>>> {
+export interface RetrievePrice extends Binding.Service<RetrievePrice, "Stripe.RetrievePrice", (price: Price) => Effect.Effect<((request?: RetrievePriceRequest) => Effect.Effect<StripePrice, GetPriceError, RuntimeContext>)>> {
 }
 export declare const RetrievePrice: RetrievePrice;

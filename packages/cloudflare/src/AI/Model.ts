@@ -4,7 +4,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 
 export interface ModelProps {
   /** Cloudflare-managed model name, such as `@cf/baai/bge-m3`. */

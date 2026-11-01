@@ -22,6 +22,6 @@ export interface RunJobRequest extends Omit<scheduler.RunProjectsLocationsJobsRe
  * @binding
  * @category CloudScheduler
  */
-export interface RunJob extends Binding.Service<RunJob, "GCP.CloudScheduler.RunJob", (job: Job) => Effect.Effect<(request?: RunJobRequest) => Effect.Effect<scheduler.Job, scheduler.RunProjectsLocationsJobsError, RuntimeContext>>> {
+export interface RunJob extends Binding.Service<RunJob, "GCP.CloudScheduler.RunJob", (job: Job) => Effect.Effect<((request?: RunJobRequest) => Effect.Effect<scheduler.Job, scheduler.RunProjectsLocationsJobsError, RuntimeContext>)>> {
 }
 export declare const RunJob: RunJob;

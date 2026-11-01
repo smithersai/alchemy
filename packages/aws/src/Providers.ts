@@ -1,219 +1,227 @@
-import { DockerLive } from "@alchemy.run/docker/Docker"
+import { DockerLive } from "@alchemy.run/docker/Docker";
 /** @effect-diagnostics layerMergeAllWithDependencies:off */
-import { isRetryable, isThrottlingError, isTransientError } from "@distilled.cloud/aws/Category"
-import { capped, jittered, Retry, type Factory as RetryFactory } from "@distilled.cloud/aws/Retry"
-import { CredentialsStoreLive } from "alchemy/Auth/Credentials"
-import * as Command from "alchemy/Command"
-import { KeyPair, KeyPairProvider } from "alchemy/KeyPair"
-import * as ProviderLayer from "alchemy/Local/ProviderLayer"
-import * as Provider from "alchemy/Provider"
-import { defaultProviderMode } from "alchemy/ProviderMode"
-import { Random, RandomProvider } from "alchemy/Random"
-import { Server as WebsiteServer, ServerProvider as WebsiteServerProvider } from "alchemy/Website/Server"
-import { pipe } from "effect/Function"
-import * as Layer from "effect/Layer"
-import * as AccessAnalyzer from "./AccessAnalyzer/index.ts"
-import * as Account from "./Account/index.ts"
-import * as ACM from "./ACM/index.ts"
-import * as ACMPCA from "./ACMPCA/index.ts"
-import * as AIOps from "./AIOps/index.ts"
-import * as AMP from "./AMP/index.ts"
-import * as Amplify from "./Amplify/index.ts"
-import * as ApiGateway from "./ApiGateway/index.ts"
-import * as ApiGatewayV2 from "./ApiGatewayV2/index.ts"
-import * as AppConfig from "./AppConfig/index.ts"
-import * as AppFlow from "./AppFlow/index.ts"
-import * as AppIntegrations from "./AppIntegrations/index.ts"
-import * as ApplicationAutoScaling from "./ApplicationAutoScaling/index.ts"
-import * as ApplicationSignals from "./ApplicationSignals/index.ts"
-import * as AppRegistry from "./AppRegistry/index.ts"
-import * as AppRunner from "./AppRunner/index.ts"
-import * as AppSync from "./AppSync/index.ts"
-import * as Assets from "./Assets.ts"
-import * as Athena from "./Athena/index.ts"
-import * as AuditManager from "./AuditManager/index.ts"
-import { AwsAuth } from "./AuthProvider.ts"
-import * as AutoScaling from "./AutoScaling/index.ts"
-import * as B2BI from "./B2BI/index.ts"
-import * as Backup from "./Backup/index.ts"
-import * as BackupSearch from "./BackupSearch/index.ts"
-import * as Batch from "./Batch/index.ts"
-import * as BCMDataExports from "./BCMDataExports/index.ts"
-import * as Bedrock from "./Bedrock/index.ts"
-import * as BedrockAgentCore from "./BedrockAgentCore/index.ts"
-import * as BedrockDataAutomation from "./BedrockDataAutomation/index.ts"
-import * as Budgets from "./Budgets/index.ts"
-import * as Chatbot from "./Chatbot/index.ts"
-import * as CloudControl from "./CloudControl/index.ts"
-import * as CloudFormation from "./CloudFormation/index.ts"
-import * as CloudFront from "./CloudFront/index.ts"
-import * as CloudHSMV2 from "./CloudHSMV2/index.ts"
-import * as CloudMap from "./CloudMap/index.ts"
-import * as CloudTrail from "./CloudTrail/index.ts"
-import * as CloudWatch from "./CloudWatch/index.ts"
-import * as CodeArtifact from "./CodeArtifact/index.ts"
-import * as CodeBuild from "./CodeBuild/index.ts"
-import * as CodeConnections from "./CodeConnections/index.ts"
-import * as CodeDeploy from "./CodeDeploy/index.ts"
-import * as CodePipeline from "./CodePipeline/index.ts"
-import * as Cognito from "./Cognito/index.ts"
-import * as Config from "./Config/index.ts"
-import * as ControlTower from "./ControlTower/index.ts"
-import * as CostAndUsageReport from "./CostAndUsageReport/index.ts"
-import * as CostExplorer from "./CostExplorer/index.ts"
-import * as Credentials from "./Credentials.ts"
-import * as DataBrew from "./DataBrew/index.ts"
-import * as DataExchange from "./DataExchange/index.ts"
-import * as DataSync from "./DataSync/index.ts"
-import * as DataZone from "./DataZone/index.ts"
-import * as DAX from "./DAX/index.ts"
-import * as Deadline from "./Deadline/index.ts"
-import * as Detective from "./Detective/index.ts"
-import * as DevOpsGuru from "./DevOpsGuru/index.ts"
-import * as DirectoryService from "./DirectoryService/index.ts"
-import * as DLM from "./DLM/index.ts"
-import * as DMS from "./DMS/index.ts"
-import * as DocDB from "./DocDB/index.ts"
-import * as DocDBElastic from "./DocDBElastic/index.ts"
-import * as DSQL from "./DSQL/index.ts"
-import * as DynamoDB from "./DynamoDB/index.ts"
-import * as EC2 from "./EC2/index.ts"
-import * as ECR from "./ECR/index.ts"
-import * as ECRPublic from "./ECRPublic/index.ts"
-import * as ECS from "./ECS/index.ts"
-import * as EFS from "./EFS/index.ts"
-import * as EKS from "./EKS/index.ts"
-import * as ElastiCache from "./ElastiCache/index.ts"
-import * as ELBv2 from "./ELBv2/index.ts"
-import * as EMR from "./EMR/index.ts"
-import * as EMRContainers from "./EMRContainers/index.ts"
-import * as EMRServerless from "./EMRServerless/index.ts"
-import * as Endpoint from "./Endpoint.ts"
-import * as EntityResolution from "./EntityResolution/index.ts"
-import { providedOrDefault } from "./Environment.ts"
-import * as EventBridge from "./EventBridge/index.ts"
-import * as FinSpace from "./FinSpace/index.ts"
-import * as Firehose from "./Firehose/index.ts"
-import * as FIS from "./FIS/index.ts"
-import * as FMS from "./FMS/index.ts"
-import * as Forecast from "./Forecast/index.ts"
-import * as FraudDetector from "./FraudDetector/index.ts"
-import * as FSx from "./FSx/index.ts"
-import * as Glacier from "./Glacier/index.ts"
-import * as GlobalAccelerator from "./GlobalAccelerator/index.ts"
-import * as Glue from "./Glue/index.ts"
-import * as Grafana from "./Grafana/index.ts"
-import * as GreengrassV2 from "./GreengrassV2/index.ts"
-import * as GuardDuty from "./GuardDuty/index.ts"
-import * as HealthLake from "./HealthLake/index.ts"
-import * as IAM from "./IAM/index.ts"
-import * as IdentityCenter from "./IdentityCenter/index.ts"
-import * as ImageBuilder from "./ImageBuilder/index.ts"
-import * as Inspector2 from "./Inspector2/index.ts"
-import * as InternetMonitor from "./InternetMonitor/index.ts"
-import * as IoT from "./IoT/index.ts"
-import * as IoTFleetWise from "./IoTFleetWise/index.ts"
-import * as IoTManagedIntegrations from "./IoTManagedIntegrations/index.ts"
-import * as IoTSiteWise from "./IoTSiteWise/index.ts"
-import * as IoTWireless from "./IoTWireless/index.ts"
-import * as IVS from "./IVS/index.ts"
-import * as IVSChat from "./IVSChat/index.ts"
-import * as IVSRealtime from "./IVSRealtime/index.ts"
-import * as Kafka from "./Kafka/index.ts"
-import * as Kendra from "./Kendra/index.ts"
-import * as Keyspaces from "./Keyspaces/index.ts"
-import * as Kinesis from "./Kinesis/index.ts"
-import * as KinesisAnalyticsV2 from "./KinesisAnalyticsV2/index.ts"
-import * as KinesisVideo from "./KinesisVideo/index.ts"
-import * as KMS from "./KMS/index.ts"
-import * as LakeFormation from "./LakeFormation/index.ts"
-import * as Lambda from "./Lambda/index.ts"
-import * as LexV2 from "./LexV2/index.ts"
-import * as LicenseManager from "./LicenseManager/index.ts"
-import { flociDual, flociServices } from "./Local/FlociServices.ts"
-import { captureAwsEnvironment, pinCollectionEnvironment } from "./Local/ProviderContext.ts"
-import * as Location from "./Location/index.ts"
-import * as Logs from "./Logs/index.ts"
-import * as Macie2 from "./Macie2/index.ts"
-import * as MailManager from "./MailManager/index.ts"
-import * as MediaConnect from "./MediaConnect/index.ts"
-import * as MediaConvert from "./MediaConvert/index.ts"
-import * as MediaLive from "./MediaLive/index.ts"
-import * as MediaPackageV2 from "./MediaPackageV2/index.ts"
-import * as MediaTailor from "./MediaTailor/index.ts"
-import * as MedicalImaging from "./MedicalImaging/index.ts"
-import * as MemoryDB from "./MemoryDB/index.ts"
-import * as MQ from "./MQ/index.ts"
-import * as MWAA from "./MWAA/index.ts"
-import * as MWAAServerless from "./MWAAServerless/index.ts"
-import * as Neptune from "./Neptune/index.ts"
-import * as NeptuneGraph from "./NeptuneGraph/index.ts"
-import * as NetworkFirewall from "./NetworkFirewall/index.ts"
-import * as Notifications from "./Notifications/index.ts"
-import * as NotificationsContacts from "./NotificationsContacts/index.ts"
-import * as OAM from "./OAM/index.ts"
-import * as ObservabilityAdmin from "./ObservabilityAdmin/index.ts"
-import * as Omics from "./Omics/index.ts"
-import * as OpenSearch from "./OpenSearch/index.ts"
-import * as OpenSearchServerless from "./OpenSearchServerless/index.ts"
-import * as Organizations from "./Organizations/index.ts"
-import * as OSIS from "./OSIS/index.ts"
-import * as PaymentCryptography from "./PaymentCryptography/index.ts"
-import * as Personalize from "./Personalize/index.ts"
-import * as PinpointSMSVoiceV2 from "./PinpointSMSVoiceV2/index.ts"
-import * as Pipes from "./Pipes/index.ts"
-import * as Polly from "./Polly/index.ts"
-import * as QApps from "./QApps/index.ts"
-import * as QBusiness from "./QBusiness/index.ts"
-import * as QuickSight from "./QuickSight/index.ts"
-import * as RAM from "./RAM/index.ts"
-import * as Rbin from "./Rbin/index.ts"
-import * as RDS from "./RDS/index.ts"
-import * as Redshift from "./Redshift/index.ts"
-import * as RedshiftServerless from "./RedshiftServerless/index.ts"
-import * as Region from "./Region.ts"
-import * as RePostSpace from "./RePostSpace/index.ts"
-import * as ResourceExplorer from "./ResourceExplorer/index.ts"
-import * as ResourceGroups from "./ResourceGroups/index.ts"
-import * as RolesAnywhere from "./RolesAnywhere/index.ts"
-import * as Route53 from "./Route53/index.ts"
-import * as Route53Profiles from "./Route53Profiles/index.ts"
-import * as Route53Resolver from "./Route53Resolver/index.ts"
-import * as RUM from "./RUM/index.ts"
-import * as S3 from "./S3/index.ts"
-import * as S3Control from "./S3Control/index.ts"
-import * as S3Files from "./S3Files/index.ts"
-import * as S3Tables from "./S3Tables/index.ts"
-import * as S3Vectors from "./S3Vectors/index.ts"
-import * as SageMaker from "./SageMaker/index.ts"
-import * as Scheduler from "./Scheduler/index.ts"
-import * as Schemas from "./Schemas/index.ts"
-import * as SecretsManager from "./SecretsManager/index.ts"
-import * as SecurityHub from "./SecurityHub/index.ts"
-import * as SecurityLake from "./SecurityLake/index.ts"
-import * as ServiceCatalog from "./ServiceCatalog/index.ts"
-import * as ServiceQuotas from "./ServiceQuotas/index.ts"
-import * as SES from "./SES/index.ts"
-import * as Shield from "./Shield/index.ts"
-import * as Signer from "./Signer/index.ts"
-import * as SimpleDB from "./SimpleDB/index.ts"
-import * as SNS from "./SNS/index.ts"
-import * as SocialMessaging from "./SocialMessaging/index.ts"
-import * as SQS from "./SQS/index.ts"
-import * as SSM from "./SSM/index.ts"
-import * as SSMContacts from "./SSMContacts/index.ts"
-import * as SSMIncidents from "./SSMIncidents/index.ts"
-import * as StepFunctions from "./StepFunctions/index.ts"
-import * as Synthetics from "./Synthetics/index.ts"
-import * as Textract from "./Textract/index.ts"
-import * as Timestream from "./Timestream/index.ts"
-import * as Transfer from "./Transfer/index.ts"
-import * as Translate from "./Translate/index.ts"
-import * as VerifiedPermissions from "./VerifiedPermissions/index.ts"
-import * as VpcLattice from "./VpcLattice/index.ts"
-import * as WAFv2 from "./WAFv2/index.ts"
-import * as Website from "./Website/index.ts"
-import * as XRay from "./XRay/index.ts"
+import { isRetryable, isThrottlingError, isTransientError } from "@distilled.cloud/aws/Category";
+import { capped, jittered, Retry, type Factory as RetryFactory } from "@distilled.cloud/aws/Retry";
+import { CredentialsStoreLive } from "alchemy/Auth/Credentials";
+import * as Command from "alchemy/Command";
+import { KeyPair, KeyPairProvider } from "alchemy/KeyPair";
+import * as ProviderLayer from "alchemy/Local/ProviderLayer";
+import * as Provider from "alchemy/Provider";
+import { defaultProviderMode } from "alchemy/ProviderMode";
+import { Random, RandomProvider } from "alchemy/Random";
+import {
+  Server as WebsiteServer,
+  ServerProvider as WebsiteServerProvider,
+} from "alchemy/Website/Server";
+import * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import { pipe } from "effect/Function";
+import * as HttpClientError from "effect/http/HttpClientError";
+import * as Layer from "effect/Layer";
+import * as Ref from "effect/Ref";
+import * as Schedule from "effect/Schedule";
+import * as AccessAnalyzer from "./AccessAnalyzer/index.ts";
+import * as Account from "./Account/index.ts";
+import * as ACM from "./ACM/index.ts";
+import * as ACMPCA from "./ACMPCA/index.ts";
+import * as AIOps from "./AIOps/index.ts";
+import * as AMP from "./AMP/index.ts";
+import * as Amplify from "./Amplify/index.ts";
+import * as ApiGateway from "./ApiGateway/index.ts";
+import * as ApiGatewayV2 from "./ApiGatewayV2/index.ts";
+import * as AppConfig from "./AppConfig/index.ts";
+import * as AppFlow from "./AppFlow/index.ts";
+import * as AppIntegrations from "./AppIntegrations/index.ts";
+import * as ApplicationAutoScaling from "./ApplicationAutoScaling/index.ts";
+import * as ApplicationSignals from "./ApplicationSignals/index.ts";
+import * as AppRegistry from "./AppRegistry/index.ts";
+import * as AppRunner from "./AppRunner/index.ts";
+import * as AppSync from "./AppSync/index.ts";
+import * as Assets from "./Assets.ts";
+import * as Athena from "./Athena/index.ts";
+import * as AuditManager from "./AuditManager/index.ts";
+import { AwsAuth } from "./AuthProvider.ts";
+import * as AutoScaling from "./AutoScaling/index.ts";
+import * as B2BI from "./B2BI/index.ts";
+import * as Backup from "./Backup/index.ts";
+import * as BackupSearch from "./BackupSearch/index.ts";
+import * as Batch from "./Batch/index.ts";
+import * as BCMDataExports from "./BCMDataExports/index.ts";
+import * as Bedrock from "./Bedrock/index.ts";
+import * as BedrockAgentCore from "./BedrockAgentCore/index.ts";
+import * as BedrockDataAutomation from "./BedrockDataAutomation/index.ts";
+import * as Budgets from "./Budgets/index.ts";
+import * as Chatbot from "./Chatbot/index.ts";
+import * as CloudControl from "./CloudControl/index.ts";
+import * as CloudFormation from "./CloudFormation/index.ts";
+import * as CloudFront from "./CloudFront/index.ts";
+import * as CloudHSMV2 from "./CloudHSMV2/index.ts";
+import * as CloudMap from "./CloudMap/index.ts";
+import * as CloudTrail from "./CloudTrail/index.ts";
+import * as CloudWatch from "./CloudWatch/index.ts";
+import * as CodeArtifact from "./CodeArtifact/index.ts";
+import * as CodeBuild from "./CodeBuild/index.ts";
+import * as CodeConnections from "./CodeConnections/index.ts";
+import * as CodeDeploy from "./CodeDeploy/index.ts";
+import * as CodePipeline from "./CodePipeline/index.ts";
+import * as Cognito from "./Cognito/index.ts";
+import * as Config from "./Config/index.ts";
+import * as ControlTower from "./ControlTower/index.ts";
+import * as CostAndUsageReport from "./CostAndUsageReport/index.ts";
+import * as CostExplorer from "./CostExplorer/index.ts";
+import * as Credentials from "./Credentials.ts";
+import * as DataBrew from "./DataBrew/index.ts";
+import * as DataExchange from "./DataExchange/index.ts";
+import * as DataSync from "./DataSync/index.ts";
+import * as DataZone from "./DataZone/index.ts";
+import * as DAX from "./DAX/index.ts";
+import * as Deadline from "./Deadline/index.ts";
+import * as Detective from "./Detective/index.ts";
+import * as DevOpsGuru from "./DevOpsGuru/index.ts";
+import * as DirectoryService from "./DirectoryService/index.ts";
+import * as DLM from "./DLM/index.ts";
+import * as DMS from "./DMS/index.ts";
+import * as DocDB from "./DocDB/index.ts";
+import * as DocDBElastic from "./DocDBElastic/index.ts";
+import * as DSQL from "./DSQL/index.ts";
+import * as DynamoDB from "./DynamoDB/index.ts";
+import * as EC2 from "./EC2/index.ts";
+import * as ECR from "./ECR/index.ts";
+import * as ECRPublic from "./ECRPublic/index.ts";
+import * as ECS from "./ECS/index.ts";
+import * as EFS from "./EFS/index.ts";
+import * as EKS from "./EKS/index.ts";
+import * as ElastiCache from "./ElastiCache/index.ts";
+import * as ELBv2 from "./ELBv2/index.ts";
+import * as EMR from "./EMR/index.ts";
+import * as EMRContainers from "./EMRContainers/index.ts";
+import * as EMRServerless from "./EMRServerless/index.ts";
+import * as Endpoint from "./Endpoint.ts";
+import * as EntityResolution from "./EntityResolution/index.ts";
+import { providedOrDefault } from "./Environment.ts";
+import * as EventBridge from "./EventBridge/index.ts";
+import * as FinSpace from "./FinSpace/index.ts";
+import * as Firehose from "./Firehose/index.ts";
+import * as FIS from "./FIS/index.ts";
+import * as FMS from "./FMS/index.ts";
+import * as Forecast from "./Forecast/index.ts";
+import * as FraudDetector from "./FraudDetector/index.ts";
+import * as FSx from "./FSx/index.ts";
+import * as Glacier from "./Glacier/index.ts";
+import * as GlobalAccelerator from "./GlobalAccelerator/index.ts";
+import * as Glue from "./Glue/index.ts";
+import * as Grafana from "./Grafana/index.ts";
+import * as GreengrassV2 from "./GreengrassV2/index.ts";
+import * as GuardDuty from "./GuardDuty/index.ts";
+import * as HealthLake from "./HealthLake/index.ts";
+import * as IAM from "./IAM/index.ts";
+import * as IdentityCenter from "./IdentityCenter/index.ts";
+import * as ImageBuilder from "./ImageBuilder/index.ts";
+import * as Inspector2 from "./Inspector2/index.ts";
+import * as InternetMonitor from "./InternetMonitor/index.ts";
+import * as IoT from "./IoT/index.ts";
+import * as IoTFleetWise from "./IoTFleetWise/index.ts";
+import * as IoTManagedIntegrations from "./IoTManagedIntegrations/index.ts";
+import * as IoTSiteWise from "./IoTSiteWise/index.ts";
+import * as IoTWireless from "./IoTWireless/index.ts";
+import * as IVS from "./IVS/index.ts";
+import * as IVSChat from "./IVSChat/index.ts";
+import * as IVSRealtime from "./IVSRealtime/index.ts";
+import * as Kafka from "./Kafka/index.ts";
+import * as Kendra from "./Kendra/index.ts";
+import * as Keyspaces from "./Keyspaces/index.ts";
+import * as Kinesis from "./Kinesis/index.ts";
+import * as KinesisAnalyticsV2 from "./KinesisAnalyticsV2/index.ts";
+import * as KinesisVideo from "./KinesisVideo/index.ts";
+import * as KMS from "./KMS/index.ts";
+import * as LakeFormation from "./LakeFormation/index.ts";
+import * as Lambda from "./Lambda/index.ts";
+import * as LexV2 from "./LexV2/index.ts";
+import * as LicenseManager from "./LicenseManager/index.ts";
+import { flociDual, flociServices } from "./Local/FlociServices.ts";
+import { captureAwsEnvironment, pinCollectionEnvironment } from "./Local/ProviderContext.ts";
+import * as Location from "./Location/index.ts";
+import * as Logs from "./Logs/index.ts";
+import * as Macie2 from "./Macie2/index.ts";
+import * as MailManager from "./MailManager/index.ts";
+import * as MediaConnect from "./MediaConnect/index.ts";
+import * as MediaConvert from "./MediaConvert/index.ts";
+import * as MediaLive from "./MediaLive/index.ts";
+import * as MediaPackageV2 from "./MediaPackageV2/index.ts";
+import * as MediaTailor from "./MediaTailor/index.ts";
+import * as MedicalImaging from "./MedicalImaging/index.ts";
+import * as MemoryDB from "./MemoryDB/index.ts";
+import * as MQ from "./MQ/index.ts";
+import * as MWAA from "./MWAA/index.ts";
+import * as MWAAServerless from "./MWAAServerless/index.ts";
+import * as Neptune from "./Neptune/index.ts";
+import * as NeptuneGraph from "./NeptuneGraph/index.ts";
+import * as NetworkFirewall from "./NetworkFirewall/index.ts";
+import * as Notifications from "./Notifications/index.ts";
+import * as NotificationsContacts from "./NotificationsContacts/index.ts";
+import * as OAM from "./OAM/index.ts";
+import * as ObservabilityAdmin from "./ObservabilityAdmin/index.ts";
+import * as Omics from "./Omics/index.ts";
+import * as OpenSearch from "./OpenSearch/index.ts";
+import * as OpenSearchServerless from "./OpenSearchServerless/index.ts";
+import * as Organizations from "./Organizations/index.ts";
+import * as OSIS from "./OSIS/index.ts";
+import * as PaymentCryptography from "./PaymentCryptography/index.ts";
+import * as Personalize from "./Personalize/index.ts";
+import * as PinpointSMSVoiceV2 from "./PinpointSMSVoiceV2/index.ts";
+import * as Pipes from "./Pipes/index.ts";
+import * as Polly from "./Polly/index.ts";
+import * as QApps from "./QApps/index.ts";
+import * as QBusiness from "./QBusiness/index.ts";
+import * as QuickSight from "./QuickSight/index.ts";
+import * as RAM from "./RAM/index.ts";
+import * as Rbin from "./Rbin/index.ts";
+import * as RDS from "./RDS/index.ts";
+import * as Redshift from "./Redshift/index.ts";
+import * as RedshiftServerless from "./RedshiftServerless/index.ts";
+import * as Region from "./Region.ts";
+import * as RePostSpace from "./RePostSpace/index.ts";
+import * as ResourceExplorer from "./ResourceExplorer/index.ts";
+import * as ResourceGroups from "./ResourceGroups/index.ts";
+import * as RolesAnywhere from "./RolesAnywhere/index.ts";
+import * as Route53 from "./Route53/index.ts";
+import * as Route53Profiles from "./Route53Profiles/index.ts";
+import * as Route53Resolver from "./Route53Resolver/index.ts";
+import * as RUM from "./RUM/index.ts";
+import * as S3 from "./S3/index.ts";
+import * as S3Control from "./S3Control/index.ts";
+import * as S3Files from "./S3Files/index.ts";
+import * as S3Tables from "./S3Tables/index.ts";
+import * as S3Vectors from "./S3Vectors/index.ts";
+import * as SageMaker from "./SageMaker/index.ts";
+import * as Scheduler from "./Scheduler/index.ts";
+import * as Schemas from "./Schemas/index.ts";
+import * as SecretsManager from "./SecretsManager/index.ts";
+import * as SecurityHub from "./SecurityHub/index.ts";
+import * as SecurityLake from "./SecurityLake/index.ts";
+import * as ServiceCatalog from "./ServiceCatalog/index.ts";
+import * as ServiceQuotas from "./ServiceQuotas/index.ts";
+import * as SES from "./SES/index.ts";
+import * as Shield from "./Shield/index.ts";
+import * as Signer from "./Signer/index.ts";
+import * as SimpleDB from "./SimpleDB/index.ts";
+import * as SNS from "./SNS/index.ts";
+import * as SocialMessaging from "./SocialMessaging/index.ts";
+import * as SQS from "./SQS/index.ts";
+import * as SSM from "./SSM/index.ts";
+import * as SSMContacts from "./SSMContacts/index.ts";
+import * as SSMIncidents from "./SSMIncidents/index.ts";
+import * as StepFunctions from "./StepFunctions/index.ts";
+import * as Synthetics from "./Synthetics/index.ts";
+import * as Textract from "./Textract/index.ts";
+import * as Timestream from "./Timestream/index.ts";
+import * as Transfer from "./Transfer/index.ts";
+import * as Translate from "./Translate/index.ts";
+import * as VerifiedPermissions from "./VerifiedPermissions/index.ts";
+import * as VpcLattice from "./VpcLattice/index.ts";
+import * as WAFv2 from "./WAFv2/index.ts";
+import * as Website from "./Website/index.ts";
+import * as XRay from "./XRay/index.ts";
 
 export class Providers extends Provider.ProviderCollection<Providers>()("AWS") {}
 
@@ -250,7 +258,7 @@ export class Providers extends Provider.ProviderCollection<Providers>()("AWS") {
  * );
  * ```
  */
-export const providers = (): infer _ =>
+export const providers = () =>
   Layer.effect(
     Providers,
     // Providers are PINNED to the environment they are registered with (the
@@ -991,8 +999,10 @@ export const providers = (): infer _ =>
         XRay.ResourcePolicy,
         XRay.SamplingRule,
       ]),
-      effect (collection) =>
-        try Effect.map(captureAwsEnvironment, (environment) => pinCollectionEnvironment(collection, environment)),
+      (collection) =>
+        Effect.map(captureAwsEnvironment, (environment) =>
+          pinCollectionEnvironment(collection, environment),
+        ),
     ),
   ).pipe(
     Layer.provide(
@@ -1004,8 +1014,12 @@ export const providers = (): infer _ =>
           AppFlow.ConnectorProfileProvider(),
           AppFlow.FlowProvider(),
           flociDual(AppIntegrations.Application, () => AppIntegrations.ApplicationProvider()),
-          flociDual(AppIntegrations.DataIntegration, () => AppIntegrations.DataIntegrationProvider()),
-          flociDual(AppIntegrations.EventIntegration, () => AppIntegrations.EventIntegrationProvider()),
+          flociDual(AppIntegrations.DataIntegration, () =>
+            AppIntegrations.DataIntegrationProvider(),
+          ),
+          flociDual(AppIntegrations.EventIntegration, () =>
+            AppIntegrations.EventIntegrationProvider(),
+          ),
           B2BI.CapabilityProvider(),
           B2BI.PartnershipProvider(),
           B2BI.ProfileProvider(),
@@ -1013,7 +1027,9 @@ export const providers = (): infer _ =>
           BedrockDataAutomation.BlueprintProvider(),
           BedrockDataAutomation.DataAutomationLibraryProvider(),
           BedrockDataAutomation.DataAutomationProjectProvider(),
-          flociDual(Config.AggregationAuthorization, () => Config.AggregationAuthorizationProvider()),
+          flociDual(Config.AggregationAuthorization, () =>
+            Config.AggregationAuthorizationProvider(),
+          ),
           flociDual(Config.ConfigRule, () => Config.ConfigRuleProvider()),
           flociDual(Config.ConfigurationRecorder, () => Config.ConfigurationRecorderProvider()),
           flociDual(Config.DeliveryChannel, () => Config.DeliveryChannelProvider()),
@@ -1030,7 +1046,9 @@ export const providers = (): infer _ =>
           flociDual(AMP.ResourcePolicy, () => AMP.ResourcePolicyProvider()),
           flociDual(AMP.RuleGroupsNamespace, () => AMP.RuleGroupsNamespaceProvider()),
           flociDual(AMP.Scraper, () => AMP.ScraperProvider()),
-          flociDual(AMP.ScraperLoggingConfiguration, () => AMP.ScraperLoggingConfigurationProvider()),
+          flociDual(AMP.ScraperLoggingConfiguration, () =>
+            AMP.ScraperLoggingConfigurationProvider(),
+          ),
           flociDual(AMP.Workspace, () => AMP.WorkspaceProvider()),
           flociDual(ApiGateway.Account, () => ApiGateway.AccountProvider()),
           flociDual(ApiGateway.ApiKey, () => ApiGateway.ApiKeyProvider()),
@@ -1061,10 +1079,18 @@ export const providers = (): infer _ =>
           flociDual(AppConfig.Environment, () => AppConfig.EnvironmentProvider()),
           flociDual(AppConfig.Extension, () => AppConfig.ExtensionProvider()),
           flociDual(AppConfig.ExtensionAssociation, () => AppConfig.ExtensionAssociationProvider()),
-          flociDual(AppConfig.HostedConfigurationVersion, () => AppConfig.HostedConfigurationVersionProvider()),
-          flociDual(ApplicationAutoScaling.ScalableTarget, () => ApplicationAutoScaling.ScalableTargetProvider()),
-          flociDual(ApplicationAutoScaling.ScalingPolicy, () => ApplicationAutoScaling.ScalingPolicyProvider()),
-          flociDual(ApplicationAutoScaling.ScheduledAction, () => ApplicationAutoScaling.ScheduledActionProvider()),
+          flociDual(AppConfig.HostedConfigurationVersion, () =>
+            AppConfig.HostedConfigurationVersionProvider(),
+          ),
+          flociDual(ApplicationAutoScaling.ScalableTarget, () =>
+            ApplicationAutoScaling.ScalableTargetProvider(),
+          ),
+          flociDual(ApplicationAutoScaling.ScalingPolicy, () =>
+            ApplicationAutoScaling.ScalingPolicyProvider(),
+          ),
+          flociDual(ApplicationAutoScaling.ScheduledAction, () =>
+            ApplicationAutoScaling.ScheduledActionProvider(),
+          ),
           AppRunner.AutoScalingConfigurationProvider(),
           AppRunner.ObservabilityConfigurationProvider(),
           AppRunner.ServiceProvider(),
@@ -1102,7 +1128,9 @@ export const providers = (): infer _ =>
           flociDual(CloudFront.OriginRequestPolicy, () => CloudFront.OriginRequestPolicyProvider()),
           flociDual(CloudFront.PublicKey, () => CloudFront.PublicKeyProvider()),
           flociDual(CloudFront.RealtimeLogConfig, () => CloudFront.RealtimeLogConfigProvider()),
-          flociDual(CloudFront.ResponseHeadersPolicy, () => CloudFront.ResponseHeadersPolicyProvider()),
+          flociDual(CloudFront.ResponseHeadersPolicy, () =>
+            CloudFront.ResponseHeadersPolicyProvider(),
+          ),
           flociDual(CloudFront.VpcOrigin, () => CloudFront.VpcOriginProvider()),
           flociDual(CloudHSMV2.Cluster, () => CloudHSMV2.ClusterProvider()),
           flociDual(CloudHSMV2.Hsm, () => CloudHSMV2.HsmProvider()),
@@ -1132,7 +1160,9 @@ export const providers = (): infer _ =>
           flociDual(CodePipeline.Pipeline, () => CodePipeline.PipelineProvider()),
           flociDual(Cognito.Group, () => Cognito.GroupProvider()),
           flociDual(Cognito.IdentityPool, () => Cognito.IdentityPoolProvider()),
-          flociDual(Cognito.IdentityPoolRoleAttachment, () => Cognito.IdentityPoolRoleAttachmentProvider()),
+          flociDual(Cognito.IdentityPoolRoleAttachment, () =>
+            Cognito.IdentityPoolRoleAttachmentProvider(),
+          ),
           flociDual(Cognito.IdentityProvider, () => Cognito.IdentityProviderProvider()),
           flociDual(Cognito.ManagedLoginBranding, () => Cognito.ManagedLoginBrandingProvider()),
           flociDual(Cognito.ResourceServer, () => Cognito.ResourceServerProvider()),
@@ -1190,8 +1220,12 @@ export const providers = (): infer _ =>
           // Effect's variadic inference limit and silently drops tail layers.
           Layer.mergeAll(
             flociDual(EC2.ClientVpnEndpoint, () => EC2.ClientVpnEndpointProvider()),
-            flociDual(EC2.ClientVpnTargetNetworkAssociation, () => EC2.ClientVpnTargetNetworkAssociationProvider()),
-            flociDual(EC2.ClientVpnAuthorizationRule, () => EC2.ClientVpnAuthorizationRuleProvider()),
+            flociDual(EC2.ClientVpnTargetNetworkAssociation, () =>
+              EC2.ClientVpnTargetNetworkAssociationProvider(),
+            ),
+            flociDual(EC2.ClientVpnAuthorizationRule, () =>
+              EC2.ClientVpnAuthorizationRuleProvider(),
+            ),
             flociDual(EC2.ClientVpnRoute, () => EC2.ClientVpnRouteProvider()),
             flociDual(EC2.DefaultSecurityGroup, () => EC2.DefaultSecurityGroupProvider()),
             flociDual(EC2.DhcpOptions, () => EC2.DhcpOptionsProvider()),
@@ -1209,7 +1243,9 @@ export const providers = (): infer _ =>
             flociDual(EC2.NetworkAclEntry, () => EC2.NetworkAclEntryProvider()),
             flociDual(EC2.NetworkAcl, () => EC2.NetworkAclProvider()),
             flociDual(EC2.NetworkInterface, () => EC2.NetworkInterfaceProvider()),
-            flociDual(EC2.NetworkInterfaceAttachment, () => EC2.NetworkInterfaceAttachmentProvider()),
+            flociDual(EC2.NetworkInterfaceAttachment, () =>
+              EC2.NetworkInterfaceAttachmentProvider(),
+            ),
             flociDual(EC2.PrefixList, () => EC2.PrefixListProvider()),
             flociDual(EC2.Route, () => EC2.RouteProvider()),
             flociDual(EC2.RouteTableAssociation, () => EC2.RouteTableAssociationProvider()),
@@ -1315,7 +1351,9 @@ export const providers = (): infer _ =>
           flociDual(IAM.VirtualMFADevice, () => IAM.VirtualMFADeviceProvider()),
         ),
         Layer.mergeAll(
-          flociDual(IdentityCenter.AccountAssignment, () => IdentityCenter.AccountAssignmentProvider()),
+          flociDual(IdentityCenter.AccountAssignment, () =>
+            IdentityCenter.AccountAssignmentProvider(),
+          ),
           flociDual(IdentityCenter.Group, () => IdentityCenter.GroupProvider()),
           flociDual(IdentityCenter.Instance, () => IdentityCenter.InstanceProvider()),
           flociDual(IdentityCenter.PermissionSet, () => IdentityCenter.PermissionSetProvider()),
@@ -1331,9 +1369,11 @@ export const providers = (): infer _ =>
           flociDual(Kinesis.Stream, () => Kinesis.StreamProvider()),
           flociDual(KinesisAnalyticsV2.Application, () => KinesisAnalyticsV2.ApplicationProvider()),
           flociDual(KinesisAnalyticsV2.ApplicationCloudWatchLoggingOption, () =>
-            KinesisAnalyticsV2.ApplicationCloudWatchLoggingOptionProvider()),
+            KinesisAnalyticsV2.ApplicationCloudWatchLoggingOptionProvider(),
+          ),
           flociDual(KinesisAnalyticsV2.ApplicationSnapshot, () =>
-            KinesisAnalyticsV2.ApplicationSnapshotProvider()),
+            KinesisAnalyticsV2.ApplicationSnapshotProvider(),
+          ),
           KinesisVideo.SignalingChannelProvider(),
           KinesisVideo.StreamProvider(),
           flociDual(LakeFormation.DataCellsFilter, () => LakeFormation.DataCellsFilterProvider()),
@@ -1411,7 +1451,9 @@ export const providers = (): infer _ =>
           flociDual(MemoryDB.SubnetGroup, () => MemoryDB.SubnetGroupProvider()),
           flociDual(MemoryDB.User, () => MemoryDB.UserProvider()),
           flociDual(Neptune.DBCluster, () => Neptune.DBClusterProvider()),
-          flociDual(Neptune.DBClusterParameterGroup, () => Neptune.DBClusterParameterGroupProvider()),
+          flociDual(Neptune.DBClusterParameterGroup, () =>
+            Neptune.DBClusterParameterGroupProvider(),
+          ),
           flociDual(Neptune.DBInstance, () => Neptune.DBInstanceProvider()),
           flociDual(Neptune.DBParameterGroup, () => Neptune.DBParameterGroupProvider()),
           flociDual(Neptune.DBSubnetGroup, () => Neptune.DBSubnetGroupProvider()),
@@ -1428,15 +1470,23 @@ export const providers = (): infer _ =>
           OpenSearchServerless.SecurityPolicyProvider(),
           OpenSearchServerless.VpcEndpointProvider(),
           flociDual(Organizations.Account, () => Organizations.AccountProvider()),
-          flociDual(Organizations.DelegatedAdministrator, () => Organizations.DelegatedAdministratorProvider()),
-          flociDual(Organizations.OrganizationalUnit, () => Organizations.OrganizationalUnitProvider()),
+          flociDual(Organizations.DelegatedAdministrator, () =>
+            Organizations.DelegatedAdministratorProvider(),
+          ),
+          flociDual(Organizations.OrganizationalUnit, () =>
+            Organizations.OrganizationalUnitProvider(),
+          ),
           flociDual(Organizations.Organization, () => Organizations.OrganizationProvider()),
-          flociDual(Organizations.OrganizationResourcePolicy, () => Organizations.OrganizationResourcePolicyProvider()),
+          flociDual(Organizations.OrganizationResourcePolicy, () =>
+            Organizations.OrganizationResourcePolicyProvider(),
+          ),
           flociDual(Organizations.PolicyAttachment, () => Organizations.PolicyAttachmentProvider()),
           flociDual(Organizations.Policy, () => Organizations.PolicyProvider()),
           flociDual(Organizations.RootPolicyType, () => Organizations.RootPolicyTypeProvider()),
           flociDual(Organizations.Root, () => Organizations.RootProvider()),
-          flociDual(Organizations.TrustedServiceAccess, () => Organizations.TrustedServiceAccessProvider()),
+          flociDual(Organizations.TrustedServiceAccess, () =>
+            Organizations.TrustedServiceAccessProvider(),
+          ),
           PaymentCryptography.AliasProvider(),
           PaymentCryptography.KeyProvider(),
           flociDual(Pipes.Pipe, () => Pipes.PipeProvider()),
@@ -1473,7 +1523,9 @@ export const providers = (): infer _ =>
           flociDual(Route53.Record, () => Route53.RecordProvider()),
           flociDual(Route53.RecordList, () => Route53.RecordListProvider()),
           flociDual(Route53.Records, () => Route53.RecordsProvider()),
-          flociDual(Route53.VpcAssociationAuthorization, () => Route53.VpcAssociationAuthorizationProvider()),
+          flociDual(Route53.VpcAssociationAuthorization, () =>
+            Route53.VpcAssociationAuthorizationProvider(),
+          ),
           flociDual(Route53.ZoneVpcAssociation, () => Route53.ZoneVpcAssociationProvider()),
           flociDual(S3.Bucket, () => S3.BucketProvider()),
           // Dual: schedules created by e.g. `AWS.ECS.every` reference local
@@ -1481,15 +1533,21 @@ export const providers = (): infer _ =>
           // role ARN fails validation.
           flociDual(Scheduler.ScheduleGroup, () => Scheduler.ScheduleGroupProvider()),
           flociDual(Scheduler.Schedule, () => Scheduler.ScheduleProvider()),
-          flociDual(SecretsManager.RotationSchedule, () => SecretsManager.RotationScheduleProvider()),
+          flociDual(SecretsManager.RotationSchedule, () =>
+            SecretsManager.RotationScheduleProvider(),
+          ),
           flociDual(SecretsManager.Secret, () => SecretsManager.SecretProvider()),
           flociDual(SES.AccountSettings, () => SES.AccountSettingsProvider()),
           flociDual(SES.ActiveReceiptRuleSet, () => SES.ActiveReceiptRuleSetProvider()),
-          flociDual(SES.ConfigurationSetEventDestination, () => SES.ConfigurationSetEventDestinationProvider()),
+          flociDual(SES.ConfigurationSetEventDestination, () =>
+            SES.ConfigurationSetEventDestinationProvider(),
+          ),
           flociDual(SES.ConfigurationSet, () => SES.ConfigurationSetProvider()),
           flociDual(SES.ContactList, () => SES.ContactListProvider()),
           flociDual(SES.Contact, () => SES.ContactProvider()),
-          flociDual(SES.CustomVerificationEmailTemplate, () => SES.CustomVerificationEmailTemplateProvider()),
+          flociDual(SES.CustomVerificationEmailTemplate, () =>
+            SES.CustomVerificationEmailTemplateProvider(),
+          ),
           flociDual(SES.DedicatedIpPool, () => SES.DedicatedIpPoolProvider()),
           flociDual(SES.EmailIdentity, () => SES.EmailIdentityProvider()),
           flociDual(SES.EmailIdentityPolicy, () => SES.EmailIdentityPolicyProvider()),
@@ -1527,7 +1585,9 @@ export const providers = (): infer _ =>
           Bedrock.DataSourceProvider(),
           Bedrock.KnowledgeBaseProvider(),
           flociDual(BedrockAgentCore.BrowserCustom, () => BedrockAgentCore.BrowserCustomProvider()),
-          flociDual(BedrockAgentCore.CodeInterpreter, () => BedrockAgentCore.CodeInterpreterProvider()),
+          flociDual(BedrockAgentCore.CodeInterpreter, () =>
+            BedrockAgentCore.CodeInterpreterProvider(),
+          ),
           flociDual(BedrockAgentCore.Gateway, () => BedrockAgentCore.GatewayProvider()),
           flociDual(BedrockAgentCore.Memory, () => BedrockAgentCore.MemoryProvider()),
           flociDual(BedrockAgentCore.Runtime, () => BedrockAgentCore.RuntimeProvider()),
@@ -1538,11 +1598,19 @@ export const providers = (): infer _ =>
           flociDual(Transfer.User, () => Transfer.UserProvider()),
           Translate.ParallelDataProvider(),
           Translate.TerminologyProvider(),
-          flociDual(VerifiedPermissions.IdentitySource, () => VerifiedPermissions.IdentitySourceProvider()),
+          flociDual(VerifiedPermissions.IdentitySource, () =>
+            VerifiedPermissions.IdentitySourceProvider(),
+          ),
           flociDual(VerifiedPermissions.Policy, () => VerifiedPermissions.PolicyProvider()),
-          flociDual(VerifiedPermissions.PolicyStore, () => VerifiedPermissions.PolicyStoreProvider()),
-          flociDual(VerifiedPermissions.PolicyStoreAlias, () => VerifiedPermissions.PolicyStoreAliasProvider()),
-          flociDual(VerifiedPermissions.PolicyTemplate, () => VerifiedPermissions.PolicyTemplateProvider()),
+          flociDual(VerifiedPermissions.PolicyStore, () =>
+            VerifiedPermissions.PolicyStoreProvider(),
+          ),
+          flociDual(VerifiedPermissions.PolicyStoreAlias, () =>
+            VerifiedPermissions.PolicyStoreAliasProvider(),
+          ),
+          flociDual(VerifiedPermissions.PolicyTemplate, () =>
+            VerifiedPermissions.PolicyTemplateProvider(),
+          ),
           flociDual(VerifiedPermissions.Schema, () => VerifiedPermissions.SchemaProvider()),
           flociDual(Backup.BackupVault, () => Backup.BackupVaultProvider()),
           flociDual(Backup.BackupPlan, () => Backup.BackupPlanProvider()),
@@ -1565,7 +1633,9 @@ export const providers = (): infer _ =>
           ImageBuilder.ImagePipelineProvider(),
           ImageBuilder.ImageRecipeProvider(),
           ImageBuilder.InfrastructureConfigurationProvider(),
-          flociDual(Inspector2.CisScanConfiguration, () => Inspector2.CisScanConfigurationProvider()),
+          flociDual(Inspector2.CisScanConfiguration, () =>
+            Inspector2.CisScanConfigurationProvider(),
+          ),
           flociDual(Inspector2.Enabler, () => Inspector2.EnablerProvider()),
           flociDual(Inspector2.Filter, () => Inspector2.FilterProvider()),
           InternetMonitor.MonitorProvider(),
@@ -1618,7 +1688,9 @@ export const providers = (): infer _ =>
           flociDual(SageMaker.Endpoint, () => SageMaker.EndpointProvider()),
           flociDual(SageMaker.FeatureGroup, () => SageMaker.FeatureGroupProvider()),
           flociDual(SageMaker.Cluster, () => SageMaker.ClusterProvider()),
-          flociDual(SageMaker.ClusterSchedulerConfig, () => SageMaker.ClusterSchedulerConfigProvider()),
+          flociDual(SageMaker.ClusterSchedulerConfig, () =>
+            SageMaker.ClusterSchedulerConfigProvider(),
+          ),
           flociDual(SageMaker.ComputeQuota, () => SageMaker.ComputeQuotaProvider()),
           flociDual(Account.AccountName, () => Account.AccountNameProvider()),
           flociDual(Account.AlternateContact, () => Account.AlternateContactProvider()),
@@ -1708,7 +1780,9 @@ export const providers = (): infer _ =>
           flociDual(ControlTower.EnabledBaseline, () => ControlTower.EnabledBaselineProvider()),
           flociDual(ControlTower.EnabledControl, () => ControlTower.EnabledControlProvider()),
           flociDual(ControlTower.LandingZone, () => ControlTower.LandingZoneProvider()),
-          flociDual(CostAndUsageReport.ReportDefinition, () => CostAndUsageReport.ReportDefinitionProvider()),
+          flociDual(CostAndUsageReport.ReportDefinition, () =>
+            CostAndUsageReport.ReportDefinitionProvider(),
+          ),
           CostExplorer.AnomalyMonitorProvider(),
           CostExplorer.AnomalySubscriptionProvider(),
           CostExplorer.CostCategoryProvider(),
@@ -1732,9 +1806,13 @@ export const providers = (): infer _ =>
           Route53Profiles.ProfileProvider(),
           Route53Profiles.ProfileAssociationProvider(),
           Route53Profiles.ProfileResourceAssociationProvider(),
-          flociDual(Route53Resolver.ResolverEndpoint, () => Route53Resolver.ResolverEndpointProvider()),
+          flociDual(Route53Resolver.ResolverEndpoint, () =>
+            Route53Resolver.ResolverEndpointProvider(),
+          ),
           flociDual(Route53Resolver.ResolverRule, () => Route53Resolver.ResolverRuleProvider()),
-          flociDual(Route53Resolver.ResolverRuleAssociation, () => Route53Resolver.ResolverRuleAssociationProvider()),
+          flociDual(Route53Resolver.ResolverRuleAssociation, () =>
+            Route53Resolver.ResolverRuleAssociationProvider(),
+          ),
           Shield.ProtectionProvider(),
           Shield.ProtectionGroupProvider(),
           Shield.SubscriptionProvider(),
@@ -1764,31 +1842,35 @@ export const providers = (): infer _ =>
           Omics.WorkflowProvider(),
           flociDual(GlobalAccelerator.Accelerator, () => GlobalAccelerator.AcceleratorProvider()),
           flociDual(GlobalAccelerator.Listener, () => GlobalAccelerator.ListenerProvider()),
-          flociDual(GlobalAccelerator.EndpointGroup, () => GlobalAccelerator.EndpointGroupProvider()),
+          flociDual(GlobalAccelerator.EndpointGroup, () =>
+            GlobalAccelerator.EndpointGroupProvider(),
+          ),
           AppRegistry.ApplicationProvider(),
           AppRegistry.AttributeGroupProvider(),
           AppRegistry.AttributeGroupAssociationProvider(),
           AppRegistry.ResourceAssociationProvider(),
           flociDual(ServiceCatalog.Portfolio, () => ServiceCatalog.PortfolioProvider()),
           flociDual(ServiceCatalog.PortfolioProductAssociation, () =>
-            ServiceCatalog.PortfolioProductAssociationProvider()),
+            ServiceCatalog.PortfolioProductAssociationProvider(),
+          ),
           flociDual(ServiceCatalog.PrincipalPortfolioAssociation, () =>
-            ServiceCatalog.PrincipalPortfolioAssociationProvider()),
-          flociDual(ServiceCatalog.Product, () =>
-            ServiceCatalog.ProductProvider()),
+            ServiceCatalog.PrincipalPortfolioAssociationProvider(),
+          ),
+          flociDual(ServiceCatalog.Product, () => ServiceCatalog.ProductProvider()),
           flociDual(ServiceQuotas.ServiceQuotaIncreaseRequest, () =>
-            ServiceQuotas.ServiceQuotaIncreaseRequestProvider()),
+            ServiceQuotas.ServiceQuotaIncreaseRequestProvider(),
+          ),
           S3Control.AccessPointProvider(),
           S3Control.AccessPointPolicyProvider(),
           S3Control.MultiRegionAccessPointProvider(),
           S3Control.ObjectLambdaAccessPointProvider(),
           S3Control.StorageLensConfigurationProvider(),
-          flociDual(NetworkFirewall.RuleGroup, () =>
-            NetworkFirewall.RuleGroupProvider()),
-          flociDual(NetworkFirewall.FirewallPolicy, () =>
-            NetworkFirewall.FirewallPolicyProvider()),
+          flociDual(NetworkFirewall.RuleGroup, () => NetworkFirewall.RuleGroupProvider()),
+          flociDual(NetworkFirewall.FirewallPolicy, () => NetworkFirewall.FirewallPolicyProvider()),
           flociDual(NetworkFirewall.Firewall, () => NetworkFirewall.FirewallProvider()),
-          flociDual(NetworkFirewall.LoggingConfiguration, () => NetworkFirewall.LoggingConfigurationProvider()),
+          flociDual(NetworkFirewall.LoggingConfiguration, () =>
+            NetworkFirewall.LoggingConfigurationProvider(),
+          ),
           flociDual(CloudTrail.EventDataStore, () => CloudTrail.EventDataStoreProvider()),
           flociDual(CloudTrail.Trail, () => CloudTrail.TrailProvider()),
           IVS.ChannelProvider(),
@@ -1850,13 +1932,13 @@ export const providers = (): infer _ =>
     // resources stay live through the per-resource binding routing.
     (base) =>
       Layer.unwrap(
-        effect {
-          const mode = try defaultProviderMode
-          return mode === "local" ? Layer.merge(base, flociServices()) : base
-        },
+        Effect.gen(function* () {
+          const mode = yield* defaultProviderMode;
+          return mode === "local" ? Layer.merge(base, flociServices()) : base;
+        }),
       ),
     Layer.orDie,
-  )
+  );
 
 // Node socket-level error codes that indicate a transient network failure.
 const TRANSIENT_NETWORK_CODES = new Set([
@@ -1868,32 +1950,32 @@ const TRANSIENT_NETWORK_CODES = new Set([
   "ENETDOWN",
   "EHOSTUNREACH",
   "EAI_AGAIN",
-])
+]);
 // Transport-termination signatures that undici/node surface as plain messages
 // (e.g. a `fetch` whose socket dies mid-body throws `TypeError: terminated`).
 const TRANSIENT_NETWORK_PATTERN =
-  /terminated|socket hang up|other side closed|fetch failed|read ETIMEDOUT|ECONNRESET|ETIMEDOUT/i
+  /terminated|socket hang up|other side closed|fetch failed|read ETIMEDOUT|ECONNRESET|ETIMEDOUT/i;
 
 // Walk an error's cause chain looking for a transient transport failure. Used
 // to tell a Decode/EmptyBody error caused by a dropped connection (retryable)
 // apart from one caused by a genuinely malformed body (permanent).
 const hasTransientNetworkCause = (cause: unknown, depth = 0): boolean => {
-  if (cause == null || depth > 8) return false
-  if (typeof cause === "string") return TRANSIENT_NETWORK_PATTERN.test(cause)
-  if (typeof cause !== "object") return false
-  const code = (cause as { mutable code?: unknown }).code
+  if (cause == null || depth > 8) return false;
+  if (typeof cause === "string") return TRANSIENT_NETWORK_PATTERN.test(cause);
+  if (typeof cause !== "object") return false;
+  const code = (cause as { code?: unknown }).code;
   if (typeof code === "string" && TRANSIENT_NETWORK_CODES.has(code)) {
-    return true
+    return true;
   }
-  const message = (cause as { mutable message?: unknown }).message
+  const message = (cause as { message?: unknown }).message;
   if (typeof message === "string" && TRANSIENT_NETWORK_PATTERN.test(message)) {
-    return true
+    return true;
   }
-  const nested = (cause as { mutable cause?: unknown }).cause
+  const nested = (cause as { cause?: unknown }).cause;
   return nested !== undefined && nested !== cause
     ? hasTransientNetworkCause(nested, depth + 1)
-    : false
-}
+    : false;
+};
 
 // Error codes raised while failing to even open a connection. bun's fetch
 // reports an unresolvable hostname (NXDOMAIN — e.g. an AWS service with no
@@ -1909,61 +1991,61 @@ const CONNECT_FAILURE_CODES = new Set([
   "ENOTFOUND", // node: DNS name not found
   "EAI_NONAME", // node: DNS name not found
   "ECONNREFUSED", // node: TCP connect refused
-])
+]);
 
 const hasConnectFailureCause = (cause: unknown, depth = 0): boolean => {
-  if (cause == null || typeof cause !== "object" || depth > 8) return false
-  const code = (cause as { mutable code?: unknown }).code
-  if (typeof code === "string" && CONNECT_FAILURE_CODES.has(code)) return true
-  const nested = (cause as { mutable cause?: unknown }).cause
+  if (cause == null || typeof cause !== "object" || depth > 8) return false;
+  const code = (cause as { code?: unknown }).code;
+  if (typeof code === "string" && CONNECT_FAILURE_CODES.has(code)) return true;
+  const nested = (cause as { cause?: unknown }).cause;
   return nested !== undefined && nested !== cause
     ? hasConnectFailureCause(nested, depth + 1)
-    : false
-}
+    : false;
+};
 
 const isConnectFailure = (error: unknown): boolean =>
-  HttpClientError.isHttpClientError(error)
-  && error.reason._tag === "TransportError"
-  && hasConnectFailureCause(error.reason)
+  HttpClientError.isHttpClientError(error) &&
+  error.reason._tag === "TransportError" &&
+  hasConnectFailureCause(error.reason);
 
 // TODO(sam): remove this once it's upstreamed to distilled
 const isHttpTransportError = (error: unknown): boolean => {
-  if (!HttpClientError.isHttpClientError(error)) return false
-  const reason = error.reason
-  const tag = reason._tag
-  if (tag === "TransportError") return true
+  if (!HttpClientError.isHttpClientError(error)) return false;
+  const reason = error.reason;
+  const tag = reason._tag;
+  if (tag === "TransportError") return true;
   // A Decode/EmptyBody error is only transient when its underlying cause is a
   // terminated/reset connection (e.g. a `read ETIMEDOUT` while streaming the
   // body surfaces as a `DecodeError`). A genuine malformed-body decode is
   // permanent — retrying it would only waste the budget and mask the bug — so
   // gate on the cause chain rather than the tag.
   if (tag === "DecodeError" || tag === "EmptyBodyError") {
-    return hasTransientNetworkCause(reason)
+    return hasTransientNetworkCause(reason);
   }
   if (
-    tag === "StatusCodeError"
-    && "response" in error.reason
-    && error.reason.response.status >= 500
+    tag === "StatusCodeError" &&
+    "response" in error.reason &&
+    error.reason.response.status >= 500
   ) {
-    return true
+    return true;
   }
-  return false
-}
+  return false;
+};
 
 const awsRetryFactory: RetryFactory = (lastError) => {
   // The factory runs once per API call, so this counter is call-scoped. It
   // caps connect-phase failures (see CONNECT_FAILURE_CODES) at 3 retries
   // within the overall schedule below.
-  let connectFailures = 0
+  let connectFailures = 0;
   return {
-    while: (error): infer _ => {
-      if (isConnectFailure(error)) return ++connectFailures <= 3
+    while: (error) => {
+      if (isConnectFailure(error)) return ++connectFailures <= 3;
       return (
-        isTransientError(error)
-        || isThrottlingError(error)
-        || isRetryable(error)
-        || isHttpTransportError(error)
-      )
+        isTransientError(error) ||
+        isThrottlingError(error) ||
+        isRetryable(error) ||
+        isHttpTransportError(error)
+      );
     },
     // Transient transport failures (e.g. a sustained `read ETIMEDOUT` blip
     // against a control-plane endpoint) can outlast a 10-attempt budget. With
@@ -1973,21 +2055,21 @@ const awsRetryFactory: RetryFactory = (lastError) => {
       pipe(
         Schedule.exponential(Duration.millis(200), 2),
         Schedule.modifyDelay(
-          effect ({ duration }) => {
-            const error = try Ref.get(lastError)
+          Effect.fn(function* ({ duration }) {
+            const error = yield* Ref.get(lastError);
             if (isThrottlingError(error)) {
               // Throttling: floor at 500ms (matches distilled default).
               if (Duration.toMillis(duration) < 500) {
-                return Duration.toMillis(Duration.millis(500))
+                return Duration.toMillis(Duration.millis(500));
               }
             }
-            return Duration.toMillis(duration)
-          },
+            return Duration.toMillis(duration);
+          }),
         ),
         capped(Duration.seconds(5)),
         jittered,
       ),
       Schedule.recurs(15),
     ]),
-  }
-}
+  };
+};

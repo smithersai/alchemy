@@ -18,6 +18,6 @@ export interface RetrieveCreditGrantRequest extends Omit<GetBillingCreditGrantRe
  * @binding
  * @product Billing
  */
-export interface RetrieveCreditGrant extends Binding.Service<RetrieveCreditGrant, "Stripe.RetrieveCreditGrant", (grant: CreditGrant) => Effect.Effect<(request?: RetrieveCreditGrantRequest) => Effect.Effect<StripeCreditGrant, GetBillingCreditGrantError, RuntimeContext>>> {
+export interface RetrieveCreditGrant extends Binding.Service<RetrieveCreditGrant, "Stripe.RetrieveCreditGrant", (grant: CreditGrant) => Effect.Effect<((request?: RetrieveCreditGrantRequest) => Effect.Effect<StripeCreditGrant, GetBillingCreditGrantError, RuntimeContext>)>> {
 }
 export declare const RetrieveCreditGrant: RetrieveCreditGrant;

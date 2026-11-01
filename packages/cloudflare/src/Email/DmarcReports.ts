@@ -4,9 +4,9 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import { resolveZoneId, type Reference } from "../Zone/index.ts";
-import { listAllZones } from "../Zone/lookup.vibe";
+import { listAllZones } from "../Zone/lookup.ts";
 
 export type DmarcReportsStatus =
   | "missing-dmarc-report"

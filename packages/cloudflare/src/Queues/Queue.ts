@@ -24,7 +24,7 @@ import {
   LocalRuntimeState,
   localRuntimeServices,
 } from "../LocalRuntime.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import { detachQueueConsumersOfScript } from "./Consumer.ts";
 
 export const isQueue = (value: unknown): value is Queue =>

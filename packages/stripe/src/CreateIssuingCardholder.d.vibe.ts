@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  * @binding
  * @product Issuing
  */
-export interface CreateIssuingCardholder extends Binding.Service<CreateIssuingCardholder, "Stripe.CreateIssuingCardholder", () => Effect.Effect<(request: CreateIssuingCardholderRequest) => Effect.Effect<StripeIssuingCardholder, CreateIssuingCardholderError, RuntimeContext>>> {
+export interface CreateIssuingCardholder extends Binding.Service<CreateIssuingCardholder, "Stripe.CreateIssuingCardholder", () => Effect.Effect<((request: CreateIssuingCardholderRequest) => Effect.Effect<StripeIssuingCardholder, CreateIssuingCardholderError, RuntimeContext>)>> {
 }
 export declare const CreateIssuingCardholder: CreateIssuingCardholder;

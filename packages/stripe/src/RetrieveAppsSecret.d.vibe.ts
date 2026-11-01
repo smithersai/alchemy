@@ -19,6 +19,6 @@ export interface RetrieveAppsSecretRequest extends Omit<GetAppsSecretsFindReques
  * @binding
  * @product Secrets
  */
-export interface RetrieveAppsSecret extends Binding.Service<RetrieveAppsSecret, "Stripe.RetrieveAppsSecret", (secret: AppsSecret) => Effect.Effect<(request?: RetrieveAppsSecretRequest) => Effect.Effect<StripeAppsSecret, GetAppsSecretsFindError, RuntimeContext>>> {
+export interface RetrieveAppsSecret extends Binding.Service<RetrieveAppsSecret, "Stripe.RetrieveAppsSecret", (secret: AppsSecret) => Effect.Effect<((request?: RetrieveAppsSecretRequest) => Effect.Effect<StripeAppsSecret, GetAppsSecretsFindError, RuntimeContext>)>> {
 }
 export declare const RetrieveAppsSecret: RetrieveAppsSecret;

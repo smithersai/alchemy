@@ -1,7 +1,7 @@
 import * as lf from "@distilled.cloud/aws/lakeformation";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import { type LakeFormationResourceSpec } from "./ResourceSpec.js";
 /**
  * An LF-tag value assignment. A resource holds exactly one value per tag key

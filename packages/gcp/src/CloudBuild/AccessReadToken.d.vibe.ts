@@ -22,6 +22,6 @@ export interface AccessReadTokenRequest extends Omit<cloudbuild.AccessReadTokenP
  * @binding
  * @category CloudBuild
  */
-export interface AccessReadToken extends Binding.Service<AccessReadToken, "GCP.CloudBuild.AccessReadToken", (repository: Repository) => Effect.Effect<(request?: AccessReadTokenRequest) => Effect.Effect<cloudbuild.FetchReadTokenResponse, cloudbuild.AccessReadTokenProjectsLocationsConnectionsRepositoriesError, RuntimeContext>>> {
+export interface AccessReadToken extends Binding.Service<AccessReadToken, "GCP.CloudBuild.AccessReadToken", (repository: Repository) => Effect.Effect<((request?: AccessReadTokenRequest) => Effect.Effect<cloudbuild.FetchReadTokenResponse, cloudbuild.AccessReadTokenProjectsLocationsConnectionsRepositoriesError, RuntimeContext>)>> {
 }
 export declare const AccessReadToken: AccessReadToken;

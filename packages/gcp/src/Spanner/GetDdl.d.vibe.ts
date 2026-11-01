@@ -21,6 +21,6 @@ export interface GetDdlRequest extends Omit<spanner.GetDdlProjectsInstancesDatab
  * @binding
  * @category Spanner
  */
-export interface GetDdl extends Binding.Service<GetDdl, "GCP.Spanner.GetDdl", (database: Database) => Effect.Effect<(request?: GetDdlRequest) => Effect.Effect<spanner.GetDatabaseDdlResponse, spanner.GetDdlProjectsInstancesDatabasesError, RuntimeContext>>> {
+export interface GetDdl extends Binding.Service<GetDdl, "GCP.Spanner.GetDdl", (database: Database) => Effect.Effect<((request?: GetDdlRequest) => Effect.Effect<spanner.GetDatabaseDdlResponse, spanner.GetDdlProjectsInstancesDatabasesError, RuntimeContext>)>> {
 }
 export declare const GetDdl: GetDdl;

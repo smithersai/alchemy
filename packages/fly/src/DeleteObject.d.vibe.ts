@@ -22,6 +22,6 @@ export interface DeleteObjectRequest extends Omit<S3.DeleteObjectRequest, "Bucke
  * @binding
  * @product Bucket
  */
-export interface DeleteObject extends Binding.Service<DeleteObject, "Fly.DeleteObject", (bucket: Bucket) => Effect.Effect<(request: DeleteObjectRequest) => Effect.Effect<S3.DeleteObjectOutput, S3.DeleteObjectError | TigrisCredentialsMissing, RuntimeContext>>> {
+export interface DeleteObject extends Binding.Service<DeleteObject, "Fly.DeleteObject", (bucket: Bucket) => Effect.Effect<((request: DeleteObjectRequest) => Effect.Effect<S3.DeleteObjectOutput, S3.DeleteObjectError | TigrisCredentialsMissing, RuntimeContext>)>> {
 }
 export declare const DeleteObject: DeleteObject;

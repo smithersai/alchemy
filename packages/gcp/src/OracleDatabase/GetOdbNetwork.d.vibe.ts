@@ -18,6 +18,6 @@ export interface GetOdbNetworkRequest extends Omit<oracle.GetProjectsLocationsOd
  * @binding
  * @category OracleDatabase
  */
-export interface GetOdbNetwork extends Binding.Service<GetOdbNetwork, "GCP.OracleDatabase.GetOdbNetwork", (network: OdbNetwork) => Effect.Effect<(request?: GetOdbNetworkRequest) => Effect.Effect<oracle.OdbNetwork, oracle.GetProjectsLocationsOdbNetworksError, RuntimeContext>>> {
+export interface GetOdbNetwork extends Binding.Service<GetOdbNetwork, "GCP.OracleDatabase.GetOdbNetwork", (network: OdbNetwork) => Effect.Effect<((request?: GetOdbNetworkRequest) => Effect.Effect<oracle.OdbNetwork, oracle.GetProjectsLocationsOdbNetworksError, RuntimeContext>)>> {
 }
 export declare const GetOdbNetwork: GetOdbNetwork;

@@ -22,6 +22,6 @@ export interface RunPipelineRequest extends Omit<datapipelines.RunProjectsLocati
  * @binding
  * @category DataPipelines
  */
-export interface RunPipeline extends Binding.Service<RunPipeline, "GCP.DataPipelines.RunPipeline", (pipeline: Pipeline) => Effect.Effect<(request?: RunPipelineRequest) => Effect.Effect<datapipelines.GoogleCloudDatapipelinesV1RunPipelineResponse, datapipelines.RunProjectsLocationsPipelinesError, RuntimeContext>>> {
+export interface RunPipeline extends Binding.Service<RunPipeline, "GCP.DataPipelines.RunPipeline", (pipeline: Pipeline) => Effect.Effect<((request?: RunPipelineRequest) => Effect.Effect<datapipelines.GoogleCloudDatapipelinesV1RunPipelineResponse, datapipelines.RunProjectsLocationsPipelinesError, RuntimeContext>)>> {
 }
 export declare const RunPipeline: RunPipeline;

@@ -41,5 +41,5 @@ export interface EcsRouteTargetProps extends Pick<RuleTarget, "Input" | "InputPa
  *
  * @binding
  */
-export declare const toEcsTask: (descriptor: EventDescriptor, cluster: Cluster, props: EcsRouteTargetProps) => Effect.Effect<Rule, never, import("../Providers.vibe").Providers>;
+export declare const toEcsTask: (descriptor: EventDescriptor, cluster: Cluster, props: EcsRouteTargetProps) => Effect.Effect<Rule, never, import("../Providers.js").Providers>;
 export {};

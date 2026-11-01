@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export type ProductType = "CLOUD_FORMATION_TEMPLATE" | "EXTERNAL" | "TERRAFORM_OPEN_SOURCE" | "TERRAFORM_CLOUD" | "MARKETPLACE";
 export interface ProvisioningArtifactProps {
     /**

@@ -23,6 +23,6 @@ export interface AcknowledgeRequest extends Omit<pubsub.AcknowledgeProjectsSubsc
  * @binding
  * @category PubSub
  */
-export interface Acknowledge extends Binding.Service<Acknowledge, "GCP.PubSub.Acknowledge", (subscription: Subscription) => Effect.Effect<(request: AcknowledgeRequest) => Effect.Effect<pubsub.Empty, pubsub.AcknowledgeProjectsSubscriptionsError, RuntimeContext>>> {
+export interface Acknowledge extends Binding.Service<Acknowledge, "GCP.PubSub.Acknowledge", (subscription: Subscription) => Effect.Effect<((request: AcknowledgeRequest) => Effect.Effect<pubsub.Empty, pubsub.AcknowledgeProjectsSubscriptionsError, RuntimeContext>)>> {
 }
 export declare const Acknowledge: Acknowledge;

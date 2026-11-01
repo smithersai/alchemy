@@ -132,4 +132,4 @@ export type ProviderKey = {
 export declare const ProviderKey: (id: string, props: InputProps<ProviderKeyProps>) => Effect.Effect<{
     secret: Secret;
     gatewayProvider: GatewayProvider;
-}, never, import("../Providers.vibe").Providers>;
+}, never, import("../Providers.js").Providers>;

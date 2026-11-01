@@ -2,7 +2,7 @@ import * as Lambda from "@distilled.cloud/aws/lambda";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import { type EventInvokeConfig, type ObservedEventInvokeConfig } from "./EventInvokeConfig.js";
 import type { Version } from "./Version.js";
 export interface AliasProps {

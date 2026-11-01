@@ -29,6 +29,6 @@ export interface PredictRequest extends Omit<ml.PredictProjectsRequest, "name"> 
  * @binding
  * @category ML
  */
-export interface Predict extends Binding.Service<Predict, "GCP.ML.Predict", (model: Model) => Effect.Effect<(request: PredictRequest) => Effect.Effect<ml.GoogleApi__HttpBody, ml.PredictProjectsError, RuntimeContext>>> {
+export interface Predict extends Binding.Service<Predict, "GCP.ML.Predict", (model: Model) => Effect.Effect<((request: PredictRequest) => Effect.Effect<ml.GoogleApi__HttpBody, ml.PredictProjectsError, RuntimeContext>)>> {
 }
 export declare const Predict: Predict;

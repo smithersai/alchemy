@@ -23,6 +23,6 @@ export interface SearchRequest extends Omit<retail.SearchProjectsLocationsCatalo
  * @binding
  * @category Retail
  */
-export interface Search extends Binding.Service<Search, "GCP.Retail.Search", (servingConfig: CatalogsServingConfig) => Effect.Effect<(request: SearchRequest) => Effect.Effect<retail.GoogleCloudRetailV2SearchResponse, retail.SearchProjectsLocationsCatalogsServingConfigsError, RuntimeContext>>> {
+export interface Search extends Binding.Service<Search, "GCP.Retail.Search", (servingConfig: CatalogsServingConfig) => Effect.Effect<((request: SearchRequest) => Effect.Effect<retail.GoogleCloudRetailV2SearchResponse, retail.SearchProjectsLocationsCatalogsServingConfigsError, RuntimeContext>)>> {
 }
 export declare const Search: Search;

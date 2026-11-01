@@ -28,6 +28,6 @@ export interface ValidateMessageRequest extends Omit<pubsub.ValidateMessageReque
  * @binding
  * @category PubSub
  */
-export interface ValidateMessage extends Binding.Service<ValidateMessage, "GCP.PubSub.ValidateMessage", (schema: Schema) => Effect.Effect<(request: ValidateMessageRequest) => Effect.Effect<pubsub.ValidateMessageResponse, pubsub.ValidateMessageProjectsSchemasError, RuntimeContext>>> {
+export interface ValidateMessage extends Binding.Service<ValidateMessage, "GCP.PubSub.ValidateMessage", (schema: Schema) => Effect.Effect<((request: ValidateMessageRequest) => Effect.Effect<pubsub.ValidateMessageResponse, pubsub.ValidateMessageProjectsSchemasError, RuntimeContext>)>> {
 }
 export declare const ValidateMessage: ValidateMessage;

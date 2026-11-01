@@ -1,7 +1,7 @@
 import * as b2bi from "@distilled.cloud/aws/b2bi";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface CapabilityProps {
     /**
      * The name of the capability.

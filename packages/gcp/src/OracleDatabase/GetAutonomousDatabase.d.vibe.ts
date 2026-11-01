@@ -18,6 +18,6 @@ export interface GetAutonomousDatabaseRequest extends Omit<oracle.GetProjectsLoc
  * @binding
  * @category OracleDatabase
  */
-export interface GetAutonomousDatabase extends Binding.Service<GetAutonomousDatabase, "GCP.OracleDatabase.GetAutonomousDatabase", (database: AutonomousDatabase) => Effect.Effect<(request?: GetAutonomousDatabaseRequest) => Effect.Effect<oracle.AutonomousDatabase, oracle.GetProjectsLocationsAutonomousDatabasesError, RuntimeContext>>> {
+export interface GetAutonomousDatabase extends Binding.Service<GetAutonomousDatabase, "GCP.OracleDatabase.GetAutonomousDatabase", (database: AutonomousDatabase) => Effect.Effect<((request?: GetAutonomousDatabaseRequest) => Effect.Effect<oracle.AutonomousDatabase, oracle.GetProjectsLocationsAutonomousDatabasesError, RuntimeContext>)>> {
 }
 export declare const GetAutonomousDatabase: GetAutonomousDatabase;

@@ -10,7 +10,7 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import { readDirectoryTags, sameStringSet } from "./internal.vibe";
 
 export class DirectoryUnexpectedResponse extends Data.TaggedError("DirectoryUnexpectedResponse")<{

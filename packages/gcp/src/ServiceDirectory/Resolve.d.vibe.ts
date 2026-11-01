@@ -28,6 +28,6 @@ export interface ResolveRequest extends Omit<servicedirectory.ResolveProjectsLoc
  * @binding
  * @category ServiceDirectory
  */
-export interface Resolve extends Binding.Service<Resolve, "GCP.ServiceDirectory.Resolve", (service: Service) => Effect.Effect<(request?: ResolveRequest) => Effect.Effect<servicedirectory.ResolveServiceResponse, servicedirectory.ResolveProjectsLocationsNamespacesServicesError, RuntimeContext>>> {
+export interface Resolve extends Binding.Service<Resolve, "GCP.ServiceDirectory.Resolve", (service: Service) => Effect.Effect<((request?: ResolveRequest) => Effect.Effect<servicedirectory.ResolveServiceResponse, servicedirectory.ResolveProjectsLocationsNamespacesServicesError, RuntimeContext>)>> {
 }
 export declare const Resolve: Resolve;

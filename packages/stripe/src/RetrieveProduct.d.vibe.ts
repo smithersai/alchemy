@@ -25,6 +25,6 @@ export interface RetrieveProductRequest extends Omit<GetProductRequest, "id"> {
  * @binding
  * @product Product
  */
-export interface RetrieveProduct extends Binding.Service<RetrieveProduct, "Stripe.RetrieveProduct", (product: string | Product) => Effect.Effect<(request?: RetrieveProductRequest) => Effect.Effect<StripeProduct, GetProductError, RuntimeContext>>> {
+export interface RetrieveProduct extends Binding.Service<RetrieveProduct, "Stripe.RetrieveProduct", (product: string | Product) => Effect.Effect<((request?: RetrieveProductRequest) => Effect.Effect<StripeProduct, GetProductError, RuntimeContext>)>> {
 }
 export declare const RetrieveProduct: RetrieveProduct;

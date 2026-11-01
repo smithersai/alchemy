@@ -24,6 +24,6 @@ export interface GenerateWalletRequest extends Omit<oracle.GenerateWalletProject
  * @binding
  * @category OracleDatabase
  */
-export interface GenerateWallet extends Binding.Service<GenerateWallet, "GCP.OracleDatabase.GenerateWallet", (database: AutonomousDatabase) => Effect.Effect<(request: GenerateWalletRequest) => Effect.Effect<oracle.GenerateAutonomousDatabaseWalletResponse, oracle.GenerateWalletProjectsLocationsAutonomousDatabasesError, RuntimeContext>>> {
+export interface GenerateWallet extends Binding.Service<GenerateWallet, "GCP.OracleDatabase.GenerateWallet", (database: AutonomousDatabase) => Effect.Effect<((request: GenerateWalletRequest) => Effect.Effect<oracle.GenerateAutonomousDatabaseWalletResponse, oracle.GenerateWalletProjectsLocationsAutonomousDatabasesError, RuntimeContext>)>> {
 }
 export declare const GenerateWallet: GenerateWallet;

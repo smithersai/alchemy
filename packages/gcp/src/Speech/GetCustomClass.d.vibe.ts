@@ -24,6 +24,6 @@ export interface GetCustomClassRequest extends Omit<speech.GetProjectsLocationsC
  * @binding
  * @category Speech
  */
-export interface GetCustomClass extends Binding.Service<GetCustomClass, "GCP.Speech.GetCustomClass", (customClass: CustomClass) => Effect.Effect<(request?: GetCustomClassRequest) => Effect.Effect<speech.CustomClass, speech.GetProjectsLocationsCustomClassesError, RuntimeContext>>> {
+export interface GetCustomClass extends Binding.Service<GetCustomClass, "GCP.Speech.GetCustomClass", (customClass: CustomClass) => Effect.Effect<((request?: GetCustomClassRequest) => Effect.Effect<speech.CustomClass, speech.GetProjectsLocationsCustomClassesError, RuntimeContext>)>> {
 }
 export declare const GetCustomClass: GetCustomClass;

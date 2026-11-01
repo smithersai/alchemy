@@ -8,7 +8,7 @@ import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import * as Schedule from "effect/Schedule";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 
 const TypeId = "Cloudflare.Diagnostics.EndpointHealthcheck" as const;
 type TypeId = typeof TypeId;

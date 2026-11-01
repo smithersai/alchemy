@@ -3,7 +3,7 @@ import type { Output } from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import { type BindingIam } from "../HttpBinding.js";
-type GcpHttpOp<I, A, E> = Effect.Effect<(input: I) => Effect.Effect<A, E>, never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
+type GcpHttpOp<I, A, E> = Effect.Effect<((input: I) => Effect.Effect<A, E>), never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
 type NamedResource = {
     readonly name: Output<string, never>;
     readonly LogicalId: string;

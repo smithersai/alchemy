@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export type KeyPairId<ID extends string = string> = `key-${ID}`;
 /** Key algorithm for a generated EC2 key pair. */
 export type KeyPairType = "rsa" | "ed25519";

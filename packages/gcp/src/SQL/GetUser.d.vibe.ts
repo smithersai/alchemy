@@ -26,6 +26,6 @@ export interface GetUserRequest extends Omit<sqladmin.GetUsersRequest, "instance
  * @binding
  * @category SQL
  */
-export interface GetUser extends Binding.Service<GetUser, "GCP.SQL.GetUser", (user: User) => Effect.Effect<(request?: GetUserRequest) => Effect.Effect<sqladmin.User, sqladmin.GetUsersError, RuntimeContext>>> {
+export interface GetUser extends Binding.Service<GetUser, "GCP.SQL.GetUser", (user: User) => Effect.Effect<((request?: GetUserRequest) => Effect.Effect<sqladmin.User, sqladmin.GetUsersError, RuntimeContext>)>> {
 }
 export declare const GetUser: GetUser;

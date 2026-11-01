@@ -9,7 +9,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import type { WebsiteTextEncoding } from "./shared.ts";
 
 export interface AssetFileOption {

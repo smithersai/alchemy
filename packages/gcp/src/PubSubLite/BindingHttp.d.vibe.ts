@@ -6,7 +6,7 @@ import { type BindingIam } from "../HttpBinding.js";
 import type { AdminReservation } from "./AdminReservation.vibe";
 import type { AdminSubscription } from "./AdminSubscription.vibe";
 import type { AdminTopic } from "./AdminTopic.vibe";
-type Op<I, A, E> = Effect.Effect<(input: I) => Effect.Effect<A, E>, never, GcpOpContext>;
+type Op<I, A, E> = Effect.Effect<((input: I) => Effect.Effect<A, E>), never, GcpOpContext>;
 /**
  * Shared HTTP scaffolding for Pub/Sub Lite bindings.
  * NOT exported from index.ts.

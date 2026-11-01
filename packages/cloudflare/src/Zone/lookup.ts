@@ -1,12 +1,14 @@
-import { Credentials } from "@distilled.cloud/cloudflare/Credentials"
-import * as zones from "@distilled.cloud/cloudflare/zones"
-import * as Effect from "effect/Effect"
-import type * as HttpClient from "effect/http/HttpClient"
+import { Credentials } from "@distilled.cloud/cloudflare/Credentials";
+import * as zones from "@distilled.cloud/cloudflare/zones";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import type * as HttpClient from "effect/http/HttpClient";
+import * as Stream from "effect/Stream";
 
-export error ZoneLookupInvalidProps {
-  message: string;
-  cause?: unknown;
-}
+export class ZoneLookupInvalidProps extends Data.TaggedError("ZoneLookupInvalidProps")<{
+  readonly message: string;
+  readonly cause?: unknown;
+}> {}
 
 /**
  * Reference to an existing Cloudflare Zone. Accepts:
@@ -15,52 +17,58 @@ export error ZoneLookupInvalidProps {
  *   - a `{ zoneId, name? }` object (e.g. the output of a `Zone` resource or
  *     {@link importZone}).
  */
-export type Reference = string | { mutable zoneId: string; mutable name?: string };
+export type Reference = string | { zoneId: string; name?: string };
 
 export const isId = (zone: string): boolean => /^[a-f0-9]{32}$/i.test(zone);
 
 export const matchesZoneHostname = (zoneName: string, hostname: string): boolean =>
   hostname === zoneName || hostname.endsWith(`.${zoneName}`);
 
-export const resolveZoneId = effect ({
+export const resolveZoneId = ({
   accountId,
   zone,
   hostname,
 }: {
-  mutable accountId: string;
-  mutable zone: Reference | undefined;
-  mutable hostname: string;
-}) => {
+  accountId: string;
+  zone: Reference | undefined;
+  hostname: string;
+}) =>
+  Effect.gen(function* () {
     if (typeof zone === "object") return zone.zoneId;
     if (typeof zone === "string" && isId(zone)) return zone;
 
     const lookup = zone ?? hostname;
     for (const candidate of zoneNameCandidates(lookup)) {
-      const match = try findZoneByName({ accountId, name: candidate });
+      const match = yield* findZoneByName({ accountId, name: candidate });
       if (match) return match.id;
     }
-    throw new ZoneLookupInvalidProps({
+    return yield* new ZoneLookupInvalidProps({
       message: `Cloudflare zone not found for ${lookup}`,
     });
-  };
+  });
 
 type ZoneListItem = {
-  mutable id: string;
-  mutable name: string;
-  mutable account: { mutable id?: string | null };
+  id: string;
+  name: string;
+  account: { id?: string | null };
 };
 
-export const findZoneByName = effect ({
+export const findZoneByName = ({
   accountId,
   name,
 }: {
-  mutable accountId: string;
-  mutable name: string;
-}): ZoneListItem | undefined!zones.ListZonesError!Credentials | HttpClient.HttpClient => {
+  accountId: string;
+  name: string;
+}): Effect.Effect<
+  ZoneListItem | undefined,
+  zones.ListZonesError,
+  Credentials | HttpClient.HttpClient
+> =>
+  Effect.gen(function* () {
     // Distilled `listZones` rides `Retry.makeDefault` (5xx / throttling).
     // The previous raw `fetch` failed the first time Cloudflare answered
     // `{ success: false, errors: [{ message: "unhandled server error" }] }`.
-    const page = try zones.listZones({
+    const page = yield* zones.listZones({
       account: { id: accountId },
       name,
       perPage: 1,
@@ -74,19 +82,28 @@ export const findZoneByName = effect ({
       name: match.name,
       account: { id: match.account.id },
     };
-  };
+  });
 
 /**
  * Exhaustively enumerate every zone in an account. Used by `list()` lifecycle
  * operations on zone-scoped resources to fan out across all zones. Returns only
  * the stable `{ id, name }` pair each caller needs to drive a per-zone list.
  */
-export const listAllZones = effect (
+export const listAllZones = (
   accountId: string,
-): { mutable id: string; mutable name: string }[]!zones.ListZonesError!Credentials | HttpClient.HttpClient => Array.from((try (zones.listZones.pages({ account: { id: accountId } })
-  |> Stream.runCollect(%)))).flatMap((page) =>
+): Effect.Effect<
+  { id: string; name: string }[],
+  zones.ListZonesError,
+  Credentials | HttpClient.HttpClient
+> =>
+  zones.listZones.pages({ account: { id: accountId } }).pipe(
+    Stream.runCollect,
+    Effect.map((chunk) =>
+      Array.from(chunk).flatMap((page) =>
         (page.result ?? []).map((zone) => ({ id: zone.id, name: zone.name })),
-      );
+      ),
+    ),
+  );
 
 /** Hostname plus each parent label, longest first — used to infer a zone. */
 export const zoneNameCandidates = (hostname: string): string[] => {

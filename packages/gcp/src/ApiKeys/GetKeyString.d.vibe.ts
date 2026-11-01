@@ -20,6 +20,6 @@ import type { Key } from "./Key.vibe";
  * @binding
  * @category ApiKeys
  */
-export interface GetKeyString extends Binding.Service<GetKeyString, "GCP.ApiKeys.GetKeyString", (key: Key) => Effect.Effect<() => Effect.Effect<apikeys.V2GetKeyStringResponse, apikeys.GetKeyStringProjectsLocationsKeysError, RuntimeContext>>> {
+export interface GetKeyString extends Binding.Service<GetKeyString, "GCP.ApiKeys.GetKeyString", (key: Key) => Effect.Effect<(() => Effect.Effect<apikeys.V2GetKeyStringResponse, apikeys.GetKeyStringProjectsLocationsKeysError, RuntimeContext>)>> {
 }
 export declare const GetKeyString: GetKeyString;

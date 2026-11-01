@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { SecurityGroupArn, SecurityGroupId, SecurityGroupRuleData } from "./SecurityGroup.vibe";
 import type { VpcId } from "./Vpc.vibe";
 /** An observed rule on the AWS-created default security group. */

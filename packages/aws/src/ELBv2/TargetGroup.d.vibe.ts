@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
 import type { AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RegionID } from "../Region.js";
 export type TargetGroupName = string;
 export type TargetGroupArn = `arn:aws:elasticloadbalancing:${RegionID}:${AccountID}:targetgroup/${string}`;

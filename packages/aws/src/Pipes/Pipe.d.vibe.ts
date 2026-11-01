@@ -1,7 +1,7 @@
 import * as pipes from "@distilled.cloud/aws/pipes";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * The state you want the pipe to be in after reconciliation.
  *

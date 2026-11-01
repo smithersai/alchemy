@@ -1,7 +1,7 @@
 import * as bda from "@distilled.cloud/aws/bedrock-data-automation";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface BlueprintProps {
     /**
      * Name of the blueprint. Must match `[a-zA-Z0-9-_]+` and be at most 128

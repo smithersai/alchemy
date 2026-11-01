@@ -6,8 +6,8 @@ import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import * as Schedule from "effect/Schedule";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.vibe";
-import { listAllZones } from "./lookup.vibe";
+import type { Providers } from "../Providers.ts";
+import { listAllZones } from "./lookup.ts";
 
 const TypeId = "Cloudflare.Zone.Hold" as const;
 type TypeId = typeof TypeId;

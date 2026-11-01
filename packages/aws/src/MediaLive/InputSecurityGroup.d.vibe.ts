@@ -1,7 +1,7 @@
 import * as medialive from "@distilled.cloud/aws/medialive";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface InputSecurityGroupProps {
     /**
      * IPv4 CIDR ranges allowed to push content to inputs attached to this

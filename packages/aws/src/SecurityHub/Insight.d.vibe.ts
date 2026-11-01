@@ -1,7 +1,7 @@
 import * as securityhub from "@distilled.cloud/aws/securityhub";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface InsightProps {
     /**
      * Name of the insight. If omitted, a unique name is generated. Updatable

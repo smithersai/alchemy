@@ -24,6 +24,6 @@ export interface DecryptRequest extends Omit<kms.DecryptProjectsLocationsKeyRing
  * @binding
  * @category KMS
  */
-export interface Decrypt extends Binding.Service<Decrypt, "GCP.KMS.Decrypt", (key: CryptoKey) => Effect.Effect<(request?: DecryptRequest) => Effect.Effect<kms.DecryptResponse, kms.DecryptProjectsLocationsKeyRingsCryptoKeysError, RuntimeContext>>> {
+export interface Decrypt extends Binding.Service<Decrypt, "GCP.KMS.Decrypt", (key: CryptoKey) => Effect.Effect<((request?: DecryptRequest) => Effect.Effect<kms.DecryptResponse, kms.DecryptProjectsLocationsKeyRingsCryptoKeysError, RuntimeContext>)>> {
 }
 export declare const Decrypt: Decrypt;

@@ -21,6 +21,6 @@ export interface GetSandboxEnvironmentRequest extends Omit<aiplatform.GetReasoni
  * @binding
  * @category AIPlatform
  */
-export interface GetSandboxEnvironment extends Binding.Service<GetSandboxEnvironment, "GCP.AIPlatform.GetSandboxEnvironment", (sandbox: ReasoningEnginesSandboxEnvironment) => Effect.Effect<(request?: GetSandboxEnvironmentRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1SandboxEnvironment, aiplatform.GetReasoningEnginesSandboxEnvironmentsError, RuntimeContext>>> {
+export interface GetSandboxEnvironment extends Binding.Service<GetSandboxEnvironment, "GCP.AIPlatform.GetSandboxEnvironment", (sandbox: ReasoningEnginesSandboxEnvironment) => Effect.Effect<((request?: GetSandboxEnvironmentRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1SandboxEnvironment, aiplatform.GetReasoningEnginesSandboxEnvironmentsError, RuntimeContext>)>> {
 }
 export declare const GetSandboxEnvironment: GetSandboxEnvironment;

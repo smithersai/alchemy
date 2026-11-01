@@ -21,6 +21,6 @@ export interface ListTabledataRequest extends Omit<bigquery.ListTabledataRequest
  * @binding
  * @category BigQuery
  */
-export interface ListTabledata extends Binding.Service<ListTabledata, "GCP.BigQuery.ListTabledata", (table: Table) => Effect.Effect<(request?: ListTabledataRequest) => Effect.Effect<bigquery.TableDataList, bigquery.ListTabledataError, RuntimeContext>>> {
+export interface ListTabledata extends Binding.Service<ListTabledata, "GCP.BigQuery.ListTabledata", (table: Table) => Effect.Effect<((request?: ListTabledataRequest) => Effect.Effect<bigquery.TableDataList, bigquery.ListTabledataError, RuntimeContext>)>> {
 }
 export declare const ListTabledata: ListTabledata;

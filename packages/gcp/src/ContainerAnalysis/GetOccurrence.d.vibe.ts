@@ -23,6 +23,6 @@ export interface GetOccurrenceRequest extends Omit<containeranalysis.GetProjects
  * @binding
  * @category ContainerAnalysis
  */
-export interface GetOccurrence extends Binding.Service<GetOccurrence, "GCP.ContainerAnalysis.GetOccurrence", (occurrence: Occurrence) => Effect.Effect<(request?: GetOccurrenceRequest) => Effect.Effect<containeranalysis.Occurrence, containeranalysis.GetProjectsOccurrencesError, RuntimeContext>>> {
+export interface GetOccurrence extends Binding.Service<GetOccurrence, "GCP.ContainerAnalysis.GetOccurrence", (occurrence: Occurrence) => Effect.Effect<((request?: GetOccurrenceRequest) => Effect.Effect<containeranalysis.Occurrence, containeranalysis.GetProjectsOccurrencesError, RuntimeContext>)>> {
 }
 export declare const GetOccurrence: GetOccurrence;

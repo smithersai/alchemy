@@ -44,7 +44,6 @@ export interface Network extends Resource<"Docker.Network", NetworkProps, {
  * Existing same-name networks are treated as foreign unless the engine is
  * explicitly allowed to adopt them with `--adopt` or `adopt(true)`.
  *
- *
  * ### Creating Networks
  * **Example:** Basic bridge network
  * ```typescript

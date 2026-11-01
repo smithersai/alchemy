@@ -25,6 +25,6 @@ export interface GetRuleSetRequest extends Omit<cw.GetProjectsLocationsRuleSetsR
  * @binding
  * @category ContentWarehouse
  */
-export interface GetRuleSet extends Binding.Service<GetRuleSet, "GCP.ContentWarehouse.GetRuleSet", (ruleSet: RuleSet) => Effect.Effect<(request?: GetRuleSetRequest) => Effect.Effect<cw.GoogleCloudContentwarehouseV1RuleSet, cw.GetProjectsLocationsRuleSetsError, RuntimeContext>>> {
+export interface GetRuleSet extends Binding.Service<GetRuleSet, "GCP.ContentWarehouse.GetRuleSet", (ruleSet: RuleSet) => Effect.Effect<((request?: GetRuleSetRequest) => Effect.Effect<cw.GoogleCloudContentwarehouseV1RuleSet, cw.GetProjectsLocationsRuleSetsError, RuntimeContext>)>> {
 }
 export declare const GetRuleSet: GetRuleSet;

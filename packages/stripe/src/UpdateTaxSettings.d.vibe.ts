@@ -23,6 +23,6 @@ export interface UpdateTaxSettingsRequest extends CreateTaxSettingsRequest {
  * @binding
  * @product Tax
  */
-export interface UpdateTaxSettings extends Binding.Service<UpdateTaxSettings, "Stripe.UpdateTaxSettings", (settings: TaxSettings) => Effect.Effect<(request?: UpdateTaxSettingsRequest) => Effect.Effect<StripeTaxSettings, CreateTaxSettingsError, RuntimeContext>>> {
+export interface UpdateTaxSettings extends Binding.Service<UpdateTaxSettings, "Stripe.UpdateTaxSettings", (settings: TaxSettings) => Effect.Effect<((request?: UpdateTaxSettingsRequest) => Effect.Effect<StripeTaxSettings, CreateTaxSettingsError, RuntimeContext>)>> {
 }
 export declare const UpdateTaxSettings: UpdateTaxSettings;

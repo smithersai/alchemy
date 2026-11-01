@@ -1,7 +1,7 @@
 import * as organizations from "@distilled.cloud/aws/organizations";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface RootPolicyTypeProps {
     /**
      * Root that owns the enabled policy type.

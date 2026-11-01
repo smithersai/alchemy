@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Predicate from "effect/Predicate";
 import * as Redacted from "effect/Redacted";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import type { MagicTunnelBgp, MagicTunnelHealthCheck } from "./GreTunnel.ts";
 
 const TypeId = "Cloudflare.MagicTransit.IpsecTunnel" as const;

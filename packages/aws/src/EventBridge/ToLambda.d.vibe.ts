@@ -33,5 +33,5 @@ export interface LambdaRouteTargetProps extends Pick<RuleTarget, "Input" | "Inpu
  *
  * @binding
  */
-export declare const toLambda: (descriptor: EventDescriptor, fn: LambdaFunction, props?: LambdaRouteTargetProps) => Effect.Effect<Rule, never, import("../Providers.vibe").Providers>;
+export declare const toLambda: (descriptor: EventDescriptor, fn: LambdaFunction, props?: LambdaRouteTargetProps) => Effect.Effect<Rule, never, import("../Providers.js").Providers>;
 export {};

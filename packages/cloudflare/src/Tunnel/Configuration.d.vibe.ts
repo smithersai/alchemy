@@ -2,7 +2,7 @@ import * as zeroTrust from "@distilled.cloud/cloudflare/zero-trust";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * Per-origin connection tuning the cloudflared daemon applies when
  * forwarding requests upstream. Re-exports distilled's shape so every

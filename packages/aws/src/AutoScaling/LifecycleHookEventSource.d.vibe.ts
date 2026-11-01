@@ -154,4 +154,4 @@ export interface LifecycleHookEventSourceProps {
  * );
  * ```
  */
-export declare const consumeLifecycleActions: <StreamReq = never, Req = never>(group: AutoScalingGroup, props: LifecycleHookEventSourceProps, process: (events: Stream.Stream<LifecycleActionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<LifecycleHook, never, import("../EventBridge/EventSource.vibe").EventSource | import("../Providers.vibe").Providers>;
+export declare const consumeLifecycleActions: <StreamReq = never, Req = never>(group: AutoScalingGroup, props: LifecycleHookEventSourceProps, process: (events: Stream.Stream<LifecycleActionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<LifecycleHook, never, import("../EventBridge/EventSource.vibe").EventSource | import("../Providers.js").Providers>;

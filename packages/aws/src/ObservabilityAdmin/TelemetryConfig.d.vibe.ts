@@ -3,7 +3,7 @@ import type { Region } from "@distilled.cloud/aws/Region";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as HttpClient from "effect/http/HttpClient";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface TelemetryConfigProps {
     /**
      * Whether the CloudWatch telemetry config feature (telemetry evaluation)

@@ -96,9 +96,9 @@ export declare const from: (source: PipeSource, options?: PipeSourceOptions) => 
     /**
      * Deliver batches to a Lambda function target.
      */
-    toLambda: (fn: Function, options?: LambdaTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.vibe").Providers>;
+    toLambda: (fn: Function, options?: LambdaTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.js").Providers>;
     /**
      * Deliver batches to an SQS queue target.
      */
-    toQueue: (queue: Queue, options?: QueueTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.vibe").Providers>;
+    toQueue: (queue: Queue, options?: QueueTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.js").Providers>;
 };

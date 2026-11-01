@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type { AccountID } from "../Environment.js";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RegionID } from "../Region.js";
 import type { SecurityGroupId } from "./SecurityGroup.vibe";
 import type { SubnetId } from "./Subnet.js";

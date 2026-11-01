@@ -18,6 +18,6 @@ export interface RetrieveProductFeatureRequest extends Omit<GetProductFeatureReq
  * @binding
  * @product Product
  */
-export interface RetrieveProductFeature extends Binding.Service<RetrieveProductFeature, "Stripe.RetrieveProductFeature", (productFeature: ProductFeature) => Effect.Effect<(request?: RetrieveProductFeatureRequest) => Effect.Effect<StripeProductFeature, GetProductFeatureError, RuntimeContext>>> {
+export interface RetrieveProductFeature extends Binding.Service<RetrieveProductFeature, "Stripe.RetrieveProductFeature", (productFeature: ProductFeature) => Effect.Effect<((request?: RetrieveProductFeatureRequest) => Effect.Effect<StripeProductFeature, GetProductFeatureError, RuntimeContext>)>> {
 }
 export declare const RetrieveProductFeature: RetrieveProductFeature;

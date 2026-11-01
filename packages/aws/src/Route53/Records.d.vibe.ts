@@ -2,7 +2,7 @@ import * as route53 from "@distilled.cloud/aws/route-53";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import { type RecordAliasTarget, type ResolvedRecordAliasTarget } from "./Record.js";
 /**
  * Binding contract of {@link Records}: composites (e.g. an

@@ -30,6 +30,6 @@ export interface ExecuteAirflowCommandRequest extends Omit<composer.ExecuteAirfl
  * @binding
  * @category Composer
  */
-export interface ExecuteAirflowCommand extends Binding.Service<ExecuteAirflowCommand, "GCP.Composer.ExecuteAirflowCommand", (environment: Environment) => Effect.Effect<(request?: ExecuteAirflowCommandRequest) => Effect.Effect<composer.ExecuteAirflowCommandResponse, composer.ExecuteAirflowCommandProjectsLocationsEnvironmentsError, RuntimeContext>>> {
+export interface ExecuteAirflowCommand extends Binding.Service<ExecuteAirflowCommand, "GCP.Composer.ExecuteAirflowCommand", (environment: Environment) => Effect.Effect<((request?: ExecuteAirflowCommandRequest) => Effect.Effect<composer.ExecuteAirflowCommandResponse, composer.ExecuteAirflowCommandProjectsLocationsEnvironmentsError, RuntimeContext>)>> {
 }
 export declare const ExecuteAirflowCommand: ExecuteAirflowCommand;

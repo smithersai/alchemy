@@ -24,6 +24,6 @@ export type ListIssueCommentsResponse = Issues.ListCommentsResponse;
  * @binding
  * @product Issue
  */
-export interface ListIssueComments extends Binding.Service<ListIssueComments, "GitHub.ListIssueComments", (repo: Repository) => Effect.Effect<(request: ListIssueCommentsRequest) => Effect.Effect<ListIssueCommentsResponse, Issues.ListCommentsError, RuntimeContext>>> {
+export interface ListIssueComments extends Binding.Service<ListIssueComments, "GitHub.ListIssueComments", (repo: Repository) => Effect.Effect<((request: ListIssueCommentsRequest) => Effect.Effect<ListIssueCommentsResponse, Issues.ListCommentsError, RuntimeContext>)>> {
 }
 export declare const ListIssueComments: ListIssueComments;

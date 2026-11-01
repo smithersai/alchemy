@@ -34,6 +34,6 @@ export type PutObjectRequest = PutObjectContent;
  * @binding
  * @category Storage
  */
-export interface PutObject extends Binding.Service<PutObject, "GCP.Storage.PutObject", (bucket: Bucket) => Effect.Effect<(request: PutObjectRequest) => Effect.Effect<storage.Storage_Object, ObjectNotFound | ObjectRequestFailed, RuntimeContext>>> {
+export interface PutObject extends Binding.Service<PutObject, "GCP.Storage.PutObject", (bucket: Bucket) => Effect.Effect<((request: PutObjectRequest) => Effect.Effect<storage.Storage_Object, ObjectNotFound | ObjectRequestFailed, RuntimeContext>)>> {
 }
 export declare const PutObject: PutObject;

@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /**
  * A CloudWatch alarm AppConfig monitors during a deployment. If the alarm
  * fires while the configuration is rolling out, the deployment rolls back.

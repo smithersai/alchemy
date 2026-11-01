@@ -1,7 +1,7 @@
 import * as contacts from "@distilled.cloud/aws/ssm-contacts";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 /** How Incident Manager engages the contact through this channel. */
 export type ContactChannelType = "SMS" | "VOICE" | "EMAIL";
 export interface ContactChannelProps {

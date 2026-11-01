@@ -21,6 +21,6 @@ export interface StopInstanceRequest extends Omit<compute.StopInstancesRequest, 
  * @binding
  * @category Compute
  */
-export interface StopInstance extends Binding.Service<StopInstance, "GCP.Compute.StopInstance", (instance: Instance) => Effect.Effect<(request?: StopInstanceRequest) => Effect.Effect<compute.Operation, compute.StopInstancesError, RuntimeContext>>> {
+export interface StopInstance extends Binding.Service<StopInstance, "GCP.Compute.StopInstance", (instance: Instance) => Effect.Effect<((request?: StopInstanceRequest) => Effect.Effect<compute.Operation, compute.StopInstancesError, RuntimeContext>)>> {
 }
 export declare const StopInstance: StopInstance;

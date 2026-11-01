@@ -25,6 +25,6 @@ export interface RunTransferJobRequest extends Omit<storagetransfer.RunTransferJ
  * @binding
  * @category StorageTransfer
  */
-export interface RunTransferJob extends Binding.Service<RunTransferJob, "GCP.StorageTransfer.RunTransferJob", (job: TransferJob) => Effect.Effect<(request?: RunTransferJobRequest) => Effect.Effect<storagetransfer.Operation, storagetransfer.RunTransferJobsError, RuntimeContext>>> {
+export interface RunTransferJob extends Binding.Service<RunTransferJob, "GCP.StorageTransfer.RunTransferJob", (job: TransferJob) => Effect.Effect<((request?: RunTransferJobRequest) => Effect.Effect<storagetransfer.Operation, storagetransfer.RunTransferJobsError, RuntimeContext>)>> {
 }
 export declare const RunTransferJob: RunTransferJob;

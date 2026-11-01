@@ -2,7 +2,7 @@ import type { MemoOptions } from "alchemy/Command/Memo";
 import type { InputProps } from "alchemy/Input";
 import { effectClass } from "alchemy/Util/effect";
 import * as Effect from "effect/Effect";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import type { AssetsConfig } from "../Workers/Assets.ts";
 import {
   Worker,

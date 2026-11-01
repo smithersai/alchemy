@@ -18,6 +18,6 @@ export interface UpdateTerminalReaderRequest extends Omit<DistilledUpdateTermina
  * @binding
  * @product Terminal
  */
-export interface UpdateTerminalReader extends Binding.Service<UpdateTerminalReader, "Stripe.UpdateTerminalReader", (reader: TerminalReader) => Effect.Effect<(request?: UpdateTerminalReaderRequest) => Effect.Effect<UpdateTerminalReaderResponse, UpdateTerminalReaderError, RuntimeContext>>> {
+export interface UpdateTerminalReader extends Binding.Service<UpdateTerminalReader, "Stripe.UpdateTerminalReader", (reader: TerminalReader) => Effect.Effect<((request?: UpdateTerminalReaderRequest) => Effect.Effect<UpdateTerminalReaderResponse, UpdateTerminalReaderError, RuntimeContext>)>> {
 }
 export declare const UpdateTerminalReader: UpdateTerminalReader;

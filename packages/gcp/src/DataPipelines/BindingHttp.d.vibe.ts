@@ -16,5 +16,5 @@ export declare const makePipelineHttpBinding: <I extends {
 }, A, E>(options: {
     tag: string;
     iam: BindingIam;
-    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
+    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
 }) => Effect.Effect<(pipeline: Pipeline) => Effect.Effect<(request?: Omit<I, "name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

@@ -8,7 +8,7 @@ import { Resource } from "alchemy/Resource";
 import { createInternalTags, createTagsList, hasAlchemyTags } from "alchemy/Tags";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.ts";
 import {
   fetchWafTags,
   retryAssociatedItem,

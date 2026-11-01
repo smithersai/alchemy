@@ -21,6 +21,6 @@ export interface GetWorkerPoolRequest extends Omit<cloudrun.GetProjectsLocations
  * @binding
  * @category Run
  */
-export interface GetWorkerPool extends Binding.Service<GetWorkerPool, "GCP.Run.GetWorkerPool", (pool: WorkerPool) => Effect.Effect<(request?: GetWorkerPoolRequest) => Effect.Effect<cloudrun.GoogleCloudRunV2WorkerPool, cloudrun.GetProjectsLocationsWorkerPoolsError, RuntimeContext>>> {
+export interface GetWorkerPool extends Binding.Service<GetWorkerPool, "GCP.Run.GetWorkerPool", (pool: WorkerPool) => Effect.Effect<((request?: GetWorkerPoolRequest) => Effect.Effect<cloudrun.GoogleCloudRunV2WorkerPool, cloudrun.GetProjectsLocationsWorkerPoolsError, RuntimeContext>)>> {
 }
 export declare const GetWorkerPool: GetWorkerPool;

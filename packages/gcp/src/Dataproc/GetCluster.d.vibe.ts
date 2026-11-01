@@ -21,6 +21,6 @@ export interface GetClusterRequest extends Omit<dataproc.GetProjectsRegionsClust
  * @binding
  * @category Dataproc
  */
-export interface GetCluster extends Binding.Service<GetCluster, "GCP.Dataproc.GetCluster", (cluster: Cluster) => Effect.Effect<(request?: GetClusterRequest) => Effect.Effect<dataproc.Cluster, dataproc.GetProjectsRegionsClustersError, RuntimeContext>>> {
+export interface GetCluster extends Binding.Service<GetCluster, "GCP.Dataproc.GetCluster", (cluster: Cluster) => Effect.Effect<((request?: GetClusterRequest) => Effect.Effect<dataproc.Cluster, dataproc.GetProjectsRegionsClustersError, RuntimeContext>)>> {
 }
 export declare const GetCluster: GetCluster;

@@ -23,6 +23,6 @@ export interface PublishRequest extends Omit<pubsub.PublishProjectsTopicsRequest
  * @binding
  * @category PubSub
  */
-export interface Publish extends Binding.Service<Publish, "GCP.PubSub.Publish", (topic: Topic) => Effect.Effect<(request: PublishRequest) => Effect.Effect<pubsub.PublishResponse, pubsub.PublishProjectsTopicsError, RuntimeContext>>> {
+export interface Publish extends Binding.Service<Publish, "GCP.PubSub.Publish", (topic: Topic) => Effect.Effect<((request: PublishRequest) => Effect.Effect<pubsub.PublishResponse, pubsub.PublishProjectsTopicsError, RuntimeContext>)>> {
 }
 export declare const Publish: Publish;

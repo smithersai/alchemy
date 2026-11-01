@@ -24,6 +24,6 @@ export interface EncryptRequest extends Omit<kms.EncryptProjectsLocationsKeyRing
  * @binding
  * @category KMS
  */
-export interface Encrypt extends Binding.Service<Encrypt, "GCP.KMS.Encrypt", (key: CryptoKey) => Effect.Effect<(request?: EncryptRequest) => Effect.Effect<kms.EncryptResponse, kms.EncryptProjectsLocationsKeyRingsCryptoKeysError, RuntimeContext>>> {
+export interface Encrypt extends Binding.Service<Encrypt, "GCP.KMS.Encrypt", (key: CryptoKey) => Effect.Effect<((request?: EncryptRequest) => Effect.Effect<kms.EncryptResponse, kms.EncryptProjectsLocationsKeyRingsCryptoKeysError, RuntimeContext>)>> {
 }
 export declare const Encrypt: Encrypt;

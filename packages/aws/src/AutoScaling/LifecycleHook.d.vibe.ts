@@ -2,7 +2,7 @@ import type { Input } from "alchemy/Input";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { AutoScalingGroup as AutoScalingGroupResource } from "./AutoScalingGroup.js";
 declare const LifecycleHookUnexpectedResponse_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "LifecycleHookUnexpectedResponse";

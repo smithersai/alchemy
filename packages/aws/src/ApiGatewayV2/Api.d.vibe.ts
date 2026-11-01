@@ -2,7 +2,7 @@ import * as agw2 from "@distilled.cloud/aws/apigatewayv2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 export interface ApiProps {
     /**
      * Name of the API. If omitted, Alchemy generates a deterministic

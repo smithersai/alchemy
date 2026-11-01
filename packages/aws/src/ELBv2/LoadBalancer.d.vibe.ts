@@ -4,7 +4,7 @@ import { Resource } from "alchemy/Resource";
 import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
 import type { SubnetId } from "../EC2/Subnet.js";
 import type { AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RegionID } from "../Region.js";
 export type LoadBalancerName = string;
 export type LoadBalancerArn = `arn:aws:elasticloadbalancing:${RegionID}:${AccountID}:loadbalancer/${string}`;

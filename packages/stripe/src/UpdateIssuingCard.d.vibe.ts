@@ -18,6 +18,6 @@ export interface UpdateIssuingCardRequest extends Omit<DistilledUpdateIssuingCar
  * @binding
  * @product Issuing
  */
-export interface UpdateIssuingCard extends Binding.Service<UpdateIssuingCard, "Stripe.UpdateIssuingCard", (card: IssuingCard) => Effect.Effect<(request?: UpdateIssuingCardRequest) => Effect.Effect<StripeIssuingCard, UpdateIssuingCardError, RuntimeContext>>> {
+export interface UpdateIssuingCard extends Binding.Service<UpdateIssuingCard, "Stripe.UpdateIssuingCard", (card: IssuingCard) => Effect.Effect<((request?: UpdateIssuingCardRequest) => Effect.Effect<StripeIssuingCard, UpdateIssuingCardError, RuntimeContext>)>> {
 }
 export declare const UpdateIssuingCard: UpdateIssuingCard;

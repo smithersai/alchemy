@@ -33,7 +33,7 @@ import {
 import { localRuntimeServices } from "../LocalRuntime.ts";
 import { CloudflareLogs } from "../Logs.ts";
 import { detachQueueConsumersOfScript } from "../Queues/Consumer.ts";
-import { resolveZoneId, type Reference as ZoneReference } from "../Zone/lookup.vibe";
+import { resolveZoneId, type Reference as ZoneReference } from "../Zone/lookup.ts";
 import {
   getAssetsPathPrefix,
   mergeAssetsConfigFiles,

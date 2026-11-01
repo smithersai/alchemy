@@ -2,7 +2,7 @@ import * as cloudwatch from "@distilled.cloud/aws/cloudwatch";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { AlarmArn } from "./Alarm.vibe";
 declare const CompositeAlarmUnexpectedResponse_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "CompositeAlarmUnexpectedResponse";

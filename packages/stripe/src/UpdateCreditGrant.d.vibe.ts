@@ -19,6 +19,6 @@ export interface UpdateCreditGrantRequest extends Omit<UpdateBillingCreditGrantR
  * @binding
  * @product Billing
  */
-export interface UpdateCreditGrant extends Binding.Service<UpdateCreditGrant, "Stripe.UpdateCreditGrant", (grant: CreditGrant) => Effect.Effect<(request?: UpdateCreditGrantRequest) => Effect.Effect<StripeCreditGrant, UpdateBillingCreditGrantError, RuntimeContext>>> {
+export interface UpdateCreditGrant extends Binding.Service<UpdateCreditGrant, "Stripe.UpdateCreditGrant", (grant: CreditGrant) => Effect.Effect<((request?: UpdateCreditGrantRequest) => Effect.Effect<StripeCreditGrant, UpdateBillingCreditGrantError, RuntimeContext>)>> {
 }
 export declare const UpdateCreditGrant: UpdateCreditGrant;

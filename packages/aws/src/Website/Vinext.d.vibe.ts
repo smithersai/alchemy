@@ -155,4 +155,4 @@ export declare const Vinext: (id: string, propsIn?: InputProps<VinextProps, "ser
     server: import("../Lambda/Function.js").Function;
     serverUrl: Output.Output<string | undefined, never>;
     cacheBucket: Bucket;
-}, never, AlchemyContext | import("alchemy").Provider<import("alchemy/Command/Build").Build> | import("alchemy").Provider<import("alchemy/Website/Server").Server> | import("../Providers.vibe").Providers | import("alchemy").Stack | import("alchemy").Stage>;
+}, never, AlchemyContext | import("alchemy").Provider<import("alchemy/Command/Build").Build> | import("alchemy").Provider<import("alchemy/Website/Server").Server> | import("../Providers.js").Providers | import("alchemy").Stack | import("alchemy").Stage>;

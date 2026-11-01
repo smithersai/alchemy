@@ -20,6 +20,6 @@ export interface RetrieveTaxSettingsRequest extends GetTaxSettingsRequest {
  * @binding
  * @product Tax
  */
-export interface RetrieveTaxSettings extends Binding.Service<RetrieveTaxSettings, "Stripe.RetrieveTaxSettings", (settings: TaxSettings) => Effect.Effect<(request?: RetrieveTaxSettingsRequest) => Effect.Effect<StripeTaxSettings, GetTaxSettingsError, RuntimeContext>>> {
+export interface RetrieveTaxSettings extends Binding.Service<RetrieveTaxSettings, "Stripe.RetrieveTaxSettings", (settings: TaxSettings) => Effect.Effect<((request?: RetrieveTaxSettingsRequest) => Effect.Effect<StripeTaxSettings, GetTaxSettingsError, RuntimeContext>)>> {
 }
 export declare const RetrieveTaxSettings: RetrieveTaxSettings;

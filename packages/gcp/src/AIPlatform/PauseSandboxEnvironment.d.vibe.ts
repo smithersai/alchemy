@@ -21,6 +21,6 @@ export interface PauseSandboxEnvironmentRequest extends Omit<aiplatform.PauseRea
  * @binding
  * @category AIPlatform
  */
-export interface PauseSandboxEnvironment extends Binding.Service<PauseSandboxEnvironment, "GCP.AIPlatform.PauseSandboxEnvironment", (sandbox: ReasoningEnginesSandboxEnvironment) => Effect.Effect<(request?: PauseSandboxEnvironmentRequest) => Effect.Effect<aiplatform.GoogleLongrunningOperation, aiplatform.PauseReasoningEnginesSandboxEnvironmentsError, RuntimeContext>>> {
+export interface PauseSandboxEnvironment extends Binding.Service<PauseSandboxEnvironment, "GCP.AIPlatform.PauseSandboxEnvironment", (sandbox: ReasoningEnginesSandboxEnvironment) => Effect.Effect<((request?: PauseSandboxEnvironmentRequest) => Effect.Effect<aiplatform.GoogleLongrunningOperation, aiplatform.PauseReasoningEnginesSandboxEnvironmentsError, RuntimeContext>)>> {
 }
 export declare const PauseSandboxEnvironment: PauseSandboxEnvironment;

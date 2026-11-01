@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.vibe";
+import type { Providers } from "../Providers.js";
 import type { RestApi } from "./RestApi.vibe";
 /**
  * Per-method override settings for a stage. Mirrors the API's

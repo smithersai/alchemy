@@ -21,6 +21,6 @@ export interface GetClusterRequest extends Omit<container.GetProjectsLocationsCl
  * @binding
  * @category Container
  */
-export interface GetCluster extends Binding.Service<GetCluster, "GCP.Container.GetCluster", (cluster: Cluster) => Effect.Effect<(request?: GetClusterRequest) => Effect.Effect<container.Cluster, container.GetProjectsLocationsClustersError, RuntimeContext>>> {
+export interface GetCluster extends Binding.Service<GetCluster, "GCP.Container.GetCluster", (cluster: Cluster) => Effect.Effect<((request?: GetClusterRequest) => Effect.Effect<container.Cluster, container.GetProjectsLocationsClustersError, RuntimeContext>)>> {
 }
 export declare const GetCluster: GetCluster;

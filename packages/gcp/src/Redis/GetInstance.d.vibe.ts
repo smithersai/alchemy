@@ -21,6 +21,6 @@ export interface GetInstanceRequest extends Omit<redis.GetProjectsLocationsInsta
  * @binding
  * @category Redis
  */
-export interface GetInstance extends Binding.Service<GetInstance, "GCP.Redis.GetInstance", (instance: Instance) => Effect.Effect<(request?: GetInstanceRequest) => Effect.Effect<redis.Instance, redis.GetProjectsLocationsInstancesError, RuntimeContext>>> {
+export interface GetInstance extends Binding.Service<GetInstance, "GCP.Redis.GetInstance", (instance: Instance) => Effect.Effect<((request?: GetInstanceRequest) => Effect.Effect<redis.Instance, redis.GetProjectsLocationsInstancesError, RuntimeContext>)>> {
 }
 export declare const GetInstance: GetInstance;
