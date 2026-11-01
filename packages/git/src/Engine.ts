@@ -262,7 +262,7 @@ const make = Effect.gen(function* () {
       )
         return yield* RefConflict.make({
           ref: input.ref,
-          currentOid: current as import("./Api.ts").Oid,
+          currentOid: current as import("./Api.vibe").Oid,
         });
       const update = { ref: input.ref, oldOid: current, newOid: input.newOid };
       const commit = stub.updateRef({
@@ -283,7 +283,7 @@ const make = Effect.gen(function* () {
       if (input.expectedOid !== undefined && input.expectedOid !== current.oid)
         return yield* RefConflict.make({
           ref: input.ref,
-          currentOid: current.oid as import("./Api.ts").Oid,
+          currentOid: current.oid as import("./Api.vibe").Oid,
         });
       return yield* scopedMutation(
         [{ ref: input.ref, oldOid: current.oid, newOid: "0".repeat(40) }],
@@ -366,7 +366,7 @@ const make = Effect.gen(function* () {
     objects: {
       commit: (repo: RepoMetaData, oid: string) =>
         operations.objects.commit({
-          params: { ...path(repo), oid: oid as import("./Api.ts").Oid },
+          params: { ...path(repo), oid: oid as import("./Api.vibe").Oid },
         }),
       file: (
         repo: RepoMetaData,

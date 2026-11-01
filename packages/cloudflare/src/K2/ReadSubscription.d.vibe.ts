@@ -3,7 +3,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type * as Option from "effect/Option";
 import type { AckError, Batch, ConsumeError, ExtendError, NackError } from "./K2Types.vibe";
-import type { Subscription } from "./Subscription.js";
+import type { Subscription } from "./Subscription.vibe";
 /** Options for {@link ReadSubscriptionClient.consume}. */
 export interface ConsumeOptions {
     /**

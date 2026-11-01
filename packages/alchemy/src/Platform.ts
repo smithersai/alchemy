@@ -14,7 +14,7 @@ import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import { Scope } from "effect/Scope";
 import type * as Stream from "effect/Stream";
-import type { Dependencies } from "./Dependencies.ts";
+import type { Dependencies } from "./Dependencies.vibe";
 import { toFqn } from "./FQN.ts";
 import type { HttpEffect } from "./Http.ts";
 import type { InputProps } from "./Input.ts";

@@ -17,7 +17,7 @@ import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import type * as SqlClient from "effect/sql/SqlClient";
 import type * as SqlError from "effect/sql/SqlError";
-import { resolveConnectionOptions } from "./PostgresTls.ts";
+import { resolveConnectionOptions } from "./PostgresTls.vibe";
 
 // `@effect/sql-pg` is loaded lazily rather than imported statically (as
 // `SQL/Postgres.ts` does) so that `postgresState({ client })` — which takes

@@ -11,7 +11,7 @@ import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import { localAccountId } from "../LocalAccount.ts";
 import { generateLocalId, isLiveId } from "../LocalRuntime.ts";
 import type { Providers } from "../Providers.ts";
-import type { DurableObjectApplicationSettings } from "./ContainerApplication.ts";
+import type { DurableObjectApplicationSettings } from "./ContainerApplication.vibe";
 import { createContainerApplicationName } from "./ContainerBundle.ts";
 import {
   ContainerConfigurationError,

@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { PresignPutObject, type PresignPutObjectRequest } from "./PresignPutObject.ts";
-import { makePresignBinding, presignR2Url } from "./PresignToken.ts";
+import { PresignPutObject, type PresignPutObjectRequest } from "./PresignPutObject.vibe";
+import { makePresignBinding, presignR2Url } from "./PresignToken.vibe";
 
 /**
  * Implementation of {@link PresignPutObject} that signs URLs with S3

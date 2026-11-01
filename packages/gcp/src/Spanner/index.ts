@@ -2,7 +2,7 @@ export * from "./Database.ts";
 export * from "./ExecuteSql.vibe";
 export * from "./ExecuteSqlHttp.ts";
 export * from "./GetDdl.vibe";
-export * from "./GetDdlHttp.ts";
+export * from "./GetDdlHttp.vibe";
 export * from "./GetInstance.vibe";
 export * from "./GetInstanceHttp.vibe";
 export * from "./Instance.ts";

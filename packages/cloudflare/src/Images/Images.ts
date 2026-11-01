@@ -4,7 +4,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as Binding from "../Workers/Binding.ts";
-import type { ImagesBinding } from "./ImagesBinding.ts";
+import type { ImagesBinding } from "./ImagesBinding.vibe";
 
 const TypeId = "Cloudflare.Images.Images" as const;
 type TypeId = typeof TypeId;

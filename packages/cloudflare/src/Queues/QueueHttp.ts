@@ -7,7 +7,7 @@ import { AccountApiToken } from "../ApiToken/AccountApiToken.ts";
 import type { PermissionGroupRef } from "../ApiToken/Common.ts";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Credentials } from "../Credentials.ts";
-import { requireLiveResource } from "../HttpBindingDev.ts";
+import { requireLiveResource } from "../HttpBindingDev.vibe";
 import type { Queue } from "./Queue.ts";
 import { SendError } from "./QueueTypes.ts";
 

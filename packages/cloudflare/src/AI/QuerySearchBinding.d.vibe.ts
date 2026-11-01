@@ -1,0 +1,7 @@
+import * as Layer from "effect/Layer";
+import { Worker, WorkerEnvironment } from "../Workers/Worker.js";
+import { QuerySearch } from "./QuerySearch.vibe";
+/**
+ * Runtime layer for {@link QuerySearch}.
+ */
+export declare const QuerySearchBinding: Layer.Layer<QuerySearch, never, WorkerEnvironment | Worker<any>>;

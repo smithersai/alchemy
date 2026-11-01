@@ -14,9 +14,9 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import type { CertificateAuthority } from "./CertificateAuthority.js";
-import { type PropagationOptions } from "./Dns.js";
-import type { DnsSolver } from "./DnsSolver.js";
-import { ChallengeFailed, ChallengeUnsupported, OrderInvalid, OrderTimeout, PkiError, type DnsPropagationTimeout, type DnsSolverError } from "./Errors.js";
+import { type PropagationOptions } from "./Dns.vibe";
+import type { DnsSolver } from "./DnsSolver.vibe";
+import { ChallengeFailed, ChallengeUnsupported, OrderInvalid, OrderTimeout, PkiError, type DnsPropagationTimeout, type DnsSolverError } from "./Errors.vibe";
 import { type KeyAlgorithm } from "./Pki.js";
 /** Everything the flow needs to sign requests as an account. */
 export interface AccountCredentials {

@@ -3,7 +3,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Data from "effect/Data";
 import type * as Effect from "effect/Effect";
 import * as Binding from "./Binding.ts";
-import type { RateLimitBinding } from "./RateLimitBinding.ts";
+import type { RateLimitBinding } from "./RateLimitBinding.vibe";
 
 const TypeId = "Cloudflare.RateLimit" as const;
 type TypeId = typeof TypeId;

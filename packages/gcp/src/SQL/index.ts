@@ -4,7 +4,7 @@ export * from "./Connect.vibe";
 export * from "./ConnectHttp.vibe";
 export * from "./Database.ts";
 export * from "./ExecuteSql.vibe";
-export * from "./ExecuteSqlHttp.ts";
+export * from "./ExecuteSqlHttp.vibe";
 export * from "./GetInstance.vibe";
 export * from "./GetInstanceHttp.vibe";
 export * from "./GetUser.vibe";

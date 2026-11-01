@@ -29,4 +29,4 @@ import * as Layer from "effect/Layer";
  * @product Queues
  * @category Storage & Databases
  */
-export declare const QueueSinkBinding: Layer.Layer<import("./QueueSink.js").QueueSink, never, import("../index.js").WorkerEnvironment | import("../index.js").Worker<any>>;
+export declare const QueueSinkBinding: Layer.Layer<import("./QueueSink.vibe").QueueSink, never, import("../index.js").WorkerEnvironment | import("../index.js").Worker<any>>;

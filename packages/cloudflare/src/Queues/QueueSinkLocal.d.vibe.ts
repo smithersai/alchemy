@@ -26,4 +26,4 @@ import * as Layer from "effect/Layer";
  * @product Queues
  * @category Storage & Databases
  */
-export declare const QueueSinkLocal: Layer.Layer<import("./QueueSink.js").QueueSink, never, import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const QueueSinkLocal: Layer.Layer<import("./QueueSink.vibe").QueueSink, never, import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;

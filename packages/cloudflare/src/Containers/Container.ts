@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { Providers } from "../Providers.ts";
 import { type WorkerShape } from "../Workers/Worker.ts";
-import type { ContainerApplication } from "./ContainerApplication.ts";
+import type { ContainerApplication } from "./ContainerApplication.vibe";
 import {
   makeContainerHandle,
   type ContainerClient,
@@ -80,7 +80,7 @@ import type {
   EffectfulContainerProps,
   ExternalContainerProps,
   RemoteContainerProps,
-} from "./ContainerApplication.ts";
+} from "./ContainerApplication.vibe";
 
 export type {
   DurableObjectContainerProps,

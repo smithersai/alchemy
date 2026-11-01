@@ -20,7 +20,7 @@ import {
   type ConsumeStreamRecordsHandler,
   type StreamEventSourceService,
 } from "./StreamEventSource.vibe";
-import { Subscription } from "./Subscription.ts";
+import { Subscription } from "./Subscription.vibe";
 
 /**
  * Polling implementation of {@link StreamEventSource} for hosts with a

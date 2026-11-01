@@ -9,7 +9,7 @@ import { Resource } from "../Resource.ts";
 import { moduleExtension } from "../Util/Node.ts";
 import { makeResourceOutput } from "../Util/ResourceOutput.ts";
 import { CommandExecutor, UnexpectedExit, makeCommandError, type CommandProps } from "./Command.ts";
-import { makeCommandRedactor } from "./Redaction.ts";
+import { makeCommandRedactor } from "./Redaction.vibe";
 
 export interface DevProps extends CommandProps {
   /**

@@ -38,7 +38,7 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
-import { GitApi, InternalApi, RepoCreated } from "./Api.ts";
+import { GitApi, InternalApi, RepoCreated } from "./Api.vibe";
 import { BlobStore, type BlobStoreError } from "./BlobStore.ts";
 import { Engine, EngineLive } from "./Engine.ts";
 import { gitHubCompatRoutes } from "./GitHubCompat.ts";

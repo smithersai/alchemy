@@ -1,3 +1,3 @@
 export * from "./CreateTask.vibe";
-export * from "./CreateTaskHttp.ts";
+export * from "./CreateTaskHttp.vibe";
 export * from "./Queue.vibe";

@@ -7,7 +7,7 @@ import { Jose } from "@distilled.cloud/acme";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Der from "./Der.ts";
-import { PkiError } from "./Errors.ts";
+import { PkiError } from "./Errors.vibe";
 
 export type KeyAlgorithm = "ES256" | "RS256";
 

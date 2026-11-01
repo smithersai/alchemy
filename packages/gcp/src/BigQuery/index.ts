@@ -5,7 +5,7 @@ export * from "./Job.vibe";
 export * from "./ListTabledata.vibe";
 export * from "./ListTabledataHttp.vibe";
 export * from "./Query.vibe";
-export * from "./QueryHttp.ts";
+export * from "./QueryHttp.vibe";
 export * from "./Routine.vibe";
 export * from "./RowAccessPolicy.vibe";
 export * from "./Table.vibe";

@@ -8,7 +8,7 @@ import { AccountApiToken } from "../ApiToken/AccountApiToken.ts";
 import type { PermissionGroupRef } from "../ApiToken/Common.ts";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Credentials } from "../Credentials.ts";
-import { requireLiveResource } from "../HttpBindingDev.ts";
+import { requireLiveResource } from "../HttpBindingDev.vibe";
 import type { Bucket } from "./Bucket.ts";
 import { R2Error, type R2Object } from "./BucketTypes.ts";
 

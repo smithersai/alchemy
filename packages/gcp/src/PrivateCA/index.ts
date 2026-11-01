@@ -8,6 +8,6 @@ export {
 } from "./CertificateTemplate.ts";
 export type { CertificateTemplateProps } from "./CertificateTemplate.ts";
 export * from "./FetchCaCerts.vibe";
-export * from "./FetchCaCertsHttp.ts";
+export * from "./FetchCaCertsHttp.vibe";
 export * from "./GetCertificateAuthority.vibe";
 export * from "./GetCertificateAuthorityHttp.vibe";

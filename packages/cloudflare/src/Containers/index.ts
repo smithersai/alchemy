@@ -1,5 +1,5 @@
 export * from "./Container.ts";
-export * from "./ContainerApplication.ts";
+export * from "./ContainerApplication.vibe";
 export * from "./ContainerBundle.ts";
 export type {
   ContainerClient,

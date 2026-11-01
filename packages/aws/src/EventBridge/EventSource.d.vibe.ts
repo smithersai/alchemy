@@ -7,18 +7,18 @@ import type { Function as LambdaFunction } from "../Lambda/Function.js";
 import type { Queue } from "../SQS/Queue.vibe";
 import type { EventBus } from "./EventBus.vibe";
 import type { RuleProps } from "./Rule.vibe";
-import { type EcsRouteTargetProps } from "./ToEcsTask.vibe";
-import { type LambdaRouteTargetProps } from "./ToLambda.vibe";
-import { type QueueRouteTargetProps } from "./ToQueue.vibe";
+import { type EcsRouteTargetProps } from "./ToEcsTask.js";
+import { type LambdaRouteTargetProps } from "./ToLambda.js";
+import { type QueueRouteTargetProps } from "./ToQueue.js";
 export type EventPattern = Record<string, any>;
 export type EventRecord<Detail = unknown> = lambda.EventBridgeEvent<string, Detail>;
 export interface EventRouteProps extends Pick<RuleProps, "description" | "state"> {
 }
 export interface SubscribeProps extends EventRouteProps {
 }
-export type { EcsRouteTargetProps } from "./ToEcsTask.vibe";
-export type { LambdaRouteTargetProps } from "./ToLambda.vibe";
-export type { QueueRouteTargetProps } from "./ToQueue.vibe";
+export type { EcsRouteTargetProps } from "./ToEcsTask.js";
+export type { LambdaRouteTargetProps } from "./ToLambda.js";
+export type { QueueRouteTargetProps } from "./ToQueue.js";
 interface EventDescriptor {
     id?: string;
     bus?: EventBus;

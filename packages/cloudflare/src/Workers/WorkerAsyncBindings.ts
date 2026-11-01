@@ -18,7 +18,7 @@ import { isSearchNamespace } from "../AI/SearchNamespace.ts";
 import { isDataset } from "../AnalyticsEngine/Dataset.ts";
 import { isNamespace } from "../Artifacts/Namespace.ts";
 import type { Container } from "../Containers/Container.ts";
-import type { ContainerApplication } from "../Containers/ContainerApplication.ts";
+import type { ContainerApplication } from "../Containers/ContainerApplication.vibe";
 import {
   containerApplicationSettings,
   DurableObjectContainerBindingError,

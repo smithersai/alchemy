@@ -6,7 +6,7 @@ import * as Data from "effect/Data";
 import type * as Effect from "effect/Effect";
 import type * as Layer from "effect/Layer";
 import type { LanguageModelOptions } from "../AI/LanguageModel.vibe";
-import type { AIBinding } from "./AIBinding.ts";
+import type { AIBinding } from "./AIBinding.vibe";
 import * as Binding from "./Binding.ts";
 
 const TypeId = "Cloudflare.Workers.AI" as const;

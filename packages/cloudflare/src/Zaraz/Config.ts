@@ -8,7 +8,7 @@ import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Providers } from "../Providers.ts";
 import { resolveZoneId, type Reference } from "../Zone/index.ts";
 import { listAllZones } from "../Zone/lookup.ts";
-import { defineZarazEvents } from "./ZarazEventTypes.ts";
+import { defineZarazEvents } from "./ZarazEventTypes.vibe";
 
 export type Workflow = zaraz.GetWorkflowResponse;
 export type Settings = zaraz.PutConfigRequest["settings"];

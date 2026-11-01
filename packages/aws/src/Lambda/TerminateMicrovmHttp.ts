@@ -1,6 +1,6 @@
 import * as microvms from "@distilled.cloud/aws/lambda-microvms";
 import { makeImageBinding } from "./MicrovmBinding.ts";
-import { TerminateMicrovm } from "./TerminateMicrovm.vibe";
+import { TerminateMicrovm } from "./TerminateMicrovm.ts";
 
 export const TerminateMicrovmHttp = makeImageBinding({
   binding: TerminateMicrovm,

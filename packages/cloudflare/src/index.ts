@@ -4,7 +4,7 @@ export * from "./EdgeSession.ts";
 export * from "./Fetcher.ts";
 export * from "./Providers.ts";
 export * from "./StateStore/index.ts";
-export * from "./Workers/RpcAsync.ts";
+export * from "./Workers/RpcAsync.vibe";
 
 // ── services (namespaced) ──
 export * as ACME from "./ACME.ts";

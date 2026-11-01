@@ -29,7 +29,7 @@ import type {
   AnyContainerApplicationProps,
   ContainerApplication,
   DurableObjectContainerProps,
-} from "./ContainerApplication.ts";
+} from "./ContainerApplication.vibe";
 import {
   buildFinalDockerfile,
   bundleContainerProgram,

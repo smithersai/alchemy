@@ -11,7 +11,7 @@ export {
   DeploymentProvider,
   type DeploymentProps,
   type DeploymentType,
-} from "./Deployment.vibe";
+} from "./Deployment.ts";
 export { DomainName, DomainNameProvider, type DomainNameProps } from "./DomainName.vibe";
 export {
   GatewayResponse,

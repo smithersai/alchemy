@@ -20,8 +20,8 @@
  * import them via `@alchemy.run/git/Protocol/Pkt` style paths when
  * needed.
  */
-export * from "./Api.ts";
-export { GitApi as Api } from "./Api.ts";
+export * from "./Api.vibe";
+export { GitApi as Api } from "./Api.vibe";
 export { Engine, EngineLive } from "./Engine.ts";
 export type { PushInput, PreparedPush, RefUpdate } from "./Push.vibe";
 export * as Http from "./Http.ts";

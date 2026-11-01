@@ -6,7 +6,7 @@ import { fromConsumedRecords } from "./K2Codec.vibe";
 import { type K2Auth, makeK2HttpAuth } from "./K2Http.ts";
 import type { Batch } from "./K2Types.vibe";
 import { ReadSubscription, type ReadSubscriptionClient } from "./ReadSubscription.vibe";
-import type { Subscription } from "./Subscription.ts";
+import type { Subscription } from "./Subscription.vibe";
 
 /** Default `maxRecords` per `consume`. */
 export const DEFAULT_MAX_RECORDS = 100;

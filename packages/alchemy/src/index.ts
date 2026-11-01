@@ -42,7 +42,7 @@ export { AuthProviders } from "./Auth/AuthProvider.ts";
 export { Cli } from "./Report.ts";
 export * as Events from "./Events.ts";
 export * as Report from "./Report.ts";
-export type { Dependencies } from "./Dependencies.ts";
+export type { Dependencies } from "./Dependencies.vibe";
 export type { Named } from "./Named.ts";
 export type * from "./Platform.ts";
 export { Platform } from "./Platform.ts";

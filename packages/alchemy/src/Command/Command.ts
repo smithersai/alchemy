@@ -24,7 +24,7 @@ import * as Stream from "effect/Stream";
 import type { ScopedPlanStatusSession } from "../Report.ts";
 import { isNonInteractive } from "../Util/interactive.ts";
 import { initialCwd } from "../Util/Node.ts";
-import { makeCommandRedactor, redactPlatformReason, type CommandRedactor } from "./Redaction.ts";
+import { makeCommandRedactor, redactPlatformReason, type CommandRedactor } from "./Redaction.vibe";
 
 /**
  * Base properties for a command resource.

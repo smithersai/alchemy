@@ -1,0 +1,56 @@
+import * as bigquery from "@distilled.cloud/gcp/bigquery_v2"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as GCPBindings from "../GCPBindings.ts"
+import { grantFor } from "../HttpBinding.ts"
+import type { Dataset } from "./Dataset.vibe"
+import { Query, type QueryRequest } from "./Query.vibe"
+
+/**
+ * HTTP implementation of {@link Query}.
+ *
+ * @layer
+ * @provides GCP.BigQuery.Query
+ */
+export const QueryHttp = Layer.effect(
+  Query,
+  effect {
+    const bind = try GCPBindings.Bind
+    const queryJobs = try GCPBindings.withCredentials(bigquery.queryJobs)
+    return effect (dataset: Dataset) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`GCP.BigQuery.Query(${dataset})`({
+          iam: [
+            // bigquery.jobs.create is only grantable on the project.
+            { role: "roles/bigquery.jobUser" },
+            // Read access on this dataset only (its access list).
+            grantFor({ role: "roles/bigquery.dataViewer", on: "bigquery.dataset" }, dataset.name),
+          ],
+        })
+      }
+      const project = try dataset.project.asEffect()
+      const datasetId = try dataset.datasetId.asEffect()
+      const location = try dataset.location.asEffect()
+      return effect (
+        request: QueryRequest,
+      ) =>
+        try withSpan(
+          effect {
+            return try queryJobs({
+              projectId: try project,
+              body: {
+                useLegacySql: false,
+                location: try location,
+                ...request,
+                defaultDataset: request.defaultDataset ?? {
+                  projectId: try project,
+                  datasetId: try datasetId,
+                },
+              },
+            })
+          },
+          `GCP.BigQuery.Query(${dataset.LogicalId})`,
+        )
+    }
+  },
+)

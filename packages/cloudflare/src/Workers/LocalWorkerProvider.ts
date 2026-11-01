@@ -43,7 +43,7 @@ import * as Result from "effect/Result";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
-import type { DevContainerImage } from "../Containers/ContainerApplication.ts";
+import type { DevContainerImage } from "../Containers/ContainerApplication.vibe";
 import {
   assertBindingContainersOnAsyncClasses,
   mergeWorkerContainers,
@@ -69,7 +69,7 @@ import { isPythonMain, watchPythonWorkerBundle } from "./Sources/Python.ts";
 import { WorkerBundle, type WorkerBundleOptions } from "./Sources/Rolldown.ts";
 import { DEFAULT_DEV_PORT, type ViteChildConfig } from "./ViteChild.shared.ts";
 import { startViteChild } from "./ViteChild.ts";
-import { resolveViteMain } from "./ViteMain.ts";
+import { resolveViteMain } from "./ViteMain.vibe";
 import { isSelfUrl, Worker } from "./Worker.ts";
 import { getCronBindings } from "./WorkerAsyncBindings.ts";
 import type { WorkerBinding } from "./WorkerBinding.ts";

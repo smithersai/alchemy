@@ -12,7 +12,7 @@ import * as Effect from "effect/Effect";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import type * as rolldown from "rolldown";
-import type { AnyContainerApplicationProps } from "./ContainerApplication.ts";
+import type { AnyContainerApplicationProps } from "./ContainerApplication.vibe";
 
 /**
  * Fold the runtime-context `env` map (populated by `Binding.Service`s and

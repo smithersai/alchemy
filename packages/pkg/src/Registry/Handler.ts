@@ -16,7 +16,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
-import { ManifestJson, type ManifestPackage } from "../Manifest.ts";
+import { ManifestJson, type ManifestPackage } from "../Manifest.vibe";
 import {
   BadRequest,
   Forbidden,
@@ -37,8 +37,8 @@ import {
   tarballKey,
 } from "./Bindings.vibe";
 import * as GitHub from "./GitHub.ts";
-import * as KVCache from "./KVCache.ts";
-import { sweep } from "./Sweep.ts";
+import * as KVCache from "./KVCache.vibe";
+import { sweep } from "./Sweep.vibe";
 import * as Tags from "./Tags.vibe";
 
 /** What GitHub says about a run. */

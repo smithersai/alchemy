@@ -5,7 +5,7 @@ import { Resource } from "../Resource.ts";
 import { BuildProvider } from "./Build.ts";
 import { CommandExecutorLive } from "./Command.ts";
 import { DevProvider } from "./Dev.ts";
-import { ExecProvider } from "./Exec.ts";
+import { ExecProvider } from "./Exec.vibe";
 
 export const providers = () =>
   Layer.mergeAll(

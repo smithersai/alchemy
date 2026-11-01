@@ -395,7 +395,7 @@ import {
   ServiceProjectAttachment,
   ServiceProjectAttachmentProvider,
 } from "./AppHub/ServiceProjectAttachment.vibe";
-import { ListDockerImagesHttp } from "./ArtifactRegistry/ListDockerImagesHttp.ts";
+import { ListDockerImagesHttp } from "./ArtifactRegistry/ListDockerImagesHttp.vibe";
 import {
   RepositoriesAttachment,
   RepositoriesAttachmentProvider,
@@ -463,7 +463,7 @@ import { Dataset, DatasetProvider } from "./BigQuery/Dataset.vibe";
 import { InsertAllHttp } from "./BigQuery/InsertAllHttp.vibe";
 import { Job as BigQueryJob, JobProvider as BigQueryJobProvider } from "./BigQuery/Job.vibe";
 import { ListTabledataHttp } from "./BigQuery/ListTabledataHttp.vibe";
-import { QueryHttp } from "./BigQuery/QueryHttp.ts";
+import { QueryHttp } from "./BigQuery/QueryHttp.vibe";
 import { Routine, RoutineProvider } from "./BigQuery/Routine.vibe";
 import { RowAccessPolicy, RowAccessPolicyProvider } from "./BigQuery/RowAccessPolicy.vibe";
 import { Table, TableProvider } from "./BigQuery/Table.vibe";
@@ -530,13 +530,13 @@ import {
   AttestorProvider as BinaryauthorizationAttestorProvider,
 } from "./BinaryAuthorization/Attestor.vibe";
 import { EvaluateGkePolicyHttp } from "./BinaryAuthorization/EvaluateGkePolicyHttp.vibe";
-import { GetAttestorHttp } from "./BinaryAuthorization/GetAttestorHttp.ts";
+import { GetAttestorHttp } from "./BinaryAuthorization/GetAttestorHttp.vibe";
 import { GetPlatformsPolicyHttp } from "./BinaryAuthorization/GetPlatformsPolicyHttp.vibe";
 import {
   PlatformsPolicy,
   PlatformsPolicyProvider,
 } from "./BinaryAuthorization/PlatformsPolicy.vibe";
-import { ValidateAttestationHttp } from "./BinaryAuthorization/ValidateAttestationHttp.ts";
+import { ValidateAttestationHttp } from "./BinaryAuthorization/ValidateAttestationHttp.vibe";
 import { BlockchainNode, BlockchainNodeProvider } from "./BlockchainNodeEngine/BlockchainNode.vibe";
 import { Certificate, CertificateProvider } from "./CertificateManager/Certificate.ts";
 import {
@@ -659,7 +659,7 @@ import {
   SupportEventSubscription,
   SupportEventSubscriptionProvider,
 } from "./CloudSupport/SupportEventSubscription.vibe";
-import { CreateTaskHttp } from "./CloudTasks/CreateTaskHttp.ts";
+import { CreateTaskHttp } from "./CloudTasks/CreateTaskHttp.vibe";
 import { Queue, QueueProvider } from "./CloudTasks/Queue.vibe";
 import {
   Environment as ComposerEnvironment,
@@ -2108,14 +2108,14 @@ import {
   ProjectsLocationsGlobalPolicyOrchestratorProvider,
 } from "./OSConfig/ProjectsLocationsGlobalPolicyOrchestrator.vibe";
 import { UsersSshPublicKey, UsersSshPublicKeyProvider } from "./OSLogin/UsersSshPublicKey.vibe";
-import { GetParameterHttp } from "./ParameterManager/GetParameterHttp.ts";
+import { GetParameterHttp } from "./ParameterManager/GetParameterHttp.vibe";
 import { GetParameterVersionHttp } from "./ParameterManager/GetParameterVersionHttp.vibe";
 import { Parameter, ParameterProvider } from "./ParameterManager/Parameter.ts";
 import {
   ParametersVersion,
   ParametersVersionProvider,
 } from "./ParameterManager/ParametersVersion.ts";
-import { RenderParameterVersionHttp } from "./ParameterManager/RenderParameterVersionHttp.ts";
+import { RenderParameterVersionHttp } from "./ParameterManager/RenderParameterVersionHttp.vibe";
 import { CaPool, CaPoolProvider } from "./PrivateCA/CaPool.ts";
 import {
   CertificateAuthority,
@@ -2125,10 +2125,10 @@ import {
   CertificateTemplate,
   CertificateTemplateProvider,
 } from "./PrivateCA/CertificateTemplate.ts";
-import { FetchCaCertsHttp } from "./PrivateCA/FetchCaCertsHttp.ts";
+import { FetchCaCertsHttp } from "./PrivateCA/FetchCaCertsHttp.vibe";
 import { GetCertificateAuthorityHttp } from "./PrivateCA/GetCertificateAuthorityHttp.vibe";
 import { AcknowledgeHttp } from "./PubSub/AcknowledgeHttp.vibe";
-import { GetSchemaHttp } from "./PubSub/GetSchemaHttp.ts";
+import { GetSchemaHttp } from "./PubSub/GetSchemaHttp.vibe";
 import { PublishHttp } from "./PubSub/PublishHttp.vibe";
 import { PullHttp } from "./PubSub/PullHttp.vibe";
 import { Schema, SchemaProvider } from "./PubSub/Schema.vibe";
@@ -2212,10 +2212,10 @@ import {
   Container as RunContainer,
   ContainerProvider as RunContainerProvider,
 } from "./Run/Container.vibe";
-import { GetServiceHttp } from "./Run/GetServiceHttp.ts";
-import { GetWorkerPoolHttp } from "./Run/GetWorkerPoolHttp.ts";
+import { GetServiceHttp } from "./Run/GetServiceHttp.vibe";
+import { GetWorkerPoolHttp } from "./Run/GetWorkerPoolHttp.vibe";
 import { Job as CloudRunJob, JobProvider as CloudRunJobProvider } from "./Run/Job.ts";
-import { RunJobHttp as CloudRunRunJobHttp } from "./Run/RunJobHttp.ts";
+import { RunJobHttp as CloudRunRunJobHttp } from "./Run/RunJobHttp.vibe";
 import { Service, ServiceProvider } from "./Run/Service.ts";
 import { WorkerPool, WorkerPoolProvider } from "./Run/WorkerPool.ts";
 import {
@@ -2412,7 +2412,7 @@ import {
 } from "./ServiceDirectory/Endpoint.vibe";
 import { GetEndpointHttp as ServiceDirectoryGetEndpointHttp } from "./ServiceDirectory/GetEndpointHttp.vibe";
 import { Namespace, NamespaceProvider } from "./ServiceDirectory/Namespace.vibe";
-import { ResolveHttp as ServiceDirectoryResolveHttp } from "./ServiceDirectory/ResolveHttp.ts";
+import { ResolveHttp as ServiceDirectoryResolveHttp } from "./ServiceDirectory/ResolveHttp.vibe";
 import {
   Service as ServiceDirectoryService,
   ServiceProvider as ServiceDirectoryServiceProvider,
@@ -2429,7 +2429,7 @@ import {
   DatabaseProvider as SpannerDatabaseProvider,
 } from "./Spanner/Database.ts";
 import { ExecuteSqlHttp as SpannerExecuteSqlHttp } from "./Spanner/ExecuteSqlHttp.ts";
-import { GetDdlHttp as SpannerGetDdlHttp } from "./Spanner/GetDdlHttp.ts";
+import { GetDdlHttp as SpannerGetDdlHttp } from "./Spanner/GetDdlHttp.vibe";
 import { GetInstanceHttp as GetSpannerInstanceHttp } from "./Spanner/GetInstanceHttp.vibe";
 import {
   Instance as SpannerInstance,
@@ -2468,7 +2468,7 @@ import {
   Database as SqlDatabase,
   DatabaseProvider as SqlDatabaseProvider,
 } from "./SQL/Database.ts";
-import { ExecuteSqlHttp } from "./SQL/ExecuteSqlHttp.ts";
+import { ExecuteSqlHttp } from "./SQL/ExecuteSqlHttp.vibe";
 import { GetInstanceHttp as GetSqlInstanceHttp } from "./SQL/GetInstanceHttp.vibe";
 import { GetUserHttp as GetSqlUserHttp } from "./SQL/GetUserHttp.vibe";
 import {
