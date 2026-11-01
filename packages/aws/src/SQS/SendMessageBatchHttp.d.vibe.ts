@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { SendMessageBatch } from "./SendMessageBatch.js";
+import { SendMessageBatch } from "./SendMessageBatch.vibe";
 export declare const SendMessageBatchHttp: Layer.Layer<SendMessageBatch, never, never>;

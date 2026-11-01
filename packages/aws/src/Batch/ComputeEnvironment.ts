@@ -13,7 +13,7 @@ import * as Stream from "effect/Stream";
 import { AWSEnvironment, type AccountID } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
-import { pollBatch, retryBatch } from "./internal.ts";
+import { pollBatch, retryBatch } from "./internal.vibe";
 
 export type ComputeEnvironmentName = string;
 export type ComputeEnvironmentArn =

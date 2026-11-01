@@ -2,7 +2,7 @@ import * as oam from "@distilled.cloud/aws/oam";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { ListAttachedLinks, type ListAttachedLinksRequest } from "./ListAttachedLinks.ts";
+import { ListAttachedLinks, type ListAttachedLinksRequest } from "./ListAttachedLinks.vibe";
 import type { Sink } from "./Sink.ts";
 
 /**

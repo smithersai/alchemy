@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListEventIntegrations } from "./ListEventIntegrations.js";
+import { ListEventIntegrations } from "./ListEventIntegrations.vibe";
 /**
  * HTTP implementation of {@link ListEventIntegrations}. At deploy time it
  * grants `app-integrations:ListEventIntegrations`; at runtime it calls the

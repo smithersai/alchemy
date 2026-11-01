@@ -1,25 +1,25 @@
 export { CachePolicy, CachePolicyProvider } from "./CachePolicy.ts";
-export { CreateInvalidation, type CreateInvalidationRequest } from "./CreateInvalidation.ts";
+export { CreateInvalidation, type CreateInvalidationRequest } from "./CreateInvalidation.vibe";
 export { CreateInvalidationHttp } from "./CreateInvalidationHttp.vibe";
-export { DeleteKey, type DeleteKeyRequest } from "./DeleteKey.ts";
+export { DeleteKey, type DeleteKeyRequest } from "./DeleteKey.vibe";
 export { DeleteKeyHttp } from "./DeleteKeyHttp.vibe";
 export {
   DescribeKeyValueStore,
   type DescribeKeyValueStoreRequest,
-} from "./DescribeKeyValueStore.ts";
+} from "./DescribeKeyValueStore.vibe";
 export { DescribeKeyValueStoreHttp } from "./DescribeKeyValueStoreHttp.vibe";
 export { Distribution, DistributionProvider } from "./Distribution.ts";
-export { GetInvalidation, type GetInvalidationRequest } from "./GetInvalidation.ts";
+export { GetInvalidation, type GetInvalidationRequest } from "./GetInvalidation.vibe";
 export { GetInvalidationHttp } from "./GetInvalidationHttp.vibe";
-export { GetKey, type GetKeyRequest } from "./GetKey.ts";
+export { GetKey, type GetKeyRequest } from "./GetKey.vibe";
 export { GetKeyHttp } from "./GetKeyHttp.vibe";
-export { ListInvalidations, type ListInvalidationsRequest } from "./ListInvalidations.ts";
+export { ListInvalidations, type ListInvalidationsRequest } from "./ListInvalidations.vibe";
 export { ListInvalidationsHttp } from "./ListInvalidationsHttp.vibe";
-export { ListKeys, type ListKeysRequest } from "./ListKeys.ts";
+export { ListKeys, type ListKeysRequest } from "./ListKeys.vibe";
 export { ListKeysHttp } from "./ListKeysHttp.vibe";
-export { PutKey, type PutKeyRequest } from "./PutKey.ts";
+export { PutKey, type PutKeyRequest } from "./PutKey.vibe";
 export { PutKeyHttp } from "./PutKeyHttp.vibe";
-export { UpdateKeys, type UpdateKeysRequest } from "./UpdateKeys.ts";
+export { UpdateKeys, type UpdateKeysRequest } from "./UpdateKeys.vibe";
 export { UpdateKeysHttp } from "./UpdateKeysHttp.vibe";
 export { Function, FunctionProvider } from "./Function.ts";
 export { Invalidation, InvalidationProvider } from "./Invalidation.ts";

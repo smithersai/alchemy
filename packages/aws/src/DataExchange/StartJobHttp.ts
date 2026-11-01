@@ -2,7 +2,7 @@ import * as dataexchange from "@distilled.cloud/aws/dataexchange";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { StartJob } from "./StartJob.ts";
+import { StartJob } from "./StartJob.vibe";
 
 /**
  * Bespoke implementation (not the shared account builder): a started job

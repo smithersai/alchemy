@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { GetTableRestoreStatus } from "./GetTableRestoreStatus.js";
+import { GetTableRestoreStatus } from "./GetTableRestoreStatus.vibe";
 export declare const GetTableRestoreStatusHttp: Layer.Layer<GetTableRestoreStatus, never, never>;

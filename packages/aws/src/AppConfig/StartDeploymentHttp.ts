@@ -5,7 +5,7 @@ import { makeAppConfigHttpBinding } from "./BindingHttp.ts";
 import type { ConfigurationProfile } from "./ConfigurationProfile.ts";
 import type { DeploymentStrategy } from "./DeploymentStrategy.ts";
 import type { Environment } from "./Environment.ts";
-import { StartDeployment } from "./StartDeployment.ts";
+import { StartDeployment } from "./StartDeployment.vibe";
 
 /**
  * HTTP implementation of the {@link StartDeployment} binding. Calls

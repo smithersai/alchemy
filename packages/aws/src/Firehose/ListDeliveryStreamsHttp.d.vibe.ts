@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListDeliveryStreams } from "./ListDeliveryStreams.js";
+import { ListDeliveryStreams } from "./ListDeliveryStreams.vibe";
 /**
  * HTTP implementation of {@link ListDeliveryStreams}. At deploy time it
  * grants `firehose:ListDeliveryStreams` on `*` (the action does not support

@@ -6,7 +6,7 @@ import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { Bucket } from "../S3/Bucket.ts";
-import { AthenaQueryFailed, Query, type QueryResult, type RunQueryRequest } from "./Query.ts";
+import { AthenaQueryFailed, Query, type QueryResult, type RunQueryRequest } from "./Query.vibe";
 import type { WorkGroup } from "./WorkGroup.ts";
 
 // The workgroup ARN is `arn:aws:athena:{region}:{account}:workgroup/{name}` —

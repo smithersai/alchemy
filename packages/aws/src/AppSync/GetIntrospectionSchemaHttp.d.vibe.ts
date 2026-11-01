@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetIntrospectionSchema } from "./GetIntrospectionSchema.js";
+import { GetIntrospectionSchema } from "./GetIntrospectionSchema.vibe";
 /**
  * HTTP implementation of the {@link GetIntrospectionSchema} binding. Calls
  * `appsync:GetIntrospectionSchema` with the host Function's IAM role. The

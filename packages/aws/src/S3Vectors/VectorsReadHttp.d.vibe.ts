@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { VectorsRead } from "./VectorsRead.js";
+import { VectorsRead } from "./VectorsRead.vibe";
 /**
  * HTTP implementation of {@link VectorsRead} — calls the S3 Vectors data
  * plane with the host Function's own credentials, granting only the read

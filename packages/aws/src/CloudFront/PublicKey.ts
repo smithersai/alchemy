@@ -10,7 +10,7 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { extractValue } from "./common.ts";
+import { extractValue } from "./common.vibe";
 
 export class PublicKeyConflict extends Data.TaggedError("PublicKeyConflict")<{
   readonly message: string;

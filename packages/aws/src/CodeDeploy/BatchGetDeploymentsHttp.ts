@@ -2,7 +2,7 @@ import * as codedeploy from "@distilled.cloud/aws/codedeploy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { BatchGetDeployments } from "./BatchGetDeployments.ts";
+import { BatchGetDeployments } from "./BatchGetDeployments.vibe";
 import type { DeploymentGroup } from "./DeploymentGroup.ts";
 
 /**

@@ -1,0 +1,92 @@
+import type * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+
+/**
+ * Options for {@link makeAppFlowHttpBinding}. Everything except these five
+ * inputs is identical across AppFlow's per-operation HTTP bindings.
+ */
+export interface AppFlowHttpBindingOptions<
+  R extends { readonly LogicalId: string },
+  K extends string,
+  I extends { [P in K]?: string },
+  A,
+  E,
+  OpR,
+> {
+  /**
+   * The AppFlow action name, e.g. `"StartFlow"`. Becomes the IAM action
+   * (`appflow:StartFlow`), the bind label, and the runtime span name.
+   */
+  mutable action: string
+  /** The distilled AppFlow operation invoked at runtime. */
+  mutable operation: ((input: I) => A!E)!never!OpR
+  /**
+   * Resolve the identifier the operation is keyed by (the flow name or the
+   * connector profile name).
+   */
+  mutable identifier: (resource: R) => Output.Output<string, never>
+  /** The request field the resolved identifier is injected as. */
+  mutable requestKey: K
+  /** The IAM policy resources the action is granted on. */
+  mutable resources: (resource: R) => Array<string | Output.Output<string, never>>
+}
+
+/**
+ * Shared scaffolding for AppFlow per-operation HTTP bindings.
+ *
+ * Every AppFlow runtime binding follows the same recipe: resolve the
+ * identifier (flow name / connector profile name), register the IAM grant on
+ * the binding host at deploy time, then invoke the distilled operation with
+ * the identifier injected. This factory owns that recipe so each `{Op}Http.ts`
+ * is a thin `Layer.effect(Cap, makeAppFlowHttpBinding({ ... }))` call whose
+ * request/response/error types are still checked against the capability
+ * contract at the `Layer.effect` site.
+ *
+ * Internal scaffolding — NOT exported from `index.ts`.
+ */
+export const makeAppFlowHttpBinding = effect <
+  R extends { readonly LogicalId: string },
+  K extends string,
+  I extends { [P in K]?: string },
+  A,
+  E,
+  OpR,
+>(
+  options: AppFlowHttpBindingOptions<R, K, I, A, E, OpR>,
+) => {
+  const bind = try AWSBindings.Bind
+  const operation = try AWSBindings.withCredentials(options.operation)
+
+  return effect (resource: R) => {
+    const Identifier = try options.identifier(resource).asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.AppFlow.${options.action}(${resource})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [`appflow:${options.action}`],
+            Resource: options.resources(resource),
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, K> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          // The compiler cannot relate `Omit<I, K>` plus a computed generic
+          // key back to `I`, so the identifier injection carries one
+          // contained cast. Concrete request/response types are still fully
+          // checked where each `Layer.effect(Cap, ...)` matches this factory's
+          // inferred shape against the capability contract.
+          return try operation({
+            ...request,
+            [options.requestKey]: try Identifier,
+          } as unknown as I)
+        },
+        `AWS.AppFlow.${options.action}(${resource.LogicalId})`,
+      )
+  }
+}

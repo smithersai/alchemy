@@ -11,7 +11,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { durationToSeconds } from "../IAM/common.vibe";
 import type { Providers } from "../Providers.ts";
-import { resolveHostedZoneId } from "./HostedZoneLookup.ts";
+import { resolveHostedZoneId } from "./HostedZoneLookup.vibe";
 
 export interface RecordAliasTarget {
   /**

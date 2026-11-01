@@ -13,7 +13,7 @@ import {
   toTagList,
   toTagRecord,
   untilSettled,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 /**
  * POSIX identity enforced for all file system operations made through an

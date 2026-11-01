@@ -5,7 +5,7 @@ import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { Role } from "../IAM/Role.ts";
 import type { BackupVault } from "./BackupVault.ts";
-import { StartCopyJob, type StartCopyJobRequest } from "./StartCopyJob.ts";
+import { StartCopyJob, type StartCopyJobRequest } from "./StartCopyJob.vibe";
 
 export const StartCopyJobHttp = Layer.effect(
   StartCopyJob,

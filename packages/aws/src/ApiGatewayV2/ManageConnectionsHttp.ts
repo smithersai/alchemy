@@ -8,7 +8,7 @@ import {
   type DeleteConnectionRequest,
   type GetConnectionRequest,
   type PostToConnectionRequest,
-} from "./ManageConnections.ts";
+} from "./ManageConnections.vibe";
 import type { ApiGatewayV2Stage } from "./Stage.ts";
 
 /**

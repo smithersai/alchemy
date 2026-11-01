@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import type { Providers } from "../Providers.ts";
-import { resolveHostedZoneId } from "./HostedZoneLookup.ts";
+import { resolveHostedZoneId } from "./HostedZoneLookup.vibe";
 import { normalizeHostedZoneId } from "./Record.ts";
 
 export interface RecordListProps {

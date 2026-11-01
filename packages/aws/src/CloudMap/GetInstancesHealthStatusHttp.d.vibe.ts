@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { GetInstancesHealthStatus } from "./GetInstancesHealthStatus.js";
+import { GetInstancesHealthStatus } from "./GetInstancesHealthStatus.vibe";
 export declare const GetInstancesHealthStatusHttp: Layer.Layer<GetInstancesHealthStatus, never, never>;

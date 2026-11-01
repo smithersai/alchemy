@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListDataIntegrationAssociations } from "./ListDataIntegrationAssociations.js";
+import { ListDataIntegrationAssociations } from "./ListDataIntegrationAssociations.vibe";
 /**
  * HTTP implementation of {@link ListDataIntegrationAssociations}. At deploy
  * time it grants `app-integrations:ListDataIntegrationAssociations` on the

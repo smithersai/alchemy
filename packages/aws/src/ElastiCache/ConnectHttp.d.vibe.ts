@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Connect } from "./Connect.js";
+import { Connect } from "./Connect.vibe";
 /**
  * Environment-only implementation of {@link Connect}. At deploy time it
  * publishes the cache endpoint as `ELASTICACHE_{LOGICAL_ID}_{HOST,PORT,TLS}`

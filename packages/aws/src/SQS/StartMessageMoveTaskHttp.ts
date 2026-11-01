@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { Queue } from "./Queue.ts";
-import { StartMessageMoveTask, type StartMessageMoveTaskRequest } from "./StartMessageMoveTask.ts";
+import { StartMessageMoveTask, type StartMessageMoveTaskRequest } from "./StartMessageMoveTask.vibe";
 
 // Bespoke (not the shared scaffold): redrive spans TWO queues. The source
 // (DLQ) needs the start/receive/delete/get-attributes actions, and the

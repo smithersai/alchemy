@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Connect } from "./Connect.js";
+import { Connect } from "./Connect.vibe";
 /**
  * SDK-backed implementation of {@link Connect}. Deploy half attaches the
  * `redshift:GetClusterCredentials[WithIAM]` policy scoped to the cluster's

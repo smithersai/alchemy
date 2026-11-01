@@ -14,7 +14,7 @@ import {
   toTagList,
   toTagRecord,
   untilSettled,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export interface FileSystemProps {
   /**

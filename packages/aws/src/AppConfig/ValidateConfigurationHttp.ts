@@ -3,7 +3,7 @@ import * as Output from "alchemy/Output";
 import type { Application } from "./Application.ts";
 import { makeAppConfigHttpBinding } from "./BindingHttp.ts";
 import type { ConfigurationProfile } from "./ConfigurationProfile.ts";
-import { ValidateConfiguration } from "./ValidateConfiguration.ts";
+import { ValidateConfiguration } from "./ValidateConfiguration.vibe";
 
 /**
  * HTTP implementation of the {@link ValidateConfiguration} binding. Calls

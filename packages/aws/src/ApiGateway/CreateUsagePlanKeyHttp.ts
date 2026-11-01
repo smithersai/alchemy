@@ -3,8 +3,8 @@ import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { RegisterApiGatewayBinding } from "./BindingHttp.ts";
-import { CreateUsagePlanKey, type CreateUsagePlanKeyRequest } from "./CreateUsagePlanKey.ts";
+import { RegisterApiGatewayBinding } from "./BindingHttp.vibe";
+import { CreateUsagePlanKey, type CreateUsagePlanKeyRequest } from "./CreateUsagePlanKey.vibe";
 import type { UsagePlan } from "./UsagePlan.ts";
 
 /**

@@ -7,7 +7,7 @@ import type { CodeInterpreter } from "./CodeInterpreter.ts";
 import {
   StartCodeInterpreterSession,
   type StartCodeInterpreterSessionRequest,
-} from "./StartCodeInterpreterSession.ts";
+} from "./StartCodeInterpreterSession.vibe";
 
 // Bespoke (not the shared scaffold): converts the ergonomic `sessionTimeout`
 // Duration.Input to the wire `sessionTimeoutSeconds` field.

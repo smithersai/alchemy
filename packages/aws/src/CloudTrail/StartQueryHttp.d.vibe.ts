@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { StartQuery } from "./StartQuery.js";
+import { StartQuery } from "./StartQuery.vibe";
 /**
  * Bespoke (not scaffolded): the runtime callable resolves the bound store's
  * ID out of its ARN and threads it through a `QueryStatement` callback —

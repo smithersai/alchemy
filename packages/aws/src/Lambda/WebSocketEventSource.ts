@@ -12,7 +12,7 @@ import {
   type WebSocketEventSourceService,
   type WebSocketResult,
   type WebSocketRouteProps,
-} from "../ApiGatewayV2/WebSocketEventSource.ts";
+} from "../ApiGatewayV2/WebSocketEventSource.vibe";
 import * as Lambda from "./Function.ts";
 import { Permission as LambdaPermission } from "./Permission.ts";
 

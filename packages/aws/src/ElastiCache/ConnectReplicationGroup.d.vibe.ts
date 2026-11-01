@@ -1,0 +1,46 @@
+import * as Binding from "alchemy/Binding";
+import type { Input } from "alchemy/Input";
+import type { RuntimeContext } from "alchemy/RuntimeContext";
+import type * as Effect from "effect/Effect";
+import type { SecurityGroupId } from "../EC2/SecurityGroup.js";
+import type { SubnetId } from "../EC2/Subnet.js";
+import type { ReplicationGroup } from "./ReplicationGroup.js";
+export interface ReplicationGroupConnectionInfo {
+    host: string;
+    port: number;
+    readerHost: string | undefined;
+    readerPort: number | undefined;
+    tls: boolean;
+}
+export interface ConnectReplicationGroupOptions {
+    subnetIds?: Input<SubnetId[]>;
+    securityGroupIds?: Input<SecurityGroupId[]>;
+}
+export declare const replicationGroupConnectEnvPrefix: (logicalId: string) => string;
+/**
+ * Runtime binding for a provisioned Valkey or Redis OSS replication group.
+ *
+ * At deploy time it publishes the primary endpoint and TLS setting as
+ * `ELASTICACHE_{LOGICAL_ID}_{HOST,PORT,TLS}` variables on the host Function.
+ * When replicas exist, it also publishes the reader endpoint. Passing VPC
+ * options attaches the host Lambda to the cache network. ElastiCache data
+ * plane access is controlled by security groups, not IAM.
+ *
+ * ### Connecting from a Lambda
+ * **Example:** Use the primary endpoint with iovalkey
+ * ```typescript
+ * const connect = yield* AWS.ElastiCache.ConnectReplicationGroup(cache, {
+ *   subnetIds: privateSubnetIds,
+ *   securityGroupIds: [functionSecurityGroup.groupId],
+ * });
+ *
+ * // inside the handler:
+ * const { host, port, tls } = yield* connect;
+ * const client = new Valkey({ host, port, ...(tls ? { tls: {} } : {}) });
+ * ```
+ *
+ * @binding
+ */
+export interface ConnectReplicationGroup extends Binding.Service<ConnectReplicationGroup, "AWS.ElastiCache.ConnectReplicationGroup", (group: ReplicationGroup, options?: ConnectReplicationGroupOptions) => Effect.Effect<Effect.Effect<ReplicationGroupConnectionInfo, never, RuntimeContext>>> {
+}
+export declare const ConnectReplicationGroup: ConnectReplicationGroup;

@@ -52,8 +52,8 @@ import {
   type EventInvokeConfig,
   type ObservedEventInvokeConfig,
 } from "./EventInvokeConfig.ts";
-import { makeFunctionBundler } from "./FunctionBundle.ts";
-import { composeFunctionDomain, functionDomainUrl, type FunctionDomain } from "./FunctionDomain.ts";
+import { makeFunctionBundler } from "./FunctionBundle.vibe";
+import { composeFunctionDomain, functionDomainUrl, type FunctionDomain } from "./FunctionDomain.vibe";
 import {
   decodeFunctionImageSource,
   type FunctionImageAttributes,
@@ -86,7 +86,7 @@ export {
   InvalidFunctionDomain,
   type FunctionDomain,
   type FunctionDomainConfig,
-} from "./FunctionDomain.ts";
+} from "./FunctionDomain.vibe";
 
 export const FunctionTypeId = "AWS.Lambda.Function" as const;
 export type FunctionTypeId = typeof FunctionTypeId;

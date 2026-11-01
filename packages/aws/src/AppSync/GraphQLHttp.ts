@@ -12,7 +12,7 @@ import {
   type GraphQLClient,
   type GraphQLRequest,
   type GraphQLResult,
-} from "./GraphQL.ts";
+} from "./GraphQL.vibe";
 import type { GraphqlApi } from "./GraphqlApi.ts";
 
 /**

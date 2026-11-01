@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { Role } from "../IAM/Role.ts";
-import { StartRestoreJob, type StartRestoreJobRequest } from "./StartRestoreJob.ts";
+import { StartRestoreJob, type StartRestoreJobRequest } from "./StartRestoreJob.vibe";
 
 export const StartRestoreJobHttp = Layer.effect(
   StartRestoreJob,

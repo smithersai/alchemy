@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { DeleteMedicalTranscriptionJob } from "./DeleteMedicalTranscriptionJob.js";
+import { DeleteMedicalTranscriptionJob } from "./DeleteMedicalTranscriptionJob.vibe";
 export declare const DeleteMedicalTranscriptionJobHttp: Layer.Layer<DeleteMedicalTranscriptionJob, never, never>;

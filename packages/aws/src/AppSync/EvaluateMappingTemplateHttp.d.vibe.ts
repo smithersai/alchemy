@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { EvaluateMappingTemplate } from "./EvaluateMappingTemplate.js";
+import { EvaluateMappingTemplate } from "./EvaluateMappingTemplate.vibe";
 /**
  * HTTP implementation of the {@link EvaluateMappingTemplate} binding. Calls
  * `appsync:EvaluateMappingTemplate` with the host Function's IAM role. The

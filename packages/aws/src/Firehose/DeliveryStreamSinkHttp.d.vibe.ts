@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
-import { DeliveryStreamSink } from "./DeliveryStreamSink.js";
-import { PutRecordBatch } from "./PutRecordBatch.js";
+import { DeliveryStreamSink } from "./DeliveryStreamSink.vibe";
+import { PutRecordBatch } from "./PutRecordBatch.vibe";
 /**
  * HTTP implementation of {@link DeliveryStreamSink}. At deploy time it grants
  * `firehose:PutRecordBatch` on the bound delivery stream; at runtime it

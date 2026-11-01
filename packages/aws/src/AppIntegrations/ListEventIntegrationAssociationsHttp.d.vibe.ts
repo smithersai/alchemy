@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListEventIntegrationAssociations } from "./ListEventIntegrationAssociations.js";
+import { ListEventIntegrationAssociations } from "./ListEventIntegrationAssociations.vibe";
 /**
  * HTTP implementation of {@link ListEventIntegrationAssociations}. At deploy
  * time it grants `app-integrations:ListEventIntegrationAssociations` on the

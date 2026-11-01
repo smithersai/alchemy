@@ -4,8 +4,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { Api } from "./Api.ts";
-import { RegisterApiGatewayV2Binding } from "./BindingHttp.ts";
-import { ExportApi, type ExportApiRequest } from "./ExportApi.ts";
+import { RegisterApiGatewayV2Binding } from "./BindingHttp.vibe";
+import { ExportApi, type ExportApiRequest } from "./ExportApi.vibe";
 
 /**
  * HTTP implementation of the {@link ExportApi} binding. Grants

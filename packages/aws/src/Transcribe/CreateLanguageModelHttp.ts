@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { Role } from "../IAM/Role.ts";
-import { CreateLanguageModel, type CreateLanguageModelRequest } from "./CreateLanguageModel.ts";
+import { CreateLanguageModel, type CreateLanguageModelRequest } from "./CreateLanguageModel.vibe";
 
 // Bespoke (not makeTranscribeRoleHttpBinding): CreateLanguageModel nests the
 // data-access role inside `InputDataConfig.DataAccessRoleArn` rather than as

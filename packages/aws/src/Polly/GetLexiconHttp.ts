@@ -2,7 +2,7 @@ import * as polly from "@distilled.cloud/aws/polly";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { GetLexicon } from "./GetLexicon.ts";
+import { GetLexicon } from "./GetLexicon.vibe";
 import type { Lexicon } from "./Lexicon.ts";
 
 // GetLexicon is one of the few Polly actions with resource-level IAM (the

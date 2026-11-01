@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { ListIncidentFindings } from "./ListIncidentFindings.js";
+import { ListIncidentFindings } from "./ListIncidentFindings.vibe";
 export declare const ListIncidentFindingsHttp: Layer.Layer<ListIncidentFindings, never, never>;

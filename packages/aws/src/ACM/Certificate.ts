@@ -12,7 +12,7 @@ import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { findPublicHostedZoneId } from "../Route53/HostedZoneLookup.ts";
+import { findPublicHostedZoneId } from "../Route53/HostedZoneLookup.vibe";
 
 export class CertificateNotReady extends Data.TaggedError("CertificateNotReady")<{
   readonly message: string;

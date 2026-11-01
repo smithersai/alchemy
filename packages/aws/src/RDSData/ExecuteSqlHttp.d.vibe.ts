@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { ExecuteSql } from "./ExecuteSql.js";
+import { ExecuteSql } from "./ExecuteSql.vibe";
 export declare const ExecuteSqlHttp: Layer.Layer<ExecuteSql, never, never>;

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { PutRecord } from "./PutRecord.js";
+import { PutRecord } from "./PutRecord.vibe";
 /**
  * HTTP implementation of {@link PutRecord}. At deploy time it grants
  * `firehose:PutRecord` on the bound delivery stream; at runtime it calls the

@@ -3,7 +3,7 @@ import * as Output from "alchemy/Output";
 import type { Application } from "./Application.ts";
 import { makeAppConfigHttpBinding } from "./BindingHttp.ts";
 import type { Environment } from "./Environment.ts";
-import { StopDeployment } from "./StopDeployment.ts";
+import { StopDeployment } from "./StopDeployment.vibe";
 
 /**
  * HTTP implementation of the {@link StopDeployment} binding. Calls

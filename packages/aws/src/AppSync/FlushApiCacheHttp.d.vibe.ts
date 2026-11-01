@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { FlushApiCache } from "./FlushApiCache.js";
+import { FlushApiCache } from "./FlushApiCache.vibe";
 /**
  * HTTP implementation of the {@link FlushApiCache} binding. Calls
  * `appsync:FlushApiCache` with the Lambda's IAM role. The action defines

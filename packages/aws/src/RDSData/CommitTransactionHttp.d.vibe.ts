@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { CommitTransaction } from "./CommitTransaction.js";
+import { CommitTransaction } from "./CommitTransaction.vibe";
 export declare const CommitTransactionHttp: Layer.Layer<CommitTransaction, never, never>;

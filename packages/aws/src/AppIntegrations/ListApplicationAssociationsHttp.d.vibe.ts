@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListApplicationAssociations } from "./ListApplicationAssociations.js";
+import { ListApplicationAssociations } from "./ListApplicationAssociations.vibe";
 /**
  * HTTP implementation of {@link ListApplicationAssociations}. At deploy time
  * it grants `app-integrations:ListApplicationAssociations` on the application

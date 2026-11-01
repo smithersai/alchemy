@@ -3,8 +3,8 @@ import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { RegisterApiGatewayBinding } from "./BindingHttp.ts";
-import { FlushStageCache } from "./FlushStageCache.ts";
+import { RegisterApiGatewayBinding } from "./BindingHttp.vibe";
+import { FlushStageCache } from "./FlushStageCache.vibe";
 import type { ApiGatewayStage } from "./Stage.ts";
 
 /**

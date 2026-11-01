@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListApplications } from "./ListApplications.js";
+import { ListApplications } from "./ListApplications.vibe";
 /**
  * HTTP implementation of {@link ListApplications}. At deploy time it grants
  * `app-integrations:ListApplications`; at runtime it calls the

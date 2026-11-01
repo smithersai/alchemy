@@ -13,7 +13,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import type { Client } from "pg";
-import { generateDbAuthToken } from "../Connection/DbAuthToken.ts";
+import { generateDbAuthToken } from "../Connection/DbAuthToken.vibe";
 import { dsqlIndexTarget, parseDsqlStatements, prepareDsqlStatements } from "./MigrationSql.ts";
 
 const dsqlError = migrationError("DSQL migration");

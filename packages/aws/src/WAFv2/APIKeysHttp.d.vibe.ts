@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreateAPIKey, DeleteAPIKey, GetDecryptedAPIKey, ListAPIKeys } from "./APIKeys.js";
+import { CreateAPIKey, DeleteAPIKey, GetDecryptedAPIKey, ListAPIKeys } from "./APIKeys.vibe";
 export declare const CreateAPIKeyHttp: Layer.Layer<CreateAPIKey, never, never>;
 export declare const GetDecryptedAPIKeyHttp: Layer.Layer<GetDecryptedAPIKey, never, never>;
 export declare const ListAPIKeysHttp: Layer.Layer<ListAPIKeys, never, never>;

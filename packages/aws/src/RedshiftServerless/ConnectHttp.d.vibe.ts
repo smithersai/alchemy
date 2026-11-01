@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Connect } from "./Connect.js";
+import { Connect } from "./Connect.vibe";
 /**
  * SDK-backed implementation of {@link Connect}. Deploy half attaches the
  * `redshift-serverless:GetCredentials` policy on the workgroup ARN and

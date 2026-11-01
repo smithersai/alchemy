@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import { type AlarmResource, sortAlarmResources } from "./binding-common.ts";
-import { DescribeAlarms, type DescribeAlarmsRequest } from "./DescribeAlarms.ts";
+import { DescribeAlarms, type DescribeAlarmsRequest } from "./DescribeAlarms.vibe";
 
 export const DescribeAlarmsHttp = Layer.effect(
   DescribeAlarms,

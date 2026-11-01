@@ -3,8 +3,8 @@ import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { RegisterApiGatewayV2Binding } from "./BindingHttp.ts";
-import { ResetAuthorizersCache } from "./ResetAuthorizersCache.ts";
+import { RegisterApiGatewayV2Binding } from "./BindingHttp.vibe";
+import { ResetAuthorizersCache } from "./ResetAuthorizersCache.vibe";
 import type { ApiGatewayV2Stage } from "./Stage.ts";
 
 /**

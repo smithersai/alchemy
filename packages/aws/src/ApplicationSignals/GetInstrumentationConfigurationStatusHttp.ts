@@ -2,7 +2,7 @@ import * as appsignals from "@distilled.cloud/aws/application-signals";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { GetInstrumentationConfigurationStatus } from "./GetInstrumentationConfigurationStatus.ts";
+import { GetInstrumentationConfigurationStatus } from "./GetInstrumentationConfigurationStatus.vibe";
 import type { InstrumentationConfiguration } from "./InstrumentationConfiguration.ts";
 
 /**

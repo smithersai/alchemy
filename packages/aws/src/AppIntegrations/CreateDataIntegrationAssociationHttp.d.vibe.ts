@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CreateDataIntegrationAssociation } from "./CreateDataIntegrationAssociation.js";
+import { CreateDataIntegrationAssociation } from "./CreateDataIntegrationAssociation.vibe";
 /**
  * HTTP implementation of {@link CreateDataIntegrationAssociation}. At deploy
  * time it grants `app-integrations:CreateDataIntegrationAssociation` on the

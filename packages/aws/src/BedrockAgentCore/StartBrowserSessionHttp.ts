@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { BrowserCustom } from "./BrowserCustom.ts";
-import { StartBrowserSession, type StartBrowserSessionRequest } from "./StartBrowserSession.ts";
+import { StartBrowserSession, type StartBrowserSessionRequest } from "./StartBrowserSession.vibe";
 
 // Bespoke (not the shared scaffold): converts the ergonomic `sessionTimeout`
 // Duration.Input to the wire `sessionTimeoutSeconds` field.

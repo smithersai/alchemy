@@ -50,31 +50,31 @@ export {
 export { VpcLink, VpcLinkProvider, type VpcLinkProps } from "./VpcLink.ts";
 // Runtime bindings (capabilities). The shared scaffolding in
 // `BindingHttp.ts` is intentionally NOT exported.
-export { CreateApiKey, type CreateApiKeyRequest } from "./CreateApiKey.ts";
+export { CreateApiKey, type CreateApiKeyRequest } from "./CreateApiKey.vibe";
 export { CreateApiKeyHttp } from "./CreateApiKeyHttp.ts";
-export { GetApiKey, type GetApiKeyRequest } from "./GetApiKey.ts";
+export { GetApiKey, type GetApiKeyRequest } from "./GetApiKey.vibe";
 export { GetApiKeyHttp } from "./GetApiKeyHttp.ts";
-export { GetApiKeys, type GetApiKeysRequest } from "./GetApiKeys.ts";
+export { GetApiKeys, type GetApiKeysRequest } from "./GetApiKeys.vibe";
 export { GetApiKeysHttp } from "./GetApiKeysHttp.ts";
-export { UpdateApiKey, type UpdateApiKeyRequest } from "./UpdateApiKey.ts";
+export { UpdateApiKey, type UpdateApiKeyRequest } from "./UpdateApiKey.vibe";
 export { UpdateApiKeyHttp } from "./UpdateApiKeyHttp.ts";
-export { DeleteApiKey, type DeleteApiKeyRequest } from "./DeleteApiKey.ts";
+export { DeleteApiKey, type DeleteApiKeyRequest } from "./DeleteApiKey.vibe";
 export { DeleteApiKeyHttp } from "./DeleteApiKeyHttp.ts";
-export { CreateUsagePlanKey, type CreateUsagePlanKeyRequest } from "./CreateUsagePlanKey.ts";
+export { CreateUsagePlanKey, type CreateUsagePlanKeyRequest } from "./CreateUsagePlanKey.vibe";
 export { CreateUsagePlanKeyHttp } from "./CreateUsagePlanKeyHttp.ts";
-export { DeleteUsagePlanKey, type DeleteUsagePlanKeyRequest } from "./DeleteUsagePlanKey.ts";
+export { DeleteUsagePlanKey, type DeleteUsagePlanKeyRequest } from "./DeleteUsagePlanKey.vibe";
 export { DeleteUsagePlanKeyHttp } from "./DeleteUsagePlanKeyHttp.ts";
-export { GetUsagePlanKey, type GetUsagePlanKeyRequest } from "./GetUsagePlanKey.ts";
+export { GetUsagePlanKey, type GetUsagePlanKeyRequest } from "./GetUsagePlanKey.vibe";
 export { GetUsagePlanKeyHttp } from "./GetUsagePlanKeyHttp.ts";
-export { GetUsagePlanKeys, type GetUsagePlanKeysRequest } from "./GetUsagePlanKeys.ts";
+export { GetUsagePlanKeys, type GetUsagePlanKeysRequest } from "./GetUsagePlanKeys.vibe";
 export { GetUsagePlanKeysHttp } from "./GetUsagePlanKeysHttp.ts";
-export { GetUsage, type GetUsageRequest } from "./GetUsage.ts";
+export { GetUsage, type GetUsageRequest } from "./GetUsage.vibe";
 export { GetUsageHttp } from "./GetUsageHttp.ts";
-export { UpdateUsage, type UpdateUsageRequest } from "./UpdateUsage.ts";
+export { UpdateUsage, type UpdateUsageRequest } from "./UpdateUsage.vibe";
 export { UpdateUsageHttp } from "./UpdateUsageHttp.ts";
-export { FlushStageCache } from "./FlushStageCache.ts";
+export { FlushStageCache } from "./FlushStageCache.vibe";
 export { FlushStageCacheHttp } from "./FlushStageCacheHttp.ts";
-export { FlushStageAuthorizersCache } from "./FlushStageAuthorizersCache.ts";
+export { FlushStageAuthorizersCache } from "./FlushStageAuthorizersCache.vibe";
 export { FlushStageAuthorizersCacheHttp } from "./FlushStageAuthorizersCacheHttp.ts";
 // Event source contract (implemented by `Lambda.RestApiEventSource`).
 export {
@@ -84,4 +84,4 @@ export {
   type RestApiEventSourceService,
   type RestApiResult,
   type RestApiRouteProps,
-} from "./RestApiEventSource.ts";
+} from "./RestApiEventSource.vibe";

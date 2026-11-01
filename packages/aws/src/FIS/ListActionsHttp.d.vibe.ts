@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { ListActions } from "./ListActions.js";
+import { ListActions } from "./ListActions.vibe";
 export declare const ListActionsHttp: Layer.Layer<ListActions, never, never>;

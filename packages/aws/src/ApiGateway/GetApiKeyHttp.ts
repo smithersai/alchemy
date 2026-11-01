@@ -2,8 +2,8 @@ import * as ag from "@distilled.cloud/aws/api-gateway";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { RegisterApiGatewayBinding } from "./BindingHttp.ts";
-import { GetApiKey, type GetApiKeyRequest } from "./GetApiKey.ts";
+import { RegisterApiGatewayBinding } from "./BindingHttp.vibe";
+import { GetApiKey, type GetApiKeyRequest } from "./GetApiKey.vibe";
 
 /**
  * HTTP implementation of the {@link GetApiKey} binding. Grants

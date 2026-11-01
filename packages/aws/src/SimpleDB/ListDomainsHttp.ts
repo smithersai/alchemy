@@ -2,7 +2,7 @@ import * as sdb from "@distilled.cloud/aws/simpledb";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { ListDomains } from "./ListDomains.ts";
+import { ListDomains } from "./ListDomains.vibe";
 
 /**
  * Account-level binding — bespoke rather than `makeSimpleDbBinding` because
