@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetSamplingRules } from "./GetSamplingRules.js";
+import { GetSamplingRules } from "./GetSamplingRules.vibe";
 /**
  * HTTP implementation of the `XRay.GetSamplingRules` binding.
  *

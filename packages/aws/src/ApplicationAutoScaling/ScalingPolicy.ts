@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { plainJson } from "../internal/Observe.ts";
 import type { Providers } from "../Providers.ts";
-import { SERVICE_NAMESPACES, retryWhileTargetPropagates } from "./internal.ts";
+import { SERVICE_NAMESPACES, retryWhileTargetPropagates } from "./internal.vibe";
 
 export interface ScalingPolicyProps {
   /**

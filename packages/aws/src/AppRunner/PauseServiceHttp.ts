@@ -1,6 +1,6 @@
 import * as apprunner from "@distilled.cloud/aws/apprunner";
 import { makeAppRunnerHttpBinding } from "./BindingHttp.ts";
-import { PauseService } from "./PauseService.ts";
+import { PauseService } from "./PauseService.vibe";
 import type { Service } from "./Service.ts";
 
 /**

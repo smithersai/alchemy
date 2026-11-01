@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetSamplingStatisticSummaries } from "./GetSamplingStatisticSummaries.js";
+import { GetSamplingStatisticSummaries } from "./GetSamplingStatisticSummaries.vibe";
 /**
  * HTTP implementation of the `XRay.GetSamplingStatisticSummaries` binding.
  *

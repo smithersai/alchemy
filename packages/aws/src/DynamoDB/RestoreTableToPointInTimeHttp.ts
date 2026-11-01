@@ -6,7 +6,7 @@ import { GrantTables, tablesRegion } from "./BindingHttp.ts";
 import {
   RestoreTableToPointInTime,
   type RestoreTableToPointInTimeRequest,
-} from "./RestoreTableToPointInTime.ts";
+} from "./RestoreTableToPointInTime.vibe";
 import type { Table } from "./Table.ts";
 
 export const RestoreTableToPointInTimeHttp = Layer.effect(

@@ -6,7 +6,7 @@ import * as AWSBindings from "../AWSBindings.ts";
 import {
   ExecuteScheduledQuery,
   type ExecuteScheduledQueryRequest,
-} from "./ExecuteScheduledQuery.ts";
+} from "./ExecuteScheduledQuery.vibe";
 import { discover, withEndpoint } from "./internal.ts";
 import type { ScheduledQuery } from "./ScheduledQuery.ts";
 

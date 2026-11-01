@@ -14,7 +14,7 @@ import {
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { idempotencyToken, retryWhileResourceInUse } from "./internal.ts";
+import { idempotencyToken, retryWhileResourceInUse } from "./internal.vibe";
 
 export type ProductType =
   | "CLOUD_FORMATION_TEMPLATE"

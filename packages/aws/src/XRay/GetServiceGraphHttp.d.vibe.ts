@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetServiceGraph } from "./GetServiceGraph.js";
+import { GetServiceGraph } from "./GetServiceGraph.vibe";
 /**
  * HTTP implementation of the `XRay.GetServiceGraph` binding.
  *

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { PutTraceSegments } from "./PutTraceSegments.js";
+import { PutTraceSegments } from "./PutTraceSegments.vibe";
 /**
  * HTTP implementation of the `XRay.PutTraceSegments` binding.
  *

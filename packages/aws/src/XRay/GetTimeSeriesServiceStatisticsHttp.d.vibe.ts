@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetTimeSeriesServiceStatistics } from "./GetTimeSeriesServiceStatistics.js";
+import { GetTimeSeriesServiceStatistics } from "./GetTimeSeriesServiceStatistics.vibe";
 /**
  * HTTP implementation of the `XRay.GetTimeSeriesServiceStatistics` binding.
  *

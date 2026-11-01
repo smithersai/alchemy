@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetInsightEvents } from "./GetInsightEvents.js";
+import { GetInsightEvents } from "./GetInsightEvents.vibe";
 /**
  * HTTP implementation of the `XRay.GetInsightEvents` binding.
  *

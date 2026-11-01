@@ -2,7 +2,7 @@ import * as ecr from "@distilled.cloud/aws/ecr";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { GetAuthorizationToken } from "./GetAuthorizationToken.ts";
+import { GetAuthorizationToken } from "./GetAuthorizationToken.vibe";
 
 /**
  * HTTP implementation of {@link GetAuthorizationToken} over the ECR API.

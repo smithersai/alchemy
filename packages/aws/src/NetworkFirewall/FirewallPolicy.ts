@@ -14,7 +14,7 @@ import {
   recordToNfwTags,
   retryWhileNfwInUse,
   retryWhileNfwNotFound,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export interface FirewallPolicyProps {
   /**

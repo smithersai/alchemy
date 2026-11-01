@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetTraceGraph } from "./GetTraceGraph.js";
+import { GetTraceGraph } from "./GetTraceGraph.vibe";
 /**
  * HTTP implementation of the `XRay.GetTraceGraph` binding.
  *

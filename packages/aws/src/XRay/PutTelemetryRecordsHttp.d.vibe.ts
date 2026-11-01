@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { PutTelemetryRecords } from "./PutTelemetryRecords.js";
+import { PutTelemetryRecords } from "./PutTelemetryRecords.vibe";
 /**
  * HTTP implementation of the `XRay.PutTelemetryRecords` binding.
  *

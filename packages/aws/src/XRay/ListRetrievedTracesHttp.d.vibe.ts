@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ListRetrievedTraces } from "./ListRetrievedTraces.js";
+import { ListRetrievedTraces } from "./ListRetrievedTraces.vibe";
 /**
  * HTTP implementation of the `XRay.ListRetrievedTraces` binding.
  *

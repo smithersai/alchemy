@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetInsightImpactGraph } from "./GetInsightImpactGraph.js";
+import { GetInsightImpactGraph } from "./GetInsightImpactGraph.vibe";
 /**
  * HTTP implementation of the `XRay.GetInsightImpactGraph` binding.
  *

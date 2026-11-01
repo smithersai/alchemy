@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetTraceSegmentDestination } from "./GetTraceSegmentDestination.js";
+import { GetTraceSegmentDestination } from "./GetTraceSegmentDestination.vibe";
 /**
  * HTTP implementation of the `XRay.GetTraceSegmentDestination` binding.
  *

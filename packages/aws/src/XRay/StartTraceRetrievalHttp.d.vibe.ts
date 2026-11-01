@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { StartTraceRetrieval } from "./StartTraceRetrieval.js";
+import { StartTraceRetrieval } from "./StartTraceRetrieval.vibe";
 /**
  * HTTP implementation of the `XRay.StartTraceRetrieval` binding.
  *

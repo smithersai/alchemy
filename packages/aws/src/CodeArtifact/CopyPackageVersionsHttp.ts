@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import { domainWideArns } from "./BindingHttp.ts";
-import { CopyPackageVersions, type CopyPackageVersionsRequest } from "./CopyPackageVersions.ts";
+import { CopyPackageVersions, type CopyPackageVersionsRequest } from "./CopyPackageVersions.vibe";
 import type { Repository } from "./Repository.ts";
 
 /**

@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { awaitVisible } from "./internal.ts";
+import { awaitVisible } from "./internal.vibe";
 
 export type PrincipalType = "IAM" | "IAM_PATTERN";
 

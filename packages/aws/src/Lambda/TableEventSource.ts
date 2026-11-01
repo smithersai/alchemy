@@ -9,7 +9,7 @@ import {
   type StreamsProps,
   type TableChangesHandler,
   type TableEventSourceService,
-} from "../DynamoDB/Stream.ts";
+} from "../DynamoDB/Stream.vibe";
 import type { Table } from "../DynamoDB/Table.ts";
 import { processBatch } from "../internal/EventSourceBatch.ts";
 import { EventSourceMapping } from "./EventSourceMapping.ts";

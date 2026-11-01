@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { awaitVisible, retryWhileResourceInUse } from "./internal.ts";
+import { awaitVisible, retryWhileResourceInUse } from "./internal.vibe";
 
 export interface PortfolioProductAssociationProps {
   /**

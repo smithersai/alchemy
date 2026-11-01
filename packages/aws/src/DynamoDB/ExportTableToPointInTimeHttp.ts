@@ -9,7 +9,7 @@ import { GrantTables } from "./BindingHttp.ts";
 import {
   ExportTableToPointInTime,
   type ExportTableToPointInTimeRequest,
-} from "./ExportTableToPointInTime.ts";
+} from "./ExportTableToPointInTime.vibe";
 import type { Table } from "./Table.ts";
 
 export const ExportTableToPointInTimeHttp = Layer.effect(

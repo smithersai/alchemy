@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { VerifyDevicePosition } from "./VerifyDevicePosition.js";
+import { VerifyDevicePosition } from "./VerifyDevicePosition.vibe";
 export declare const VerifyDevicePositionHttp: Layer.Layer<VerifyDevicePosition, never, never>;

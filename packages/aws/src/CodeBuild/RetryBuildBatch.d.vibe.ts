@@ -1,0 +1,21 @@
+import type * as SVC from "@distilled.cloud/aws/codebuild";
+import * as Binding from "alchemy/Binding";
+import type * as Effect from "effect/Effect";
+import type { Project } from "./Project.js";
+/**
+ * Runtime binding for `codebuild:RetryBuildBatch` — restarts a finished
+ * batch build of the bound project, retrying either all builds or only the
+ * failed ones (`retryType`).
+ * ### Batch Builds
+ * **Example:** Retry Failed Builds in a Batch
+ * ```typescript
+ * const retryBuildBatch = yield* AWS.CodeBuild.RetryBuildBatch(project);
+ *
+ * yield* retryBuildBatch({ id: batchId, retryType: "RETRY_FAILED_BUILDS" });
+ * ```
+ *
+ * @binding
+ */
+export interface RetryBuildBatch extends Binding.Service<RetryBuildBatch, "AWS.CodeBuild.RetryBuildBatch", <P extends Project>(project: P) => Effect.Effect<((request: SVC.RetryBuildBatchInput) => Effect.Effect<SVC.RetryBuildBatchOutput, SVC.RetryBuildBatchError>)>> {
+}
+export declare const RetryBuildBatch: RetryBuildBatch;

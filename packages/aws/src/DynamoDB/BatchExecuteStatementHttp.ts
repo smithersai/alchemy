@@ -8,7 +8,7 @@ import {
   type BatchExecuteStatementRequest,
   type BatchExecuteStatementTables,
   sortBatchExecuteStatementTables,
-} from "./BatchExecuteStatement.ts";
+} from "./BatchExecuteStatement.vibe";
 import { GrantTables, tablesRegion } from "./BindingHttp.ts";
 
 export const BatchExecuteStatementHttp = Layer.effect(

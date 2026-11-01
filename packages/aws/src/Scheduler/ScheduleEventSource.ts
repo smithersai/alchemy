@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as IAM from "../IAM/index.ts";
 import type { Function as LambdaFunction } from "../Lambda/Function.ts";
 import { qualifiedArnOf } from "../Lambda/QualifiedArn.ts";
-import type { ScheduleBuilder, ScheduleBuilderState } from "./builders.ts";
+import type { ScheduleBuilder, ScheduleBuilderState } from "./builders.vibe";
 import { Schedule } from "./Schedule.ts";
 import type { ScheduleGroup } from "./ScheduleGroup.ts";
 

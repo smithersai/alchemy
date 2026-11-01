@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { CancelTraceRetrieval } from "./CancelTraceRetrieval.js";
+import { CancelTraceRetrieval } from "./CancelTraceRetrieval.vibe";
 /**
  * HTTP implementation of the `XRay.CancelTraceRetrieval` binding.
  *

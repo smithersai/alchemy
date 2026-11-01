@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetSamplingTargets } from "./GetSamplingTargets.js";
+import { GetSamplingTargets } from "./GetSamplingTargets.vibe";
 /**
  * HTTP implementation of the `XRay.GetSamplingTargets` binding.
  *

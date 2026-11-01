@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { BatchGetTraces } from "./BatchGetTraces.js";
+import { BatchGetTraces } from "./BatchGetTraces.vibe";
 /**
  * HTTP implementation of the `XRay.BatchGetTraces` binding.
  *

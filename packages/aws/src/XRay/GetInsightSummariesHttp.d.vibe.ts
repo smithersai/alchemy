@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetInsightSummaries } from "./GetInsightSummaries.js";
+import { GetInsightSummaries } from "./GetInsightSummaries.vibe";
 /**
  * HTTP implementation of the `XRay.GetInsightSummaries` binding.
  *

@@ -1,6 +1,6 @@
 import * as apprunner from "@distilled.cloud/aws/apprunner";
 import { makeAppRunnerHttpBinding } from "./BindingHttp.ts";
-import { ListOperations } from "./ListOperations.ts";
+import { ListOperations } from "./ListOperations.vibe";
 import type { Service } from "./Service.ts";
 
 /**

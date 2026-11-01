@@ -7,7 +7,7 @@ import { diffTags, hasAlchemyTags, createInternalTags } from "alchemy/Tags";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { SERVICE_NAMESPACES } from "./internal.ts";
+import { SERVICE_NAMESPACES } from "./internal.vibe";
 
 export interface ScalableTargetProps {
   /**

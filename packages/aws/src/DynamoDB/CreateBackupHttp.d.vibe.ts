@@ -1,3 +1,3 @@
 import * as Layer from "effect/Layer";
-import { CreateBackup } from "./CreateBackup.js";
+import { CreateBackup } from "./CreateBackup.vibe";
 export declare const CreateBackupHttp: Layer.Layer<CreateBackup, never, never>;

@@ -7,7 +7,7 @@ import { GrantTables, tablesRegion } from "./BindingHttp.ts";
 import {
   RestoreTableFromBackup,
   type RestoreTableFromBackupRequest,
-} from "./RestoreTableFromBackup.ts";
+} from "./RestoreTableFromBackup.vibe";
 import type { Table } from "./Table.ts";
 
 export const RestoreTableFromBackupHttp = Layer.effect(

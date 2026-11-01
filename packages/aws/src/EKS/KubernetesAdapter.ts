@@ -21,7 +21,7 @@ import type { HttpClient } from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
-import { makeImageSource, type ImageSourceLike } from "../ECR/ImageSource.ts";
+import { makeImageSource, type ImageSourceLike } from "../ECR/ImageSource.vibe";
 import { AWSEnvironment } from "../Environment.ts";
 import type { PolicyStatement } from "../IAM/Policy.ts";
 /**

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetInsight } from "./GetInsight.js";
+import { GetInsight } from "./GetInsight.vibe";
 /**
  * HTTP implementation of the `XRay.GetInsight` binding.
  *

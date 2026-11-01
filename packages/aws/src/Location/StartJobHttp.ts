@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { Role } from "../IAM/Role.ts";
-import { StartJob, type StartJobRequest } from "./StartJob.ts";
+import { StartJob, type StartJobRequest } from "./StartJob.vibe";
 
 /**
  * Bespoke (not via `BindingHttp.ts`): StartJob is the one Location binding

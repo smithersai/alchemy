@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetAuthorizationToken } from "./GetAuthorizationToken.js";
+import { GetAuthorizationToken } from "./GetAuthorizationToken.vibe";
 /**
  * HTTP implementation of {@link GetAuthorizationToken} over the CodeArtifact
  * API. Domain-scoped (not repository-scoped): tokens authorize against every

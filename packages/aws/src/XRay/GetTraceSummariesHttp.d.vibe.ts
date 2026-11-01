@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { GetTraceSummaries } from "./GetTraceSummaries.js";
+import { GetTraceSummaries } from "./GetTraceSummaries.vibe";
 /**
  * HTTP implementation of the `XRay.GetTraceSummaries` binding.
  *

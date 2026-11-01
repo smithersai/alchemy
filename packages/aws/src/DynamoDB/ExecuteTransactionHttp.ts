@@ -7,7 +7,7 @@ import {
   ExecuteTransaction,
   type ExecuteTransactionRequest,
   type ExecuteTransactionTables,
-} from "./ExecuteTransaction.ts";
+} from "./ExecuteTransaction.vibe";
 
 export const ExecuteTransactionHttp = Layer.effect(
   ExecuteTransaction,

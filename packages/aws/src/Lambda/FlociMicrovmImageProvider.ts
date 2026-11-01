@@ -46,7 +46,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
-import type { ImageSourceLike } from "../ECR/ImageSource.ts";
+import type { ImageSourceLike } from "../ECR/ImageSource.vibe";
 import { flociProvidersUrl, makeDevWatchProvider } from "../Local/DevWatchProvider.ts";
 import { imageSourceTrigger } from "../Local/ImageSourceTrigger.vibe";
 import {
