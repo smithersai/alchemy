@@ -4,53 +4,61 @@ import {
   migrationsInputOf,
   stampedOf,
   type MigrationsInput,
-} from "@alchemy.run/sql/Migrations"
-import * as ec2 from "@distilled.cloud/aws/ec2"
-import * as rds from "@distilled.cloud/aws/rds"
-import * as secretsmanager from "@distilled.cloud/aws/secrets-manager"
-import { isResolved } from "alchemy/Diff"
-import { createPhysicalName } from "alchemy/PhysicalName"
-import * as Provider from "alchemy/Provider"
-import { Resource } from "alchemy/Resource"
-import { createInternalTags, diffTags } from "alchemy/Tags"
-import { toWireDays, toWireSeconds } from "alchemy/Util/Duration"
-import { sha256 } from "alchemy/Util/sha256"
-import type * as Duration from "effect/Duration"
-import * as Redacted from "effect/Redacted"
-import { normalizePolicyDocument, stringifyPolicyDocument, type PolicyDocument } from "../IAM/Policy.vibe"
-import { reapLogGroupsByPrefix } from "../Logs/reapLogGroups.vibe"
-import type { Providers } from "../Providers.ts"
-import { runDBInstanceMigrations, type MigrationsTransport } from "./Migrations.vibe"
+} from "@alchemy.run/sql/Migrations";
+import * as ec2 from "@distilled.cloud/aws/ec2";
+import * as rds from "@distilled.cloud/aws/rds";
+import * as secretsmanager from "@distilled.cloud/aws/secrets-manager";
+import { isResolved } from "alchemy/Diff";
+import { createPhysicalName } from "alchemy/PhysicalName";
+import * as Provider from "alchemy/Provider";
+import { Resource } from "alchemy/Resource";
+import { createInternalTags, diffTags } from "alchemy/Tags";
+import { toWireDays, toWireSeconds } from "alchemy/Util/Duration";
+import { sha256 } from "alchemy/Util/sha256";
+import * as Data from "effect/Data";
+import type * as Duration from "effect/Duration";
+import * as Effect from "effect/Effect";
+import * as Redacted from "effect/Redacted";
+import * as Schedule from "effect/Schedule";
+import * as Stream from "effect/Stream";
+import {
+  normalizePolicyDocument,
+  stringifyPolicyDocument,
+  type PolicyDocument,
+} from "../IAM/Policy.vibe";
+import { reapLogGroupsByPrefix } from "../Logs/reapLogGroups.vibe";
+import type { Providers } from "../Providers.ts";
+import { runDBInstanceMigrations, type MigrationsTransport } from "./Migrations.vibe";
 
 export interface DBInstanceProps {
   /**
    * Instance identifier. If omitted, Alchemy generates one.
    */
-  mutable dbInstanceIdentifier?: string
+  dbInstanceIdentifier?: string;
   /**
    * Aurora cluster the instance belongs to. When set, the instance is a
    * cluster member and most storage/backup props are managed by the cluster.
    * Replacing this forces a new instance.
    */
-  mutable dbClusterIdentifier?: string
+  dbClusterIdentifier?: string;
   /**
    * Instance class such as `db.serverless` or `db.t3.micro`.
    */
-  mutable dbInstanceClass: string
+  dbInstanceClass: string;
   /**
    * Database engine, e.g. `mysql`, `postgres`, `aurora-postgresql`.
    * Changing the engine forces replacement.
    */
-  mutable engine: string
+  engine: string;
   /**
    * Optional engine version. Changed in place via `modifyDBInstance`.
    */
-  mutable engineVersion?: string
+  engineVersion?: string;
   /**
    * Standalone (non-Aurora) database name created with the instance.
    * Immutable — forces replacement.
    */
-  mutable dbName?: string
+  dbName?: string;
   /**
    * Minimum allocated storage in GiB (standalone instances). RDS cannot
    * shrink storage; omission/removal retains any larger existing allocation.
@@ -58,7 +66,7 @@ export interface DBInstanceProps {
    * and 20 GiB otherwise. In-place increases request at least 10% growth.
    * Cluster members inherit storage from their cluster.
    */
-  mutable allocatedStorage?: number
+  allocatedStorage?: number;
   /**
    * Upper limit (GiB) for storage autoscaling on standalone instances.
    * Omission or `0` disables autoscaling, including after adoption or drift.
@@ -67,7 +75,7 @@ export interface DBInstanceProps {
    * Not supported for cluster members or RDS Custom.
    * @default 0
    */
-  mutable maxAllocatedStorage?: number
+  maxAllocatedStorage?: number;
   /**
    * Storage type: `gp2` | `gp3` | `io1` | `io2` | `standard`. Omission/removal
    * selects gp3, including for existing instances. Magnetic (`standard`)
@@ -76,7 +84,7 @@ export interface DBInstanceProps {
    * Cluster members inherit storage from their cluster.
    * @default "gp3"
    */
-  mutable storageType?: string
+  storageType?: string;
   /**
    * Provisioned IOPS (io1/io2/gp3). Omission/removal selects a deterministic
    * baseline, not the observed setting: gp3 uses 3000 IOPS, or 12000 for
@@ -85,34 +93,34 @@ export interface DBInstanceProps {
    * Small non-SQL Server gp3 volumes have fixed performance. AWS rate-limits
    * changes and may require a storage-optimization cooldown.
    */
-  mutable iops?: number
+  iops?: number;
   /**
    * Storage throughput in MiBps (gp3 only). Omission/removal selects 125,
    * or 500 for striped storage. MySQL/MariaDB IOPS can raise the baseline.
    * gp3 is striped at 200 GiB for Oracle and 400 GiB for other engines,
    * except SQL Server, which does not use the striped baseline.
    */
-  mutable storageThroughput?: number
+  storageThroughput?: number;
   /**
    * Master username (standalone instances). Immutable — forces replacement.
    */
-  mutable masterUsername?: string
+  masterUsername?: string;
   /**
    * Master password (standalone instances). In-place modify.
    */
-  mutable masterUserPassword?: Redacted.Redacted<string>
+  masterUserPassword?: Redacted.Redacted<string>;
   /**
    * Let RDS manage the master user password in Secrets Manager.
    */
-  mutable manageMasterUserPassword?: boolean
+  manageMasterUserPassword?: boolean;
   /**
    * Rotate the managed master user password on the next reconcile.
    */
-  mutable rotateMasterUserPassword?: boolean
+  rotateMasterUserPassword?: boolean;
   /**
    * KMS key used to encrypt the managed master user secret.
    */
-  mutable masterUserSecretKmsKeyId?: string
+  masterUserSecretKmsKeyId?: string;
   /**
    * Resource policy for this instance's RDS-managed master secret. Omission or
    * removal deletes an existing policy, including after adoption or drift.
@@ -122,7 +130,7 @@ export interface DBInstanceProps {
    * are validated even on no-op plans; writes also use BlockPublicPolicy.
    * Cluster-owned secrets and RDS Custom are not supported by this property.
    */
-  mutable masterUserSecretResourcePolicy?: PolicyDocument
+  masterUserSecretResourcePolicy?: PolicyDocument;
   /**
    * Standalone listener port. Omission/removal restores the engine default:
    * PostgreSQL 5432, MySQL/MariaDB 3306, Oracle 1521, SQL Server 1433, Db2 50000.
@@ -131,32 +139,32 @@ export interface DBInstanceProps {
    * Ignored for Aurora and cluster members: configure the DBCluster port.
    * Changes restart the database and are sent as `DBPortNumber` on modify.
    */
-  mutable port?: number
+  port?: number;
   /**
    * Multi-AZ deployment (standalone instances). In-place modify.
    */
-  mutable multiAZ?: boolean
+  multiAZ?: boolean;
   /**
    * Availability zone (standalone single-AZ). Immutable — forces replacement.
    */
-  mutable availabilityZone?: string
+  availabilityZone?: string;
   /**
    * Backup retention period (e.g. `"7 days"` or `Duration.days(7)`).
    * Sent to the API in whole days. In-place modify.
    */
-  mutable backupRetentionPeriod?: Duration.Input
+  backupRetentionPeriod?: Duration.Input;
   /**
    * Daily backup window, e.g. `07:00-09:00`. In-place modify.
    */
-  mutable preferredBackupWindow?: string
+  preferredBackupWindow?: string;
   /**
    * Weekly maintenance window, e.g. `Mon:00:00-Mon:03:00`. In-place modify.
    */
-  mutable preferredMaintenanceWindow?: string
+  preferredMaintenanceWindow?: string;
   /**
    * Optional DB subnet group. Effectively immutable for an in-VPC instance.
    */
-  mutable dbSubnetGroupName?: string
+  dbSubnetGroupName?: string;
   /**
    * DB parameter group. Omission/removal restores `default.<engine-family>`.
    * The family follows the requested version, otherwise the existing engine
@@ -165,7 +173,7 @@ export interface DBInstanceProps {
    * automatically rebooting. Unsupported on RDS Custom; Db2 BYOL requires
    * an explicit group with IBM licensing IDs.
    */
-  mutable dbParameterGroupName?: string
+  dbParameterGroupName?: string;
   /**
    * VPC security groups attached to the instance, compared as a set.
    * Omission/removal restores the default group in the effective instance VPC:
@@ -176,27 +184,27 @@ export interface DBInstanceProps {
    * whose security groups are managed on DBCluster. Existing RDS Custom
    * attachments cannot be changed through this provider.
    */
-  mutable vpcSecurityGroupIds?: string[]
+  vpcSecurityGroupIds?: string[];
   /**
    * Option group (MySQL/Oracle/SQL Server). In-place modify.
    */
-  mutable optionGroupName?: string
+  optionGroupName?: string;
   /**
    * License model, e.g. `license-included` | `bring-your-own-license`.
    */
-  mutable licenseModel?: string
+  licenseModel?: string;
   /**
    * Whether storage is encrypted. Immutable — forces replacement.
    */
-  mutable storageEncrypted?: boolean
+  storageEncrypted?: boolean;
   /**
    * KMS key for storage encryption. Immutable — forces replacement.
    */
-  mutable kmsKeyId?: string
+  kmsKeyId?: string;
   /**
    * CA certificate identifier. In-place modify.
    */
-  mutable caCertificateIdentifier?: string
+  caCertificateIdentifier?: string;
   /**
    * Enable IAM database authentication. Omission/removal disables it, including
    * after adoption or drift. Cluster members inherit their cluster's setting.
@@ -205,29 +213,29 @@ export interface DBInstanceProps {
    * PostgreSQL, MySQL, and MariaDB; unsupported on RDS Custom.
    * @default false
    */
-  mutable enableIAMDatabaseAuthentication?: boolean
+  enableIAMDatabaseAuthentication?: boolean;
   /**
    * Enable Performance Insights. In-place modify.
    */
-  mutable enablePerformanceInsights?: boolean
+  enablePerformanceInsights?: boolean;
   /**
    * KMS key for Performance Insights. In-place modify.
    */
-  mutable performanceInsightsKMSKeyId?: string
+  performanceInsightsKMSKeyId?: string;
   /**
    * Performance Insights retention (e.g. `"7 days"`). Sent to the API in
    * whole days (valid: 7, 731, or month multiples).
    */
-  mutable performanceInsightsRetentionPeriod?: Duration.Input
+  performanceInsightsRetentionPeriod?: Duration.Input;
   /**
    * Enhanced-monitoring granularity (e.g. `"60 seconds"`). Sent to the API
    * in whole seconds (valid: 0, 1, 5, 10, 15, 30, 60).
    */
-  mutable monitoringInterval?: Duration.Input
+  monitoringInterval?: Duration.Input;
   /**
    * IAM role ARN for enhanced monitoring. In-place modify.
    */
-  mutable monitoringRoleArn?: string
+  monitoringRoleArn?: string;
   /**
    * Log types to export to CloudWatch Logs, compared as a set. Omission/removal
    * disables all exports. Changes apply immediately without flushing unrelated
@@ -235,25 +243,25 @@ export interface DBInstanceProps {
    * Unsupported on RDS Custom.
    * @default []
    */
-  mutable enableCloudwatchLogsExports?: string[]
+  enableCloudwatchLogsExports?: string[];
   /**
    * Block accidental deletion. Omission/removal disables protection, including
    * after adoption or drift. Ignored for cluster members: configure DBCluster.
    * Aurora cluster protection does not prevent deleting individual instances.
    * @default false
    */
-  mutable deletionProtection?: boolean
+  deletionProtection?: boolean;
   /**
    * Network type: `IPV4` | `DUAL`. Omission/removal restores IPv4. DUAL requires
    * IPv6-enabled subnets. Ignored for cluster members: configure DBCluster.
    * Changes apply immediately and can also apply unrelated pending RDS changes.
    * @default "IPV4"
    */
-  mutable networkType?: string
+  networkType?: string;
   /**
    * Allow a major engine-version upgrade during a modify. Modify-only flag.
    */
-  mutable allowMajorVersionUpgrade?: boolean
+  allowMajorVersionUpgrade?: boolean;
   /**
    * Whether the instance has a public address. Omission/removal restores private
    * access, including after adoption or drift. Also managed on Aurora instances;
@@ -261,23 +269,23 @@ export interface DBInstanceProps {
    * Changes apply immediately without flushing unrelated pending modifications.
    * @default false
    */
-  mutable publiclyAccessible?: boolean
+  publiclyAccessible?: boolean;
   /**
    * Promotion tier inside the cluster.
    */
-  mutable promotionTier?: number
+  promotionTier?: number;
   /**
    * Auto minor version upgrades.
    */
-  mutable autoMinorVersionUpgrade?: boolean
+  autoMinorVersionUpgrade?: boolean;
   /**
    * Copy tags to snapshots.
    */
-  mutable copyTagsToSnapshot?: boolean
+  copyTagsToSnapshot?: boolean;
   /**
    * User-defined tags.
    */
-  mutable tags?: Record<string, string>
+  tags?: Record<string, string>;
   /**
    * Skip the final snapshot when the instance is deleted. Set `false` to
    * have RDS take a final snapshot on teardown — belt-and-suspenders beyond
@@ -285,13 +293,13 @@ export interface DBInstanceProps {
    * destroy. Persisted into state so `delete` honors it without props.
    * @default true
    */
-  mutable skipFinalSnapshot?: boolean
+  skipFinalSnapshot?: boolean;
   /**
    * Identifier for the final snapshot taken when `skipFinalSnapshot` is
    * `false`. Defaults to `<instance-identifier>-final-<timestamp>` so
    * repeated destroy/create cycles never collide on snapshot names.
    */
-  mutable finalDBSnapshotIdentifier?: string
+  finalDBSnapshotIdentifier?: string;
   /**
    * SQL migrations to apply on deploy, once this instance is available.
    * Accepts a directory path, a `Drizzle.Schema` resource, or
@@ -306,7 +314,7 @@ export interface DBInstanceProps {
    * implicitly, so their DDL is not rolled back if a later statement fails.
    * Deleting the instance never touches the database.
    */
-  mutable migrations?: MigrationsInput
+  migrations?: MigrationsInput;
   /**
    * How `migrations` reach the database: `"data-api"` (Aurora clusters with
    * `enableHttpEndpoint: true`; the Data API runs one statement per call, so
@@ -315,252 +323,250 @@ export interface DBInstanceProps {
    * the endpoint), or an `AWS.RDS.MigrationRunner` Lambda inside the VPC.
    * @default "data-api" when the instance's Aurora cluster has the Data API enabled, otherwise "direct"
    */
-  mutable migrationsTransport?: MigrationsTransport
+  migrationsTransport?: MigrationsTransport;
   /**
    * ARN of the Secrets Manager secret (JSON with `username` and `password`)
    * that `migrations` authenticate with.
    * @default `masterUsername` + `masterUserPassword` when set (direct and Lambda transports), otherwise the RDS-managed master user secret
    */
-  mutable migrationsSecretArn?: string
+  migrationsSecretArn?: string;
 }
 
-export interface DBInstance extends
-  Resource<
-    "AWS.RDS.DBInstance",
-    DBInstanceProps,
-    {
-      /**
-       * Identifier of the instance.
-       */
-      mutable dbInstanceIdentifier: string
-      /**
-       * ARN of the instance.
-       */
-      mutable dbInstanceArn: string
-      /**
-       * Aurora cluster the instance belongs to, if any.
-       */
-      mutable dbClusterIdentifier: string | undefined
-      /**
-       * DNS address of the instance endpoint.
-       */
-      mutable endpointAddress: string | undefined
-      /**
-       * Port of the instance endpoint.
-       */
-      mutable endpointPort: number | undefined
-      /**
-       * Instance class (e.g. `db.serverless`, `db.t3.micro`).
-       */
-      mutable dbInstanceClass: string | undefined
-      /**
-       * Database engine.
-       */
-      mutable engine: string | undefined
-      /**
-       * Engine version in use.
-       */
-      mutable engineVersion: string | undefined
-      /**
-       * Status of the instance (e.g. `available`).
-       */
-      mutable status: string | undefined
-      /**
-       * Failover promotion tier inside the cluster.
-       */
-      mutable promotionTier: number | undefined
-      /**
-       * Whether the instance has a public address.
-       */
-      mutable publiclyAccessible: boolean | undefined
-      /**
-       * Subnet group the instance is placed in.
-       */
-      mutable dbSubnetGroupName: string | undefined
-      /**
-       * Parameter groups applied to the instance.
-       */
-      mutable dbParameterGroupNames: string[]
-      /**
-       * Observed parameter-group apply statuses, including pending-reboot.
-       */
-      mutable dbParameterGroupApplyStatuses: Record<string, string | undefined>
-      /**
-       * Observed VPC security-group attachments, including cluster-owned groups.
-       */
-      mutable vpcSecurityGroupIds: string[]
-      /**
-       * Observed VPC security-group application states, such as `active`.
-       */
-      mutable vpcSecurityGroupStatuses: Record<string, string | undefined>
-      /**
-       * Allocated storage in GiB.
-       */
-      mutable allocatedStorage: number | undefined
-      /**
-       * Storage autoscaling ceiling in GiB.
-       */
-      mutable maxAllocatedStorage: number | undefined
-      /**
-       * Storage type (e.g. `gp3`, `io1`, `aurora`).
-       */
-      mutable storageType: string | undefined
-      /**
-       * Provisioned IOPS.
-       */
-      mutable iops: number | undefined
-      /**
-       * Storage throughput in MiBps (gp3).
-       */
-      mutable storageThroughput: number | undefined
-      /**
-       * Whether the instance is Multi-AZ.
-       */
-      mutable multiAZ: boolean | undefined
-      /**
-       * Availability Zone of the instance.
-       */
-      mutable availabilityZone: string | undefined
-      /**
-       * Standby AZ for Multi-AZ deployments.
-       */
-      mutable secondaryAvailabilityZone: string | undefined
-      /**
-       * Backup retention period in days.
-       */
-      mutable backupRetentionPeriod: number | undefined
-      /**
-       * Daily backup window (`hh:mm-hh:mm` UTC).
-       */
-      mutable preferredBackupWindow: string | undefined
-      /**
-       * Weekly maintenance window.
-       */
-      mutable preferredMaintenanceWindow: string | undefined
-      /**
-       * KMS key used for storage encryption.
-       */
-      mutable kmsKeyId: string | undefined
-      /**
-       * Whether storage is encrypted.
-       */
-      mutable storageEncrypted: boolean | undefined
-      /**
-       * CA certificate identifier.
-       */
-      mutable caCertificateIdentifier: string | undefined
-      /**
-       * Whether IAM database authentication is enabled.
-       */
-      mutable iamDatabaseAuthenticationEnabled: boolean | undefined
-      /**
-       * Observed IAM authentication change awaiting application. A pending value
-       * is not evidence that authentication has changed on the database.
-       */
-      mutable pendingIamDatabaseAuthenticationEnabled: boolean | undefined
-      /**
-       * Whether Performance Insights is enabled.
-       */
-      mutable performanceInsightsEnabled: boolean | undefined
-      /**
-       * Enhanced-monitoring granularity in seconds.
-       */
-      mutable monitoringInterval: number | undefined
-      /**
-       * ARN of the enhanced-monitoring CloudWatch Logs stream.
-       */
-      mutable enhancedMonitoringResourceArn: string | undefined
-      /**
-       * Log types exported to CloudWatch Logs.
-       */
-      mutable enabledCloudwatchLogsExports: string[]
-      /**
-       * Whether deletion protection is enabled.
-       */
-      mutable deletionProtection: boolean | undefined
-      /**
-       * Whether minor engine upgrades are applied automatically, as observed.
-       * Lets `alchemy drift` detect out-of-band changes.
-       */
-      mutable autoMinorVersionUpgrade?: boolean
-      /**
-       * Immutable region-unique instance resource ID (used in IAM auth ARNs).
-       */
-      mutable dbiResourceId: string | undefined
-      /**
-       * Master username.
-       */
-      mutable masterUsername: string | undefined
-      /**
-       * Whether the final snapshot is skipped on delete, persisted from the
-       * prop of the same name. `delete` receives only the stored attributes,
-       * never live props, so the snapshot decision must ride in state;
-       * `undefined` (older state without this attr) is treated as skip.
-       */
-      mutable skipFinalSnapshot: boolean | undefined
-      /**
-       * Identifier used for the final snapshot when `skipFinalSnapshot` is
-       * `false`, persisted from props so `delete` can name the snapshot without
-       * live props. `undefined` means `delete` falls back to the default
-       * `<instance-identifier>-final-<timestamp>` naming scheme.
-       */
-      mutable finalDBSnapshotIdentifier: string | undefined
-      /**
-       * Salted SHA-256 fingerprint of the last `masterUserPassword` this
-       * provider sent to RDS — `sha256(`${dbInstanceIdentifier}:${password}`)`,
-       * never the secret itself. Lets reconcile skip the `MasterUserPassword`
-       * modify (and the `resetting-master-credentials` cycle it triggers) when
-       * the configured password has not changed.
-       *
-       * Persisted `Redacted` because a password hash is still sensitive: an
-       * unsalted digest is vulnerable to rainbow-table lookup, so the state
-       * store must not surface it in plaintext (logs, `stringify`, dumps). The
-       * per-resource identifier salt additionally defeats precomputed tables;
-       * it is stable across a resource's life, so the fingerprint stays
-       * comparable across reconciles.
-       */
-      mutable masterUserPasswordFingerprint: Redacted.Redacted<string> | undefined
-      /**
-       * ARN of the Secrets Manager secret holding master credentials.
-       */
-      mutable masterUserSecretArn: string | undefined
-      /**
-       * Canonical policy observed during read or reconciliation. Undefined when
-       * there is no instance-managed secret or no resource policy. Inventory
-       * listing does not load policy metadata and leaves this attribute undefined.
-       */
-      mutable masterUserSecretResourcePolicy: string | undefined
-      /**
-       * Option group memberships.
-       */
-      mutable optionGroupMemberships: string[]
-      /**
-       * License model.
-       */
-      mutable licenseModel: string | undefined
-      /**
-       * Configured database port.
-       */
-      mutable dbInstancePort: number | undefined
-      /**
-       * Network type (`IPV4` or `DUAL`).
-       */
-      mutable networkType: string | undefined
-      /**
-       * Tags on the instance.
-       */
-      mutable tags: Record<string, string>
-      /** Directory of the applied SQL migrations. */
-      mutable migrationsDir: string | undefined
-      /** Migration bookkeeping table. */
-      mutable migrationsTable: string | undefined
-      /** Applied migration content hashes. */
-      mutable migrationsHashes: Record<string, string>
-    },
-    never,
-    Providers
-  >
-{}
+export interface DBInstance extends Resource<
+  "AWS.RDS.DBInstance",
+  DBInstanceProps,
+  {
+    /**
+     * Identifier of the instance.
+     */
+    dbInstanceIdentifier: string;
+    /**
+     * ARN of the instance.
+     */
+    dbInstanceArn: string;
+    /**
+     * Aurora cluster the instance belongs to, if any.
+     */
+    dbClusterIdentifier: string | undefined;
+    /**
+     * DNS address of the instance endpoint.
+     */
+    endpointAddress: string | undefined;
+    /**
+     * Port of the instance endpoint.
+     */
+    endpointPort: number | undefined;
+    /**
+     * Instance class (e.g. `db.serverless`, `db.t3.micro`).
+     */
+    dbInstanceClass: string | undefined;
+    /**
+     * Database engine.
+     */
+    engine: string | undefined;
+    /**
+     * Engine version in use.
+     */
+    engineVersion: string | undefined;
+    /**
+     * Status of the instance (e.g. `available`).
+     */
+    status: string | undefined;
+    /**
+     * Failover promotion tier inside the cluster.
+     */
+    promotionTier: number | undefined;
+    /**
+     * Whether the instance has a public address.
+     */
+    publiclyAccessible: boolean | undefined;
+    /**
+     * Subnet group the instance is placed in.
+     */
+    dbSubnetGroupName: string | undefined;
+    /**
+     * Parameter groups applied to the instance.
+     */
+    dbParameterGroupNames: string[];
+    /**
+     * Observed parameter-group apply statuses, including pending-reboot.
+     */
+    dbParameterGroupApplyStatuses: Record<string, string | undefined>;
+    /**
+     * Observed VPC security-group attachments, including cluster-owned groups.
+     */
+    vpcSecurityGroupIds: string[];
+    /**
+     * Observed VPC security-group application states, such as `active`.
+     */
+    vpcSecurityGroupStatuses: Record<string, string | undefined>;
+    /**
+     * Allocated storage in GiB.
+     */
+    allocatedStorage: number | undefined;
+    /**
+     * Storage autoscaling ceiling in GiB.
+     */
+    maxAllocatedStorage: number | undefined;
+    /**
+     * Storage type (e.g. `gp3`, `io1`, `aurora`).
+     */
+    storageType: string | undefined;
+    /**
+     * Provisioned IOPS.
+     */
+    iops: number | undefined;
+    /**
+     * Storage throughput in MiBps (gp3).
+     */
+    storageThroughput: number | undefined;
+    /**
+     * Whether the instance is Multi-AZ.
+     */
+    multiAZ: boolean | undefined;
+    /**
+     * Availability Zone of the instance.
+     */
+    availabilityZone: string | undefined;
+    /**
+     * Standby AZ for Multi-AZ deployments.
+     */
+    secondaryAvailabilityZone: string | undefined;
+    /**
+     * Backup retention period in days.
+     */
+    backupRetentionPeriod: number | undefined;
+    /**
+     * Daily backup window (`hh:mm-hh:mm` UTC).
+     */
+    preferredBackupWindow: string | undefined;
+    /**
+     * Weekly maintenance window.
+     */
+    preferredMaintenanceWindow: string | undefined;
+    /**
+     * KMS key used for storage encryption.
+     */
+    kmsKeyId: string | undefined;
+    /**
+     * Whether storage is encrypted.
+     */
+    storageEncrypted: boolean | undefined;
+    /**
+     * CA certificate identifier.
+     */
+    caCertificateIdentifier: string | undefined;
+    /**
+     * Whether IAM database authentication is enabled.
+     */
+    iamDatabaseAuthenticationEnabled: boolean | undefined;
+    /**
+     * Observed IAM authentication change awaiting application. A pending value
+     * is not evidence that authentication has changed on the database.
+     */
+    pendingIamDatabaseAuthenticationEnabled: boolean | undefined;
+    /**
+     * Whether Performance Insights is enabled.
+     */
+    performanceInsightsEnabled: boolean | undefined;
+    /**
+     * Enhanced-monitoring granularity in seconds.
+     */
+    monitoringInterval: number | undefined;
+    /**
+     * ARN of the enhanced-monitoring CloudWatch Logs stream.
+     */
+    enhancedMonitoringResourceArn: string | undefined;
+    /**
+     * Log types exported to CloudWatch Logs.
+     */
+    enabledCloudwatchLogsExports: string[];
+    /**
+     * Whether deletion protection is enabled.
+     */
+    deletionProtection: boolean | undefined;
+    /**
+     * Whether minor engine upgrades are applied automatically, as observed.
+     * Lets `alchemy drift` detect out-of-band changes.
+     */
+    autoMinorVersionUpgrade?: boolean;
+    /**
+     * Immutable region-unique instance resource ID (used in IAM auth ARNs).
+     */
+    dbiResourceId: string | undefined;
+    /**
+     * Master username.
+     */
+    masterUsername: string | undefined;
+    /**
+     * Whether the final snapshot is skipped on delete, persisted from the
+     * prop of the same name. `delete` receives only the stored attributes,
+     * never live props, so the snapshot decision must ride in state;
+     * `undefined` (older state without this attr) is treated as skip.
+     */
+    skipFinalSnapshot: boolean | undefined;
+    /**
+     * Identifier used for the final snapshot when `skipFinalSnapshot` is
+     * `false`, persisted from props so `delete` can name the snapshot without
+     * live props. `undefined` means `delete` falls back to the default
+     * `<instance-identifier>-final-<timestamp>` naming scheme.
+     */
+    finalDBSnapshotIdentifier: string | undefined;
+    /**
+     * Salted SHA-256 fingerprint of the last `masterUserPassword` this
+     * provider sent to RDS — `sha256(`${dbInstanceIdentifier}:${password}`)`,
+     * never the secret itself. Lets reconcile skip the `MasterUserPassword`
+     * modify (and the `resetting-master-credentials` cycle it triggers) when
+     * the configured password has not changed.
+     *
+     * Persisted `Redacted` because a password hash is still sensitive: an
+     * unsalted digest is vulnerable to rainbow-table lookup, so the state
+     * store must not surface it in plaintext (logs, `stringify`, dumps). The
+     * per-resource identifier salt additionally defeats precomputed tables;
+     * it is stable across a resource's life, so the fingerprint stays
+     * comparable across reconciles.
+     */
+    masterUserPasswordFingerprint: Redacted.Redacted<string> | undefined;
+    /**
+     * ARN of the Secrets Manager secret holding master credentials.
+     */
+    masterUserSecretArn: string | undefined;
+    /**
+     * Canonical policy observed during read or reconciliation. Undefined when
+     * there is no instance-managed secret or no resource policy. Inventory
+     * listing does not load policy metadata and leaves this attribute undefined.
+     */
+    masterUserSecretResourcePolicy: string | undefined;
+    /**
+     * Option group memberships.
+     */
+    optionGroupMemberships: string[];
+    /**
+     * License model.
+     */
+    licenseModel: string | undefined;
+    /**
+     * Configured database port.
+     */
+    dbInstancePort: number | undefined;
+    /**
+     * Network type (`IPV4` or `DUAL`).
+     */
+    networkType: string | undefined;
+    /**
+     * Tags on the instance.
+     */
+    tags: Record<string, string>;
+    /** Directory of the applied SQL migrations. */
+    migrationsDir: string | undefined;
+    /** Migration bookkeeping table. */
+    migrationsTable: string | undefined;
+    /** Applied migration content hashes. */
+    migrationsHashes: Record<string, string>;
+  },
+  never,
+  Providers
+> {}
 
 /**
  * An RDS database instance — either a standalone (non-Aurora) database or a
@@ -968,19 +974,19 @@ export interface DBInstance extends
  *
  * @resource
  */
-export const DBInstance = Resource<DBInstance>("AWS.RDS.DBInstance")
+export const DBInstance = Resource<DBInstance>("AWS.RDS.DBInstance");
 
 const toTagRecord = (
-  tags: Array<{ mutable Key?: string; mutable Value?: string }> | undefined,
+  tags: Array<{ Key?: string; Value?: string }> | undefined,
 ): Record<string, string> =>
   Object.fromEntries(
     (tags ?? [])
       .filter(
-        (tag): tag is { mutable Key: string; mutable Value: string } =>
+        (tag): tag is { Key: string; Value: string } =>
           typeof tag.Key === "string" && typeof tag.Value === "string",
       )
       .map((tag) => [tag.Key, tag.Value]),
-  )
+  );
 
 /**
  * Whether two optional master-password fingerprints match, compared by their
@@ -991,7 +997,7 @@ const toTagRecord = (
 const sameFingerprint = (
   a: Redacted.Redacted<string> | undefined,
   b: Redacted.Redacted<string> | undefined,
-): boolean => a !== undefined && b !== undefined && Redacted.value(a) === Redacted.value(b)
+): boolean => a !== undefined && b !== undefined && Redacted.value(a) === Redacted.value(b);
 
 const toAttrs = ({
   instance,
@@ -1002,16 +1008,16 @@ const toAttrs = ({
   masterUserSecretResourcePolicy,
   migrations,
 }: {
-  mutable instance: rds.DBInstance
-  mutable tags: Record<string, string>
-  mutable skipFinalSnapshot?: boolean | undefined
-  mutable finalDBSnapshotIdentifier?: string | undefined
-  mutable masterUserPasswordFingerprint?: Redacted.Redacted<string> | undefined
-  mutable masterUserSecretResourcePolicy?: string | undefined
-  mutable migrations?: Pick<
+  instance: rds.DBInstance;
+  tags: Record<string, string>;
+  skipFinalSnapshot?: boolean | undefined;
+  finalDBSnapshotIdentifier?: string | undefined;
+  masterUserPasswordFingerprint?: Redacted.Redacted<string> | undefined;
+  masterUserSecretResourcePolicy?: string | undefined;
+  migrations?: Pick<
     DBInstance["Attributes"],
     "migrationsDir" | "migrationsTable" | "migrationsHashes"
-  >
+  >;
 }): DBInstance["Attributes"] => ({
   migrationsDir: migrations?.migrationsDir,
   migrationsTable: migrations?.migrationsTable,
@@ -1032,19 +1038,19 @@ const toAttrs = ({
   publiclyAccessible: instance.PubliclyAccessible,
   dbSubnetGroupName: instance.DBSubnetGroup?.DBSubnetGroupName,
   dbParameterGroupNames: (instance.DBParameterGroups ?? []).flatMap((group) =>
-    group.DBParameterGroupName ? [group.DBParameterGroupName] : []
+    group.DBParameterGroupName ? [group.DBParameterGroupName] : [],
   ),
   dbParameterGroupApplyStatuses: Object.fromEntries(
     (instance.DBParameterGroups ?? []).flatMap((group) =>
-      group.DBParameterGroupName ? [[group.DBParameterGroupName, group.ParameterApplyStatus]] : []
+      group.DBParameterGroupName ? [[group.DBParameterGroupName, group.ParameterApplyStatus]] : [],
     ),
   ),
   vpcSecurityGroupIds: (instance.VpcSecurityGroups ?? []).flatMap((group) =>
-    group.VpcSecurityGroupId ? [group.VpcSecurityGroupId] : []
+    group.VpcSecurityGroupId ? [group.VpcSecurityGroupId] : [],
   ),
   vpcSecurityGroupStatuses: Object.fromEntries(
     (instance.VpcSecurityGroups ?? []).flatMap((group) =>
-      group.VpcSecurityGroupId ? [[group.VpcSecurityGroupId, group.Status]] : []
+      group.VpcSecurityGroupId ? [[group.VpcSecurityGroupId, group.Status]] : [],
     ),
   ),
   allocatedStorage: instance.AllocatedStorage,
@@ -1062,7 +1068,8 @@ const toAttrs = ({
   storageEncrypted: instance.StorageEncrypted,
   caCertificateIdentifier: instance.CACertificateIdentifier,
   iamDatabaseAuthenticationEnabled: instance.IAMDatabaseAuthenticationEnabled,
-  pendingIamDatabaseAuthenticationEnabled: instance.PendingModifiedValues?.IAMDatabaseAuthenticationEnabled,
+  pendingIamDatabaseAuthenticationEnabled:
+    instance.PendingModifiedValues?.IAMDatabaseAuthenticationEnabled,
   performanceInsightsEnabled: instance.PerformanceInsightsEnabled,
   monitoringInterval: instance.MonitoringInterval,
   enhancedMonitoringResourceArn: instance.EnhancedMonitoringResourceArn,
@@ -1074,13 +1081,13 @@ const toAttrs = ({
   masterUserSecretArn: instance.MasterUserSecret?.SecretArn,
   masterUserSecretResourcePolicy,
   optionGroupMemberships: (instance.OptionGroupMemberships ?? []).flatMap((membership) =>
-    membership.OptionGroupName ? [membership.OptionGroupName] : []
+    membership.OptionGroupName ? [membership.OptionGroupName] : [],
   ),
   licenseModel: instance.LicenseModel,
   dbInstancePort: instance.DbInstancePort,
   networkType: instance.NetworkType,
   tags,
-})
+});
 
 /**
  * Compute the CloudWatch Logs export delta. The modify API is delta-shaped
@@ -1091,40 +1098,42 @@ const logExportDelta = (
   observed: string[] | undefined,
   desired: string[] | undefined,
 ): rds.CloudwatchLogsExportConfiguration | undefined => {
-  if (desired === undefined) return undefined
-  const have = new Set(observed ?? [])
-  const want = new Set(desired)
-  const EnableLogTypes = [...want].filter((t) => !have.has(t))
-  const DisableLogTypes = [...have].filter((t) => !want.has(t))
+  if (desired === undefined) return undefined;
+  const have = new Set(observed ?? []);
+  const want = new Set(desired);
+  const EnableLogTypes = [...want].filter((t) => !have.has(t));
+  const DisableLogTypes = [...have].filter((t) => !want.has(t));
   if (EnableLogTypes.length === 0 && DisableLogTypes.length === 0) {
-    return undefined
+    return undefined;
   }
   return {
     ...(EnableLogTypes.length > 0 ? { EnableLogTypes } : {}),
     ...(DisableLogTypes.length > 0 ? { DisableLogTypes } : {}),
-  }
-}
+  };
+};
 
-const sameMembers = (desired: readonly string[], observed: readonly (string | undefined)[]): infer _ => {
-  const want = new Set(desired)
-  const have = new Set(observed)
-  return want.size === have.size && [...want].every((value) => have.has(value))
-}
+const sameMembers = (desired: readonly string[], observed: readonly (string | undefined)[]) => {
+  const want = new Set(desired);
+  const have = new Set(observed);
+  return want.size === have.size && [...want].every((value) => have.has(value));
+};
 
-const clusterOwnsConfiguration = (props: DBInstanceProps, observed?: rds.DBInstance): infer _ =>
-  props.dbClusterIdentifier !== undefined
-  || observed?.DBClusterIdentifier !== undefined
-  || props.engine.startsWith("aurora")
-  || observed?.Engine?.startsWith("aurora") === true
+const clusterOwnsConfiguration = (props: DBInstanceProps, observed?: rds.DBInstance) =>
+  props.dbClusterIdentifier !== undefined ||
+  observed?.DBClusterIdentifier !== undefined ||
+  props.engine.startsWith("aurora") ||
+  observed?.Engine?.startsWith("aurora") === true;
 
-const securityConfiguration = (props: DBInstanceProps, observed?: rds.DBInstance): infer _ => {
-  const clusterOwned = clusterOwnsConfiguration(props, observed)
-  const custom = props.engine.startsWith("custom-") || observed?.Engine?.startsWith("custom-") === true
-  const supportsIam = ["postgres", "mysql", "mariadb"].includes(observed?.Engine ?? props.engine)
+const securityConfiguration = (props: DBInstanceProps, observed?: rds.DBInstance) => {
+  const clusterOwned = clusterOwnsConfiguration(props, observed);
+  const custom =
+    props.engine.startsWith("custom-") || observed?.Engine?.startsWith("custom-") === true;
+  const supportsIam = ["postgres", "mysql", "mariadb"].includes(observed?.Engine ?? props.engine);
   return {
-    publiclyAccessible: clusterOwned && !props.engine.startsWith("aurora") && !observed?.Engine?.startsWith("aurora")
-      ? undefined
-      : (props.publiclyAccessible ?? false),
+    publiclyAccessible:
+      clusterOwned && !props.engine.startsWith("aurora") && !observed?.Engine?.startsWith("aurora")
+        ? undefined
+        : (props.publiclyAccessible ?? false),
     iamAuthentication: clusterOwned
       ? undefined
       : (props.enableIAMDatabaseAuthentication ?? (supportsIam ? false : undefined)),
@@ -1133,303 +1142,311 @@ const securityConfiguration = (props: DBInstanceProps, observed?: rds.DBInstance
     logExports: clusterOwned
       ? undefined
       : (props.enableCloudwatchLogsExports ?? (custom ? undefined : [])),
-  }
-}
+  };
+};
 
-type SecurityConfiguration = ReturnType<typeof securityConfiguration>
+type SecurityConfiguration = ReturnType<typeof securityConfiguration>;
 
-const pendingLogExports = (instance: rds.DBInstance): infer _ =>
-  instance.PendingModifiedValues?.PendingCloudwatchLogsExports
+const pendingLogExports = (instance: rds.DBInstance) =>
+  instance.PendingModifiedValues?.PendingCloudwatchLogsExports;
 
-const effectiveLogExports = (instance: rds.DBInstance): infer _ => {
-  const exports = new Set(instance.EnabledCloudwatchLogsExports ?? [])
+const effectiveLogExports = (instance: rds.DBInstance) => {
+  const exports = new Set(instance.EnabledCloudwatchLogsExports ?? []);
   for (const log of pendingLogExports(instance)?.LogTypesToDisable ?? []) {
-    exports.delete(log)
+    exports.delete(log);
   }
   for (const log of pendingLogExports(instance)?.LogTypesToEnable ?? []) {
-    exports.add(log)
+    exports.add(log);
   }
-  return [...exports]
-}
+  return [...exports];
+};
 
-const iamConverged = (desired: SecurityConfiguration, instance: rds.DBInstance): infer _ =>
-  desired.iamAuthentication === undefined
-  || (desired.iamAuthentication === instance.IAMDatabaseAuthenticationEnabled
-    && instance.PendingModifiedValues?.IAMDatabaseAuthenticationEnabled === undefined)
+const iamConverged = (desired: SecurityConfiguration, instance: rds.DBInstance) =>
+  desired.iamAuthentication === undefined ||
+  (desired.iamAuthentication === instance.IAMDatabaseAuthenticationEnabled &&
+    instance.PendingModifiedValues?.IAMDatabaseAuthenticationEnabled === undefined);
 
-const securityConverged = (desired: SecurityConfiguration, instance: rds.DBInstance): infer _ =>
-  iamConverged(desired, instance)
-  && (desired.publiclyAccessible === undefined
-    || desired.publiclyAccessible === instance.PubliclyAccessible)
-  && (desired.deletionProtection === undefined
-    || desired.deletionProtection === instance.DeletionProtection)
-  && (desired.networkType === undefined || desired.networkType === instance.NetworkType)
-  && (desired.logExports === undefined
-    || (sameMembers(desired.logExports, instance.EnabledCloudwatchLogsExports ?? [])
-      && (pendingLogExports(instance)?.LogTypesToEnable?.length ?? 0) === 0
-      && (pendingLogExports(instance)?.LogTypesToDisable?.length ?? 0) === 0))
+const securityConverged = (desired: SecurityConfiguration, instance: rds.DBInstance) =>
+  iamConverged(desired, instance) &&
+  (desired.publiclyAccessible === undefined ||
+    desired.publiclyAccessible === instance.PubliclyAccessible) &&
+  (desired.deletionProtection === undefined ||
+    desired.deletionProtection === instance.DeletionProtection) &&
+  (desired.networkType === undefined || desired.networkType === instance.NetworkType) &&
+  (desired.logExports === undefined ||
+    (sameMembers(desired.logExports, instance.EnabledCloudwatchLogsExports ?? []) &&
+      (pendingLogExports(instance)?.LogTypesToEnable?.length ?? 0) === 0 &&
+      (pendingLogExports(instance)?.LogTypesToDisable?.length ?? 0) === 0));
 
 class DBInstanceSecurityPending extends Data.TaggedError("DBInstanceSecurityPending")<{
-  mutable instanceId: string
+  instanceId: string;
 }> {
   override get message() {
-    return `DB instance '${this.instanceId}' security configuration did not converge`
+    return `DB instance '${this.instanceId}' security configuration did not converge`;
   }
 }
 
-error InvalidDBInstanceAssociations {
-  mutable message: string
-}
+class InvalidDBInstanceAssociations extends Data.TaggedError("InvalidDBInstanceAssociations")<{
+  message: string;
+}> {}
 
-const resolveAssociations = effect (
+const resolveAssociations = Effect.fn(function* (
   props: DBInstanceProps,
-  observed?: rds.DBInstance | undefined,
-) => {
-  const clusterIdentifier = props.dbClusterIdentifier ?? observed?.DBClusterIdentifier
-  const clusterOwned = clusterOwnsConfiguration(props, observed)
-  const aurora = props.engine.startsWith("aurora") || observed?.Engine?.startsWith("aurora") === true
-  const custom = props.engine.startsWith("custom-")
+  observed?: rds.DBInstance,
+) {
+  const clusterIdentifier = props.dbClusterIdentifier ?? observed?.DBClusterIdentifier;
+  const clusterOwned = clusterOwnsConfiguration(props, observed);
+  const aurora =
+    props.engine.startsWith("aurora") || observed?.Engine?.startsWith("aurora") === true;
+  const custom = props.engine.startsWith("custom-");
   if (clusterOwned && !aurora) {
     if (props.dbParameterGroupName !== undefined) {
-      throw new InvalidDBInstanceAssociations({
+      return yield* new InvalidDBInstanceAssociations({
         message: "Multi-AZ DB cluster associations are managed on the cluster",
-      })
+      });
     }
-    return { dbParameterGroupName: undefined, vpcSecurityGroupIds: undefined }
+    return { dbParameterGroupName: undefined, vpcSecurityGroupIds: undefined };
   }
   if (
-    props.engine.startsWith("db2-")
-    && props.dbParameterGroupName === undefined
-    && (props.licenseModel ?? observed?.LicenseModel ?? "bring-your-own-license")
-      === "bring-your-own-license"
+    props.engine.startsWith("db2-") &&
+    props.dbParameterGroupName === undefined &&
+    (props.licenseModel ?? observed?.LicenseModel ?? "bring-your-own-license") ===
+      "bring-your-own-license"
   ) {
-    throw new InvalidDBInstanceAssociations({
+    return yield* new InvalidDBInstanceAssociations({
       message: "Db2 BYOL requires an explicit parameter group with IBM licensing IDs",
-    })
+    });
   }
-  let dbParameterGroupName = props.dbParameterGroupName
+  let dbParameterGroupName = props.dbParameterGroupName;
   if (custom && dbParameterGroupName !== undefined) {
-    throw new InvalidDBInstanceAssociations({
+    return yield* new InvalidDBInstanceAssociations({
       message: "RDS Custom does not support DB parameter-group associations",
-    })
+    });
   }
   if (!custom && dbParameterGroupName === undefined) {
-    let engineVersion = props.engineVersion ?? observed?.EngineVersion
+    let engineVersion = props.engineVersion ?? observed?.EngineVersion;
     if (clusterIdentifier !== undefined) {
-      engineVersion = (try rds.describeDBClusters({
+      engineVersion = (yield* rds.describeDBClusters({
         DBClusterIdentifier: clusterIdentifier,
-      })).DBClusters?.[0]?.EngineVersion
+      })).DBClusters?.[0]?.EngineVersion;
       if (!engineVersion) {
-        throw new InvalidDBInstanceAssociations({
+        return yield* new InvalidDBInstanceAssociations({
           message: "The DB cluster did not return an engine version",
-        })
+        });
       }
     }
-    const pages = try rds.describeDBEngineVersions
+    const pages = yield* rds.describeDBEngineVersions
       .pages({
         Engine: props.engine,
         EngineVersion: engineVersion,
         DefaultOnly: engineVersion === undefined ? true : undefined,
         IncludeAll: engineVersion !== undefined ? true : undefined,
       })
-      .pipe(Stream.runCollect)
+      .pipe(Stream.runCollect);
     const families = new Set(
-      pages.flatMap((page) => (page.DBEngineVersions ?? []).map((version) => version.DBParameterGroupFamily)),
-    )
-    const family = [...families][0]
+      pages.flatMap((page) =>
+        (page.DBEngineVersions ?? []).map((version) => version.DBParameterGroupFamily),
+      ),
+    );
+    const family = [...families][0];
     if (families.size !== 1 || !family) {
-      throw new InvalidDBInstanceAssociations({
-        message: "No unambiguous DB parameter group family; declare engineVersion or dbParameterGroupName",
-      })
+      return yield* new InvalidDBInstanceAssociations({
+        message:
+          "No unambiguous DB parameter group family; declare engineVersion or dbParameterGroupName",
+      });
     }
-    dbParameterGroupName = `default.${family}`
+    dbParameterGroupName = `default.${family}`;
   }
-  if (clusterOwned) return { dbParameterGroupName, vpcSecurityGroupIds: undefined }
-  let vpcSecurityGroupIds = props.vpcSecurityGroupIds
+  if (clusterOwned) return { dbParameterGroupName, vpcSecurityGroupIds: undefined };
+  let vpcSecurityGroupIds = props.vpcSecurityGroupIds;
   if (vpcSecurityGroupIds === undefined) {
-    const vpcId = props.dbSubnetGroupName !== undefined
-      ? (try rds.describeDBSubnetGroups({
-        DBSubnetGroupName: props.dbSubnetGroupName,
-      })).DBSubnetGroups?.[0]?.VpcId
-      : (observed?.DBSubnetGroup?.VpcId
-        ?? (try ec2.describeVpcs({
-          Filters: [{ Name: "is-default", Values: ["true"] }],
-        })).Vpcs?.[0]?.VpcId)
+    const vpcId =
+      props.dbSubnetGroupName !== undefined
+        ? (yield* rds.describeDBSubnetGroups({
+            DBSubnetGroupName: props.dbSubnetGroupName,
+          })).DBSubnetGroups?.[0]?.VpcId
+        : (observed?.DBSubnetGroup?.VpcId ??
+          (yield* ec2.describeVpcs({
+            Filters: [{ Name: "is-default", Values: ["true"] }],
+          })).Vpcs?.[0]?.VpcId);
     if (!vpcId) {
-      throw new InvalidDBInstanceAssociations({
-        message: "No VPC found for the DB instance; declare dbSubnetGroupName or provide a default VPC",
-      })
+      return yield* new InvalidDBInstanceAssociations({
+        message:
+          "No VPC found for the DB instance; declare dbSubnetGroupName or provide a default VPC",
+      });
     }
-    const groups = try ec2.describeSecurityGroups({
+    const groups = yield* ec2.describeSecurityGroups({
       Filters: [
         { Name: "vpc-id", Values: [vpcId] },
         { Name: "group-name", Values: ["default"] },
       ],
-    })
-    vpcSecurityGroupIds = (groups.SecurityGroups ?? []).flatMap((group) => group.GroupId ? [group.GroupId] : [])
+    });
+    vpcSecurityGroupIds = (groups.SecurityGroups ?? []).flatMap((group) =>
+      group.GroupId ? [group.GroupId] : [],
+    );
     if (vpcSecurityGroupIds.length !== 1) {
-      throw new InvalidDBInstanceAssociations({
+      return yield* new InvalidDBInstanceAssociations({
         message: `Expected one default security group in VPC '${vpcId}'`,
-      })
+      });
     }
   }
   if (vpcSecurityGroupIds.length === 0) {
-    throw new InvalidDBInstanceAssociations({
-      message: "At least one VPC security group is required; omit vpcSecurityGroupIds to select the VPC default group",
-    })
+    return yield* new InvalidDBInstanceAssociations({
+      message:
+        "At least one VPC security group is required; omit vpcSecurityGroupIds to select the VPC default group",
+    });
   }
   return {
     dbParameterGroupName,
     vpcSecurityGroupIds: [...new Set(vpcSecurityGroupIds)],
-  }
-}
+  };
+});
 
-type Associations = Effect.Success<ReturnType<typeof resolveAssociations>>
+type Associations = Effect.Success<ReturnType<typeof resolveAssociations>>;
 
-const parameterGroupMatches = (desired: Associations, instance: rds.DBInstance): infer _ =>
-  desired.dbParameterGroupName === undefined
-  || sameMembers(
+const parameterGroupMatches = (desired: Associations, instance: rds.DBInstance) =>
+  desired.dbParameterGroupName === undefined ||
+  sameMembers(
     [desired.dbParameterGroupName],
     (instance.DBParameterGroups ?? []).map((group) => group.DBParameterGroupName),
-  )
+  );
 
-const securityGroupsMatch = (desired: Associations, instance: rds.DBInstance): infer _ =>
-  desired.vpcSecurityGroupIds === undefined
-  || sameMembers(
+const securityGroupsMatch = (desired: Associations, instance: rds.DBInstance) =>
+  desired.vpcSecurityGroupIds === undefined ||
+  sameMembers(
     desired.vpcSecurityGroupIds,
     (instance.VpcSecurityGroups ?? []).map((group) => group.VpcSecurityGroupId),
-  )
+  );
 
-const associationsConverged = (desired: Associations, instance: rds.DBInstance): infer _ =>
-  parameterGroupMatches(desired, instance)
-  && (desired.dbParameterGroupName === undefined
-    || (instance.DBParameterGroups ?? []).every(
-      (group) => group.ParameterApplyStatus === "in-sync" || group.ParameterApplyStatus === "pending-reboot",
-    ))
-  && securityGroupsMatch(desired, instance)
-  && (desired.vpcSecurityGroupIds === undefined
-    || (instance.VpcSecurityGroups ?? []).every((group) => group.Status === "active"))
+const associationsConverged = (desired: Associations, instance: rds.DBInstance) =>
+  parameterGroupMatches(desired, instance) &&
+  (desired.dbParameterGroupName === undefined ||
+    (instance.DBParameterGroups ?? []).every(
+      (group) =>
+        group.ParameterApplyStatus === "in-sync" || group.ParameterApplyStatus === "pending-reboot",
+    )) &&
+  securityGroupsMatch(desired, instance) &&
+  (desired.vpcSecurityGroupIds === undefined ||
+    (instance.VpcSecurityGroups ?? []).every((group) => group.Status === "active"));
 
-error InvalidDBInstancePort {
-  mutable message: string
-}
+class InvalidDBInstancePort extends Data.TaggedError("InvalidDBInstancePort")<{
+  message: string;
+}> {}
 
-const desiredInstancePort = effect (
+const desiredInstancePort = Effect.fn(function* (
   props: DBInstanceProps,
-  observed?: rds.DBInstance | undefined,
-) => {
+  observed?: rds.DBInstance,
+) {
   if (clusterOwnsConfiguration(props, observed)) {
-    return undefined
+    return undefined;
   }
   if (props.port !== undefined) {
     if (!Number.isInteger(props.port) || props.port < 1150 || props.port > 65535) {
-      throw new InvalidDBInstancePort({
+      return yield* new InvalidDBInstancePort({
         message: "port must be an integer between 1150 and 65535",
-      })
+      });
     }
-    return props.port
+    return props.port;
   }
-  if (props.engine === "postgres") return 5432
-  if (props.engine === "mysql" || props.engine === "mariadb") return 3306
-  if (props.engine.startsWith("oracle-") || props.engine.startsWith("custom-oracle-")) return 1521
-  if (props.engine.startsWith("sqlserver-") || props.engine.startsWith("custom-sqlserver-")) {
-    return 1433
-  }
-  if (props.engine.startsWith("db2-")) return 50000
-  throw new InvalidDBInstancePort({
+  if (props.engine === "postgres") return 5432;
+  if (props.engine === "mysql" || props.engine === "mariadb") return 3306;
+  if (props.engine.startsWith("oracle-") || props.engine.startsWith("custom-oracle-")) return 1521;
+  if (props.engine.startsWith("sqlserver-") || props.engine.startsWith("custom-sqlserver-"))
+    return 1433;
+  if (props.engine.startsWith("db2-")) return 50000;
+  return yield* new InvalidDBInstancePort({
     message: `Declare port explicitly for engine '${props.engine}'`,
-  })
-}
+  });
+});
 
-const portConverged = (instance: rds.DBInstance, port: number | undefined): infer _ =>
-  port === undefined
-  || (instance.Endpoint?.Port === port && instance.PendingModifiedValues?.Port === undefined)
+const portConverged = (instance: rds.DBInstance, port: number | undefined) =>
+  port === undefined ||
+  (instance.Endpoint?.Port === port && instance.PendingModifiedValues?.Port === undefined);
 
-error InvalidDBInstanceStorage {
-  mutable message: string
-}
+class InvalidDBInstanceStorage extends Data.TaggedError("InvalidDBInstanceStorage")<{
+  message: string;
+}> {}
 
-type StorageRequest =
-  & Required<
-    Pick<rds.CreateDBInstanceMessage, "AllocatedStorage" | "StorageType">
-  >
-  & Pick<rds.CreateDBInstanceMessage, "Iops" | "StorageThroughput">
+type StorageRequest = Required<
+  Pick<rds.CreateDBInstanceMessage, "AllocatedStorage" | "StorageType">
+> &
+  Pick<rds.CreateDBInstanceMessage, "Iops" | "StorageThroughput">;
 
 interface DesiredStorage {
-  mutable request: StorageRequest
-  mutable iops: number
-  mutable throughput: number
+  request: StorageRequest;
+  iops: number;
+  throughput: number;
 }
 
-const resolveStorage = effect (props: DBInstanceProps, allocatedFloor = 0) => {
+const resolveStorage = Effect.fn(function* (props: DBInstanceProps, allocatedFloor = 0) {
   if (props.dbClusterIdentifier || props.engine.startsWith("aurora")) {
     if (
-      props.allocatedStorage !== undefined
-      || props.storageType !== undefined
-      || props.iops !== undefined
-      || props.storageThroughput !== undefined
+      props.allocatedStorage !== undefined ||
+      props.storageType !== undefined ||
+      props.iops !== undefined ||
+      props.storageThroughput !== undefined
     ) {
-      throw new InvalidDBInstanceStorage({
+      return yield* new InvalidDBInstanceStorage({
         message: "Configure cluster-owned storage on DBCluster, not DBInstance",
-      })
+      });
     }
-    return undefined
+    return undefined;
   }
-  const sqlServer = props.engine.includes("sqlserver-")
-  const oracle = props.engine.includes("oracle-")
-  const storageType = props.storageType ?? "gp3"
-  const provisioned = storageType === "io1" || storageType === "io2"
+  const sqlServer = props.engine.includes("sqlserver-");
+  const oracle = props.engine.includes("oracle-");
+  const storageType = props.storageType ?? "gp3";
+  const provisioned = storageType === "io1" || storageType === "io2";
   if (
-    !["standard", "gp2", "gp3", "io1", "io2"].includes(storageType)
-    || (storageType === "standard" && allocatedFloor === 0)
-    || (storageType === "gp2" && props.engine.startsWith("db2-"))
+    !["standard", "gp2", "gp3", "io1", "io2"].includes(storageType) ||
+    (storageType === "standard" && allocatedFloor === 0) ||
+    (storageType === "gp2" && props.engine.startsWith("db2-"))
   ) {
-    throw new InvalidDBInstanceStorage({
+    return yield* new InvalidDBInstanceStorage({
       message: `Storage type '${storageType}' is not supported for '${props.engine}'`,
-    })
+    });
   }
-  const custom = props.engine.startsWith("custom-")
+  const custom = props.engine.startsWith("custom-");
   const minimum = custom
     ? 40
     : sqlServer
-    ? 20
-    : provisioned
-    ? 100
-    : storageType === "standard"
-    ? 5
-    : 20
-  const requested = props.allocatedStorage ?? (provisioned ? 100 : custom ? 40 : 20)
+      ? 20
+      : provisioned
+        ? 100
+        : storageType === "standard"
+          ? 5
+          : 20;
+  const requested = props.allocatedStorage ?? (provisioned ? 100 : custom ? 40 : 20);
   if (!Number.isInteger(requested) || requested <= 0) {
-    throw new InvalidDBInstanceStorage({
+    return yield* new InvalidDBInstanceStorage({
       message: "allocatedStorage must be a positive integer",
-    })
+    });
   }
   // An in-place increase must be at least ten percent of the current allocation.
-  const allocation = requested > allocatedFloor && allocatedFloor > 0
-    ? Math.max(requested, Math.ceil((allocatedFloor * 11) / 10))
-    : Math.max(requested, allocatedFloor)
+  const allocation =
+    requested > allocatedFloor && allocatedFloor > 0
+      ? Math.max(requested, Math.ceil((allocatedFloor * 11) / 10))
+      : Math.max(requested, allocatedFloor);
   if (allocation < minimum) {
-    throw new InvalidDBInstanceStorage({
+    return yield* new InvalidDBInstanceStorage({
       message: `Effective allocated storage must be at least ${minimum} GiB for ${storageType}`,
-    })
+    });
   }
-  const ratioCapacity = Math.max(allocation, props.maxAllocatedStorage ?? 0)
+  const ratioCapacity = Math.max(allocation, props.maxAllocatedStorage ?? 0);
   if (storageType !== "gp3") {
     if (props.storageThroughput !== undefined || (!provisioned && props.iops !== undefined)) {
-      throw new InvalidDBInstanceStorage({
+      return yield* new InvalidDBInstanceStorage({
         message: `${storageType} does not support the declared IOPS/throughput settings`,
-      })
+      });
     }
     const minimumIops = provisioned
       ? Math.max(1000, Math.ceil(ratioCapacity * (sqlServer && storageType === "io1" ? 1 : 0.5)))
-      : 0
-    const iops = props.iops ?? minimumIops
-    const maximumIops = allocation * (storageType === "io1" ? 50 : 1000)
+      : 0;
+    const iops = props.iops ?? minimumIops;
+    const maximumIops = allocation * (storageType === "io1" ? 50 : 1000);
     if (provisioned && (!Number.isInteger(iops) || iops < minimumIops || iops > maximumIops)) {
-      throw new InvalidDBInstanceStorage({
-        message:
-          `The allocation and autoscaling limit require ${storageType} IOPS between ${minimumIops} and ${maximumIops}`,
-      })
+      return yield* new InvalidDBInstanceStorage({
+        message: `The allocation and autoscaling limit require ${storageType} IOPS between ${minimumIops} and ${maximumIops}`,
+      });
     }
     return {
       request: {
@@ -1439,36 +1456,36 @@ const resolveStorage = effect (props: DBInstanceProps, allocatedFloor = 0) => {
       },
       iops,
       throughput: 0,
-    } satisfies DesiredStorage
+    } satisfies DesiredStorage;
   }
-  const striped = !sqlServer && allocation >= (oracle ? 200 : 400)
-  const configurable = sqlServer || striped
-  const baselineIops = striped ? 12000 : 3000
-  const baselineThroughput = striped ? 500 : 125
+  const striped = !sqlServer && allocation >= (oracle ? 200 : 400);
+  const configurable = sqlServer || striped;
+  const baselineIops = striped ? 12000 : 3000;
+  const baselineThroughput = striped ? 500 : 125;
   const minimumIops = Math.max(
     baselineIops,
     sqlServer ? Math.ceil(ratioCapacity * 0.5) : 0,
     (props.storageThroughput ?? baselineThroughput) * 4,
-  )
-  const iops = props.iops ?? minimumIops
+  );
+  const iops = props.iops ?? minimumIops;
   const minimumThroughput = Math.max(
     baselineThroughput,
     ["mysql", "mariadb"].includes(props.engine) ? Math.ceil(iops / 64) : 0,
-  )
-  const throughput = props.storageThroughput ?? minimumThroughput
+  );
+  const throughput = props.storageThroughput ?? minimumThroughput;
   if (
-    !Number.isInteger(iops)
-    || iops < minimumIops
-    || !Number.isInteger(throughput)
-    || throughput < minimumThroughput
-    || throughput > iops * 0.25
-    || (!configurable && (iops !== baselineIops || throughput !== baselineThroughput))
+    !Number.isInteger(iops) ||
+    iops < minimumIops ||
+    !Number.isInteger(throughput) ||
+    throughput < minimumThroughput ||
+    throughput > iops * 0.25 ||
+    (!configurable && (iops !== baselineIops || throughput !== baselineThroughput))
   ) {
-    throw new InvalidDBInstanceStorage({
+    return yield* new InvalidDBInstanceStorage({
       message: configurable
         ? `gp3 requires at least ${minimumIops} IOPS and ${minimumThroughput} MiBps, with throughput <= IOPS / 4`
         : `Small ${props.engine} gp3 storage has fixed 3000 IOPS and 125 MiBps`,
-    })
+    });
   }
   return {
     request: {
@@ -1479,102 +1496,103 @@ const resolveStorage = effect (props: DBInstanceProps, allocatedFloor = 0) => {
     },
     iops,
     throughput,
-  } satisfies DesiredStorage
-}
+  } satisfies DesiredStorage;
+});
 
-const hasPendingStorage = (instance: rds.DBInstance): infer _ =>
-  instance.PendingModifiedValues?.AllocatedStorage !== undefined
-  || instance.PendingModifiedValues?.StorageType !== undefined
-  || instance.PendingModifiedValues?.Iops !== undefined
-  || instance.PendingModifiedValues?.StorageThroughput !== undefined
+const hasPendingStorage = (instance: rds.DBInstance) =>
+  instance.PendingModifiedValues?.AllocatedStorage !== undefined ||
+  instance.PendingModifiedValues?.StorageType !== undefined ||
+  instance.PendingModifiedValues?.Iops !== undefined ||
+  instance.PendingModifiedValues?.StorageThroughput !== undefined;
 
 const storageConverged = (observed: rds.DBInstance, desired: DesiredStorage | undefined): boolean =>
-  desired === undefined
-  || ((observed.AllocatedStorage ?? 0) >= desired.request.AllocatedStorage
-    && observed.StorageType === desired.request.StorageType
-    && (observed.Iops ?? 0) === desired.iops
-    && (observed.StorageThroughput ?? 0) === desired.throughput
-    && !hasPendingStorage(observed))
+  desired === undefined ||
+  ((observed.AllocatedStorage ?? 0) >= desired.request.AllocatedStorage &&
+    observed.StorageType === desired.request.StorageType &&
+    (observed.Iops ?? 0) === desired.iops &&
+    (observed.StorageThroughput ?? 0) === desired.throughput &&
+    !hasPendingStorage(observed));
 
-const toStorageConfiguration = effect (props: DBInstanceProps) => {
-  const supportsAutoscaling = props.dbClusterIdentifier === undefined
-    && !props.engine.startsWith("aurora")
-    && !props.engine.startsWith("custom-")
+const toStorageConfiguration = Effect.fn(function* (props: DBInstanceProps) {
+  const supportsAutoscaling =
+    props.dbClusterIdentifier === undefined &&
+    !props.engine.startsWith("aurora") &&
+    !props.engine.startsWith("custom-");
   if (!supportsAutoscaling && props.maxAllocatedStorage !== undefined) {
-    throw new InvalidDBInstanceStorage({
+    return yield* new InvalidDBInstanceStorage({
       message: "maxAllocatedStorage is not supported for cluster members or RDS Custom",
-    })
+    });
   }
-  const maxAllocatedStorage = supportsAutoscaling ? (props.maxAllocatedStorage ?? 0) : undefined
+  const maxAllocatedStorage = supportsAutoscaling ? (props.maxAllocatedStorage ?? 0) : undefined;
   if (
-    maxAllocatedStorage !== undefined
-    && (!Number.isInteger(maxAllocatedStorage) || maxAllocatedStorage < 0)
+    maxAllocatedStorage !== undefined &&
+    (!Number.isInteger(maxAllocatedStorage) || maxAllocatedStorage < 0)
   ) {
-    throw new InvalidDBInstanceStorage({
+    return yield* new InvalidDBInstanceStorage({
       message: "maxAllocatedStorage must be a nonnegative integer in GiB",
-    })
+    });
   }
   return {
     allocatedStorage: props.dbClusterIdentifier === undefined ? props.allocatedStorage : undefined,
     maxAllocatedStorage,
-  }
-}
+  };
+});
 
-type StorageConfiguration = Effect.Success<ReturnType<typeof toStorageConfiguration>>
+type StorageConfiguration = Effect.Success<ReturnType<typeof toStorageConfiguration>>;
 
-const allocationConverged = (desired: StorageConfiguration, observed: rds.DBInstance): infer _ =>
-  desired.allocatedStorage === undefined
-  || (observed.AllocatedStorage !== undefined
-    && observed.AllocatedStorage >= desired.allocatedStorage)
+const allocationConverged = (desired: StorageConfiguration, observed: rds.DBInstance) =>
+  desired.allocatedStorage === undefined ||
+  (observed.AllocatedStorage !== undefined &&
+    observed.AllocatedStorage >= desired.allocatedStorage);
 
-const autoscalingConverged = (desired: StorageConfiguration, observed: rds.DBInstance): infer _ => {
-  const ceiling = desired.maxAllocatedStorage
-  if (ceiling === undefined) return true
+const autoscalingConverged = (desired: StorageConfiguration, observed: rds.DBInstance) => {
+  const ceiling = desired.maxAllocatedStorage;
+  if (ceiling === undefined) return true;
   // RDS reports disabled autoscaling as zero; equality also prevents growth.
   if (ceiling === 0 || ceiling === observed.AllocatedStorage) {
     return (
-      (observed.MaxAllocatedStorage ?? 0) === 0
-      || observed.MaxAllocatedStorage === observed.AllocatedStorage
-    )
+      (observed.MaxAllocatedStorage ?? 0) === 0 ||
+      observed.MaxAllocatedStorage === observed.AllocatedStorage
+    );
   }
-  return ceiling === observed.MaxAllocatedStorage
-}
+  return ceiling === observed.MaxAllocatedStorage;
+};
 
-error InvalidDBInstanceSecretPolicy {
-  mutable message: string
-}
+class InvalidDBInstanceSecretPolicy extends Data.TaggedError("InvalidDBInstanceSecretPolicy")<{
+  message: string;
+}> {}
 
 class DBInstanceManagedSecretMissing extends Data.TaggedError("DBInstanceManagedSecretMissing")<{
-  mutable instanceId: string
+  instanceId: string;
 }> {
   override get message() {
-    return `DB instance '${this.instanceId}' has no RDS-managed master secret for its resource policy`
+    return `DB instance '${this.instanceId}' has no RDS-managed master secret for its resource policy`;
   }
 }
 
 class DBInstanceSecretPolicyPending extends Data.TaggedError("DBInstanceSecretPolicyPending")<{
-  mutable instanceId: string
+  instanceId: string;
 }> {
   override get message() {
-    return `DB instance '${this.instanceId}' managed-secret resource policy has not propagated`
+    return `DB instance '${this.instanceId}' managed-secret resource policy has not propagated`;
   }
 }
 
 class DBInstancePending extends Data.TaggedError("DBInstancePending")<{
-  mutable instanceId: string
-  mutable status: string | undefined
+  instanceId: string;
+  status: string | undefined;
 }> {
   override get message() {
-    return `DB instance '${this.instanceId}' is not ready (status: ${this.status ?? "not yet visible"})`
+    return `DB instance '${this.instanceId}' is not ready (status: ${this.status ?? "not yet visible"})`;
   }
 }
 
 class DBInstanceReadinessBlocked extends Data.TaggedError("DBInstanceReadinessBlocked")<{
-  mutable instanceId: string
-  mutable status: string
+  instanceId: string;
+  status: string;
 }> {
   override get message() {
-    return `DB instance '${this.instanceId}' requires intervention (status: ${this.status})`
+    return `DB instance '${this.instanceId}' requires intervention (status: ${this.status})`;
   }
 }
 
@@ -1598,272 +1616,274 @@ const blockedStatuses = new Set([
   "storage-full",
   "unsupported-configuration",
   "upgrade-failed",
-])
+]);
 
 const instanceReady = (
   instance: rds.DBInstance | undefined,
-): instance is rds.DBInstance & { mutable DBInstanceArn: string } =>
-  !!instance?.DBInstanceArn
-  && (instance.DBInstanceStatus === "available"
-    || instance.DBInstanceStatus === "storage-optimization")
+): instance is rds.DBInstance & { DBInstanceArn: string } =>
+  !!instance?.DBInstanceArn &&
+  (instance.DBInstanceStatus === "available" ||
+    instance.DBInstanceStatus === "storage-optimization");
 
-export const DBInstanceProvider = (): infer _ =>
+export const DBInstanceProvider = () =>
   Provider.effect(
     DBInstance,
-    effect {
-      const toIdentifier = effect (
-        id: string,
-        props: DBInstanceProps,
-      ) => (props.dbInstanceIdentifier ? props.dbInstanceIdentifier : try createPhysicalName({ id, maxLength: 63 }))
+    Effect.gen(function* () {
+      const toIdentifier = (id: string, props: DBInstanceProps) =>
+        props.dbInstanceIdentifier
+          ? Effect.succeed(props.dbInstanceIdentifier)
+          : createPhysicalName({ id, maxLength: 63 });
 
-      const readInstance = effect (instanceId: string) => {
-        const response = rds
+      const readInstance = Effect.fn(function* (instanceId: string) {
+        const response = yield* rds
           .describeDBInstances({
             DBInstanceIdentifier: instanceId,
-          }) catch effect (e) => match (e) {
-            when { _tag: "DBInstanceNotFoundFault" }: try Effect.undefined;
-            default: throw e;
-          }
-        return response?.DBInstances?.[0]
-      }
+          })
+          .pipe(Effect.catchTag("DBInstanceNotFoundFault", () => Effect.undefined));
+        return response?.DBInstances?.[0];
+      });
 
-      const observeReadiness = effect (instanceId: string) => {
-        const instance = try readInstance(instanceId)
-        const status = instance?.DBInstanceStatus
+      const observeReadiness = Effect.fn(function* (instanceId: string) {
+        const instance = yield* readInstance(instanceId);
+        const status = instance?.DBInstanceStatus;
         if (status !== undefined && blockedStatuses.has(status)) {
-          throw new DBInstanceReadinessBlocked({ instanceId, status })
+          return yield* new DBInstanceReadinessBlocked({ instanceId, status });
         }
-        return instance
-      }
+        return instance;
+      });
 
       // Storage optimization is online; provisioning retains its ten-minute budget.
-      const waitForInstance = effect (instanceId: string) =>
-        try (effect {
-          return try effect {
-            const instance = try observeReadiness(instanceId)
-            return (instanceReady(instance) ? instance : throw new DBInstancePending({
-              instanceId,
-              status: instance?.DBInstanceStatus,
-            }))
-          }
-        }
-          |> Effect.retry(%, {
+      const waitForInstance = Effect.fn(function* (instanceId: string) {
+        return yield* observeReadiness(instanceId).pipe(
+          Effect.flatMap((instance) =>
+            instanceReady(instance)
+              ? Effect.succeed(instance)
+              : Effect.fail(
+                  new DBInstancePending({
+                    instanceId,
+                    status: instance?.DBInstanceStatus,
+                  }),
+                ),
+          ),
+          Effect.retry({
             while: (error) => error._tag === "DBInstancePending",
             schedule: Schedule.max([Schedule.fixed("10 seconds"), Schedule.recurs(60)]),
-          }))
+          }),
+        );
+      });
 
       // RDS can keep reporting `available` for a few seconds after accepting
       // a modify, so `waitForInstance` may return before the previous change
       // starts and the next modify reaches a busy instance. Wait it out and
       // resend.
-      const modifyInstance = effect (
+      const modifyInstance = Effect.fn(function* (
         instanceId: string,
         request: rds.ModifyDBInstanceMessage,
-      ) =>
-        try (effect {
-          return rds.modifyDBInstance(request) catch effect (error) => match (error) {
-            when { _tag: "InvalidDBInstanceStateFault" }: try (waitForInstance(instanceId)
-              |> Effect.andThen(%, Effect.fail(error)));
-            default: throw error;
-          }
-        }
-          |> Effect.retry(%, {
+      ) {
+        return yield* rds.modifyDBInstance(request).pipe(
+          Effect.catchTag("InvalidDBInstanceStateFault", (error) =>
+            waitForInstance(instanceId).pipe(Effect.andThen(Effect.fail(error))),
+          ),
+          Effect.retry({
             while: (error) => error._tag === "InvalidDBInstanceStateFault",
             schedule: Schedule.spaced("5 seconds"),
             times: 8,
-          }))
+          }),
+        );
+      });
 
-      const waitForSecurity = effect (
+      const waitForSecurity = Effect.fn(function* (
         instanceId: string,
         desired: SecurityConfiguration,
-      ) => {
-        const instance = try (observeReadiness(instanceId)
-          |> Effect.repeat(%, {
+      ) {
+        const instance = yield* observeReadiness(instanceId).pipe(
+          Effect.repeat({
             schedule: Schedule.min([
               Schedule.exponential("5 seconds"),
               Schedule.spaced("1 minute"),
             ]),
             times: 10,
             until: (instance) => instanceReady(instance) && securityConverged(desired, instance),
-          }))
+          }),
+        );
         if (!instanceReady(instance) || !securityConverged(desired, instance)) {
-          throw new DBInstanceSecurityPending({ instanceId })
+          return yield* new DBInstanceSecurityPending({ instanceId });
         }
-        return instance
-      }
+        return instance;
+      });
 
-      const waitForAssociations = effect (instanceId: string, desired: Associations) => {
-        const instance = try (effect {
-          return try effect {
-            const instance = try observeReadiness(instanceId)
-            return (instance?.DBParameterGroups?.some(
-                (group) => group.ParameterApplyStatus === "failed-to-apply",
-              )
-              ? throw new InvalidDBInstanceAssociations({
-                message: `DB instance '${instanceId}' parameter group failed to apply`,
-              })
-              : instance)
-          }
-        }
-          |> Effect.repeat(%, {
+      const waitForAssociations = Effect.fn(function* (instanceId: string, desired: Associations) {
+        const instance = yield* observeReadiness(instanceId).pipe(
+          Effect.flatMap((instance) =>
+            instance?.DBParameterGroups?.some(
+              (group) => group.ParameterApplyStatus === "failed-to-apply",
+            )
+              ? Effect.fail(
+                  new InvalidDBInstanceAssociations({
+                    message: `DB instance '${instanceId}' parameter group failed to apply`,
+                  }),
+                )
+              : Effect.succeed(instance),
+          ),
+          Effect.repeat({
             schedule: Schedule.min([
               Schedule.exponential("5 seconds"),
               Schedule.spaced("1 minute"),
             ]),
             times: 10,
-            until: (instance) => instanceReady(instance) && associationsConverged(desired, instance),
-          }))
+            until: (instance) =>
+              instanceReady(instance) && associationsConverged(desired, instance),
+          }),
+        );
         if (!instanceReady(instance) || !associationsConverged(desired, instance)) {
-          throw new InvalidDBInstanceAssociations({
+          return yield* new InvalidDBInstanceAssociations({
             message: `DB instance '${instanceId}' associations did not converge`,
-          })
+          });
         }
-        return instance
-      }
+        return instance;
+      });
 
-      const waitForPort = effect (instanceId: string, port: number) => {
-        const instance = try (observeReadiness(instanceId)
-          |> Effect.repeat(%, {
+      const waitForPort = Effect.fn(function* (instanceId: string, port: number) {
+        const instance = yield* observeReadiness(instanceId).pipe(
+          Effect.repeat({
             schedule: Schedule.min([
               Schedule.exponential("5 seconds"),
               Schedule.spaced("1 minute"),
             ]),
             times: 10,
             until: (instance) => instanceReady(instance) && portConverged(instance, port),
-          }))
+          }),
+        );
         if (!instanceReady(instance) || !portConverged(instance, port)) {
-          throw new InvalidDBInstancePort({
-            message:
-              `DB instance '${instanceId}' listener did not converge (status: ${instance?.DBInstanceStatus}, desired: ${port}, observed: ${instance?.Endpoint?.Port}, pending: ${instance?.PendingModifiedValues?.Port})`,
-          })
+          return yield* new InvalidDBInstancePort({
+            message: `DB instance '${instanceId}' listener did not converge (status: ${instance?.DBInstanceStatus}, desired: ${port}, observed: ${instance?.Endpoint?.Port}, pending: ${instance?.PendingModifiedValues?.Port})`,
+          });
         }
-        return instance
-      }
+        return instance;
+      });
 
-      const waitForStorage = effect (
+      const waitForStorage = Effect.fn(function* (
         instanceId: string,
         converged: (instance: rds.DBInstance) => boolean,
-      ) => {
+      ) {
         // RDS can remain available while an accepted storage resize is pending.
-        const instance = try (observeReadiness(instanceId)
-          |> Effect.repeat(%, {
+        const instance = yield* observeReadiness(instanceId).pipe(
+          Effect.repeat({
             schedule: Schedule.min([
               Schedule.exponential("5 seconds"),
               Schedule.spaced("1 minute"),
             ]),
             times: 10,
             until: (instance) => instanceReady(instance) && converged(instance),
-          }))
+          }),
+        );
         if (!instanceReady(instance) || !converged(instance)) {
-          throw new InvalidDBInstanceStorage({
-            message:
-              `DB instance '${instanceId}' storage did not converge (status: ${instance?.DBInstanceStatus}, allocated: ${instance?.AllocatedStorage}, maximum: ${instance?.MaxAllocatedStorage}, pending allocation: ${instance?.PendingModifiedValues?.AllocatedStorage})`,
-          })
+          return yield* new InvalidDBInstanceStorage({
+            message: `DB instance '${instanceId}' storage did not converge (status: ${instance?.DBInstanceStatus}, allocated: ${instance?.AllocatedStorage}, maximum: ${instance?.MaxAllocatedStorage}, pending allocation: ${instance?.PendingModifiedValues?.AllocatedStorage})`,
+          });
         }
-        return instance
-      }
+        return instance;
+      });
 
       // ValidateResourcePolicy is authorized like PutResourcePolicy on its
       // target; without a SecretId the target is `*`, so an identity scoped to
       // the instance's own secret ARN is denied. Name the known secret.
-      const validateMasterSecretPolicy = effect (
+      const validateMasterSecretPolicy = Effect.fn(function* (
         policy: PolicyDocument | undefined,
-        secretArn?: string | undefined,
-      ) => {
-        if (policy === undefined) return
-        const validation = try secretsmanager.validateResourcePolicy({
+        secretArn?: string,
+      ) {
+        if (policy === undefined) return;
+        const validation = yield* secretsmanager.validateResourcePolicy({
           ...(secretArn === undefined ? {} : { SecretId: secretArn }),
           ResourcePolicy: stringifyPolicyDocument(policy),
-        })
+        });
         if (validation.PolicyValidationPassed !== true) {
-          throw new InvalidDBInstanceSecretPolicy({
-            message: `Managed-secret resource policy validation failed: ${
-              (validation.ValidationErrors ?? []).map((error) => `${error.CheckName}: ${error.ErrorMessage}`).join("; ")
-            }`,
-          })
+          return yield* new InvalidDBInstanceSecretPolicy({
+            message: `Managed-secret resource policy validation failed: ${(validation.ValidationErrors ?? []).map((error) => `${error.CheckName}: ${error.ErrorMessage}`).join("; ")}`,
+          });
         }
-      }
+      });
 
-      const readMasterSecretPolicy = effect (secretArn: string) => {
-        const observed = try secretsmanager.getResourcePolicy({
+      const readMasterSecretPolicy = Effect.fn(function* (secretArn: string) {
+        const observed = yield* secretsmanager.getResourcePolicy({
           SecretId: secretArn,
-        })
+        });
         return observed.ResourcePolicy === undefined
           ? undefined
-          : normalizePolicyDocument(observed.ResourcePolicy)
-      }
+          : normalizePolicyDocument(observed.ResourcePolicy);
+      });
 
-      const readObservedSecretPolicy = effect (
-        instance: rds.DBInstance,
-      ) => (instance.MasterUserSecret?.SecretArn === undefined
-          || instance.DBClusterIdentifier !== undefined
-        ? try Effect.undefined
-        : try (readMasterSecretPolicy(instance.MasterUserSecret.SecretArn)
-          |> Effect.retry(%, {
-            while: (error) => error._tag === "ResourceNotFoundException",
-            schedule: Schedule.fixed("5 seconds"),
-            times: 10,
-          })))
+      const readObservedSecretPolicy = (instance: rds.DBInstance) =>
+        instance.MasterUserSecret?.SecretArn === undefined ||
+        instance.DBClusterIdentifier !== undefined
+          ? Effect.undefined
+          : readMasterSecretPolicy(instance.MasterUserSecret.SecretArn).pipe(
+              Effect.retry({
+                while: (error) => error._tag === "ResourceNotFoundException",
+                schedule: Schedule.fixed("5 seconds"),
+                times: 10,
+              }),
+            );
 
-      const reconcileMasterSecretPolicy = effect (
+      const reconcileMasterSecretPolicy = Effect.fn(function* (
         instanceId: string,
         instance: rds.DBInstance,
         policy: PolicyDocument | undefined,
-      ) => {
+      ) {
         if (instance.DBClusterIdentifier !== undefined) {
-          return { instance, policy: undefined }
+          return { instance, policy: undefined };
         }
         if (instance.MasterUserSecret?.SecretArn === undefined && policy !== undefined) {
-          instance = try (effect {
-            return try effect {
-              const current = try readInstance(instanceId)
-              return (current?.MasterUserSecret?.SecretArn === undefined
-                ? throw new DBInstanceManagedSecretMissing({ instanceId })
-                : current)
-            }
-          }
-            |> Effect.retry(%, {
+          instance = yield* readInstance(instanceId).pipe(
+            Effect.flatMap((current) =>
+              current?.MasterUserSecret?.SecretArn === undefined
+                ? Effect.fail(new DBInstanceManagedSecretMissing({ instanceId }))
+                : Effect.succeed(current),
+            ),
+            Effect.retry({
               while: (error) => error._tag === "DBInstanceManagedSecretMissing",
               schedule: Schedule.fixed("5 seconds"),
               times: 10,
-            }))
+            }),
+          );
         }
-        const secretArn = instance.MasterUserSecret?.SecretArn
-        if (secretArn === undefined) return { instance, policy: undefined }
-        const desired = policy === undefined ? undefined : normalizePolicyDocument(policy)
-        const observed = try readObservedSecretPolicy(instance)
-        if (observed === desired) return { instance, policy: observed }
-        const writePolicy = effect {
-          return try (policy === undefined
+        const secretArn = instance.MasterUserSecret?.SecretArn;
+        if (secretArn === undefined) return { instance, policy: undefined };
+        const desired = policy === undefined ? undefined : normalizePolicyDocument(policy);
+        const observed = yield* readObservedSecretPolicy(instance);
+        if (observed === desired) return { instance, policy: observed };
+        const writePolicy =
+          policy === undefined
             ? secretsmanager.deleteResourcePolicy({ SecretId: secretArn })
             : secretsmanager.putResourcePolicy({
-              SecretId: secretArn,
-              ResourcePolicy: stringifyPolicyDocument(policy),
-              BlockPublicPolicy: true,
-            }))
-        }
-        try (writePolicy
-          |> Effect.retry(%, {
+                SecretId: secretArn,
+                ResourcePolicy: stringifyPolicyDocument(policy),
+                BlockPublicPolicy: true,
+              });
+        yield* writePolicy.pipe(
+          Effect.retry({
             while: (error) => error._tag === "ResourceNotFoundException",
             schedule: Schedule.fixed("5 seconds"),
             times: 10,
-          }))
+          }),
+        );
         // A missing secret is not evidence that its policy has been removed.
-        const applied = try (effect {
-          return try effect {
-            const actual = try readMasterSecretPolicy(secretArn)
-            return (actual === desired ? actual : throw new DBInstanceSecretPolicyPending({ instanceId }))
-          }
-        }
-          |> Effect.retry(%, {
+        const applied = yield* readMasterSecretPolicy(secretArn).pipe(
+          Effect.flatMap((actual) =>
+            actual === desired
+              ? Effect.succeed(actual)
+              : Effect.fail(new DBInstanceSecretPolicyPending({ instanceId })),
+          ),
+          Effect.retry({
             while: (error) =>
-              error._tag === "DBInstanceSecretPolicyPending"
-              || error._tag === "ResourceNotFoundException",
+              error._tag === "DBInstanceSecretPolicyPending" ||
+              error._tag === "ResourceNotFoundException",
             schedule: Schedule.fixed("5 seconds"),
             times: 10,
-          }))
-        return { instance, policy: applied }
-      }
+          }),
+        );
+        return { instance, policy: applied };
+      });
 
       return {
         stables: ["dbInstanceArn", "dbInstanceIdentifier"],
@@ -1873,101 +1893,104 @@ export const DBInstanceProvider = (): infer _ =>
         // produces — no per-item tag fetch needed. An empty/no-instances
         // account simply yields no pages. `DBInstanceNotFoundFault` is in the
         // op's typed error union; treat a stray one as "nothing to list".
-        list: effect () =>
-          (Array.from(
-            try (rds.describeDBInstances.pages({})
-              |> Stream.runCollect(%)),
-          ).flatMap((page) =>
-            (page.DBInstances ?? [])
-              .filter(
-                (
-                  instance,
-                ): instance is typeof instance & {
-                  mutable DBInstanceArn: string
-                } => instance.DBInstanceArn != null,
-              )
-              .map((instance) =>
-                toAttrs({
-                  instance,
-                  tags: toTagRecord(instance.TagList),
-                })
-              )
-          )) catch effect (e) => match (e) {
-            when { _tag: "DBInstanceNotFoundFault" }: [] as DBInstance["Attributes"][];
-            default: throw e;
-          },
-        diff: effect ({ id, olds, news, output }) => {
-          if (!isResolved(news)) return undefined
-          try validateMasterSecretPolicy(
+        list: () =>
+          rds.describeDBInstances.pages({}).pipe(
+            Stream.runCollect,
+            Effect.map((chunk) =>
+              Array.from(chunk).flatMap((page) =>
+                (page.DBInstances ?? [])
+                  .filter(
+                    (
+                      instance,
+                    ): instance is typeof instance & {
+                      DBInstanceArn: string;
+                    } => instance.DBInstanceArn != null,
+                  )
+                  .map((instance) =>
+                    toAttrs({
+                      instance,
+                      tags: toTagRecord(instance.TagList),
+                    }),
+                  ),
+              ),
+            ),
+            Effect.catchTag("DBInstanceNotFoundFault", () =>
+              Effect.succeed([] as DBInstance["Attributes"][]),
+            ),
+          ),
+        diff: Effect.fn(function* ({ id, olds, news, output }) {
+          if (!isResolved(news)) return undefined;
+          yield* validateMasterSecretPolicy(
             news.masterUserSecretResourcePolicy,
             output?.masterUserSecretArn,
-          )
+          );
           if (
-            (try toIdentifier(id, olds ?? ({} as DBInstanceProps)))
-              !== (try toIdentifier(id, news))
+            (yield* toIdentifier(id, olds ?? ({} as DBInstanceProps))) !==
+            (yield* toIdentifier(id, news))
           ) {
-            return { action: "replace" } as const
+            return { action: "replace" } as const;
           }
           // Immutable props — any change forces a fresh instance.
           if (
-            olds !== undefined
-            && (olds.engine !== news.engine
-              || olds.dbName !== news.dbName
-              || olds.masterUsername !== news.masterUsername
-              || olds.availabilityZone !== news.availabilityZone
-              || olds.storageEncrypted !== news.storageEncrypted
-              || olds.kmsKeyId !== news.kmsKeyId
-              || olds.dbSubnetGroupName !== news.dbSubnetGroupName)
+            olds !== undefined &&
+            (olds.engine !== news.engine ||
+              olds.dbName !== news.dbName ||
+              olds.masterUsername !== news.masterUsername ||
+              olds.availabilityZone !== news.availabilityZone ||
+              olds.storageEncrypted !== news.storageEncrypted ||
+              olds.kmsKeyId !== news.kmsKeyId ||
+              olds.dbSubnetGroupName !== news.dbSubnetGroupName)
           ) {
-            return { action: "replace" } as const
+            return { action: "replace" } as const;
           }
-          const storage = try toStorageConfiguration(news)
+          const storage = yield* toStorageConfiguration(news);
           if (output !== undefined) {
-            const instance = try readInstance(output.dbInstanceIdentifier)
+            const instance = yield* readInstance(output.dbInstanceIdentifier);
             if (!instance?.DBInstanceArn) {
-              return { action: "update", stables: [] } as const
+              return { action: "update", stables: [] } as const;
             }
             // The identifier names a different physical instance than the one
             // recorded, e.g. after a point-in-time restore renamed into place.
             // Nothing in the props changed, but the attributes did: reconcile
             // re-reads the instance so dependents see the new one.
             if (instance.DbiResourceId !== output.dbiResourceId) {
-              return { action: "update" } as const
+              return { action: "update" } as const;
             }
             if (!instanceReady(instance)) {
-              return { action: "update" } as const
+              return { action: "update" } as const;
             }
-            const port = try desiredInstancePort(news, instance)
-            const associations = try resolveAssociations(news, instance)
-            const desiredStorage = try resolveStorage(news, instance.AllocatedStorage)
+            const port = yield* desiredInstancePort(news, instance);
+            const associations = yield* resolveAssociations(news, instance);
+            const desiredStorage = yield* resolveStorage(news, instance.AllocatedStorage);
             if (
-              !storageConverged(instance, desiredStorage)
-              || !autoscalingConverged(storage, instance)
-              || !portConverged(instance, port)
-              || !associationsConverged(associations, instance)
-              || !securityConverged(securityConfiguration(news, instance), instance)
-              || !Object.hasOwn(output, "vpcSecurityGroupStatuses")
-              || (news.masterUserSecretResourcePolicy !== undefined
-                && instance.MasterUserSecret?.SecretArn === undefined)
-              || (news.masterUserSecretResourcePolicy === undefined
-                  ? undefined
-                  : normalizePolicyDocument(news.masterUserSecretResourcePolicy))
-                !== (try readObservedSecretPolicy(instance))
+              !storageConverged(instance, desiredStorage) ||
+              !autoscalingConverged(storage, instance) ||
+              !portConverged(instance, port) ||
+              !associationsConverged(associations, instance) ||
+              !securityConverged(securityConfiguration(news, instance), instance) ||
+              !Object.hasOwn(output, "vpcSecurityGroupStatuses") ||
+              (news.masterUserSecretResourcePolicy !== undefined &&
+                instance.MasterUserSecret?.SecretArn === undefined) ||
+              (news.masterUserSecretResourcePolicy === undefined
+                ? undefined
+                : normalizePolicyDocument(news.masterUserSecretResourcePolicy)) !==
+                (yield* readObservedSecretPolicy(instance))
             ) {
-              return { action: "update" } as const
+              return { action: "update" } as const;
             }
           }
           // After observation, so a vanished instance keeps `stables: []`.
-          if (try diffMigrations({ news, output })) {
-            return { action: "update" } as const
+          if (yield* diffMigrations({ news, output })) {
+            return { action: "update" } as const;
           }
-        },
-        read: effect ({ id, olds, output }) => {
-          const identifier = output?.dbInstanceIdentifier
-            ?? (try toIdentifier(id, olds ?? { dbInstanceClass: "", engine: "" }))
-          const instance = try readInstance(identifier)
+        }),
+        read: Effect.fn(function* ({ id, olds, output }) {
+          const identifier =
+            output?.dbInstanceIdentifier ??
+            (yield* toIdentifier(id, olds ?? { dbInstanceClass: "", engine: "" }));
+          const instance = yield* readInstance(identifier);
           if (!instance?.DBInstanceArn) {
-            return undefined
+            return undefined;
           }
           return toAttrs({
             instance,
@@ -1977,16 +2000,16 @@ export const DBInstanceProvider = (): infer _ =>
             skipFinalSnapshot: output?.skipFinalSnapshot,
             finalDBSnapshotIdentifier: output?.finalDBSnapshotIdentifier,
             masterUserPasswordFingerprint: output?.masterUserPasswordFingerprint,
-            masterUserSecretResourcePolicy: try readObservedSecretPolicy(instance),
+            masterUserSecretResourcePolicy: yield* readObservedSecretPolicy(instance),
             migrations: output,
-          })
-        },
-        reconcile: effect ({ id, news, output, session }) => {
-          try validateMasterSecretPolicy(
+          });
+        }),
+        reconcile: Effect.fn(function* ({ id, news, output, session }) {
+          yield* validateMasterSecretPolicy(
             news.masterUserSecretResourcePolicy,
             output?.masterUserSecretArn,
-          )
-          const identifier = output?.dbInstanceIdentifier ?? (try toIdentifier(id, news))
+          );
+          const identifier = output?.dbInstanceIdentifier ?? (yield* toIdentifier(id, news));
           // AWS never returns the master password, so there is nothing to
           // observe-and-diff — fingerprint the configured value instead and
           // only send `MasterUserPassword` when the fingerprint changed.
@@ -1995,49 +2018,50 @@ export const DBInstanceProvider = (): infer _ =>
           // The hash is salted with the (stable) instance identifier so the
           // persisted digest is not rainbow-table-lookupable, and kept
           // `Redacted` so it never leaks in plaintext through state/logs.
-          const passwordFingerprint = news.masterUserPassword !== undefined
-            ? Redacted.make(
-              try sha256(`${identifier}:${Redacted.value(news.masterUserPassword)}`),
-            )
-            : undefined
-          const internalTags = try createInternalTags(id)
-          const desiredTags = { ...internalTags, ...news.tags }
+          const passwordFingerprint =
+            news.masterUserPassword !== undefined
+              ? Redacted.make(
+                  yield* sha256(`${identifier}:${Redacted.value(news.masterUserPassword)}`),
+                )
+              : undefined;
+          const internalTags = yield* createInternalTags(id);
+          const desiredTags = { ...internalTags, ...news.tags };
           // Duration props → the exact wire units the RDS API expects.
-          const backupRetentionDays = toWireDays(news.backupRetentionPeriod)
+          const backupRetentionDays = toWireDays(news.backupRetentionPeriod);
           const performanceInsightsRetentionDays = toWireDays(
             news.performanceInsightsRetentionPeriod,
-          )
-          const monitoringIntervalSeconds = toWireSeconds(news.monitoringInterval)
+          );
+          const monitoringIntervalSeconds = toWireSeconds(news.monitoringInterval);
 
-          const storage = try toStorageConfiguration(news)
+          const storage = yield* toStorageConfiguration(news);
           // Observe — fetch live instance state.
-          let observed = try observeReadiness(identifier)
+          let observed = yield* observeReadiness(identifier);
           if (observed?.DBInstanceArn) {
-            observed = try waitForInstance(identifier)
+            observed = yield* waitForInstance(identifier);
           }
           if (
-            news.masterUserSecretResourcePolicy !== undefined
-            && (news.dbClusterIdentifier !== undefined
-              || news.engine.startsWith("custom-")
-              || observed?.DBClusterIdentifier !== undefined
-              || news.manageMasterUserPassword === false
-              || (!observed?.MasterUserSecret?.SecretArn && !news.manageMasterUserPassword))
+            news.masterUserSecretResourcePolicy !== undefined &&
+            (news.dbClusterIdentifier !== undefined ||
+              news.engine.startsWith("custom-") ||
+              observed?.DBClusterIdentifier !== undefined ||
+              news.manageMasterUserPassword === false ||
+              (!observed?.MasterUserSecret?.SecretArn && !news.manageMasterUserPassword))
           ) {
-            throw new InvalidDBInstanceSecretPolicy({
+            return yield* new InvalidDBInstanceSecretPolicy({
               message:
                 "A master secret resource policy requires an instance-managed secret; enable manageMasterUserPassword on a standalone DBInstance",
-            })
+            });
           }
-          let security = securityConfiguration(news, observed)
-          let port = try desiredInstancePort(news, observed)
-          let associations = try resolveAssociations(news, observed)
-          let desiredStorage = try resolveStorage(news, observed?.AllocatedStorage)
+          let security = securityConfiguration(news, observed);
+          let port = yield* desiredInstancePort(news, observed);
+          let associations = yield* resolveAssociations(news, observed);
+          let desiredStorage = yield* resolveStorage(news, observed?.AllocatedStorage);
 
           // Ensure — create if missing. Tolerate
           // `DBInstanceAlreadyExistsFault` as a race with a peer reconciler.
-          let created = false
+          let created = false;
           if (!observed?.DBInstanceArn) {
-            created = (try (rds
+            created = yield* rds
               .createDBInstance({
                 DBInstanceIdentifier: identifier,
                 DBClusterIdentifier: news.dbClusterIdentifier,
@@ -2084,23 +2108,23 @@ export const DBInstanceProvider = (): infer _ =>
                   Value,
                 })),
               })
-              |> Effect.as(%, true))) catch effect (e) => match (e) {
-                when { _tag: "DBInstanceAlreadyExistsFault" }: false;
-                default: throw e;
-              }
+              .pipe(
+                Effect.as(true),
+                Effect.catchTag("DBInstanceAlreadyExistsFault", () => Effect.succeed(false)),
+              );
 
-            observed = try waitForInstance(identifier)
+            observed = yield* waitForInstance(identifier);
           }
           if (!created) {
             if (hasPendingStorage(observed)) {
-              observed = try waitForStorage(
+              observed = yield* waitForStorage(
                 identifier,
                 (instance) => !hasPendingStorage(instance),
-              )
+              );
             }
-            desiredStorage = try resolveStorage(news, observed.AllocatedStorage)
+            desiredStorage = yield* resolveStorage(news, observed.AllocatedStorage);
 
-            associations = try resolveAssociations(news, observed)
+            associations = yield* resolveAssociations(news, observed);
 
             // syncCoreSettings — single `modifyDBInstance` carrying scalar
             // in-place fields. Only emit a field when the desired value differs
@@ -2109,257 +2133,267 @@ export const DBInstanceProvider = (): infer _ =>
             const core: rds.ModifyDBInstanceMessage = {
               DBInstanceIdentifier: identifier,
               ApplyImmediately: true,
-            }
-            let coreDirty = false
+            };
+            let coreDirty = false;
             const setIf = <K extends keyof rds.ModifyDBInstanceMessage>(
               key: K,
               desired: rds.ModifyDBInstanceMessage[K] | undefined,
               observedValue: unknown,
-            ): infer _ => {
+            ) => {
               if (desired !== undefined && desired !== observedValue) {
-                core[key] = desired
-                coreDirty = true
+                core[key] = desired;
+                coreDirty = true;
               }
-            }
-            setIf("DBInstanceClass", news.dbInstanceClass, observed.DBInstanceClass) // prettier-ignore
-            setIf("EngineVersion", news.engineVersion, observed.EngineVersion)
+            };
+            setIf("DBInstanceClass", news.dbInstanceClass, observed.DBInstanceClass); // prettier-ignore
+            setIf("EngineVersion", news.engineVersion, observed.EngineVersion);
             if (desiredStorage && !storageConverged(observed, desiredStorage)) {
-              Object.assign(core, desiredStorage.request)
-              core.MaxAllocatedStorage = storage.maxAllocatedStorage === 0
-                ? desiredStorage.request.AllocatedStorage
-                : storage.maxAllocatedStorage
-              coreDirty = true
+              Object.assign(core, desiredStorage.request);
+              core.MaxAllocatedStorage =
+                storage.maxAllocatedStorage === 0
+                  ? desiredStorage.request.AllocatedStorage
+                  : storage.maxAllocatedStorage;
+              coreDirty = true;
             }
-            setIf("MultiAZ", news.multiAZ, observed.MultiAZ)
-            setIf("BackupRetentionPeriod", backupRetentionDays, observed.BackupRetentionPeriod) // prettier-ignore
-            setIf("PreferredBackupWindow", news.preferredBackupWindow, observed.PreferredBackupWindow) // prettier-ignore
-            setIf("PreferredMaintenanceWindow", news.preferredMaintenanceWindow, observed.PreferredMaintenanceWindow) // prettier-ignore
-            setIf("OptionGroupName", news.optionGroupName, undefined)
-            setIf("LicenseModel", news.licenseModel, observed.LicenseModel)
-            setIf("CACertificateIdentifier", news.caCertificateIdentifier, observed.CACertificateIdentifier) // prettier-ignore
-            setIf("EnablePerformanceInsights", news.enablePerformanceInsights, observed.PerformanceInsightsEnabled) // prettier-ignore
-            setIf("PerformanceInsightsKMSKeyId", news.performanceInsightsKMSKeyId, observed.PerformanceInsightsKMSKeyId) // prettier-ignore
-            setIf(
-              "PerformanceInsightsRetentionPeriod",
-              performanceInsightsRetentionDays,
-              observed.PerformanceInsightsRetentionPeriod,
-            ) // prettier-ignore
-            setIf("MonitoringInterval", monitoringIntervalSeconds, observed.MonitoringInterval) // prettier-ignore
-            setIf("MonitoringRoleArn", news.monitoringRoleArn, observed.MonitoringRoleArn) // prettier-ignore
+            setIf("MultiAZ", news.multiAZ, observed.MultiAZ);
+            setIf("BackupRetentionPeriod", backupRetentionDays, observed.BackupRetentionPeriod); // prettier-ignore
+            setIf("PreferredBackupWindow", news.preferredBackupWindow, observed.PreferredBackupWindow); // prettier-ignore
+            setIf("PreferredMaintenanceWindow", news.preferredMaintenanceWindow, observed.PreferredMaintenanceWindow); // prettier-ignore
+            setIf("OptionGroupName", news.optionGroupName, undefined);
+            setIf("LicenseModel", news.licenseModel, observed.LicenseModel);
+            setIf("CACertificateIdentifier", news.caCertificateIdentifier, observed.CACertificateIdentifier); // prettier-ignore
+            setIf("EnablePerformanceInsights", news.enablePerformanceInsights, observed.PerformanceInsightsEnabled); // prettier-ignore
+            setIf("PerformanceInsightsKMSKeyId", news.performanceInsightsKMSKeyId, observed.PerformanceInsightsKMSKeyId); // prettier-ignore
+            setIf("PerformanceInsightsRetentionPeriod", performanceInsightsRetentionDays, observed.PerformanceInsightsRetentionPeriod); // prettier-ignore
+            setIf("MonitoringInterval", monitoringIntervalSeconds, observed.MonitoringInterval); // prettier-ignore
+            setIf("MonitoringRoleArn", news.monitoringRoleArn, observed.MonitoringRoleArn); // prettier-ignore
             if (!parameterGroupMatches(associations, observed)) {
-              core.DBParameterGroupName = associations.dbParameterGroupName
-              coreDirty = true
+              core.DBParameterGroupName = associations.dbParameterGroupName;
+              coreDirty = true;
             }
-            setIf("PromotionTier", news.promotionTier, observed.PromotionTier)
-            setIf("AutoMinorVersionUpgrade", news.autoMinorVersionUpgrade, observed.AutoMinorVersionUpgrade) // prettier-ignore
-            setIf("CopyTagsToSnapshot", news.copyTagsToSnapshot, observed.CopyTagsToSnapshot) // prettier-ignore
+            setIf("PromotionTier", news.promotionTier, observed.PromotionTier);
+            setIf("AutoMinorVersionUpgrade", news.autoMinorVersionUpgrade, observed.AutoMinorVersionUpgrade); // prettier-ignore
+            setIf("CopyTagsToSnapshot", news.copyTagsToSnapshot, observed.CopyTagsToSnapshot); // prettier-ignore
             if (!securityGroupsMatch(associations, observed)) {
               if (news.engine.startsWith("custom-")) {
-                throw new InvalidDBInstanceAssociations({
+                return yield* new InvalidDBInstanceAssociations({
                   message:
                     "Changing existing RDS Custom security-group associations through ModifyDBInstance is not supported",
-                })
+                });
               }
-              core.VpcSecurityGroupIds = associations.vpcSecurityGroupIds
-              coreDirty = true
+              core.VpcSecurityGroupIds = associations.vpcSecurityGroupIds;
+              coreDirty = true;
             }
             if (news.allowMajorVersionUpgrade) {
-              core.AllowMajorVersionUpgrade = true
+              core.AllowMajorVersionUpgrade = true;
             }
             // syncMasterPassword — rotation or explicit password update. The
             // explicit branch is fingerprint-guarded: send only when the
             // configured password actually changed (or was never
             // fingerprinted — pre-existing state sends once, then records).
             if (
-              news.manageMasterUserPassword
-              && !observed.MasterUserSecret?.SecretArn
-              && !observed.DBClusterIdentifier
+              news.manageMasterUserPassword &&
+              !observed.MasterUserSecret?.SecretArn &&
+              !observed.DBClusterIdentifier
             ) {
-              core.ManageMasterUserPassword = true
-              core.MasterUserSecretKmsKeyId = news.masterUserSecretKmsKeyId
-              coreDirty = true
+              core.ManageMasterUserPassword = true;
+              core.MasterUserSecretKmsKeyId = news.masterUserSecretKmsKeyId;
+              coreDirty = true;
             }
             if (news.manageMasterUserPassword && news.rotateMasterUserPassword) {
-              core.RotateMasterUserPassword = true
-              coreDirty = true
+              core.RotateMasterUserPassword = true;
+              coreDirty = true;
             } else if (
-              news.masterUserPassword !== undefined
-              && !sameFingerprint(passwordFingerprint, output?.masterUserPasswordFingerprint)
+              news.masterUserPassword !== undefined &&
+              !sameFingerprint(passwordFingerprint, output?.masterUserPasswordFingerprint)
             ) {
-              core.MasterUserPassword = news.masterUserPassword
-              coreDirty = true
+              core.MasterUserPassword = news.masterUserPassword;
+              coreDirty = true;
             }
             if (coreDirty) {
-              try modifyInstance(identifier, core)
-              observed = try waitForInstance(identifier)
+              yield* modifyInstance(identifier, core);
+              observed = yield* waitForInstance(identifier);
               if (
-                core.DBParameterGroupName !== undefined
-                || core.VpcSecurityGroupIds !== undefined
+                core.DBParameterGroupName !== undefined ||
+                core.VpcSecurityGroupIds !== undefined
               ) {
-                observed = try waitForAssociations(identifier, associations)
+                observed = yield* waitForAssociations(identifier, associations);
               }
               if (core.AllocatedStorage !== undefined) {
-                observed = try waitForStorage(identifier, (instance) => storageConverged(instance, desiredStorage))
+                observed = yield* waitForStorage(identifier, (instance) =>
+                  storageConverged(instance, desiredStorage),
+                );
               }
             }
           }
 
           if (hasPendingStorage(observed)) {
-            observed = try waitForStorage(
+            observed = yield* waitForStorage(
               identifier,
               (instance) => !hasPendingStorage(instance),
-            )
+            );
           }
-          desiredStorage = try resolveStorage(news, observed.AllocatedStorage)
+          desiredStorage = yield* resolveStorage(news, observed.AllocatedStorage);
           if (desiredStorage && !storageConverged(observed, desiredStorage)) {
-            try modifyInstance(identifier, {
+            yield* modifyInstance(identifier, {
               DBInstanceIdentifier: identifier,
               ...desiredStorage.request,
-              MaxAllocatedStorage: storage.maxAllocatedStorage === 0
-                ? desiredStorage.request.AllocatedStorage
-                : storage.maxAllocatedStorage,
+              MaxAllocatedStorage:
+                storage.maxAllocatedStorage === 0
+                  ? desiredStorage.request.AllocatedStorage
+                  : storage.maxAllocatedStorage,
               ApplyImmediately: true,
-            })
-            observed = try waitForInstance(identifier)
-            observed = try waitForStorage(identifier, (instance) => storageConverged(instance, desiredStorage))
+            });
+            observed = yield* waitForInstance(identifier);
+            observed = yield* waitForStorage(identifier, (instance) =>
+              storageConverged(instance, desiredStorage),
+            );
           }
           if (!autoscalingConverged(storage, observed)) {
-            const ceiling = storage.maxAllocatedStorage === 0
-              ? observed.AllocatedStorage
-              : storage.maxAllocatedStorage
+            const ceiling =
+              storage.maxAllocatedStorage === 0
+                ? observed.AllocatedStorage
+                : storage.maxAllocatedStorage;
             if (ceiling === undefined) {
-              throw new InvalidDBInstanceStorage({
+              return yield* new InvalidDBInstanceStorage({
                 message: "RDS did not return the allocated storage needed to disable autoscaling",
-              })
+              });
             }
             // AWS disables autoscaling when the ceiling equals live allocation.
-            try modifyInstance(identifier, {
+            yield* modifyInstance(identifier, {
               DBInstanceIdentifier: identifier,
               MaxAllocatedStorage: ceiling,
               ApplyImmediately: true,
-            })
-            observed = try waitForStorage(
+            });
+            observed = yield* waitForStorage(
               identifier,
-              (instance) => allocationConverged(storage, instance) && autoscalingConverged(storage, instance),
-            )
+              (instance) =>
+                allocationConverged(storage, instance) && autoscalingConverged(storage, instance),
+            );
           }
 
-          port = try desiredInstancePort(news, observed)
+          port = yield* desiredInstancePort(news, observed);
           if (port !== undefined && !portConverged(observed, port)) {
             if (observed.PendingModifiedValues?.Port !== port) {
               if (news.engine.startsWith("custom-")) {
-                throw new InvalidDBInstancePort({
-                  message: "Changing an existing RDS Custom listener through ModifyDBInstance is not supported",
-                })
+                return yield* new InvalidDBInstancePort({
+                  message:
+                    "Changing an existing RDS Custom listener through ModifyDBInstance is not supported",
+                });
               }
               // Port changes restart immediately without applying unrelated pending settings.
-              try modifyInstance(identifier, {
+              yield* modifyInstance(identifier, {
                 DBInstanceIdentifier: identifier,
                 DBPortNumber: port,
                 ApplyImmediately: false,
-              })
+              });
             }
-            observed = try waitForPort(identifier, port)
+            observed = yield* waitForPort(identifier, port);
           }
 
-          associations = try resolveAssociations(news, observed)
+          associations = yield* resolveAssociations(news, observed);
           if (!associationsConverged(associations, observed)) {
-            const parameterChanged = !parameterGroupMatches(associations, observed)
-            const securityChanged = !securityGroupsMatch(associations, observed)
+            const parameterChanged = !parameterGroupMatches(associations, observed);
+            const securityChanged = !securityGroupsMatch(associations, observed);
             if (securityChanged && news.engine.startsWith("custom-")) {
-              throw new InvalidDBInstanceAssociations({
+              return yield* new InvalidDBInstanceAssociations({
                 message:
                   "Changing existing RDS Custom security-group associations through ModifyDBInstance is not supported",
-              })
+              });
             }
             if (parameterChanged || securityChanged) {
-              try modifyInstance(identifier, {
+              yield* modifyInstance(identifier, {
                 DBInstanceIdentifier: identifier,
                 DBParameterGroupName: parameterChanged
                   ? associations.dbParameterGroupName
                   : undefined,
                 VpcSecurityGroupIds: securityChanged ? associations.vpcSecurityGroupIds : undefined,
                 ApplyImmediately: true,
-              })
+              });
             }
-            observed = try waitForAssociations(identifier, associations)
+            observed = yield* waitForAssociations(identifier, associations);
           }
 
-          security = securityConfiguration(news, observed)
-          const iamPending = observed.PendingModifiedValues?.IAMDatabaseAuthenticationEnabled
-          const iamChanged = !iamConverged(security, observed)
-          const networkChanged = security.networkType !== undefined && security.networkType !== observed.NetworkType
+          security = securityConfiguration(news, observed);
+          const iamPending = observed.PendingModifiedValues?.IAMDatabaseAuthenticationEnabled;
+          const iamChanged = !iamConverged(security, observed);
+          const networkChanged =
+            security.networkType !== undefined && security.networkType !== observed.NetworkType;
           if (iamChanged || networkChanged) {
             // IAM and network changes honor maintenance scheduling. AWS cannot
             // selectively apply one queued change without applying the rest.
-            try modifyInstance(identifier, {
+            yield* modifyInstance(identifier, {
               DBInstanceIdentifier: identifier,
-              EnableIAMDatabaseAuthentication: iamChanged && iamPending !== security.iamAuthentication
-                ? security.iamAuthentication
-                : undefined,
+              EnableIAMDatabaseAuthentication:
+                iamChanged && iamPending !== security.iamAuthentication
+                  ? security.iamAuthentication
+                  : undefined,
               NetworkType: networkChanged ? security.networkType : undefined,
               ApplyImmediately: true,
-            })
-            observed = try waitForInstance(identifier)
+            });
+            observed = yield* waitForInstance(identifier);
           }
 
-          const publicChanged = security.publiclyAccessible !== undefined
-            && security.publiclyAccessible !== observed.PubliclyAccessible
-          const protectionChanged = security.deletionProtection !== undefined
-            && security.deletionProtection !== observed.DeletionProtection
-          const logDelta = logExportDelta(effectiveLogExports(observed), security.logExports)
+          const publicChanged =
+            security.publiclyAccessible !== undefined &&
+            security.publiclyAccessible !== observed.PubliclyAccessible;
+          const protectionChanged =
+            security.deletionProtection !== undefined &&
+            security.deletionProtection !== observed.DeletionProtection;
+          const logDelta = logExportDelta(effectiveLogExports(observed), security.logExports);
           if (publicChanged || protectionChanged || logDelta) {
             // These fields apply immediately even with false; leave unrelated
             // maintenance-window changes queued rather than flushing them.
-            try modifyInstance(identifier, {
+            yield* modifyInstance(identifier, {
               DBInstanceIdentifier: identifier,
               PubliclyAccessible: publicChanged ? security.publiclyAccessible : undefined,
               DeletionProtection: protectionChanged ? security.deletionProtection : undefined,
               CloudwatchLogsExportConfiguration: logDelta,
               ApplyImmediately: false,
-            })
+            });
           }
-          observed = try waitForSecurity(identifier, security)
+          observed = yield* waitForSecurity(identifier, security);
 
-          const dbInstanceArn = observed.DBInstanceArn ?? ""
+          const dbInstanceArn = observed.DBInstanceArn ?? "";
 
           // Sync tags — diff observed cloud tags against desired.
-          const observedTags = toTagRecord(observed.TagList)
-          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          const observedTags = toTagRecord(observed.TagList);
+          const { removed, upsert } = diffTags(observedTags, desiredTags);
           if (upsert.length > 0 && dbInstanceArn) {
-            try rds.addTagsToResource({
+            yield* rds.addTagsToResource({
               ResourceName: dbInstanceArn,
               Tags: upsert,
-            })
+            });
           }
           if (removed.length > 0 && dbInstanceArn) {
-            try rds.removeTagsFromResource({
+            yield* rds.removeTagsFromResource({
               ResourceName: dbInstanceArn,
               TagKeys: removed,
-            })
+            });
           }
 
-          const managedSecret = try reconcileMasterSecretPolicy(
+          const managedSecret = yield* reconcileMasterSecretPolicy(
             identifier,
             observed,
             news.masterUserSecretResourcePolicy,
-          )
+          );
           // Sync migrations — the shared pipeline skips already-applied ones.
-          const migrationsInput = migrationsInputOf(news)
+          const migrationsInput = migrationsInputOf(news);
           const migrations = migrationsInput
-            ? try runDBInstanceMigrations({
-              instance: managedSecret.instance,
-              input: migrationsInput,
-              stamped: stampedOf(output),
-              transport: news.migrationsTransport,
-              secretArn: news.migrationsSecretArn,
-              credentials: news.masterUsername && news.masterUserPassword
-                ? { username: news.masterUsername, password: news.masterUserPassword }
-                : undefined,
-            })
-            : undefined
+            ? yield* runDBInstanceMigrations({
+                instance: managedSecret.instance,
+                input: migrationsInput,
+                stamped: stampedOf(output),
+                transport: news.migrationsTransport,
+                secretArn: news.migrationsSecretArn,
+                credentials:
+                  news.masterUsername && news.masterUserPassword
+                    ? { username: news.masterUsername, password: news.masterUserPassword }
+                    : undefined,
+              })
+            : undefined;
 
-          try session.note(dbInstanceArn || identifier)
+          yield* session.note(dbInstanceArn || identifier);
           return toAttrs({
             instance: managedSecret.instance,
             tags: desiredTags,
@@ -2368,50 +2402,44 @@ export const DBInstanceProvider = (): infer _ =>
             masterUserPasswordFingerprint: passwordFingerprint,
             masterUserSecretResourcePolicy: managedSecret.policy,
             migrations: migrationsAttrs({ input: migrationsInput, run: migrations, output }),
-          })
-        },
-        delete: effect ({ output }) => {
+          });
+        }),
+        delete: Effect.fn(function* ({ output }) {
           // Default preserves the existing behavior (no final snapshot). When
           // the resource was declared with `skipFinalSnapshot: false`, take
           // one — timestamped by default so repeated destroy/create cycles
           // never collide on snapshot names.
-          const skipFinalSnapshot = output.skipFinalSnapshot ?? true
+          const skipFinalSnapshot = output.skipFinalSnapshot ?? true;
           const finalDBSnapshotIdentifier = skipFinalSnapshot
             ? undefined
-            : (output.finalDBSnapshotIdentifier
-              ?? (try Effect.sync(
+            : (output.finalDBSnapshotIdentifier ??
+              (yield* Effect.sync(
                 () =>
-                  `${output.dbInstanceIdentifier}-final-${
-                    new Date()
-                      .toISOString()
-                      .replaceAll(/[:.]/g, "-")
-                      .toLowerCase()
-                  }`,
-              )))
-          rds
+                  `${output.dbInstanceIdentifier}-final-${new Date()
+                    .toISOString()
+                    .replaceAll(/[:.]/g, "-")
+                    .toLowerCase()}`,
+              )));
+          yield* rds
             .deleteDBInstance({
               DBInstanceIdentifier: output.dbInstanceIdentifier,
               SkipFinalSnapshot: skipFinalSnapshot,
               FinalDBSnapshotIdentifier: finalDBSnapshotIdentifier,
-            }) catch effect (e) => match (e) {
-              when { _tag: "DBInstanceNotFoundFault" }: try Effect.void;
-              default: throw e;
-            }
+            })
+            .pipe(Effect.catchTag("DBInstanceNotFoundFault", () => Effect.void));
           // Block until the instance is fully gone. RDS deletion is async; if we
           // return while it is still `deleting`, a dependent (e.g. a
           // DBSubnetGroup or VPC) is torn down next and AWS rejects it with
           // `InvalidDBSubnetGroupStateFault: ... still using it`.
-          Effect.repeat(
-            effect {
-              return (try (rds
-                .describeDBInstances({
-                  DBInstanceIdentifier: output.dbInstanceIdentifier,
-                })
-                |> Effect.as(%, true))) catch effect (e) => match (e) {
-                  when { _tag: "DBInstanceNotFoundFault" }: false;
-                  default: throw e;
-                }
-            },
+          yield* Effect.repeat(
+            rds
+              .describeDBInstances({
+                DBInstanceIdentifier: output.dbInstanceIdentifier,
+              })
+              .pipe(
+                Effect.as(true),
+                Effect.catchTag("DBInstanceNotFoundFault", () => Effect.succeed(false)),
+              ),
             {
               schedule: Schedule.max([
                 Schedule.fixed("15 seconds"),
@@ -2421,13 +2449,13 @@ export const DBInstanceProvider = (): infer _ =>
               ]),
               until: (exists) => exists === false,
             },
-          ) catch effect (e) => try Effect.void
+          ).pipe(Effect.catch(() => Effect.void));
           // RDS creates `/aws/rds/instance/<id>/<logType>` for every
           // `enableCloudwatchLogsExports` type and never deletes them.
-          try reapLogGroupsByPrefix(
+          yield* reapLogGroupsByPrefix(
             `/aws/rds/instance/${output.dbInstanceIdentifier.toLowerCase()}/`,
-          )
-        },
-      }
-    },
-  )
+          );
+        }),
+      };
+    }),
+  );

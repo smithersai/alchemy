@@ -28,7 +28,7 @@ import {
   DBInstance,
   type DBInstanceProps,
   type DBInstance as DBInstanceResource,
-} from "./DBInstance.vibe";
+} from "./DBInstance.ts";
 import {
   DBParameterGroup,
   type DBParameterGroupProps,

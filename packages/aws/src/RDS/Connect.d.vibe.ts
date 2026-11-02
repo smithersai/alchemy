@@ -9,7 +9,7 @@ import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
 import type { SubnetId } from "../EC2/Subnet.js";
 import type { Secret } from "../SecretsManager/Secret.js";
 import type { DBCluster } from "./DBCluster.js";
-import type { DBInstance } from "./DBInstance.vibe";
+import type { DBInstance } from "./DBInstance.js";
 import type { DBProxy } from "./DBProxy.vibe";
 import type { DBProxyEndpoint } from "./DBProxyEndpoint.vibe";
 export type ConnectResource = DBCluster | DBInstance | DBProxy | DBProxyEndpoint;
