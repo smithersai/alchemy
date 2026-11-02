@@ -1,5 +1,6 @@
-import * as Cloudflare from "@alchemy.run/cloudflare"
-import * as Effect from "effect/Effect"
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Effect from "effect/Effect";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
 
 /**
  * Minimal Effect-native container for the cold-start benchmark. Alchemy bundles
@@ -10,7 +11,7 @@ import * as Effect from "effect/Effect"
 export class EffectfulContainer extends Cloudflare.Container<
   EffectfulContainer,
   {
-    mutable ping: () => string!!
+    ping: () => Effect.Effect<string>;
   }
 >()("BenchEffectfulContainer") {}
 
@@ -25,10 +26,10 @@ export default EffectfulContainer.make(
     instanceType: "lite",
     instances: 0,
   },
-  effect {
+  Effect.gen(function* () {
     return {
-      ping: effect () => "pong",
+      ping: () => Effect.succeed("pong"),
       fetch: Effect.succeed(HttpServerResponse.text("ok")),
-    }
-  },
-)
+    };
+  }),
+);

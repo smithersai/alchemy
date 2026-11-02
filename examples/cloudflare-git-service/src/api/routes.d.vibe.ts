@@ -1,7 +1,7 @@
 /** The app's own Effect HTTP endpoints. */
 import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
-import { Unauthorized } from "./auth.js";
+import { Unauthorized } from "./auth.ts";
 /** Who am I. Signed-in only. */
 export declare const Me: HttpApiEndpoint.HttpApiEndpoint<"me", "GET", "/api/v1/me", never, never, never, never, import("effect/Schema").toCodecJson<import("effect/Schema").Struct<{
     readonly id: import("effect/Schema").String;

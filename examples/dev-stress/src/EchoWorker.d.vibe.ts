@@ -152,7 +152,7 @@ declare const EchoWorker_base: Effect.Effect<import("effect/Pipeable").Pipeable 
         additionalWorkspaces: string[] | undefined;
         metadata?: string | undefined;
     } | undefined, never>;
-} & Cloudflare.Rpc<EchoWorker>, never, Cloudflare.Container.Application<import("./SandboxContainer.js").SandboxContainer> | Cloudflare.Providers> & import("alchemy").Named<"EchoWorker"> & import("alchemy").PlatformIdentity<"EchoWorker"> & (new () => {
+} & Cloudflare.Rpc<EchoWorker>, never, Cloudflare.Container.Application<import("./SandboxContainer.ts").SandboxContainer> | Cloudflare.Providers> & import("alchemy").Named<"EchoWorker"> & import("alchemy").PlatformIdentity<"EchoWorker"> & (new () => {
     fetch: Effect.Effect<HttpServerResponse.HttpServerResponse, never, HttpServerRequest | import("alchemy").RuntimeContext>;
 } & {
     fetch?: Effect.Effect<import("alchemy/Http").HttpEffect<import("alchemy").RuntimeContext | import("alchemy").PlatformServices | Cloudflare.WorkerServices>, never, import("alchemy").PlatformServices | Cloudflare.WorkerServices> | import("alchemy/Http").HttpEffect<import("alchemy").RuntimeContext | import("alchemy").PlatformServices | Cloudflare.WorkerServices> | undefined;

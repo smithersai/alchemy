@@ -1,9 +1,9 @@
-import * as AWS from "@alchemy.run/aws"
-import * as Effect from "effect/Effect"
-import { HttpServerRequest } from "effect/http/HttpServerRequest"
-import * as HttpServerResponse from "effect/http/HttpServerResponse"
-import { EC2_MARKER } from "./ec2/marker.ts"
-import { PORTS } from "./ports.ts"
+import * as AWS from "@alchemy.run/aws";
+import * as Effect from "effect/Effect";
+import { HttpServerRequest } from "effect/http/HttpServerRequest";
+import * as HttpServerResponse from "effect/http/HttpServerResponse";
+import { EC2_MARKER } from "./ec2/marker.ts";
+import { PORTS } from "./ports.ts";
 
 /**
  * A hosted **EC2 instance**: the fourth floci compute unit in the stack
@@ -21,12 +21,12 @@ import { PORTS } from "./ports.ts"
  */
 export default class Ec2Box extends AWS.EC2.Instance<Ec2Box>()(
   "StressEc2Box",
-  effect {
-    const network = try AWS.EC2.Network("StressEc2Network", {
+  Effect.gen(function* () {
+    const network = yield* AWS.EC2.Network("StressEc2Network", {
       cidrBlock: "10.84.0.0/16",
       availabilityZones: 1,
-    })
-    const securityGroup = try AWS.EC2.SecurityGroup("StressEc2Sg", {
+    });
+    const securityGroup = yield* AWS.EC2.SecurityGroup("StressEc2Sg", {
       vpcId: network.vpcId,
       description: "dev-stress ec2 box",
       ingress: [
@@ -45,7 +45,7 @@ export default class Ec2Box extends AWS.EC2.Instance<Ec2Box>()(
           description: "all outbound",
         },
       ],
-    })
+    });
     return {
       main: import.meta.filename,
       imageId: AWS.EC2.amazonLinux2023(),
@@ -54,18 +54,18 @@ export default class Ec2Box extends AWS.EC2.Instance<Ec2Box>()(
       securityGroupIds: [securityGroup.groupId],
       associatePublicIpAddress: true,
       port: PORTS.ec2,
-    }
-  },
-  effect {
+    };
+  }),
+  Effect.gen(function* () {
     return {
-      fetch: effect {
-        const request = try Effect.service(HttpServerRequest)
-        const url = new URL(request.url, "http://ec2-box")
+      fetch: Effect.gen(function* () {
+        const request = yield* HttpServerRequest;
+        const url = new URL(request.url, "http://ec2-box");
         if (url.pathname === "/marker") {
-          return try HttpServerResponse.json({ marker: EC2_MARKER })
+          return yield* HttpServerResponse.json({ marker: EC2_MARKER });
         }
-        return try HttpServerResponse.json({ ok: true })
-      },
-    }
-  },
+        return yield* HttpServerResponse.json({ ok: true });
+      }),
+    };
+  }),
 ) {}

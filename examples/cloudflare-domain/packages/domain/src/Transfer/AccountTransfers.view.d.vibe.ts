@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { Account } from "../Account/Account.aggregate.vibe";
-import { NotOwner } from "../Account/NotOwner.rejection.js";
-import { Session } from "../Session.middleware.js";
+import { NotOwner } from "../Account/NotOwner.rejection.ts";
+import { Session } from "../Session.middleware.ts";
 import { Transfer } from "./Transfer.aggregate.vibe";
 declare const TransferMoved_base: import("@alchemy.run/domain/Event").EventClass<"TransferMoved", {
     readonly transferId: Schema.brand<Schema.String, "TransferId">;

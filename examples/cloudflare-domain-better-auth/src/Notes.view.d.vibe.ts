@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { Notebook } from "./Notebook.aggregate.vibe";
-import { NotYours } from "./NotYours.rejection.js";
-import { Session } from "./Session.middleware.js";
+import { NotYours } from "./NotYours.rejection.ts";
+import { Session } from "./Session.middleware.ts";
 declare const Notes_base: import("@alchemy.run/domain/View").ViewClass<"Notes", import("@alchemy.run/domain/View").Definition<readonly [typeof Notebook], typeof Notebook, Schema.Struct<{
     readonly notes: Schema.$Array<Schema.String>;
 }>, readonly [], {}, readonly [typeof Session], readonly [typeof NotYours]>, Schema.Struct<{

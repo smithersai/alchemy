@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema";
-import { MfaChallenge } from "../MfaChallenge.middleware.js";
-import { Session } from "../Session.middleware.js";
+import { MfaChallenge } from "../MfaChallenge.middleware.ts";
+import { Session } from "../Session.middleware.ts";
 /** Transfers of at least this many cents wait for a support agent's approval. */
 export declare const APPROVAL_THRESHOLD = 10000;
 declare const AlreadyRequested_base: import("@alchemy.run/domain/Rejection").RejectionClass<"AlreadyRequested", {}>;

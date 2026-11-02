@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { Session } from "../Session.middleware.js";
+import { Session } from "../Session.middleware.ts";
 declare const AlreadyRegistered_base: import("@alchemy.run/domain/Rejection").RejectionClass<"AlreadyRegistered", {}>;
 /** The customer is registered, or a registration is already in progress. */
 export declare class AlreadyRegistered extends AlreadyRegistered_base {

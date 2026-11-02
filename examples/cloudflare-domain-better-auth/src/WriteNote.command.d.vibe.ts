@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema";
-import { NotYours } from "./NotYours.rejection.js";
-import { Session } from "./Session.middleware.js";
+import { NotYours } from "./NotYours.rejection.ts";
+import { Session } from "./Session.middleware.ts";
 declare const NoteWritten_base: import("@alchemy.run/domain/Event").EventClass<"NoteWritten", {
     readonly text: Schema.String;
     readonly author: Schema.String;

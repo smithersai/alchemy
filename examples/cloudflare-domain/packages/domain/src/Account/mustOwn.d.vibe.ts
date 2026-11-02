@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
-import { CurrentActor } from "../CurrentActor.context.js";
+import { CurrentActor } from "../CurrentActor.context.ts";
 import type { CustomerId } from "../Customer/Customer.id.vibe";
-import { NotOwner } from "./NotOwner.rejection.js";
+import { NotOwner } from "./NotOwner.rejection.ts";
 /**
  * Who may read an account's data: any agent, or the customer who owns the
  * account right now. An account that doesn't exist yet reads as empty, so a

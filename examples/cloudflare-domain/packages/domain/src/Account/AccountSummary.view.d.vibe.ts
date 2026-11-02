@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
-import { Session } from "../Session.middleware.js";
+import { Session } from "../Session.middleware.ts";
 import { Account } from "./Account.aggregate.vibe";
-import { NotOwner } from "./NotOwner.rejection.js";
+import { NotOwner } from "./NotOwner.rejection.ts";
 declare const AccountSummary_base: import("@alchemy.run/domain/View").ViewClass<"AccountSummary", import("@alchemy.run/domain/View").Definition<readonly [typeof Account], typeof Account, Schema.Struct<{
     readonly customerId: Schema.NullOr<Schema.brand<Schema.String, "CustomerId">>;
     readonly owner: Schema.NullOr<Schema.String>;
@@ -26,7 +26,7 @@ declare const AccountSummary_base: import("@alchemy.run/domain/View").ViewClass<
     readonly balance: number;
     readonly frozen: boolean;
     readonly closed: boolean;
-}, {}>, import("./CloseAccount.command.js").AccountClosed | import("./FreezeAccount.command.vibe").AccountFrozen | import("./OpenAccount.command.vibe").AccountOpened | import("./DepositMoney.command.js").MoneyDeposited | import("./WithdrawMoney.command.js").MoneyWithdrawn | import("./ChangeOwner.command.js").OwnerChanged | import("./RefundTransfer.command.js").RefundStranded | import("./RecordSettlement.command.vibe").SettlementOnClosedAccount | import("./RecordSettlement.command.vibe").SettlementReceived | import("./CreditTransfer.command.js").TransferCredited | import("./DebitTransfer.command.js").TransferDebited | import("./RefundTransfer.command.js").TransferRefunded>;
+}, {}>, import("./CloseAccount.command.ts").AccountClosed | import("./FreezeAccount.command.vibe").AccountFrozen | import("./OpenAccount.command.vibe").AccountOpened | import("./DepositMoney.command.ts").MoneyDeposited | import("./WithdrawMoney.command.ts").MoneyWithdrawn | import("./ChangeOwner.command.ts").OwnerChanged | import("./RefundTransfer.command.ts").RefundStranded | import("./RecordSettlement.command.vibe").SettlementOnClosedAccount | import("./RecordSettlement.command.vibe").SettlementReceived | import("./CreditTransfer.command.ts").TransferCredited | import("./DebitTransfer.command.ts").TransferDebited | import("./RefundTransfer.command.ts").TransferRefunded>;
 /**
  * The current balance and status of one account. It declares no events, so
  * it emits every event it applies, each with the summary after it.

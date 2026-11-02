@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
-import { ApproveTransfer } from "./ApproveTransfer.command.js";
-import { CompleteTransfer } from "./CompleteTransfer.command.js";
-import { ExpireTransfer } from "./ExpireTransfer.command.js";
+import { ApproveTransfer } from "./ApproveTransfer.command.ts";
+import { CompleteTransfer } from "./CompleteTransfer.command.ts";
+import { ExpireTransfer } from "./ExpireTransfer.command.ts";
 import { FailTransfer } from "./FailTransfer.command.vibe";
 import { RequestTransfer } from "./RequestTransfer.command.vibe";
 declare const Transfer_base: import("@alchemy.run/domain/Aggregate").AggregateClass<"Transfer", import("@alchemy.run/domain/Aggregate").Resolved<Schema.brand<Schema.String, "TransferId">, Schema.Union<readonly [Schema.TaggedStruct<"New", {}>, Schema.TaggedStruct<"AwaitingApproval", {

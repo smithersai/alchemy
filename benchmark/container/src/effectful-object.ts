@@ -1,7 +1,7 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { EffectfulContainer } from "./effectful-container.vibe";
+import { EffectfulContainer } from "./effectful-container.ts";
 
 /**
  * Durable Object backing one effectful container instance. `boot()` blocks

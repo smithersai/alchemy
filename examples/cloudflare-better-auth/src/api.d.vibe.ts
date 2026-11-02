@@ -2,7 +2,7 @@ import * as HttpApi from "effect/http-api/HttpApi";
 import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 import * as Schema from "effect/Schema";
-import { Authentication } from "./middleware.js";
+import { Authentication } from "./middleware.ts";
 declare const Public_base: HttpApiGroup.HttpApiGroup<"public", HttpApiEndpoint.HttpApiEndpoint<"health", "GET", "/api/health", never, never, never, never, Schema.toCodecJson<Schema.Struct<{
     readonly ok: Schema.Literal<true>;
 }>>, never, never, never> | HttpApiEndpoint.HttpApiEndpoint<"providers", "GET", "/api/providers", never, never, never, never, Schema.toCodecJson<Schema.Struct<{

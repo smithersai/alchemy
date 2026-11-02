@@ -1,4 +1,4 @@
-import { TransferApproved } from "./ApproveTransfer.command.js";
+import { TransferApproved } from "./ApproveTransfer.command.ts";
 import { TransferFailed } from "./FailTransfer.command.vibe";
 import { TransferRequested } from "./RequestTransfer.command.vibe";
 import { Transfer } from "./Transfer.aggregate.vibe";

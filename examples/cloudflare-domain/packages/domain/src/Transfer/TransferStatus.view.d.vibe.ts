@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { Account } from "../Account/Account.aggregate.vibe";
-import { NotOwner } from "../Account/NotOwner.rejection.js";
-import { Session } from "../Session.middleware.js";
+import { NotOwner } from "../Account/NotOwner.rejection.ts";
+import { Session } from "../Session.middleware.ts";
 import { Transfer } from "./Transfer.aggregate.vibe";
 declare const TransferStatus_base: import("@alchemy.run/domain/View").ViewClass<"TransferStatus", import("@alchemy.run/domain/View").Definition<readonly [typeof Transfer, typeof Account], typeof Transfer, Schema.Struct<{
     readonly from: Schema.NullOr<Schema.brand<Schema.String, "AccountId">>;
@@ -81,7 +81,7 @@ declare const TransferStatus_base: import("@alchemy.run/domain/View").ViewClass<
     readonly failedReason: string | null;
 }, {
     status: "awaiting-approval" | "completed" | "failed" | "in-flight" | "pending";
-}>, import("../Account/CloseAccount.command.js").AccountClosed | import("../Account/FreezeAccount.command.vibe").AccountFrozen | import("../Account/OpenAccount.command.vibe").AccountOpened | import("../Account/DepositMoney.command.js").MoneyDeposited | import("../Account/WithdrawMoney.command.js").MoneyWithdrawn | import("../Account/ChangeOwner.command.js").OwnerChanged | import("../Account/RefundTransfer.command.js").RefundStranded | import("../Account/RecordSettlement.command.vibe").SettlementOnClosedAccount | import("../Account/RecordSettlement.command.vibe").SettlementReceived | import("./ApproveTransfer.command.js").TransferApproved | import("./CompleteTransfer.command.js").TransferCompleted | import("../Account/CreditTransfer.command.js").TransferCredited | import("../Account/DebitTransfer.command.js").TransferDebited | import("./FailTransfer.command.vibe").TransferFailed | import("../Account/RefundTransfer.command.js").TransferRefunded | import("./RequestTransfer.command.vibe").TransferRequested>;
+}>, import("../Account/CloseAccount.command.ts").AccountClosed | import("../Account/FreezeAccount.command.vibe").AccountFrozen | import("../Account/OpenAccount.command.vibe").AccountOpened | import("../Account/DepositMoney.command.ts").MoneyDeposited | import("../Account/WithdrawMoney.command.ts").MoneyWithdrawn | import("../Account/ChangeOwner.command.ts").OwnerChanged | import("../Account/RefundTransfer.command.ts").RefundStranded | import("../Account/RecordSettlement.command.vibe").SettlementOnClosedAccount | import("../Account/RecordSettlement.command.vibe").SettlementReceived | import("./ApproveTransfer.command.ts").TransferApproved | import("./CompleteTransfer.command.ts").TransferCompleted | import("../Account/CreditTransfer.command.ts").TransferCredited | import("../Account/DebitTransfer.command.ts").TransferDebited | import("./FailTransfer.command.vibe").TransferFailed | import("../Account/RefundTransfer.command.ts").TransferRefunded | import("./RequestTransfer.command.vibe").TransferRequested>;
 /**
  * The progress of one transfer, assembled from the Transfer and both
  * accounts. Each handler sets its own fact, so arrival order does not matter.

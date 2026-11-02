@@ -1,11 +1,11 @@
 import { Account } from "../Account/Account.aggregate.vibe";
-import { TransferCredited } from "../Account/CreditTransfer.command.js";
-import { TransferDebited } from "../Account/DebitTransfer.command.js";
-import { MoneyDeposited } from "../Account/DepositMoney.command.js";
+import { TransferCredited } from "../Account/CreditTransfer.command.ts";
+import { TransferDebited } from "../Account/DebitTransfer.command.ts";
+import { MoneyDeposited } from "../Account/DepositMoney.command.ts";
 import { SettlementReceived } from "../Account/RecordSettlement.command.vibe";
-import { TransferRefunded } from "../Account/RefundTransfer.command.js";
-import { MoneyWithdrawn } from "../Account/WithdrawMoney.command.js";
-import { LedgerStore } from "./LedgerStore.js";
+import { TransferRefunded } from "../Account/RefundTransfer.command.ts";
+import { MoneyWithdrawn } from "../Account/WithdrawMoney.command.ts";
+import { LedgerStore } from "./LedgerStore.ts";
 declare const Ledger_base: import("@alchemy.run/domain/Projection").ProjectionClass<"Ledger", readonly [typeof Account], typeof Account, readonly [typeof MoneyDeposited, typeof MoneyWithdrawn, typeof TransferDebited, typeof TransferCredited, typeof TransferRefunded, typeof SettlementReceived], readonly []>;
 /** Every money movement, one row each, in a database outside the model. */
 export declare class Ledger extends Ledger_base {

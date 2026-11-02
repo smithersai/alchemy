@@ -3,7 +3,7 @@ import * as Alchemy from "alchemy";
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import { NetworkLive } from "./src/Network.ts";
-import Server from "./src/Server.vibe";
+import Server from "./src/Server.ts";
 
 export default Alchemy.Stack(
   "AwsEc2Example",

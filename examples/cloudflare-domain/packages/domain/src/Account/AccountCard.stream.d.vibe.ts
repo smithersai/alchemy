@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
-import { Session } from "../Session.middleware.js";
+import { Session } from "../Session.middleware.ts";
 import { Account } from "./Account.aggregate.vibe";
-import { NotOwner } from "./NotOwner.rejection.js";
+import { NotOwner } from "./NotOwner.rejection.ts";
 declare const CardChanged_base: import("@alchemy.run/domain/Event").EventClass<"CardChanged", {
     readonly customerId: Schema.brand<Schema.String, "CustomerId">;
     readonly owner: Schema.String;

@@ -1,5 +1,5 @@
 import * as Schema from "effect/Schema";
-import { ClaimUsername } from "./ClaimUsername.command.js";
+import { ClaimUsername } from "./ClaimUsername.command.ts";
 declare const UsernameClaim_base: import("@alchemy.run/domain/Aggregate").AggregateClass<"UsernameClaim", import("@alchemy.run/domain/Aggregate").Resolved<Schema.brand<Schema.String, "Username">, Schema.Union<readonly [Schema.TaggedStruct<"Free", {}>, Schema.TaggedStruct<"Claimed", {
     readonly customerId: Schema.brand<Schema.String, "CustomerId">;
 }>]>, readonly [typeof ClaimUsername], readonly [], readonly []>>;

@@ -1,16 +1,16 @@
 import * as Schema from "effect/Schema";
-import { Session } from "../Session.middleware.js";
-import { ChangeOwner } from "./ChangeOwner.command.js";
-import { CloseAccount } from "./CloseAccount.command.js";
-import { CreditTransfer } from "./CreditTransfer.command.js";
-import { DebitTransfer } from "./DebitTransfer.command.js";
-import { DepositMoney } from "./DepositMoney.command.js";
+import { Session } from "../Session.middleware.ts";
+import { ChangeOwner } from "./ChangeOwner.command.ts";
+import { CloseAccount } from "./CloseAccount.command.ts";
+import { CreditTransfer } from "./CreditTransfer.command.ts";
+import { DebitTransfer } from "./DebitTransfer.command.ts";
+import { DepositMoney } from "./DepositMoney.command.ts";
 import { FreezeAccount } from "./FreezeAccount.command.vibe";
-import { NotOwner } from "./NotOwner.rejection.js";
+import { NotOwner } from "./NotOwner.rejection.ts";
 import { OpenAccount } from "./OpenAccount.command.vibe";
 import { RecordSettlement } from "./RecordSettlement.command.vibe";
-import { RefundTransfer } from "./RefundTransfer.command.js";
-import { WithdrawMoney } from "./WithdrawMoney.command.js";
+import { RefundTransfer } from "./RefundTransfer.command.ts";
+import { WithdrawMoney } from "./WithdrawMoney.command.ts";
 declare const Account_base: import("@alchemy.run/domain/Aggregate").AggregateClass<"Account", import("@alchemy.run/domain/Aggregate").Resolved<Schema.brand<Schema.String, "AccountId">, Schema.Union<readonly [Schema.TaggedStruct<"Unopened", {}>, Schema.TaggedStruct<"Open", {
     readonly customerId: Schema.brand<Schema.String, "CustomerId">;
     readonly owner: Schema.String;

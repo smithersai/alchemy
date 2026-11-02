@@ -58,7 +58,7 @@ declare const Api_base: Effect.Effect<import("effect/Pipeable").Pipeable & impor
         hash: string;
     }, never>;
 } & import("alchemy").Rpc<Api>, never, Railway.Providers> & import("alchemy").Named<"Api"> & import("alchemy").PlatformIdentity<"Api"> & (new (_: never) => {
-    fetch: Effect.Effect<HttpServerResponse.HttpServerResponse, import("effect/http/HttpBody").HttpBodyError, HttpServerRequest | import("alchemy").RuntimeContext | import("@alchemy.run/redis/RuntimeContext").RuntimeContext>;
+    fetch: Effect.Effect<HttpServerResponse.HttpServerResponse, import("effect/http/HttpBody").HttpBodyError, HttpServerRequest | import("@alchemy.run/redis/RuntimeContext").RuntimeContext>;
 } & import("alchemy").Named<"Api"> & import("alchemy/Named").Tag<"Railway.Service">);
 /**
  * HTTP Service. Binds Postgres, Redis, and the Bucket. Reads the

@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
-import { Session } from "../Session.middleware.js";
-import { NotOpen } from "./NotOpen.rejection.js";
-import { NotOwner } from "./NotOwner.rejection.js";
+import { Session } from "../Session.middleware.ts";
+import { NotOpen } from "./NotOpen.rejection.ts";
+import { NotOwner } from "./NotOwner.rejection.ts";
 declare const AccountFrozen_base: import("@alchemy.run/domain/Event").EventClass<"AccountFrozen", {
     readonly reason: Schema.String;
     readonly by: Schema.Union<readonly [Schema.TaggedStruct<"Customer", {

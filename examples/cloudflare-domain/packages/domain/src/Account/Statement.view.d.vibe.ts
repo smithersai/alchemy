@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
-import { Session } from "../Session.middleware.js";
+import { Session } from "../Session.middleware.ts";
 import { Account } from "./Account.aggregate.vibe";
-import { NotOwner } from "./NotOwner.rejection.js";
+import { NotOwner } from "./NotOwner.rejection.ts";
 declare const StatementLine_base: import("@alchemy.run/domain/Event").EventClass<"StatementLine", {
     readonly kind: Schema.Literals<readonly ["deposit", "withdrawal", "transfer-in", "transfer-out", "refund", "settlement"]>;
     readonly amount: Schema.Int;
