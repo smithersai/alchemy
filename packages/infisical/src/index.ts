@@ -10,7 +10,7 @@ export {
   mintAccessTokenFromOidc,
   type InfisicalAuthConfig,
   type InfisicalResolvedCredentials,
-} from "./AuthProvider.vibe";
+} from "./AuthProvider.ts";
 export {
   Secrets,
   InfisicalSecretsError,

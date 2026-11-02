@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { bucketStorageClient, type BucketAttributes } from "./Bucket.vibe";
+import { bucketStorageClient, type BucketAttributes } from "./Bucket.ts";
 import type { Providers } from "./Providers.vibe";
 import type { StoragePutOptions } from "./Storage.ts";
 

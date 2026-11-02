@@ -1,1 +1,1 @@
-export { waitForOperation, waitUntilExists, waitUntilGone, waitUntilReady } from "./internal.vibe";
+export { waitForOperation, waitUntilExists, waitUntilGone, waitUntilReady } from "./internal.ts";

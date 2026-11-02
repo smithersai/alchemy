@@ -49,7 +49,7 @@ export * from "./ListRuns.vibe";
 export * from "./ListRunsHttp.vibe";
 export * from "./ReferenceStore.vibe";
 export * from "./RunGroup.vibe";
-export * from "./RunStatusEventSource.vibe";
+export * from "./RunStatusEventSource.ts";
 export * from "./SequenceStore.vibe";
 export * from "./StartAnnotationImportJob.vibe";
 export * from "./StartAnnotationImportJobHttp.vibe";

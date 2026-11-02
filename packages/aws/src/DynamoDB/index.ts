@@ -52,7 +52,7 @@ export * from "./ScanHttp.vibe";
 export * from "./Stream.vibe";
 export * from "./Table.ts";
 export * from "./TableSink.vibe";
-export * from "./TableSinkHttp.vibe";
+export * from "./TableSinkHttp.ts";
 export * from "./TransactGetItems.vibe";
 export * from "./TransactGetItemsHttp.vibe";
 export * from "./TransactWriteItems.vibe";

@@ -1,4 +1,4 @@
-export * from "./ExperimentEventSource.vibe";
+export * from "./ExperimentEventSource.ts";
 export * from "./ExperimentTemplate.ts";
 export * from "./GetAction.vibe";
 export * from "./GetActionHttp.vibe";

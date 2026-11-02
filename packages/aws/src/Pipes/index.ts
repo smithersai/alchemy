@@ -1,4 +1,4 @@
-export * from "./builders.vibe";
+export * from "./builders.ts";
 export * from "./DescribePipe.vibe";
 export * from "./DescribePipeHttp.vibe";
 export * from "./ListPipes.vibe";

@@ -5,7 +5,7 @@ export * from "./GetAccountSettingsHttp.vibe";
 export * from "./GetTagSyncTask.vibe";
 export * from "./GetTagSyncTaskHttp.vibe";
 export * from "./Group.vibe";
-export * from "./GroupEventSource.vibe";
+export * from "./GroupEventSource.ts";
 export * from "./GroupResources.vibe";
 export * from "./GroupResourcesHttp.vibe";
 export * from "./ListGroupingStatuses.vibe";

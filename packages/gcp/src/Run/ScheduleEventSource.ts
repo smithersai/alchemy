@@ -17,7 +17,7 @@ import {
   listenForDeliveries,
   pathSegment,
   pushHost,
-} from "../PushDelivery.vibe";
+} from "../PushDelivery.ts";
 
 /** Default delivery path for a schedule. */
 export const schedulePushPath = (id: string, props: ScheduleEventSourceProps) =>

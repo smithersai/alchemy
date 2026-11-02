@@ -28,7 +28,7 @@ import {
   waitForOperation,
   waitUntilExists,
   waitUntilGone,
-} from "./internal.vibe";
+} from "./internal.ts";
 
 export type CustomOAuthConfig = {
   /**

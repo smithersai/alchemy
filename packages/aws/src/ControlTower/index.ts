@@ -15,7 +15,7 @@ export * from "./GetLandingZoneHttp.vibe";
 export * from "./GetLandingZoneOperation.vibe";
 export * from "./GetLandingZoneOperationHttp.vibe";
 export * from "./LandingZone.vibe";
-export * from "./LifecycleEventSource.vibe";
+export * from "./LifecycleEventSource.ts";
 export * from "./ListBaselines.vibe";
 export * from "./ListBaselinesHttp.vibe";
 export * from "./ListControlOperations.vibe";

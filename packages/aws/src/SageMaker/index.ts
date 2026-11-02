@@ -11,7 +11,7 @@ export * from "./DescribeEndpoint.vibe";
 export * from "./DescribeEndpointHttp.vibe";
 export * from "./Endpoint.vibe";
 export * from "./EndpointConfig.vibe";
-export * from "./EventSource.vibe";
+export * from "./EventSource.ts";
 export * from "./FeatureGroup.vibe";
 export * from "./GetRecord.vibe";
 export * from "./GetRecordHttp.vibe";

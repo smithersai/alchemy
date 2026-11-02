@@ -10,7 +10,7 @@ export * from "./BatchGetReports.vibe";
 export * from "./BatchGetReportsHttp.vibe";
 export * from "./BatchGetSandboxes.vibe";
 export * from "./BatchGetSandboxesHttp.vibe";
-export * from "./BuildEventSource.vibe";
+export * from "./BuildEventSource.ts";
 export * from "./DeleteBuildBatch.vibe";
 export * from "./DeleteBuildBatchHttp.vibe";
 export * from "./DeleteReport.vibe";

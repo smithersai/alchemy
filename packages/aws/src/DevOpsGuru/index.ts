@@ -21,7 +21,7 @@ export * from "./DescribeResourceCollectionHealthHttp.vibe";
 export * from "./EventSourcesConfig.vibe";
 export * from "./GetCostEstimation.vibe";
 export * from "./GetCostEstimationHttp.vibe";
-export * from "./InsightEventSource.vibe";
+export * from "./InsightEventSource.ts";
 export * from "./ListAnomaliesForInsight.vibe";
 export * from "./ListAnomaliesForInsightHttp.vibe";
 export * from "./ListAnomalousLogGroups.vibe";

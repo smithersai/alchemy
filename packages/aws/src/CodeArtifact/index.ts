@@ -27,7 +27,7 @@ export * from "./ListPackageVersionDependencies.vibe";
 export * from "./ListPackageVersionDependenciesHttp.vibe";
 export * from "./ListPackageVersions.vibe";
 export * from "./ListPackageVersionsHttp.vibe";
-export * from "./PackageVersionStateChangeEventSource.vibe";
+export * from "./PackageVersionStateChangeEventSource.ts";
 export * from "./PublishPackageVersion.vibe";
 export * from "./PublishPackageVersionHttp.vibe";
 export * from "./PutPackageOriginConfiguration.vibe";

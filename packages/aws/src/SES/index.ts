@@ -10,7 +10,7 @@ export * from "./CustomVerificationEmailTemplate.vibe";
 export * from "./DedicatedIpPool.vibe";
 export * from "./DeleteSuppressedDestination.vibe";
 export * from "./DeleteSuppressedDestinationHttp.vibe";
-export * from "./EmailEventSource.vibe";
+export * from "./EmailEventSource.ts";
 export * from "./EmailIdentity.vibe";
 export * from "./EmailIdentityPolicy.vibe";
 export * from "./EmailTemplate.vibe";

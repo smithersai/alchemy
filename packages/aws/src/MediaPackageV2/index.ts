@@ -6,7 +6,7 @@ export * from "./CreateHarvestJob.vibe";
 export * from "./CreateHarvestJobHttp.vibe";
 export * from "./GetHarvestJob.vibe";
 export * from "./GetHarvestJobHttp.vibe";
-export * from "./HarvestJobEventSource.vibe";
+export * from "./HarvestJobEventSource.ts";
 export * from "./ListHarvestJobs.vibe";
 export * from "./ListHarvestJobsHttp.vibe";
 export * from "./OriginEndpoint.vibe";

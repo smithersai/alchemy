@@ -1,6 +1,6 @@
 export * from "./CapacityProvider.vibe";
 export * from "./Cluster.vibe";
-export * from "./ClusterEventSource.vibe";
+export * from "./ClusterEventSource.ts";
 export * from "./ContinueServiceDeployment.vibe";
 export * from "./ContinueServiceDeploymentHttp.vibe";
 export * from "./DescribeContainerInstances.vibe";

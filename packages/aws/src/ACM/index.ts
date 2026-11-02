@@ -13,7 +13,7 @@ export {
 } from "./CertificateValidation.vibe";
 export * from "./DescribeCertificate.vibe";
 export * from "./DescribeCertificateHttp.vibe";
-export * from "./ExpiryEventSource.vibe";
+export * from "./ExpiryEventSource.ts";
 export * from "./ExportCertificate.vibe";
 export * from "./ExportCertificateHttp.vibe";
 export * from "./GetCertificate.vibe";

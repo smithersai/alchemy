@@ -1,5 +1,5 @@
 import { dynamoDBState, type DynamoDBStateOptions } from "./DynamoDBState.ts";
-import { s3State, type S3StateOptions } from "./State.vibe";
+import { s3State, type S3StateOptions } from "./State.ts";
 
 export interface StateOptions extends DynamoDBStateOptions {
   /**

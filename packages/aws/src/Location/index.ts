@@ -59,6 +59,6 @@ export * from "./StartJob.vibe";
 export * from "./StartJobHttp.vibe";
 export * from "./Tracker.vibe";
 export * from "./TrackerConsumer.vibe";
-export * from "./TrackerEventSource.vibe";
+export * from "./TrackerEventSource.ts";
 export * from "./VerifyDevicePosition.vibe";
 export * from "./VerifyDevicePositionHttp.vibe";

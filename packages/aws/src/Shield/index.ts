@@ -1,4 +1,4 @@
-export * from "./AttackEventSource.vibe";
+export * from "./AttackEventSource.ts";
 export * from "./DescribeAttack.vibe";
 export * from "./DescribeAttackHttp.vibe";
 export * from "./DescribeAttackStatistics.vibe";

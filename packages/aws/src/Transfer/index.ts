@@ -4,7 +4,7 @@ export * from "./DescribeServer.vibe";
 export * from "./DescribeServerHttp.vibe";
 export * from "./DescribeUser.vibe";
 export * from "./DescribeUserHttp.vibe";
-export * from "./FileTransferEventSource.vibe";
+export * from "./FileTransferEventSource.ts";
 export * from "./ImportSshPublicKey.vibe";
 export * from "./ImportSshPublicKeyHttp.vibe";
 export * from "./ListUsers.vibe";

@@ -1,7 +1,7 @@
 export * from "./ApiDestination.vibe";
 export * from "./Archive.vibe";
 export * from "./BusSink.vibe";
-export * from "./BusSinkHttp.vibe";
+export * from "./BusSinkHttp.ts";
 export * from "./CancelReplay.vibe";
 export * from "./CancelReplayHttp.vibe";
 export * from "./Connection.vibe";
@@ -17,7 +17,7 @@ export * from "./DisableRuleHttp.vibe";
 export * from "./EnableRule.vibe";
 export * from "./EnableRuleHttp.vibe";
 export * from "./EventBus.vibe";
-export * from "./EventSource.vibe";
+export * from "./EventSource.ts";
 export * from "./ListEventBuses.vibe";
 export * from "./ListEventBusesHttp.vibe";
 export * from "./ListReplays.vibe";

@@ -21,7 +21,7 @@ export * from "./List.vibe";
 export * from "./ListEventPredictions.vibe";
 export * from "./ListEventPredictionsHttp.vibe";
 export * from "./Outcome.vibe";
-export * from "./PredictionEventSource.vibe";
+export * from "./PredictionEventSource.ts";
 export * from "./SendEvent.vibe";
 export * from "./SendEventHttp.vibe";
 export * from "./UpdateEventLabel.vibe";

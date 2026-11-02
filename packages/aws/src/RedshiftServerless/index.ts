@@ -21,7 +21,7 @@ export * from "./ListSnapshotsHttp.vibe";
 export * from "./ListTableRestoreStatus.vibe";
 export * from "./ListTableRestoreStatusHttp.vibe";
 export * from "./Namespace.vibe";
-export * from "./RedshiftServerlessEventSource.vibe";
+export * from "./RedshiftServerlessEventSource.ts";
 export * from "./RestoreFromRecoveryPoint.vibe";
 export * from "./RestoreFromRecoveryPointHttp.vibe";
 export * from "./RestoreFromSnapshot.vibe";

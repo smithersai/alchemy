@@ -22,7 +22,7 @@ import {
   listenForDeliveries,
   pathSegment,
   pushHost,
-} from "../PushDelivery.vibe";
+} from "../PushDelivery.ts";
 
 const lastSegment = (value: string) => value.split("/").pop() ?? value;
 

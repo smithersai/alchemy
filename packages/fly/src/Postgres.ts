@@ -25,10 +25,10 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import { resolveOrgSlug } from "./Environment.ts";
 import { createFlyAppName, matchesAlchemyPhysicalName, sanitizeFlyAppName } from "./Metadata.ts";
-import { runImports, runPgMigrations } from "./PostgresMigrations.vibe";
+import { runImports, runPgMigrations } from "./PostgresMigrations.ts";
 import type { Providers } from "./Providers.vibe";
 
-export { stripSslQueryParams } from "./PostgresMigrations.vibe";
+export { stripSslQueryParams } from "./PostgresMigrations.ts";
 
 export const DEFAULT_POSTGRES_PLAN = "basic";
 export const DEFAULT_VOLUME_GB = 10;

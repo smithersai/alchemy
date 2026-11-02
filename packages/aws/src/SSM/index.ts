@@ -9,7 +9,7 @@ export * from "./GetParametersHttp.ts";
 export * from "./LabelParameterVersion.vibe";
 export * from "./LabelParameterVersionHttp.vibe";
 export * from "./Parameter.ts";
-export * from "./ParameterEventSource.vibe";
+export * from "./ParameterEventSource.ts";
 export * from "./PutParameter.vibe";
 export * from "./PutParameterHttp.vibe";
 export * from "./UnlabelParameterVersion.vibe";

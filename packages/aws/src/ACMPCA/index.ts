@@ -1,5 +1,5 @@
 export * from "./CertificateAuthority.vibe";
-export * from "./CertificateAuthorityEventSource.vibe";
+export * from "./CertificateAuthorityEventSource.ts";
 export * from "./CertificateAuthorityPolicy.vibe";
 export * from "./CreateCertificateAuthorityAuditReport.vibe";
 export * from "./CreateCertificateAuthorityAuditReportHttp.vibe";

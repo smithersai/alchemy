@@ -22,7 +22,7 @@ export * from "./InvokeDataAutomationAsyncHttp.vibe";
 export * from "./InvokeDataAutomationHttp.vibe";
 export * from "./InvokeDataAutomationLibraryIngestionJob.vibe";
 export * from "./InvokeDataAutomationLibraryIngestionJobHttp.vibe";
-export * from "./JobEventSource.vibe";
+export * from "./JobEventSource.ts";
 export * from "./ListDataAutomationLibraryEntities.vibe";
 export * from "./ListDataAutomationLibraryEntitiesHttp.vibe";
 export * from "./ListDataAutomationLibraryIngestionJobs.vibe";

@@ -12,7 +12,7 @@ import {
   s3State,
   stateBucketExists,
   stateEnvironment,
-} from "../StateStore/State.vibe";
+} from "../StateStore/State.ts";
 
 /**
  * Ensure a state bucket (by default the account's in this region) with the

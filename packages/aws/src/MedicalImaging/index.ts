@@ -11,7 +11,7 @@ export * from "./GetImageSet.vibe";
 export * from "./GetImageSetHttp.vibe";
 export * from "./GetImageSetMetadata.vibe";
 export * from "./GetImageSetMetadataHttp.vibe";
-export * from "./ImagingEventSource.vibe";
+export * from "./ImagingEventSource.ts";
 export * from "./ListDICOMImportJobs.vibe";
 export * from "./ListDICOMImportJobsHttp.vibe";
 export * from "./ListImageSetVersions.vibe";

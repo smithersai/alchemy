@@ -1,7 +1,7 @@
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord } from "../EventBridge/EventSource.vibe";
+import { type EventRecord } from "../EventBridge/EventSource.ts";
 import type { AutoScalingGroup } from "./AutoScalingGroup.ts";
 import { LifecycleHook, type LifecycleActionResult, type LifecycleTransition } from "./LifecycleHook.vibe";
 /**
@@ -154,4 +154,4 @@ export interface LifecycleHookEventSourceProps {
  * );
  * ```
  */
-export declare const consumeLifecycleActions: <StreamReq = never, Req = never>(group: AutoScalingGroup, props: LifecycleHookEventSourceProps, process: (events: Stream.Stream<LifecycleActionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<LifecycleHook, never, import("../EventBridge/EventSource.vibe").EventSource | import("../Providers.ts").Providers>;
+export declare const consumeLifecycleActions: <StreamReq = never, Req = never>(group: AutoScalingGroup, props: LifecycleHookEventSourceProps, process: (events: Stream.Stream<LifecycleActionEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<LifecycleHook, never, import("../EventBridge/EventSource.ts").EventSource | import("../Providers.ts").Providers>;

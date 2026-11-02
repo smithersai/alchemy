@@ -20,7 +20,7 @@ export * from "./GetCoreDevice.vibe";
 export * from "./GetCoreDeviceHttp.vibe";
 export * from "./GetDeployment.vibe";
 export * from "./GetDeploymentHttp.vibe";
-export * from "./GreengrassEventSource.vibe";
+export * from "./GreengrassEventSource.ts";
 export * from "./ListClientDevicesAssociatedWithCoreDevice.vibe";
 export * from "./ListClientDevicesAssociatedWithCoreDeviceHttp.vibe";
 export * from "./ListComponents.vibe";

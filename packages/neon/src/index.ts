@@ -18,7 +18,7 @@ export * from "./Connect.vibe";
 export * from "./BranchScope.ts";
 export * from "./Credential.ts";
 export * from "./Role.vibe";
-export * from "./Bucket.vibe";
+export * from "./Bucket.ts";
 export * from "./Object.ts";
 export * from "./ReadBucket.vibe";
 export * from "./WriteBucket.vibe";
@@ -39,7 +39,7 @@ export {
   OrganizationApiKeyRecoveryError,
   type OrganizationApiKeyProps,
   type OrganizationApiKeyAttributes,
-} from "./OrganizationApiKey.vibe";
+} from "./OrganizationApiKey.ts";
 export {
   OrganizationMemberRole,
   OrganizationMemberRoleProvider,

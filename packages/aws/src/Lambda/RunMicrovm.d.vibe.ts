@@ -1,7 +1,7 @@
 import type * as microvms from "@distilled.cloud/aws/lambda-microvms";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { MicrovmImage } from "./MicrovmImage.vibe";
+import type { MicrovmImage } from "./MicrovmImage.ts";
 export interface RunMicrovmRequest extends Omit<microvms.RunMicrovmRequest, "imageIdentifier"> {
 }
 /**

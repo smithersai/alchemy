@@ -17,7 +17,7 @@ import {
   sameStringList,
   toResourceId,
 } from "./names.vibe";
-import { waitForOperation } from "./operations.vibe";
+import { waitForOperation } from "./operations.ts";
 import {
   createInternalLabels,
   encodeOwnership,

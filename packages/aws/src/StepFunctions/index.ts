@@ -4,7 +4,7 @@ export * from "./DescribeExecution.vibe";
 export * from "./DescribeExecutionHttp.vibe";
 export * from "./DescribeMapRun.vibe";
 export * from "./DescribeMapRunHttp.vibe";
-export * from "./ExecutionEventSource.vibe";
+export * from "./ExecutionEventSource.ts";
 export * from "./GetActivityTask.vibe";
 export * from "./GetActivityTaskHttp.vibe";
 export * from "./GetExecutionHistory.vibe";

@@ -29,7 +29,7 @@ export * from "./GetTraceSegmentDestinationHttp.vibe";
 export * from "./GetTraceSummaries.vibe";
 export * from "./GetTraceSummariesHttp.vibe";
 export * from "./Group.vibe";
-export * from "./InsightEventSource.vibe";
+export * from "./InsightEventSource.ts";
 export * from "./ListRetrievedTraces.vibe";
 export * from "./ListRetrievedTracesHttp.vibe";
 export * from "./PutTelemetryRecords.vibe";

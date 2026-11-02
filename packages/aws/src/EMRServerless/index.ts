@@ -12,7 +12,7 @@ export * from "./GetSessionEndpoint.vibe";
 export * from "./GetSessionEndpointHttp.vibe";
 export * from "./GetSessionHttp.vibe";
 export { EmrServerlessStateTimeout } from "./internal.vibe";
-export * from "./JobRunEventSource.vibe";
+export * from "./JobRunEventSource.ts";
 export * from "./ListJobRunAttempts.vibe";
 export * from "./ListJobRunAttemptsHttp.vibe";
 export * from "./ListJobRuns.vibe";

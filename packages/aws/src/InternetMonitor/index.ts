@@ -6,7 +6,7 @@ export * from "./GetQueryResults.vibe";
 export * from "./GetQueryResultsHttp.vibe";
 export * from "./GetQueryStatus.vibe";
 export * from "./GetQueryStatusHttp.vibe";
-export * from "./HealthEventSource.vibe";
+export * from "./HealthEventSource.ts";
 export * from "./ListHealthEvents.vibe";
 export * from "./ListHealthEventsHttp.vibe";
 export * from "./ListInternetEvents.vibe";

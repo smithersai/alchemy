@@ -20,7 +20,7 @@ export * from "./GetRestoreJobMetadata.vibe";
 export * from "./GetRestoreJobMetadataHttp.vibe";
 export * from "./GetSupportedResourceTypes.vibe";
 export * from "./GetSupportedResourceTypesHttp.vibe";
-export * from "./JobEventSource.vibe";
+export * from "./JobEventSource.ts";
 export * from "./ListBackupJobs.vibe";
 export * from "./ListBackupJobsHttp.vibe";
 export * from "./ListCopyJobs.vibe";

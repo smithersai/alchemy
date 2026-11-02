@@ -16,11 +16,11 @@ export * from "./DescribeDomains.vibe";
 export * from "./DescribeDomainsHttp.vibe";
 export * from "./DataPlaneTypes.vibe";
 export * from "./Domain.vibe";
-export * from "./DomainEventSource.vibe";
+export * from "./DomainEventSource.ts";
 export * from "./DomainRead.vibe";
 export * from "./DomainReadHttp.vibe";
 export * from "./DomainReadWrite.vibe";
-export * from "./DomainReadWriteHttp.vibe";
+export * from "./DomainReadWriteHttp.ts";
 export * from "./DomainWrite.vibe";
 export * from "./DomainWriteHttp.vibe";
 // NOTE: BindingHttp.ts and DataPlaneHttp.ts are internal scaffolding —

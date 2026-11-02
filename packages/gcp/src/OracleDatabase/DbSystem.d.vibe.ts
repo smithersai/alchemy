@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { type TimeZone } from "./internal.vibe";
+import { type TimeZone } from "./internal.ts";
 export type DbHome = {
     /** Enable unified auditing. */
     isUnifiedAuditingEnabled?: boolean;

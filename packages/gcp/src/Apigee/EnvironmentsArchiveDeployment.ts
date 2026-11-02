@@ -28,7 +28,7 @@ import {
   parseOrgEnv,
   toResourceId,
 } from "./common.vibe";
-import { waitForOperation } from "./operations.vibe";
+import { waitForOperation } from "./operations.ts";
 
 const MAX_NAME_LENGTH = 63;
 

@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Stream from "effect/Stream";
-import { type ImageSourceLike } from "../ECR/ImageSource.vibe";
+import { type ImageSourceLike } from "../ECR/ImageSource.ts";
 /**
  * A stream of "the image source changed" triggers for a props bag:
  *

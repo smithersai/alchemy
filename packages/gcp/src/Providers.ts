@@ -573,8 +573,8 @@ import {
   SavedQuery as CloudassetSavedQuery,
   SavedQueryProvider as CloudassetSavedQueryProvider,
 } from "./CloudAsset/SavedQuery.vibe";
-import { AccessReadTokenHttp as CloudBuildAccessReadTokenHttp } from "./CloudBuild/AccessReadTokenHttp.vibe";
-import { AccessReadWriteTokenHttp as CloudBuildAccessReadWriteTokenHttp } from "./CloudBuild/AccessReadWriteTokenHttp.vibe";
+import { AccessReadTokenHttp as CloudBuildAccessReadTokenHttp } from "./CloudBuild/AccessReadTokenHttp.ts";
+import { AccessReadWriteTokenHttp as CloudBuildAccessReadWriteTokenHttp } from "./CloudBuild/AccessReadWriteTokenHttp.ts";
 import {
   Connection as CloudBuildConnection,
   ConnectionProvider as CloudBuildConnectionProvider,
@@ -966,19 +966,19 @@ import { GkeKubernetesAdapter } from "./Container/KubernetesAdapter.ts";
 import { NodePool, NodePoolProvider } from "./Container/NodePool.ts";
 import { GetNoteHttp } from "./ContainerAnalysis/GetNoteHttp.vibe";
 import { GetOccurrenceHttp } from "./ContainerAnalysis/GetOccurrenceHttp.vibe";
-import { LocationsNote, LocationsNoteProvider } from "./ContainerAnalysis/LocationsNote.vibe";
+import { LocationsNote, LocationsNoteProvider } from "./ContainerAnalysis/LocationsNote.ts";
 import {
   LocationsOccurrence,
   LocationsOccurrenceProvider,
-} from "./ContainerAnalysis/LocationsOccurrence.vibe";
+} from "./ContainerAnalysis/LocationsOccurrence.ts";
 import {
   Note as ContaineranalysisNote,
   NoteProvider as ContaineranalysisNoteProvider,
-} from "./ContainerAnalysis/Note.vibe";
+} from "./ContainerAnalysis/Note.ts";
 import {
   Occurrence as ContaineranalysisOccurrence,
   OccurrenceProvider as ContaineranalysisOccurrenceProvider,
-} from "./ContainerAnalysis/Occurrence.vibe";
+} from "./ContainerAnalysis/Occurrence.ts";
 import {
   Document as ContentwarehouseDocument,
   DocumentProvider as ContentwarehouseDocumentProvider,

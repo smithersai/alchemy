@@ -2,7 +2,7 @@ export * from "./Dataset.vibe";
 export * from "./DescribeJobRun.vibe";
 export * from "./DescribeJobRunHttp.vibe";
 export * from "./Job.ts";
-export * from "./JobEventSource.vibe";
+export * from "./JobEventSource.ts";
 export * from "./ListJobRuns.vibe";
 export * from "./ListJobRunsHttp.vibe";
 export * from "./Project.vibe";

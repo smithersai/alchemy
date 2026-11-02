@@ -1,4 +1,4 @@
-export type { CustomerContact, TimeZone } from "./internal.vibe";
+export type { CustomerContact, TimeZone } from "./internal.ts";
 export * from "./AutonomousDatabase.vibe";
 export * from "./CloudExadataInfrastructure.vibe";
 export * from "./CloudVmCluster.vibe";

@@ -28,7 +28,7 @@ import {
   waitUntilExists,
   waitUntilGone,
   waitUntilReady,
-} from "./internal.vibe";
+} from "./internal.ts";
 
 const DEFAULT_SCHEDULE = "HOURLY";
 const STOPPED = "STOPPED";

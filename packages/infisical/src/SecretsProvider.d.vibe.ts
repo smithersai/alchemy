@@ -1,6 +1,6 @@
 import { type SecretsLayer, type SecretsOption } from "alchemy/Secrets/Provider";
 import { UserFacingError } from "alchemy/UserFacingError";
-import { type InfisicalResolvedCredentials } from "./AuthProvider.vibe";
+import { type InfisicalResolvedCredentials } from "./AuthProvider.ts";
 export interface InfisicalOptions {
     /**
      * Project slug, or the project's UUID. Infisical only resolves slugs for

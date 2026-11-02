@@ -21,7 +21,7 @@
  * const custom = yield* cache.send("ECHO", ["hi"]);
  * ```
  */
-export * from "./Client.vibe";
+export * from "./Client.ts";
 export * from "./Errors.vibe";
 export * from "./Protocol.ts";
 export * from "./Resp.ts";

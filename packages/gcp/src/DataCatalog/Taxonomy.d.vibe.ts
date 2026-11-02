@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { type TaxonomyActivatedPolicyType } from "./internal.vibe";
+import { type TaxonomyActivatedPolicyType } from "./internal.ts";
 export type { TaxonomyActivatedPolicyType };
 export type TaxonomyProps = {
     /**

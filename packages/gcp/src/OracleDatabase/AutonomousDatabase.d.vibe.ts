@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { type CustomerContact } from "./internal.vibe";
+import { type CustomerContact } from "./internal.ts";
 export type EncryptionKey = {
     /** Key provider (`GOOGLE_MANAGED` or `ORACLE_MANAGED`). */
     provider?: oracle.EncryptionKeyProviderEnum | (string & {});

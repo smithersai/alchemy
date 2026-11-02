@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { getWebResourceToken, type SiteType, type VerificationMethod } from "./internal.vibe";
+import { getWebResourceToken, type SiteType, type VerificationMethod } from "./internal.ts";
 export type { SiteType, VerificationMethod };
 export { getWebResourceToken };
 export type WebResourceProps = {

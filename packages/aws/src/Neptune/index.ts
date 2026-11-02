@@ -25,7 +25,7 @@ export * from "./DescribePendingMaintenanceActions.vibe";
 export * from "./DescribePendingMaintenanceActionsHttp.vibe";
 export * from "./FailoverDBCluster.vibe";
 export * from "./FailoverDBClusterHttp.vibe";
-export * from "./NeptuneEventSource.vibe";
+export * from "./NeptuneEventSource.ts";
 export * from "./RebootDBInstance.vibe";
 export * from "./RebootDBInstanceHttp.vibe";
 export * from "./StartDBCluster.vibe";

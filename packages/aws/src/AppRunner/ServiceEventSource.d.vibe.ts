@@ -1,7 +1,7 @@
 import type * as apprunner from "@distilled.cloud/aws/apprunner";
 import * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.ts";
 /**
  * The `detail` payload App Runner delivers to EventBridge when a service's
  * lifecycle status changes (e.g. `OPERATION_IN_PROGRESS` -> `RUNNING`).
@@ -87,7 +87,7 @@ export interface OperationStatusChangeEventSourceProps extends EventRouteProps {
  * );
  * ```
  */
-export declare const consumeServiceStatusChanges: <StreamReq = never, Req = never>(props: ServiceStatusChangeEventSourceProps, process: (events: Stream.Stream<ServiceStatusChangeEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeServiceStatusChanges: <StreamReq = never, Req = never>(props: ServiceStatusChangeEventSourceProps, process: (events: Stream.Stream<ServiceStatusChangeEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.ts").EventSource>;
 /**
  * Deliver App Runner operation status changes (`aws.apprunner` /
  * `"AppRunner Service Operation Status Change"` EventBridge events) to the
@@ -112,4 +112,4 @@ export declare const consumeServiceStatusChanges: <StreamReq = never, Req = neve
  * );
  * ```
  */
-export declare const consumeOperationStatusChanges: <StreamReq = never, Req = never>(props: OperationStatusChangeEventSourceProps, process: (events: Stream.Stream<OperationStatusChangeEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;
+export declare const consumeOperationStatusChanges: <StreamReq = never, Req = never>(props: OperationStatusChangeEventSourceProps, process: (events: Stream.Stream<OperationStatusChangeEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.ts").EventSource>;

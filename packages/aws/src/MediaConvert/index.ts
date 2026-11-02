@@ -7,7 +7,7 @@ export * from "./GetJobHttp.vibe";
 export * from "./GetJobsQueryResults.vibe";
 export * from "./GetJobsQueryResultsHttp.vibe";
 export * from "./Job.vibe";
-export * from "./JobEventSource.vibe";
+export * from "./JobEventSource.ts";
 export * from "./JobTemplate.vibe";
 export * from "./ListJobs.vibe";
 export * from "./ListJobsHttp.vibe";

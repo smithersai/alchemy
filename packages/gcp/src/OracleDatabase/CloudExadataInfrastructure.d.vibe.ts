@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { type CustomerContact } from "./internal.vibe";
+import { type CustomerContact } from "./internal.ts";
 export type MaintenanceWindow = {
     /** Scheduling preference (`CUSTOM_PREFERENCE`, `NO_PREFERENCE`). */
     preference?: oracle.MaintenanceWindowPreferenceEnum | (string & {});

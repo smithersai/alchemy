@@ -1,7 +1,7 @@
 import * as k2 from "@distilled.cloud/cloudflare/k2";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { toProduceRecords } from "./K2Codec.vibe";
+import { toProduceRecords } from "./K2Codec.ts";
 import { type K2Auth, makeK2HttpAuth } from "./K2Http.ts";
 import type { EncodedRecord, RecordSchema } from "./K2Types.vibe";
 import type { Stream } from "./Stream.ts";

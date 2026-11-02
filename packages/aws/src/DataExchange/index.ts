@@ -7,7 +7,7 @@ export * from "./CreateDataGrantHttp.vibe";
 export * from "./CreateJob.vibe";
 export * from "./CreateJobHttp.vibe";
 export * from "./DataSet.vibe";
-export * from "./DataSetEventSource.vibe";
+export * from "./DataSetEventSource.ts";
 export * from "./DeleteAsset.vibe";
 export * from "./DeleteAssetHttp.vibe";
 export * from "./DeleteDataGrant.vibe";

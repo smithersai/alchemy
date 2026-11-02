@@ -12,7 +12,7 @@ import type { PolicyDocument } from "../../IAM/Policy.vibe";
 import { Role, type Role as RoleResource } from "../../IAM/Role.ts";
 import type { Cluster } from "../Cluster.ts";
 import { PodIdentityAssociation, type PodIdentityAssociation as PodIdentityAssociationResource } from "../PodIdentityAssociation.vibe";
-import { type ClusterObjectRef } from "./ClusterObject.vibe";
+import { type ClusterObjectRef } from "./ClusterObject.ts";
 export interface PodIdentityServiceAccountProps {
     /** Target EKS cluster. */
     cluster: Cluster;

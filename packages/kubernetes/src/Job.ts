@@ -31,7 +31,7 @@ import {
   type WorkloadServices,
 } from "./ClusterAdapter.ts";
 import { toConnection, type ClusterLike, type Connection } from "./Connection.ts";
-import { makeConnectionRegistry } from "./internal/registry.vibe";
+import { makeConnectionRegistry } from "./internal/registry.ts";
 import {
   collectBindingEnv,
   containerEnvValue,

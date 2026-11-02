@@ -49,7 +49,7 @@ export * from "./EnableImportFindingsForProductHttp.vibe";
 export * from "./EnableOrganizationAdminAccount.vibe";
 export * from "./EnableOrganizationAdminAccountHttp.vibe";
 export * from "./FindingAggregator.vibe";
-export * from "./FindingEventSource.vibe";
+export * from "./FindingEventSource.ts";
 export * from "./GetAdministratorAccount.vibe";
 export * from "./GetAdministratorAccountHttp.vibe";
 export * from "./GetEnabledStandards.vibe";

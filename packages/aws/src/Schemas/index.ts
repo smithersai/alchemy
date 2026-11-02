@@ -15,7 +15,7 @@ export * from "./PutCodeBinding.vibe";
 export * from "./PutCodeBindingHttp.vibe";
 export * from "./Registry.vibe";
 export * from "./Schema.vibe";
-export * from "./SchemaEventSource.vibe";
+export * from "./SchemaEventSource.ts";
 export * from "./SearchSchemas.vibe";
 export * from "./SearchSchemasHttp.vibe";
 export * from "./StartDiscoverer.vibe";

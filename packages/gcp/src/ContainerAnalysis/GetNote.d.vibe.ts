@@ -2,7 +2,7 @@ import type * as containeranalysis from "@distilled.cloud/gcp/containeranalysis_
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Note } from "./Note.vibe";
+import type { Note } from "./Note.ts";
 export interface GetNoteRequest extends Omit<containeranalysis.GetProjectsNotesRequest, "name"> {
 }
 /**
