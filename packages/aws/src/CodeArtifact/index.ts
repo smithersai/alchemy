@@ -1,5 +1,5 @@
 export * from "./CopyPackageVersions.vibe";
-export * from "./CopyPackageVersionsHttp.ts";
+export * from "./CopyPackageVersionsHttp.vibe";
 export * from "./DeletePackage.vibe";
 export * from "./DeletePackageHttp.vibe";
 export * from "./DeletePackageVersions.vibe";

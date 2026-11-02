@@ -32,7 +32,7 @@ export * from "./GetTable.vibe";
 export * from "./GetTableHttp.vibe";
 export * from "./GetTables.vibe";
 export * from "./GetTablesHttp.vibe";
-export * from "./Job.ts";
+export * from "./Job.vibe";
 export * from "./JobEventSource.ts";
 export * from "./ResetJobBookmark.vibe";
 export * from "./ResetJobBookmarkHttp.vibe";

@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { Table } from "./Table.vibe";
-import type { TableBucket } from "./TableBucket.ts";
+import type { TableBucket } from "./TableBucket.vibe";
 /**
  * Shared scaffolding for the S3 Tables runtime bindings.
  *

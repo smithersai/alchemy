@@ -47,7 +47,7 @@ import { isSecret } from "../SecretsStore/Secret.ts";
 import { isStream } from "../Stream/Stream.ts";
 import { isIndex } from "../Vectorize/VectorizeIndex.ts";
 import { isVpcService } from "../VpcService/VpcService.ts";
-import type { VpcServiceLookup } from "../VpcService/VpcServiceLookup.ts";
+import type { VpcServiceLookup } from "../VpcService/VpcServiceLookup.vibe";
 import { isDispatchNamespace } from "../WorkersForPlatforms/DispatchNamespace.ts";
 import { isWorkflowLike, WorkflowResource, type WorkflowBinding } from "../Workflows/Workflow.ts";
 import { asScriptNameOutput, makeWorkflowName } from "../Workflows/WorkflowName.ts";

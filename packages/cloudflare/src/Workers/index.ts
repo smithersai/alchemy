@@ -1,4 +1,4 @@
-export * from "./AccountSetting.ts";
+export * from "./AccountSetting.vibe";
 export { UnsupportedAlarmSchemaVersion } from "./DurableObjectAlarmStorage.ts";
 export * from "./AI.ts";
 export * from "./AIBinding.vibe";

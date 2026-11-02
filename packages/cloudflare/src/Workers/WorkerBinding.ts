@@ -31,7 +31,7 @@ import type { Secret } from "../SecretsStore/Secret.ts";
 import type { StreamBinding } from "../Stream/StreamBinding.vibe";
 import type { Index as VectorizeIndex } from "../Vectorize/VectorizeIndex.ts";
 import type { VpcService } from "../VpcService/VpcService.ts";
-import type { VpcServiceLookup } from "../VpcService/VpcServiceLookup.ts";
+import type { VpcServiceLookup } from "../VpcService/VpcServiceLookup.vibe";
 import type { DispatchNamespace } from "../WorkersForPlatforms/DispatchNamespace.ts";
 import type { WorkflowLike } from "../Workflows/Workflow.ts";
 import type { AIBinding } from "./AIBinding.vibe";

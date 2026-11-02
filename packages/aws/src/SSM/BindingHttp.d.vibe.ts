@@ -1,6 +1,6 @@
 import type { Output as OutputType } from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import type { Parameter } from "./Parameter.ts";
+import type { Parameter } from "./Parameter.vibe";
 /**
  * Shared scaffolding for AWS SSM Parameter Store HTTP bindings.
  *

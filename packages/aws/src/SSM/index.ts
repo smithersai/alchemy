@@ -8,7 +8,7 @@ export * from "./GetParametersByPathHttp.vibe";
 export * from "./GetParametersHttp.ts";
 export * from "./LabelParameterVersion.vibe";
 export * from "./LabelParameterVersionHttp.vibe";
-export * from "./Parameter.ts";
+export * from "./Parameter.vibe";
 export * from "./ParameterEventSource.ts";
 export * from "./PutParameter.vibe";
 export * from "./PutParameterHttp.vibe";

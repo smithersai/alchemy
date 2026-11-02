@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { makeAmpWorkspaceHttpBinding, toPromDuration, toPromTime } from "./BindingHttp.ts";
+import { makeAmpWorkspaceHttpBinding, toPromDuration, toPromTime } from "./BindingHttp.vibe";
 import type { PrometheusInstantResult, PrometheusRangeResult } from "./PrometheusTypes.vibe";
 import {
   QueryMetrics,

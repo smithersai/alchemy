@@ -12,6 +12,6 @@ export * from "./Function.vibe";
 export * from "./GetIntrospectionSchema.vibe";
 export * from "./GetIntrospectionSchemaHttp.vibe";
 export * from "./GraphQL.vibe";
-export * from "./GraphQLHttp.ts";
+export * from "./GraphQLHttp.vibe";
 export * from "./GraphqlApi.vibe";
 export * from "./Resolver.vibe";

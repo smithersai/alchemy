@@ -1,6 +1,6 @@
-export * from "./AccountSettings.ts";
+export * from "./AccountSettings.vibe";
 export * from "./DnsHttp.ts";
-export * from "./Dnssec.ts";
+export * from "./Dnssec.vibe";
 export * from "./Firewall.ts";
 export * from "./ReadDns.vibe";
 export * from "./ReadDnsHttp.vibe";
@@ -13,7 +13,7 @@ export * from "./View.ts";
 export * from "./WriteDns.vibe";
 export * from "./WriteDnsHttp.vibe";
 export * from "./WriteDnsLocal.vibe";
-export * from "./ZoneSettings.ts";
+export * from "./ZoneSettings.vibe";
 export * from "./ZoneTransferAcl.ts";
 export * from "./ZoneTransferIncoming.ts";
 export * from "./ZoneTransferOutgoing.ts";

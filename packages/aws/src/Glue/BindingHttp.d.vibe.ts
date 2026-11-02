@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import type { Crawler } from "./Crawler.vibe";
 import type { Database } from "./Database.vibe";
-import type { Job } from "./Job.ts";
+import type { Job } from "./Job.vibe";
 import type { Table } from "./Table.vibe";
 /**
  * Shared scaffolding for AWS Glue HTTP bindings.

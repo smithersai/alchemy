@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { readTranslateTags, syncTranslateTags } from "./internal.ts";
+import { readTranslateTags, syncTranslateTags } from "./internal.vibe";
 
 /**
  * The parallel data import failed server-side (`Status: FAILED`) — usually a

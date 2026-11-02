@@ -1,7 +1,7 @@
 import type * as SSM from "@distilled.cloud/aws/ssm";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Parameter } from "./Parameter.ts";
+import type { Parameter } from "./Parameter.vibe";
 export interface LabelParameterVersionRequest extends Omit<SSM.LabelParameterVersionRequest, "Name"> {
 }
 /**

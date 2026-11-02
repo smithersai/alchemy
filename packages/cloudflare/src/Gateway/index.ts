@@ -1,5 +1,5 @@
 export * from "./Certificate.ts";
-export * from "./Configuration.ts";
+export * from "./Configuration.vibe";
 export * from "./List.ts";
 export * from "./Location.ts";
 export * from "./Logging.ts";

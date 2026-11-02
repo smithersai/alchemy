@@ -1,6 +1,6 @@
 import * as alerting from "@distilled.cloud/cloudflare/alerting";
 import * as Effect from "effect/Effect";
-import type { AlertType, NotificationPolicyMechanisms } from "./NotificationPolicy.ts";
+import type { AlertType, NotificationPolicyMechanisms } from "./NotificationPolicy.vibe";
 export interface ObservedPolicy {
     readonly id: string;
     readonly name?: string;

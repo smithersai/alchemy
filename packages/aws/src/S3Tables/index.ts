@@ -10,7 +10,7 @@ export * from "./ListTables.vibe";
 export * from "./ListTablesHttp.vibe";
 export * from "./Namespace.vibe";
 export * from "./Table.vibe";
-export * from "./TableBucket.ts";
+export * from "./TableBucket.vibe";
 export * from "./UpdateTableMetadataLocation.vibe";
 export * from "./UpdateTableMetadataLocationHttp.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding and intentionally NOT exported.
