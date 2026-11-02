@@ -15,6 +15,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface DeleteBuildBatch extends Binding.Service<DeleteBuildBatch, "AWS.CodeBuild.DeleteBuildBatch", <P extends Project>(project: P) => Effect.Effect<((request: SVC.DeleteBuildBatchInput) => Effect.Effect<SVC.DeleteBuildBatchOutput, SVC.DeleteBuildBatchError>)>> {
+export interface DeleteBuildBatch extends Binding.Service<DeleteBuildBatch, "AWS.CodeBuild.DeleteBuildBatch", <P extends Project>(project: P) => Effect.Effect<(request: SVC.DeleteBuildBatchInput) => Effect.Effect<SVC.DeleteBuildBatchOutput, SVC.DeleteBuildBatchError>>> {
 }
 export declare const DeleteBuildBatch: DeleteBuildBatch;

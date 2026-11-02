@@ -1,8 +1,8 @@
 import * as backupdr from "@distilled.cloud/gcp/backupdr_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type BackupWindow = {
     /**
      * Hour of day (`0`–`23`) when the window starts.

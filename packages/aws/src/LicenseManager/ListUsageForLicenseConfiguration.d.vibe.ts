@@ -28,6 +28,6 @@ export interface ListUsageForLicenseConfigurationRequest extends Omit<licenseman
  *
  * @binding
  */
-export interface ListUsageForLicenseConfiguration extends Binding.Service<ListUsageForLicenseConfiguration, "AWS.LicenseManager.ListUsageForLicenseConfiguration", (configuration: LicenseConfiguration) => Effect.Effect<((request?: ListUsageForLicenseConfigurationRequest) => Effect.Effect<licensemanager.ListUsageForLicenseConfigurationResponse, licensemanager.ListUsageForLicenseConfigurationError>)>> {
+export interface ListUsageForLicenseConfiguration extends Binding.Service<ListUsageForLicenseConfiguration, "AWS.LicenseManager.ListUsageForLicenseConfiguration", (configuration: LicenseConfiguration) => Effect.Effect<(request?: ListUsageForLicenseConfigurationRequest) => Effect.Effect<licensemanager.ListUsageForLicenseConfigurationResponse, licensemanager.ListUsageForLicenseConfigurationError>>> {
 }
 export declare const ListUsageForLicenseConfiguration: ListUsageForLicenseConfiguration;

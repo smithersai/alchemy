@@ -19,6 +19,6 @@ export interface ListPipelineExecutionsRequest extends Omit<SVC.ListPipelineExec
  *
  * @binding
  */
-export interface ListPipelineExecutions extends Binding.Service<ListPipelineExecutions, "AWS.CodePipeline.ListPipelineExecutions", <P extends Pipeline>(pipeline: P) => Effect.Effect<((request?: ListPipelineExecutionsRequest) => Effect.Effect<SVC.ListPipelineExecutionsOutput, SVC.ListPipelineExecutionsError>)>> {
+export interface ListPipelineExecutions extends Binding.Service<ListPipelineExecutions, "AWS.CodePipeline.ListPipelineExecutions", <P extends Pipeline>(pipeline: P) => Effect.Effect<(request?: ListPipelineExecutionsRequest) => Effect.Effect<SVC.ListPipelineExecutionsOutput, SVC.ListPipelineExecutionsError>>> {
 }
 export declare const ListPipelineExecutions: ListPipelineExecutions;

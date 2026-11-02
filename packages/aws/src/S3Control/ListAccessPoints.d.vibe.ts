@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAccessPoints extends Binding.Service<ListAccessPoints, "AWS.S3Control.ListAccessPoints", () => Effect.Effect<((request?: Omit<s3control.ListAccessPointsRequest, "AccountId">) => Effect.Effect<s3control.ListAccessPointsResult, s3control.ListAccessPointsError>)>> {
+export interface ListAccessPoints extends Binding.Service<ListAccessPoints, "AWS.S3Control.ListAccessPoints", () => Effect.Effect<(request?: Omit<s3control.ListAccessPointsRequest, "AccountId">) => Effect.Effect<s3control.ListAccessPointsResult, s3control.ListAccessPointsError>>> {
 }
 export declare const ListAccessPoints: ListAccessPoints;

@@ -7,7 +7,7 @@ import { type KubernetesObjectDefinition, type KubernetesObjectMetadata } from "
  * `Kubernetes.Manifest`.
  */
 import * as Effect from "effect/Effect";
-import type { Cluster } from "../Cluster.js";
+import type { Cluster } from "../Cluster.ts";
 export interface ClusterObjectProps {
     /** Target EKS cluster that will own this Kubernetes object. */
     cluster: Cluster;

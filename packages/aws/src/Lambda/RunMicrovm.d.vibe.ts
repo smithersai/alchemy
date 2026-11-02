@@ -28,6 +28,6 @@ export interface RunMicrovmRequest extends Omit<microvms.RunMicrovmRequest, "ima
  *
  * @binding
  */
-export interface RunMicrovm extends Binding.Service<RunMicrovm, "AWS.Lambda.RunMicrovm", (image: MicrovmImage) => Effect.Effect<((request: RunMicrovmRequest) => Effect.Effect<microvms.RunMicrovmResponse, microvms.RunMicrovmError>)>> {
+export interface RunMicrovm extends Binding.Service<RunMicrovm, "AWS.Lambda.RunMicrovm", (image: MicrovmImage) => Effect.Effect<(request: RunMicrovmRequest) => Effect.Effect<microvms.RunMicrovmResponse, microvms.RunMicrovmError>>> {
 }
 export declare const RunMicrovm: RunMicrovm;

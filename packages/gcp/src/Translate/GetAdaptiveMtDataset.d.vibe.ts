@@ -21,6 +21,6 @@ export interface GetAdaptiveMtDatasetRequest extends Omit<translate.GetProjectsL
  * @binding
  * @category Translate
  */
-export interface GetAdaptiveMtDataset extends Binding.Service<GetAdaptiveMtDataset, "GCP.Translate.GetAdaptiveMtDataset", (dataset: AdaptiveMtDataset) => Effect.Effect<((request?: GetAdaptiveMtDatasetRequest) => Effect.Effect<translate.AdaptiveMtDataset, translate.GetProjectsLocationsAdaptiveMtDatasetsError, RuntimeContext>)>> {
+export interface GetAdaptiveMtDataset extends Binding.Service<GetAdaptiveMtDataset, "GCP.Translate.GetAdaptiveMtDataset", (dataset: AdaptiveMtDataset) => Effect.Effect<(request?: GetAdaptiveMtDatasetRequest) => Effect.Effect<translate.AdaptiveMtDataset, translate.GetProjectsLocationsAdaptiveMtDatasetsError, RuntimeContext>>> {
 }
 export declare const GetAdaptiveMtDataset: GetAdaptiveMtDataset;

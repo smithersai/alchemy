@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/kinesis-analytics-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 export interface DeleteApplicationSnapshotRequest extends Omit<SVC.DeleteApplicationSnapshotRequest, "ApplicationName"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface DeleteApplicationSnapshotRequest extends Omit<SVC.DeleteApplica
  *
  * @binding
  */
-export interface DeleteApplicationSnapshot extends Binding.Service<DeleteApplicationSnapshot, "AWS.KinesisAnalyticsV2.DeleteApplicationSnapshot", <A extends Application>(application: A) => Effect.Effect<((request: DeleteApplicationSnapshotRequest) => Effect.Effect<SVC.DeleteApplicationSnapshotResponse, SVC.DeleteApplicationSnapshotError>)>> {
+export interface DeleteApplicationSnapshot extends Binding.Service<DeleteApplicationSnapshot, "AWS.KinesisAnalyticsV2.DeleteApplicationSnapshot", <A extends Application>(application: A) => Effect.Effect<(request: DeleteApplicationSnapshotRequest) => Effect.Effect<SVC.DeleteApplicationSnapshotResponse, SVC.DeleteApplicationSnapshotError>>> {
 }
 export declare const DeleteApplicationSnapshot: DeleteApplicationSnapshot;

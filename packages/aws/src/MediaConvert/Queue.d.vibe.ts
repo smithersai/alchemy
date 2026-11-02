@@ -1,7 +1,7 @@
 import * as mediaconvert from "@distilled.cloud/aws/mediaconvert";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface QueueProps {
     /**
      * Name of the queue. Must be unique within the account/region and match

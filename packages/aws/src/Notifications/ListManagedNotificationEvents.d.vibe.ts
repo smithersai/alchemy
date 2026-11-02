@@ -29,6 +29,6 @@ export interface ListManagedNotificationEventsRequest extends notifications.List
  *
  * @binding
  */
-export interface ListManagedNotificationEvents extends Binding.Service<ListManagedNotificationEvents, "AWS.Notifications.ListManagedNotificationEvents", () => Effect.Effect<((request?: ListManagedNotificationEventsRequest) => Effect.Effect<notifications.ListManagedNotificationEventsResponse, notifications.ListManagedNotificationEventsError>)>> {
+export interface ListManagedNotificationEvents extends Binding.Service<ListManagedNotificationEvents, "AWS.Notifications.ListManagedNotificationEvents", () => Effect.Effect<(request?: ListManagedNotificationEventsRequest) => Effect.Effect<notifications.ListManagedNotificationEventsResponse, notifications.ListManagedNotificationEventsError>>> {
 }
 export declare const ListManagedNotificationEvents: ListManagedNotificationEvents;

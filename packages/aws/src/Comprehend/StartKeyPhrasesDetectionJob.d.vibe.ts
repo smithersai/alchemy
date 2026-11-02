@@ -1,7 +1,7 @@
 import type * as comprehend from "@distilled.cloud/aws/comprehend";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 /**
  * `StartKeyPhrasesDetectionJob` request with `DataAccessRoleArn` defaulting to the role the
  * binding was constructed with.
@@ -44,6 +44,6 @@ export interface StartKeyPhrasesDetectionJobRequest extends Omit<comprehend.Star
  *
  * @binding
  */
-export interface StartKeyPhrasesDetectionJob extends Binding.Service<StartKeyPhrasesDetectionJob, "AWS.Comprehend.StartKeyPhrasesDetectionJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<((request: StartKeyPhrasesDetectionJobRequest) => Effect.Effect<comprehend.StartKeyPhrasesDetectionJobResponse, comprehend.StartKeyPhrasesDetectionJobError>)>> {
+export interface StartKeyPhrasesDetectionJob extends Binding.Service<StartKeyPhrasesDetectionJob, "AWS.Comprehend.StartKeyPhrasesDetectionJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<(request: StartKeyPhrasesDetectionJobRequest) => Effect.Effect<comprehend.StartKeyPhrasesDetectionJobResponse, comprehend.StartKeyPhrasesDetectionJobError>>> {
 }
 export declare const StartKeyPhrasesDetectionJob: StartKeyPhrasesDetectionJob;

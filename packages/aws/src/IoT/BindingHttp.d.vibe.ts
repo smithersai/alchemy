@@ -11,7 +11,7 @@ export declare const makeIotAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.IoT.DescribeEndpoint`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -27,7 +27,7 @@ export declare const makeIotThingHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.IoT.GetThingShadow`. */
     tag: string;
     /** The distilled operation; `thingName` is injected from the thing. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the thing ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(thing: Thing) => Effect.Effect<(request?: Omit<I, "thingName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -43,7 +43,7 @@ export declare const makeIotTopicHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.IoT.Publish`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the topic-filter ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(topicFilter?: string | undefined) => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -60,7 +60,7 @@ export declare const makeIotClientHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.IoT.GetConnection`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the client-filter ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(clientIdFilter?: string | undefined) => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

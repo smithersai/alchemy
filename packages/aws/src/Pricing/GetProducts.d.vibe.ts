@@ -36,6 +36,6 @@ export interface GetProductsRequest extends pricing.GetProductsRequest {
  *
  * @binding
  */
-export interface GetProducts extends Binding.Service<GetProducts, "AWS.Pricing.GetProducts", () => Effect.Effect<((request: GetProductsRequest) => Effect.Effect<pricing.GetProductsResponse, pricing.GetProductsError>)>> {
+export interface GetProducts extends Binding.Service<GetProducts, "AWS.Pricing.GetProducts", () => Effect.Effect<(request: GetProductsRequest) => Effect.Effect<pricing.GetProductsResponse, pricing.GetProductsError>>> {
 }
 export declare const GetProducts: GetProducts;

@@ -25,6 +25,6 @@ import type { Queue } from "./Queue.vibe";
  *
  * @binding
  */
-export interface ListJobParameterDefinitions extends Binding.Service<ListJobParameterDefinitions, "AWS.Deadline.ListJobParameterDefinitions", (queue: Queue) => Effect.Effect<((request: Omit<deadline.ListJobParameterDefinitionsRequest, "farmId" | "queueId">) => Effect.Effect<deadline.ListJobParameterDefinitionsResponse, deadline.ListJobParameterDefinitionsError>)>> {
+export interface ListJobParameterDefinitions extends Binding.Service<ListJobParameterDefinitions, "AWS.Deadline.ListJobParameterDefinitions", (queue: Queue) => Effect.Effect<(request: Omit<deadline.ListJobParameterDefinitionsRequest, "farmId" | "queueId">) => Effect.Effect<deadline.ListJobParameterDefinitionsResponse, deadline.ListJobParameterDefinitionsError>>> {
 }
 export declare const ListJobParameterDefinitions: ListJobParameterDefinitions;

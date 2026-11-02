@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface AcceptResourceShareInvitation extends Binding.Service<AcceptResourceShareInvitation, "AWS.RAM.AcceptResourceShareInvitation", () => Effect.Effect<((request: ram.AcceptResourceShareInvitationRequest) => Effect.Effect<ram.AcceptResourceShareInvitationResponse, ram.AcceptResourceShareInvitationError>)>> {
+export interface AcceptResourceShareInvitation extends Binding.Service<AcceptResourceShareInvitation, "AWS.RAM.AcceptResourceShareInvitation", () => Effect.Effect<(request: ram.AcceptResourceShareInvitationRequest) => Effect.Effect<ram.AcceptResourceShareInvitationResponse, ram.AcceptResourceShareInvitationError>>> {
 }
 export declare const AcceptResourceShareInvitation: AcceptResourceShareInvitation;

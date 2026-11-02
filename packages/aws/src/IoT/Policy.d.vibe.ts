@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * An IoT policy statement. Structurally similar to an IAM statement but
  * scopes IoT actions (`iot:Connect`, `iot:Publish`, `iot:Subscribe`,

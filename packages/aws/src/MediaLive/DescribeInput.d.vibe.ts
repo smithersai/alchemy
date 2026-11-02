@@ -24,6 +24,6 @@ import type { Input } from "./Input.vibe";
  *
  * @binding
  */
-export interface DescribeInput extends Binding.Service<DescribeInput, "AWS.MediaLive.DescribeInput", (input: Input) => Effect.Effect<(() => Effect.Effect<medialive.DescribeInputResponse, medialive.DescribeInputError>)>> {
+export interface DescribeInput extends Binding.Service<DescribeInput, "AWS.MediaLive.DescribeInput", (input: Input) => Effect.Effect<() => Effect.Effect<medialive.DescribeInputResponse, medialive.DescribeInputError>>> {
 }
 export declare const DescribeInput: DescribeInput;

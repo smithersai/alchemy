@@ -43,6 +43,6 @@ export interface DeleteMessageRequest extends Omit<ivschat.DeleteMessageRequest,
  *
  * @binding
  */
-export interface DeleteMessage extends Binding.Service<DeleteMessage, "AWS.IVSChat.DeleteMessage", (room: Room) => Effect.Effect<((request: DeleteMessageRequest) => Effect.Effect<ivschat.DeleteMessageResponse, ivschat.DeleteMessageError>)>> {
+export interface DeleteMessage extends Binding.Service<DeleteMessage, "AWS.IVSChat.DeleteMessage", (room: Room) => Effect.Effect<(request: DeleteMessageRequest) => Effect.Effect<ivschat.DeleteMessageResponse, ivschat.DeleteMessageError>>> {
 }
 export declare const DeleteMessage: DeleteMessage;

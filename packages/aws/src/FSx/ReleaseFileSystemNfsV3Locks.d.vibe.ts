@@ -22,6 +22,6 @@ import type { FileSystem } from "./FileSystem.vibe";
  *
  * @binding
  */
-export interface ReleaseFileSystemNfsV3Locks extends Binding.Service<ReleaseFileSystemNfsV3Locks, "AWS.FSx.ReleaseFileSystemNfsV3Locks", (fileSystem: FileSystem) => Effect.Effect<((request?: Omit<fsx.ReleaseFileSystemNfsV3LocksRequest, "FileSystemId">) => Effect.Effect<fsx.ReleaseFileSystemNfsV3LocksResponse, fsx.ReleaseFileSystemNfsV3LocksError>)>> {
+export interface ReleaseFileSystemNfsV3Locks extends Binding.Service<ReleaseFileSystemNfsV3Locks, "AWS.FSx.ReleaseFileSystemNfsV3Locks", (fileSystem: FileSystem) => Effect.Effect<(request?: Omit<fsx.ReleaseFileSystemNfsV3LocksRequest, "FileSystemId">) => Effect.Effect<fsx.ReleaseFileSystemNfsV3LocksResponse, fsx.ReleaseFileSystemNfsV3LocksError>>> {
 }
 export declare const ReleaseFileSystemNfsV3Locks: ReleaseFileSystemNfsV3Locks;

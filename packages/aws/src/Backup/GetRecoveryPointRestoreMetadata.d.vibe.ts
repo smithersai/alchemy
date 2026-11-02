@@ -34,6 +34,6 @@ export interface GetRecoveryPointRestoreMetadataRequest extends Omit<backup.GetR
  *
  * @binding
  */
-export interface GetRecoveryPointRestoreMetadata extends Binding.Service<GetRecoveryPointRestoreMetadata, "AWS.Backup.GetRecoveryPointRestoreMetadata", (vault: BackupVault) => Effect.Effect<((request: GetRecoveryPointRestoreMetadataRequest) => Effect.Effect<backup.GetRecoveryPointRestoreMetadataOutput, backup.GetRecoveryPointRestoreMetadataError>)>> {
+export interface GetRecoveryPointRestoreMetadata extends Binding.Service<GetRecoveryPointRestoreMetadata, "AWS.Backup.GetRecoveryPointRestoreMetadata", (vault: BackupVault) => Effect.Effect<(request: GetRecoveryPointRestoreMetadataRequest) => Effect.Effect<backup.GetRecoveryPointRestoreMetadataOutput, backup.GetRecoveryPointRestoreMetadataError>>> {
 }
 export declare const GetRecoveryPointRestoreMetadata: GetRecoveryPointRestoreMetadata;

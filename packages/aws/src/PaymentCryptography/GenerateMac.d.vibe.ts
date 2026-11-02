@@ -24,6 +24,6 @@ export interface GenerateMacRequest extends Omit<paymentcryptographydata.Generat
  *
  * @binding
  */
-export interface GenerateMac extends Binding.Service<GenerateMac, "AWS.PaymentCryptography.GenerateMac", <K extends Key>(key: K) => Effect.Effect<((request: GenerateMacRequest) => Effect.Effect<paymentcryptographydata.GenerateMacOutput, paymentcryptographydata.GenerateMacError>)>> {
+export interface GenerateMac extends Binding.Service<GenerateMac, "AWS.PaymentCryptography.GenerateMac", <K extends Key>(key: K) => Effect.Effect<(request: GenerateMacRequest) => Effect.Effect<paymentcryptographydata.GenerateMacOutput, paymentcryptographydata.GenerateMacError>>> {
 }
 export declare const GenerateMac: GenerateMac;

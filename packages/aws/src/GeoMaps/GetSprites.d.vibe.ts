@@ -32,6 +32,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSprites extends Binding.Service<GetSprites, "AWS.GeoMaps.GetSprites", () => Effect.Effect<((request: geoMaps.GetSpritesRequest) => Effect.Effect<geoMaps.GetSpritesResponse, geoMaps.GetSpritesError>)>> {
+export interface GetSprites extends Binding.Service<GetSprites, "AWS.GeoMaps.GetSprites", () => Effect.Effect<(request: geoMaps.GetSpritesRequest) => Effect.Effect<geoMaps.GetSpritesResponse, geoMaps.GetSpritesError>>> {
 }
 export declare const GetSprites: GetSprites;

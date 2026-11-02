@@ -1,7 +1,7 @@
 import type * as WAFV2 from "@distilled.cloud/aws/wafv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { RuleGroup } from "./RuleGroup.js";
+import type { RuleGroup } from "./RuleGroup.ts";
 /**
  * Runtime binding for `wafv2:GetPermissionPolicy` — read the IAM policy
  * that shares the bound {@link RuleGroup} with other accounts; the rule
@@ -26,6 +26,6 @@ import type { RuleGroup } from "./RuleGroup.js";
  *
  * @binding
  */
-export interface GetPermissionPolicy extends Binding.Service<GetPermissionPolicy, "AWS.WAFv2.GetPermissionPolicy", (ruleGroup: RuleGroup) => Effect.Effect<(() => Effect.Effect<WAFV2.GetPermissionPolicyResponse, WAFV2.GetPermissionPolicyError>)>> {
+export interface GetPermissionPolicy extends Binding.Service<GetPermissionPolicy, "AWS.WAFv2.GetPermissionPolicy", (ruleGroup: RuleGroup) => Effect.Effect<() => Effect.Effect<WAFV2.GetPermissionPolicyResponse, WAFV2.GetPermissionPolicyError>>> {
 }
 export declare const GetPermissionPolicy: GetPermissionPolicy;

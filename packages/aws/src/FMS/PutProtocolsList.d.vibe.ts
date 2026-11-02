@@ -26,6 +26,6 @@ export interface PutProtocolsListRequest extends fms.PutProtocolsListRequest {
  *
  * @binding
  */
-export interface PutProtocolsList extends Binding.Service<PutProtocolsList, "AWS.FMS.PutProtocolsList", () => Effect.Effect<((request: PutProtocolsListRequest) => Effect.Effect<fms.PutProtocolsListResponse, fms.PutProtocolsListError>)>> {
+export interface PutProtocolsList extends Binding.Service<PutProtocolsList, "AWS.FMS.PutProtocolsList", () => Effect.Effect<(request: PutProtocolsListRequest) => Effect.Effect<fms.PutProtocolsListResponse, fms.PutProtocolsListError>>> {
 }
 export declare const PutProtocolsList: PutProtocolsList;

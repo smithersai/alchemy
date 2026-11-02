@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetLifecyclePolicies extends Binding.Service<GetLifecyclePolicies, "AWS.DLM.GetLifecyclePolicies", () => Effect.Effect<((request?: dlm.GetLifecyclePoliciesRequest) => Effect.Effect<dlm.GetLifecyclePoliciesResponse, dlm.GetLifecyclePoliciesError>)>> {
+export interface GetLifecyclePolicies extends Binding.Service<GetLifecyclePolicies, "AWS.DLM.GetLifecyclePolicies", () => Effect.Effect<(request?: dlm.GetLifecyclePoliciesRequest) => Effect.Effect<dlm.GetLifecyclePoliciesResponse, dlm.GetLifecyclePoliciesError>>> {
 }
 export declare const GetLifecyclePolicies: GetLifecyclePolicies;

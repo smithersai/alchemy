@@ -1,7 +1,7 @@
 import type { PresignError } from "@distilled.cloud/aws/Presign";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface PresignGetObjectRequest {
     /**
      * Key of the object to mint a presigned download URL for.
@@ -67,6 +67,6 @@ export interface PresignGetObjectRequest {
  *
  * @binding
  */
-export interface PresignGetObject extends Binding.Service<PresignGetObject, "AWS.S3.PresignGetObject", (bucket: Bucket) => Effect.Effect<((request: PresignGetObjectRequest) => Effect.Effect<string, PresignError>)>> {
+export interface PresignGetObject extends Binding.Service<PresignGetObject, "AWS.S3.PresignGetObject", (bucket: Bucket) => Effect.Effect<(request: PresignGetObjectRequest) => Effect.Effect<string, PresignError>>> {
 }
 export declare const PresignGetObject: PresignGetObject;

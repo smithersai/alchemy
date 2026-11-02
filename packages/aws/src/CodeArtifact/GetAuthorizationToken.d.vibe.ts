@@ -43,6 +43,6 @@ export interface GetAuthorizationTokenRequest {
  *
  * @binding
  */
-export interface GetAuthorizationToken extends Binding.Service<GetAuthorizationToken, "AWS.CodeArtifact.GetAuthorizationToken", (domain: Domain) => Effect.Effect<((request?: GetAuthorizationTokenRequest) => Effect.Effect<codeartifact.GetAuthorizationTokenResult, codeartifact.GetAuthorizationTokenError>)>> {
+export interface GetAuthorizationToken extends Binding.Service<GetAuthorizationToken, "AWS.CodeArtifact.GetAuthorizationToken", (domain: Domain) => Effect.Effect<(request?: GetAuthorizationTokenRequest) => Effect.Effect<codeartifact.GetAuthorizationTokenResult, codeartifact.GetAuthorizationTokenError>>> {
 }
 export declare const GetAuthorizationToken: GetAuthorizationToken;

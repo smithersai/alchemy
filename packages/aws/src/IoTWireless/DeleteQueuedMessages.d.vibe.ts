@@ -31,6 +31,6 @@ export interface DeleteQueuedMessagesRequest extends Omit<iotw.DeleteQueuedMessa
  *
  * @binding
  */
-export interface DeleteQueuedMessages extends Binding.Service<DeleteQueuedMessages, "AWS.IoTWireless.DeleteQueuedMessages", (device: WirelessDevice) => Effect.Effect<((request: DeleteQueuedMessagesRequest) => Effect.Effect<iotw.DeleteQueuedMessagesResponse, iotw.DeleteQueuedMessagesError>)>> {
+export interface DeleteQueuedMessages extends Binding.Service<DeleteQueuedMessages, "AWS.IoTWireless.DeleteQueuedMessages", (device: WirelessDevice) => Effect.Effect<(request: DeleteQueuedMessagesRequest) => Effect.Effect<iotw.DeleteQueuedMessagesResponse, iotw.DeleteQueuedMessagesError>>> {
 }
 export declare const DeleteQueuedMessages: DeleteQueuedMessages;

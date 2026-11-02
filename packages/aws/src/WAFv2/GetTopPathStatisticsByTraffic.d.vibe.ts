@@ -1,7 +1,7 @@
 import type * as WAFV2 from "@distilled.cloud/aws/wafv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { WebACL } from "./WebACL.js";
+import type { WebACL } from "./WebACL.ts";
 export interface GetTopPathStatisticsByTrafficRequest extends Omit<WAFV2.GetTopPathStatisticsByTrafficRequest, "WebAclArn" | "Scope"> {
 }
 /**
@@ -35,6 +35,6 @@ export interface GetTopPathStatisticsByTrafficRequest extends Omit<WAFV2.GetTopP
  *
  * @binding
  */
-export interface GetTopPathStatisticsByTraffic extends Binding.Service<GetTopPathStatisticsByTraffic, "AWS.WAFv2.GetTopPathStatisticsByTraffic", (webAcl: WebACL) => Effect.Effect<((request: GetTopPathStatisticsByTrafficRequest) => Effect.Effect<WAFV2.GetTopPathStatisticsByTrafficResponse, WAFV2.GetTopPathStatisticsByTrafficError>)>> {
+export interface GetTopPathStatisticsByTraffic extends Binding.Service<GetTopPathStatisticsByTraffic, "AWS.WAFv2.GetTopPathStatisticsByTraffic", (webAcl: WebACL) => Effect.Effect<(request: GetTopPathStatisticsByTrafficRequest) => Effect.Effect<WAFV2.GetTopPathStatisticsByTrafficResponse, WAFV2.GetTopPathStatisticsByTrafficError>>> {
 }
 export declare const GetTopPathStatisticsByTraffic: GetTopPathStatisticsByTraffic;

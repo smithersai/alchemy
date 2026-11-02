@@ -1,7 +1,7 @@
 import * as acmpca from "@distilled.cloud/aws/acm-pca";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface PermissionProps {
     /**
      * The ARN of the private certificate authority the permission is

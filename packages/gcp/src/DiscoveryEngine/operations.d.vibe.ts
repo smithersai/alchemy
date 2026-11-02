@@ -9,4 +9,4 @@ export declare const resourceNameFromOperation: (operation: discoveryengine.Goog
  */
 export declare const waitForOperation: (operation: discoveryengine.GoogleLongrunningOperation, options?: {
     notFoundOk?: boolean;
-}) => Effect.Effect<discoveryengine.GoogleLongrunningOperation | import("../Operation.js").LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | discoveryengine.GetProjectsLocationsOperationsError, discoveryengine.GcpOpContext>;
+}) => Effect.Effect<discoveryengine.GoogleLongrunningOperation | import("../Operation.ts").LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | discoveryengine.GetProjectsLocationsOperationsError, discoveryengine.GcpOpContext>;

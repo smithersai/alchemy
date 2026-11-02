@@ -29,6 +29,6 @@ export interface GetClipRequest extends Omit<kvam.GetClipInput, "StreamName" | "
  *
  * @binding
  */
-export interface GetClip extends Binding.Service<GetClip, "AWS.KinesisVideo.GetClip", <S extends Stream>(stream: S) => Effect.Effect<((request: GetClipRequest) => Effect.Effect<kvam.GetClipOutput, kvam.GetClipError | kv.GetDataEndpointError>)>> {
+export interface GetClip extends Binding.Service<GetClip, "AWS.KinesisVideo.GetClip", <S extends Stream>(stream: S) => Effect.Effect<(request: GetClipRequest) => Effect.Effect<kvam.GetClipOutput, kvam.GetClipError | kv.GetDataEndpointError>>> {
 }
 export declare const GetClip: GetClip;

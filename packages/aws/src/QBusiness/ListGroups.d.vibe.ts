@@ -25,6 +25,6 @@ export interface ListGroupsRequest extends Omit<qbusiness.ListGroupsRequest, "ap
  *
  * @binding
  */
-export interface ListGroups extends Binding.Service<ListGroups, "AWS.QBusiness.ListGroups", (index: Index) => Effect.Effect<((request: ListGroupsRequest) => Effect.Effect<qbusiness.ListGroupsResponse, qbusiness.ListGroupsError>)>> {
+export interface ListGroups extends Binding.Service<ListGroups, "AWS.QBusiness.ListGroups", (index: Index) => Effect.Effect<(request: ListGroupsRequest) => Effect.Effect<qbusiness.ListGroupsResponse, qbusiness.ListGroupsError>>> {
 }
 export declare const ListGroups: ListGroups;

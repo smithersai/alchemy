@@ -1,9 +1,9 @@
 import * as apigee from "@distilled.cloud/gcp/apigee_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { type Attribute } from "./ownership.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { type Attribute } from "./ownership.ts";
 export type AppgroupsAppProps = {
     /**
      * Apigee organization id. Defaults to the GCP project id. Immutable.

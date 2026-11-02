@@ -2,7 +2,7 @@ import * as Neon from "@distilled.cloud/neon";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
-import { type BranchScope, type ResolvedBranchScope } from "./BranchScope.js";
+import { type BranchScope, type ResolvedBranchScope } from "./BranchScope.ts";
 import type { Providers } from "./Providers.vibe";
 export type RoleProps = BranchScope & {
     /**

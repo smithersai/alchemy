@@ -25,6 +25,6 @@ export interface DeleteRecoveryPointRequest extends Omit<backup.DeleteRecoveryPo
  *
  * @binding
  */
-export interface DeleteRecoveryPoint extends Binding.Service<DeleteRecoveryPoint, "AWS.Backup.DeleteRecoveryPoint", (vault: BackupVault) => Effect.Effect<((request: DeleteRecoveryPointRequest) => Effect.Effect<backup.DeleteRecoveryPointResponse, backup.DeleteRecoveryPointError>)>> {
+export interface DeleteRecoveryPoint extends Binding.Service<DeleteRecoveryPoint, "AWS.Backup.DeleteRecoveryPoint", (vault: BackupVault) => Effect.Effect<(request: DeleteRecoveryPointRequest) => Effect.Effect<backup.DeleteRecoveryPointResponse, backup.DeleteRecoveryPointError>>> {
 }
 export declare const DeleteRecoveryPoint: DeleteRecoveryPoint;

@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import type * as Config from "effect/Config";
 import * as Context from "effect/Context";
@@ -121,13 +122,13 @@ export declare const ORPHAN_GRACE: Duration.Duration;
 /** Tags tied to pull requests are re-checked when due within this window. */
 export declare const SWEEP_LOOKAHEAD: Duration.Duration;
 /** Content-addressed tarballs, keyed `<encoded name>/<sha256>.tgz`. */
-export declare const Bucket: import("effect/Effect").Effect<Cloudflare.R2.Bucket, never, Cloudflare.Providers>;
+export declare const Bucket: Effect.Effect<Cloudflare.R2.Bucket, never, Cloudflare.Providers>;
 export declare const tarballKey: (name: string, sha256: string) => string;
 /** Publications, tags, and tarball bookkeeping. */
-export declare const Database: import("effect/Effect").Effect<Cloudflare.D1.Database, never, Cloudflare.Providers>;
+export declare const Database: Effect.Effect<Cloudflare.D1.Database, never, Cloudflare.Providers>;
 /**
  * Resolved runs and installation tokens, shared by every isolate of the
  * Worker. Everything in it is re-derivable from GitHub; see `KVCache.ts`.
  */
-export declare const Cache: import("effect/Effect").Effect<Cloudflare.KV.Namespace, never, Cloudflare.Providers>;
+export declare const Cache: Effect.Effect<Cloudflare.KV.Namespace, never, Cloudflare.Providers>;
 export {};

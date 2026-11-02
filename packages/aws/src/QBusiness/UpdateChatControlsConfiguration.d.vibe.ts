@@ -27,6 +27,6 @@ export interface UpdateChatControlsConfigurationRequest extends Omit<qbusiness.U
  *
  * @binding
  */
-export interface UpdateChatControlsConfiguration extends Binding.Service<UpdateChatControlsConfiguration, "AWS.QBusiness.UpdateChatControlsConfiguration", (application: Application) => Effect.Effect<((request?: UpdateChatControlsConfigurationRequest) => Effect.Effect<qbusiness.UpdateChatControlsConfigurationResponse, qbusiness.UpdateChatControlsConfigurationError>)>> {
+export interface UpdateChatControlsConfiguration extends Binding.Service<UpdateChatControlsConfiguration, "AWS.QBusiness.UpdateChatControlsConfiguration", (application: Application) => Effect.Effect<(request?: UpdateChatControlsConfigurationRequest) => Effect.Effect<qbusiness.UpdateChatControlsConfigurationResponse, qbusiness.UpdateChatControlsConfigurationError>>> {
 }
 export declare const UpdateChatControlsConfiguration: UpdateChatControlsConfiguration;

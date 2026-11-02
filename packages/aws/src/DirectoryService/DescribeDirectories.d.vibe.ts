@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDirectories extends Binding.Service<DescribeDirectories, "AWS.DirectoryService.DescribeDirectories", () => Effect.Effect<((request?: ds.DescribeDirectoriesRequest) => Effect.Effect<ds.DescribeDirectoriesResult, ds.DescribeDirectoriesError>)>> {
+export interface DescribeDirectories extends Binding.Service<DescribeDirectories, "AWS.DirectoryService.DescribeDirectories", () => Effect.Effect<(request?: ds.DescribeDirectoriesRequest) => Effect.Effect<ds.DescribeDirectoriesResult, ds.DescribeDirectoriesError>>> {
 }
 export declare const DescribeDirectories: DescribeDirectories;

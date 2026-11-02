@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetResourceShareAssociations extends Binding.Service<GetResourceShareAssociations, "AWS.RAM.GetResourceShareAssociations", () => Effect.Effect<((request: ram.GetResourceShareAssociationsRequest) => Effect.Effect<ram.GetResourceShareAssociationsResponse, ram.GetResourceShareAssociationsError>)>> {
+export interface GetResourceShareAssociations extends Binding.Service<GetResourceShareAssociations, "AWS.RAM.GetResourceShareAssociations", () => Effect.Effect<(request: ram.GetResourceShareAssociationsRequest) => Effect.Effect<ram.GetResourceShareAssociationsResponse, ram.GetResourceShareAssociationsError>>> {
 }
 export declare const GetResourceShareAssociations: GetResourceShareAssociations;

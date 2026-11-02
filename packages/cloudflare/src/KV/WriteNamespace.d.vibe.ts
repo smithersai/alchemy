@@ -2,10 +2,10 @@ import * as Binding from "alchemy/Binding";
 import type { Input } from "alchemy/Input";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { InstantNamespace } from "./InstantNamespace.js";
+import type { InstantNamespace } from "./InstantNamespace.ts";
 import type { WriteInstantNamespaceClient } from "./InstantNamespaceTypes.vibe";
-import type { Namespace } from "./Namespace.js";
-import type { NamespaceError } from "./NamespaceTypes.js";
+import type { Namespace } from "./Namespace.ts";
+import type { NamespaceError } from "./NamespaceTypes.ts";
 /**
  * Bind a {@link Namespace} to a Worker with write access and obtain the
  * Effect-native KV client (`put`, `delete`).

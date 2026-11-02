@@ -1,7 +1,7 @@
 import type * as ECS from "@distilled.cloud/aws/ecs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Service } from "./Service.js";
+import type { Service } from "./Service.ts";
 export interface DescribeServiceDeploymentsRequest extends ECS.DescribeServiceDeploymentsRequest {
 }
 /**
@@ -26,6 +26,6 @@ export interface DescribeServiceDeploymentsRequest extends ECS.DescribeServiceDe
  *
  * @binding
  */
-export interface DescribeServiceDeployments extends Binding.Service<DescribeServiceDeployments, "AWS.ECS.DescribeServiceDeployments", (service: Service) => Effect.Effect<((request: DescribeServiceDeploymentsRequest) => Effect.Effect<ECS.DescribeServiceDeploymentsResponse, ECS.DescribeServiceDeploymentsError>)>> {
+export interface DescribeServiceDeployments extends Binding.Service<DescribeServiceDeployments, "AWS.ECS.DescribeServiceDeployments", (service: Service) => Effect.Effect<(request: DescribeServiceDeploymentsRequest) => Effect.Effect<ECS.DescribeServiceDeploymentsResponse, ECS.DescribeServiceDeploymentsError>>> {
 }
 export declare const DescribeServiceDeployments: DescribeServiceDeployments;

@@ -26,6 +26,6 @@ import type { Queue } from "./Queue.vibe";
  *
  * @binding
  */
-export interface CreateJob extends Binding.Service<CreateJob, "AWS.Deadline.CreateJob", (queue: Queue) => Effect.Effect<((request: Omit<deadline.CreateJobRequest, "farmId" | "queueId">) => Effect.Effect<deadline.CreateJobResponse, deadline.CreateJobError>)>> {
+export interface CreateJob extends Binding.Service<CreateJob, "AWS.Deadline.CreateJob", (queue: Queue) => Effect.Effect<(request: Omit<deadline.CreateJobRequest, "farmId" | "queueId">) => Effect.Effect<deadline.CreateJobResponse, deadline.CreateJobError>>> {
 }
 export declare const CreateJob: CreateJob;

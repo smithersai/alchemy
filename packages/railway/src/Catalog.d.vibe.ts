@@ -23,7 +23,7 @@ export declare class CatalogNotFound extends CatalogNotFound_base<{
 export declare const currentWorkspace: () => Effect.Effect<{
     id: string;
     name: string;
-}, import("./Environment.js").RailwayWorkspaceNotFound | import("@distilled.cloud/railway").QueryError<import("@distilled.cloud/railway").RailwayGlobalError>, import("@distilled.cloud/railway").GqlTransport>;
+}, import("./Environment.ts").RailwayWorkspaceNotFound | import("@distilled.cloud/railway").QueryError<import("@distilled.cloud/railway").RailwayGlobalError>, import("@distilled.cloud/railway").GqlTransport>;
 /**
  * List Railway regions via `regions`. Pass `projectId` to scope the
  * catalog to a project; omit it for the workspace default set.
@@ -47,4 +47,4 @@ export type RailwayRegion = RegionsResultItem;
  * Workspace audit logs. Query-only — Railway has no audit-log
  * create/update/delete, so this is not a resource.
  */
-export { AuditLog, getAuditLog, listAuditLogEventTypes, listAuditLogs, type AuditLogEntry, type AuditLogEnvironment, type AuditLogEventType, type AuditLogProject, type ListAuditLogsOptions, } from "./AuditLog.js";
+export { AuditLog, getAuditLog, listAuditLogEventTypes, listAuditLogs, type AuditLogEntry, type AuditLogEnvironment, type AuditLogEventType, type AuditLogProject, type ListAuditLogsOptions, } from "./AuditLog.ts";

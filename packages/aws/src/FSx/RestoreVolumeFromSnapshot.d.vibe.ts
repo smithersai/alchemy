@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface RestoreVolumeFromSnapshot extends Binding.Service<RestoreVolumeFromSnapshot, "AWS.FSx.RestoreVolumeFromSnapshot", () => Effect.Effect<((request: fsx.RestoreVolumeFromSnapshotRequest) => Effect.Effect<fsx.RestoreVolumeFromSnapshotResponse, fsx.RestoreVolumeFromSnapshotError>)>> {
+export interface RestoreVolumeFromSnapshot extends Binding.Service<RestoreVolumeFromSnapshot, "AWS.FSx.RestoreVolumeFromSnapshot", () => Effect.Effect<(request: fsx.RestoreVolumeFromSnapshotRequest) => Effect.Effect<fsx.RestoreVolumeFromSnapshotResponse, fsx.RestoreVolumeFromSnapshotError>>> {
 }
 export declare const RestoreVolumeFromSnapshot: RestoreVolumeFromSnapshot;

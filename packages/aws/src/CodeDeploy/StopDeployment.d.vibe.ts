@@ -19,6 +19,6 @@ import type { DeploymentGroup } from "./DeploymentGroup.vibe";
  *
  * @binding
  */
-export interface StopDeployment extends Binding.Service<StopDeployment, "AWS.CodeDeploy.StopDeployment", <G extends DeploymentGroup>(group: G) => Effect.Effect<((request: SVC.StopDeploymentInput) => Effect.Effect<SVC.StopDeploymentOutput, SVC.StopDeploymentError>)>> {
+export interface StopDeployment extends Binding.Service<StopDeployment, "AWS.CodeDeploy.StopDeployment", <G extends DeploymentGroup>(group: G) => Effect.Effect<(request: SVC.StopDeploymentInput) => Effect.Effect<SVC.StopDeploymentOutput, SVC.StopDeploymentError>>> {
 }
 export declare const StopDeployment: StopDeployment;

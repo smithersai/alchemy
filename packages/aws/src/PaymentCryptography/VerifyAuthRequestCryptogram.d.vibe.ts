@@ -32,6 +32,6 @@ export interface VerifyAuthRequestCryptogramRequest extends Omit<paymentcryptogr
  *
  * @binding
  */
-export interface VerifyAuthRequestCryptogram extends Binding.Service<VerifyAuthRequestCryptogram, "AWS.PaymentCryptography.VerifyAuthRequestCryptogram", <K extends Key>(key: K) => Effect.Effect<((request: VerifyAuthRequestCryptogramRequest) => Effect.Effect<paymentcryptographydata.VerifyAuthRequestCryptogramOutput, paymentcryptographydata.VerifyAuthRequestCryptogramError>)>> {
+export interface VerifyAuthRequestCryptogram extends Binding.Service<VerifyAuthRequestCryptogram, "AWS.PaymentCryptography.VerifyAuthRequestCryptogram", <K extends Key>(key: K) => Effect.Effect<(request: VerifyAuthRequestCryptogramRequest) => Effect.Effect<paymentcryptographydata.VerifyAuthRequestCryptogramOutput, paymentcryptographydata.VerifyAuthRequestCryptogramError>>> {
 }
 export declare const VerifyAuthRequestCryptogram: VerifyAuthRequestCryptogram;

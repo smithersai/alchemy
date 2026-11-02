@@ -24,6 +24,6 @@ import type { ReplicationInstance } from "./ReplicationInstance.vibe";
  *
  * @binding
  */
-export interface RefreshSchemas extends Binding.Service<RefreshSchemas, "AWS.DMS.RefreshSchemas", (instance: ReplicationInstance, endpoint: Endpoint) => Effect.Effect<(() => Effect.Effect<dms.RefreshSchemasResponse, dms.RefreshSchemasError>)>> {
+export interface RefreshSchemas extends Binding.Service<RefreshSchemas, "AWS.DMS.RefreshSchemas", (instance: ReplicationInstance, endpoint: Endpoint) => Effect.Effect<() => Effect.Effect<dms.RefreshSchemasResponse, dms.RefreshSchemasError>>> {
 }
 export declare const RefreshSchemas: RefreshSchemas;

@@ -22,6 +22,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface StopCluster extends Binding.Service<StopCluster, "AWS.DocDBElastic.StopCluster", (cluster: Cluster) => Effect.Effect<(() => Effect.Effect<docdbelastic.StopClusterOutput, docdbelastic.StopClusterError>)>> {
+export interface StopCluster extends Binding.Service<StopCluster, "AWS.DocDBElastic.StopCluster", (cluster: Cluster) => Effect.Effect<() => Effect.Effect<docdbelastic.StopClusterOutput, docdbelastic.StopClusterError>>> {
 }
 export declare const StopCluster: StopCluster;

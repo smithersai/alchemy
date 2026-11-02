@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/kinesis-analytics-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 export interface ListApplicationVersionsRequest extends Omit<SVC.ListApplicationVersionsRequest, "ApplicationName"> {
 }
 /**
@@ -18,6 +18,6 @@ export interface ListApplicationVersionsRequest extends Omit<SVC.ListApplication
  *
  * @binding
  */
-export interface ListApplicationVersions extends Binding.Service<ListApplicationVersions, "AWS.KinesisAnalyticsV2.ListApplicationVersions", <A extends Application>(application: A) => Effect.Effect<((request?: ListApplicationVersionsRequest) => Effect.Effect<SVC.ListApplicationVersionsResponse, SVC.ListApplicationVersionsError>)>> {
+export interface ListApplicationVersions extends Binding.Service<ListApplicationVersions, "AWS.KinesisAnalyticsV2.ListApplicationVersions", <A extends Application>(application: A) => Effect.Effect<(request?: ListApplicationVersionsRequest) => Effect.Effect<SVC.ListApplicationVersionsResponse, SVC.ListApplicationVersionsError>>> {
 }
 export declare const ListApplicationVersions: ListApplicationVersions;

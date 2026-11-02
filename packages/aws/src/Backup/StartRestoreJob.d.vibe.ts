@@ -1,7 +1,7 @@
 import type * as backup from "@distilled.cloud/aws/backup";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 /**
  * `StartRestoreJob` request with `IamRoleArn` defaulting to the bound
  * restore role.
@@ -38,6 +38,6 @@ export interface StartRestoreJobRequest extends Omit<backup.StartRestoreJobInput
  *
  * @binding
  */
-export interface StartRestoreJob extends Binding.Service<StartRestoreJob, "AWS.Backup.StartRestoreJob", <R extends Role>(restoreRole: R) => Effect.Effect<((request: StartRestoreJobRequest) => Effect.Effect<backup.StartRestoreJobOutput, backup.StartRestoreJobError>)>> {
+export interface StartRestoreJob extends Binding.Service<StartRestoreJob, "AWS.Backup.StartRestoreJob", <R extends Role>(restoreRole: R) => Effect.Effect<(request: StartRestoreJobRequest) => Effect.Effect<backup.StartRestoreJobOutput, backup.StartRestoreJobError>>> {
 }
 export declare const StartRestoreJob: StartRestoreJob;

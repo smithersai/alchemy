@@ -37,6 +37,6 @@ export interface UpdateExclusionWindowsRequest extends Omit<appsignals.BatchUpda
  *
  * @binding
  */
-export interface BatchUpdateExclusionWindows extends Binding.Service<BatchUpdateExclusionWindows, "AWS.ApplicationSignals.BatchUpdateExclusionWindows", (slo: ServiceLevelObjective) => Effect.Effect<((request: UpdateExclusionWindowsRequest) => Effect.Effect<appsignals.BatchUpdateExclusionWindowsOutput, appsignals.BatchUpdateExclusionWindowsError>)>> {
+export interface BatchUpdateExclusionWindows extends Binding.Service<BatchUpdateExclusionWindows, "AWS.ApplicationSignals.BatchUpdateExclusionWindows", (slo: ServiceLevelObjective) => Effect.Effect<(request: UpdateExclusionWindowsRequest) => Effect.Effect<appsignals.BatchUpdateExclusionWindowsOutput, appsignals.BatchUpdateExclusionWindowsError>>> {
 }
 export declare const BatchUpdateExclusionWindows: BatchUpdateExclusionWindows;

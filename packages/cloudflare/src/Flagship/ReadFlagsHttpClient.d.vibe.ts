@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import type { Credentials } from "../Credentials.js";
+import type { Credentials } from "../Credentials.ts";
 import { type ReadFlagsClient } from "./ReadFlags.vibe";
 /**
  * Injectable auth shared by the Local (current-credentials) impl and a future

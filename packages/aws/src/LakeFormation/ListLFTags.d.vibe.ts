@@ -23,6 +23,6 @@ export interface ListLFTagsRequest extends lf.ListLFTagsRequest {
  *
  * @binding
  */
-export interface ListLFTags extends Binding.Service<ListLFTags, "AWS.LakeFormation.ListLFTags", () => Effect.Effect<((request?: ListLFTagsRequest) => Effect.Effect<lf.ListLFTagsResponse, lf.ListLFTagsError>)>> {
+export interface ListLFTags extends Binding.Service<ListLFTags, "AWS.LakeFormation.ListLFTags", () => Effect.Effect<(request?: ListLFTagsRequest) => Effect.Effect<lf.ListLFTagsResponse, lf.ListLFTagsError>>> {
 }
 export declare const ListLFTags: ListLFTags;

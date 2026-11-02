@@ -26,6 +26,6 @@ export interface DeleteArchiveRequest extends Omit<glacier.DeleteArchiveInput, "
  *
  * @binding
  */
-export interface DeleteArchive extends Binding.Service<DeleteArchive, "AWS.Glacier.DeleteArchive", (vault: Vault) => Effect.Effect<((request: DeleteArchiveRequest) => Effect.Effect<glacier.DeleteArchiveResponse, glacier.DeleteArchiveError>)>> {
+export interface DeleteArchive extends Binding.Service<DeleteArchive, "AWS.Glacier.DeleteArchive", (vault: Vault) => Effect.Effect<(request: DeleteArchiveRequest) => Effect.Effect<glacier.DeleteArchiveResponse, glacier.DeleteArchiveError>>> {
 }
 export declare const DeleteArchive: DeleteArchive;

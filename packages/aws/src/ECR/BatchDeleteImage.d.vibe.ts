@@ -24,6 +24,6 @@ export interface BatchDeleteImageRequest extends Omit<ecr.BatchDeleteImageReques
  *
  * @binding
  */
-export interface BatchDeleteImage extends Binding.Service<BatchDeleteImage, "AWS.ECR.BatchDeleteImage", (repository: Repository) => Effect.Effect<((request: BatchDeleteImageRequest) => Effect.Effect<ecr.BatchDeleteImageResponse, ecr.BatchDeleteImageError>)>> {
+export interface BatchDeleteImage extends Binding.Service<BatchDeleteImage, "AWS.ECR.BatchDeleteImage", (repository: Repository) => Effect.Effect<(request: BatchDeleteImageRequest) => Effect.Effect<ecr.BatchDeleteImageResponse, ecr.BatchDeleteImageError>>> {
 }
 export declare const BatchDeleteImage: BatchDeleteImage;

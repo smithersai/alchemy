@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeAutoPredictor extends Binding.Service<DescribeAutoPredictor, "AWS.Forecast.DescribeAutoPredictor", () => Effect.Effect<((request: forecast.DescribeAutoPredictorRequest) => Effect.Effect<forecast.DescribeAutoPredictorResponse, forecast.DescribeAutoPredictorError>)>> {
+export interface DescribeAutoPredictor extends Binding.Service<DescribeAutoPredictor, "AWS.Forecast.DescribeAutoPredictor", () => Effect.Effect<(request: forecast.DescribeAutoPredictorRequest) => Effect.Effect<forecast.DescribeAutoPredictorResponse, forecast.DescribeAutoPredictorError>>> {
 }
 export declare const DescribeAutoPredictor: DescribeAutoPredictor;

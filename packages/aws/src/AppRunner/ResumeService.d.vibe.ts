@@ -21,6 +21,6 @@ import type { Service } from "./Service.vibe";
  *
  * @binding
  */
-export interface ResumeService extends Binding.Service<ResumeService, "AWS.AppRunner.ResumeService", (service: Service) => Effect.Effect<(() => Effect.Effect<apprunner.ResumeServiceResponse, apprunner.ResumeServiceError>)>> {
+export interface ResumeService extends Binding.Service<ResumeService, "AWS.AppRunner.ResumeService", (service: Service) => Effect.Effect<() => Effect.Effect<apprunner.ResumeServiceResponse, apprunner.ResumeServiceError>>> {
 }
 export declare const ResumeService: ResumeService;

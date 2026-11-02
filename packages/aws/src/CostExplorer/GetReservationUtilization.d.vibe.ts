@@ -27,6 +27,6 @@ export interface GetReservationUtilizationRequest extends ce.GetReservationUtili
  *
  * @binding
  */
-export interface GetReservationUtilization extends Binding.Service<GetReservationUtilization, "AWS.CostExplorer.GetReservationUtilization", () => Effect.Effect<((request: GetReservationUtilizationRequest) => Effect.Effect<ce.GetReservationUtilizationResponse, ce.GetReservationUtilizationError>)>> {
+export interface GetReservationUtilization extends Binding.Service<GetReservationUtilization, "AWS.CostExplorer.GetReservationUtilization", () => Effect.Effect<(request: GetReservationUtilizationRequest) => Effect.Effect<ce.GetReservationUtilizationResponse, ce.GetReservationUtilizationError>>> {
 }
 export declare const GetReservationUtilization: GetReservationUtilization;

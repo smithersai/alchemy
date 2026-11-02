@@ -1,7 +1,7 @@
 import * as iam from "@distilled.cloud/gcp/iam_v2";
 import * as Effect from "effect/Effect";
-import { alchemyLabelKeys, sanitizeLabelValue } from "../Labels.js";
-import { type LongRunningOperation } from "../Operation.js";
+import { alchemyLabelKeys, sanitizeLabelValue } from "../Labels.ts";
+import { type LongRunningOperation } from "../Operation.ts";
 export declare const MAX_POLICY_ID = 63;
 declare const ResourceNotResolved_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "GCP.IAM.ResourceNotResolved";
@@ -42,9 +42,9 @@ export declare const hasOwnedDescription: (description: string | undefined) => b
  * Wait for a long-running operation. ALREADY_EXISTS (code 6) means a
  * concurrent create won the race; reconcile observes the resource next.
  */
-export declare const waitForOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | iam.GetPoliciesOperationsError, iam.GcpOpContext>;
+export declare const waitForOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | iam.GetPoliciesOperationsError, iam.GcpOpContext>;
 /**
  * Wait for a delete operation. A vanished operation or NOT_FOUND (code 5)
  * means the resource is already gone.
  */
-export declare const waitForDeleteOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | iam.GetPoliciesOperationsError, iam.GcpOpContext>;
+export declare const waitForDeleteOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | iam.GetPoliciesOperationsError, iam.GcpOpContext>;

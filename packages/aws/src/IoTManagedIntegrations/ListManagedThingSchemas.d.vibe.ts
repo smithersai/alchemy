@@ -28,6 +28,6 @@ export interface ListManagedThingSchemasRequest extends Omit<mi.ListManagedThing
  *
  * @binding
  */
-export interface ListManagedThingSchemas extends Binding.Service<ListManagedThingSchemas, "AWS.IoTManagedIntegrations.ListManagedThingSchemas", (thing: ManagedThing) => Effect.Effect<((request?: ListManagedThingSchemasRequest) => Effect.Effect<mi.ListManagedThingSchemasResponse, mi.ListManagedThingSchemasError>)>> {
+export interface ListManagedThingSchemas extends Binding.Service<ListManagedThingSchemas, "AWS.IoTManagedIntegrations.ListManagedThingSchemas", (thing: ManagedThing) => Effect.Effect<(request?: ListManagedThingSchemasRequest) => Effect.Effect<mi.ListManagedThingSchemasResponse, mi.ListManagedThingSchemasError>>> {
 }
 export declare const ListManagedThingSchemas: ListManagedThingSchemas;

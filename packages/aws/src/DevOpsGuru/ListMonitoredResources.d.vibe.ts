@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListMonitoredResources extends Binding.Service<ListMonitoredResources, "AWS.DevOpsGuru.ListMonitoredResources", () => Effect.Effect<((request?: devopsguru.ListMonitoredResourcesRequest) => Effect.Effect<devopsguru.ListMonitoredResourcesResponse, devopsguru.ListMonitoredResourcesError>)>> {
+export interface ListMonitoredResources extends Binding.Service<ListMonitoredResources, "AWS.DevOpsGuru.ListMonitoredResources", () => Effect.Effect<(request?: devopsguru.ListMonitoredResourcesRequest) => Effect.Effect<devopsguru.ListMonitoredResourcesResponse, devopsguru.ListMonitoredResourcesError>>> {
 }
 export declare const ListMonitoredResources: ListMonitoredResources;

@@ -26,6 +26,6 @@ export interface BatchCreateCategoryRequest extends Omit<qapps.BatchCreateCatego
  *
  * @binding
  */
-export interface BatchCreateCategory extends Binding.Service<BatchCreateCategory, "AWS.QApps.BatchCreateCategory", (app: QApp) => Effect.Effect<((request: BatchCreateCategoryRequest) => Effect.Effect<qapps.BatchCreateCategoryResponse, qapps.BatchCreateCategoryError>)>> {
+export interface BatchCreateCategory extends Binding.Service<BatchCreateCategory, "AWS.QApps.BatchCreateCategory", (app: QApp) => Effect.Effect<(request: BatchCreateCategoryRequest) => Effect.Effect<qapps.BatchCreateCategoryResponse, qapps.BatchCreateCategoryError>>> {
 }
 export declare const BatchCreateCategory: BatchCreateCategory;

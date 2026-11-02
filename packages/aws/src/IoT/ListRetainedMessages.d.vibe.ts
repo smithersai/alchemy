@@ -22,6 +22,6 @@ export interface ListRetainedMessagesRequest extends iotdata.ListRetainedMessage
  *
  * @binding
  */
-export interface ListRetainedMessages extends Binding.Service<ListRetainedMessages, "AWS.IoT.ListRetainedMessages", () => Effect.Effect<((request?: ListRetainedMessagesRequest) => Effect.Effect<iotdata.ListRetainedMessagesResponse, iotdata.ListRetainedMessagesError>)>> {
+export interface ListRetainedMessages extends Binding.Service<ListRetainedMessages, "AWS.IoT.ListRetainedMessages", () => Effect.Effect<(request?: ListRetainedMessagesRequest) => Effect.Effect<iotdata.ListRetainedMessagesResponse, iotdata.ListRetainedMessagesError>>> {
 }
 export declare const ListRetainedMessages: ListRetainedMessages;

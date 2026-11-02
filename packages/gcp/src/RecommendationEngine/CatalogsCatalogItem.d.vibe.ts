@@ -1,8 +1,8 @@
 import * as recommendationengine from "@distilled.cloud/gcp/recommendationengine_v1beta1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 import { type CategoryHierarchy, type FeatureMap, type ProductCatalogItem } from "./internal.vibe";
 export type { CatalogItemExactPrice, CatalogItemImage, CatalogItemPriceRange, CategoryHierarchy, FeatureMap, ProductCatalogItem, } from "./internal.vibe";
 export type CatalogsCatalogItemProps = {

@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource as AlchemyResource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface ResourceProps {
     /**
      * ARN of the S3 location to register with Lake Formation (e.g.

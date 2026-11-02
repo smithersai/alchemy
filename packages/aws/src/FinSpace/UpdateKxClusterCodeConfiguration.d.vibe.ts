@@ -21,6 +21,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface UpdateKxClusterCodeConfiguration extends Binding.Service<UpdateKxClusterCodeConfiguration, "AWS.FinSpace.UpdateKxClusterCodeConfiguration", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request: Omit<SVC.UpdateKxClusterCodeConfigurationRequest, "environmentId">) => Effect.Effect<SVC.UpdateKxClusterCodeConfigurationResponse, SVC.UpdateKxClusterCodeConfigurationError>)>> {
+export interface UpdateKxClusterCodeConfiguration extends Binding.Service<UpdateKxClusterCodeConfiguration, "AWS.FinSpace.UpdateKxClusterCodeConfiguration", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request: Omit<SVC.UpdateKxClusterCodeConfigurationRequest, "environmentId">) => Effect.Effect<SVC.UpdateKxClusterCodeConfigurationResponse, SVC.UpdateKxClusterCodeConfigurationError>>> {
 }
 export declare const UpdateKxClusterCodeConfiguration: UpdateKxClusterCodeConfiguration;

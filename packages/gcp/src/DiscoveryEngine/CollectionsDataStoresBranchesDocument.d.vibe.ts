@@ -1,8 +1,8 @@
 import * as discoveryengine from "@distilled.cloud/gcp/discoveryengine_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type DocumentContent = {
     /** MIME type of `rawBytes` or the object at `uri`. */
     mimeType?: string;

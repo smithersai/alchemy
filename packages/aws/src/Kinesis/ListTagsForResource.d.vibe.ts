@@ -27,6 +27,6 @@ export interface ListTagsForResourceRequest extends Omit<Kinesis.ListTagsForReso
  *
  * @binding
  */
-export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.Kinesis.ListTagsForResource", (resource: TaggableResource) => Effect.Effect<((request?: ListTagsForResourceRequest) => Effect.Effect<Kinesis.ListTagsForResourceOutput, Kinesis.ListTagsForResourceError>)>> {
+export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.Kinesis.ListTagsForResource", (resource: TaggableResource) => Effect.Effect<(request?: ListTagsForResourceRequest) => Effect.Effect<Kinesis.ListTagsForResourceOutput, Kinesis.ListTagsForResourceError>>> {
 }
 export declare const ListTagsForResource: ListTagsForResource;

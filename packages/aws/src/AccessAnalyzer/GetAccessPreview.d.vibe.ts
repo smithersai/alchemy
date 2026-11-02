@@ -1,7 +1,7 @@
 import type * as aa from "@distilled.cloud/aws/accessanalyzer";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Analyzer } from "./Analyzer.js";
+import type { Analyzer } from "./Analyzer.ts";
 /** `GetAccessPreview` request with `analyzerArn` injected from the bound {@link Analyzer}. */
 export interface GetAccessPreviewRequest extends Omit<aa.GetAccessPreviewRequest, "analyzerArn"> {
 }
@@ -20,6 +20,6 @@ export interface GetAccessPreviewRequest extends Omit<aa.GetAccessPreviewRequest
  *
  * @binding
  */
-export interface GetAccessPreview extends Binding.Service<GetAccessPreview, "AWS.AccessAnalyzer.GetAccessPreview", (analyzer: Analyzer) => Effect.Effect<((request: GetAccessPreviewRequest) => Effect.Effect<aa.GetAccessPreviewResponse, aa.GetAccessPreviewError>)>> {
+export interface GetAccessPreview extends Binding.Service<GetAccessPreview, "AWS.AccessAnalyzer.GetAccessPreview", (analyzer: Analyzer) => Effect.Effect<(request: GetAccessPreviewRequest) => Effect.Effect<aa.GetAccessPreviewResponse, aa.GetAccessPreviewError>>> {
 }
 export declare const GetAccessPreview: GetAccessPreview;

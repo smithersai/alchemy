@@ -2,7 +2,7 @@ import type * as dataproc from "@distilled.cloud/gcp/dataproc_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 export interface SubmitJobRequest extends Omit<dataproc.SubmitProjectsRegionsJobsRequest, "projectId" | "region"> {
 }
 /**
@@ -34,6 +34,6 @@ export interface SubmitJobRequest extends Omit<dataproc.SubmitProjectsRegionsJob
  * @binding
  * @category Dataproc
  */
-export interface SubmitJob extends Binding.Service<SubmitJob, "GCP.Dataproc.SubmitJob", (cluster: Cluster) => Effect.Effect<((request: SubmitJobRequest) => Effect.Effect<dataproc.Job, dataproc.SubmitProjectsRegionsJobsError, RuntimeContext>)>> {
+export interface SubmitJob extends Binding.Service<SubmitJob, "GCP.Dataproc.SubmitJob", (cluster: Cluster) => Effect.Effect<(request: SubmitJobRequest) => Effect.Effect<dataproc.Job, dataproc.SubmitProjectsRegionsJobsError, RuntimeContext>>> {
 }
 export declare const SubmitJob: SubmitJob;

@@ -1,8 +1,8 @@
 import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
-import { type BindingIam } from "../HttpBinding.js";
-import type { Job } from "./Job.js";
+import { type BindingIam } from "../HttpBinding.ts";
+import type { Job } from "./Job.ts";
 /**
  * Shared HTTP scaffolding for Cloud Scheduler job bindings.
  * NOT exported from index.ts.
@@ -16,5 +16,5 @@ export declare const makeJobHttpBinding: <I extends {
 }, A, E>(options: {
     tag: string;
     iam: BindingIam;
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
 }) => Effect.Effect<(job: Job) => Effect.Effect<(request?: Omit<I, "name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

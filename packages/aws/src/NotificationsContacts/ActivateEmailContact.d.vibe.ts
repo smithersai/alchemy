@@ -29,6 +29,6 @@ export interface ActivateEmailContactRequest extends Omit<contacts.ActivateEmail
  *
  * @binding
  */
-export interface ActivateEmailContact extends Binding.Service<ActivateEmailContact, "AWS.NotificationsContacts.ActivateEmailContact", (contact: EmailContact) => Effect.Effect<((request: ActivateEmailContactRequest) => Effect.Effect<contacts.ActivateEmailContactResponse, contacts.ActivateEmailContactError>)>> {
+export interface ActivateEmailContact extends Binding.Service<ActivateEmailContact, "AWS.NotificationsContacts.ActivateEmailContact", (contact: EmailContact) => Effect.Effect<(request: ActivateEmailContactRequest) => Effect.Effect<contacts.ActivateEmailContactResponse, contacts.ActivateEmailContactError>>> {
 }
 export declare const ActivateEmailContact: ActivateEmailContact;

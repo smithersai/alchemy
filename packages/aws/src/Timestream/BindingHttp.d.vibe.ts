@@ -13,7 +13,7 @@ export declare const makeWriteTableHttpBinding: <Req, I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Timestream.WriteRecords`. */
     tag: string;
     /** The distilled `timestream-write` operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the table ARN. */
     actions: readonly string[];
     /** Also grant `actions` on the owning database's ARN (batch load). */
@@ -35,7 +35,7 @@ export declare const makeQueryTableHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Timestream.Query`. */
     tag: string;
     /** The distilled `timestream-query` operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the table ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(table: Table) => Effect.Effect<(request: I) => Effect.Effect<A, E | TSQ.DescribeEndpointsError, never>, never, never>, never, never>;
@@ -49,7 +49,7 @@ export declare const makeWriteAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Timestream.DescribeBatchLoadTask`. */
     tag: string;
     /** The distilled `timestream-write` operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E | TSW.DescribeEndpointsError, never>, never, never>, never, never>;
@@ -62,7 +62,7 @@ export declare const makeQueryAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Timestream.CancelQuery`. */
     tag: string;
     /** The distilled `timestream-query` operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E | TSQ.DescribeEndpointsError, never>, never, never>, never, never>;

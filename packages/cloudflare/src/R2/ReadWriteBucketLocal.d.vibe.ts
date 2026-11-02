@@ -26,4 +26,4 @@ import { ReadWriteBucket } from "./ReadWriteBucket.vibe";
  * );
  * ```
  */
-export declare const ReadWriteBucketLocal: Layer.Layer<ReadWriteBucket, never, import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const ReadWriteBucketLocal: Layer.Layer<ReadWriteBucket, never, import("../CloudflareEnvironmentService.ts").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;

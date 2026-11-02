@@ -1,7 +1,7 @@
 import * as acm from "@distilled.cloud/gcp/accesscontextmanager_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type AccessLevelOsConstraint = acm.OsConstraint;
 export type AccessLevelDevicePolicy = acm.DevicePolicy;
 export type AccessLevelVpcNetworkSource = acm.VpcNetworkSource;
@@ -125,5 +125,5 @@ export declare class AccessPoliciesAccessLevelNotResolved extends AccessPolicies
     resourceName: string;
 }> {
 }
-export declare const AccessPoliciesAccessLevelProvider: () => import("effect/Layer").Layer<Provider.Provider<AccessPoliciesAccessLevel>, never, import("../Environment.js").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | acm.GcpOpContext>;
+export declare const AccessPoliciesAccessLevelProvider: () => import("effect/Layer").Layer<Provider.Provider<AccessPoliciesAccessLevel>, never, import("../Environment.ts").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | acm.GcpOpContext>;
 export {};

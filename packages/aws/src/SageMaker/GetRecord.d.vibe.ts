@@ -25,6 +25,6 @@ export interface GetRecordRequest extends Omit<featurestore.GetRecordRequest, "F
  *
  * @binding
  */
-export interface GetRecord extends Binding.Service<GetRecord, "AWS.SageMaker.GetRecord", <F extends FeatureGroup>(featureGroup: F) => Effect.Effect<((request: GetRecordRequest) => Effect.Effect<featurestore.GetRecordResponse, featurestore.GetRecordError>)>> {
+export interface GetRecord extends Binding.Service<GetRecord, "AWS.SageMaker.GetRecord", <F extends FeatureGroup>(featureGroup: F) => Effect.Effect<(request: GetRecordRequest) => Effect.Effect<featurestore.GetRecordResponse, featurestore.GetRecordError>>> {
 }
 export declare const GetRecord: GetRecord;

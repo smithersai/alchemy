@@ -1,7 +1,7 @@
 import type * as sfn from "@distilled.cloud/aws/sfn";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { StateMachine } from "./StateMachine.js";
+import type { StateMachine } from "./StateMachine.ts";
 export interface RedriveExecutionRequest extends sfn.RedriveExecutionInput {
 }
 /**
@@ -24,6 +24,6 @@ export interface RedriveExecutionRequest extends sfn.RedriveExecutionInput {
  *
  * @binding
  */
-export interface RedriveExecution extends Binding.Service<RedriveExecution, "AWS.StepFunctions.RedriveExecution", (stateMachine: StateMachine) => Effect.Effect<((request: RedriveExecutionRequest) => Effect.Effect<sfn.RedriveExecutionOutput, sfn.RedriveExecutionError>)>> {
+export interface RedriveExecution extends Binding.Service<RedriveExecution, "AWS.StepFunctions.RedriveExecution", (stateMachine: StateMachine) => Effect.Effect<(request: RedriveExecutionRequest) => Effect.Effect<sfn.RedriveExecutionOutput, sfn.RedriveExecutionError>>> {
 }
 export declare const RedriveExecution: RedriveExecution;

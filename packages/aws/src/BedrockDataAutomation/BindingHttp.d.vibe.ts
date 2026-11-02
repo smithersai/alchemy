@@ -28,7 +28,7 @@ export declare const makeBdaProjectHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.BedrockDataAutomation.InvokeDataAutomationAsync`. */
     tag: string;
     /** The distilled operation; `dataAutomationConfiguration` is injected from the project. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the project ARN + the account's profiles. */
     actions: readonly string[];
 }) => Effect.Effect<(project: DataAutomationProject) => Effect.Effect<(request: Omit<I, "dataAutomationConfiguration">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -44,7 +44,7 @@ export declare const makeBdaLibraryHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.BedrockDataAutomation.ListDataAutomationLibraryEntities`. */
     tag: string;
     /** The distilled operation; `libraryArn` is injected from the library. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the library ARN (+ `additionalResources`). */
     actions: readonly string[];
     /**
@@ -70,7 +70,7 @@ export declare const makeBdaBlueprintOptimizationHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.BedrockDataAutomation.InvokeBlueprintOptimizationAsync`. */
     tag: string;
     /** The distilled operation; `blueprint` is injected from the blueprint. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the blueprint ARN + the account's profiles. */
     actions: readonly string[];
 }) => Effect.Effect<(blueprint: Blueprint) => Effect.Effect<(request: Omit<I, "blueprint">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -86,7 +86,7 @@ export declare const makeBdaBlueprintHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.BedrockDataAutomation.CreateBlueprintVersion`. */
     tag: string;
     /** The distilled operation; `blueprintArn` is injected from the blueprint. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the blueprint ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(blueprint: Blueprint) => Effect.Effect<(request: Omit<I, "blueprintArn">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -100,7 +100,7 @@ export declare const makeBdaAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.BedrockDataAutomation.GetDataAutomationStatus`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

@@ -25,6 +25,6 @@ import type { SigningProfile } from "./SigningProfile.vibe";
  *
  * @binding
  */
-export interface SignPayload extends Binding.Service<SignPayload, "AWS.Signer.SignPayload", (profile: SigningProfile) => Effect.Effect<((request: Omit<signer.SignPayloadRequest, "profileName">) => Effect.Effect<signer.SignPayloadResponse, signer.SignPayloadError>)>> {
+export interface SignPayload extends Binding.Service<SignPayload, "AWS.Signer.SignPayload", (profile: SigningProfile) => Effect.Effect<(request: Omit<signer.SignPayloadRequest, "profileName">) => Effect.Effect<signer.SignPayloadResponse, signer.SignPayloadError>>> {
 }
 export declare const SignPayload: SignPayload;

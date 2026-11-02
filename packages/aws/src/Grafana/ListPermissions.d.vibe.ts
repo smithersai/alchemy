@@ -23,6 +23,6 @@ import type { Workspace } from "./Workspace.vibe";
  *
  * @binding
  */
-export interface ListPermissions extends Binding.Service<ListPermissions, "AWS.Grafana.ListPermissions", (workspace: Workspace) => Effect.Effect<((request?: Omit<grafana.ListPermissionsRequest, "workspaceId">) => Effect.Effect<grafana.ListPermissionsResponse, grafana.ListPermissionsError>)>> {
+export interface ListPermissions extends Binding.Service<ListPermissions, "AWS.Grafana.ListPermissions", (workspace: Workspace) => Effect.Effect<(request?: Omit<grafana.ListPermissionsRequest, "workspaceId">) => Effect.Effect<grafana.ListPermissionsResponse, grafana.ListPermissionsError>>> {
 }
 export declare const ListPermissions: ListPermissions;

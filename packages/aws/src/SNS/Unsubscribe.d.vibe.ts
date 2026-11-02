@@ -18,6 +18,6 @@ export interface UnsubscribeRequest extends sns.UnsubscribeInput {
  *
  * @binding
  */
-export interface Unsubscribe extends Binding.Service<Unsubscribe, "AWS.SNS.Unsubscribe", () => Effect.Effect<((request: UnsubscribeRequest) => Effect.Effect<sns.UnsubscribeResponse, sns.UnsubscribeError>)>> {
+export interface Unsubscribe extends Binding.Service<Unsubscribe, "AWS.SNS.Unsubscribe", () => Effect.Effect<(request: UnsubscribeRequest) => Effect.Effect<sns.UnsubscribeResponse, sns.UnsubscribeError>>> {
 }
 export declare const Unsubscribe: Unsubscribe;

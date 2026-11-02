@@ -21,6 +21,6 @@ export interface ListDataIntegrationsRequest extends appintegrations.ListDataInt
  *
  * @binding
  */
-export interface ListDataIntegrations extends Binding.Service<ListDataIntegrations, "AWS.AppIntegrations.ListDataIntegrations", () => Effect.Effect<((request?: ListDataIntegrationsRequest) => Effect.Effect<appintegrations.ListDataIntegrationsResponse, appintegrations.ListDataIntegrationsError>)>> {
+export interface ListDataIntegrations extends Binding.Service<ListDataIntegrations, "AWS.AppIntegrations.ListDataIntegrations", () => Effect.Effect<(request?: ListDataIntegrationsRequest) => Effect.Effect<appintegrations.ListDataIntegrationsResponse, appintegrations.ListDataIntegrationsError>>> {
 }
 export declare const ListDataIntegrations: ListDataIntegrations;

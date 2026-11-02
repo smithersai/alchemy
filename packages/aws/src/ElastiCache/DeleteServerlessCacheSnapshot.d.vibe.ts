@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteServerlessCacheSnapshot extends Binding.Service<DeleteServerlessCacheSnapshot, "AWS.ElastiCache.DeleteServerlessCacheSnapshot", () => Effect.Effect<((request: elasticache.DeleteServerlessCacheSnapshotRequest) => Effect.Effect<elasticache.DeleteServerlessCacheSnapshotResponse, elasticache.DeleteServerlessCacheSnapshotError>)>> {
+export interface DeleteServerlessCacheSnapshot extends Binding.Service<DeleteServerlessCacheSnapshot, "AWS.ElastiCache.DeleteServerlessCacheSnapshot", () => Effect.Effect<(request: elasticache.DeleteServerlessCacheSnapshotRequest) => Effect.Effect<elasticache.DeleteServerlessCacheSnapshotResponse, elasticache.DeleteServerlessCacheSnapshotError>>> {
 }
 export declare const DeleteServerlessCacheSnapshot: DeleteServerlessCacheSnapshot;

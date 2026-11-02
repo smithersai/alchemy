@@ -18,7 +18,7 @@ export declare const makeApplicationSignalsAccountHttpBinding: <I, A, E, R>(opti
     /** Fully-qualified binding tag, e.g. `AWS.ApplicationSignals.ListServices`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -34,7 +34,7 @@ export declare const makeSloIdHttpBinding: <I extends {
     /** Fully-qualified binding tag. */
     tag: string;
     /** The distilled operation; `Id` is injected from the SLO. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the SLO ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(slo: ServiceLevelObjective) => Effect.Effect<(request?: Omit<I, "Id"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -51,7 +51,7 @@ export declare const makeSloBatchHttpBinding: <I extends {
     /** Fully-qualified binding tag. */
     tag: string;
     /** The distilled operation; `SloIds` is injected from the SLO. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the SLO ARN. */
     actions: readonly string[];
     /**

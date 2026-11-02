@@ -22,6 +22,6 @@ import type { HostedZone } from "./HostedZone.vibe";
  *
  * @binding
  */
-export interface GetHostedZone extends Binding.Service<GetHostedZone, "AWS.Route53.GetHostedZone", (zone: HostedZone) => Effect.Effect<(() => Effect.Effect<route53.GetHostedZoneResponse, route53.GetHostedZoneError>)>> {
+export interface GetHostedZone extends Binding.Service<GetHostedZone, "AWS.Route53.GetHostedZone", (zone: HostedZone) => Effect.Effect<() => Effect.Effect<route53.GetHostedZoneResponse, route53.GetHostedZoneError>>> {
 }
 export declare const GetHostedZone: GetHostedZone;

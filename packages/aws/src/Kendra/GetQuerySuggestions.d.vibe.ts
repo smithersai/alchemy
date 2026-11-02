@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `GetQuerySuggestions` request with `IndexId` injected from the bound index.
  */
@@ -26,6 +26,6 @@ export interface GetQuerySuggestionsRequest extends Omit<kendra.GetQuerySuggesti
  *
  * @binding
  */
-export interface GetQuerySuggestions extends Binding.Service<GetQuerySuggestions, "AWS.Kendra.GetQuerySuggestions", (index: Index) => Effect.Effect<((request: GetQuerySuggestionsRequest) => Effect.Effect<kendra.GetQuerySuggestionsResponse, kendra.GetQuerySuggestionsError>)>> {
+export interface GetQuerySuggestions extends Binding.Service<GetQuerySuggestions, "AWS.Kendra.GetQuerySuggestions", (index: Index) => Effect.Effect<(request: GetQuerySuggestionsRequest) => Effect.Effect<kendra.GetQuerySuggestionsResponse, kendra.GetQuerySuggestionsError>>> {
 }
 export declare const GetQuerySuggestions: GetQuerySuggestions;

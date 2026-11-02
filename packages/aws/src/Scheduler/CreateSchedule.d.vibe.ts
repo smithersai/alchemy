@@ -1,7 +1,7 @@
 import type * as scheduler from "@distilled.cloud/aws/scheduler";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 import type { ScheduleGroup } from "./ScheduleGroup.vibe";
 /**
  * The schedule target passed at runtime. `RoleArn` defaults to the execution
@@ -89,6 +89,6 @@ export interface CreateScheduleRequest extends Omit<scheduler.CreateScheduleInpu
  *
  * @binding
  */
-export interface CreateSchedule extends Binding.Service<CreateSchedule, "AWS.Scheduler.CreateSchedule", <R extends Role>(executionRole: R, group?: ScheduleGroup) => Effect.Effect<((request: CreateScheduleRequest) => Effect.Effect<scheduler.CreateScheduleOutput, scheduler.CreateScheduleError>)>> {
+export interface CreateSchedule extends Binding.Service<CreateSchedule, "AWS.Scheduler.CreateSchedule", <R extends Role>(executionRole: R, group?: ScheduleGroup) => Effect.Effect<(request: CreateScheduleRequest) => Effect.Effect<scheduler.CreateScheduleOutput, scheduler.CreateScheduleError>>> {
 }
 export declare const CreateSchedule: CreateSchedule;

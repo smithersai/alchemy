@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SearchVulnerabilities extends Binding.Service<SearchVulnerabilities, "AWS.Inspector2.SearchVulnerabilities", () => Effect.Effect<((request: inspector2.SearchVulnerabilitiesRequest) => Effect.Effect<inspector2.SearchVulnerabilitiesResponse, inspector2.SearchVulnerabilitiesError>)>> {
+export interface SearchVulnerabilities extends Binding.Service<SearchVulnerabilities, "AWS.Inspector2.SearchVulnerabilities", () => Effect.Effect<(request: inspector2.SearchVulnerabilitiesRequest) => Effect.Effect<inspector2.SearchVulnerabilitiesResponse, inspector2.SearchVulnerabilitiesError>>> {
 }
 export declare const SearchVulnerabilities: SearchVulnerabilities;

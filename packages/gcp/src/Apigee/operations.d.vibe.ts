@@ -2,8 +2,8 @@ import * as apigee from "@distilled.cloud/gcp/apigee_v1";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { GcpEnvironment } from "../Environment.js";
-import { encodeDescription, hasOwnershipMarker, lastSegment, orgIdOf, orgParent, parseDescription } from "./ownership.js";
+import { GcpEnvironment } from "../Environment.ts";
+import { encodeDescription, hasOwnershipMarker, lastSegment, orgIdOf, orgParent, parseDescription } from "./ownership.ts";
 export { encodeDescription, hasOwnershipMarker, lastSegment, orgIdOf, orgParent, parseDescription };
 export declare const orgNameOf: (organization: string) => string;
 export declare const orgName: typeof orgNameOf;
@@ -19,8 +19,8 @@ export declare const toPhysicalId: (id: string, explicit: string | undefined, ex
 export declare const letterPrefixedId: (id: string, explicit: string | undefined, existing: string | undefined, maxLength?: number) => Effect.Effect<string, never, import("alchemy/ResourceContext").ResourceContext | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
 export declare const dcCollectorId: (id: string, explicit: string | undefined, existing: string | undefined) => Effect.Effect<string, never, import("alchemy/ResourceContext").ResourceContext | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
 export declare const collectPages: <Page, Item, E, R>(stream: Stream.Stream<Page, E, R>, pick: (page: Page) => readonly Item[] | undefined) => Effect.Effect<Item[], E, R>;
-export declare const listOrgNames: () => Effect.Effect<string[], apigee.Forbidden | import("../Environment.js").GcpProjectMissing | apigee.GcpOpError, GcpEnvironment | apigee.GcpOpContext>;
-export declare const resolveOrgId: (project: string) => Effect.Effect<string, apigee.Forbidden | import("../Environment.js").GcpProjectMissing | apigee.GcpOpError, GcpEnvironment | apigee.GcpOpContext>;
+export declare const listOrgNames: () => Effect.Effect<string[], apigee.Forbidden | import("../Environment.ts").GcpProjectMissing | apigee.GcpOpError, GcpEnvironment | apigee.GcpOpContext>;
+export declare const resolveOrgId: (project: string) => Effect.Effect<string, apigee.Forbidden | import("../Environment.ts").GcpProjectMissing | apigee.GcpOpError, GcpEnvironment | apigee.GcpOpContext>;
 export declare const childName: (parent: string, collection: string, id: string) => string;
 export declare const attributesToRecord: (attributes: readonly apigee.GoogleCloudApigeeV1Attribute[] | apigee.GoogleCloudApigeeV1Attributes | undefined) => Record<string, string>;
 export declare const recordToAttributes: (record: Record<string, string>) => apigee.GoogleCloudApigeeV1Attribute[];
@@ -44,5 +44,5 @@ export declare const waitForOperation: (operation: apigee.GoogleLongrunningOpera
     notFoundOk?: boolean;
     alreadyExistsOk?: boolean;
     budget?: Duration.Input;
-}) => Effect.Effect<apigee.GoogleLongrunningOperation, apigee.ApigeeResourceNotFound | apigee.Forbidden | apigee.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | apigee.GcpOpError, apigee.GcpOpContext>;
+}) => Effect.Effect<apigee.GoogleLongrunningOperation, apigee.ApigeeResourceNotFound | apigee.Forbidden | apigee.NotFound | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | apigee.GcpOpError, apigee.GcpOpContext>;
 export declare const stringField: (value: Record<string, unknown> | undefined, key: string) => string | undefined;

@@ -26,6 +26,6 @@ export interface GetChatControlsConfigurationRequest extends Omit<qbusiness.GetC
  *
  * @binding
  */
-export interface GetChatControlsConfiguration extends Binding.Service<GetChatControlsConfiguration, "AWS.QBusiness.GetChatControlsConfiguration", (application: Application) => Effect.Effect<((request?: GetChatControlsConfigurationRequest) => Effect.Effect<qbusiness.GetChatControlsConfigurationResponse, qbusiness.GetChatControlsConfigurationError>)>> {
+export interface GetChatControlsConfiguration extends Binding.Service<GetChatControlsConfiguration, "AWS.QBusiness.GetChatControlsConfiguration", (application: Application) => Effect.Effect<(request?: GetChatControlsConfigurationRequest) => Effect.Effect<qbusiness.GetChatControlsConfigurationResponse, qbusiness.GetChatControlsConfigurationError>>> {
 }
 export declare const GetChatControlsConfiguration: GetChatControlsConfiguration;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateMemberSession extends Binding.Service<UpdateMemberSession, "AWS.Macie2.UpdateMemberSession", () => Effect.Effect<((request: macie2.UpdateMemberSessionRequest) => Effect.Effect<macie2.UpdateMemberSessionResponse, macie2.UpdateMemberSessionError>)>> {
+export interface UpdateMemberSession extends Binding.Service<UpdateMemberSession, "AWS.Macie2.UpdateMemberSession", () => Effect.Effect<(request: macie2.UpdateMemberSessionRequest) => Effect.Effect<macie2.UpdateMemberSessionResponse, macie2.UpdateMemberSessionError>>> {
 }
 export declare const UpdateMemberSession: UpdateMemberSession;

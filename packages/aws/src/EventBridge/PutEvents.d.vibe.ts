@@ -74,6 +74,6 @@ export interface PutEventsRequest extends Omit<eventbridge.PutEventsRequest, "En
  *
  * @binding
  */
-export interface PutEvents extends Binding.Service<PutEvents, "AWS.EventBridge.PutEvents", (target?: EventBus | Endpoint) => Effect.Effect<((request: PutEventsRequest) => Effect.Effect<eventbridge.PutEventsResponse, eventbridge.PutEventsError>)>> {
+export interface PutEvents extends Binding.Service<PutEvents, "AWS.EventBridge.PutEvents", (target?: EventBus | Endpoint) => Effect.Effect<(request: PutEventsRequest) => Effect.Effect<eventbridge.PutEventsResponse, eventbridge.PutEventsError>>> {
 }
 export declare const PutEvents: PutEvents;

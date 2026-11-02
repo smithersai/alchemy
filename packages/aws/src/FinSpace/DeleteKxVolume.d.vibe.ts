@@ -19,6 +19,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface DeleteKxVolume extends Binding.Service<DeleteKxVolume, "AWS.FinSpace.DeleteKxVolume", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request: Omit<SVC.DeleteKxVolumeRequest, "environmentId">) => Effect.Effect<SVC.DeleteKxVolumeResponse, SVC.DeleteKxVolumeError>)>> {
+export interface DeleteKxVolume extends Binding.Service<DeleteKxVolume, "AWS.FinSpace.DeleteKxVolume", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request: Omit<SVC.DeleteKxVolumeRequest, "environmentId">) => Effect.Effect<SVC.DeleteKxVolumeResponse, SVC.DeleteKxVolumeError>>> {
 }
 export declare const DeleteKxVolume: DeleteKxVolume;

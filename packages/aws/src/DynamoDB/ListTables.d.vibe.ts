@@ -20,6 +20,6 @@ export interface ListTablesRequest extends DynamoDB.ListTablesInput {
  *
  * @binding
  */
-export interface ListTables extends Binding.Service<ListTables, "AWS.DynamoDB.ListTables", () => Effect.Effect<((request?: ListTablesRequest) => Effect.Effect<DynamoDB.ListTablesOutput, DynamoDB.ListTablesError>)>> {
+export interface ListTables extends Binding.Service<ListTables, "AWS.DynamoDB.ListTables", () => Effect.Effect<(request?: ListTablesRequest) => Effect.Effect<DynamoDB.ListTablesOutput, DynamoDB.ListTablesError>>> {
 }
 export declare const ListTables: ListTables;

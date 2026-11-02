@@ -1,7 +1,7 @@
 import type * as lexr from "@distilled.cloud/aws/lex-runtime-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { BotAlias } from "./BotAlias.js";
+import type { BotAlias } from "./BotAlias.ts";
 /**
  * The `PutSession` request with the binding-injected `botId` and
  * `botAliasId` removed. `sessionState` is the new state of the conversation
@@ -34,6 +34,6 @@ export interface PutSessionRequest extends Omit<lexr.PutSessionRequest, "botId" 
  *
  * @binding
  */
-export interface PutSession extends Binding.Service<PutSession, "AWS.LexV2.PutSession", (alias: BotAlias) => Effect.Effect<((request: PutSessionRequest) => Effect.Effect<lexr.PutSessionResponse, lexr.PutSessionError>)>> {
+export interface PutSession extends Binding.Service<PutSession, "AWS.LexV2.PutSession", (alias: BotAlias) => Effect.Effect<(request: PutSessionRequest) => Effect.Effect<lexr.PutSessionResponse, lexr.PutSessionError>>> {
 }
 export declare const PutSession: PutSession;

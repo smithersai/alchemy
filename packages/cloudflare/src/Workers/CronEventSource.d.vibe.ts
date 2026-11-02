@@ -3,7 +3,7 @@ import { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { Worker } from "./Worker.js";
+import { Worker } from "./Worker.ts";
 /**
  * Subscribe to Cloudflare Cron Triggers with an Effect handler.
  *

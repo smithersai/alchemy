@@ -1,6 +1,6 @@
 import { type MemoryDB } from "better-auth/adapters/memory";
 import * as Layer from "effect/Layer";
-import { Database } from "./Database.js";
+import { Database } from "./Database.ts";
 /**
  * In-memory database layer for Better Auth — tests and throwaway dev
  * only. Data lives in the provided (or an internal) record for the

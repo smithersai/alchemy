@@ -22,6 +22,6 @@ export interface DisassociateCustomDomainRequest extends Omit<apprunner.Disassoc
  *
  * @binding
  */
-export interface DisassociateCustomDomain extends Binding.Service<DisassociateCustomDomain, "AWS.AppRunner.DisassociateCustomDomain", (service: Service) => Effect.Effect<((request: DisassociateCustomDomainRequest) => Effect.Effect<apprunner.DisassociateCustomDomainResponse, apprunner.DisassociateCustomDomainError>)>> {
+export interface DisassociateCustomDomain extends Binding.Service<DisassociateCustomDomain, "AWS.AppRunner.DisassociateCustomDomain", (service: Service) => Effect.Effect<(request: DisassociateCustomDomainRequest) => Effect.Effect<apprunner.DisassociateCustomDomainResponse, apprunner.DisassociateCustomDomainError>>> {
 }
 export declare const DisassociateCustomDomain: DisassociateCustomDomain;

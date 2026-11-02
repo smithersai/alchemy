@@ -27,6 +27,6 @@ export interface GetReservationPurchaseRecommendationRequest extends ce.GetReser
  *
  * @binding
  */
-export interface GetReservationPurchaseRecommendation extends Binding.Service<GetReservationPurchaseRecommendation, "AWS.CostExplorer.GetReservationPurchaseRecommendation", () => Effect.Effect<((request: GetReservationPurchaseRecommendationRequest) => Effect.Effect<ce.GetReservationPurchaseRecommendationResponse, ce.GetReservationPurchaseRecommendationError>)>> {
+export interface GetReservationPurchaseRecommendation extends Binding.Service<GetReservationPurchaseRecommendation, "AWS.CostExplorer.GetReservationPurchaseRecommendation", () => Effect.Effect<(request: GetReservationPurchaseRecommendationRequest) => Effect.Effect<ce.GetReservationPurchaseRecommendationResponse, ce.GetReservationPurchaseRecommendationError>>> {
 }
 export declare const GetReservationPurchaseRecommendation: GetReservationPurchaseRecommendation;

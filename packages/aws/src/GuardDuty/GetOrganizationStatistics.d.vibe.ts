@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetOrganizationStatistics extends Binding.Service<GetOrganizationStatistics, "AWS.GuardDuty.GetOrganizationStatistics", () => Effect.Effect<((request?: guardduty.GetOrganizationStatisticsRequest) => Effect.Effect<guardduty.GetOrganizationStatisticsResponse, guardduty.GetOrganizationStatisticsError>)>> {
+export interface GetOrganizationStatistics extends Binding.Service<GetOrganizationStatistics, "AWS.GuardDuty.GetOrganizationStatistics", () => Effect.Effect<(request?: guardduty.GetOrganizationStatisticsRequest) => Effect.Effect<guardduty.GetOrganizationStatisticsResponse, guardduty.GetOrganizationStatisticsError>>> {
 }
 export declare const GetOrganizationStatistics: GetOrganizationStatistics;

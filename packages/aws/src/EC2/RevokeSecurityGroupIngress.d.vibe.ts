@@ -34,6 +34,6 @@ export interface RevokeSecurityGroupIngressRequest extends Omit<ec2.RevokeSecuri
  *
  * @binding
  */
-export interface RevokeSecurityGroupIngress extends Binding.Service<RevokeSecurityGroupIngress, "AWS.EC2.RevokeSecurityGroupIngress", (group: SecurityGroup) => Effect.Effect<((request: RevokeSecurityGroupIngressRequest) => Effect.Effect<ec2.RevokeSecurityGroupIngressResult, ec2.RevokeSecurityGroupIngressError>)>> {
+export interface RevokeSecurityGroupIngress extends Binding.Service<RevokeSecurityGroupIngress, "AWS.EC2.RevokeSecurityGroupIngress", (group: SecurityGroup) => Effect.Effect<(request: RevokeSecurityGroupIngressRequest) => Effect.Effect<ec2.RevokeSecurityGroupIngressResult, ec2.RevokeSecurityGroupIngressError>>> {
 }
 export declare const RevokeSecurityGroupIngress: RevokeSecurityGroupIngress;

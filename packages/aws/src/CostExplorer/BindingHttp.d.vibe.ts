@@ -35,7 +35,7 @@ export declare const makeCostExplorerHttpBinding: <I extends object, A, E extend
     /** IAM actions granted on `Resource: ["*"]`. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
 /**
  * Build the impl Effect for an operation scoped to one
@@ -56,7 +56,7 @@ export declare const makeAnomalyMonitorHttpBinding: <I extends {
     /** IAM actions granted on the monitor ARN. */
     iamActions: readonly string[];
     /** The distilled operation; `MonitorArn` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<(monitor: AnomalyMonitor) => Effect.Effect<(request: Omit<I, "MonitorArn">) => Effect.Effect<A, E, never>, never, never>, never, never>;
 /**
  * Build the impl Effect for an operation bound to one {@link CostCategory}.
@@ -79,5 +79,5 @@ export declare const makeCostCategoryHttpBinding: <I extends {
     /** IAM actions granted on `Resource: ["*"]` (no resource types). */
     iamActions: readonly string[];
     /** The distilled operation; `CostCategoryArn` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<(category: CostCategory) => Effect.Effect<(request?: Omit<I, "CostCategoryArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

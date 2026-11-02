@@ -29,6 +29,6 @@ export interface StartTransformerJobRequest extends Omit<b2bi.StartTransformerJo
  *
  * @binding
  */
-export interface StartTransformerJob extends Binding.Service<StartTransformerJob, "AWS.B2BI.StartTransformerJob", (transformer: Transformer) => Effect.Effect<((request: StartTransformerJobRequest) => Effect.Effect<b2bi.StartTransformerJobResponse, b2bi.StartTransformerJobError>)>> {
+export interface StartTransformerJob extends Binding.Service<StartTransformerJob, "AWS.B2BI.StartTransformerJob", (transformer: Transformer) => Effect.Effect<(request: StartTransformerJobRequest) => Effect.Effect<b2bi.StartTransformerJobResponse, b2bi.StartTransformerJobError>>> {
 }
 export declare const StartTransformerJob: StartTransformerJob;

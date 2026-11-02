@@ -22,7 +22,7 @@ export declare const makeApplicationScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.AppRegistry.GetApplication`. */
     tag: string;
     /** The distilled operation; `application` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the application ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(application: Application) => Effect.Effect<(request?: Omit<I, "application"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -37,7 +37,7 @@ export declare const makeAttributeGroupScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.AppRegistry.GetAttributeGroup`. */
     tag: string;
     /** The distilled operation; `attributeGroup` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the attribute group ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(attributeGroup: AttributeGroup) => Effect.Effect<(request?: Omit<I, "attributeGroup"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -49,7 +49,7 @@ export declare const makeAppRegistryAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.AppRegistry.SyncResource`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

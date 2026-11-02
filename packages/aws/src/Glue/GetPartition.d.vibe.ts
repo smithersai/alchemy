@@ -26,6 +26,6 @@ export interface GetPartitionRequest extends Omit<glue.GetPartitionRequest, "Dat
  *
  * @binding
  */
-export interface GetPartition extends Binding.Service<GetPartition, "AWS.Glue.GetPartition", (table: Table) => Effect.Effect<((request: GetPartitionRequest) => Effect.Effect<glue.GetPartitionResponse, glue.GetPartitionError>)>> {
+export interface GetPartition extends Binding.Service<GetPartition, "AWS.Glue.GetPartition", (table: Table) => Effect.Effect<(request: GetPartitionRequest) => Effect.Effect<glue.GetPartitionResponse, glue.GetPartitionError>>> {
 }
 export declare const GetPartition: GetPartition;

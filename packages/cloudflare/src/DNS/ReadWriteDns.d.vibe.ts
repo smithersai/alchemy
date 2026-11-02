@@ -1,6 +1,6 @@
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Zone } from "../Zone/Zone.js";
+import type { Zone } from "../Zone/Zone.ts";
 import { type ReadDnsClient } from "./ReadDns.vibe";
 import { type WriteDnsClient } from "./WriteDns.vibe";
 /**

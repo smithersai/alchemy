@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetCoreDevice extends Binding.Service<GetCoreDevice, "AWS.GreengrassV2.GetCoreDevice", () => Effect.Effect<((request: greengrassv2.GetCoreDeviceRequest) => Effect.Effect<greengrassv2.GetCoreDeviceResponse, greengrassv2.GetCoreDeviceError>)>> {
+export interface GetCoreDevice extends Binding.Service<GetCoreDevice, "AWS.GreengrassV2.GetCoreDevice", () => Effect.Effect<(request: greengrassv2.GetCoreDeviceRequest) => Effect.Effect<greengrassv2.GetCoreDeviceResponse, greengrassv2.GetCoreDeviceError>>> {
 }
 export declare const GetCoreDevice: GetCoreDevice;

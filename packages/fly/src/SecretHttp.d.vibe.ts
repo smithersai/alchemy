@@ -5,8 +5,8 @@ import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Redacted from "effect/Redacted";
 import type { App } from "./App.vibe";
-import type { Secret } from "./Secret.js";
-import type { SecretKey } from "./SecretKey.js";
+import type { Secret } from "./Secret.ts";
+import type { SecretKey } from "./SecretKey.ts";
 /**
  * Shared scaffolding for the HTTP-backed Fly Secret bindings.
  *

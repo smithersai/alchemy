@@ -40,6 +40,6 @@ export interface StartBrowserSessionRequest extends Omit<agentcore.StartBrowserS
  *
  * @binding
  */
-export interface StartBrowserSession extends Binding.Service<StartBrowserSession, "AWS.BedrockAgentCore.StartBrowserSession", <R extends BrowserCustom>(browser: R) => Effect.Effect<((request: StartBrowserSessionRequest) => Effect.Effect<agentcore.StartBrowserSessionResponse, agentcore.StartBrowserSessionError>)>> {
+export interface StartBrowserSession extends Binding.Service<StartBrowserSession, "AWS.BedrockAgentCore.StartBrowserSession", <R extends BrowserCustom>(browser: R) => Effect.Effect<(request: StartBrowserSessionRequest) => Effect.Effect<agentcore.StartBrowserSessionResponse, agentcore.StartBrowserSessionError>>> {
 }
 export declare const StartBrowserSession: StartBrowserSession;

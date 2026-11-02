@@ -22,6 +22,6 @@ export interface ListNotificationsRequest extends Omit<datazone.ListNotification
  *
  * @binding
  */
-export interface ListNotifications extends Binding.Service<ListNotifications, "AWS.DataZone.ListNotifications", (domain: Domain) => Effect.Effect<((request: ListNotificationsRequest) => Effect.Effect<datazone.ListNotificationsOutput, datazone.ListNotificationsError>)>> {
+export interface ListNotifications extends Binding.Service<ListNotifications, "AWS.DataZone.ListNotifications", (domain: Domain) => Effect.Effect<(request: ListNotificationsRequest) => Effect.Effect<datazone.ListNotificationsOutput, datazone.ListNotificationsError>>> {
 }
 export declare const ListNotifications: ListNotifications;

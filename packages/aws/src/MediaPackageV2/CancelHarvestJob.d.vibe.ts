@@ -22,6 +22,6 @@ import type { OriginEndpoint } from "./OriginEndpoint.vibe";
  *
  * @binding
  */
-export interface CancelHarvestJob extends Binding.Service<CancelHarvestJob, "AWS.MediaPackageV2.CancelHarvestJob", (endpoint: OriginEndpoint) => Effect.Effect<((request: Omit<mediapackagev2.CancelHarvestJobRequest, "ChannelGroupName" | "ChannelName" | "OriginEndpointName">) => Effect.Effect<mediapackagev2.CancelHarvestJobResponse, mediapackagev2.CancelHarvestJobError>)>> {
+export interface CancelHarvestJob extends Binding.Service<CancelHarvestJob, "AWS.MediaPackageV2.CancelHarvestJob", (endpoint: OriginEndpoint) => Effect.Effect<(request: Omit<mediapackagev2.CancelHarvestJobRequest, "ChannelGroupName" | "ChannelName" | "OriginEndpointName">) => Effect.Effect<mediapackagev2.CancelHarvestJobResponse, mediapackagev2.CancelHarvestJobError>>> {
 }
 export declare const CancelHarvestJob: CancelHarvestJob;

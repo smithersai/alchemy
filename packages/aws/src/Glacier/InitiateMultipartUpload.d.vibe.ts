@@ -32,6 +32,6 @@ export interface InitiateMultipartUploadRequest extends Omit<glacier.InitiateMul
  *
  * @binding
  */
-export interface InitiateMultipartUpload extends Binding.Service<InitiateMultipartUpload, "AWS.Glacier.InitiateMultipartUpload", (vault: Vault) => Effect.Effect<((request?: InitiateMultipartUploadRequest) => Effect.Effect<glacier.InitiateMultipartUploadOutput, glacier.InitiateMultipartUploadError>)>> {
+export interface InitiateMultipartUpload extends Binding.Service<InitiateMultipartUpload, "AWS.Glacier.InitiateMultipartUpload", (vault: Vault) => Effect.Effect<(request?: InitiateMultipartUploadRequest) => Effect.Effect<glacier.InitiateMultipartUploadOutput, glacier.InitiateMultipartUploadError>>> {
 }
 export declare const InitiateMultipartUpload: InitiateMultipartUpload;

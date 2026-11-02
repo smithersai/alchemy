@@ -21,6 +21,6 @@ import type { Service } from "./Service.vibe";
  *
  * @binding
  */
-export interface GetServiceAttributes extends Binding.Service<GetServiceAttributes, "AWS.CloudMap.GetServiceAttributes", <S extends Service>(service: S) => Effect.Effect<(() => Effect.Effect<SD.GetServiceAttributesResponse, SD.GetServiceAttributesError>)>> {
+export interface GetServiceAttributes extends Binding.Service<GetServiceAttributes, "AWS.CloudMap.GetServiceAttributes", <S extends Service>(service: S) => Effect.Effect<() => Effect.Effect<SD.GetServiceAttributesResponse, SD.GetServiceAttributesError>>> {
 }
 export declare const GetServiceAttributes: GetServiceAttributes;

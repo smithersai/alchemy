@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DetectSentiment extends Binding.Service<DetectSentiment, "AWS.Comprehend.DetectSentiment", () => Effect.Effect<((request: comprehend.DetectSentimentRequest) => Effect.Effect<comprehend.DetectSentimentResponse, comprehend.DetectSentimentError>)>> {
+export interface DetectSentiment extends Binding.Service<DetectSentiment, "AWS.Comprehend.DetectSentiment", () => Effect.Effect<(request: comprehend.DetectSentimentRequest) => Effect.Effect<comprehend.DetectSentimentResponse, comprehend.DetectSentimentError>>> {
 }
 export declare const DetectSentiment: DetectSentiment;

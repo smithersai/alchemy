@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface OptOutListProps {
     /**
      * Name of the opt-out list (`[A-Za-z0-9_-]+`, 1-64 characters).

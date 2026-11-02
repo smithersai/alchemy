@@ -32,7 +32,7 @@ export declare const makeAppSyncApiHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.AppSync.FlushApiCache`. */
     tag: string;
     /** The distilled operation; `apiId` is injected from the bound API. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<(api: GraphqlApi) => Effect.Effect<(request?: Omit<I, "apiId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -46,7 +46,7 @@ export declare const makeAppSyncAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.AppSync.EvaluateCode`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

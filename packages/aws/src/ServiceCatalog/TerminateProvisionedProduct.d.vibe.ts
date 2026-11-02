@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface TerminateProvisionedProduct extends Binding.Service<TerminateProvisionedProduct, "AWS.ServiceCatalog.TerminateProvisionedProduct", () => Effect.Effect<((request: servicecatalog.TerminateProvisionedProductInput) => Effect.Effect<servicecatalog.TerminateProvisionedProductOutput, servicecatalog.TerminateProvisionedProductError>)>> {
+export interface TerminateProvisionedProduct extends Binding.Service<TerminateProvisionedProduct, "AWS.ServiceCatalog.TerminateProvisionedProduct", () => Effect.Effect<(request: servicecatalog.TerminateProvisionedProductInput) => Effect.Effect<servicecatalog.TerminateProvisionedProductOutput, servicecatalog.TerminateProvisionedProductError>>> {
 }
 export declare const TerminateProvisionedProduct: TerminateProvisionedProduct;

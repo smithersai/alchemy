@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * One extended or custom metric a RUM app monitor derives from its telemetry
  * events and sends to the destination.

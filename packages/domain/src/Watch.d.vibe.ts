@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
 import * as Rpc from "effect/rpc/Rpc";
 import * as Schema from "effect/Schema";
-import type * as Aggregate from "./Aggregate.js";
-import { type Kernel } from "./Kernel.js";
+import type * as Aggregate from "./Aggregate.ts";
+import { type Kernel } from "./Kernel.ts";
 import type { Json, Push, StoredEvent, StreamEntry, StreamMeta, Subscription, ViewEntry, ViewSnapshot } from "./Platform.vibe";
 import type * as DomainStream from "./Stream.vibe";
 import type * as View from "./View.vibe";

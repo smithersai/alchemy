@@ -27,6 +27,6 @@ import type { Crawler } from "./Crawler.vibe";
  *
  * @binding
  */
-export interface StopCrawler extends Binding.Service<StopCrawler, "AWS.Glue.StopCrawler", (crawler: Crawler) => Effect.Effect<(() => Effect.Effect<glue.StopCrawlerResponse, glue.StopCrawlerError>)>> {
+export interface StopCrawler extends Binding.Service<StopCrawler, "AWS.Glue.StopCrawler", (crawler: Crawler) => Effect.Effect<() => Effect.Effect<glue.StopCrawlerResponse, glue.StopCrawlerError>>> {
 }
 export declare const StopCrawler: StopCrawler;

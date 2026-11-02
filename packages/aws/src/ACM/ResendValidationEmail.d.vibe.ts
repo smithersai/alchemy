@@ -32,6 +32,6 @@ export interface ResendValidationEmailRequest extends Omit<acm.ResendValidationE
  *
  * @binding
  */
-export interface ResendValidationEmail extends Binding.Service<ResendValidationEmail, "AWS.ACM.ResendValidationEmail", (certificate: Certificate) => Effect.Effect<((request: ResendValidationEmailRequest) => Effect.Effect<acm.ResendValidationEmailResponse, acm.ResendValidationEmailError>)>> {
+export interface ResendValidationEmail extends Binding.Service<ResendValidationEmail, "AWS.ACM.ResendValidationEmail", (certificate: Certificate) => Effect.Effect<(request: ResendValidationEmailRequest) => Effect.Effect<acm.ResendValidationEmailResponse, acm.ResendValidationEmailError>>> {
 }
 export declare const ResendValidationEmail: ResendValidationEmail;

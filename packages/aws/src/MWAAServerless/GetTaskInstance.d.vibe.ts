@@ -30,6 +30,6 @@ export type GetTaskInstanceInput = Omit<mwaa.GetTaskInstanceRequest, "WorkflowAr
  *
  * @binding
  */
-export interface GetTaskInstance extends Binding.Service<GetTaskInstance, "AWS.MWAAServerless.GetTaskInstance", (workflow: Workflow) => Effect.Effect<((request: GetTaskInstanceInput) => Effect.Effect<mwaa.GetTaskInstanceResponse, mwaa.GetTaskInstanceError>)>> {
+export interface GetTaskInstance extends Binding.Service<GetTaskInstance, "AWS.MWAAServerless.GetTaskInstance", (workflow: Workflow) => Effect.Effect<(request: GetTaskInstanceInput) => Effect.Effect<mwaa.GetTaskInstanceResponse, mwaa.GetTaskInstanceError>>> {
 }
 export declare const GetTaskInstance: GetTaskInstance;

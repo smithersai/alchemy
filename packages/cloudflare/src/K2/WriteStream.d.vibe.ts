@@ -2,7 +2,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type { EncodedRecord, K2SchemaError, ProduceError } from "./K2Types.vibe";
-import type { Stream, StreamRecord } from "./Stream.js";
+import type { Stream, StreamRecord } from "./Stream.ts";
 /**
  * Binding service that turns a K2 {@link Stream} into a typed
  * {@link WriteStreamClient} you can call from a Worker's (or any host's)

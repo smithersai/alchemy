@@ -1,7 +1,7 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
-import type { StateMachine } from "./StateMachine.js";
+import type { StateMachine } from "./StateMachine.ts";
 /**
  * The `detail` payload Step Functions delivers to EventBridge when an
  * execution changes status (`Step Functions Execution Status Change`).

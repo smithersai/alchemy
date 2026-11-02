@@ -2,7 +2,7 @@ import type * as redis from "@distilled.cloud/gcp/redis_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 export interface GetAuthStringRequest extends Omit<redis.GetAuthStringProjectsLocationsInstancesRequest, "name"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface GetAuthStringRequest extends Omit<redis.GetAuthStringProjectsLo
  * @binding
  * @category Redis
  */
-export interface GetAuthString extends Binding.Service<GetAuthString, "GCP.Redis.GetAuthString", (instance: Instance) => Effect.Effect<((request?: GetAuthStringRequest) => Effect.Effect<redis.InstanceAuthString, redis.GetAuthStringProjectsLocationsInstancesError, RuntimeContext>)>> {
+export interface GetAuthString extends Binding.Service<GetAuthString, "GCP.Redis.GetAuthString", (instance: Instance) => Effect.Effect<(request?: GetAuthStringRequest) => Effect.Effect<redis.InstanceAuthString, redis.GetAuthStringProjectsLocationsInstancesError, RuntimeContext>>> {
 }
 export declare const GetAuthString: GetAuthString;

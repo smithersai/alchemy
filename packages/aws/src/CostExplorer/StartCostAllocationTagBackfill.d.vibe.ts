@@ -26,6 +26,6 @@ export interface StartCostAllocationTagBackfillRequest extends ce.StartCostAlloc
  *
  * @binding
  */
-export interface StartCostAllocationTagBackfill extends Binding.Service<StartCostAllocationTagBackfill, "AWS.CostExplorer.StartCostAllocationTagBackfill", () => Effect.Effect<((request: StartCostAllocationTagBackfillRequest) => Effect.Effect<ce.StartCostAllocationTagBackfillResponse, ce.StartCostAllocationTagBackfillError>)>> {
+export interface StartCostAllocationTagBackfill extends Binding.Service<StartCostAllocationTagBackfill, "AWS.CostExplorer.StartCostAllocationTagBackfill", () => Effect.Effect<(request: StartCostAllocationTagBackfillRequest) => Effect.Effect<ce.StartCostAllocationTagBackfillResponse, ce.StartCostAllocationTagBackfillError>>> {
 }
 export declare const StartCostAllocationTagBackfill: StartCostAllocationTagBackfill;

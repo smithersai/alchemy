@@ -23,6 +23,6 @@ import type { Channel } from "./Channel.vibe";
  *
  * @binding
  */
-export interface RestartChannelPipelines extends Binding.Service<RestartChannelPipelines, "AWS.MediaLive.RestartChannelPipelines", (channel: Channel) => Effect.Effect<((request?: Omit<medialive.RestartChannelPipelinesRequest, "ChannelId">) => Effect.Effect<medialive.RestartChannelPipelinesResponse, medialive.RestartChannelPipelinesError>)>> {
+export interface RestartChannelPipelines extends Binding.Service<RestartChannelPipelines, "AWS.MediaLive.RestartChannelPipelines", (channel: Channel) => Effect.Effect<(request?: Omit<medialive.RestartChannelPipelinesRequest, "ChannelId">) => Effect.Effect<medialive.RestartChannelPipelinesResponse, medialive.RestartChannelPipelinesError>>> {
 }
 export declare const RestartChannelPipelines: RestartChannelPipelines;

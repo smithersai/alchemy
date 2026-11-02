@@ -2,7 +2,7 @@ import type { VerifySecretKeyError } from "@distilled.cloud/fly-io/machines";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { SecretKey } from "./SecretKey.js";
+import type { SecretKey } from "./SecretKey.ts";
 export interface VerifyRequest {
     /** Original payload. */
     plaintext: Uint8Array | ArrayLike<number>;
@@ -30,6 +30,6 @@ export interface VerifyResult {
  * @binding
  * @product Secret Key
  */
-export interface Verify extends Binding.Service<Verify, "Fly.Verify", (key: SecretKey) => Effect.Effect<((request: VerifyRequest) => Effect.Effect<VerifyResult, VerifySecretKeyError, RuntimeContext>)>> {
+export interface Verify extends Binding.Service<Verify, "Fly.Verify", (key: SecretKey) => Effect.Effect<(request: VerifyRequest) => Effect.Effect<VerifyResult, VerifySecretKeyError, RuntimeContext>>> {
 }
 export declare const Verify: Verify;

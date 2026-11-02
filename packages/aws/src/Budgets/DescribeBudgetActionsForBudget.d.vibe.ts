@@ -28,6 +28,6 @@ export interface DescribeBudgetActionsForBudgetRequest extends Omit<budgets.Desc
  *
  * @binding
  */
-export interface DescribeBudgetActionsForBudget extends Binding.Service<DescribeBudgetActionsForBudget, "AWS.Budgets.DescribeBudgetActionsForBudget", (budget: Budget) => Effect.Effect<((request?: DescribeBudgetActionsForBudgetRequest) => Effect.Effect<budgets.DescribeBudgetActionsForBudgetResponse, budgets.DescribeBudgetActionsForBudgetError>)>> {
+export interface DescribeBudgetActionsForBudget extends Binding.Service<DescribeBudgetActionsForBudget, "AWS.Budgets.DescribeBudgetActionsForBudget", (budget: Budget) => Effect.Effect<(request?: DescribeBudgetActionsForBudgetRequest) => Effect.Effect<budgets.DescribeBudgetActionsForBudgetResponse, budgets.DescribeBudgetActionsForBudgetError>>> {
 }
 export declare const DescribeBudgetActionsForBudget: DescribeBudgetActionsForBudget;

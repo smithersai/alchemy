@@ -3,8 +3,8 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Config from "effect/Config";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
-import type { RailwayS3CredentialsMissing } from "./BucketBinding.js";
+import type { Bucket } from "./Bucket.ts";
+import type { RailwayS3CredentialsMissing } from "./BucketBinding.ts";
 export interface PutObjectRequest extends Omit<S3.PutObjectRequest, "Bucket"> {
 }
 /**
@@ -29,6 +29,6 @@ export interface PutObjectRequest extends Omit<S3.PutObjectRequest, "Bucket"> {
  * @binding
  * @product Bucket
  */
-export interface PutObject extends Binding.Service<PutObject, "Railway.PutObject", (bucket: Bucket) => Effect.Effect<((request?: PutObjectRequest) => Effect.Effect<S3.PutObjectOutput, S3.PutObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>)>> {
+export interface PutObject extends Binding.Service<PutObject, "Railway.PutObject", (bucket: Bucket) => Effect.Effect<(request?: PutObjectRequest) => Effect.Effect<S3.PutObjectOutput, S3.PutObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>>> {
 }
 export declare const PutObject: PutObject;

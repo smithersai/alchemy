@@ -33,6 +33,6 @@ export interface TestEventPatternRequest extends eventbridge.TestEventPatternReq
  *
  * @binding
  */
-export interface TestEventPattern extends Binding.Service<TestEventPattern, "AWS.EventBridge.TestEventPattern", () => Effect.Effect<((request: TestEventPatternRequest) => Effect.Effect<eventbridge.TestEventPatternResponse, eventbridge.TestEventPatternError>)>> {
+export interface TestEventPattern extends Binding.Service<TestEventPattern, "AWS.EventBridge.TestEventPattern", () => Effect.Effect<(request: TestEventPatternRequest) => Effect.Effect<eventbridge.TestEventPatternResponse, eventbridge.TestEventPatternError>>> {
 }
 export declare const TestEventPattern: TestEventPattern;

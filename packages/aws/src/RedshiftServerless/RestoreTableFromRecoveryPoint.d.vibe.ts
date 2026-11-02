@@ -26,6 +26,6 @@ import type { Namespace } from "./Namespace.vibe";
  *
  * @binding
  */
-export interface RestoreTableFromRecoveryPoint extends Binding.Service<RestoreTableFromRecoveryPoint, "AWS.RedshiftServerless.RestoreTableFromRecoveryPoint", (namespace: Namespace) => Effect.Effect<((request: Omit<serverless.RestoreTableFromRecoveryPointRequest, "namespaceName">) => Effect.Effect<serverless.RestoreTableFromRecoveryPointResponse, serverless.RestoreTableFromRecoveryPointError>)>> {
+export interface RestoreTableFromRecoveryPoint extends Binding.Service<RestoreTableFromRecoveryPoint, "AWS.RedshiftServerless.RestoreTableFromRecoveryPoint", (namespace: Namespace) => Effect.Effect<(request: Omit<serverless.RestoreTableFromRecoveryPointRequest, "namespaceName">) => Effect.Effect<serverless.RestoreTableFromRecoveryPointResponse, serverless.RestoreTableFromRecoveryPointError>>> {
 }
 export declare const RestoreTableFromRecoveryPoint: RestoreTableFromRecoveryPoint;

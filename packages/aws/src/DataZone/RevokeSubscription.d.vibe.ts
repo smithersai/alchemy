@@ -22,6 +22,6 @@ export interface RevokeSubscriptionRequest extends Omit<datazone.RevokeSubscript
  *
  * @binding
  */
-export interface RevokeSubscription extends Binding.Service<RevokeSubscription, "AWS.DataZone.RevokeSubscription", (domain: Domain) => Effect.Effect<((request: RevokeSubscriptionRequest) => Effect.Effect<datazone.RevokeSubscriptionOutput, datazone.RevokeSubscriptionError>)>> {
+export interface RevokeSubscription extends Binding.Service<RevokeSubscription, "AWS.DataZone.RevokeSubscription", (domain: Domain) => Effect.Effect<(request: RevokeSubscriptionRequest) => Effect.Effect<datazone.RevokeSubscriptionOutput, datazone.RevokeSubscriptionError>>> {
 }
 export declare const RevokeSubscription: RevokeSubscription;

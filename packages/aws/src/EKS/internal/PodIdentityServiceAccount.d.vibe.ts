@@ -9,8 +9,8 @@ import type { Input } from "alchemy/Input";
  */
 import * as Effect from "effect/Effect";
 import type { PolicyDocument } from "../../IAM/Policy.vibe";
-import { Role, type Role as RoleResource } from "../../IAM/Role.js";
-import type { Cluster } from "../Cluster.js";
+import { Role, type Role as RoleResource } from "../../IAM/Role.ts";
+import type { Cluster } from "../Cluster.ts";
 import { PodIdentityAssociation, type PodIdentityAssociation as PodIdentityAssociationResource } from "../PodIdentityAssociation.vibe";
 import { type ClusterObjectRef } from "./ClusterObject.vibe";
 export interface PodIdentityServiceAccountProps {
@@ -77,4 +77,4 @@ export declare const PodIdentityServiceAccount: (id: string, props: PodIdentityS
     podIdentityAssociation: PodIdentityAssociation;
     role: Role | undefined;
     roleArn: string | import("alchemy").Output<`arn:aws:iam::${string}:role/${string}`, never>;
-}, never, import("../../Providers.js").Providers>;
+}, never, import("../../Providers.ts").Providers>;

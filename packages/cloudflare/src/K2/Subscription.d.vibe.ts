@@ -1,9 +1,9 @@
 import * as k2 from "@distilled.cloud/cloudflare/k2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 import type { StartAt } from "./K2Types.vibe";
-import type { Stream } from "./Stream.js";
+import type { Stream } from "./Stream.ts";
 declare const SubscriptionTypeId: "Cloudflare.K2.Subscription";
 type SubscriptionTypeId = typeof SubscriptionTypeId;
 export interface SubscriptionProps {

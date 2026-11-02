@@ -26,6 +26,6 @@ export interface ListArtifactsRequest extends Omit<amplify.ListArtifactsRequest,
  *
  * @binding
  */
-export interface ListArtifacts extends Binding.Service<ListArtifacts, "AWS.Amplify.ListArtifacts", (app: App) => Effect.Effect<((request: ListArtifactsRequest) => Effect.Effect<amplify.ListArtifactsResult, amplify.ListArtifactsError>)>> {
+export interface ListArtifacts extends Binding.Service<ListArtifacts, "AWS.Amplify.ListArtifacts", (app: App) => Effect.Effect<(request: ListArtifactsRequest) => Effect.Effect<amplify.ListArtifactsResult, amplify.ListArtifactsError>>> {
 }
 export declare const ListArtifacts: ListArtifacts;

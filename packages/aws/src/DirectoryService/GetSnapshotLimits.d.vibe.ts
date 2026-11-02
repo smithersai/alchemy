@@ -1,7 +1,7 @@
 import type * as ds from "@distilled.cloud/aws/directory-service";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Directory } from "./Directory.js";
+import type { Directory } from "./Directory.ts";
 /**
  * Runtime binding for the `GetSnapshotLimits` operation (IAM action
  * `ds:GetSnapshotLimits`), scoped to one {@link Directory}.
@@ -26,6 +26,6 @@ import type { Directory } from "./Directory.js";
  *
  * @binding
  */
-export interface GetSnapshotLimits extends Binding.Service<GetSnapshotLimits, "AWS.DirectoryService.GetSnapshotLimits", (directory: Directory) => Effect.Effect<(() => Effect.Effect<ds.GetSnapshotLimitsResult, ds.GetSnapshotLimitsError>)>> {
+export interface GetSnapshotLimits extends Binding.Service<GetSnapshotLimits, "AWS.DirectoryService.GetSnapshotLimits", (directory: Directory) => Effect.Effect<() => Effect.Effect<ds.GetSnapshotLimitsResult, ds.GetSnapshotLimitsError>>> {
 }
 export declare const GetSnapshotLimits: GetSnapshotLimits;

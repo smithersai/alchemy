@@ -1,7 +1,7 @@
 import type * as emr from "@distilled.cloud/aws/emr-serverless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 /**
  * Request accepted by the {@link StartSession} runtime callable. The
  * `applicationId` is injected from the bound {@link Application}; the
@@ -35,6 +35,6 @@ export type StartSessionInput = Omit<emr.StartSessionRequest, "applicationId" | 
  *
  * @binding
  */
-export interface StartSession extends Binding.Service<StartSession, "AWS.EMRServerless.StartSession", (application: Application) => Effect.Effect<((request: StartSessionInput) => Effect.Effect<emr.StartSessionResponse, emr.StartSessionError>)>> {
+export interface StartSession extends Binding.Service<StartSession, "AWS.EMRServerless.StartSession", (application: Application) => Effect.Effect<(request: StartSessionInput) => Effect.Effect<emr.StartSessionResponse, emr.StartSessionError>>> {
 }
 export declare const StartSession: StartSession;

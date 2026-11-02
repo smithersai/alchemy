@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
 import type { LocationsSecret } from "./LocationsSecret.vibe";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 export type SecretBindingTarget = Secret | LocationsSecret;
 /**
  * Shared HTTP scaffolding for Secret Manager bindings.

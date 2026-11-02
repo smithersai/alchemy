@@ -24,6 +24,6 @@ export interface ListImagesRequest extends Omit<ecr.ListImagesRequest, "registry
  *
  * @binding
  */
-export interface ListImages extends Binding.Service<ListImages, "AWS.ECR.ListImages", (repository: Repository) => Effect.Effect<((request?: ListImagesRequest) => Effect.Effect<ecr.ListImagesResponse, ecr.ListImagesError>)>> {
+export interface ListImages extends Binding.Service<ListImages, "AWS.ECR.ListImages", (repository: Repository) => Effect.Effect<(request?: ListImagesRequest) => Effect.Effect<ecr.ListImagesResponse, ecr.ListImagesError>>> {
 }
 export declare const ListImages: ListImages;

@@ -1,7 +1,7 @@
 import type * as s3tables from "@distilled.cloud/aws/s3tables";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { TableBucket } from "./TableBucket.js";
+import type { TableBucket } from "./TableBucket.ts";
 /**
  * `ListTables` request with `tableBucketARN` injected from the bound
  * {@link TableBucket}.
@@ -29,6 +29,6 @@ export interface ListTablesRequest extends Omit<s3tables.ListTablesRequest, "tab
  *
  * @binding
  */
-export interface ListTables extends Binding.Service<ListTables, "AWS.S3Tables.ListTables", (tableBucket: TableBucket) => Effect.Effect<((request?: ListTablesRequest) => Effect.Effect<s3tables.ListTablesResponse, s3tables.ListTablesError>)>> {
+export interface ListTables extends Binding.Service<ListTables, "AWS.S3Tables.ListTables", (tableBucket: TableBucket) => Effect.Effect<(request?: ListTablesRequest) => Effect.Effect<s3tables.ListTablesResponse, s3tables.ListTablesError>>> {
 }
 export declare const ListTables: ListTables;

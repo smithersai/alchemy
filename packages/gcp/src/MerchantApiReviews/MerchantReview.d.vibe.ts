@@ -1,7 +1,7 @@
 import * as reviews from "@distilled.cloud/gcp/merchantapi_reviews_v1beta";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 import { type ReviewCustomAttribute } from "./internal.vibe";
 export type MerchantReviewAttributesProps = {
     /** Reviewer's overall rating of the merchant. */

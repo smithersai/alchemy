@@ -29,6 +29,6 @@ export interface ListSyncConfigurationsRequest extends Omit<codeconnections.List
  *
  * @binding
  */
-export interface ListSyncConfigurations extends Binding.Service<ListSyncConfigurations, "AWS.CodeConnections.ListSyncConfigurations", (repositoryLink: RepositoryLink) => Effect.Effect<((request: ListSyncConfigurationsRequest) => Effect.Effect<codeconnections.ListSyncConfigurationsOutput, codeconnections.ListSyncConfigurationsError>)>> {
+export interface ListSyncConfigurations extends Binding.Service<ListSyncConfigurations, "AWS.CodeConnections.ListSyncConfigurations", (repositoryLink: RepositoryLink) => Effect.Effect<(request: ListSyncConfigurationsRequest) => Effect.Effect<codeconnections.ListSyncConfigurationsOutput, codeconnections.ListSyncConfigurationsError>>> {
 }
 export declare const ListSyncConfigurations: ListSyncConfigurations;

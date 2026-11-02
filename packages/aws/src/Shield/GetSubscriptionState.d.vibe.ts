@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSubscriptionState extends Binding.Service<GetSubscriptionState, "AWS.Shield.GetSubscriptionState", () => Effect.Effect<((request?: shield.GetSubscriptionStateRequest) => Effect.Effect<shield.GetSubscriptionStateResponse, shield.GetSubscriptionStateError>)>> {
+export interface GetSubscriptionState extends Binding.Service<GetSubscriptionState, "AWS.Shield.GetSubscriptionState", () => Effect.Effect<(request?: shield.GetSubscriptionStateRequest) => Effect.Effect<shield.GetSubscriptionStateResponse, shield.GetSubscriptionStateError>>> {
 }
 export declare const GetSubscriptionState: GetSubscriptionState;

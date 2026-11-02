@@ -27,6 +27,6 @@ import type { DataSet } from "./DataSet.vibe";
  *
  * @binding
  */
-export interface SendApiAsset extends Binding.Service<SendApiAsset, "AWS.DataExchange.SendApiAsset", (dataSet: DataSet) => Effect.Effect<((request: Omit<dataexchange.SendApiAssetRequest, "DataSetId">) => Effect.Effect<dataexchange.SendApiAssetResponse, dataexchange.SendApiAssetError>)>> {
+export interface SendApiAsset extends Binding.Service<SendApiAsset, "AWS.DataExchange.SendApiAsset", (dataSet: DataSet) => Effect.Effect<(request: Omit<dataexchange.SendApiAssetRequest, "DataSetId">) => Effect.Effect<dataexchange.SendApiAssetResponse, dataexchange.SendApiAssetError>>> {
 }
 export declare const SendApiAsset: SendApiAsset;

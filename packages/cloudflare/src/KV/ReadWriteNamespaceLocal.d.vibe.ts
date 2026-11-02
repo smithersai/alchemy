@@ -30,4 +30,4 @@ import { ReadWriteNamespace } from "./ReadWriteNamespace.vibe";
  * provides around the body), so `ReadWriteNamespace(namespace)` works even
  * though the namespace is created in the same deploy.
  */
-export declare const ReadWriteNamespaceLocal: Layer.Layer<ReadWriteNamespace, never, import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const ReadWriteNamespaceLocal: Layer.Layer<ReadWriteNamespace, never, import("../CloudflareEnvironmentService.ts").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;

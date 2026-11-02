@@ -30,6 +30,6 @@ import type { LinkedWhatsAppBusinessAccount } from "./LinkedWhatsAppBusinessAcco
  *
  * @binding
  */
-export interface GetWhatsAppMessageMedia extends Binding.Service<GetWhatsAppMessageMedia, "AWS.SocialMessaging.GetWhatsAppMessageMedia", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: socialmessaging.GetWhatsAppMessageMediaInput) => Effect.Effect<socialmessaging.GetWhatsAppMessageMediaOutput, socialmessaging.GetWhatsAppMessageMediaError>)>> {
+export interface GetWhatsAppMessageMedia extends Binding.Service<GetWhatsAppMessageMedia, "AWS.SocialMessaging.GetWhatsAppMessageMedia", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: socialmessaging.GetWhatsAppMessageMediaInput) => Effect.Effect<socialmessaging.GetWhatsAppMessageMediaOutput, socialmessaging.GetWhatsAppMessageMediaError>>> {
 }
 export declare const GetWhatsAppMessageMedia: GetWhatsAppMessageMedia;

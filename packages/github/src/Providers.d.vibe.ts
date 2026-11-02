@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import * as Layer from "effect/Layer";
-import { type GitHubAuthOptions } from "./AuthProvider.js";
+import { type GitHubAuthOptions } from "./AuthProvider.ts";
 import * as Credentials from "./Credentials.vibe";
 export { Credentials } from "./Credentials.vibe";
 declare const Providers_base: Provider.ProviderCollection<Providers, "GitHub">;

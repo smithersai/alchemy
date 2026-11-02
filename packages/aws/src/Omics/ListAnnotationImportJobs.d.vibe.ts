@@ -20,6 +20,6 @@ export interface ListAnnotationImportJobsRequest extends omics.ListAnnotationImp
  *
  * @binding
  */
-export interface ListAnnotationImportJobs extends Binding.Service<ListAnnotationImportJobs, "AWS.Omics.ListAnnotationImportJobs", () => Effect.Effect<((request?: ListAnnotationImportJobsRequest) => Effect.Effect<omics.ListAnnotationImportJobsResponse, omics.ListAnnotationImportJobsError>)>> {
+export interface ListAnnotationImportJobs extends Binding.Service<ListAnnotationImportJobs, "AWS.Omics.ListAnnotationImportJobs", () => Effect.Effect<(request?: ListAnnotationImportJobsRequest) => Effect.Effect<omics.ListAnnotationImportJobsResponse, omics.ListAnnotationImportJobsError>>> {
 }
 export declare const ListAnnotationImportJobs: ListAnnotationImportJobs;

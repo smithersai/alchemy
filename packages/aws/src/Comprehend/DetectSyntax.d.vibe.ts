@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DetectSyntax extends Binding.Service<DetectSyntax, "AWS.Comprehend.DetectSyntax", () => Effect.Effect<((request: comprehend.DetectSyntaxRequest) => Effect.Effect<comprehend.DetectSyntaxResponse, comprehend.DetectSyntaxError>)>> {
+export interface DetectSyntax extends Binding.Service<DetectSyntax, "AWS.Comprehend.DetectSyntax", () => Effect.Effect<(request: comprehend.DetectSyntaxRequest) => Effect.Effect<comprehend.DetectSyntaxResponse, comprehend.DetectSyntaxError>>> {
 }
 export declare const DetectSyntax: DetectSyntax;

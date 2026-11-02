@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetContentModeration extends Binding.Service<GetContentModeration, "AWS.Rekognition.GetContentModeration", () => Effect.Effect<((request: rekognition.GetContentModerationRequest) => Effect.Effect<rekognition.GetContentModerationResponse, rekognition.GetContentModerationError>)>> {
+export interface GetContentModeration extends Binding.Service<GetContentModeration, "AWS.Rekognition.GetContentModeration", () => Effect.Effect<(request: rekognition.GetContentModerationRequest) => Effect.Effect<rekognition.GetContentModerationResponse, rekognition.GetContentModerationError>>> {
 }
 export declare const GetContentModeration: GetContentModeration;

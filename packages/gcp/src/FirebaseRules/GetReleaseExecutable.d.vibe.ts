@@ -23,6 +23,6 @@ export interface GetReleaseExecutableRequest extends Omit<firebaserules.GetExecu
  * @binding
  * @category FirebaseRules
  */
-export interface GetReleaseExecutable extends Binding.Service<GetReleaseExecutable, "GCP.FirebaseRules.GetReleaseExecutable", (release: Release) => Effect.Effect<((request?: GetReleaseExecutableRequest) => Effect.Effect<firebaserules.GetReleaseExecutableResponse, firebaserules.GetExecutableProjectsReleasesError, RuntimeContext>)>> {
+export interface GetReleaseExecutable extends Binding.Service<GetReleaseExecutable, "GCP.FirebaseRules.GetReleaseExecutable", (release: Release) => Effect.Effect<(request?: GetReleaseExecutableRequest) => Effect.Effect<firebaserules.GetReleaseExecutableResponse, firebaserules.GetExecutableProjectsReleasesError, RuntimeContext>>> {
 }
 export declare const GetReleaseExecutable: GetReleaseExecutable;

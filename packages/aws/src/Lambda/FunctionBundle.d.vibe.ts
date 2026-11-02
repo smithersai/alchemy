@@ -18,7 +18,7 @@ import type * as Path from "effect/Path";
 import type { PlatformError } from "effect/PlatformError";
 import type { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";
 import type * as rolldown from "rolldown";
-import type { FunctionArchitecture, FunctionZipProps } from "./Function.js";
+import type { FunctionArchitecture, FunctionZipProps } from "./Function.ts";
 /**
  * Evaluates a user-supplied Rolldown `external` option (string, RegExp, array,
  * or predicate) for a single module id, preserving its original semantics.

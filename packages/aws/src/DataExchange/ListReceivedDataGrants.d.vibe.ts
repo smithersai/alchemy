@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListReceivedDataGrants extends Binding.Service<ListReceivedDataGrants, "AWS.DataExchange.ListReceivedDataGrants", () => Effect.Effect<((request?: dataexchange.ListReceivedDataGrantsRequest) => Effect.Effect<dataexchange.ListReceivedDataGrantsResponse, dataexchange.ListReceivedDataGrantsError>)>> {
+export interface ListReceivedDataGrants extends Binding.Service<ListReceivedDataGrants, "AWS.DataExchange.ListReceivedDataGrants", () => Effect.Effect<(request?: dataexchange.ListReceivedDataGrantsRequest) => Effect.Effect<dataexchange.ListReceivedDataGrantsResponse, dataexchange.ListReceivedDataGrantsError>>> {
 }
 export declare const ListReceivedDataGrants: ListReceivedDataGrants;

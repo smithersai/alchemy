@@ -2,7 +2,7 @@ import type * as cf from "@cloudflare/workers-types";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { App } from "./App.js";
+import type { App } from "./App.ts";
 /**
  * Bind a {@link App} to a Worker and obtain the Effect-native flag-evaluation
  * client (`get`, `getBooleanValue`, `getStringValue`, …).

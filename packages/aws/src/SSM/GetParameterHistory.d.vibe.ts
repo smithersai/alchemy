@@ -1,7 +1,7 @@
 import type * as SSM from "@distilled.cloud/aws/ssm";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Parameter } from "./Parameter.js";
+import type { Parameter } from "./Parameter.ts";
 export interface GetParameterHistoryRequest extends Omit<SSM.GetParameterHistoryRequest, "Name"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface GetParameterHistoryRequest extends Omit<SSM.GetParameterHistory
  *
  * @binding
  */
-export interface GetParameterHistory extends Binding.Service<GetParameterHistory, "AWS.SSM.GetParameterHistory", <P extends Parameter>(parameter: P) => Effect.Effect<((request?: GetParameterHistoryRequest) => Effect.Effect<SSM.GetParameterHistoryResult, SSM.GetParameterHistoryError>)>> {
+export interface GetParameterHistory extends Binding.Service<GetParameterHistory, "AWS.SSM.GetParameterHistory", <P extends Parameter>(parameter: P) => Effect.Effect<(request?: GetParameterHistoryRequest) => Effect.Effect<SSM.GetParameterHistoryResult, SSM.GetParameterHistoryError>>> {
 }
 export declare const GetParameterHistory: GetParameterHistory;

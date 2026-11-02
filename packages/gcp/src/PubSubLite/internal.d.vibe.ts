@@ -1,6 +1,6 @@
 import * as pubsublite from "@distilled.cloud/gcp/pubsublite_v1";
 import * as Effect from "effect/Effect";
-import { GcpEnvironment } from "../Environment.js";
+import { GcpEnvironment } from "../Environment.ts";
 export declare const DEFAULT_ZONE = "us-central1-a";
 export declare const MAX_ID_LENGTH = 255;
 export declare const DEFAULT_THROUGHPUT_CAPACITY = "4";
@@ -93,7 +93,7 @@ export declare const getSubscription: (name: string) => Effect.Effect<pubsublite
 export declare const listReservationsAt: (parent: string) => Effect.Effect<pubsublite.Reservation[], pubsublite.Forbidden | pubsublite.GcpOpError, pubsublite.GcpOpContext>;
 export declare const listTopicsAt: (parent: string) => Effect.Effect<pubsublite.Topic[], pubsublite.Forbidden | pubsublite.GcpOpError, pubsublite.GcpOpContext>;
 export declare const listSubscriptionsAt: (parent: string) => Effect.Effect<pubsublite.Subscription[], pubsublite.Forbidden | pubsublite.GcpOpError, pubsublite.GcpOpContext>;
-export declare const listOwnedReservations: () => Effect.Effect<pubsublite.Reservation[], pubsublite.Forbidden | import("../Environment.js").GcpProjectMissing | pubsublite.GcpOpError, GcpEnvironment | pubsublite.GcpOpContext>;
-export declare const listOwnedTopics: () => Effect.Effect<pubsublite.Topic[], pubsublite.Forbidden | import("../Environment.js").GcpProjectMissing | pubsublite.GcpOpError, GcpEnvironment | pubsublite.GcpOpContext>;
-export declare const listOwnedSubscriptions: () => Effect.Effect<pubsublite.Subscription[], pubsublite.Forbidden | import("../Environment.js").GcpProjectMissing | pubsublite.GcpOpError, GcpEnvironment | pubsublite.GcpOpContext>;
+export declare const listOwnedReservations: () => Effect.Effect<pubsublite.Reservation[], pubsublite.Forbidden | import("../Environment.ts").GcpProjectMissing | pubsublite.GcpOpError, GcpEnvironment | pubsublite.GcpOpContext>;
+export declare const listOwnedTopics: () => Effect.Effect<pubsublite.Topic[], pubsublite.Forbidden | import("../Environment.ts").GcpProjectMissing | pubsublite.GcpOpError, GcpEnvironment | pubsublite.GcpOpContext>;
+export declare const listOwnedSubscriptions: () => Effect.Effect<pubsublite.Subscription[], pubsublite.Forbidden | import("../Environment.ts").GcpProjectMissing | pubsublite.GcpOpError, GcpEnvironment | pubsublite.GcpOpContext>;
 export {};

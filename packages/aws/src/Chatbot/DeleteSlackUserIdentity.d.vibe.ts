@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteSlackUserIdentity extends Binding.Service<DeleteSlackUserIdentity, "AWS.Chatbot.DeleteSlackUserIdentity", () => Effect.Effect<((request: chatbot.DeleteSlackUserIdentityRequest) => Effect.Effect<chatbot.DeleteSlackUserIdentityResult, chatbot.DeleteSlackUserIdentityError>)>> {
+export interface DeleteSlackUserIdentity extends Binding.Service<DeleteSlackUserIdentity, "AWS.Chatbot.DeleteSlackUserIdentity", () => Effect.Effect<(request: chatbot.DeleteSlackUserIdentityRequest) => Effect.Effect<chatbot.DeleteSlackUserIdentityResult, chatbot.DeleteSlackUserIdentityError>>> {
 }
 export declare const DeleteSlackUserIdentity: DeleteSlackUserIdentity;

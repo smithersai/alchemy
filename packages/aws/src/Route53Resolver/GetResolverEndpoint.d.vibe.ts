@@ -22,6 +22,6 @@ import type { ResolverEndpoint } from "./ResolverEndpoint.vibe";
  *
  * @binding
  */
-export interface GetResolverEndpoint extends Binding.Service<GetResolverEndpoint, "AWS.Route53Resolver.GetResolverEndpoint", (endpoint: ResolverEndpoint) => Effect.Effect<(() => Effect.Effect<r53r.GetResolverEndpointResponse, r53r.GetResolverEndpointError>)>> {
+export interface GetResolverEndpoint extends Binding.Service<GetResolverEndpoint, "AWS.Route53Resolver.GetResolverEndpoint", (endpoint: ResolverEndpoint) => Effect.Effect<() => Effect.Effect<r53r.GetResolverEndpointResponse, r53r.GetResolverEndpointError>>> {
 }
 export declare const GetResolverEndpoint: GetResolverEndpoint;

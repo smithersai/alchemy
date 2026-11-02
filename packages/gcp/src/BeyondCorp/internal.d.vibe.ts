@@ -1,7 +1,7 @@
 import * as beyondcorp from "@distilled.cloud/gcp/beyondcorp_v1";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { type LongRunningOperation } from "../Operation.js";
+import { type LongRunningOperation } from "../Operation.ts";
 export declare const DEFAULT_GLOBAL = "global";
 export declare const MAX_NAME_LENGTH = 63;
 export declare const MAX_DISPLAY_NAME_LENGTH = 64;
@@ -96,10 +96,10 @@ export declare const listAtLocation: <A, E, R>(project: string, list: (parent: s
  * Wait for a long-running operation. ALREADY_EXISTS (code 6) means a
  * concurrent create won the race; reconcile observes the resource next.
  */
-export declare const waitForOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | beyondcorp.GetProjectsLocationsOperationsError, beyondcorp.GcpOpContext>;
+export declare const waitForOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | beyondcorp.GetProjectsLocationsOperationsError, beyondcorp.GcpOpContext>;
 /**
  * Wait for a delete operation. A vanished operation or NOT_FOUND (code 5)
  * means the resource is already gone.
  */
-export declare const waitForDeleteOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | beyondcorp.GetProjectsLocationsOperationsError, beyondcorp.GcpOpContext>;
+export declare const waitForDeleteOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | beyondcorp.GetProjectsLocationsOperationsError, beyondcorp.GcpOpContext>;
 export {};

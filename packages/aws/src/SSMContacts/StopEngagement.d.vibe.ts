@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopEngagement extends Binding.Service<StopEngagement, "AWS.SSMContacts.StopEngagement", () => Effect.Effect<((request: ssm.StopEngagementRequest) => Effect.Effect<ssm.StopEngagementResult, ssm.StopEngagementError>)>> {
+export interface StopEngagement extends Binding.Service<StopEngagement, "AWS.SSMContacts.StopEngagement", () => Effect.Effect<(request: ssm.StopEngagementRequest) => Effect.Effect<ssm.StopEngagementResult, ssm.StopEngagementError>>> {
 }
 export declare const StopEngagement: StopEngagement;

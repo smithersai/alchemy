@@ -30,6 +30,6 @@ export interface StartMemoryExtractionJobRequest extends Omit<agentcore.StartMem
  *
  * @binding
  */
-export interface StartMemoryExtractionJob extends Binding.Service<StartMemoryExtractionJob, "AWS.BedrockAgentCore.StartMemoryExtractionJob", <R extends Memory>(memory: R) => Effect.Effect<((request: StartMemoryExtractionJobRequest) => Effect.Effect<agentcore.StartMemoryExtractionJobOutput, agentcore.StartMemoryExtractionJobError>)>> {
+export interface StartMemoryExtractionJob extends Binding.Service<StartMemoryExtractionJob, "AWS.BedrockAgentCore.StartMemoryExtractionJob", <R extends Memory>(memory: R) => Effect.Effect<(request: StartMemoryExtractionJobRequest) => Effect.Effect<agentcore.StartMemoryExtractionJobOutput, agentcore.StartMemoryExtractionJobError>>> {
 }
 export declare const StartMemoryExtractionJob: StartMemoryExtractionJob;

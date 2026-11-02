@@ -27,6 +27,6 @@ export interface ListChannelsRequest extends Omit<notifications.ListChannelsRequ
  *
  * @binding
  */
-export interface ListChannels extends Binding.Service<ListChannels, "AWS.Notifications.ListChannels", (configuration: NotificationConfiguration) => Effect.Effect<((request?: ListChannelsRequest) => Effect.Effect<notifications.ListChannelsResponse, notifications.ListChannelsError>)>> {
+export interface ListChannels extends Binding.Service<ListChannels, "AWS.Notifications.ListChannels", (configuration: NotificationConfiguration) => Effect.Effect<(request?: ListChannelsRequest) => Effect.Effect<notifications.ListChannelsResponse, notifications.ListChannelsError>>> {
 }
 export declare const ListChannels: ListChannels;

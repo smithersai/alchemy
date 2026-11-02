@@ -25,6 +25,6 @@ export interface DisassociatePermissionRequest extends Omit<qbusiness.Disassocia
  *
  * @binding
  */
-export interface DisassociatePermission extends Binding.Service<DisassociatePermission, "AWS.QBusiness.DisassociatePermission", (application: Application) => Effect.Effect<((request: DisassociatePermissionRequest) => Effect.Effect<qbusiness.DisassociatePermissionResponse, qbusiness.DisassociatePermissionError>)>> {
+export interface DisassociatePermission extends Binding.Service<DisassociatePermission, "AWS.QBusiness.DisassociatePermission", (application: Application) => Effect.Effect<(request: DisassociatePermissionRequest) => Effect.Effect<qbusiness.DisassociatePermissionResponse, qbusiness.DisassociatePermissionError>>> {
 }
 export declare const DisassociatePermission: DisassociatePermission;

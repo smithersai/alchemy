@@ -22,6 +22,6 @@ export interface ListAlarmMuteRulesRequest extends cloudwatch.ListAlarmMuteRules
  *
  * @binding
  */
-export interface ListAlarmMuteRules extends Binding.Service<ListAlarmMuteRules, "AWS.CloudWatch.ListAlarmMuteRules", () => Effect.Effect<((request?: ListAlarmMuteRulesRequest) => Effect.Effect<cloudwatch.ListAlarmMuteRulesOutput, cloudwatch.ListAlarmMuteRulesError>)>> {
+export interface ListAlarmMuteRules extends Binding.Service<ListAlarmMuteRules, "AWS.CloudWatch.ListAlarmMuteRules", () => Effect.Effect<(request?: ListAlarmMuteRulesRequest) => Effect.Effect<cloudwatch.ListAlarmMuteRulesOutput, cloudwatch.ListAlarmMuteRulesError>>> {
 }
 export declare const ListAlarmMuteRules: ListAlarmMuteRules;

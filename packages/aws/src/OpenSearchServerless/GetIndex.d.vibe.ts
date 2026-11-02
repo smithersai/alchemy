@@ -21,6 +21,6 @@ import type { Collection } from "./Collection.vibe";
  *
  * @binding
  */
-export interface GetIndex extends Binding.Service<GetIndex, "AWS.OpenSearchServerless.GetIndex", (collection: Collection) => Effect.Effect<((request: Omit<aoss.GetIndexRequest, "id">) => Effect.Effect<aoss.GetIndexResponse, aoss.GetIndexError>)>> {
+export interface GetIndex extends Binding.Service<GetIndex, "AWS.OpenSearchServerless.GetIndex", (collection: Collection) => Effect.Effect<(request: Omit<aoss.GetIndexRequest, "id">) => Effect.Effect<aoss.GetIndexResponse, aoss.GetIndexError>>> {
 }
 export declare const GetIndex: GetIndex;

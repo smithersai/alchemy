@@ -28,6 +28,6 @@ export interface ListImageSetVersionsRequest extends Omit<medicalimaging.ListIma
  *
  * @binding
  */
-export interface ListImageSetVersions extends Binding.Service<ListImageSetVersions, "AWS.MedicalImaging.ListImageSetVersions", (datastore: Datastore) => Effect.Effect<((request: ListImageSetVersionsRequest) => Effect.Effect<medicalimaging.ListImageSetVersionsResponse, medicalimaging.ListImageSetVersionsError>)>> {
+export interface ListImageSetVersions extends Binding.Service<ListImageSetVersions, "AWS.MedicalImaging.ListImageSetVersions", (datastore: Datastore) => Effect.Effect<(request: ListImageSetVersionsRequest) => Effect.Effect<medicalimaging.ListImageSetVersionsResponse, medicalimaging.ListImageSetVersionsError>>> {
 }
 export declare const ListImageSetVersions: ListImageSetVersions;

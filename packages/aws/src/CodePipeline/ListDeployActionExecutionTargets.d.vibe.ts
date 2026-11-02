@@ -21,6 +21,6 @@ export interface ListDeployActionExecutionTargetsRequest extends Omit<SVC.ListDe
  *
  * @binding
  */
-export interface ListDeployActionExecutionTargets extends Binding.Service<ListDeployActionExecutionTargets, "AWS.CodePipeline.ListDeployActionExecutionTargets", <P extends Pipeline>(pipeline: P) => Effect.Effect<((request: ListDeployActionExecutionTargetsRequest) => Effect.Effect<SVC.ListDeployActionExecutionTargetsOutput, SVC.ListDeployActionExecutionTargetsError>)>> {
+export interface ListDeployActionExecutionTargets extends Binding.Service<ListDeployActionExecutionTargets, "AWS.CodePipeline.ListDeployActionExecutionTargets", <P extends Pipeline>(pipeline: P) => Effect.Effect<(request: ListDeployActionExecutionTargetsRequest) => Effect.Effect<SVC.ListDeployActionExecutionTargetsOutput, SVC.ListDeployActionExecutionTargetsError>>> {
 }
 export declare const ListDeployActionExecutionTargets: ListDeployActionExecutionTargets;

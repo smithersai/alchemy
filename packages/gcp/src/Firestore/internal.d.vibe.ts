@@ -1,6 +1,6 @@
 import * as firestore from "@distilled.cloud/gcp/firestore_v1";
 import * as Effect from "effect/Effect";
-import { alchemyLabelKeys, createInternalLabels } from "../Labels.js";
+import { alchemyLabelKeys, createInternalLabels } from "../Labels.ts";
 export declare const MAX_ID_LENGTH = 63;
 export declare const lastSegment: (value: string) => string;
 export declare const parseDatabaseName: (name: string) => {

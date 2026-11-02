@@ -2,8 +2,8 @@ import * as dataplex from "@distilled.cloud/gcp/dataplex_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type GlossaryProps = {
     /**
      * Glossary id (the `{glossary}` segment of

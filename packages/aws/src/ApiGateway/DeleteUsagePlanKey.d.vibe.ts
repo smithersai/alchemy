@@ -25,6 +25,6 @@ export interface DeleteUsagePlanKeyRequest extends Omit<ag.DeleteUsagePlanKeyReq
  *
  * @binding
  */
-export interface DeleteUsagePlanKey extends Binding.Service<DeleteUsagePlanKey, "AWS.ApiGateway.DeleteUsagePlanKey", <P extends UsagePlan>(usagePlan: P) => Effect.Effect<((request: DeleteUsagePlanKeyRequest) => Effect.Effect<ag.DeleteUsagePlanKeyResponse, ag.DeleteUsagePlanKeyError>)>> {
+export interface DeleteUsagePlanKey extends Binding.Service<DeleteUsagePlanKey, "AWS.ApiGateway.DeleteUsagePlanKey", <P extends UsagePlan>(usagePlan: P) => Effect.Effect<(request: DeleteUsagePlanKeyRequest) => Effect.Effect<ag.DeleteUsagePlanKeyResponse, ag.DeleteUsagePlanKeyError>>> {
 }
 export declare const DeleteUsagePlanKey: DeleteUsagePlanKey;

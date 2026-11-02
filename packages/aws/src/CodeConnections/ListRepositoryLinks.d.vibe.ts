@@ -29,6 +29,6 @@ export interface ListRepositoryLinksRequest extends codeconnections.ListReposito
  *
  * @binding
  */
-export interface ListRepositoryLinks extends Binding.Service<ListRepositoryLinks, "AWS.CodeConnections.ListRepositoryLinks", () => Effect.Effect<((request?: ListRepositoryLinksRequest) => Effect.Effect<codeconnections.ListRepositoryLinksOutput, codeconnections.ListRepositoryLinksError>)>> {
+export interface ListRepositoryLinks extends Binding.Service<ListRepositoryLinks, "AWS.CodeConnections.ListRepositoryLinks", () => Effect.Effect<(request?: ListRepositoryLinksRequest) => Effect.Effect<codeconnections.ListRepositoryLinksOutput, codeconnections.ListRepositoryLinksError>>> {
 }
 export declare const ListRepositoryLinks: ListRepositoryLinks;

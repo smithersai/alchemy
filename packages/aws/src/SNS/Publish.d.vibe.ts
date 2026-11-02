@@ -44,6 +44,6 @@ export interface PublishRequest extends Omit<sns.PublishInput, "TopicArn" | "Tar
  *
  * @binding
  */
-export interface Publish extends Binding.Service<Publish, "AWS.SNS.Publish", (topic: Topic) => Effect.Effect<((request: PublishRequest) => Effect.Effect<sns.PublishResponse, sns.PublishError>)>> {
+export interface Publish extends Binding.Service<Publish, "AWS.SNS.Publish", (topic: Topic) => Effect.Effect<(request: PublishRequest) => Effect.Effect<sns.PublishResponse, sns.PublishError>>> {
 }
 export declare const Publish: Publish;

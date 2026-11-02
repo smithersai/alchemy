@@ -7,7 +7,7 @@
 import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 import * as Schema from "effect/Schema";
-import { CommitDiff, CommitInfo, Comparison, NoMergeBase, ObjectNotFound, ObjectTooLarge, RefNotFound, RepoNotFound, TreeEntry, WrongObjectType } from "./Schema.js";
+import { CommitDiff, CommitInfo, Comparison, NoMergeBase, ObjectNotFound, ObjectTooLarge, RefNotFound, RepoNotFound, TreeEntry, WrongObjectType } from "./Schema.ts";
 /** Reads one commit. */
 export declare const GetCommit: HttpApiEndpoint.HttpApiEndpoint<"commit", "GET", "/repos/:owner/:repo/commits/:oid", Schema.toCodecStringTree<Schema.Struct<{
     readonly owner: Schema.String;

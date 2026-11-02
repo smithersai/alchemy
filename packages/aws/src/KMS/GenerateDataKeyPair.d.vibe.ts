@@ -2,7 +2,7 @@ import type * as kms from "@distilled.cloud/aws/kms";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { AliasName } from "./Alias.vibe";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.ts";
 export interface GenerateDataKeyPairRequest extends Omit<kms.GenerateDataKeyPairRequest, "KeyId"> {
 }
 /**
@@ -31,6 +31,6 @@ export interface GenerateDataKeyPairRequest extends Omit<kms.GenerateDataKeyPair
  *
  * @binding
  */
-export interface GenerateDataKeyPair extends Binding.Service<GenerateDataKeyPair, "AWS.KMS.GenerateDataKeyPair", (key: Key | AliasName) => Effect.Effect<((request: GenerateDataKeyPairRequest) => Effect.Effect<kms.GenerateDataKeyPairResponse, kms.GenerateDataKeyPairError>)>> {
+export interface GenerateDataKeyPair extends Binding.Service<GenerateDataKeyPair, "AWS.KMS.GenerateDataKeyPair", (key: Key | AliasName) => Effect.Effect<(request: GenerateDataKeyPairRequest) => Effect.Effect<kms.GenerateDataKeyPairResponse, kms.GenerateDataKeyPairError>>> {
 }
 export declare const GenerateDataKeyPair: GenerateDataKeyPair;

@@ -24,7 +24,7 @@ export declare const makeIvsChatRoomHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.IVSChat.SendEvent`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the room ARN. */
     actions: readonly string[];
     /** Map the public request shape to the wire request (defaults to identity). */

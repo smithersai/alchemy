@@ -1,7 +1,7 @@
 import * as b2bi from "@distilled.cloud/aws/b2bi";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface PartnershipProps {
     /**
      * The unique identifier for the profile connected to this partnership.

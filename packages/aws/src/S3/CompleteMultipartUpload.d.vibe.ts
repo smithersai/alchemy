@@ -1,7 +1,7 @@
 import * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface CompleteMultipartUploadRequest extends Omit<S3.CompleteMultipartUploadRequest, "Bucket"> {
 }
 /**
@@ -32,6 +32,6 @@ export interface CompleteMultipartUploadRequest extends Omit<S3.CompleteMultipar
  *
  * @binding
  */
-export interface CompleteMultipartUpload extends Binding.Service<CompleteMultipartUpload, "AWS.S3.CompleteMultipartUpload", (bucket: Bucket) => Effect.Effect<((request: CompleteMultipartUploadRequest) => Effect.Effect<S3.CompleteMultipartUploadOutput, S3.CompleteMultipartUploadError>)>> {
+export interface CompleteMultipartUpload extends Binding.Service<CompleteMultipartUpload, "AWS.S3.CompleteMultipartUpload", (bucket: Bucket) => Effect.Effect<(request: CompleteMultipartUploadRequest) => Effect.Effect<S3.CompleteMultipartUploadOutput, S3.CompleteMultipartUploadError>>> {
 }
 export declare const CompleteMultipartUpload: CompleteMultipartUpload;

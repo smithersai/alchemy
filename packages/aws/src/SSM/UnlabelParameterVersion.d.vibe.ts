@@ -1,7 +1,7 @@
 import type * as SSM from "@distilled.cloud/aws/ssm";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Parameter } from "./Parameter.js";
+import type { Parameter } from "./Parameter.ts";
 export interface UnlabelParameterVersionRequest extends Omit<SSM.UnlabelParameterVersionRequest, "Name"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface UnlabelParameterVersionRequest extends Omit<SSM.UnlabelParamete
  *
  * @binding
  */
-export interface UnlabelParameterVersion extends Binding.Service<UnlabelParameterVersion, "AWS.SSM.UnlabelParameterVersion", <P extends Parameter>(parameter: P) => Effect.Effect<((request: UnlabelParameterVersionRequest) => Effect.Effect<SSM.UnlabelParameterVersionResult, SSM.UnlabelParameterVersionError>)>> {
+export interface UnlabelParameterVersion extends Binding.Service<UnlabelParameterVersion, "AWS.SSM.UnlabelParameterVersion", <P extends Parameter>(parameter: P) => Effect.Effect<(request: UnlabelParameterVersionRequest) => Effect.Effect<SSM.UnlabelParameterVersionResult, SSM.UnlabelParameterVersionError>>> {
 }
 export declare const UnlabelParameterVersion: UnlabelParameterVersion;

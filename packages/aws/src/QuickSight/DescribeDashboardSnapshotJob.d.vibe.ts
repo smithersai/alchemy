@@ -29,6 +29,6 @@ import type { Dashboard } from "./Dashboard.vibe";
  *
  * @binding
  */
-export interface DescribeDashboardSnapshotJob extends Binding.Service<DescribeDashboardSnapshotJob, "AWS.QuickSight.DescribeDashboardSnapshotJob", (dashboard: Dashboard) => Effect.Effect<((request: Omit<quicksight.DescribeDashboardSnapshotJobRequest, "AwsAccountId" | "DashboardId">) => Effect.Effect<quicksight.DescribeDashboardSnapshotJobResponse, quicksight.DescribeDashboardSnapshotJobError>)>> {
+export interface DescribeDashboardSnapshotJob extends Binding.Service<DescribeDashboardSnapshotJob, "AWS.QuickSight.DescribeDashboardSnapshotJob", (dashboard: Dashboard) => Effect.Effect<(request: Omit<quicksight.DescribeDashboardSnapshotJobRequest, "AwsAccountId" | "DashboardId">) => Effect.Effect<quicksight.DescribeDashboardSnapshotJobResponse, quicksight.DescribeDashboardSnapshotJobError>>> {
 }
 export declare const DescribeDashboardSnapshotJob: DescribeDashboardSnapshotJob;

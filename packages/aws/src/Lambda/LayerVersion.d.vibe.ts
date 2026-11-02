@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * Reference to an S3 bucket: a raw bucket name or anything exposing a
  * `bucketName` attribute (e.g. an `AWS.S3.Bucket` resource).

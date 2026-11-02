@@ -25,6 +25,6 @@ export interface GetPrefetchScheduleRequest extends Omit<mediatailor.GetPrefetch
  *
  * @binding
  */
-export interface GetPrefetchSchedule extends Binding.Service<GetPrefetchSchedule, "AWS.MediaTailor.GetPrefetchSchedule", (config: PlaybackConfiguration) => Effect.Effect<((request: GetPrefetchScheduleRequest) => Effect.Effect<mediatailor.GetPrefetchScheduleResponse, mediatailor.GetPrefetchScheduleError>)>> {
+export interface GetPrefetchSchedule extends Binding.Service<GetPrefetchSchedule, "AWS.MediaTailor.GetPrefetchSchedule", (config: PlaybackConfiguration) => Effect.Effect<(request: GetPrefetchScheduleRequest) => Effect.Effect<mediatailor.GetPrefetchScheduleResponse, mediatailor.GetPrefetchScheduleError>>> {
 }
 export declare const GetPrefetchSchedule: GetPrefetchSchedule;

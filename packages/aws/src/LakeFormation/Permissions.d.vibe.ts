@@ -1,8 +1,8 @@
 import * as lf from "@distilled.cloud/aws/lakeformation";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
-import { type LakeFormationResourceSpec } from "./ResourceSpec.js";
+import type { Providers } from "../Providers.ts";
+import { type LakeFormationResourceSpec } from "./ResourceSpec.ts";
 export interface PermissionsProps {
     /**
      * The principal receiving the permissions — an IAM user/role ARN, an

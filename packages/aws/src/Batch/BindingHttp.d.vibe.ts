@@ -21,7 +21,7 @@ export declare const makeBatchJobHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Batch.DescribeJobs`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<(queue: JobQueue) => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -37,7 +37,7 @@ export declare const makeBatchQueueHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Batch.ListJobs`. */
     tag: string;
     /** The distilled operation; `jobQueue` is injected from the bound queue. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the queue ARN (or `*` — see `wildcardIam`). */
     actions: readonly string[];
     /** Grant on `*` instead of the queue ARN (actions without resource-level IAM). */

@@ -30,6 +30,6 @@ export interface GetTemporaryDataLocationCredentialsRequest extends lf.GetTempor
  *
  * @binding
  */
-export interface GetTemporaryDataLocationCredentials extends Binding.Service<GetTemporaryDataLocationCredentials, "AWS.LakeFormation.GetTemporaryDataLocationCredentials", () => Effect.Effect<((request: GetTemporaryDataLocationCredentialsRequest) => Effect.Effect<lf.GetTemporaryDataLocationCredentialsResponse, lf.GetTemporaryDataLocationCredentialsError>)>> {
+export interface GetTemporaryDataLocationCredentials extends Binding.Service<GetTemporaryDataLocationCredentials, "AWS.LakeFormation.GetTemporaryDataLocationCredentials", () => Effect.Effect<(request: GetTemporaryDataLocationCredentialsRequest) => Effect.Effect<lf.GetTemporaryDataLocationCredentialsResponse, lf.GetTemporaryDataLocationCredentialsError>>> {
 }
 export declare const GetTemporaryDataLocationCredentials: GetTemporaryDataLocationCredentials;

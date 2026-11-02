@@ -2,7 +2,7 @@ import type * as cloudbuild from "@distilled.cloud/gcp/cloudbuild_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.ts";
 export interface AccessReadWriteTokenRequest extends Omit<cloudbuild.AccessReadWriteTokenProjectsLocationsConnectionsRepositoriesRequest, "repository"> {
 }
 /**
@@ -22,6 +22,6 @@ export interface AccessReadWriteTokenRequest extends Omit<cloudbuild.AccessReadW
  * @binding
  * @category CloudBuild
  */
-export interface AccessReadWriteToken extends Binding.Service<AccessReadWriteToken, "GCP.CloudBuild.AccessReadWriteToken", (repository: Repository) => Effect.Effect<((request?: AccessReadWriteTokenRequest) => Effect.Effect<cloudbuild.FetchReadWriteTokenResponse, cloudbuild.AccessReadWriteTokenProjectsLocationsConnectionsRepositoriesError, RuntimeContext>)>> {
+export interface AccessReadWriteToken extends Binding.Service<AccessReadWriteToken, "GCP.CloudBuild.AccessReadWriteToken", (repository: Repository) => Effect.Effect<(request?: AccessReadWriteTokenRequest) => Effect.Effect<cloudbuild.FetchReadWriteTokenResponse, cloudbuild.AccessReadWriteTokenProjectsLocationsConnectionsRepositoriesError, RuntimeContext>>> {
 }
 export declare const AccessReadWriteToken: AccessReadWriteToken;

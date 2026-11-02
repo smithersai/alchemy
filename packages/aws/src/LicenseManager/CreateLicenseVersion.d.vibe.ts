@@ -39,6 +39,6 @@ export interface CreateLicenseVersionRequest extends licensemanager.CreateLicens
  *
  * @binding
  */
-export interface CreateLicenseVersion extends Binding.Service<CreateLicenseVersion, "AWS.LicenseManager.CreateLicenseVersion", () => Effect.Effect<((request: CreateLicenseVersionRequest) => Effect.Effect<licensemanager.CreateLicenseVersionResponse, licensemanager.CreateLicenseVersionError>)>> {
+export interface CreateLicenseVersion extends Binding.Service<CreateLicenseVersion, "AWS.LicenseManager.CreateLicenseVersion", () => Effect.Effect<(request: CreateLicenseVersionRequest) => Effect.Effect<licensemanager.CreateLicenseVersionResponse, licensemanager.CreateLicenseVersionError>>> {
 }
 export declare const CreateLicenseVersion: CreateLicenseVersion;

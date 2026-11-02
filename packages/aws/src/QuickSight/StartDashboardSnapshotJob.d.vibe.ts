@@ -31,6 +31,6 @@ import type { Dashboard } from "./Dashboard.vibe";
  *
  * @binding
  */
-export interface StartDashboardSnapshotJob extends Binding.Service<StartDashboardSnapshotJob, "AWS.QuickSight.StartDashboardSnapshotJob", (dashboard: Dashboard) => Effect.Effect<((request: Omit<quicksight.StartDashboardSnapshotJobRequest, "AwsAccountId" | "DashboardId">) => Effect.Effect<quicksight.StartDashboardSnapshotJobResponse, quicksight.StartDashboardSnapshotJobError>)>> {
+export interface StartDashboardSnapshotJob extends Binding.Service<StartDashboardSnapshotJob, "AWS.QuickSight.StartDashboardSnapshotJob", (dashboard: Dashboard) => Effect.Effect<(request: Omit<quicksight.StartDashboardSnapshotJobRequest, "AwsAccountId" | "DashboardId">) => Effect.Effect<quicksight.StartDashboardSnapshotJobResponse, quicksight.StartDashboardSnapshotJobError>>> {
 }
 export declare const StartDashboardSnapshotJob: StartDashboardSnapshotJob;

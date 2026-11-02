@@ -22,6 +22,6 @@ import type { DataSet } from "./DataSet.vibe";
  *
  * @binding
  */
-export interface SendDataSetNotification extends Binding.Service<SendDataSetNotification, "AWS.DataExchange.SendDataSetNotification", (dataSet: DataSet) => Effect.Effect<((request: Omit<dataexchange.SendDataSetNotificationRequest, "DataSetId">) => Effect.Effect<dataexchange.SendDataSetNotificationResponse, dataexchange.SendDataSetNotificationError>)>> {
+export interface SendDataSetNotification extends Binding.Service<SendDataSetNotification, "AWS.DataExchange.SendDataSetNotification", (dataSet: DataSet) => Effect.Effect<(request: Omit<dataexchange.SendDataSetNotificationRequest, "DataSetId">) => Effect.Effect<dataexchange.SendDataSetNotificationResponse, dataexchange.SendDataSetNotificationError>>> {
 }
 export declare const SendDataSetNotification: SendDataSetNotification;

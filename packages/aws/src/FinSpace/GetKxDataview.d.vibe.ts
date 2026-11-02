@@ -19,6 +19,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface GetKxDataview extends Binding.Service<GetKxDataview, "AWS.FinSpace.GetKxDataview", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request: Omit<SVC.GetKxDataviewRequest, "environmentId">) => Effect.Effect<SVC.GetKxDataviewResponse, SVC.GetKxDataviewError>)>> {
+export interface GetKxDataview extends Binding.Service<GetKxDataview, "AWS.FinSpace.GetKxDataview", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request: Omit<SVC.GetKxDataviewRequest, "environmentId">) => Effect.Effect<SVC.GetKxDataviewResponse, SVC.GetKxDataviewError>>> {
 }
 export declare const GetKxDataview: GetKxDataview;

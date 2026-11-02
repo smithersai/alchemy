@@ -1,7 +1,7 @@
 import type * as SSM from "@distilled.cloud/aws/ssm";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Parameter } from "./Parameter.js";
+import type { Parameter } from "./Parameter.ts";
 export interface LabelParameterVersionRequest extends Omit<SSM.LabelParameterVersionRequest, "Name"> {
 }
 /**
@@ -23,6 +23,6 @@ export interface LabelParameterVersionRequest extends Omit<SSM.LabelParameterVer
  *
  * @binding
  */
-export interface LabelParameterVersion extends Binding.Service<LabelParameterVersion, "AWS.SSM.LabelParameterVersion", <P extends Parameter>(parameter: P) => Effect.Effect<((request: LabelParameterVersionRequest) => Effect.Effect<SSM.LabelParameterVersionResult, SSM.LabelParameterVersionError>)>> {
+export interface LabelParameterVersion extends Binding.Service<LabelParameterVersion, "AWS.SSM.LabelParameterVersion", <P extends Parameter>(parameter: P) => Effect.Effect<(request: LabelParameterVersionRequest) => Effect.Effect<SSM.LabelParameterVersionResult, SSM.LabelParameterVersionError>>> {
 }
 export declare const LabelParameterVersion: LabelParameterVersion;

@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/kinesis-analytics-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 export interface StartApplicationRequest extends Omit<SVC.StartApplicationRequest, "ApplicationName"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface StartApplicationRequest extends Omit<SVC.StartApplicationReques
  *
  * @binding
  */
-export interface StartApplication extends Binding.Service<StartApplication, "AWS.KinesisAnalyticsV2.StartApplication", <A extends Application>(application: A) => Effect.Effect<((request?: StartApplicationRequest) => Effect.Effect<SVC.StartApplicationResponse, SVC.StartApplicationError>)>> {
+export interface StartApplication extends Binding.Service<StartApplication, "AWS.KinesisAnalyticsV2.StartApplication", <A extends Application>(application: A) => Effect.Effect<(request?: StartApplicationRequest) => Effect.Effect<SVC.StartApplicationResponse, SVC.StartApplicationError>>> {
 }
 export declare const StartApplication: StartApplication;

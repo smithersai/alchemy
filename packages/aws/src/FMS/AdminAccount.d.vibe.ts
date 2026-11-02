@@ -1,9 +1,9 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { Region } from "../Region.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { Region } from "../Region.ts";
 /** Pin an FMS admin-account operation to the us-east-1 endpoint. */
 export declare const pinFms: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Region>>;
 export interface AdminAccountProps {

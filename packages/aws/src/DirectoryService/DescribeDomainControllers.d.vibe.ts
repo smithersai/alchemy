@@ -1,7 +1,7 @@
 import type * as ds from "@distilled.cloud/aws/directory-service";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Directory } from "./Directory.js";
+import type { Directory } from "./Directory.ts";
 /**
  * Runtime binding for the `DescribeDomainControllers` operation (IAM action
  * `ds:DescribeDomainControllers`), scoped to one {@link Directory}.
@@ -29,6 +29,6 @@ import type { Directory } from "./Directory.js";
  *
  * @binding
  */
-export interface DescribeDomainControllers extends Binding.Service<DescribeDomainControllers, "AWS.DirectoryService.DescribeDomainControllers", (directory: Directory) => Effect.Effect<((request?: Omit<ds.DescribeDomainControllersRequest, "DirectoryId">) => Effect.Effect<ds.DescribeDomainControllersResult, ds.DescribeDomainControllersError>)>> {
+export interface DescribeDomainControllers extends Binding.Service<DescribeDomainControllers, "AWS.DirectoryService.DescribeDomainControllers", (directory: Directory) => Effect.Effect<(request?: Omit<ds.DescribeDomainControllersRequest, "DirectoryId">) => Effect.Effect<ds.DescribeDomainControllersResult, ds.DescribeDomainControllersError>>> {
 }
 export declare const DescribeDomainControllers: DescribeDomainControllers;

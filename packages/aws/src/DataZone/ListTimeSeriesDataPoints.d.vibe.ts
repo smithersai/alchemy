@@ -26,6 +26,6 @@ export interface ListTimeSeriesDataPointsRequest extends Omit<datazone.ListTimeS
  *
  * @binding
  */
-export interface ListTimeSeriesDataPoints extends Binding.Service<ListTimeSeriesDataPoints, "AWS.DataZone.ListTimeSeriesDataPoints", (domain: Domain) => Effect.Effect<((request: ListTimeSeriesDataPointsRequest) => Effect.Effect<datazone.ListTimeSeriesDataPointsOutput, datazone.ListTimeSeriesDataPointsError>)>> {
+export interface ListTimeSeriesDataPoints extends Binding.Service<ListTimeSeriesDataPoints, "AWS.DataZone.ListTimeSeriesDataPoints", (domain: Domain) => Effect.Effect<(request: ListTimeSeriesDataPointsRequest) => Effect.Effect<datazone.ListTimeSeriesDataPointsOutput, datazone.ListTimeSeriesDataPointsError>>> {
 }
 export declare const ListTimeSeriesDataPoints: ListTimeSeriesDataPoints;

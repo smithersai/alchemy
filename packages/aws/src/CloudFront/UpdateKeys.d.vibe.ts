@@ -30,6 +30,6 @@ export interface UpdateKeysRequest extends Omit<kvs.UpdateKeysRequest, "KvsARN">
  *
  * @binding
  */
-export interface UpdateKeys extends Binding.Service<UpdateKeys, "AWS.CloudFront.UpdateKeys", (store: KeyValueStore) => Effect.Effect<((request: UpdateKeysRequest) => Effect.Effect<kvs.UpdateKeysResponse, kvs.UpdateKeysError>)>> {
+export interface UpdateKeys extends Binding.Service<UpdateKeys, "AWS.CloudFront.UpdateKeys", (store: KeyValueStore) => Effect.Effect<(request: UpdateKeysRequest) => Effect.Effect<kvs.UpdateKeysResponse, kvs.UpdateKeysError>>> {
 }
 export declare const UpdateKeys: UpdateKeys;

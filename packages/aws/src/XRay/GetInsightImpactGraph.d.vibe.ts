@@ -31,6 +31,6 @@ export interface GetInsightImpactGraphRequest extends xray.GetInsightImpactGraph
  *
  * @binding
  */
-export interface GetInsightImpactGraph extends Binding.Service<GetInsightImpactGraph, "AWS.XRay.GetInsightImpactGraph", () => Effect.Effect<((request: GetInsightImpactGraphRequest) => Effect.Effect<xray.GetInsightImpactGraphResult, xray.GetInsightImpactGraphError>)>> {
+export interface GetInsightImpactGraph extends Binding.Service<GetInsightImpactGraph, "AWS.XRay.GetInsightImpactGraph", () => Effect.Effect<(request: GetInsightImpactGraphRequest) => Effect.Effect<xray.GetInsightImpactGraphResult, xray.GetInsightImpactGraphError>>> {
 }
 export declare const GetInsightImpactGraph: GetInsightImpactGraph;

@@ -26,6 +26,6 @@ export interface DeleteChatControlsConfigurationRequest extends Omit<qbusiness.D
  *
  * @binding
  */
-export interface DeleteChatControlsConfiguration extends Binding.Service<DeleteChatControlsConfiguration, "AWS.QBusiness.DeleteChatControlsConfiguration", (application: Application) => Effect.Effect<((request?: DeleteChatControlsConfigurationRequest) => Effect.Effect<qbusiness.DeleteChatControlsConfigurationResponse, qbusiness.DeleteChatControlsConfigurationError>)>> {
+export interface DeleteChatControlsConfiguration extends Binding.Service<DeleteChatControlsConfiguration, "AWS.QBusiness.DeleteChatControlsConfiguration", (application: Application) => Effect.Effect<(request?: DeleteChatControlsConfigurationRequest) => Effect.Effect<qbusiness.DeleteChatControlsConfigurationResponse, qbusiness.DeleteChatControlsConfigurationError>>> {
 }
 export declare const DeleteChatControlsConfiguration: DeleteChatControlsConfiguration;

@@ -24,6 +24,6 @@ export interface StartImageScanRequest extends Omit<ecr.StartImageScanRequest, "
  *
  * @binding
  */
-export interface StartImageScan extends Binding.Service<StartImageScan, "AWS.ECR.StartImageScan", (repository: Repository) => Effect.Effect<((request: StartImageScanRequest) => Effect.Effect<ecr.StartImageScanResponse, ecr.StartImageScanError>)>> {
+export interface StartImageScan extends Binding.Service<StartImageScan, "AWS.ECR.StartImageScan", (repository: Repository) => Effect.Effect<(request: StartImageScanRequest) => Effect.Effect<ecr.StartImageScanResponse, ecr.StartImageScanError>>> {
 }
 export declare const StartImageScan: StartImageScan;

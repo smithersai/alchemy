@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { type KVAuth } from "./NamespaceHttp.js";
+import { type KVAuth } from "./NamespaceHttp.ts";
 import { ReadWriteNamespace, type ReadWriteNamespaceClient } from "./ReadWriteNamespace.vibe";
 /**
  * HTTP-backed implementation of the {@link ReadWriteNamespace} binding.

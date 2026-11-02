@@ -2,7 +2,7 @@ import * as mi from "@distilled.cloud/aws/iot-managed-integrations";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 declare const ManagedThingUnexpectedResponse_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "ManagedThingUnexpectedResponse";
 } & Readonly<A>;

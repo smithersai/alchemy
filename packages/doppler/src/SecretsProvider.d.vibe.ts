@@ -1,7 +1,7 @@
 import { type SecretsLayer, type SecretsOption } from "alchemy/Secrets/Provider";
 import { UserFacingError } from "alchemy/UserFacingError";
 import type * as Redacted from "effect/Redacted";
-import { type DopplerAuthConfig } from "./AuthProvider.js";
+import { type DopplerAuthConfig } from "./AuthProvider.ts";
 export interface DopplerOptions {
     /** Project slug. Required with browser login or personal tokens. */
     project?: string;

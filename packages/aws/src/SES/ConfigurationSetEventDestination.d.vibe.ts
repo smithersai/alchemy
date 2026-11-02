@@ -1,7 +1,7 @@
 import type * as sesv2Types from "@distilled.cloud/aws/sesv2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * The email-sending events an event destination can match, e.g. `SEND`,
  * `DELIVERY`, `BOUNCE`, `COMPLAINT`, `OPEN`, `CLICK`.

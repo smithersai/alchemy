@@ -26,6 +26,6 @@ import type { User } from "./User.vibe";
  *
  * @binding
  */
-export interface ImportSshPublicKey extends Binding.Service<ImportSshPublicKey, "AWS.Transfer.ImportSshPublicKey", (user: User) => Effect.Effect<((request: Omit<transfer.ImportSshPublicKeyRequest, "ServerId" | "UserName">) => Effect.Effect<transfer.ImportSshPublicKeyResponse, transfer.ImportSshPublicKeyError>)>> {
+export interface ImportSshPublicKey extends Binding.Service<ImportSshPublicKey, "AWS.Transfer.ImportSshPublicKey", (user: User) => Effect.Effect<(request: Omit<transfer.ImportSshPublicKeyRequest, "ServerId" | "UserName">) => Effect.Effect<transfer.ImportSshPublicKeyResponse, transfer.ImportSshPublicKeyError>>> {
 }
 export declare const ImportSshPublicKey: ImportSshPublicKey;

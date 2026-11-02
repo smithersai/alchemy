@@ -30,6 +30,6 @@ export interface CreatePartitionRequest extends Omit<glue.CreatePartitionRequest
  *
  * @binding
  */
-export interface CreatePartition extends Binding.Service<CreatePartition, "AWS.Glue.CreatePartition", (table: Table) => Effect.Effect<((request: CreatePartitionRequest) => Effect.Effect<glue.CreatePartitionResponse, glue.CreatePartitionError>)>> {
+export interface CreatePartition extends Binding.Service<CreatePartition, "AWS.Glue.CreatePartition", (table: Table) => Effect.Effect<(request: CreatePartitionRequest) => Effect.Effect<glue.CreatePartitionResponse, glue.CreatePartitionError>>> {
 }
 export declare const CreatePartition: CreatePartition;

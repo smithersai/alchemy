@@ -28,6 +28,6 @@ export interface ListDecoderManifestNetworkInterfacesRequest extends Omit<iotfle
  *
  * @binding
  */
-export interface ListDecoderManifestNetworkInterfaces extends Binding.Service<ListDecoderManifestNetworkInterfaces, "AWS.IoTFleetWise.ListDecoderManifestNetworkInterfaces", (decoder: DecoderManifest) => Effect.Effect<((request?: ListDecoderManifestNetworkInterfacesRequest) => Effect.Effect<iotfleetwise.ListDecoderManifestNetworkInterfacesResponse, iotfleetwise.ListDecoderManifestNetworkInterfacesError>)>> {
+export interface ListDecoderManifestNetworkInterfaces extends Binding.Service<ListDecoderManifestNetworkInterfaces, "AWS.IoTFleetWise.ListDecoderManifestNetworkInterfaces", (decoder: DecoderManifest) => Effect.Effect<(request?: ListDecoderManifestNetworkInterfacesRequest) => Effect.Effect<iotfleetwise.ListDecoderManifestNetworkInterfacesResponse, iotfleetwise.ListDecoderManifestNetworkInterfacesError>>> {
 }
 export declare const ListDecoderManifestNetworkInterfaces: ListDecoderManifestNetworkInterfaces;

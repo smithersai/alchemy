@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateForecastExportJob extends Binding.Service<CreateForecastExportJob, "AWS.Forecast.CreateForecastExportJob", () => Effect.Effect<((request: forecast.CreateForecastExportJobRequest) => Effect.Effect<forecast.CreateForecastExportJobResponse, forecast.CreateForecastExportJobError>)>> {
+export interface CreateForecastExportJob extends Binding.Service<CreateForecastExportJob, "AWS.Forecast.CreateForecastExportJob", () => Effect.Effect<(request: forecast.CreateForecastExportJobRequest) => Effect.Effect<forecast.CreateForecastExportJobResponse, forecast.CreateForecastExportJobError>>> {
 }
 export declare const CreateForecastExportJob: CreateForecastExportJob;

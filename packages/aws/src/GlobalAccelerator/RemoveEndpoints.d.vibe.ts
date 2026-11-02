@@ -25,6 +25,6 @@ import type { EndpointGroup } from "./EndpointGroup.vibe";
  *
  * @binding
  */
-export interface RemoveEndpoints extends Binding.Service<RemoveEndpoints, "AWS.GlobalAccelerator.RemoveEndpoints", (endpointGroup: EndpointGroup) => Effect.Effect<((request: Omit<ga.RemoveEndpointsRequest, "EndpointGroupArn">) => Effect.Effect<ga.RemoveEndpointsResponse, ga.RemoveEndpointsError>)>> {
+export interface RemoveEndpoints extends Binding.Service<RemoveEndpoints, "AWS.GlobalAccelerator.RemoveEndpoints", (endpointGroup: EndpointGroup) => Effect.Effect<(request: Omit<ga.RemoveEndpointsRequest, "EndpointGroupArn">) => Effect.Effect<ga.RemoveEndpointsResponse, ga.RemoveEndpointsError>>> {
 }
 export declare const RemoveEndpoints: RemoveEndpoints;

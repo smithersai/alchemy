@@ -27,7 +27,7 @@ export declare const makeSiteWiseAssetHttpBinding: <I, A, E, R, Req>(options: {
     /** IAM actions granted on the bound asset's ARN. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** Map the public request shape + bound asset id onto the wire request. */
     prepare: (request: Req, assetId: string) => I;
 }) => Effect.Effect<(asset: Asset) => Effect.Effect<(request: Req) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -43,5 +43,5 @@ export declare const makeSiteWiseAccountHttpBinding: <I, A, E, R>(options: {
     /** IAM actions granted on `Resource: ["*"]`. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

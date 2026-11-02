@@ -25,6 +25,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface BatchGetGraphMemberDatasources extends Binding.Service<BatchGetGraphMemberDatasources, "AWS.Detective.BatchGetGraphMemberDatasources", (graph: Graph) => Effect.Effect<((request: Omit<detective.BatchGetGraphMemberDatasourcesRequest, "GraphArn">) => Effect.Effect<detective.BatchGetGraphMemberDatasourcesResponse, detective.BatchGetGraphMemberDatasourcesError>)>> {
+export interface BatchGetGraphMemberDatasources extends Binding.Service<BatchGetGraphMemberDatasources, "AWS.Detective.BatchGetGraphMemberDatasources", (graph: Graph) => Effect.Effect<(request: Omit<detective.BatchGetGraphMemberDatasourcesRequest, "GraphArn">) => Effect.Effect<detective.BatchGetGraphMemberDatasourcesResponse, detective.BatchGetGraphMemberDatasourcesError>>> {
 }
 export declare const BatchGetGraphMemberDatasources: BatchGetGraphMemberDatasources;

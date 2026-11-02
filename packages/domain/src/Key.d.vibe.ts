@@ -1,5 +1,5 @@
 import type * as EffectSchema from "effect/Schema";
-import * as Aggregate from "./Aggregate.js";
+import * as Aggregate from "./Aggregate.ts";
 /** A string Schema that keys instances by value, such as an org id. */
 export type Schema = EffectSchema.Top & {
     readonly Type: string;

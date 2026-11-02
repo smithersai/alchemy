@@ -1,8 +1,8 @@
 import * as analyticshub from "@distilled.cloud/gcp/analyticshub_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type ListingDataProvider = analyticshub.DataProvider;
 export type ListingPublisher = analyticshub.Publisher;
 export type ListingRestrictedExportConfig = analyticshub.RestrictedExportConfig;

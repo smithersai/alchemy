@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListMembers extends Binding.Service<ListMembers, "AWS.Macie2.ListMembers", () => Effect.Effect<((request?: macie2.ListMembersRequest) => Effect.Effect<macie2.ListMembersResponse, macie2.ListMembersError>)>> {
+export interface ListMembers extends Binding.Service<ListMembers, "AWS.Macie2.ListMembers", () => Effect.Effect<(request?: macie2.ListMembersRequest) => Effect.Effect<macie2.ListMembersResponse, macie2.ListMembersError>>> {
 }
 export declare const ListMembers: ListMembers;

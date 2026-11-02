@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListFindingAggregators extends Binding.Service<ListFindingAggregators, "AWS.SecurityHub.ListFindingAggregators", () => Effect.Effect<((request?: securityhub.ListFindingAggregatorsRequest) => Effect.Effect<securityhub.ListFindingAggregatorsResponse, securityhub.ListFindingAggregatorsError>)>> {
+export interface ListFindingAggregators extends Binding.Service<ListFindingAggregators, "AWS.SecurityHub.ListFindingAggregators", () => Effect.Effect<(request?: securityhub.ListFindingAggregatorsRequest) => Effect.Effect<securityhub.ListFindingAggregatorsResponse, securityhub.ListFindingAggregatorsError>>> {
 }
 export declare const ListFindingAggregators: ListFindingAggregators;

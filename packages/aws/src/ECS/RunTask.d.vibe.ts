@@ -2,7 +2,7 @@ import type * as ECS from "@distilled.cloud/aws/ecs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { Cluster } from "./Cluster.vibe";
-import type { Task } from "./Task.js";
+import type { Task } from "./Task.ts";
 export interface RunTaskRequest extends Omit<ECS.RunTaskRequest, "cluster" | "taskDefinition"> {
 }
 /**
@@ -46,6 +46,6 @@ export interface RunTaskRequest extends Omit<ECS.RunTaskRequest, "cluster" | "ta
  *
  * @binding
  */
-export interface RunTask extends Binding.Service<RunTask, "AWS.ECS.RunTask", (cluster: Cluster, task: Task) => Effect.Effect<((request: RunTaskRequest) => Effect.Effect<ECS.RunTaskResponse, ECS.RunTaskError>)>> {
+export interface RunTask extends Binding.Service<RunTask, "AWS.ECS.RunTask", (cluster: Cluster, task: Task) => Effect.Effect<(request: RunTaskRequest) => Effect.Effect<ECS.RunTaskResponse, ECS.RunTaskError>>> {
 }
 export declare const RunTask: RunTask;

@@ -24,6 +24,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface InviteMembers extends Binding.Service<InviteMembers, "AWS.GuardDuty.InviteMembers", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.InviteMembersRequest, "DetectorId">) => Effect.Effect<guardduty.InviteMembersResponse, guardduty.InviteMembersError>)>> {
+export interface InviteMembers extends Binding.Service<InviteMembers, "AWS.GuardDuty.InviteMembers", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.InviteMembersRequest, "DetectorId">) => Effect.Effect<guardduty.InviteMembersResponse, guardduty.InviteMembersError>>> {
 }
 export declare const InviteMembers: InviteMembers;

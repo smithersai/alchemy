@@ -1,7 +1,7 @@
 import type * as cloudcontrol from "@distilled.cloud/aws/cloudcontrol";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { CloudControlBindingOptions } from "./BindingOptions.js";
+import type { CloudControlBindingOptions } from "./BindingOptions.ts";
 /**
  * Runtime binding for `cloudformation:ListResources`.
  *
@@ -30,6 +30,6 @@ import type { CloudControlBindingOptions } from "./BindingOptions.js";
  *
  * @binding
  */
-export interface ListResources extends Binding.Service<ListResources, "AWS.CloudControl.ListResources", (options?: CloudControlBindingOptions) => Effect.Effect<((request: cloudcontrol.ListResourcesInput) => Effect.Effect<cloudcontrol.ListResourcesOutput, cloudcontrol.ListResourcesError>)>> {
+export interface ListResources extends Binding.Service<ListResources, "AWS.CloudControl.ListResources", (options?: CloudControlBindingOptions) => Effect.Effect<(request: cloudcontrol.ListResourcesInput) => Effect.Effect<cloudcontrol.ListResourcesOutput, cloudcontrol.ListResourcesError>>> {
 }
 export declare const ListResources: ListResources;

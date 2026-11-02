@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetLandingZone extends Binding.Service<GetLandingZone, "AWS.ControlTower.GetLandingZone", () => Effect.Effect<((request: controltower.GetLandingZoneInput) => Effect.Effect<controltower.GetLandingZoneOutput, controltower.GetLandingZoneError>)>> {
+export interface GetLandingZone extends Binding.Service<GetLandingZone, "AWS.ControlTower.GetLandingZone", () => Effect.Effect<(request: controltower.GetLandingZoneInput) => Effect.Effect<controltower.GetLandingZoneOutput, controltower.GetLandingZoneError>>> {
 }
 export declare const GetLandingZone: GetLandingZone;

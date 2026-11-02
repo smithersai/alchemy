@@ -30,6 +30,6 @@ export interface ListPricesRequest extends route53domains.ListPricesRequest {
  *
  * @binding
  */
-export interface ListPrices extends Binding.Service<ListPrices, "AWS.Route53Domains.ListPrices", () => Effect.Effect<((request: ListPricesRequest) => Effect.Effect<route53domains.ListPricesResponse, route53domains.ListPricesError>)>> {
+export interface ListPrices extends Binding.Service<ListPrices, "AWS.Route53Domains.ListPrices", () => Effect.Effect<(request: ListPricesRequest) => Effect.Effect<route53domains.ListPricesResponse, route53domains.ListPricesError>>> {
 }
 export declare const ListPrices: ListPrices;

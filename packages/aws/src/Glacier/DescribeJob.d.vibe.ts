@@ -29,6 +29,6 @@ export interface DescribeJobRequest extends Omit<glacier.DescribeJobInput, "acco
  *
  * @binding
  */
-export interface DescribeJob extends Binding.Service<DescribeJob, "AWS.Glacier.DescribeJob", (vault: Vault) => Effect.Effect<((request: DescribeJobRequest) => Effect.Effect<glacier.GlacierJobDescription, glacier.DescribeJobError>)>> {
+export interface DescribeJob extends Binding.Service<DescribeJob, "AWS.Glacier.DescribeJob", (vault: Vault) => Effect.Effect<(request: DescribeJobRequest) => Effect.Effect<glacier.GlacierJobDescription, glacier.DescribeJobError>>> {
 }
 export declare const DescribeJob: DescribeJob;

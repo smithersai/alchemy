@@ -21,6 +21,6 @@ import type { Queue } from "./Queue.vibe";
  *
  * @binding
  */
-export interface GetSession extends Binding.Service<GetSession, "AWS.Deadline.GetSession", (queue: Queue) => Effect.Effect<((request: Omit<deadline.GetSessionRequest, "farmId" | "queueId">) => Effect.Effect<deadline.GetSessionResponse, deadline.GetSessionError>)>> {
+export interface GetSession extends Binding.Service<GetSession, "AWS.Deadline.GetSession", (queue: Queue) => Effect.Effect<(request: Omit<deadline.GetSessionRequest, "farmId" | "queueId">) => Effect.Effect<deadline.GetSessionResponse, deadline.GetSessionError>>> {
 }
 export declare const GetSession: GetSession;

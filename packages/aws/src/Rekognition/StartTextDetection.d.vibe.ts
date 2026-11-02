@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartTextDetection extends Binding.Service<StartTextDetection, "AWS.Rekognition.StartTextDetection", () => Effect.Effect<((request: rekognition.StartTextDetectionRequest) => Effect.Effect<rekognition.StartTextDetectionResponse, rekognition.StartTextDetectionError>)>> {
+export interface StartTextDetection extends Binding.Service<StartTextDetection, "AWS.Rekognition.StartTextDetection", () => Effect.Effect<(request: rekognition.StartTextDetectionRequest) => Effect.Effect<rekognition.StartTextDetectionResponse, rekognition.StartTextDetectionError>>> {
 }
 export declare const StartTextDetection: StartTextDetection;

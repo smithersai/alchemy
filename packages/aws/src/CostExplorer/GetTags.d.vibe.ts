@@ -27,6 +27,6 @@ export interface GetTagsRequest extends ce.GetTagsRequest {
  *
  * @binding
  */
-export interface GetTags extends Binding.Service<GetTags, "AWS.CostExplorer.GetTags", () => Effect.Effect<((request: GetTagsRequest) => Effect.Effect<ce.GetTagsResponse, ce.GetTagsError>)>> {
+export interface GetTags extends Binding.Service<GetTags, "AWS.CostExplorer.GetTags", () => Effect.Effect<(request: GetTagsRequest) => Effect.Effect<ce.GetTagsResponse, ce.GetTagsError>>> {
 }
 export declare const GetTags: GetTags;

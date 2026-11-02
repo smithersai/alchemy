@@ -9,13 +9,13 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import { App } from "./App.vibe";
-import { type MachineDeploy, type MachineShutdown, type MachineCheck } from "./Deployment.js";
-import { type FlyBuildOptions, type FlyHostRuntimeContext } from "./hosted.js";
+import { type MachineDeploy, type MachineShutdown, type MachineCheck } from "./Deployment.ts";
+import { type FlyBuildOptions, type FlyHostRuntimeContext } from "./hosted.ts";
 import type { MachineGuest, MachineImageRef, MachineService } from "./Machine.vibe";
 import type { MountedDisk, ServiceBinding } from "./MountVolume.vibe";
 import type { Providers } from "./Providers.vibe";
-import { type Region } from "./Region.js";
-import { type Replica } from "./replicas.js";
+import { type Region } from "./Region.ts";
+import { type Replica } from "./replicas.ts";
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces
  * it (so `yield* App(...)` and `App(...)` both type-check).

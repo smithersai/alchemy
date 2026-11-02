@@ -1,7 +1,7 @@
 import * as mediaconvert from "@distilled.cloud/aws/mediaconvert";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface JobProps {
     /**
      * ARN of the IAM role MediaConvert assumes to read the input from and write

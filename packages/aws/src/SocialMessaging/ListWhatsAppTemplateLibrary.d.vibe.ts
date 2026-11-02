@@ -33,6 +33,6 @@ export interface ListWhatsAppTemplateLibraryRequest extends Omit<socialmessaging
  *
  * @binding
  */
-export interface ListWhatsAppTemplateLibrary extends Binding.Service<ListWhatsAppTemplateLibrary, "AWS.SocialMessaging.ListWhatsAppTemplateLibrary", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request?: ListWhatsAppTemplateLibraryRequest) => Effect.Effect<socialmessaging.ListWhatsAppTemplateLibraryOutput, socialmessaging.ListWhatsAppTemplateLibraryError>)>> {
+export interface ListWhatsAppTemplateLibrary extends Binding.Service<ListWhatsAppTemplateLibrary, "AWS.SocialMessaging.ListWhatsAppTemplateLibrary", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request?: ListWhatsAppTemplateLibraryRequest) => Effect.Effect<socialmessaging.ListWhatsAppTemplateLibraryOutput, socialmessaging.ListWhatsAppTemplateLibraryError>>> {
 }
 export declare const ListWhatsAppTemplateLibrary: ListWhatsAppTemplateLibrary;

@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListResourceSharePermissions extends Binding.Service<ListResourceSharePermissions, "AWS.RAM.ListResourceSharePermissions", () => Effect.Effect<((request: ram.ListResourceSharePermissionsRequest) => Effect.Effect<ram.ListResourceSharePermissionsResponse, ram.ListResourceSharePermissionsError>)>> {
+export interface ListResourceSharePermissions extends Binding.Service<ListResourceSharePermissions, "AWS.RAM.ListResourceSharePermissions", () => Effect.Effect<(request: ram.ListResourceSharePermissionsRequest) => Effect.Effect<ram.ListResourceSharePermissionsResponse, ram.ListResourceSharePermissionsError>>> {
 }
 export declare const ListResourceSharePermissions: ListResourceSharePermissions;

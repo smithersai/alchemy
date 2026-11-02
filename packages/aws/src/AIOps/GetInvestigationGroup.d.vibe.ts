@@ -26,6 +26,6 @@ import type { InvestigationGroup } from "./InvestigationGroup.vibe";
  *
  * @binding
  */
-export interface GetInvestigationGroup extends Binding.Service<GetInvestigationGroup, "AWS.AIOps.GetInvestigationGroup", (group: InvestigationGroup) => Effect.Effect<(() => Effect.Effect<aiops.GetInvestigationGroupResponse, aiops.GetInvestigationGroupError>)>> {
+export interface GetInvestigationGroup extends Binding.Service<GetInvestigationGroup, "AWS.AIOps.GetInvestigationGroup", (group: InvestigationGroup) => Effect.Effect<() => Effect.Effect<aiops.GetInvestigationGroupResponse, aiops.GetInvestigationGroupError>>> {
 }
 export declare const GetInvestigationGroup: GetInvestigationGroup;

@@ -2,7 +2,7 @@ import type * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 import type { TigrisCredentialsMissing } from "./Errors.vibe";
 export interface GetObjectRequest extends Omit<S3.GetObjectRequest, "Bucket"> {
 }
@@ -27,6 +27,6 @@ export interface GetObjectRequest extends Omit<S3.GetObjectRequest, "Bucket"> {
  * @binding
  * @product Bucket
  */
-export interface GetObject extends Binding.Service<GetObject, "Fly.GetObject", (bucket: Bucket) => Effect.Effect<((request: GetObjectRequest) => Effect.Effect<S3.GetObjectOutput, S3.GetObjectError | TigrisCredentialsMissing, RuntimeContext>)>> {
+export interface GetObject extends Binding.Service<GetObject, "Fly.GetObject", (bucket: Bucket) => Effect.Effect<(request: GetObjectRequest) => Effect.Effect<S3.GetObjectOutput, S3.GetObjectError | TigrisCredentialsMissing, RuntimeContext>>> {
 }
 export declare const GetObject: GetObject;

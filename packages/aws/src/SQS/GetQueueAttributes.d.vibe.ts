@@ -27,6 +27,6 @@ export interface GetQueueAttributesRequest extends Omit<sqs.GetQueueAttributesRe
  *
  * @binding
  */
-export interface GetQueueAttributes extends Binding.Service<GetQueueAttributes, "AWS.SQS.GetQueueAttributes", (queue: Queue) => Effect.Effect<((request?: GetQueueAttributesRequest) => Effect.Effect<sqs.GetQueueAttributesResult, sqs.GetQueueAttributesError>)>> {
+export interface GetQueueAttributes extends Binding.Service<GetQueueAttributes, "AWS.SQS.GetQueueAttributes", (queue: Queue) => Effect.Effect<(request?: GetQueueAttributesRequest) => Effect.Effect<sqs.GetQueueAttributesResult, sqs.GetQueueAttributesError>>> {
 }
 export declare const GetQueueAttributes: GetQueueAttributes;

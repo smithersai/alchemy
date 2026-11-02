@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface AssociateFaces extends Binding.Service<AssociateFaces, "AWS.Rekognition.AssociateFaces", () => Effect.Effect<((request: rekognition.AssociateFacesRequest) => Effect.Effect<rekognition.AssociateFacesResponse, rekognition.AssociateFacesError>)>> {
+export interface AssociateFaces extends Binding.Service<AssociateFaces, "AWS.Rekognition.AssociateFaces", () => Effect.Effect<(request: rekognition.AssociateFacesRequest) => Effect.Effect<rekognition.AssociateFacesResponse, rekognition.AssociateFacesError>>> {
 }
 export declare const AssociateFaces: AssociateFaces;

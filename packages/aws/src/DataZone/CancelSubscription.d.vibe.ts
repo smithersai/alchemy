@@ -22,6 +22,6 @@ export interface CancelSubscriptionRequest extends Omit<datazone.CancelSubscript
  *
  * @binding
  */
-export interface CancelSubscription extends Binding.Service<CancelSubscription, "AWS.DataZone.CancelSubscription", (domain: Domain) => Effect.Effect<((request: CancelSubscriptionRequest) => Effect.Effect<datazone.CancelSubscriptionOutput, datazone.CancelSubscriptionError>)>> {
+export interface CancelSubscription extends Binding.Service<CancelSubscription, "AWS.DataZone.CancelSubscription", (domain: Domain) => Effect.Effect<(request: CancelSubscriptionRequest) => Effect.Effect<datazone.CancelSubscriptionOutput, datazone.CancelSubscriptionError>>> {
 }
 export declare const CancelSubscription: CancelSubscription;

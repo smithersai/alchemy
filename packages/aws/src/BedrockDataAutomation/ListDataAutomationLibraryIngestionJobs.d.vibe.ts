@@ -29,6 +29,6 @@ export interface ListDataAutomationLibraryIngestionJobsRequest extends Omit<bda.
  *
  * @binding
  */
-export interface ListDataAutomationLibraryIngestionJobs extends Binding.Service<ListDataAutomationLibraryIngestionJobs, "AWS.BedrockDataAutomation.ListDataAutomationLibraryIngestionJobs", (library: DataAutomationLibrary) => Effect.Effect<((request: ListDataAutomationLibraryIngestionJobsRequest) => Effect.Effect<bda.ListDataAutomationLibraryIngestionJobsResponse, bda.ListDataAutomationLibraryIngestionJobsError>)>> {
+export interface ListDataAutomationLibraryIngestionJobs extends Binding.Service<ListDataAutomationLibraryIngestionJobs, "AWS.BedrockDataAutomation.ListDataAutomationLibraryIngestionJobs", (library: DataAutomationLibrary) => Effect.Effect<(request: ListDataAutomationLibraryIngestionJobsRequest) => Effect.Effect<bda.ListDataAutomationLibraryIngestionJobsResponse, bda.ListDataAutomationLibraryIngestionJobsError>>> {
 }
 export declare const ListDataAutomationLibraryIngestionJobs: ListDataAutomationLibraryIngestionJobs;

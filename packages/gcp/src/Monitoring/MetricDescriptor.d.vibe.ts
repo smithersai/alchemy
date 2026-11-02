@@ -1,8 +1,8 @@
 import * as monitoring from "@distilled.cloud/gcp/monitoring_v3";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type MetricKind = "GAUGE" | "DELTA" | "CUMULATIVE" | (string & {});
 export type MetricValueType = "BOOL" | "INT64" | "DOUBLE" | "STRING" | "DISTRIBUTION" | "MONEY" | (string & {});
 export type MetricLabelDescriptor = {

@@ -24,6 +24,6 @@ export interface SendProjectSessionActionRequest extends Omit<SVC.SendProjectSes
  *
  * @binding
  */
-export interface SendProjectSessionAction extends Binding.Service<SendProjectSessionAction, "AWS.DataBrew.SendProjectSessionAction", <P extends Project>(project: P) => Effect.Effect<((request?: SendProjectSessionActionRequest) => Effect.Effect<SVC.SendProjectSessionActionResponse, SVC.SendProjectSessionActionError>)>> {
+export interface SendProjectSessionAction extends Binding.Service<SendProjectSessionAction, "AWS.DataBrew.SendProjectSessionAction", <P extends Project>(project: P) => Effect.Effect<(request?: SendProjectSessionActionRequest) => Effect.Effect<SVC.SendProjectSessionActionResponse, SVC.SendProjectSessionActionError>>> {
 }
 export declare const SendProjectSessionAction: SendProjectSessionAction;

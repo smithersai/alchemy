@@ -8,4 +8,4 @@ import * as Effect from "effect/Effect";
  */
 export declare const waitForOperation: (operation: looker.Operation, options?: {
     notFoundOk?: boolean;
-}) => Effect.Effect<import("../Operation.js").LongRunningOperation | looker.Operation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | looker.GetProjectsLocationsOperationsError, looker.GcpOpContext>;
+}) => Effect.Effect<import("../Operation.ts").LongRunningOperation | looker.Operation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | looker.GetProjectsLocationsOperationsError, looker.GcpOpContext>;

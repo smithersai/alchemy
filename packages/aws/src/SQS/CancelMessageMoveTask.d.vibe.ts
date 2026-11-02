@@ -27,6 +27,6 @@ export interface CancelMessageMoveTaskRequest extends sqs.CancelMessageMoveTaskR
  *
  * @binding
  */
-export interface CancelMessageMoveTask extends Binding.Service<CancelMessageMoveTask, "AWS.SQS.CancelMessageMoveTask", (queue: Queue) => Effect.Effect<((request: CancelMessageMoveTaskRequest) => Effect.Effect<sqs.CancelMessageMoveTaskResult, sqs.CancelMessageMoveTaskError>)>> {
+export interface CancelMessageMoveTask extends Binding.Service<CancelMessageMoveTask, "AWS.SQS.CancelMessageMoveTask", (queue: Queue) => Effect.Effect<(request: CancelMessageMoveTaskRequest) => Effect.Effect<sqs.CancelMessageMoveTaskResult, sqs.CancelMessageMoveTaskError>>> {
 }
 export declare const CancelMessageMoveTask: CancelMessageMoveTask;

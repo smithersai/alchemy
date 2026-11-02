@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type * as lambda from "aws-lambda";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import type { Table, TableEvent, TableRecord } from "./Table.js";
+import type { Table, TableEvent, TableRecord } from "./Table.ts";
 export type StreamRecord<Data> = TableRecord<Data>;
 export type StreamEvent<Data> = TableEvent<Data>;
 /**

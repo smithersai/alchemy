@@ -27,7 +27,7 @@ export declare const makeCodeBuildProjectNameHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.CodeBuild.StartBuildBatch`. */
     tag: string;
     /** The distilled operation; `projectName` is injected from the project. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the project ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<P extends Project>(project: P) => Effect.Effect<(request?: Omit<I, "projectName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -44,7 +44,7 @@ export declare const makeCodeBuildProjectHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.CodeBuild.StopBuild`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the project ARN. */
     actions: readonly string[];
     /** Also grant on `…:sandbox/{project-name}:*` (sandbox-addressed actions). */
@@ -62,7 +62,7 @@ export declare const makeCodeBuildReportGroupArnHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.CodeBuild.GetReportGroupTrend`. */
     tag: string;
     /** The distilled operation; `reportGroupArn` is injected from the group. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the report-group ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<G extends ReportGroup>(reportGroup: G) => Effect.Effect<(request?: Omit<I, "reportGroupArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -77,7 +77,7 @@ export declare const makeCodeBuildReportGroupHttpBinding: <I, A, E, R>(options: 
     /** Fully-qualified binding tag, e.g. `AWS.CodeBuild.DescribeTestCases`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the report-group ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<G extends ReportGroup>(reportGroup: G) => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

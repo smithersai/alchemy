@@ -28,6 +28,6 @@ import type { FileSystem } from "./FileSystem.vibe";
  *
  * @binding
  */
-export interface CreateBackup extends Binding.Service<CreateBackup, "AWS.FSx.CreateBackup", (fileSystem: FileSystem) => Effect.Effect<((request?: Omit<fsx.CreateBackupRequest, "FileSystemId">) => Effect.Effect<fsx.CreateBackupResponse, fsx.CreateBackupError>)>> {
+export interface CreateBackup extends Binding.Service<CreateBackup, "AWS.FSx.CreateBackup", (fileSystem: FileSystem) => Effect.Effect<(request?: Omit<fsx.CreateBackupRequest, "FileSystemId">) => Effect.Effect<fsx.CreateBackupResponse, fsx.CreateBackupError>>> {
 }
 export declare const CreateBackup: CreateBackup;

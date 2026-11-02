@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListClusterSnapshots extends Binding.Service<ListClusterSnapshots, "AWS.DocDBElastic.ListClusterSnapshots", () => Effect.Effect<((request?: docdbelastic.ListClusterSnapshotsInput) => Effect.Effect<docdbelastic.ListClusterSnapshotsOutput, docdbelastic.ListClusterSnapshotsError>)>> {
+export interface ListClusterSnapshots extends Binding.Service<ListClusterSnapshots, "AWS.DocDBElastic.ListClusterSnapshots", () => Effect.Effect<(request?: docdbelastic.ListClusterSnapshotsInput) => Effect.Effect<docdbelastic.ListClusterSnapshotsOutput, docdbelastic.ListClusterSnapshotsError>>> {
 }
 export declare const ListClusterSnapshots: ListClusterSnapshots;

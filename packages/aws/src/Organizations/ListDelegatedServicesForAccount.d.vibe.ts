@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListDelegatedServicesForAccount extends Binding.Service<ListDelegatedServicesForAccount, "AWS.Organizations.ListDelegatedServicesForAccount", () => Effect.Effect<((request: organizations.ListDelegatedServicesForAccountRequest) => Effect.Effect<organizations.ListDelegatedServicesForAccountResponse, organizations.ListDelegatedServicesForAccountError>)>> {
+export interface ListDelegatedServicesForAccount extends Binding.Service<ListDelegatedServicesForAccount, "AWS.Organizations.ListDelegatedServicesForAccount", () => Effect.Effect<(request: organizations.ListDelegatedServicesForAccountRequest) => Effect.Effect<organizations.ListDelegatedServicesForAccountResponse, organizations.ListDelegatedServicesForAccountError>>> {
 }
 export declare const ListDelegatedServicesForAccount: ListDelegatedServicesForAccount;

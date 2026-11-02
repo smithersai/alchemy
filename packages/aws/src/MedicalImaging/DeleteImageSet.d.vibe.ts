@@ -28,6 +28,6 @@ export interface DeleteImageSetRequest extends Omit<medicalimaging.DeleteImageSe
  *
  * @binding
  */
-export interface DeleteImageSet extends Binding.Service<DeleteImageSet, "AWS.MedicalImaging.DeleteImageSet", (datastore: Datastore) => Effect.Effect<((request: DeleteImageSetRequest) => Effect.Effect<medicalimaging.DeleteImageSetResponse, medicalimaging.DeleteImageSetError>)>> {
+export interface DeleteImageSet extends Binding.Service<DeleteImageSet, "AWS.MedicalImaging.DeleteImageSet", (datastore: Datastore) => Effect.Effect<(request: DeleteImageSetRequest) => Effect.Effect<medicalimaging.DeleteImageSetResponse, medicalimaging.DeleteImageSetError>>> {
 }
 export declare const DeleteImageSet: DeleteImageSet;

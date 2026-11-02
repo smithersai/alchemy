@@ -23,7 +23,7 @@ export declare const makeVpcLatticeTargetGroupHttpBinding: <I extends {
      * The distilled operation; `targetGroupIdentifier` is injected from the
      * target group.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the target group ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(targetGroup: TargetGroup) => Effect.Effect<(request: Omit<I, "targetGroupIdentifier">) => Effect.Effect<A, E, never>, never, never>, never, never>;

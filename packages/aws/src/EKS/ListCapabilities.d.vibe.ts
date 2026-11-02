@@ -1,7 +1,7 @@
 import type * as eks from "@distilled.cloud/aws/eks";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 /**
  * Runtime binding for `eks:ListCapabilities`.
  *
@@ -21,6 +21,6 @@ import type { Cluster } from "./Cluster.js";
  *
  * @binding
  */
-export interface ListCapabilities extends Binding.Service<ListCapabilities, "AWS.EKS.ListCapabilities", (cluster: Cluster) => Effect.Effect<((request?: Omit<eks.ListCapabilitiesRequest, "clusterName">) => Effect.Effect<eks.ListCapabilitiesResponse, eks.ListCapabilitiesError>)>> {
+export interface ListCapabilities extends Binding.Service<ListCapabilities, "AWS.EKS.ListCapabilities", (cluster: Cluster) => Effect.Effect<(request?: Omit<eks.ListCapabilitiesRequest, "clusterName">) => Effect.Effect<eks.ListCapabilitiesResponse, eks.ListCapabilitiesError>>> {
 }
 export declare const ListCapabilities: ListCapabilities;

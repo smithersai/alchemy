@@ -28,6 +28,6 @@ export interface ListCostCategoryResourceAssociationsRequest extends Omit<ce.Lis
  *
  * @binding
  */
-export interface ListCostCategoryResourceAssociations extends Binding.Service<ListCostCategoryResourceAssociations, "AWS.CostExplorer.ListCostCategoryResourceAssociations", (category: CostCategory) => Effect.Effect<((request?: ListCostCategoryResourceAssociationsRequest) => Effect.Effect<ce.ListCostCategoryResourceAssociationsResponse, ce.ListCostCategoryResourceAssociationsError>)>> {
+export interface ListCostCategoryResourceAssociations extends Binding.Service<ListCostCategoryResourceAssociations, "AWS.CostExplorer.ListCostCategoryResourceAssociations", (category: CostCategory) => Effect.Effect<(request?: ListCostCategoryResourceAssociationsRequest) => Effect.Effect<ce.ListCostCategoryResourceAssociationsResponse, ce.ListCostCategoryResourceAssociationsError>>> {
 }
 export declare const ListCostCategoryResourceAssociations: ListCostCategoryResourceAssociations;

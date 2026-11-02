@@ -38,6 +38,6 @@ export interface SearchImageSetsRequest extends Omit<medicalimaging.SearchImageS
  *
  * @binding
  */
-export interface SearchImageSets extends Binding.Service<SearchImageSets, "AWS.MedicalImaging.SearchImageSets", (datastore: Datastore) => Effect.Effect<((request?: SearchImageSetsRequest) => Effect.Effect<medicalimaging.SearchImageSetsResponse, medicalimaging.SearchImageSetsError>)>> {
+export interface SearchImageSets extends Binding.Service<SearchImageSets, "AWS.MedicalImaging.SearchImageSets", (datastore: Datastore) => Effect.Effect<(request?: SearchImageSetsRequest) => Effect.Effect<medicalimaging.SearchImageSetsResponse, medicalimaging.SearchImageSetsError>>> {
 }
 export declare const SearchImageSets: SearchImageSets;

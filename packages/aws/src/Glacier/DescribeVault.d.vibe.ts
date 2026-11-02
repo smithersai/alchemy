@@ -21,6 +21,6 @@ import type { Vault } from "./Vault.vibe";
  *
  * @binding
  */
-export interface DescribeVault extends Binding.Service<DescribeVault, "AWS.Glacier.DescribeVault", (vault: Vault) => Effect.Effect<(() => Effect.Effect<glacier.DescribeVaultOutput, glacier.DescribeVaultError>)>> {
+export interface DescribeVault extends Binding.Service<DescribeVault, "AWS.Glacier.DescribeVault", (vault: Vault) => Effect.Effect<() => Effect.Effect<glacier.DescribeVaultOutput, glacier.DescribeVaultError>>> {
 }
 export declare const DescribeVault: DescribeVault;

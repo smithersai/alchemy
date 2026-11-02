@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { Table } from "./Table.vibe";
-import type { TableBucket } from "./TableBucket.js";
+import type { TableBucket } from "./TableBucket.ts";
 /**
  * Shared scaffolding for the S3 Tables runtime bindings.
  *
@@ -22,7 +22,7 @@ export declare const makeS3TablesTableBucketHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.S3Tables.ListNamespaces`. */
     tag: string;
     /** The distilled operation; `tableBucketARN` is injected from the bucket. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the bucket ARN and its children. */
     actions: readonly string[];
 }) => Effect.Effect<(tableBucket: TableBucket) => Effect.Effect<(request?: Omit<I, "tableBucketARN"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -42,7 +42,7 @@ export declare const makeS3TablesTableHttpBinding: <I extends {
      * The distilled operation; `tableBucketARN`, `namespace`, and `name` are
      * injected from the table.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the table ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(table: Table) => Effect.Effect<(request?: Omit<I, "tableBucketARN" | "namespace" | "name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

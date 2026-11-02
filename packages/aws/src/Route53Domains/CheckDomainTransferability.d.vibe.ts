@@ -35,6 +35,6 @@ export interface CheckDomainTransferabilityRequest extends route53domains.CheckD
  *
  * @binding
  */
-export interface CheckDomainTransferability extends Binding.Service<CheckDomainTransferability, "AWS.Route53Domains.CheckDomainTransferability", () => Effect.Effect<((request: CheckDomainTransferabilityRequest) => Effect.Effect<route53domains.CheckDomainTransferabilityResponse, route53domains.CheckDomainTransferabilityError>)>> {
+export interface CheckDomainTransferability extends Binding.Service<CheckDomainTransferability, "AWS.Route53Domains.CheckDomainTransferability", () => Effect.Effect<(request: CheckDomainTransferabilityRequest) => Effect.Effect<route53domains.CheckDomainTransferabilityResponse, route53domains.CheckDomainTransferabilityError>>> {
 }
 export declare const CheckDomainTransferability: CheckDomainTransferability;

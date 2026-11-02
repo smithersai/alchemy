@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListRules extends Binding.Service<ListRules, "AWS.Rbin.ListRules", () => Effect.Effect<((request: rbin.ListRulesRequest) => Effect.Effect<rbin.ListRulesResponse, rbin.ListRulesError>)>> {
+export interface ListRules extends Binding.Service<ListRules, "AWS.Rbin.ListRules", () => Effect.Effect<(request: rbin.ListRulesRequest) => Effect.Effect<rbin.ListRulesResponse, rbin.ListRulesError>>> {
 }
 export declare const ListRules: ListRules;

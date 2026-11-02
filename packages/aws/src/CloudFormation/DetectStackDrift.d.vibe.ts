@@ -25,6 +25,6 @@ import type { Stack } from "./Stack.vibe";
  *
  * @binding
  */
-export interface DetectStackDrift extends Binding.Service<DetectStackDrift, "AWS.CloudFormation.DetectStackDrift", (stack: Stack) => Effect.Effect<((request?: Omit<cloudformation.DetectStackDriftInput, "StackName">) => Effect.Effect<cloudformation.DetectStackDriftOutput, cloudformation.DetectStackDriftError>)>> {
+export interface DetectStackDrift extends Binding.Service<DetectStackDrift, "AWS.CloudFormation.DetectStackDrift", (stack: Stack) => Effect.Effect<(request?: Omit<cloudformation.DetectStackDriftInput, "StackName">) => Effect.Effect<cloudformation.DetectStackDriftOutput, cloudformation.DetectStackDriftError>>> {
 }
 export declare const DetectStackDrift: DetectStackDrift;

@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * Runtime binding for the `ClearQuerySuggestions` operation (IAM action
  * `kendra:ClearQuerySuggestions`), scoped to one {@link Index}.
@@ -21,6 +21,6 @@ import type { Index } from "./SearchIndex.js";
  *
  * @binding
  */
-export interface ClearQuerySuggestions extends Binding.Service<ClearQuerySuggestions, "AWS.Kendra.ClearQuerySuggestions", (index: Index) => Effect.Effect<(() => Effect.Effect<kendra.ClearQuerySuggestionsResponse, kendra.ClearQuerySuggestionsError>)>> {
+export interface ClearQuerySuggestions extends Binding.Service<ClearQuerySuggestions, "AWS.Kendra.ClearQuerySuggestions", (index: Index) => Effect.Effect<() => Effect.Effect<kendra.ClearQuerySuggestionsResponse, kendra.ClearQuerySuggestionsError>>> {
 }
 export declare const ClearQuerySuggestions: ClearQuerySuggestions;

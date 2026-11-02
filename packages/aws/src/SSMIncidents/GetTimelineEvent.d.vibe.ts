@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetTimelineEvent extends Binding.Service<GetTimelineEvent, "AWS.SSMIncidents.GetTimelineEvent", () => Effect.Effect<((request: incidents.GetTimelineEventInput) => Effect.Effect<incidents.GetTimelineEventOutput, incidents.GetTimelineEventError>)>> {
+export interface GetTimelineEvent extends Binding.Service<GetTimelineEvent, "AWS.SSMIncidents.GetTimelineEvent", () => Effect.Effect<(request: incidents.GetTimelineEventInput) => Effect.Effect<incidents.GetTimelineEventOutput, incidents.GetTimelineEventError>>> {
 }
 export declare const GetTimelineEvent: GetTimelineEvent;

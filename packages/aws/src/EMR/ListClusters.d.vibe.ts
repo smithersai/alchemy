@@ -15,6 +15,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListClusters extends Binding.Service<ListClusters, "AWS.EMR.ListClusters", () => Effect.Effect<((request?: SVC.ListClustersInput) => Effect.Effect<SVC.ListClustersOutput, SVC.ListClustersError>)>> {
+export interface ListClusters extends Binding.Service<ListClusters, "AWS.EMR.ListClusters", () => Effect.Effect<(request?: SVC.ListClustersInput) => Effect.Effect<SVC.ListClustersOutput, SVC.ListClustersError>>> {
 }
 export declare const ListClusters: ListClusters;

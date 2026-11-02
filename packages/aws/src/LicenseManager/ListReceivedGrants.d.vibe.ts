@@ -26,6 +26,6 @@ export interface ListReceivedGrantsRequest extends licensemanager.ListReceivedGr
  *
  * @binding
  */
-export interface ListReceivedGrants extends Binding.Service<ListReceivedGrants, "AWS.LicenseManager.ListReceivedGrants", () => Effect.Effect<((request?: ListReceivedGrantsRequest) => Effect.Effect<licensemanager.ListReceivedGrantsResponse, licensemanager.ListReceivedGrantsError>)>> {
+export interface ListReceivedGrants extends Binding.Service<ListReceivedGrants, "AWS.LicenseManager.ListReceivedGrants", () => Effect.Effect<(request?: ListReceivedGrantsRequest) => Effect.Effect<licensemanager.ListReceivedGrantsResponse, licensemanager.ListReceivedGrantsError>>> {
 }
 export declare const ListReceivedGrants: ListReceivedGrants;

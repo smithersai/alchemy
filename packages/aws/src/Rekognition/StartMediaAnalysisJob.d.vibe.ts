@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartMediaAnalysisJob extends Binding.Service<StartMediaAnalysisJob, "AWS.Rekognition.StartMediaAnalysisJob", () => Effect.Effect<((request: rekognition.StartMediaAnalysisJobRequest) => Effect.Effect<rekognition.StartMediaAnalysisJobResponse, rekognition.StartMediaAnalysisJobError>)>> {
+export interface StartMediaAnalysisJob extends Binding.Service<StartMediaAnalysisJob, "AWS.Rekognition.StartMediaAnalysisJob", () => Effect.Effect<(request: rekognition.StartMediaAnalysisJobRequest) => Effect.Effect<rekognition.StartMediaAnalysisJobResponse, rekognition.StartMediaAnalysisJobError>>> {
 }
 export declare const StartMediaAnalysisJob: StartMediaAnalysisJob;

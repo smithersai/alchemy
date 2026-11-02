@@ -29,6 +29,6 @@ export interface GetMediaForFragmentListRequest extends Omit<kvam.GetMediaForFra
  *
  * @binding
  */
-export interface GetMediaForFragmentList extends Binding.Service<GetMediaForFragmentList, "AWS.KinesisVideo.GetMediaForFragmentList", <S extends Stream>(stream: S) => Effect.Effect<((request: GetMediaForFragmentListRequest) => Effect.Effect<kvam.GetMediaForFragmentListOutput, kvam.GetMediaForFragmentListError | kv.GetDataEndpointError>)>> {
+export interface GetMediaForFragmentList extends Binding.Service<GetMediaForFragmentList, "AWS.KinesisVideo.GetMediaForFragmentList", <S extends Stream>(stream: S) => Effect.Effect<(request: GetMediaForFragmentListRequest) => Effect.Effect<kvam.GetMediaForFragmentListOutput, kvam.GetMediaForFragmentListError | kv.GetDataEndpointError>>> {
 }
 export declare const GetMediaForFragmentList: GetMediaForFragmentList;

@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListInvitations extends Binding.Service<ListInvitations, "AWS.Detective.ListInvitations", () => Effect.Effect<((request?: detective.ListInvitationsRequest) => Effect.Effect<detective.ListInvitationsResponse, detective.ListInvitationsError>)>> {
+export interface ListInvitations extends Binding.Service<ListInvitations, "AWS.Detective.ListInvitations", () => Effect.Effect<(request?: detective.ListInvitationsRequest) => Effect.Effect<detective.ListInvitationsResponse, detective.ListInvitationsError>>> {
 }
 export declare const ListInvitations: ListInvitations;

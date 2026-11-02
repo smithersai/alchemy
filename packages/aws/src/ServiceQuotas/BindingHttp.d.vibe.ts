@@ -21,5 +21,5 @@ export declare const makeServiceQuotasHttpBinding: <I extends object, A, E, R>(o
     /** IAM actions granted on `Resource: ["*"]`. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

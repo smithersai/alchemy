@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `SubmitFeedback` request with `IndexId` injected from the bound index.
  */
@@ -29,6 +29,6 @@ export interface SubmitFeedbackRequest extends Omit<kendra.SubmitFeedbackRequest
  *
  * @binding
  */
-export interface SubmitFeedback extends Binding.Service<SubmitFeedback, "AWS.Kendra.SubmitFeedback", (index: Index) => Effect.Effect<((request: SubmitFeedbackRequest) => Effect.Effect<kendra.SubmitFeedbackResponse, kendra.SubmitFeedbackError>)>> {
+export interface SubmitFeedback extends Binding.Service<SubmitFeedback, "AWS.Kendra.SubmitFeedback", (index: Index) => Effect.Effect<(request: SubmitFeedbackRequest) => Effect.Effect<kendra.SubmitFeedbackResponse, kendra.SubmitFeedbackError>>> {
 }
 export declare const SubmitFeedback: SubmitFeedback;

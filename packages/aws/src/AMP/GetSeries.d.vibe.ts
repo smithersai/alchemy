@@ -28,6 +28,6 @@ export interface GetSeriesRequest {
  *
  * @binding
  */
-export interface GetSeries extends Binding.Service<GetSeries, "AWS.AMP.GetSeries", (workspace: Workspace) => Effect.Effect<((request: GetSeriesRequest) => Effect.Effect<PrometheusSeries[], PrometheusApiError | Credentials.CredentialsError | SourceError | SigV4.SigningError>)>> {
+export interface GetSeries extends Binding.Service<GetSeries, "AWS.AMP.GetSeries", (workspace: Workspace) => Effect.Effect<(request: GetSeriesRequest) => Effect.Effect<PrometheusSeries[], PrometheusApiError | Credentials.CredentialsError | SourceError | SigV4.SigningError>>> {
 }
 export declare const GetSeries: GetSeries;

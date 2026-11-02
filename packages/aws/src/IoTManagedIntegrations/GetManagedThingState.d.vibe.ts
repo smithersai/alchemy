@@ -22,6 +22,6 @@ import type { ManagedThing } from "./ManagedThing.vibe";
  *
  * @binding
  */
-export interface GetManagedThingState extends Binding.Service<GetManagedThingState, "AWS.IoTManagedIntegrations.GetManagedThingState", (thing: ManagedThing) => Effect.Effect<(() => Effect.Effect<mi.GetManagedThingStateResponse, mi.GetManagedThingStateError>)>> {
+export interface GetManagedThingState extends Binding.Service<GetManagedThingState, "AWS.IoTManagedIntegrations.GetManagedThingState", (thing: ManagedThing) => Effect.Effect<() => Effect.Effect<mi.GetManagedThingStateResponse, mi.GetManagedThingStateError>>> {
 }
 export declare const GetManagedThingState: GetManagedThingState;

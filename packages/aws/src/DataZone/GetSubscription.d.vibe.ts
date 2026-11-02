@@ -22,6 +22,6 @@ export interface GetSubscriptionRequest extends Omit<datazone.GetSubscriptionInp
  *
  * @binding
  */
-export interface GetSubscription extends Binding.Service<GetSubscription, "AWS.DataZone.GetSubscription", (domain: Domain) => Effect.Effect<((request: GetSubscriptionRequest) => Effect.Effect<datazone.GetSubscriptionOutput, datazone.GetSubscriptionError>)>> {
+export interface GetSubscription extends Binding.Service<GetSubscription, "AWS.DataZone.GetSubscription", (domain: Domain) => Effect.Effect<(request: GetSubscriptionRequest) => Effect.Effect<datazone.GetSubscriptionOutput, datazone.GetSubscriptionError>>> {
 }
 export declare const GetSubscription: GetSubscription;

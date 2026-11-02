@@ -22,6 +22,6 @@ export interface CreateShellAuthTokenRequest extends microvms.CreateMicrovmShell
  *
  * @binding
  */
-export interface CreateShellAuthToken extends Binding.Service<CreateShellAuthToken, "AWS.Lambda.CreateShellAuthToken", (image: MicrovmImage) => Effect.Effect<((request: CreateShellAuthTokenRequest) => Effect.Effect<microvms.CreateMicrovmShellAuthTokenResponse, microvms.CreateMicrovmShellAuthTokenError>)>> {
+export interface CreateShellAuthToken extends Binding.Service<CreateShellAuthToken, "AWS.Lambda.CreateShellAuthToken", (image: MicrovmImage) => Effect.Effect<(request: CreateShellAuthTokenRequest) => Effect.Effect<microvms.CreateMicrovmShellAuthTokenResponse, microvms.CreateMicrovmShellAuthTokenError>>> {
 }
 export declare const CreateShellAuthToken: CreateShellAuthToken;

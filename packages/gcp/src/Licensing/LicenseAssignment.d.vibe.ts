@@ -1,8 +1,8 @@
 import * as licensing from "@distilled.cloud/gcp/licensing_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type LicenseAssignmentProps = {
     /**
      * Product id (`Google-Apps`, `Google-Vault`, …). See Products and

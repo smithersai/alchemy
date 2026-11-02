@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface RevokeSignature extends Binding.Service<RevokeSignature, "AWS.Signer.RevokeSignature", () => Effect.Effect<((request: signer.RevokeSignatureRequest) => Effect.Effect<signer.RevokeSignatureResponse, signer.RevokeSignatureError>)>> {
+export interface RevokeSignature extends Binding.Service<RevokeSignature, "AWS.Signer.RevokeSignature", () => Effect.Effect<(request: signer.RevokeSignatureRequest) => Effect.Effect<signer.RevokeSignatureResponse, signer.RevokeSignatureError>>> {
 }
 export declare const RevokeSignature: RevokeSignature;

@@ -22,6 +22,6 @@ export interface ListSubscriptionsRequest extends Omit<datazone.ListSubscription
  *
  * @binding
  */
-export interface ListSubscriptions extends Binding.Service<ListSubscriptions, "AWS.DataZone.ListSubscriptions", (domain: Domain) => Effect.Effect<((request?: ListSubscriptionsRequest) => Effect.Effect<datazone.ListSubscriptionsOutput, datazone.ListSubscriptionsError>)>> {
+export interface ListSubscriptions extends Binding.Service<ListSubscriptions, "AWS.DataZone.ListSubscriptions", (domain: Domain) => Effect.Effect<(request?: ListSubscriptionsRequest) => Effect.Effect<datazone.ListSubscriptionsOutput, datazone.ListSubscriptionsError>>> {
 }
 export declare const ListSubscriptions: ListSubscriptions;

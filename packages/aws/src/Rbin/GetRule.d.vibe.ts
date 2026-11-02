@@ -26,6 +26,6 @@ import type { Rule } from "./Rule.vibe";
  *
  * @binding
  */
-export interface GetRule extends Binding.Service<GetRule, "AWS.Rbin.GetRule", (rule: Rule) => Effect.Effect<(() => Effect.Effect<rbin.GetRuleResponse, rbin.GetRuleError>)>> {
+export interface GetRule extends Binding.Service<GetRule, "AWS.Rbin.GetRule", (rule: Rule) => Effect.Effect<() => Effect.Effect<rbin.GetRuleResponse, rbin.GetRuleError>>> {
 }
 export declare const GetRule: GetRule;

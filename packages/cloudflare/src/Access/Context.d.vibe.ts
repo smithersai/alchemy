@@ -1,6 +1,6 @@
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { WorkerExecutionContextAccess } from "../Workers/WorkerAccess.js";
+import type { WorkerExecutionContextAccess } from "../Workers/WorkerAccess.ts";
 /**
  * One-yield accessor for the current request's Cloudflare Access context
  * (`ctx.access`) — sugar over `WorkerExecutionContext`:

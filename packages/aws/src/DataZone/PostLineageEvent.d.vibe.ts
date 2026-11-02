@@ -22,6 +22,6 @@ export interface PostLineageEventRequest extends Omit<datazone.PostLineageEventI
  *
  * @binding
  */
-export interface PostLineageEvent extends Binding.Service<PostLineageEvent, "AWS.DataZone.PostLineageEvent", (domain: Domain) => Effect.Effect<((request: PostLineageEventRequest) => Effect.Effect<datazone.PostLineageEventOutput, datazone.PostLineageEventError>)>> {
+export interface PostLineageEvent extends Binding.Service<PostLineageEvent, "AWS.DataZone.PostLineageEvent", (domain: Domain) => Effect.Effect<(request: PostLineageEventRequest) => Effect.Effect<datazone.PostLineageEventOutput, datazone.PostLineageEventError>>> {
 }
 export declare const PostLineageEvent: PostLineageEvent;

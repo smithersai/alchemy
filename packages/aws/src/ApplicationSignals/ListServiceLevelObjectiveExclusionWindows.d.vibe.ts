@@ -30,6 +30,6 @@ export interface ListExclusionWindowsRequest extends Omit<appsignals.ListService
  *
  * @binding
  */
-export interface ListServiceLevelObjectiveExclusionWindows extends Binding.Service<ListServiceLevelObjectiveExclusionWindows, "AWS.ApplicationSignals.ListServiceLevelObjectiveExclusionWindows", (slo: ServiceLevelObjective) => Effect.Effect<((request?: ListExclusionWindowsRequest) => Effect.Effect<appsignals.ListServiceLevelObjectiveExclusionWindowsOutput, appsignals.ListServiceLevelObjectiveExclusionWindowsError>)>> {
+export interface ListServiceLevelObjectiveExclusionWindows extends Binding.Service<ListServiceLevelObjectiveExclusionWindows, "AWS.ApplicationSignals.ListServiceLevelObjectiveExclusionWindows", (slo: ServiceLevelObjective) => Effect.Effect<(request?: ListExclusionWindowsRequest) => Effect.Effect<appsignals.ListServiceLevelObjectiveExclusionWindowsOutput, appsignals.ListServiceLevelObjectiveExclusionWindowsError>>> {
 }
 export declare const ListServiceLevelObjectiveExclusionWindows: ListServiceLevelObjectiveExclusionWindows;

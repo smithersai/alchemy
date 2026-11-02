@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListCustomDataIdentifiers extends Binding.Service<ListCustomDataIdentifiers, "AWS.Macie2.ListCustomDataIdentifiers", () => Effect.Effect<((request?: macie2.ListCustomDataIdentifiersRequest) => Effect.Effect<macie2.ListCustomDataIdentifiersResponse, macie2.ListCustomDataIdentifiersError>)>> {
+export interface ListCustomDataIdentifiers extends Binding.Service<ListCustomDataIdentifiers, "AWS.Macie2.ListCustomDataIdentifiers", () => Effect.Effect<(request?: macie2.ListCustomDataIdentifiersRequest) => Effect.Effect<macie2.ListCustomDataIdentifiersResponse, macie2.ListCustomDataIdentifiersError>>> {
 }
 export declare const ListCustomDataIdentifiers: ListCustomDataIdentifiers;

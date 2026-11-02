@@ -22,6 +22,6 @@ export interface GetMetadataGenerationRunRequest extends Omit<datazone.GetMetada
  *
  * @binding
  */
-export interface GetMetadataGenerationRun extends Binding.Service<GetMetadataGenerationRun, "AWS.DataZone.GetMetadataGenerationRun", (domain: Domain) => Effect.Effect<((request: GetMetadataGenerationRunRequest) => Effect.Effect<datazone.GetMetadataGenerationRunOutput, datazone.GetMetadataGenerationRunError>)>> {
+export interface GetMetadataGenerationRun extends Binding.Service<GetMetadataGenerationRun, "AWS.DataZone.GetMetadataGenerationRun", (domain: Domain) => Effect.Effect<(request: GetMetadataGenerationRunRequest) => Effect.Effect<datazone.GetMetadataGenerationRunOutput, datazone.GetMetadataGenerationRunError>>> {
 }
 export declare const GetMetadataGenerationRun: GetMetadataGenerationRun;

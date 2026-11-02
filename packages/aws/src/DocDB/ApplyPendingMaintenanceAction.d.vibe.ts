@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ApplyPendingMaintenanceAction extends Binding.Service<ApplyPendingMaintenanceAction, "AWS.DocDB.ApplyPendingMaintenanceAction", () => Effect.Effect<((request: docdb.ApplyPendingMaintenanceActionMessage) => Effect.Effect<docdb.ApplyPendingMaintenanceActionResult, docdb.ApplyPendingMaintenanceActionError>)>> {
+export interface ApplyPendingMaintenanceAction extends Binding.Service<ApplyPendingMaintenanceAction, "AWS.DocDB.ApplyPendingMaintenanceAction", () => Effect.Effect<(request: docdb.ApplyPendingMaintenanceActionMessage) => Effect.Effect<docdb.ApplyPendingMaintenanceActionResult, docdb.ApplyPendingMaintenanceActionError>>> {
 }
 export declare const ApplyPendingMaintenanceAction: ApplyPendingMaintenanceAction;

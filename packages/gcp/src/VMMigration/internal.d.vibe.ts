@@ -53,7 +53,7 @@ export declare const replaceOnIdentity: (input: {
 /**
  * Wait for a Migrate to Virtual Machines long-running operation. Sources, groups, and utilization reports settle in minutes; migrating-VM and image-import operations take longer.
  */
-export declare const waitForOperation: (operation: vm.Operation) => Effect.Effect<import("../Operation.js").LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | vm.GetProjectsLocationsOperationsError, vm.GcpOpContext>;
+export declare const waitForOperation: (operation: vm.Operation) => Effect.Effect<import("../Operation.ts").LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | vm.GetProjectsLocationsOperationsError, vm.GcpOpContext>;
 export declare const waitUntilExists: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<Exclude<A, undefined>, E | ResourceNotResolved, R>;
 export declare const waitUntilGone: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<void, E | ResourceStillExists, R>;
 export declare const collectPages: <Page, A, E, R>(pages: Stream.Stream<Page, E, R>, items: (page: Page) => readonly A[] | undefined) => Effect.Effect<A[], E, R>;

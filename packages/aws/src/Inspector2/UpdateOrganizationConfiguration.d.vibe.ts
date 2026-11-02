@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateOrganizationConfiguration extends Binding.Service<UpdateOrganizationConfiguration, "AWS.Inspector2.UpdateOrganizationConfiguration", () => Effect.Effect<((request: inspector2.UpdateOrganizationConfigurationRequest) => Effect.Effect<inspector2.UpdateOrganizationConfigurationResponse, inspector2.UpdateOrganizationConfigurationError>)>> {
+export interface UpdateOrganizationConfiguration extends Binding.Service<UpdateOrganizationConfiguration, "AWS.Inspector2.UpdateOrganizationConfiguration", () => Effect.Effect<(request: inspector2.UpdateOrganizationConfigurationRequest) => Effect.Effect<inspector2.UpdateOrganizationConfigurationResponse, inspector2.UpdateOrganizationConfigurationError>>> {
 }
 export declare const UpdateOrganizationConfiguration: UpdateOrganizationConfiguration;

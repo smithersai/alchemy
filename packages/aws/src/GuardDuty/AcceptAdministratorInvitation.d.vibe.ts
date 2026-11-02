@@ -24,6 +24,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface AcceptAdministratorInvitation extends Binding.Service<AcceptAdministratorInvitation, "AWS.GuardDuty.AcceptAdministratorInvitation", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.AcceptAdministratorInvitationRequest, "DetectorId">) => Effect.Effect<guardduty.AcceptAdministratorInvitationResponse, guardduty.AcceptAdministratorInvitationError>)>> {
+export interface AcceptAdministratorInvitation extends Binding.Service<AcceptAdministratorInvitation, "AWS.GuardDuty.AcceptAdministratorInvitation", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.AcceptAdministratorInvitationRequest, "DetectorId">) => Effect.Effect<guardduty.AcceptAdministratorInvitationResponse, guardduty.AcceptAdministratorInvitationError>>> {
 }
 export declare const AcceptAdministratorInvitation: AcceptAdministratorInvitation;

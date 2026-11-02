@@ -27,6 +27,6 @@ export interface ListPermissionsRequest extends lf.ListPermissionsRequest {
  *
  * @binding
  */
-export interface ListPermissions extends Binding.Service<ListPermissions, "AWS.LakeFormation.ListPermissions", () => Effect.Effect<((request?: ListPermissionsRequest) => Effect.Effect<lf.ListPermissionsResponse, lf.ListPermissionsError>)>> {
+export interface ListPermissions extends Binding.Service<ListPermissions, "AWS.LakeFormation.ListPermissions", () => Effect.Effect<(request?: ListPermissionsRequest) => Effect.Effect<lf.ListPermissionsResponse, lf.ListPermissionsError>>> {
 }
 export declare const ListPermissions: ListPermissions;

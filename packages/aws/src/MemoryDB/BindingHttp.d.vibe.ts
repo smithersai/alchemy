@@ -25,7 +25,7 @@ export declare const makeMemoryDBAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.MemoryDB.DescribeEvents`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted. */
     actions: readonly string[];
     /**
@@ -46,7 +46,7 @@ export declare const makeMemoryDBClusterHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MemoryDB.FailoverShard`. */
     tag: string;
     /** The distilled operation; `ClusterName` is injected from the cluster. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the cluster ARN. */
     actions: readonly string[];
     /** Static IAM resources granted in addition to the cluster ARN. */

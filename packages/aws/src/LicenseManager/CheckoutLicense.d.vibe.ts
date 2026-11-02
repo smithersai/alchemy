@@ -36,6 +36,6 @@ export interface CheckoutLicenseRequest extends licensemanager.CheckoutLicenseRe
  *
  * @binding
  */
-export interface CheckoutLicense extends Binding.Service<CheckoutLicense, "AWS.LicenseManager.CheckoutLicense", () => Effect.Effect<((request: CheckoutLicenseRequest) => Effect.Effect<licensemanager.CheckoutLicenseResponse, licensemanager.CheckoutLicenseError>)>> {
+export interface CheckoutLicense extends Binding.Service<CheckoutLicense, "AWS.LicenseManager.CheckoutLicense", () => Effect.Effect<(request: CheckoutLicenseRequest) => Effect.Effect<licensemanager.CheckoutLicenseResponse, licensemanager.CheckoutLicenseError>>> {
 }
 export declare const CheckoutLicense: CheckoutLicense;

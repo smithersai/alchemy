@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetSecurityControls extends Binding.Service<BatchGetSecurityControls, "AWS.SecurityHub.BatchGetSecurityControls", () => Effect.Effect<((request?: securityhub.BatchGetSecurityControlsRequest) => Effect.Effect<securityhub.BatchGetSecurityControlsResponse, securityhub.BatchGetSecurityControlsError>)>> {
+export interface BatchGetSecurityControls extends Binding.Service<BatchGetSecurityControls, "AWS.SecurityHub.BatchGetSecurityControls", () => Effect.Effect<(request?: securityhub.BatchGetSecurityControlsRequest) => Effect.Effect<securityhub.BatchGetSecurityControlsResponse, securityhub.BatchGetSecurityControlsError>>> {
 }
 export declare const BatchGetSecurityControls: BatchGetSecurityControls;

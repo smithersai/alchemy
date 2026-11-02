@@ -25,6 +25,6 @@ export interface ListAttributeGroupsForApplicationRequest extends Omit<appregist
  *
  * @binding
  */
-export interface ListAttributeGroupsForApplication extends Binding.Service<ListAttributeGroupsForApplication, "AWS.AppRegistry.ListAttributeGroupsForApplication", (application: Application) => Effect.Effect<((request?: ListAttributeGroupsForApplicationRequest) => Effect.Effect<appregistry.ListAttributeGroupsForApplicationResponse, appregistry.ListAttributeGroupsForApplicationError>)>> {
+export interface ListAttributeGroupsForApplication extends Binding.Service<ListAttributeGroupsForApplication, "AWS.AppRegistry.ListAttributeGroupsForApplication", (application: Application) => Effect.Effect<(request?: ListAttributeGroupsForApplicationRequest) => Effect.Effect<appregistry.ListAttributeGroupsForApplicationResponse, appregistry.ListAttributeGroupsForApplicationError>>> {
 }
 export declare const ListAttributeGroupsForApplication: ListAttributeGroupsForApplication;

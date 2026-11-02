@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { DispatchNamespace as DispatchNamespaceResource } from "./DispatchNamespace.js";
+import type { DispatchNamespace as DispatchNamespaceResource } from "./DispatchNamespace.ts";
 /**
  * Bind a {@link DispatchNamespace} to a Worker and obtain the Effect-native
  * dynamic-dispatch client (`get`).

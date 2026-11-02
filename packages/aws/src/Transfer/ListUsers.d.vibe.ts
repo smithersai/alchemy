@@ -23,6 +23,6 @@ import type { Server } from "./Server.vibe";
  *
  * @binding
  */
-export interface ListUsers extends Binding.Service<ListUsers, "AWS.Transfer.ListUsers", (server: Server) => Effect.Effect<((request?: Omit<transfer.ListUsersRequest, "ServerId">) => Effect.Effect<transfer.ListUsersResponse, transfer.ListUsersError>)>> {
+export interface ListUsers extends Binding.Service<ListUsers, "AWS.Transfer.ListUsers", (server: Server) => Effect.Effect<(request?: Omit<transfer.ListUsersRequest, "ServerId">) => Effect.Effect<transfer.ListUsersResponse, transfer.ListUsersError>>> {
 }
 export declare const ListUsers: ListUsers;

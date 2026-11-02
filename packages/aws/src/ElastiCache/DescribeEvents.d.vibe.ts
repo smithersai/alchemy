@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeEvents extends Binding.Service<DescribeEvents, "AWS.ElastiCache.DescribeEvents", () => Effect.Effect<((request?: elasticache.DescribeEventsMessage) => Effect.Effect<elasticache.EventsMessage, elasticache.DescribeEventsError>)>> {
+export interface DescribeEvents extends Binding.Service<DescribeEvents, "AWS.ElastiCache.DescribeEvents", () => Effect.Effect<(request?: elasticache.DescribeEventsMessage) => Effect.Effect<elasticache.EventsMessage, elasticache.DescribeEventsError>>> {
 }
 export declare const DescribeEvents: DescribeEvents;

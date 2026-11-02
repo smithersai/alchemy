@@ -18,6 +18,6 @@ export interface RetrieveBillingMeterRequest extends Omit<GetBillingMeterRequest
  * @binding
  * @product Billing
  */
-export interface RetrieveBillingMeter extends Binding.Service<RetrieveBillingMeter, "Stripe.RetrieveBillingMeter", (meter: BillingMeter) => Effect.Effect<((request?: RetrieveBillingMeterRequest) => Effect.Effect<StripeBillingMeter, GetBillingMeterError, RuntimeContext>)>> {
+export interface RetrieveBillingMeter extends Binding.Service<RetrieveBillingMeter, "Stripe.RetrieveBillingMeter", (meter: BillingMeter) => Effect.Effect<(request?: RetrieveBillingMeterRequest) => Effect.Effect<StripeBillingMeter, GetBillingMeterError, RuntimeContext>>> {
 }
 export declare const RetrieveBillingMeter: RetrieveBillingMeter;

@@ -39,6 +39,6 @@ export interface GetDeleteEventsByEventTypeStatusRequest extends Omit<frauddetec
  *
  * @binding
  */
-export interface GetDeleteEventsByEventTypeStatus extends Binding.Service<GetDeleteEventsByEventTypeStatus, "AWS.FraudDetector.GetDeleteEventsByEventTypeStatus", (eventType: EventType) => Effect.Effect<((request: GetDeleteEventsByEventTypeStatusRequest) => Effect.Effect<frauddetector.GetDeleteEventsByEventTypeStatusResult, frauddetector.GetDeleteEventsByEventTypeStatusError>)>> {
+export interface GetDeleteEventsByEventTypeStatus extends Binding.Service<GetDeleteEventsByEventTypeStatus, "AWS.FraudDetector.GetDeleteEventsByEventTypeStatus", (eventType: EventType) => Effect.Effect<(request: GetDeleteEventsByEventTypeStatusRequest) => Effect.Effect<frauddetector.GetDeleteEventsByEventTypeStatusResult, frauddetector.GetDeleteEventsByEventTypeStatusError>>> {
 }
 export declare const GetDeleteEventsByEventTypeStatus: GetDeleteEventsByEventTypeStatus;

@@ -1,7 +1,7 @@
 import * as cloudwatch from "@distilled.cloud/aws/cloudwatch";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { TaggableResource } from "./binding-common.js";
+import type { TaggableResource } from "./binding-common.ts";
 export interface ListTagsForResourceRequest extends Omit<cloudwatch.ListTagsForResourceInput, "ResourceARN"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface ListTagsForResourceRequest extends Omit<cloudwatch.ListTagsForR
  *
  * @binding
  */
-export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.CloudWatch.ListTagsForResource", (resource: TaggableResource) => Effect.Effect<((request?: ListTagsForResourceRequest) => Effect.Effect<cloudwatch.ListTagsForResourceOutput, cloudwatch.ListTagsForResourceError>)>> {
+export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.CloudWatch.ListTagsForResource", (resource: TaggableResource) => Effect.Effect<(request?: ListTagsForResourceRequest) => Effect.Effect<cloudwatch.ListTagsForResourceOutput, cloudwatch.ListTagsForResourceError>>> {
 }
 export declare const ListTagsForResource: ListTagsForResource;

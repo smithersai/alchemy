@@ -26,6 +26,6 @@ export interface ConfirmSubscriptionRequest extends Omit<sns.ConfirmSubscription
  *
  * @binding
  */
-export interface ConfirmSubscription extends Binding.Service<ConfirmSubscription, "AWS.SNS.ConfirmSubscription", (subscription: Subscription) => Effect.Effect<((request: ConfirmSubscriptionRequest) => Effect.Effect<sns.ConfirmSubscriptionResponse, sns.ConfirmSubscriptionError>)>> {
+export interface ConfirmSubscription extends Binding.Service<ConfirmSubscription, "AWS.SNS.ConfirmSubscription", (subscription: Subscription) => Effect.Effect<(request: ConfirmSubscriptionRequest) => Effect.Effect<sns.ConfirmSubscriptionResponse, sns.ConfirmSubscriptionError>>> {
 }
 export declare const ConfirmSubscription: ConfirmSubscription;

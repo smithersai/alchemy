@@ -28,6 +28,6 @@ export interface GetMemoryRecordRequest extends Omit<agentcore.GetMemoryRecordIn
  *
  * @binding
  */
-export interface GetMemoryRecord extends Binding.Service<GetMemoryRecord, "AWS.BedrockAgentCore.GetMemoryRecord", <R extends Memory>(memory: R) => Effect.Effect<((request: GetMemoryRecordRequest) => Effect.Effect<agentcore.GetMemoryRecordOutput, agentcore.GetMemoryRecordError>)>> {
+export interface GetMemoryRecord extends Binding.Service<GetMemoryRecord, "AWS.BedrockAgentCore.GetMemoryRecord", <R extends Memory>(memory: R) => Effect.Effect<(request: GetMemoryRecordRequest) => Effect.Effect<agentcore.GetMemoryRecordOutput, agentcore.GetMemoryRecordError>>> {
 }
 export declare const GetMemoryRecord: GetMemoryRecord;

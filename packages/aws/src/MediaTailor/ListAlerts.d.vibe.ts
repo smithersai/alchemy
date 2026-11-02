@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAlerts extends Binding.Service<ListAlerts, "AWS.MediaTailor.ListAlerts", () => Effect.Effect<((request: mediatailor.ListAlertsRequest) => Effect.Effect<mediatailor.ListAlertsResponse, mediatailor.ListAlertsError>)>> {
+export interface ListAlerts extends Binding.Service<ListAlerts, "AWS.MediaTailor.ListAlerts", () => Effect.Effect<(request: mediatailor.ListAlertsRequest) => Effect.Effect<mediatailor.ListAlertsResponse, mediatailor.ListAlertsError>>> {
 }
 export declare const ListAlerts: ListAlerts;

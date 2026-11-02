@@ -22,6 +22,6 @@ export interface ListReadSetsRequest extends Omit<omics.ListReadSetsRequest, "se
  *
  * @binding
  */
-export interface ListReadSets extends Binding.Service<ListReadSets, "AWS.Omics.ListReadSets", (store: SequenceStore) => Effect.Effect<((request?: ListReadSetsRequest) => Effect.Effect<omics.ListReadSetsResponse, omics.ListReadSetsError>)>> {
+export interface ListReadSets extends Binding.Service<ListReadSets, "AWS.Omics.ListReadSets", (store: SequenceStore) => Effect.Effect<(request?: ListReadSetsRequest) => Effect.Effect<omics.ListReadSetsResponse, omics.ListReadSetsError>>> {
 }
 export declare const ListReadSets: ListReadSets;

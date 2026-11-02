@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `DeleteAccessControlConfiguration` request with `IndexId` injected from the bound index.
  */
@@ -26,6 +26,6 @@ export interface DeleteAccessControlConfigurationRequest extends Omit<kendra.Del
  *
  * @binding
  */
-export interface DeleteAccessControlConfiguration extends Binding.Service<DeleteAccessControlConfiguration, "AWS.Kendra.DeleteAccessControlConfiguration", (index: Index) => Effect.Effect<((request: DeleteAccessControlConfigurationRequest) => Effect.Effect<kendra.DeleteAccessControlConfigurationResponse, kendra.DeleteAccessControlConfigurationError>)>> {
+export interface DeleteAccessControlConfiguration extends Binding.Service<DeleteAccessControlConfiguration, "AWS.Kendra.DeleteAccessControlConfiguration", (index: Index) => Effect.Effect<(request: DeleteAccessControlConfigurationRequest) => Effect.Effect<kendra.DeleteAccessControlConfigurationResponse, kendra.DeleteAccessControlConfigurationError>>> {
 }
 export declare const DeleteAccessControlConfiguration: DeleteAccessControlConfiguration;

@@ -21,7 +21,7 @@
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { StoreError } from "../Protocol/Store.vibe";
-import type { SqlClient } from "../Store/Sql.js";
+import type { SqlClient } from "../Store/Sql.ts";
 /**
  * A snapshotted `objects` row. `zdata` is `null` when `location != 'row'`.
  *

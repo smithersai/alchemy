@@ -1,7 +1,7 @@
 import type * as eks from "@distilled.cloud/aws/eks";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 /**
  * Runtime binding for `eks:ListAssociatedAccessPolicies`.
  *
@@ -24,6 +24,6 @@ import type { Cluster } from "./Cluster.js";
  *
  * @binding
  */
-export interface ListAssociatedAccessPolicies extends Binding.Service<ListAssociatedAccessPolicies, "AWS.EKS.ListAssociatedAccessPolicies", (cluster: Cluster) => Effect.Effect<((request: Omit<eks.ListAssociatedAccessPoliciesRequest, "clusterName">) => Effect.Effect<eks.ListAssociatedAccessPoliciesResponse, eks.ListAssociatedAccessPoliciesError>)>> {
+export interface ListAssociatedAccessPolicies extends Binding.Service<ListAssociatedAccessPolicies, "AWS.EKS.ListAssociatedAccessPolicies", (cluster: Cluster) => Effect.Effect<(request: Omit<eks.ListAssociatedAccessPoliciesRequest, "clusterName">) => Effect.Effect<eks.ListAssociatedAccessPoliciesResponse, eks.ListAssociatedAccessPoliciesError>>> {
 }
 export declare const ListAssociatedAccessPolicies: ListAssociatedAccessPolicies;

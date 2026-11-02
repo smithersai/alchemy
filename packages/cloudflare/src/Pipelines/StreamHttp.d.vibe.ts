@@ -2,10 +2,10 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import { Self } from "alchemy/Self";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import type { Credentials } from "../Credentials.js";
-import { type LegacyPipeline } from "./LegacyPipeline.js";
-import type { Stream } from "./Stream.js";
-import { type WriteStreamClient } from "./WriteStream.js";
+import type { Credentials } from "../Credentials.ts";
+import { type LegacyPipeline } from "./LegacyPipeline.ts";
+import type { Stream } from "./Stream.ts";
+import { type WriteStreamClient } from "./WriteStream.ts";
 /**
  * Shared scaffolding for the HTTP-ingest Pipelines clients
  * (`WriteStreamHttp`, `WriteStreamLocal` and the matching StreamSink

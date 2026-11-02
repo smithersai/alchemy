@@ -1,8 +1,8 @@
 import * as datapipelines from "@distilled.cloud/gcp/datapipelines_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type PipelineType = datapipelines.GoogleCloudDatapipelinesV1PipelineTypeEnum | (string & {});
 export type PipelineState = datapipelines.GoogleCloudDatapipelinesV1PipelineStateEnum | (string & {});
 export type ScheduleSpec = {

@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface EnableOrganizationAdminAccount extends Binding.Service<EnableOrganizationAdminAccount, "AWS.Detective.EnableOrganizationAdminAccount", () => Effect.Effect<((request: detective.EnableOrganizationAdminAccountRequest) => Effect.Effect<detective.EnableOrganizationAdminAccountResponse, detective.EnableOrganizationAdminAccountError>)>> {
+export interface EnableOrganizationAdminAccount extends Binding.Service<EnableOrganizationAdminAccount, "AWS.Detective.EnableOrganizationAdminAccount", () => Effect.Effect<(request: detective.EnableOrganizationAdminAccountRequest) => Effect.Effect<detective.EnableOrganizationAdminAccountResponse, detective.EnableOrganizationAdminAccountError>>> {
 }
 export declare const EnableOrganizationAdminAccount: EnableOrganizationAdminAccount;

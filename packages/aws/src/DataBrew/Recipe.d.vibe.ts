@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 /** A single transformation step in a DataBrew recipe. */
 export interface RecipeStep {
     /** The transformation to apply. */

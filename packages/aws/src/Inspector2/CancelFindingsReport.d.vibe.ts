@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelFindingsReport extends Binding.Service<CancelFindingsReport, "AWS.Inspector2.CancelFindingsReport", () => Effect.Effect<((request: inspector2.CancelFindingsReportRequest) => Effect.Effect<inspector2.CancelFindingsReportResponse, inspector2.CancelFindingsReportError>)>> {
+export interface CancelFindingsReport extends Binding.Service<CancelFindingsReport, "AWS.Inspector2.CancelFindingsReport", () => Effect.Effect<(request: inspector2.CancelFindingsReportRequest) => Effect.Effect<inspector2.CancelFindingsReportResponse, inspector2.CancelFindingsReportError>>> {
 }
 export declare const CancelFindingsReport: CancelFindingsReport;

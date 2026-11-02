@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface RetryImage extends Binding.Service<RetryImage, "AWS.ImageBuilder.RetryImage", () => Effect.Effect<((request: Omit<imagebuilder.RetryImageRequest, "clientToken">) => Effect.Effect<imagebuilder.RetryImageResponse, imagebuilder.RetryImageError>)>> {
+export interface RetryImage extends Binding.Service<RetryImage, "AWS.ImageBuilder.RetryImage", () => Effect.Effect<(request: Omit<imagebuilder.RetryImageRequest, "clientToken">) => Effect.Effect<imagebuilder.RetryImageResponse, imagebuilder.RetryImageError>>> {
 }
 export declare const RetryImage: RetryImage;

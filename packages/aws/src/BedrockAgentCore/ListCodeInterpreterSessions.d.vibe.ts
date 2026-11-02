@@ -28,6 +28,6 @@ export interface ListCodeInterpreterSessionsRequest extends Omit<agentcore.ListC
  *
  * @binding
  */
-export interface ListCodeInterpreterSessions extends Binding.Service<ListCodeInterpreterSessions, "AWS.BedrockAgentCore.ListCodeInterpreterSessions", <R extends CodeInterpreter>(codeInterpreter: R) => Effect.Effect<((request: ListCodeInterpreterSessionsRequest) => Effect.Effect<agentcore.ListCodeInterpreterSessionsResponse, agentcore.ListCodeInterpreterSessionsError>)>> {
+export interface ListCodeInterpreterSessions extends Binding.Service<ListCodeInterpreterSessions, "AWS.BedrockAgentCore.ListCodeInterpreterSessions", <R extends CodeInterpreter>(codeInterpreter: R) => Effect.Effect<(request: ListCodeInterpreterSessionsRequest) => Effect.Effect<agentcore.ListCodeInterpreterSessionsResponse, agentcore.ListCodeInterpreterSessionsError>>> {
 }
 export declare const ListCodeInterpreterSessions: ListCodeInterpreterSessions;

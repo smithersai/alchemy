@@ -22,6 +22,6 @@ import type { WorkGroup } from "./WorkGroup.vibe";
  *
  * @binding
  */
-export interface GetQueryRuntimeStatistics extends Binding.Service<GetQueryRuntimeStatistics, "AWS.Athena.GetQueryRuntimeStatistics", (workGroup: WorkGroup) => Effect.Effect<((request: athena.GetQueryRuntimeStatisticsInput) => Effect.Effect<athena.GetQueryRuntimeStatisticsOutput, athena.GetQueryRuntimeStatisticsError>)>> {
+export interface GetQueryRuntimeStatistics extends Binding.Service<GetQueryRuntimeStatistics, "AWS.Athena.GetQueryRuntimeStatistics", (workGroup: WorkGroup) => Effect.Effect<(request: athena.GetQueryRuntimeStatisticsInput) => Effect.Effect<athena.GetQueryRuntimeStatisticsOutput, athena.GetQueryRuntimeStatisticsError>>> {
 }
 export declare const GetQueryRuntimeStatistics: GetQueryRuntimeStatistics;

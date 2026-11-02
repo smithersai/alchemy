@@ -1,8 +1,8 @@
 import * as dlp from "@distilled.cloud/gcp/dlp_v2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type CloudSqlProperties = dlp.GooglePrivacyDlpV2CloudSqlProperties;
 export type ConnectionState = dlp.GooglePrivacyDlpV2ConnectionStateEnum | (string & {});
 export type ConnectionError = dlp.GooglePrivacyDlpV2Error;

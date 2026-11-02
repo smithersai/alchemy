@@ -24,6 +24,6 @@ import type { VirtualCluster } from "./VirtualCluster.vibe";
  *
  * @binding
  */
-export interface DescribeManagedEndpoint extends Binding.Service<DescribeManagedEndpoint, "AWS.EMRContainers.DescribeManagedEndpoint", (virtualCluster: VirtualCluster) => Effect.Effect<((request: Omit<emrc.DescribeManagedEndpointRequest, "virtualClusterId">) => Effect.Effect<emrc.DescribeManagedEndpointResponse, emrc.DescribeManagedEndpointError>)>> {
+export interface DescribeManagedEndpoint extends Binding.Service<DescribeManagedEndpoint, "AWS.EMRContainers.DescribeManagedEndpoint", (virtualCluster: VirtualCluster) => Effect.Effect<(request: Omit<emrc.DescribeManagedEndpointRequest, "virtualClusterId">) => Effect.Effect<emrc.DescribeManagedEndpointResponse, emrc.DescribeManagedEndpointError>>> {
 }
 export declare const DescribeManagedEndpoint: DescribeManagedEndpoint;

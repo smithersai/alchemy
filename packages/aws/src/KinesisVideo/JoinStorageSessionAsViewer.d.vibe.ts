@@ -32,6 +32,6 @@ export interface JoinStorageSessionAsViewerRequest extends Omit<kvws.JoinStorage
  *
  * @binding
  */
-export interface JoinStorageSessionAsViewer extends Binding.Service<JoinStorageSessionAsViewer, "AWS.KinesisVideo.JoinStorageSessionAsViewer", <C extends SignalingChannel>(channel: C) => Effect.Effect<((request: JoinStorageSessionAsViewerRequest) => Effect.Effect<kvws.JoinStorageSessionAsViewerResponse, kvws.JoinStorageSessionAsViewerError | kv.GetSignalingChannelEndpointError | SignalingEndpointUnavailable>)>> {
+export interface JoinStorageSessionAsViewer extends Binding.Service<JoinStorageSessionAsViewer, "AWS.KinesisVideo.JoinStorageSessionAsViewer", <C extends SignalingChannel>(channel: C) => Effect.Effect<(request: JoinStorageSessionAsViewerRequest) => Effect.Effect<kvws.JoinStorageSessionAsViewerResponse, kvws.JoinStorageSessionAsViewerError | kv.GetSignalingChannelEndpointError | SignalingEndpointUnavailable>>> {
 }
 export declare const JoinStorageSessionAsViewer: JoinStorageSessionAsViewer;

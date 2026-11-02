@@ -2,7 +2,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
 import type * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * Deployment stage of an Amplify branch.
  */

@@ -29,6 +29,6 @@ export interface PutRecordRequest extends Omit<Firehose.PutRecordInput, "Deliver
  *
  * @binding
  */
-export interface PutRecord extends Binding.Service<PutRecord, "AWS.Firehose.PutRecord", (deliveryStream: DeliveryStream) => Effect.Effect<((request: PutRecordRequest) => Effect.Effect<Firehose.PutRecordOutput, Firehose.PutRecordError>)>> {
+export interface PutRecord extends Binding.Service<PutRecord, "AWS.Firehose.PutRecord", (deliveryStream: DeliveryStream) => Effect.Effect<(request: PutRecordRequest) => Effect.Effect<Firehose.PutRecordOutput, Firehose.PutRecordError>>> {
 }
 export declare const PutRecord: PutRecord;

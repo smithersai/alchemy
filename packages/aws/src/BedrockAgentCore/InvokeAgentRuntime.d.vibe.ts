@@ -33,6 +33,6 @@ export interface InvokeAgentRuntimeRequest extends Omit<agentcore.InvokeAgentRun
  *
  * @binding
  */
-export interface InvokeAgentRuntime extends Binding.Service<InvokeAgentRuntime, "AWS.BedrockAgentCore.InvokeAgentRuntime", <R extends Runtime>(runtime: R) => Effect.Effect<((request: InvokeAgentRuntimeRequest) => Effect.Effect<agentcore.InvokeAgentRuntimeResponse, agentcore.InvokeAgentRuntimeError>)>> {
+export interface InvokeAgentRuntime extends Binding.Service<InvokeAgentRuntime, "AWS.BedrockAgentCore.InvokeAgentRuntime", <R extends Runtime>(runtime: R) => Effect.Effect<(request: InvokeAgentRuntimeRequest) => Effect.Effect<agentcore.InvokeAgentRuntimeResponse, agentcore.InvokeAgentRuntimeError>>> {
 }
 export declare const InvokeAgentRuntime: InvokeAgentRuntime;

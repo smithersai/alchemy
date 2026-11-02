@@ -3,8 +3,8 @@ import type * as FileSystem from "effect/FileSystem";
 import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import type * as Path from "effect/Path";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.js";
-import type { Credentials } from "../Credentials.js";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import type { Credentials } from "../Credentials.ts";
 import { ReadFlags } from "./ReadFlags.vibe";
 /**
  * Local implementation of the {@link ReadFlags} binding — evaluates Flagship

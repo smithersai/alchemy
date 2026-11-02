@@ -1,7 +1,7 @@
 import * as cloudidentity from "@distilled.cloud/gcp/cloudidentity_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type GroupEntityKey = {
     /** Email address (Google-managed) or identity-source id. */
     id?: string;

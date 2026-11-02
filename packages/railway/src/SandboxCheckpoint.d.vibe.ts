@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "./Providers.js";
-import type { SandboxIdentity } from "./Sandbox.js";
+import type { Providers } from "./Providers.ts";
+import type { SandboxIdentity } from "./Sandbox.ts";
 export interface SandboxCheckpointProps {
     /**
      * Running sandbox to capture. Accepts a Railway.Sandbox or a
@@ -79,4 +79,4 @@ export type SandboxCheckpoint = Resource<"Railway.SandboxCheckpoint", SandboxChe
  * @product Sandbox
  */
 export declare const SandboxCheckpoint: import("alchemy/Resource").ResourceClass<SandboxCheckpoint>;
-export declare const SandboxCheckpointProvider: () => import("effect/Layer").Layer<Provider.Provider<SandboxCheckpoint>, never, import("@distilled.cloud/railway").GqlTransport | import("./Environment.js").RailwayEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
+export declare const SandboxCheckpointProvider: () => import("effect/Layer").Layer<Provider.Provider<SandboxCheckpoint>, never, import("@distilled.cloud/railway").GqlTransport | import("./Environment.ts").RailwayEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;

@@ -25,6 +25,6 @@ import type { Server } from "./Server.vibe";
  *
  * @binding
  */
-export interface StartServer extends Binding.Service<StartServer, "AWS.Transfer.StartServer", (server: Server) => Effect.Effect<((request?: Omit<transfer.StartServerRequest, "ServerId">) => Effect.Effect<transfer.StartServerResponse, transfer.StartServerError>)>> {
+export interface StartServer extends Binding.Service<StartServer, "AWS.Transfer.StartServer", (server: Server) => Effect.Effect<(request?: Omit<transfer.StartServerRequest, "ServerId">) => Effect.Effect<transfer.StartServerResponse, transfer.StartServerError>>> {
 }
 export declare const StartServer: StartServer;

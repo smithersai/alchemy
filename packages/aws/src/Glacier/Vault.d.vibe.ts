@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface VaultNotificationConfigProps {
     /**
      * ARN of the SNS topic that Amazon S3 Glacier publishes job-completion

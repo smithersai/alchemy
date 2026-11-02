@@ -1,7 +1,7 @@
 import type * as route53 from "@distilled.cloud/aws/route-53";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { HealthCheck } from "./HealthCheck.js";
+import type { HealthCheck } from "./HealthCheck.ts";
 /**
  * Runtime binding for the `GetHealthCheckStatus` operation (IAM action
  * `route53:GetHealthCheckStatus` on the health check ARN).
@@ -26,6 +26,6 @@ import type { HealthCheck } from "./HealthCheck.js";
  *
  * @binding
  */
-export interface GetHealthCheckStatus extends Binding.Service<GetHealthCheckStatus, "AWS.Route53.GetHealthCheckStatus", (healthCheck: HealthCheck) => Effect.Effect<(() => Effect.Effect<route53.GetHealthCheckStatusResponse, route53.GetHealthCheckStatusError>)>> {
+export interface GetHealthCheckStatus extends Binding.Service<GetHealthCheckStatus, "AWS.Route53.GetHealthCheckStatus", (healthCheck: HealthCheck) => Effect.Effect<() => Effect.Effect<route53.GetHealthCheckStatusResponse, route53.GetHealthCheckStatusError>>> {
 }
 export declare const GetHealthCheckStatus: GetHealthCheckStatus;

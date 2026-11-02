@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * The signing certificate used to sign code. Required for platforms that
  * sign with an ACM certificate (e.g. `AWSIoTDeviceManagement-SHA256-ECDSA`);

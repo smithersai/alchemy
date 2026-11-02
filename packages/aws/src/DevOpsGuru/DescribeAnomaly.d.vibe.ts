@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeAnomaly extends Binding.Service<DescribeAnomaly, "AWS.DevOpsGuru.DescribeAnomaly", () => Effect.Effect<((request: devopsguru.DescribeAnomalyRequest) => Effect.Effect<devopsguru.DescribeAnomalyResponse, devopsguru.DescribeAnomalyError>)>> {
+export interface DescribeAnomaly extends Binding.Service<DescribeAnomaly, "AWS.DevOpsGuru.DescribeAnomaly", () => Effect.Effect<(request: devopsguru.DescribeAnomalyRequest) => Effect.Effect<devopsguru.DescribeAnomalyResponse, devopsguru.DescribeAnomalyError>>> {
 }
 export declare const DescribeAnomaly: DescribeAnomaly;

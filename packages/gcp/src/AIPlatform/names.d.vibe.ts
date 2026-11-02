@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import { toLabels as toLabelsImpl } from "../Labels.js";
-import { resourceNameFromOperation as resourceNameFromOperationImpl } from "./operations.js";
+import { toLabels as toLabelsImpl } from "../Labels.ts";
+import { resourceNameFromOperation as resourceNameFromOperationImpl } from "./operations.ts";
 export declare const MAX_ID_LENGTH = 63;
 export declare const MAX_DISPLAY_NAME_LENGTH = 128;
 /** Locations `list` scans: the pre-`GCP.Region` default plus the stack region. */

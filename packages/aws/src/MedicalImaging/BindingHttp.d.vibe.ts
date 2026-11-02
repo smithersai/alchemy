@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 import type { Datastore } from "./Datastore.vibe";
 /**
  * Shared scaffolding for AWS HealthImaging (medical-imaging) HTTP bindings.
@@ -27,7 +27,7 @@ export declare const makeMedicalImagingDatastoreHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MedicalImaging.GetImageSet`. */
     tag: string;
     /** The distilled operation; `datastoreId` is injected from the data store. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the data store ARN + `…/imageset/*`. */
     actions: readonly string[];
 }) => Effect.Effect<(datastore: Datastore) => Effect.Effect<(request?: Omit<I, "datastoreId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -52,7 +52,7 @@ export declare const makeMedicalImagingStartJobHttpBinding: <I extends {
      * The distilled operation; `datastoreId` and `dataAccessRoleArn` are
      * injected from the bound resources.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the data store ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(datastore: Datastore, dataAccessRole: Role) => Effect.Effect<(request: Omit<I, "datastoreId" | "dataAccessRoleArn"> & {

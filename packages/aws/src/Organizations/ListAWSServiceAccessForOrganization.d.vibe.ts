@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAWSServiceAccessForOrganization extends Binding.Service<ListAWSServiceAccessForOrganization, "AWS.Organizations.ListAWSServiceAccessForOrganization", () => Effect.Effect<((request?: organizations.ListAWSServiceAccessForOrganizationRequest) => Effect.Effect<organizations.ListAWSServiceAccessForOrganizationResponse, organizations.ListAWSServiceAccessForOrganizationError>)>> {
+export interface ListAWSServiceAccessForOrganization extends Binding.Service<ListAWSServiceAccessForOrganization, "AWS.Organizations.ListAWSServiceAccessForOrganization", () => Effect.Effect<(request?: organizations.ListAWSServiceAccessForOrganizationRequest) => Effect.Effect<organizations.ListAWSServiceAccessForOrganizationResponse, organizations.ListAWSServiceAccessForOrganizationError>>> {
 }
 export declare const ListAWSServiceAccessForOrganization: ListAWSServiceAccessForOrganization;

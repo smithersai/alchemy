@@ -24,6 +24,6 @@ export interface DisassociateQAppFromUserRequest extends Omit<qapps.Disassociate
  *
  * @binding
  */
-export interface DisassociateQAppFromUser extends Binding.Service<DisassociateQAppFromUser, "AWS.QApps.DisassociateQAppFromUser", (app: QApp) => Effect.Effect<((request?: DisassociateQAppFromUserRequest) => Effect.Effect<qapps.DisassociateQAppFromUserResponse, qapps.DisassociateQAppFromUserError>)>> {
+export interface DisassociateQAppFromUser extends Binding.Service<DisassociateQAppFromUser, "AWS.QApps.DisassociateQAppFromUser", (app: QApp) => Effect.Effect<(request?: DisassociateQAppFromUserRequest) => Effect.Effect<qapps.DisassociateQAppFromUserResponse, qapps.DisassociateQAppFromUserError>>> {
 }
 export declare const DisassociateQAppFromUser: DisassociateQAppFromUser;

@@ -1,7 +1,7 @@
 import * as contacts from "@distilled.cloud/aws/ssm-contacts";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface PlanProps {
     /**
      * The ARN of the contact or escalation plan whose engagement plan this

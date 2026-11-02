@@ -28,6 +28,6 @@ export interface RegisterTargetsRequest extends Omit<vpclattice.RegisterTargetsR
  *
  * @binding
  */
-export interface RegisterTargets extends Binding.Service<RegisterTargets, "AWS.VpcLattice.RegisterTargets", (targetGroup: TargetGroup) => Effect.Effect<((request: RegisterTargetsRequest) => Effect.Effect<vpclattice.RegisterTargetsResponse, vpclattice.RegisterTargetsError>)>> {
+export interface RegisterTargets extends Binding.Service<RegisterTargets, "AWS.VpcLattice.RegisterTargets", (targetGroup: TargetGroup) => Effect.Effect<(request: RegisterTargetsRequest) => Effect.Effect<vpclattice.RegisterTargetsResponse, vpclattice.RegisterTargetsError>>> {
 }
 export declare const RegisterTargets: RegisterTargets;

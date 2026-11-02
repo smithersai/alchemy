@@ -19,6 +19,6 @@ import type { Domain } from "./Domain.vibe";
  *
  * @binding
  */
-export interface DomainMetadata extends Binding.Service<DomainMetadata, "AWS.SimpleDB.DomainMetadata", (domain: Domain) => Effect.Effect<(() => Effect.Effect<sdb.DomainMetadataResponse, sdb.DomainMetadataError, RuntimeContext>)>> {
+export interface DomainMetadata extends Binding.Service<DomainMetadata, "AWS.SimpleDB.DomainMetadata", (domain: Domain) => Effect.Effect<() => Effect.Effect<sdb.DomainMetadataResponse, sdb.DomainMetadataError, RuntimeContext>>> {
 }
 export declare const DomainMetadata: DomainMetadata;

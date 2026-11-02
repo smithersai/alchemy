@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListComponents extends Binding.Service<ListComponents, "AWS.GreengrassV2.ListComponents", () => Effect.Effect<((request?: greengrassv2.ListComponentsRequest) => Effect.Effect<greengrassv2.ListComponentsResponse, greengrassv2.ListComponentsError>)>> {
+export interface ListComponents extends Binding.Service<ListComponents, "AWS.GreengrassV2.ListComponents", () => Effect.Effect<(request?: greengrassv2.ListComponentsRequest) => Effect.Effect<greengrassv2.ListComponentsResponse, greengrassv2.ListComponentsError>>> {
 }
 export declare const ListComponents: ListComponents;

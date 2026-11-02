@@ -1,8 +1,8 @@
 import * as textract from "@distilled.cloud/aws/textract";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export interface AdapterProps {
     /**
      * Name of the adapter — 1-128 characters matching `[a-zA-Z0-9-_]+`. If

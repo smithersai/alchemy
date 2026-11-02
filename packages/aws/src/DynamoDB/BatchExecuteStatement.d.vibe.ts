@@ -1,7 +1,7 @@
 import * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export type BatchExecuteStatementTables = [Table, ...Table[]];
 export declare const sortBatchExecuteStatementTables: (tables: BatchExecuteStatementTables) => BatchExecuteStatementTables;
 export interface BatchExecuteStatementRequest extends DynamoDB.BatchExecuteStatementInput {
@@ -31,6 +31,6 @@ export interface BatchExecuteStatementRequest extends DynamoDB.BatchExecuteState
  *
  * @binding
  */
-export interface BatchExecuteStatement extends Binding.Service<BatchExecuteStatement, "AWS.DynamoDB.BatchExecuteStatement", (...tables: BatchExecuteStatementTables) => Effect.Effect<((request: BatchExecuteStatementRequest) => Effect.Effect<DynamoDB.BatchExecuteStatementOutput, DynamoDB.BatchExecuteStatementError>)>> {
+export interface BatchExecuteStatement extends Binding.Service<BatchExecuteStatement, "AWS.DynamoDB.BatchExecuteStatement", (...tables: BatchExecuteStatementTables) => Effect.Effect<(request: BatchExecuteStatementRequest) => Effect.Effect<DynamoDB.BatchExecuteStatementOutput, DynamoDB.BatchExecuteStatementError>>> {
 }
 export declare const BatchExecuteStatement: BatchExecuteStatement;

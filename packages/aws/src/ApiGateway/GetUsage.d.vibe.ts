@@ -29,6 +29,6 @@ export interface GetUsageRequest extends Omit<ag.GetUsageRequest, "usagePlanId">
  *
  * @binding
  */
-export interface GetUsage extends Binding.Service<GetUsage, "AWS.ApiGateway.GetUsage", <P extends UsagePlan>(usagePlan: P) => Effect.Effect<((request: GetUsageRequest) => Effect.Effect<ag.Usage, ag.GetUsageError>)>> {
+export interface GetUsage extends Binding.Service<GetUsage, "AWS.ApiGateway.GetUsage", <P extends UsagePlan>(usagePlan: P) => Effect.Effect<(request: GetUsageRequest) => Effect.Effect<ag.Usage, ag.GetUsageError>>> {
 }
 export declare const GetUsage: GetUsage;

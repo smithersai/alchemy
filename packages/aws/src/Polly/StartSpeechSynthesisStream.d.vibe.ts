@@ -43,6 +43,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartSpeechSynthesisStream extends Binding.Service<StartSpeechSynthesisStream, "AWS.Polly.StartSpeechSynthesisStream", () => Effect.Effect<((request: polly.StartSpeechSynthesisStreamInput) => Effect.Effect<polly.StartSpeechSynthesisStreamOutput, polly.StartSpeechSynthesisStreamError>)>> {
+export interface StartSpeechSynthesisStream extends Binding.Service<StartSpeechSynthesisStream, "AWS.Polly.StartSpeechSynthesisStream", () => Effect.Effect<(request: polly.StartSpeechSynthesisStreamInput) => Effect.Effect<polly.StartSpeechSynthesisStreamOutput, polly.StartSpeechSynthesisStreamError>>> {
 }
 export declare const StartSpeechSynthesisStream: StartSpeechSynthesisStream;

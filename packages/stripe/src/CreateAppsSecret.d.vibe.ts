@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  * @binding
  * @product Secrets
  */
-export interface CreateAppsSecret extends Binding.Service<CreateAppsSecret, "Stripe.CreateAppsSecret", () => Effect.Effect<((request: CreateAppsSecretRequest) => Effect.Effect<StripeAppsSecret, CreateAppsSecretError, RuntimeContext>)>> {
+export interface CreateAppsSecret extends Binding.Service<CreateAppsSecret, "Stripe.CreateAppsSecret", () => Effect.Effect<(request: CreateAppsSecretRequest) => Effect.Effect<StripeAppsSecret, CreateAppsSecretError, RuntimeContext>>> {
 }
 export declare const CreateAppsSecret: CreateAppsSecret;

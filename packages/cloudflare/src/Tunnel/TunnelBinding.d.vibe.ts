@@ -2,11 +2,11 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
 import type * as Redacted from "effect/Redacted";
-import { AccountApiToken } from "../ApiToken/AccountApiToken.js";
-import type { PermissionGroupRef } from "../ApiToken/Common.js";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.js";
-import type { Credentials } from "../Credentials.js";
-import { Worker } from "../Workers/Worker.js";
+import { AccountApiToken } from "../ApiToken/AccountApiToken.ts";
+import type { PermissionGroupRef } from "../ApiToken/Common.ts";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import type { Credentials } from "../Credentials.ts";
+import { Worker } from "../Workers/Worker.ts";
 /**
  * Shared runtime body for a tunnel binding. Mints a scoped
  * {@link AccountApiToken} (with the given permission groups), attaches the

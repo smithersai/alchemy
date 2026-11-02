@@ -29,7 +29,7 @@ export declare const makeFmsHttpBinding: <I extends object, A, E, R>(options: {
     /** IAM actions granted on `Resource: ["*"]`. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /**
      * Pin the operation to the us-east-1 endpoint — set for the
      * organization-level administrator-management operations, which are

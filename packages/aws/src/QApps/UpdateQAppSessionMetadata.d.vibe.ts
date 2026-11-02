@@ -27,6 +27,6 @@ export interface UpdateQAppSessionMetadataRequest extends Omit<qapps.UpdateQAppS
  *
  * @binding
  */
-export interface UpdateQAppSessionMetadata extends Binding.Service<UpdateQAppSessionMetadata, "AWS.QApps.UpdateQAppSessionMetadata", (app: QApp) => Effect.Effect<((request: UpdateQAppSessionMetadataRequest) => Effect.Effect<qapps.UpdateQAppSessionMetadataOutput, qapps.UpdateQAppSessionMetadataError>)>> {
+export interface UpdateQAppSessionMetadata extends Binding.Service<UpdateQAppSessionMetadata, "AWS.QApps.UpdateQAppSessionMetadata", (app: QApp) => Effect.Effect<(request: UpdateQAppSessionMetadataRequest) => Effect.Effect<qapps.UpdateQAppSessionMetadataOutput, qapps.UpdateQAppSessionMetadataError>>> {
 }
 export declare const UpdateQAppSessionMetadata: UpdateQAppSessionMetadata;

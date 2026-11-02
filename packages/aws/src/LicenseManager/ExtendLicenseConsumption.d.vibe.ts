@@ -28,6 +28,6 @@ export interface ExtendLicenseConsumptionRequest extends licensemanager.ExtendLi
  *
  * @binding
  */
-export interface ExtendLicenseConsumption extends Binding.Service<ExtendLicenseConsumption, "AWS.LicenseManager.ExtendLicenseConsumption", () => Effect.Effect<((request: ExtendLicenseConsumptionRequest) => Effect.Effect<licensemanager.ExtendLicenseConsumptionResponse, licensemanager.ExtendLicenseConsumptionError>)>> {
+export interface ExtendLicenseConsumption extends Binding.Service<ExtendLicenseConsumption, "AWS.LicenseManager.ExtendLicenseConsumption", () => Effect.Effect<(request: ExtendLicenseConsumptionRequest) => Effect.Effect<licensemanager.ExtendLicenseConsumptionResponse, licensemanager.ExtendLicenseConsumptionError>>> {
 }
 export declare const ExtendLicenseConsumption: ExtendLicenseConsumption;

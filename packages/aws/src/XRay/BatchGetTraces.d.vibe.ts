@@ -41,6 +41,6 @@ export interface BatchGetTracesRequest extends xray.BatchGetTracesRequest {
  *
  * @binding
  */
-export interface BatchGetTraces extends Binding.Service<BatchGetTraces, "AWS.XRay.BatchGetTraces", () => Effect.Effect<((request: BatchGetTracesRequest) => Effect.Effect<xray.BatchGetTracesResult, xray.BatchGetTracesError>)>> {
+export interface BatchGetTraces extends Binding.Service<BatchGetTraces, "AWS.XRay.BatchGetTraces", () => Effect.Effect<(request: BatchGetTracesRequest) => Effect.Effect<xray.BatchGetTracesResult, xray.BatchGetTracesError>>> {
 }
 export declare const BatchGetTraces: BatchGetTraces;

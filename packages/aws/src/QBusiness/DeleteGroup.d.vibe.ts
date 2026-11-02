@@ -26,6 +26,6 @@ export interface DeleteGroupRequest extends Omit<qbusiness.DeleteGroupRequest, "
  *
  * @binding
  */
-export interface DeleteGroup extends Binding.Service<DeleteGroup, "AWS.QBusiness.DeleteGroup", (index: Index) => Effect.Effect<((request: DeleteGroupRequest) => Effect.Effect<qbusiness.DeleteGroupResponse, qbusiness.DeleteGroupError>)>> {
+export interface DeleteGroup extends Binding.Service<DeleteGroup, "AWS.QBusiness.DeleteGroup", (index: Index) => Effect.Effect<(request: DeleteGroupRequest) => Effect.Effect<qbusiness.DeleteGroupResponse, qbusiness.DeleteGroupError>>> {
 }
 export declare const DeleteGroup: DeleteGroup;

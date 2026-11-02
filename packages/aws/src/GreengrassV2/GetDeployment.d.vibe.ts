@@ -24,6 +24,6 @@ import type { Deployment } from "./Deployment.vibe";
  *
  * @binding
  */
-export interface GetDeployment extends Binding.Service<GetDeployment, "AWS.GreengrassV2.GetDeployment", (deployment: Deployment) => Effect.Effect<((request?: Omit<greengrassv2.GetDeploymentRequest, "deploymentId">) => Effect.Effect<greengrassv2.GetDeploymentResponse, greengrassv2.GetDeploymentError>)>> {
+export interface GetDeployment extends Binding.Service<GetDeployment, "AWS.GreengrassV2.GetDeployment", (deployment: Deployment) => Effect.Effect<(request?: Omit<greengrassv2.GetDeploymentRequest, "deploymentId">) => Effect.Effect<greengrassv2.GetDeploymentResponse, greengrassv2.GetDeploymentError>>> {
 }
 export declare const GetDeployment: GetDeployment;

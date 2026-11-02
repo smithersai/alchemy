@@ -20,6 +20,6 @@ import type { Broker } from "./Broker.vibe";
  *
  * @binding
  */
-export interface DescribeUser extends Binding.Service<DescribeUser, "AWS.MQ.DescribeUser", (broker: Broker) => Effect.Effect<((request: Omit<mq.DescribeUserRequest, "BrokerId">) => Effect.Effect<mq.DescribeUserResponse, mq.DescribeUserError>)>> {
+export interface DescribeUser extends Binding.Service<DescribeUser, "AWS.MQ.DescribeUser", (broker: Broker) => Effect.Effect<(request: Omit<mq.DescribeUserRequest, "BrokerId">) => Effect.Effect<mq.DescribeUserResponse, mq.DescribeUserError>>> {
 }
 export declare const DescribeUser: DescribeUser;

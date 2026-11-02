@@ -25,6 +25,6 @@ import type { DataCatalog } from "./DataCatalog.vibe";
  *
  * @binding
  */
-export interface GetTableMetadata extends Binding.Service<GetTableMetadata, "AWS.Athena.GetTableMetadata", (catalog: DataCatalog) => Effect.Effect<((request: Omit<athena.GetTableMetadataInput, "CatalogName">) => Effect.Effect<athena.GetTableMetadataOutput, athena.GetTableMetadataError>)>> {
+export interface GetTableMetadata extends Binding.Service<GetTableMetadata, "AWS.Athena.GetTableMetadata", (catalog: DataCatalog) => Effect.Effect<(request: Omit<athena.GetTableMetadataInput, "CatalogName">) => Effect.Effect<athena.GetTableMetadataOutput, athena.GetTableMetadataError>>> {
 }
 export declare const GetTableMetadata: GetTableMetadata;

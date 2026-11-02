@@ -48,6 +48,6 @@ export interface GenerateEmbedUrlForAnonymousUserRequest extends Omit<quicksight
  *
  * @binding
  */
-export interface GenerateEmbedUrlForAnonymousUser extends Binding.Service<GenerateEmbedUrlForAnonymousUser, "AWS.QuickSight.GenerateEmbedUrlForAnonymousUser", (dashboard: Dashboard) => Effect.Effect<((request?: GenerateEmbedUrlForAnonymousUserRequest) => Effect.Effect<quicksight.GenerateEmbedUrlForAnonymousUserResponse, quicksight.GenerateEmbedUrlForAnonymousUserError>)>> {
+export interface GenerateEmbedUrlForAnonymousUser extends Binding.Service<GenerateEmbedUrlForAnonymousUser, "AWS.QuickSight.GenerateEmbedUrlForAnonymousUser", (dashboard: Dashboard) => Effect.Effect<(request?: GenerateEmbedUrlForAnonymousUserRequest) => Effect.Effect<quicksight.GenerateEmbedUrlForAnonymousUserResponse, quicksight.GenerateEmbedUrlForAnonymousUserError>>> {
 }
 export declare const GenerateEmbedUrlForAnonymousUser: GenerateEmbedUrlForAnonymousUser;

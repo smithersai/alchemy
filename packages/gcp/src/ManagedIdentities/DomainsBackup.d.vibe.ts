@@ -1,8 +1,8 @@
 import * as managedidentities from "@distilled.cloud/gcp/managedidentities_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type DomainsBackupProps = {
     /**
      * Parent Managed Microsoft AD domain. Full name

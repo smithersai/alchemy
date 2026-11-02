@@ -25,6 +25,6 @@ import type { Broker } from "./Broker.vibe";
  *
  * @binding
  */
-export interface CreateUser extends Binding.Service<CreateUser, "AWS.MQ.CreateUser", (broker: Broker) => Effect.Effect<((request: Omit<mq.CreateUserRequest, "BrokerId">) => Effect.Effect<mq.CreateUserResponse, mq.CreateUserError>)>> {
+export interface CreateUser extends Binding.Service<CreateUser, "AWS.MQ.CreateUser", (broker: Broker) => Effect.Effect<(request: Omit<mq.CreateUserRequest, "BrokerId">) => Effect.Effect<mq.CreateUserResponse, mq.CreateUserError>>> {
 }
 export declare const CreateUser: CreateUser;

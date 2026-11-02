@@ -1,7 +1,7 @@
 import type * as NFW from "@distilled.cloud/aws/network-firewall";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface RuleGroupProps {
     /**
      * Name of the rule group. Must be 1-128 alphanumeric characters or

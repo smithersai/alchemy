@@ -20,7 +20,7 @@ export declare const makeResourceExplorerViewHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.ResourceExplorer.Search`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the view ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<V extends View>(view: V) => Effect.Effect<(request?: Omit<I, "ViewArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -37,7 +37,7 @@ export declare const makeResourceExplorerAccountHttpBinding: <I, A, E, R>(option
      */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

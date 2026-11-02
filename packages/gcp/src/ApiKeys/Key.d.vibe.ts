@@ -1,8 +1,8 @@
 import * as apikeys from "@distilled.cloud/gcp/apikeys_v2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type ApiTarget = {
     /**
      * Canonical service name, e.g. `translate.googleapis.com`.

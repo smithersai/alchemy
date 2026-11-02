@@ -21,6 +21,6 @@ export interface GetInstancesSnapshotRequest extends Omit<file.GetProjectsLocati
  * @binding
  * @category Filestore
  */
-export interface GetInstancesSnapshot extends Binding.Service<GetInstancesSnapshot, "GCP.Filestore.GetInstancesSnapshot", (snapshot: InstancesSnapshot) => Effect.Effect<((request?: GetInstancesSnapshotRequest) => Effect.Effect<file.Snapshot, file.GetProjectsLocationsInstancesSnapshotsError, RuntimeContext>)>> {
+export interface GetInstancesSnapshot extends Binding.Service<GetInstancesSnapshot, "GCP.Filestore.GetInstancesSnapshot", (snapshot: InstancesSnapshot) => Effect.Effect<(request?: GetInstancesSnapshotRequest) => Effect.Effect<file.Snapshot, file.GetProjectsLocationsInstancesSnapshotsError, RuntimeContext>>> {
 }
 export declare const GetInstancesSnapshot: GetInstancesSnapshot;

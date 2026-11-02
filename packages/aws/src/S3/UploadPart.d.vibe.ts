@@ -1,7 +1,7 @@
 import * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface UploadPartRequest extends Omit<S3.UploadPartRequest, "Bucket"> {
 }
 /**
@@ -29,6 +29,6 @@ export interface UploadPartRequest extends Omit<S3.UploadPartRequest, "Bucket"> 
  *
  * @binding
  */
-export interface UploadPart extends Binding.Service<UploadPart, "AWS.S3.UploadPart", (bucket: Bucket) => Effect.Effect<((request: UploadPartRequest) => Effect.Effect<S3.UploadPartOutput, S3.UploadPartError>)>> {
+export interface UploadPart extends Binding.Service<UploadPart, "AWS.S3.UploadPart", (bucket: Bucket) => Effect.Effect<(request: UploadPartRequest) => Effect.Effect<S3.UploadPartOutput, S3.UploadPartError>>> {
 }
 export declare const UploadPart: UploadPart;

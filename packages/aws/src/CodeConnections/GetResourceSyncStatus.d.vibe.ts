@@ -23,6 +23,6 @@ import type { SyncConfiguration } from "./SyncConfiguration.vibe";
  *
  * @binding
  */
-export interface GetResourceSyncStatus extends Binding.Service<GetResourceSyncStatus, "AWS.CodeConnections.GetResourceSyncStatus", (syncConfiguration: SyncConfiguration) => Effect.Effect<(() => Effect.Effect<codeconnections.GetResourceSyncStatusOutput, codeconnections.GetResourceSyncStatusError>)>> {
+export interface GetResourceSyncStatus extends Binding.Service<GetResourceSyncStatus, "AWS.CodeConnections.GetResourceSyncStatus", (syncConfiguration: SyncConfiguration) => Effect.Effect<() => Effect.Effect<codeconnections.GetResourceSyncStatusOutput, codeconnections.GetResourceSyncStatusError>>> {
 }
 export declare const GetResourceSyncStatus: GetResourceSyncStatus;

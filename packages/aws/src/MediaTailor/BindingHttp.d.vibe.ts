@@ -21,7 +21,7 @@ export declare const makeMediaTailorHttpBinding: <I, A, E, R>(options: {
     /** IAM actions granted on `Resource: ["*"]`. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;
 /**
  * Builder for bindings scoped to a {@link PlaybackConfiguration} (the
@@ -41,5 +41,5 @@ export declare const makeMediaTailorPlaybackHttpBinding: <I extends {
      * The distilled operation; `PlaybackConfigurationName` is injected from
      * the bound configuration.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<(config: PlaybackConfiguration) => Effect.Effect<(request: Omit<I, "PlaybackConfigurationName">) => Effect.Effect<A, E, never>, never, never>, never, never>;

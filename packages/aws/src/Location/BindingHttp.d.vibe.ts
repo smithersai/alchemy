@@ -26,7 +26,7 @@ export declare const makeLocationTrackerHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Location.GetDevicePosition`. */
     tag: string;
     /** The distilled operation; `TrackerName` is injected from the tracker. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the tracker ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(tracker: Tracker) => Effect.Effect<(request?: Omit<I, "TrackerName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -42,7 +42,7 @@ export declare const makeLocationCollectionHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Location.PutGeofence`. */
     tag: string;
     /** The distilled operation; `CollectionName` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the geofence collection ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(collection: GeofenceCollection) => Effect.Effect<(request?: Omit<I, "CollectionName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -57,7 +57,7 @@ export declare const makeLocationPlaceIndexHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Location.SearchPlaceIndexForText`. */
     tag: string;
     /** The distilled operation; `IndexName` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the place index ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(index: PlaceIndex) => Effect.Effect<(request?: Omit<I, "IndexName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -73,7 +73,7 @@ export declare const makeLocationCalculatorHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Location.CalculateRoute`. */
     tag: string;
     /** The distilled operation; `CalculatorName` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the route calculator ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(calculator: RouteCalculator) => Effect.Effect<(request?: Omit<I, "CalculatorName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -88,7 +88,7 @@ export declare const makeLocationMapHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Location.GetMapTile`. */
     tag: string;
     /** The distilled operation; `MapName` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the map ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(map: LocationMap) => Effect.Effect<(request?: Omit<I, "MapName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -102,7 +102,7 @@ export declare const makeLocationAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Location.ListJobs`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

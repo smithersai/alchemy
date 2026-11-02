@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetRegistryCatalogData extends Binding.Service<GetRegistryCatalogData, "AWS.ECRPublic.GetRegistryCatalogData", () => Effect.Effect<(() => Effect.Effect<ecrpublic.GetRegistryCatalogDataResponse, ecrpublic.GetRegistryCatalogDataError>)>> {
+export interface GetRegistryCatalogData extends Binding.Service<GetRegistryCatalogData, "AWS.ECRPublic.GetRegistryCatalogData", () => Effect.Effect<() => Effect.Effect<ecrpublic.GetRegistryCatalogDataResponse, ecrpublic.GetRegistryCatalogDataError>>> {
 }
 export declare const GetRegistryCatalogData: GetRegistryCatalogData;

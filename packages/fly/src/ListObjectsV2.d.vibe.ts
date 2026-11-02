@@ -2,7 +2,7 @@ import type * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 import type { TigrisCredentialsMissing } from "./Errors.vibe";
 export interface ListObjectsV2Request extends Omit<S3.ListObjectsV2Request, "Bucket"> {
 }
@@ -22,6 +22,6 @@ export interface ListObjectsV2Request extends Omit<S3.ListObjectsV2Request, "Buc
  * @binding
  * @product Bucket
  */
-export interface ListObjectsV2 extends Binding.Service<ListObjectsV2, "Fly.ListObjectsV2", (bucket: Bucket) => Effect.Effect<((request?: ListObjectsV2Request) => Effect.Effect<S3.ListObjectsV2Output, S3.ListObjectsV2Error | TigrisCredentialsMissing, RuntimeContext>)>> {
+export interface ListObjectsV2 extends Binding.Service<ListObjectsV2, "Fly.ListObjectsV2", (bucket: Bucket) => Effect.Effect<(request?: ListObjectsV2Request) => Effect.Effect<S3.ListObjectsV2Output, S3.ListObjectsV2Error | TigrisCredentialsMissing, RuntimeContext>>> {
 }
 export declare const ListObjectsV2: ListObjectsV2;

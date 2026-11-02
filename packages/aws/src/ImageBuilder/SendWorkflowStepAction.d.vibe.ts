@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SendWorkflowStepAction extends Binding.Service<SendWorkflowStepAction, "AWS.ImageBuilder.SendWorkflowStepAction", () => Effect.Effect<((request: Omit<imagebuilder.SendWorkflowStepActionRequest, "clientToken">) => Effect.Effect<imagebuilder.SendWorkflowStepActionResponse, imagebuilder.SendWorkflowStepActionError>)>> {
+export interface SendWorkflowStepAction extends Binding.Service<SendWorkflowStepAction, "AWS.ImageBuilder.SendWorkflowStepAction", () => Effect.Effect<(request: Omit<imagebuilder.SendWorkflowStepActionRequest, "clientToken">) => Effect.Effect<imagebuilder.SendWorkflowStepActionResponse, imagebuilder.SendWorkflowStepActionError>>> {
 }
 export declare const SendWorkflowStepAction: SendWorkflowStepAction;

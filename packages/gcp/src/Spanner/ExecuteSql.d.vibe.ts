@@ -2,7 +2,7 @@ import type * as spanner from "@distilled.cloud/gcp/spanner_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Database } from "./Database.js";
+import type { Database } from "./Database.ts";
 export interface ExecuteSqlRequest extends spanner.ExecuteSqlRequest {
 }
 export type ExecuteSqlError = spanner.CreateProjectsInstancesDatabasesSessionsError | spanner.ExecuteSqlProjectsInstancesDatabasesSessionsError;
@@ -24,6 +24,6 @@ export type ExecuteSqlError = spanner.CreateProjectsInstancesDatabasesSessionsEr
  * @binding
  * @category Spanner
  */
-export interface ExecuteSql extends Binding.Service<ExecuteSql, "GCP.Spanner.ExecuteSql", (database: Database) => Effect.Effect<((request: ExecuteSqlRequest) => Effect.Effect<spanner.ResultSet, ExecuteSqlError, RuntimeContext>)>> {
+export interface ExecuteSql extends Binding.Service<ExecuteSql, "GCP.Spanner.ExecuteSql", (database: Database) => Effect.Effect<(request: ExecuteSqlRequest) => Effect.Effect<spanner.ResultSet, ExecuteSqlError, RuntimeContext>>> {
 }
 export declare const ExecuteSql: ExecuteSql;

@@ -40,6 +40,6 @@ export interface GetManagedEndpointSessionCredentialsRequest extends Omit<emrc.G
  *
  * @binding
  */
-export interface GetManagedEndpointSessionCredentials extends Binding.Service<GetManagedEndpointSessionCredentials, "AWS.EMRContainers.GetManagedEndpointSessionCredentials", (virtualCluster: VirtualCluster) => Effect.Effect<((request: GetManagedEndpointSessionCredentialsRequest) => Effect.Effect<emrc.GetManagedEndpointSessionCredentialsResponse, emrc.GetManagedEndpointSessionCredentialsError>)>> {
+export interface GetManagedEndpointSessionCredentials extends Binding.Service<GetManagedEndpointSessionCredentials, "AWS.EMRContainers.GetManagedEndpointSessionCredentials", (virtualCluster: VirtualCluster) => Effect.Effect<(request: GetManagedEndpointSessionCredentialsRequest) => Effect.Effect<emrc.GetManagedEndpointSessionCredentialsResponse, emrc.GetManagedEndpointSessionCredentialsError>>> {
 }
 export declare const GetManagedEndpointSessionCredentials: GetManagedEndpointSessionCredentials;

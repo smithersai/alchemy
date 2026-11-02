@@ -26,6 +26,6 @@ export interface ListDevicePositionsRequest extends Omit<location.ListDevicePosi
  *
  * @binding
  */
-export interface ListDevicePositions extends Binding.Service<ListDevicePositions, "AWS.Location.ListDevicePositions", (tracker: Tracker) => Effect.Effect<((request?: ListDevicePositionsRequest) => Effect.Effect<location.ListDevicePositionsResponse, location.ListDevicePositionsError>)>> {
+export interface ListDevicePositions extends Binding.Service<ListDevicePositions, "AWS.Location.ListDevicePositions", (tracker: Tracker) => Effect.Effect<(request?: ListDevicePositionsRequest) => Effect.Effect<location.ListDevicePositionsResponse, location.ListDevicePositionsError>>> {
 }
 export declare const ListDevicePositions: ListDevicePositions;

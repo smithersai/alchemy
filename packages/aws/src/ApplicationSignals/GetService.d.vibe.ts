@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetService extends Binding.Service<GetService, "AWS.ApplicationSignals.GetService", () => Effect.Effect<((request: appsignals.GetServiceInput) => Effect.Effect<appsignals.GetServiceOutput, appsignals.GetServiceError>)>> {
+export interface GetService extends Binding.Service<GetService, "AWS.ApplicationSignals.GetService", () => Effect.Effect<(request: appsignals.GetServiceInput) => Effect.Effect<appsignals.GetServiceOutput, appsignals.GetServiceError>>> {
 }
 export declare const GetService: GetService;

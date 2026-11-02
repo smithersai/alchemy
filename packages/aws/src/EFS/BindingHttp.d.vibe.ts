@@ -20,7 +20,7 @@ export declare const makeEfsFileSystemHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.EFS.DescribeMountTargets`. */
     tag: string;
     /** The distilled operation; `FileSystemId` is injected from the file system. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the file system ARN. */
     actions: readonly string[];
     /**
@@ -41,7 +41,7 @@ export declare const makeEfsAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.EFS.DeleteAccessPoint`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

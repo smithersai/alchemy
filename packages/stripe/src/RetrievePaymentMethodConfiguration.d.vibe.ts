@@ -18,6 +18,6 @@ export interface RetrievePaymentMethodConfigurationRequest extends Omit<GetPayme
  * @binding
  * @product Payment Methods
  */
-export interface RetrievePaymentMethodConfiguration extends Binding.Service<RetrievePaymentMethodConfiguration, "Stripe.RetrievePaymentMethodConfiguration", (configuration: PaymentMethodConfiguration) => Effect.Effect<((request?: RetrievePaymentMethodConfigurationRequest) => Effect.Effect<StripePaymentMethodConfiguration, GetPaymentMethodConfigurationError, RuntimeContext>)>> {
+export interface RetrievePaymentMethodConfiguration extends Binding.Service<RetrievePaymentMethodConfiguration, "Stripe.RetrievePaymentMethodConfiguration", (configuration: PaymentMethodConfiguration) => Effect.Effect<(request?: RetrievePaymentMethodConfigurationRequest) => Effect.Effect<StripePaymentMethodConfiguration, GetPaymentMethodConfigurationError, RuntimeContext>>> {
 }
 export declare const RetrievePaymentMethodConfiguration: RetrievePaymentMethodConfiguration;

@@ -28,6 +28,6 @@ export interface GetCostAndUsageComparisonsRequest extends ce.GetCostAndUsageCom
  *
  * @binding
  */
-export interface GetCostAndUsageComparisons extends Binding.Service<GetCostAndUsageComparisons, "AWS.CostExplorer.GetCostAndUsageComparisons", () => Effect.Effect<((request: GetCostAndUsageComparisonsRequest) => Effect.Effect<ce.GetCostAndUsageComparisonsResponse, ce.GetCostAndUsageComparisonsError>)>> {
+export interface GetCostAndUsageComparisons extends Binding.Service<GetCostAndUsageComparisons, "AWS.CostExplorer.GetCostAndUsageComparisons", () => Effect.Effect<(request: GetCostAndUsageComparisonsRequest) => Effect.Effect<ce.GetCostAndUsageComparisonsResponse, ce.GetCostAndUsageComparisonsError>>> {
 }
 export declare const GetCostAndUsageComparisons: GetCostAndUsageComparisons;

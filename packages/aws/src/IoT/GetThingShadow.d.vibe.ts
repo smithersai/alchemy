@@ -31,6 +31,6 @@ export interface GetThingShadowRequest extends Omit<iotdata.GetThingShadowReques
  *
  * @binding
  */
-export interface GetThingShadow extends Binding.Service<GetThingShadow, "AWS.IoT.GetThingShadow", (thing: Thing) => Effect.Effect<((request?: GetThingShadowRequest) => Effect.Effect<iotdata.GetThingShadowResponse, iotdata.GetThingShadowError>)>> {
+export interface GetThingShadow extends Binding.Service<GetThingShadow, "AWS.IoT.GetThingShadow", (thing: Thing) => Effect.Effect<(request?: GetThingShadowRequest) => Effect.Effect<iotdata.GetThingShadowResponse, iotdata.GetThingShadowError>>> {
 }
 export declare const GetThingShadow: GetThingShadow;

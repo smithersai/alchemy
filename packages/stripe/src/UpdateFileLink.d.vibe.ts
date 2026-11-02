@@ -19,6 +19,6 @@ export interface UpdateFileLinkRequest extends Omit<DistilledUpdateFileLinkReque
  * @binding
  * @product Files
  */
-export interface UpdateFileLink extends Binding.Service<UpdateFileLink, "Stripe.UpdateFileLink", (fileLink: FileLink) => Effect.Effect<((request?: UpdateFileLinkRequest) => Effect.Effect<StripeFileLink, UpdateFileLinkError, RuntimeContext>)>> {
+export interface UpdateFileLink extends Binding.Service<UpdateFileLink, "Stripe.UpdateFileLink", (fileLink: FileLink) => Effect.Effect<(request?: UpdateFileLinkRequest) => Effect.Effect<StripeFileLink, UpdateFileLinkError, RuntimeContext>>> {
 }
 export declare const UpdateFileLink: UpdateFileLink;

@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopChannel extends Binding.Service<StopChannel, "AWS.MediaTailor.StopChannel", () => Effect.Effect<((request: mediatailor.StopChannelRequest) => Effect.Effect<mediatailor.StopChannelResponse, mediatailor.StopChannelError>)>> {
+export interface StopChannel extends Binding.Service<StopChannel, "AWS.MediaTailor.StopChannel", () => Effect.Effect<(request: mediatailor.StopChannelRequest) => Effect.Effect<mediatailor.StopChannelResponse, mediatailor.StopChannelError>>> {
 }
 export declare const StopChannel: StopChannel;

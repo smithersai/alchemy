@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetComplianceSummaryByConfigRule extends Binding.Service<GetComplianceSummaryByConfigRule, "AWS.Config.GetComplianceSummaryByConfigRule", () => Effect.Effect<((request?: config.GetComplianceSummaryByConfigRuleRequest) => Effect.Effect<config.GetComplianceSummaryByConfigRuleResponse, config.GetComplianceSummaryByConfigRuleError>)>> {
+export interface GetComplianceSummaryByConfigRule extends Binding.Service<GetComplianceSummaryByConfigRule, "AWS.Config.GetComplianceSummaryByConfigRule", () => Effect.Effect<(request?: config.GetComplianceSummaryByConfigRuleRequest) => Effect.Effect<config.GetComplianceSummaryByConfigRuleResponse, config.GetComplianceSummaryByConfigRuleError>>> {
 }
 export declare const GetComplianceSummaryByConfigRule: GetComplianceSummaryByConfigRule;

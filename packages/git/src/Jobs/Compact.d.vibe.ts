@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
-import type { BlobStoreShape } from "../BlobStore.js";
+import type { BlobStoreShape } from "../BlobStore.ts";
 import { StoreError } from "../Protocol/Store.vibe";
-import type { SqlClient } from "../Store/Sql.js";
+import type { SqlClient } from "../Store/Sql.ts";
 /**
  * The compaction alarm job (DESIGN.md §12.1) — the v2 storage plane.
  *

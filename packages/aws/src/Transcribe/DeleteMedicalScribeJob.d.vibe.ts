@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteMedicalScribeJob extends Binding.Service<DeleteMedicalScribeJob, "AWS.Transcribe.DeleteMedicalScribeJob", () => Effect.Effect<((request: transcribe.DeleteMedicalScribeJobRequest) => Effect.Effect<transcribe.DeleteMedicalScribeJobResponse, transcribe.DeleteMedicalScribeJobError>)>> {
+export interface DeleteMedicalScribeJob extends Binding.Service<DeleteMedicalScribeJob, "AWS.Transcribe.DeleteMedicalScribeJob", () => Effect.Effect<(request: transcribe.DeleteMedicalScribeJobRequest) => Effect.Effect<transcribe.DeleteMedicalScribeJobResponse, transcribe.DeleteMedicalScribeJobError>>> {
 }
 export declare const DeleteMedicalScribeJob: DeleteMedicalScribeJob;

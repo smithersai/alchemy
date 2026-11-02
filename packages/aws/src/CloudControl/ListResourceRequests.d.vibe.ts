@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListResourceRequests extends Binding.Service<ListResourceRequests, "AWS.CloudControl.ListResourceRequests", () => Effect.Effect<((request?: cloudcontrol.ListResourceRequestsInput) => Effect.Effect<cloudcontrol.ListResourceRequestsOutput, cloudcontrol.ListResourceRequestsError>)>> {
+export interface ListResourceRequests extends Binding.Service<ListResourceRequests, "AWS.CloudControl.ListResourceRequests", () => Effect.Effect<(request?: cloudcontrol.ListResourceRequestsInput) => Effect.Effect<cloudcontrol.ListResourceRequestsOutput, cloudcontrol.ListResourceRequestsError>>> {
 }
 export declare const ListResourceRequests: ListResourceRequests;

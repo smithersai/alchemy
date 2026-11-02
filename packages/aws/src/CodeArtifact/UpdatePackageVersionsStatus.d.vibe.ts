@@ -30,6 +30,6 @@ export interface UpdatePackageVersionsStatusRequest extends Omit<codeartifact.Up
  *
  * @binding
  */
-export interface UpdatePackageVersionsStatus extends Binding.Service<UpdatePackageVersionsStatus, "AWS.CodeArtifact.UpdatePackageVersionsStatus", (repository: Repository) => Effect.Effect<((request: UpdatePackageVersionsStatusRequest) => Effect.Effect<codeartifact.UpdatePackageVersionsStatusResult, codeartifact.UpdatePackageVersionsStatusError>)>> {
+export interface UpdatePackageVersionsStatus extends Binding.Service<UpdatePackageVersionsStatus, "AWS.CodeArtifact.UpdatePackageVersionsStatus", (repository: Repository) => Effect.Effect<(request: UpdatePackageVersionsStatusRequest) => Effect.Effect<codeartifact.UpdatePackageVersionsStatusResult, codeartifact.UpdatePackageVersionsStatusError>>> {
 }
 export declare const UpdatePackageVersionsStatus: UpdatePackageVersionsStatus;

@@ -30,6 +30,6 @@ export interface DeleteScheduleRequest extends Omit<scheduler.DeleteScheduleInpu
  *
  * @binding
  */
-export interface DeleteSchedule extends Binding.Service<DeleteSchedule, "AWS.Scheduler.DeleteSchedule", (group?: ScheduleGroup) => Effect.Effect<((request: DeleteScheduleRequest) => Effect.Effect<scheduler.DeleteScheduleOutput, scheduler.DeleteScheduleError>)>> {
+export interface DeleteSchedule extends Binding.Service<DeleteSchedule, "AWS.Scheduler.DeleteSchedule", (group?: ScheduleGroup) => Effect.Effect<(request: DeleteScheduleRequest) => Effect.Effect<scheduler.DeleteScheduleOutput, scheduler.DeleteScheduleError>>> {
 }
 export declare const DeleteSchedule: DeleteSchedule;

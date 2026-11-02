@@ -23,6 +23,6 @@ import type { Collection } from "./Collection.vibe";
  *
  * @binding
  */
-export interface GetCollection extends Binding.Service<GetCollection, "AWS.OpenSearchServerless.GetCollection", (collection: Collection) => Effect.Effect<(() => Effect.Effect<aoss.CollectionDetail | undefined, aoss.BatchGetCollectionError>)>> {
+export interface GetCollection extends Binding.Service<GetCollection, "AWS.OpenSearchServerless.GetCollection", (collection: Collection) => Effect.Effect<() => Effect.Effect<aoss.CollectionDetail | undefined, aoss.BatchGetCollectionError>>> {
 }
 export declare const GetCollection: GetCollection;

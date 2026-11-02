@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListVocabularyFilters extends Binding.Service<ListVocabularyFilters, "AWS.Transcribe.ListVocabularyFilters", () => Effect.Effect<((request?: transcribe.ListVocabularyFiltersRequest) => Effect.Effect<transcribe.ListVocabularyFiltersResponse, transcribe.ListVocabularyFiltersError>)>> {
+export interface ListVocabularyFilters extends Binding.Service<ListVocabularyFilters, "AWS.Transcribe.ListVocabularyFilters", () => Effect.Effect<(request?: transcribe.ListVocabularyFiltersRequest) => Effect.Effect<transcribe.ListVocabularyFiltersResponse, transcribe.ListVocabularyFiltersError>>> {
 }
 export declare const ListVocabularyFilters: ListVocabularyFilters;

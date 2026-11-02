@@ -29,7 +29,7 @@ export declare const makeMediaPackageV2ChannelGroupHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MediaPackageV2.ListHarvestJobs`. */
     tag: string;
     /** The distilled operation; `ChannelGroupName` is injected from the group. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the group ARN and its child-resource pattern. */
     actions: readonly string[];
 }) => Effect.Effect<<G extends ChannelGroup>(group: G) => Effect.Effect<(request?: Omit<I, "ChannelGroupName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -46,7 +46,7 @@ export declare const makeMediaPackageV2ChannelHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MediaPackageV2.ResetChannelState`. */
     tag: string;
     /** The distilled operation; the channel's names are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the channel ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<C extends Channel>(channel: C) => Effect.Effect<(request?: Omit<I, "ChannelGroupName" | "ChannelName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -69,7 +69,7 @@ export declare const makeMediaPackageV2OriginEndpointHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MediaPackageV2.CreateHarvestJob`. */
     tag: string;
     /** The distilled operation; the endpoint's names are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the endpoint (or harvest-job pattern) ARN. */
     actions: readonly string[];
     /** Additionally grant on `{endpointArn}/harvestJob/*` (harvest-job ops). */

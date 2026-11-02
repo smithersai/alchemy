@@ -33,6 +33,6 @@ export interface CreateSnapshotRequest extends Omit<ec2.CreateSnapshotRequest, "
  *
  * @binding
  */
-export interface CreateSnapshot extends Binding.Service<CreateSnapshot, "AWS.EC2.CreateSnapshot", (volume: Volume) => Effect.Effect<((request?: CreateSnapshotRequest) => Effect.Effect<ec2.Snapshot, ec2.CreateSnapshotError>)>> {
+export interface CreateSnapshot extends Binding.Service<CreateSnapshot, "AWS.EC2.CreateSnapshot", (volume: Volume) => Effect.Effect<(request?: CreateSnapshotRequest) => Effect.Effect<ec2.Snapshot, ec2.CreateSnapshotError>>> {
 }
 export declare const CreateSnapshot: CreateSnapshot;

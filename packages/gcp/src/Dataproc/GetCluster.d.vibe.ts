@@ -2,7 +2,7 @@ import type * as dataproc from "@distilled.cloud/gcp/dataproc_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 export interface GetClusterRequest extends Omit<dataproc.GetProjectsRegionsClustersRequest, "projectId" | "region" | "clusterName"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetClusterRequest extends Omit<dataproc.GetProjectsRegionsClust
  * @binding
  * @category Dataproc
  */
-export interface GetCluster extends Binding.Service<GetCluster, "GCP.Dataproc.GetCluster", (cluster: Cluster) => Effect.Effect<((request?: GetClusterRequest) => Effect.Effect<dataproc.Cluster, dataproc.GetProjectsRegionsClustersError, RuntimeContext>)>> {
+export interface GetCluster extends Binding.Service<GetCluster, "GCP.Dataproc.GetCluster", (cluster: Cluster) => Effect.Effect<(request?: GetClusterRequest) => Effect.Effect<dataproc.Cluster, dataproc.GetProjectsRegionsClustersError, RuntimeContext>>> {
 }
 export declare const GetCluster: GetCluster;

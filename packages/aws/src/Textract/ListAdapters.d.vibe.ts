@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAdapters extends Binding.Service<ListAdapters, "AWS.Textract.ListAdapters", () => Effect.Effect<((request?: textract.ListAdaptersRequest) => Effect.Effect<textract.ListAdaptersResponse, textract.ListAdaptersError>)>> {
+export interface ListAdapters extends Binding.Service<ListAdapters, "AWS.Textract.ListAdapters", () => Effect.Effect<(request?: textract.ListAdaptersRequest) => Effect.Effect<textract.ListAdaptersResponse, textract.ListAdaptersError>>> {
 }
 export declare const ListAdapters: ListAdapters;

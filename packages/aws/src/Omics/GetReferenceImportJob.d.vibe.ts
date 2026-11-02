@@ -22,6 +22,6 @@ export interface GetReferenceImportJobRequest extends Omit<omics.GetReferenceImp
  *
  * @binding
  */
-export interface GetReferenceImportJob extends Binding.Service<GetReferenceImportJob, "AWS.Omics.GetReferenceImportJob", (store: ReferenceStore) => Effect.Effect<((request?: GetReferenceImportJobRequest) => Effect.Effect<omics.GetReferenceImportJobResponse, omics.GetReferenceImportJobError>)>> {
+export interface GetReferenceImportJob extends Binding.Service<GetReferenceImportJob, "AWS.Omics.GetReferenceImportJob", (store: ReferenceStore) => Effect.Effect<(request?: GetReferenceImportJobRequest) => Effect.Effect<omics.GetReferenceImportJobResponse, omics.GetReferenceImportJobError>>> {
 }
 export declare const GetReferenceImportJob: GetReferenceImportJob;

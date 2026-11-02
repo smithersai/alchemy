@@ -34,6 +34,6 @@ export interface GetRecordsRequest extends Omit<Kinesis.GetRecordsInput, "Stream
  *
  * @binding
  */
-export interface GetRecords extends Binding.Service<GetRecords, "AWS.Kinesis.GetRecords", (stream: Stream) => Effect.Effect<((request: GetRecordsRequest) => Effect.Effect<Kinesis.GetRecordsOutput, Kinesis.GetRecordsError>)>> {
+export interface GetRecords extends Binding.Service<GetRecords, "AWS.Kinesis.GetRecords", (stream: Stream) => Effect.Effect<(request: GetRecordsRequest) => Effect.Effect<Kinesis.GetRecordsOutput, Kinesis.GetRecordsError>>> {
 }
 export declare const GetRecords: GetRecords;

@@ -26,6 +26,6 @@ export interface GenerateAs2805KekValidationRequest extends Omit<paymentcryptogr
  *
  * @binding
  */
-export interface GenerateAs2805KekValidation extends Binding.Service<GenerateAs2805KekValidation, "AWS.PaymentCryptography.GenerateAs2805KekValidation", <K extends Key>(key: K) => Effect.Effect<((request: GenerateAs2805KekValidationRequest) => Effect.Effect<paymentcryptographydata.GenerateAs2805KekValidationOutput, paymentcryptographydata.GenerateAs2805KekValidationError>)>> {
+export interface GenerateAs2805KekValidation extends Binding.Service<GenerateAs2805KekValidation, "AWS.PaymentCryptography.GenerateAs2805KekValidation", <K extends Key>(key: K) => Effect.Effect<(request: GenerateAs2805KekValidationRequest) => Effect.Effect<paymentcryptographydata.GenerateAs2805KekValidationOutput, paymentcryptographydata.GenerateAs2805KekValidationError>>> {
 }
 export declare const GenerateAs2805KekValidation: GenerateAs2805KekValidation;

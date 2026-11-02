@@ -22,6 +22,6 @@ import type { ManagedThing } from "./ManagedThing.vibe";
  *
  * @binding
  */
-export interface GetManagedThingMetaData extends Binding.Service<GetManagedThingMetaData, "AWS.IoTManagedIntegrations.GetManagedThingMetaData", (thing: ManagedThing) => Effect.Effect<(() => Effect.Effect<mi.GetManagedThingMetaDataResponse, mi.GetManagedThingMetaDataError>)>> {
+export interface GetManagedThingMetaData extends Binding.Service<GetManagedThingMetaData, "AWS.IoTManagedIntegrations.GetManagedThingMetaData", (thing: ManagedThing) => Effect.Effect<() => Effect.Effect<mi.GetManagedThingMetaDataResponse, mi.GetManagedThingMetaDataError>>> {
 }
 export declare const GetManagedThingMetaData: GetManagedThingMetaData;

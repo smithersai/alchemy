@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteProgram extends Binding.Service<DeleteProgram, "AWS.MediaTailor.DeleteProgram", () => Effect.Effect<((request: mediatailor.DeleteProgramRequest) => Effect.Effect<mediatailor.DeleteProgramResponse, mediatailor.DeleteProgramError>)>> {
+export interface DeleteProgram extends Binding.Service<DeleteProgram, "AWS.MediaTailor.DeleteProgram", () => Effect.Effect<(request: mediatailor.DeleteProgramRequest) => Effect.Effect<mediatailor.DeleteProgramResponse, mediatailor.DeleteProgramError>>> {
 }
 export declare const DeleteProgram: DeleteProgram;

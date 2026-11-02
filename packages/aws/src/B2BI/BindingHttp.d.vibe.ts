@@ -20,7 +20,7 @@ export declare const makeTransformerScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.B2BI.StartTransformerJob`. */
     tag: string;
     /** The distilled operation; `transformerId` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the transformer ARN. */
     actions: readonly string[];
     /**
@@ -40,7 +40,7 @@ export declare const makeB2biAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.B2BI.TestMapping`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

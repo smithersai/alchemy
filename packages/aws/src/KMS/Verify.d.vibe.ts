@@ -2,7 +2,7 @@ import type * as kms from "@distilled.cloud/aws/kms";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { AliasName } from "./Alias.vibe";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.ts";
 export interface VerifyRequest extends Omit<kms.VerifyRequest, "KeyId"> {
 }
 /**
@@ -42,6 +42,6 @@ export interface VerifyRequest extends Omit<kms.VerifyRequest, "KeyId"> {
  *
  * @binding
  */
-export interface Verify extends Binding.Service<Verify, "AWS.KMS.Verify", (key: Key | AliasName) => Effect.Effect<((request: VerifyRequest) => Effect.Effect<kms.VerifyResponse, kms.VerifyError>)>> {
+export interface Verify extends Binding.Service<Verify, "AWS.KMS.Verify", (key: Key | AliasName) => Effect.Effect<(request: VerifyRequest) => Effect.Effect<kms.VerifyResponse, kms.VerifyError>>> {
 }
 export declare const Verify: Verify;

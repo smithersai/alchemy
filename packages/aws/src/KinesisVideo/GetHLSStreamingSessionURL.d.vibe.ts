@@ -51,6 +51,6 @@ export interface GetHLSStreamingSessionURLRequest extends Omit<kvam.GetHLSStream
  *
  * @binding
  */
-export interface GetHLSStreamingSessionURL extends Binding.Service<GetHLSStreamingSessionURL, "AWS.KinesisVideo.GetHLSStreamingSessionURL", <S extends Stream>(stream: S) => Effect.Effect<((request?: GetHLSStreamingSessionURLRequest) => Effect.Effect<kvam.GetHLSStreamingSessionURLOutput, kvam.GetHLSStreamingSessionURLError | kv.GetDataEndpointError>)>> {
+export interface GetHLSStreamingSessionURL extends Binding.Service<GetHLSStreamingSessionURL, "AWS.KinesisVideo.GetHLSStreamingSessionURL", <S extends Stream>(stream: S) => Effect.Effect<(request?: GetHLSStreamingSessionURLRequest) => Effect.Effect<kvam.GetHLSStreamingSessionURLOutput, kvam.GetHLSStreamingSessionURLError | kv.GetDataEndpointError>>> {
 }
 export declare const GetHLSStreamingSessionURL: GetHLSStreamingSessionURL;

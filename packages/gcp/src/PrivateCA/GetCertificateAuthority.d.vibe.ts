@@ -2,7 +2,7 @@ import type * as privateca from "@distilled.cloud/gcp/privateca_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { CertificateAuthority } from "./CertificateAuthority.js";
+import type { CertificateAuthority } from "./CertificateAuthority.ts";
 export interface GetCertificateAuthorityRequest extends Omit<privateca.GetProjectsLocationsCaPoolsCertificateAuthoritiesRequest, "name"> {
 }
 /**
@@ -22,6 +22,6 @@ export interface GetCertificateAuthorityRequest extends Omit<privateca.GetProjec
  * @binding
  * @category PrivateCA
  */
-export interface GetCertificateAuthority extends Binding.Service<GetCertificateAuthority, "GCP.PrivateCA.GetCertificateAuthority", (ca: CertificateAuthority) => Effect.Effect<((request?: GetCertificateAuthorityRequest) => Effect.Effect<privateca.CertificateAuthority, privateca.GetProjectsLocationsCaPoolsCertificateAuthoritiesError, RuntimeContext>)>> {
+export interface GetCertificateAuthority extends Binding.Service<GetCertificateAuthority, "GCP.PrivateCA.GetCertificateAuthority", (ca: CertificateAuthority) => Effect.Effect<(request?: GetCertificateAuthorityRequest) => Effect.Effect<privateca.CertificateAuthority, privateca.GetProjectsLocationsCaPoolsCertificateAuthoritiesError, RuntimeContext>>> {
 }
 export declare const GetCertificateAuthority: GetCertificateAuthority;

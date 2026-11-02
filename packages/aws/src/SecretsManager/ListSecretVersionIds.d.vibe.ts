@@ -1,7 +1,7 @@
 import * as secretsmanager from "@distilled.cloud/aws/secrets-manager";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 export interface ListSecretVersionIdsRequest extends Omit<secretsmanager.ListSecretVersionIdsRequest, "SecretId"> {
 }
 /**
@@ -27,6 +27,6 @@ export interface ListSecretVersionIdsRequest extends Omit<secretsmanager.ListSec
  *
  * @binding
  */
-export interface ListSecretVersionIds extends Binding.Service<ListSecretVersionIds, "AWS.SecretsManager.ListSecretVersionIds", (secret: Secret) => Effect.Effect<((request?: ListSecretVersionIdsRequest) => Effect.Effect<secretsmanager.ListSecretVersionIdsResponse, secretsmanager.ListSecretVersionIdsError>)>> {
+export interface ListSecretVersionIds extends Binding.Service<ListSecretVersionIds, "AWS.SecretsManager.ListSecretVersionIds", (secret: Secret) => Effect.Effect<(request?: ListSecretVersionIdsRequest) => Effect.Effect<secretsmanager.ListSecretVersionIdsResponse, secretsmanager.ListSecretVersionIdsError>>> {
 }
 export declare const ListSecretVersionIds: ListSecretVersionIds;

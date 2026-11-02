@@ -30,6 +30,6 @@ export interface PutImageRequest extends Omit<ecrpublic.PutImageRequest, "reposi
  *
  * @binding
  */
-export interface PutImage extends Binding.Service<PutImage, "AWS.ECRPublic.PutImage", <R extends PublicRepository>(repository: R) => Effect.Effect<((request: PutImageRequest) => Effect.Effect<ecrpublic.PutImageResponse, ecrpublic.PutImageError>)>> {
+export interface PutImage extends Binding.Service<PutImage, "AWS.ECRPublic.PutImage", <R extends PublicRepository>(repository: R) => Effect.Effect<(request: PutImageRequest) => Effect.Effect<ecrpublic.PutImageResponse, ecrpublic.PutImageError>>> {
 }
 export declare const PutImage: PutImage;

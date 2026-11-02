@@ -4,4 +4,4 @@ import * as Effect from "effect/Effect";
 export declare const waitForOperation: (operation: healthcare.Operation, options?: {
     notFoundOk?: boolean;
     alreadyExistsOk?: boolean;
-}) => Effect.Effect<healthcare.Operation, healthcare.Forbidden | healthcare.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | healthcare.GcpOpError, healthcare.GcpOpContext>;
+}) => Effect.Effect<healthcare.Operation, healthcare.Forbidden | healthcare.NotFound | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | healthcare.GcpOpError, healthcare.GcpOpContext>;

@@ -1,7 +1,7 @@
 import type * as r53r from "@distilled.cloud/aws/route53resolver";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ResolverRule } from "./ResolverRule.js";
+import type { ResolverRule } from "./ResolverRule.ts";
 export interface ListResolverRuleAssociationsRequest extends Omit<r53r.ListResolverRuleAssociationsRequest, "Filters"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface ListResolverRuleAssociationsRequest extends Omit<r53r.ListResol
  *
  * @binding
  */
-export interface ListResolverRuleAssociations extends Binding.Service<ListResolverRuleAssociations, "AWS.Route53Resolver.ListResolverRuleAssociations", (rule: ResolverRule) => Effect.Effect<((request?: ListResolverRuleAssociationsRequest) => Effect.Effect<r53r.ListResolverRuleAssociationsResponse, r53r.ListResolverRuleAssociationsError>)>> {
+export interface ListResolverRuleAssociations extends Binding.Service<ListResolverRuleAssociations, "AWS.Route53Resolver.ListResolverRuleAssociations", (rule: ResolverRule) => Effect.Effect<(request?: ListResolverRuleAssociationsRequest) => Effect.Effect<r53r.ListResolverRuleAssociationsResponse, r53r.ListResolverRuleAssociationsError>>> {
 }
 export declare const ListResolverRuleAssociations: ListResolverRuleAssociations;

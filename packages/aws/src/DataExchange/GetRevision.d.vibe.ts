@@ -22,6 +22,6 @@ import type { Revision } from "./Revision.vibe";
  *
  * @binding
  */
-export interface GetRevision extends Binding.Service<GetRevision, "AWS.DataExchange.GetRevision", (revision: Revision) => Effect.Effect<(() => Effect.Effect<dataexchange.GetRevisionResponse, dataexchange.GetRevisionError>)>> {
+export interface GetRevision extends Binding.Service<GetRevision, "AWS.DataExchange.GetRevision", (revision: Revision) => Effect.Effect<() => Effect.Effect<dataexchange.GetRevisionResponse, dataexchange.GetRevisionError>>> {
 }
 export declare const GetRevision: GetRevision;

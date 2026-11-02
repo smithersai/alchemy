@@ -26,6 +26,6 @@ import type { Collection } from "./Collection.vibe";
  *
  * @binding
  */
-export interface UpdateIndex extends Binding.Service<UpdateIndex, "AWS.OpenSearchServerless.UpdateIndex", (collection: Collection) => Effect.Effect<((request: Omit<aoss.UpdateIndexRequest, "id">) => Effect.Effect<aoss.UpdateIndexResponse, aoss.UpdateIndexError>)>> {
+export interface UpdateIndex extends Binding.Service<UpdateIndex, "AWS.OpenSearchServerless.UpdateIndex", (collection: Collection) => Effect.Effect<(request: Omit<aoss.UpdateIndexRequest, "id">) => Effect.Effect<aoss.UpdateIndexResponse, aoss.UpdateIndexError>>> {
 }
 export declare const UpdateIndex: UpdateIndex;

@@ -17,6 +17,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface CancelSteps extends Binding.Service<CancelSteps, "AWS.EMR.CancelSteps", <C extends Cluster>(cluster: C) => Effect.Effect<((request: Omit<SVC.CancelStepsInput, "ClusterId">) => Effect.Effect<SVC.CancelStepsOutput, SVC.CancelStepsError>)>> {
+export interface CancelSteps extends Binding.Service<CancelSteps, "AWS.EMR.CancelSteps", <C extends Cluster>(cluster: C) => Effect.Effect<(request: Omit<SVC.CancelStepsInput, "ClusterId">) => Effect.Effect<SVC.CancelStepsOutput, SVC.CancelStepsError>>> {
 }
 export declare const CancelSteps: CancelSteps;

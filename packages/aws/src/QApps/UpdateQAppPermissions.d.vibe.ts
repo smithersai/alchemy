@@ -26,6 +26,6 @@ export interface UpdateQAppPermissionsRequest extends Omit<qapps.UpdateQAppPermi
  *
  * @binding
  */
-export interface UpdateQAppPermissions extends Binding.Service<UpdateQAppPermissions, "AWS.QApps.UpdateQAppPermissions", (app: QApp) => Effect.Effect<((request?: UpdateQAppPermissionsRequest) => Effect.Effect<qapps.UpdateQAppPermissionsOutput, qapps.UpdateQAppPermissionsError>)>> {
+export interface UpdateQAppPermissions extends Binding.Service<UpdateQAppPermissions, "AWS.QApps.UpdateQAppPermissions", (app: QApp) => Effect.Effect<(request?: UpdateQAppPermissionsRequest) => Effect.Effect<qapps.UpdateQAppPermissionsOutput, qapps.UpdateQAppPermissionsError>>> {
 }
 export declare const UpdateQAppPermissions: UpdateQAppPermissions;

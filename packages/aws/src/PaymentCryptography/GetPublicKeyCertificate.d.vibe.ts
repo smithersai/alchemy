@@ -22,6 +22,6 @@ import type { Key } from "./Key.vibe";
  *
  * @binding
  */
-export interface GetPublicKeyCertificate extends Binding.Service<GetPublicKeyCertificate, "AWS.PaymentCryptography.GetPublicKeyCertificate", <K extends Key>(key: K) => Effect.Effect<(() => Effect.Effect<paymentcryptography.GetPublicKeyCertificateOutput, paymentcryptography.GetPublicKeyCertificateError>)>> {
+export interface GetPublicKeyCertificate extends Binding.Service<GetPublicKeyCertificate, "AWS.PaymentCryptography.GetPublicKeyCertificate", <K extends Key>(key: K) => Effect.Effect<() => Effect.Effect<paymentcryptography.GetPublicKeyCertificateOutput, paymentcryptography.GetPublicKeyCertificateError>>> {
 }
 export declare const GetPublicKeyCertificate: GetPublicKeyCertificate;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ModifyBackupAttributes extends Binding.Service<ModifyBackupAttributes, "AWS.CloudHSMV2.ModifyBackupAttributes", () => Effect.Effect<((request: cloudhsm.ModifyBackupAttributesRequest) => Effect.Effect<cloudhsm.ModifyBackupAttributesResponse, cloudhsm.ModifyBackupAttributesError>)>> {
+export interface ModifyBackupAttributes extends Binding.Service<ModifyBackupAttributes, "AWS.CloudHSMV2.ModifyBackupAttributes", () => Effect.Effect<(request: cloudhsm.ModifyBackupAttributesRequest) => Effect.Effect<cloudhsm.ModifyBackupAttributesResponse, cloudhsm.ModifyBackupAttributesError>>> {
 }
 export declare const ModifyBackupAttributes: ModifyBackupAttributes;

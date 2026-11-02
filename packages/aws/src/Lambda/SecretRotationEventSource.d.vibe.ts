@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { RotationEventSource as SecretsManagerRotationEventSource, type SecretRotationEvent } from "../SecretsManager/RotationEventSource.vibe";
-import * as Lambda from "./Function.js";
+import * as Lambda from "./Function.ts";
 /**
  * Narrow an arbitrary Lambda invocation payload to a Secrets Manager
  * rotation event (`createSecret`/`setSecret`/`testSecret`/`finishSecret`).

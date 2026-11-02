@@ -23,6 +23,6 @@ export interface StopQueryRequest extends Omit<im.StopQueryInput, "MonitorName">
  *
  * @binding
  */
-export interface StopQuery extends Binding.Service<StopQuery, "AWS.InternetMonitor.StopQuery", (monitor: Monitor) => Effect.Effect<((request: StopQueryRequest) => Effect.Effect<im.StopQueryOutput, im.StopQueryError>)>> {
+export interface StopQuery extends Binding.Service<StopQuery, "AWS.InternetMonitor.StopQuery", (monitor: Monitor) => Effect.Effect<(request: StopQueryRequest) => Effect.Effect<im.StopQueryOutput, im.StopQueryError>>> {
 }
 export declare const StopQuery: StopQuery;

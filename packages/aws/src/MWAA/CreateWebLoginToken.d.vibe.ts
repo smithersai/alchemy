@@ -36,6 +36,6 @@ import type { Environment } from "./Environment.vibe";
  *
  * @binding
  */
-export interface CreateWebLoginToken extends Binding.Service<CreateWebLoginToken, "AWS.MWAA.CreateWebLoginToken", (environment: Environment, options?: AirflowRoleOptions) => Effect.Effect<(() => Effect.Effect<mwaa.CreateWebLoginTokenResponse, mwaa.CreateWebLoginTokenError>)>> {
+export interface CreateWebLoginToken extends Binding.Service<CreateWebLoginToken, "AWS.MWAA.CreateWebLoginToken", (environment: Environment, options?: AirflowRoleOptions) => Effect.Effect<() => Effect.Effect<mwaa.CreateWebLoginTokenResponse, mwaa.CreateWebLoginTokenError>>> {
 }
 export declare const CreateWebLoginToken: CreateWebLoginToken;

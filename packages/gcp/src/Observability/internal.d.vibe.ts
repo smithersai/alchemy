@@ -1,6 +1,6 @@
 import * as observability from "@distilled.cloud/gcp/observability_v1";
 import * as Effect from "effect/Effect";
-import { GcpEnvironment } from "../Environment.js";
+import { GcpEnvironment } from "../Environment.ts";
 export declare const MAX_NAME_LENGTH = 100;
 export declare const DEFAULT_TRACE_LOCATION = "global";
 export declare const DEFAULT_BUCKET_ID = "_Trace";
@@ -56,6 +56,6 @@ export declare const resolveDatasetParent: (dataset: string, bucket: string | un
     datasetId: string;
 };
 export declare const listLocationIds: (project: string, region: string) => Effect.Effect<string[], observability.Forbidden | observability.GcpOpError, observability.GcpOpContext>;
-export declare const listProjectBuckets: () => Effect.Effect<observability.Bucket[], observability.Forbidden | import("../Environment.js").GcpProjectMissing | observability.GcpOpError, GcpEnvironment | observability.GcpOpContext>;
-export declare const listProjectDatasets: () => Effect.Effect<observability.Dataset[], observability.Forbidden | import("../Environment.js").GcpProjectMissing | observability.GcpOpError, GcpEnvironment | observability.GcpOpContext>;
+export declare const listProjectBuckets: () => Effect.Effect<observability.Bucket[], observability.Forbidden | import("../Environment.ts").GcpProjectMissing | observability.GcpOpError, GcpEnvironment | observability.GcpOpContext>;
+export declare const listProjectDatasets: () => Effect.Effect<observability.Dataset[], observability.Forbidden | import("../Environment.ts").GcpProjectMissing | observability.GcpOpError, GcpEnvironment | observability.GcpOpContext>;
 export declare const listLinksAt: (parent: string) => Effect.Effect<observability.Link[], observability.Forbidden | observability.GcpOpError, observability.GcpOpContext>;

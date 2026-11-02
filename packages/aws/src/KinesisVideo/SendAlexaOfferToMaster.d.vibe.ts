@@ -34,6 +34,6 @@ export interface SendAlexaOfferToMasterRequest extends Omit<kvs.SendAlexaOfferTo
  *
  * @binding
  */
-export interface SendAlexaOfferToMaster extends Binding.Service<SendAlexaOfferToMaster, "AWS.KinesisVideo.SendAlexaOfferToMaster", <C extends SignalingChannel>(channel: C) => Effect.Effect<((request: SendAlexaOfferToMasterRequest) => Effect.Effect<kvs.SendAlexaOfferToMasterResponse, kvs.SendAlexaOfferToMasterError | kv.GetSignalingChannelEndpointError | SignalingEndpointUnavailable>)>> {
+export interface SendAlexaOfferToMaster extends Binding.Service<SendAlexaOfferToMaster, "AWS.KinesisVideo.SendAlexaOfferToMaster", <C extends SignalingChannel>(channel: C) => Effect.Effect<(request: SendAlexaOfferToMasterRequest) => Effect.Effect<kvs.SendAlexaOfferToMasterResponse, kvs.SendAlexaOfferToMasterError | kv.GetSignalingChannelEndpointError | SignalingEndpointUnavailable>>> {
 }
 export declare const SendAlexaOfferToMaster: SendAlexaOfferToMaster;

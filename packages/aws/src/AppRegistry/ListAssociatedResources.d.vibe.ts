@@ -25,6 +25,6 @@ export interface ListAssociatedResourcesRequest extends Omit<appregistry.ListAss
  *
  * @binding
  */
-export interface ListAssociatedResources extends Binding.Service<ListAssociatedResources, "AWS.AppRegistry.ListAssociatedResources", (application: Application) => Effect.Effect<((request?: ListAssociatedResourcesRequest) => Effect.Effect<appregistry.ListAssociatedResourcesResponse, appregistry.ListAssociatedResourcesError>)>> {
+export interface ListAssociatedResources extends Binding.Service<ListAssociatedResources, "AWS.AppRegistry.ListAssociatedResources", (application: Application) => Effect.Effect<(request?: ListAssociatedResourcesRequest) => Effect.Effect<appregistry.ListAssociatedResourcesResponse, appregistry.ListAssociatedResourcesError>>> {
 }
 export declare const ListAssociatedResources: ListAssociatedResources;

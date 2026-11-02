@@ -31,6 +31,6 @@ export interface ListFailuresForLicenseConfigurationOperationsRequest extends Om
  *
  * @binding
  */
-export interface ListFailuresForLicenseConfigurationOperations extends Binding.Service<ListFailuresForLicenseConfigurationOperations, "AWS.LicenseManager.ListFailuresForLicenseConfigurationOperations", (configuration: LicenseConfiguration) => Effect.Effect<((request?: ListFailuresForLicenseConfigurationOperationsRequest) => Effect.Effect<licensemanager.ListFailuresForLicenseConfigurationOperationsResponse, licensemanager.ListFailuresForLicenseConfigurationOperationsError>)>> {
+export interface ListFailuresForLicenseConfigurationOperations extends Binding.Service<ListFailuresForLicenseConfigurationOperations, "AWS.LicenseManager.ListFailuresForLicenseConfigurationOperations", (configuration: LicenseConfiguration) => Effect.Effect<(request?: ListFailuresForLicenseConfigurationOperationsRequest) => Effect.Effect<licensemanager.ListFailuresForLicenseConfigurationOperationsResponse, licensemanager.ListFailuresForLicenseConfigurationOperationsError>>> {
 }
 export declare const ListFailuresForLicenseConfigurationOperations: ListFailuresForLicenseConfigurationOperations;

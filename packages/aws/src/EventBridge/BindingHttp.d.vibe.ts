@@ -39,7 +39,7 @@ export declare const makeEventBridgeAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.EventBridge.ListEventBuses`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `resources`. */
     actions: readonly string[];
     /**
@@ -62,7 +62,7 @@ export declare const makeEventBridgeBusHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.EventBridge.DescribeEventBus`. */
     tag: string;
     /** The distilled operation; the bus name is injected from the bound bus. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the bus ARN. */
     actions: readonly string[];
     /** Request field the bound bus's name is injected under. */
@@ -88,7 +88,7 @@ export declare const makeEventBridgeRuleHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.EventBridge.DescribeRule`. */
     tag: string;
     /** The distilled operation; the rule and bus names are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the rule ARN. */
     actions: readonly string[];
     /** Request field the bound rule's name is injected under. */

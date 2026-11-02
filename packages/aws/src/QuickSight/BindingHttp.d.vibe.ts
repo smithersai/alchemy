@@ -29,7 +29,7 @@ export declare const makeQuickSightDashboardHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.QuickSight.StartDashboardSnapshotJob`. */
     tag: string;
     /** The distilled operation; `AwsAccountId` and `DashboardId` are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the dashboard ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(dashboard: Dashboard) => Effect.Effect<(request: Omit<I, "AwsAccountId" | "DashboardId">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -47,7 +47,7 @@ export declare const makeQuickSightDataSetHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.QuickSight.CreateIngestion`. */
     tag: string;
     /** The distilled operation; `AwsAccountId` and `DataSetId` are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the dataset ARN + its ingestion sub-resources. */
     actions: readonly string[];
 }) => Effect.Effect<(dataSet: DataSet) => Effect.Effect<(request?: Omit<I, "AwsAccountId" | "DataSetId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -64,7 +64,7 @@ export declare const makeQuickSightEmbedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.QuickSight.GenerateEmbedUrlForRegisteredUser`. */
     tag: string;
     /** The distilled operation; `AwsAccountId` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
     /** Fill dashboard-derived defaults into the caller's request. */

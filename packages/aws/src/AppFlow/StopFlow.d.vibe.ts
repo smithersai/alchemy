@@ -24,6 +24,6 @@ import type { Flow } from "./Flow.vibe";
  *
  * @binding
  */
-export interface StopFlow extends Binding.Service<StopFlow, "AWS.AppFlow.StopFlow", (flow: Flow) => Effect.Effect<(() => Effect.Effect<appflow.StopFlowResponse, appflow.StopFlowError>)>> {
+export interface StopFlow extends Binding.Service<StopFlow, "AWS.AppFlow.StopFlow", (flow: Flow) => Effect.Effect<() => Effect.Effect<appflow.StopFlowResponse, appflow.StopFlowError>>> {
 }
 export declare const StopFlow: StopFlow;

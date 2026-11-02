@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetRegionOptStatus extends Binding.Service<GetRegionOptStatus, "AWS.Account.GetRegionOptStatus", () => Effect.Effect<((request: account.GetRegionOptStatusRequest) => Effect.Effect<account.GetRegionOptStatusResponse, account.GetRegionOptStatusError>)>> {
+export interface GetRegionOptStatus extends Binding.Service<GetRegionOptStatus, "AWS.Account.GetRegionOptStatus", () => Effect.Effect<(request: account.GetRegionOptStatusRequest) => Effect.Effect<account.GetRegionOptStatusResponse, account.GetRegionOptStatusError>>> {
 }
 export declare const GetRegionOptStatus: GetRegionOptStatus;

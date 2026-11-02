@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { Database } from "../Firestore/Database.vibe";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
 /**
  * A Datastore request with the project and database filled in from the
  * bound database: callers only supply the request body (minus

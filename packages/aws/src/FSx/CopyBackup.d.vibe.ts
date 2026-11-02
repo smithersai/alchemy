@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CopyBackup extends Binding.Service<CopyBackup, "AWS.FSx.CopyBackup", () => Effect.Effect<((request: fsx.CopyBackupRequest) => Effect.Effect<fsx.CopyBackupResponse, fsx.CopyBackupError>)>> {
+export interface CopyBackup extends Binding.Service<CopyBackup, "AWS.FSx.CopyBackup", () => Effect.Effect<(request: fsx.CopyBackupRequest) => Effect.Effect<fsx.CopyBackupResponse, fsx.CopyBackupError>>> {
 }
 export declare const CopyBackup: CopyBackup;

@@ -23,6 +23,6 @@ export interface ListHealthEventsRequest extends Omit<im.ListHealthEventsInput, 
  *
  * @binding
  */
-export interface ListHealthEvents extends Binding.Service<ListHealthEvents, "AWS.InternetMonitor.ListHealthEvents", (monitor: Monitor) => Effect.Effect<((request?: ListHealthEventsRequest) => Effect.Effect<im.ListHealthEventsOutput, im.ListHealthEventsError>)>> {
+export interface ListHealthEvents extends Binding.Service<ListHealthEvents, "AWS.InternetMonitor.ListHealthEvents", (monitor: Monitor) => Effect.Effect<(request?: ListHealthEventsRequest) => Effect.Effect<im.ListHealthEventsOutput, im.ListHealthEventsError>>> {
 }
 export declare const ListHealthEvents: ListHealthEvents;

@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetStyleDescriptor extends Binding.Service<GetStyleDescriptor, "AWS.GeoMaps.GetStyleDescriptor", () => Effect.Effect<((request: geoMaps.GetStyleDescriptorRequest) => Effect.Effect<geoMaps.GetStyleDescriptorResponse, geoMaps.GetStyleDescriptorError>)>> {
+export interface GetStyleDescriptor extends Binding.Service<GetStyleDescriptor, "AWS.GeoMaps.GetStyleDescriptor", () => Effect.Effect<(request: geoMaps.GetStyleDescriptorRequest) => Effect.Effect<geoMaps.GetStyleDescriptorResponse, geoMaps.GetStyleDescriptorError>>> {
 }
 export declare const GetStyleDescriptor: GetStyleDescriptor;

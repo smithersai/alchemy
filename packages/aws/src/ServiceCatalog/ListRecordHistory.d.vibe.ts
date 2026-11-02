@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListRecordHistory extends Binding.Service<ListRecordHistory, "AWS.ServiceCatalog.ListRecordHistory", () => Effect.Effect<((request?: servicecatalog.ListRecordHistoryInput) => Effect.Effect<servicecatalog.ListRecordHistoryOutput, servicecatalog.ListRecordHistoryError>)>> {
+export interface ListRecordHistory extends Binding.Service<ListRecordHistory, "AWS.ServiceCatalog.ListRecordHistory", () => Effect.Effect<(request?: servicecatalog.ListRecordHistoryInput) => Effect.Effect<servicecatalog.ListRecordHistoryOutput, servicecatalog.ListRecordHistoryError>>> {
 }
 export declare const ListRecordHistory: ListRecordHistory;

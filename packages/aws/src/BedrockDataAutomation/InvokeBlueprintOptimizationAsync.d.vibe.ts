@@ -43,6 +43,6 @@ export interface InvokeBlueprintOptimizationAsyncRequest extends Omit<bda.Invoke
  *
  * @binding
  */
-export interface InvokeBlueprintOptimizationAsync extends Binding.Service<InvokeBlueprintOptimizationAsync, "AWS.BedrockDataAutomation.InvokeBlueprintOptimizationAsync", (blueprint: Blueprint) => Effect.Effect<((request: InvokeBlueprintOptimizationAsyncRequest) => Effect.Effect<bda.InvokeBlueprintOptimizationAsyncResponse, bda.InvokeBlueprintOptimizationAsyncError>)>> {
+export interface InvokeBlueprintOptimizationAsync extends Binding.Service<InvokeBlueprintOptimizationAsync, "AWS.BedrockDataAutomation.InvokeBlueprintOptimizationAsync", (blueprint: Blueprint) => Effect.Effect<(request: InvokeBlueprintOptimizationAsyncRequest) => Effect.Effect<bda.InvokeBlueprintOptimizationAsyncResponse, bda.InvokeBlueprintOptimizationAsyncError>>> {
 }
 export declare const InvokeBlueprintOptimizationAsync: InvokeBlueprintOptimizationAsync;

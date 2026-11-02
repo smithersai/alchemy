@@ -28,6 +28,6 @@ export interface DescribePackageRequest extends Omit<codeartifact.DescribePackag
  *
  * @binding
  */
-export interface DescribePackage extends Binding.Service<DescribePackage, "AWS.CodeArtifact.DescribePackage", (repository: Repository) => Effect.Effect<((request: DescribePackageRequest) => Effect.Effect<codeartifact.DescribePackageResult, codeartifact.DescribePackageError>)>> {
+export interface DescribePackage extends Binding.Service<DescribePackage, "AWS.CodeArtifact.DescribePackage", (repository: Repository) => Effect.Effect<(request: DescribePackageRequest) => Effect.Effect<codeartifact.DescribePackageResult, codeartifact.DescribePackageError>>> {
 }
 export declare const DescribePackage: DescribePackage;

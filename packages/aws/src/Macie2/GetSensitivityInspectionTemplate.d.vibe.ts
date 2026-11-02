@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSensitivityInspectionTemplate extends Binding.Service<GetSensitivityInspectionTemplate, "AWS.Macie2.GetSensitivityInspectionTemplate", () => Effect.Effect<((request: macie2.GetSensitivityInspectionTemplateRequest) => Effect.Effect<macie2.GetSensitivityInspectionTemplateResponse, macie2.GetSensitivityInspectionTemplateError>)>> {
+export interface GetSensitivityInspectionTemplate extends Binding.Service<GetSensitivityInspectionTemplate, "AWS.Macie2.GetSensitivityInspectionTemplate", () => Effect.Effect<(request: macie2.GetSensitivityInspectionTemplateRequest) => Effect.Effect<macie2.GetSensitivityInspectionTemplateResponse, macie2.GetSensitivityInspectionTemplateError>>> {
 }
 export declare const GetSensitivityInspectionTemplate: GetSensitivityInspectionTemplate;

@@ -34,6 +34,6 @@ export interface CreateGrantRequest extends licensemanager.CreateGrantRequest {
  *
  * @binding
  */
-export interface CreateGrant extends Binding.Service<CreateGrant, "AWS.LicenseManager.CreateGrant", () => Effect.Effect<((request: CreateGrantRequest) => Effect.Effect<licensemanager.CreateGrantResponse, licensemanager.CreateGrantError>)>> {
+export interface CreateGrant extends Binding.Service<CreateGrant, "AWS.LicenseManager.CreateGrant", () => Effect.Effect<(request: CreateGrantRequest) => Effect.Effect<licensemanager.CreateGrantResponse, licensemanager.CreateGrantError>>> {
 }
 export declare const CreateGrant: CreateGrant;

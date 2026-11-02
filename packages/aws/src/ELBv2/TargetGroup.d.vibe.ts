@@ -2,9 +2,9 @@ import * as elbv2 from "@distilled.cloud/aws/elastic-load-balancing-v2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import type { AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import type { AccountID } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 export type TargetGroupName = string;
 export type TargetGroupArn = `arn:aws:elasticloadbalancing:${RegionID}:${AccountID}:targetgroup/${string}`;
 export interface TargetGroupProps {

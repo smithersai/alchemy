@@ -68,6 +68,6 @@ export interface ConverseRequest extends Omit<bedrock.ConverseRequest, "modelId"
  *
  * @binding
  */
-export interface Converse extends Binding.Service<Converse, "AWS.Bedrock.Converse", (model: string, ...additionalModels: string[]) => Effect.Effect<((request: ConverseRequest) => Effect.Effect<bedrock.ConverseResponse, bedrock.ConverseError>)>> {
+export interface Converse extends Binding.Service<Converse, "AWS.Bedrock.Converse", (model: string, ...additionalModels: string[]) => Effect.Effect<(request: ConverseRequest) => Effect.Effect<bedrock.ConverseResponse, bedrock.ConverseError>>> {
 }
 export declare const Converse: Converse;

@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetTelemetryEvaluationStatus extends Binding.Service<GetTelemetryEvaluationStatus, "AWS.ObservabilityAdmin.GetTelemetryEvaluationStatus", () => Effect.Effect<((request?: obs.GetTelemetryEvaluationStatusRequest) => Effect.Effect<obs.GetTelemetryEvaluationStatusOutput, obs.GetTelemetryEvaluationStatusError>)>> {
+export interface GetTelemetryEvaluationStatus extends Binding.Service<GetTelemetryEvaluationStatus, "AWS.ObservabilityAdmin.GetTelemetryEvaluationStatus", () => Effect.Effect<(request?: obs.GetTelemetryEvaluationStatusRequest) => Effect.Effect<obs.GetTelemetryEvaluationStatusOutput, obs.GetTelemetryEvaluationStatusError>>> {
 }
 export declare const GetTelemetryEvaluationStatus: GetTelemetryEvaluationStatus;

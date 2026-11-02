@@ -2,7 +2,7 @@ import type * as kms from "@distilled.cloud/aws/kms";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { AliasName } from "./Alias.vibe";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.ts";
 export interface GetPublicKeyRequest extends Omit<kms.GetPublicKeyRequest, "KeyId"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface GetPublicKeyRequest extends Omit<kms.GetPublicKeyRequest, "KeyI
  *
  * @binding
  */
-export interface GetPublicKey extends Binding.Service<GetPublicKey, "AWS.KMS.GetPublicKey", (key: Key | AliasName) => Effect.Effect<((request?: GetPublicKeyRequest) => Effect.Effect<kms.GetPublicKeyResponse, kms.GetPublicKeyError>)>> {
+export interface GetPublicKey extends Binding.Service<GetPublicKey, "AWS.KMS.GetPublicKey", (key: Key | AliasName) => Effect.Effect<(request?: GetPublicKeyRequest) => Effect.Effect<kms.GetPublicKeyResponse, kms.GetPublicKeyError>>> {
 }
 export declare const GetPublicKey: GetPublicKey;

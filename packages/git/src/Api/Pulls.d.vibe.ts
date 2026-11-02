@@ -11,7 +11,7 @@
 import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 import * as Schema from "effect/Schema";
-import { BranchMissing, MergeConflict, MergeResult, NothingToMerge, Pull, PullDetail, PullExists, PullNotFound, PullStateConflict, ReadOnlyRepo, RefConflict, RepoNotFound, ValidationError, PushDenied } from "./Schema.js";
+import { BranchMissing, MergeConflict, MergeResult, NothingToMerge, Pull, PullDetail, PullExists, PullNotFound, PullStateConflict, ReadOnlyRepo, RefConflict, RepoNotFound, ValidationError, PushDenied } from "./Schema.ts";
 /** `(owner, repo, number)` path segments for single-PR endpoints. */
 export declare const PullPath: Schema.Struct<{
     readonly owner: Schema.String;

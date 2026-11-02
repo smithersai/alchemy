@@ -23,6 +23,6 @@ import type { EmailContact } from "./EmailContact.vibe";
  *
  * @binding
  */
-export interface SendActivationCode extends Binding.Service<SendActivationCode, "AWS.NotificationsContacts.SendActivationCode", (contact: EmailContact) => Effect.Effect<(() => Effect.Effect<contacts.SendActivationCodeResponse, contacts.SendActivationCodeError>)>> {
+export interface SendActivationCode extends Binding.Service<SendActivationCode, "AWS.NotificationsContacts.SendActivationCode", (contact: EmailContact) => Effect.Effect<() => Effect.Effect<contacts.SendActivationCodeResponse, contacts.SendActivationCodeError>>> {
 }
 export declare const SendActivationCode: SendActivationCode;

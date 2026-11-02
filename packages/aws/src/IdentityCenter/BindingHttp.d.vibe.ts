@@ -33,7 +33,7 @@ export declare const makeIdentityStoreHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.IdentityCenter.DescribeUser`. */
     tag: string;
     /** The distilled operation; `IdentityStoreId` is injected from the instance. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the identity store + sub-resource ARNs. */
     actions: readonly string[];
 }) => Effect.Effect<(instance: Instance) => Effect.Effect<(request?: Omit<I, "IdentityStoreId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -49,7 +49,7 @@ export declare const makeIdentityCenterInstanceHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.IdentityCenter.ListPermissionSets`. */
     tag: string;
     /** The distilled operation; `InstanceArn` is injected from the instance. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the instance / permission set / account ARNs. */
     actions: readonly string[];
 }) => Effect.Effect<(instance: Instance) => Effect.Effect<(request?: Omit<I, "InstanceArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

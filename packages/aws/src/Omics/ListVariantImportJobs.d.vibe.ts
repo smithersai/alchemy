@@ -20,6 +20,6 @@ export interface ListVariantImportJobsRequest extends omics.ListVariantImportJob
  *
  * @binding
  */
-export interface ListVariantImportJobs extends Binding.Service<ListVariantImportJobs, "AWS.Omics.ListVariantImportJobs", () => Effect.Effect<((request?: ListVariantImportJobsRequest) => Effect.Effect<omics.ListVariantImportJobsResponse, omics.ListVariantImportJobsError>)>> {
+export interface ListVariantImportJobs extends Binding.Service<ListVariantImportJobs, "AWS.Omics.ListVariantImportJobs", () => Effect.Effect<(request?: ListVariantImportJobsRequest) => Effect.Effect<omics.ListVariantImportJobsResponse, omics.ListVariantImportJobsError>>> {
 }
 export declare const ListVariantImportJobs: ListVariantImportJobs;

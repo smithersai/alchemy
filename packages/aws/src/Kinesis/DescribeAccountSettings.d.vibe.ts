@@ -21,6 +21,6 @@ export interface DescribeAccountSettingsRequest extends Kinesis.DescribeAccountS
  *
  * @binding
  */
-export interface DescribeAccountSettings extends Binding.Service<DescribeAccountSettings, "AWS.Kinesis.DescribeAccountSettings", () => Effect.Effect<((request?: DescribeAccountSettingsRequest) => Effect.Effect<Kinesis.DescribeAccountSettingsOutput, Kinesis.DescribeAccountSettingsError>)>> {
+export interface DescribeAccountSettings extends Binding.Service<DescribeAccountSettings, "AWS.Kinesis.DescribeAccountSettings", () => Effect.Effect<(request?: DescribeAccountSettingsRequest) => Effect.Effect<Kinesis.DescribeAccountSettingsOutput, Kinesis.DescribeAccountSettingsError>>> {
 }
 export declare const DescribeAccountSettings: DescribeAccountSettings;

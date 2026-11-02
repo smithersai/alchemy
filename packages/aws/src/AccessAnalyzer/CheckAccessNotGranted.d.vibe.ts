@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CheckAccessNotGranted extends Binding.Service<CheckAccessNotGranted, "AWS.AccessAnalyzer.CheckAccessNotGranted", () => Effect.Effect<((request: aa.CheckAccessNotGrantedRequest) => Effect.Effect<aa.CheckAccessNotGrantedResponse, aa.CheckAccessNotGrantedError>)>> {
+export interface CheckAccessNotGranted extends Binding.Service<CheckAccessNotGranted, "AWS.AccessAnalyzer.CheckAccessNotGranted", () => Effect.Effect<(request: aa.CheckAccessNotGrantedRequest) => Effect.Effect<aa.CheckAccessNotGrantedResponse, aa.CheckAccessNotGrantedError>>> {
 }
 export declare const CheckAccessNotGranted: CheckAccessNotGranted;

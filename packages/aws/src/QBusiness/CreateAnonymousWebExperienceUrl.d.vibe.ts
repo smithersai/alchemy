@@ -38,6 +38,6 @@ export interface CreateAnonymousWebExperienceUrlRequest {
  *
  * @binding
  */
-export interface CreateAnonymousWebExperienceUrl extends Binding.Service<CreateAnonymousWebExperienceUrl, "AWS.QBusiness.CreateAnonymousWebExperienceUrl", (webExperience: WebExperience) => Effect.Effect<((request?: CreateAnonymousWebExperienceUrlRequest) => Effect.Effect<qbusiness.CreateAnonymousWebExperienceUrlResponse, qbusiness.CreateAnonymousWebExperienceUrlError>)>> {
+export interface CreateAnonymousWebExperienceUrl extends Binding.Service<CreateAnonymousWebExperienceUrl, "AWS.QBusiness.CreateAnonymousWebExperienceUrl", (webExperience: WebExperience) => Effect.Effect<(request?: CreateAnonymousWebExperienceUrlRequest) => Effect.Effect<qbusiness.CreateAnonymousWebExperienceUrlResponse, qbusiness.CreateAnonymousWebExperienceUrlError>>> {
 }
 export declare const CreateAnonymousWebExperienceUrl: CreateAnonymousWebExperienceUrl;

@@ -67,6 +67,6 @@ export interface BatchPutAssetPropertyValueRequest {
  *
  * @binding
  */
-export interface BatchPutAssetPropertyValue extends Binding.Service<BatchPutAssetPropertyValue, "AWS.IoTSiteWise.BatchPutAssetPropertyValue", (asset: Asset) => Effect.Effect<((request: BatchPutAssetPropertyValueRequest) => Effect.Effect<sitewise.BatchPutAssetPropertyValueResponse, sitewise.BatchPutAssetPropertyValueError>)>> {
+export interface BatchPutAssetPropertyValue extends Binding.Service<BatchPutAssetPropertyValue, "AWS.IoTSiteWise.BatchPutAssetPropertyValue", (asset: Asset) => Effect.Effect<(request: BatchPutAssetPropertyValueRequest) => Effect.Effect<sitewise.BatchPutAssetPropertyValueResponse, sitewise.BatchPutAssetPropertyValueError>>> {
 }
 export declare const BatchPutAssetPropertyValue: BatchPutAssetPropertyValue;

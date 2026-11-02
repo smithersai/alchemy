@@ -31,7 +31,7 @@ export declare const makeEcrRepositoryHttpBinding: <I extends RepositoryScopedRe
      */
     capability: string;
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the bound repository's ARN. */
     iamActions: readonly string[];
 }) => Effect.Effect<(repository: Repository) => Effect.Effect<(request?: Omit<I, keyof RepositoryScopedRequest> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

@@ -23,6 +23,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface UpdateOrganizationConfiguration extends Binding.Service<UpdateOrganizationConfiguration, "AWS.Detective.UpdateOrganizationConfiguration", (graph: Graph) => Effect.Effect<((request?: Omit<detective.UpdateOrganizationConfigurationRequest, "GraphArn">) => Effect.Effect<detective.UpdateOrganizationConfigurationResponse, detective.UpdateOrganizationConfigurationError>)>> {
+export interface UpdateOrganizationConfiguration extends Binding.Service<UpdateOrganizationConfiguration, "AWS.Detective.UpdateOrganizationConfiguration", (graph: Graph) => Effect.Effect<(request?: Omit<detective.UpdateOrganizationConfigurationRequest, "GraphArn">) => Effect.Effect<detective.UpdateOrganizationConfigurationResponse, detective.UpdateOrganizationConfigurationError>>> {
 }
 export declare const UpdateOrganizationConfiguration: UpdateOrganizationConfiguration;

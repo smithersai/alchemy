@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetRecommendations extends Binding.Service<GetRecommendations, "AWS.Personalize.GetRecommendations", () => Effect.Effect<((request: personalizeruntime.GetRecommendationsRequest) => Effect.Effect<personalizeruntime.GetRecommendationsResponse, personalizeruntime.GetRecommendationsError>)>> {
+export interface GetRecommendations extends Binding.Service<GetRecommendations, "AWS.Personalize.GetRecommendations", () => Effect.Effect<(request: personalizeruntime.GetRecommendationsRequest) => Effect.Effect<personalizeruntime.GetRecommendationsResponse, personalizeruntime.GetRecommendationsError>>> {
 }
 export declare const GetRecommendations: GetRecommendations;

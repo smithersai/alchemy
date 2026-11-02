@@ -31,6 +31,6 @@ export interface ListEventsRequest extends Omit<agentcore.ListEventsInput, "memo
  *
  * @binding
  */
-export interface ListEvents extends Binding.Service<ListEvents, "AWS.BedrockAgentCore.ListEvents", <R extends Memory>(memory: R) => Effect.Effect<((request: ListEventsRequest) => Effect.Effect<agentcore.ListEventsOutput, agentcore.ListEventsError>)>> {
+export interface ListEvents extends Binding.Service<ListEvents, "AWS.BedrockAgentCore.ListEvents", <R extends Memory>(memory: R) => Effect.Effect<(request: ListEventsRequest) => Effect.Effect<agentcore.ListEventsOutput, agentcore.ListEventsError>>> {
 }
 export declare const ListEvents: ListEvents;

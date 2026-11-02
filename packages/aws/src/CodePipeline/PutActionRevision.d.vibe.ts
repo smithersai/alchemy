@@ -26,6 +26,6 @@ export interface PutActionRevisionRequest extends Omit<SVC.PutActionRevisionInpu
  *
  * @binding
  */
-export interface PutActionRevision extends Binding.Service<PutActionRevision, "AWS.CodePipeline.PutActionRevision", <P extends Pipeline>(pipeline: P) => Effect.Effect<((request: PutActionRevisionRequest) => Effect.Effect<SVC.PutActionRevisionOutput, SVC.PutActionRevisionError>)>> {
+export interface PutActionRevision extends Binding.Service<PutActionRevision, "AWS.CodePipeline.PutActionRevision", <P extends Pipeline>(pipeline: P) => Effect.Effect<(request: PutActionRevisionRequest) => Effect.Effect<SVC.PutActionRevisionOutput, SVC.PutActionRevisionError>>> {
 }
 export declare const PutActionRevision: PutActionRevision;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CheckNoNewAccess extends Binding.Service<CheckNoNewAccess, "AWS.AccessAnalyzer.CheckNoNewAccess", () => Effect.Effect<((request: aa.CheckNoNewAccessRequest) => Effect.Effect<aa.CheckNoNewAccessResponse, aa.CheckNoNewAccessError>)>> {
+export interface CheckNoNewAccess extends Binding.Service<CheckNoNewAccess, "AWS.AccessAnalyzer.CheckNoNewAccess", () => Effect.Effect<(request: aa.CheckNoNewAccessRequest) => Effect.Effect<aa.CheckNoNewAccessResponse, aa.CheckNoNewAccessError>>> {
 }
 export declare const CheckNoNewAccess: CheckNoNewAccess;

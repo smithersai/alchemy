@@ -1,7 +1,7 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import { type EventRecord } from "../EventBridge/EventSource.vibe";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 /**
  * Lifecycle states EC2 reports through the
  * `EC2 Instance State-change Notification` EventBridge event.

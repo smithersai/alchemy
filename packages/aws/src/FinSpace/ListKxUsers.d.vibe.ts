@@ -16,6 +16,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface ListKxUsers extends Binding.Service<ListKxUsers, "AWS.FinSpace.ListKxUsers", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request?: Omit<SVC.ListKxUsersRequest, "environmentId">) => Effect.Effect<SVC.ListKxUsersResponse, SVC.ListKxUsersError>)>> {
+export interface ListKxUsers extends Binding.Service<ListKxUsers, "AWS.FinSpace.ListKxUsers", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request?: Omit<SVC.ListKxUsersRequest, "environmentId">) => Effect.Effect<SVC.ListKxUsersResponse, SVC.ListKxUsersError>>> {
 }
 export declare const ListKxUsers: ListKxUsers;

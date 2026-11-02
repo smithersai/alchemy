@@ -24,6 +24,6 @@ export interface DescribeKeyValueStoreRequest extends Omit<kvs.DescribeKeyValueS
  *
  * @binding
  */
-export interface DescribeKeyValueStore extends Binding.Service<DescribeKeyValueStore, "AWS.CloudFront.DescribeKeyValueStore", (store: KeyValueStore) => Effect.Effect<((request: DescribeKeyValueStoreRequest) => Effect.Effect<kvs.DescribeKeyValueStoreResponse, kvs.DescribeKeyValueStoreError>)>> {
+export interface DescribeKeyValueStore extends Binding.Service<DescribeKeyValueStore, "AWS.CloudFront.DescribeKeyValueStore", (store: KeyValueStore) => Effect.Effect<(request: DescribeKeyValueStoreRequest) => Effect.Effect<kvs.DescribeKeyValueStoreResponse, kvs.DescribeKeyValueStoreError>>> {
 }
 export declare const DescribeKeyValueStore: DescribeKeyValueStore;

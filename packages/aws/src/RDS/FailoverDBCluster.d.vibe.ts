@@ -1,7 +1,7 @@
 import type * as rds from "@distilled.cloud/aws/rds";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DBCluster } from "./DBCluster.js";
+import type { DBCluster } from "./DBCluster.ts";
 /**
  * Runtime binding for the `FailoverDBCluster` operation (IAM action
  * `rds:FailoverDBCluster`).
@@ -22,6 +22,6 @@ import type { DBCluster } from "./DBCluster.js";
  *
  * @binding
  */
-export interface FailoverDBCluster extends Binding.Service<FailoverDBCluster, "AWS.RDS.FailoverDBCluster", (cluster: DBCluster) => Effect.Effect<((request?: Omit<rds.FailoverDBClusterMessage, "DBClusterIdentifier">) => Effect.Effect<rds.FailoverDBClusterResult, rds.FailoverDBClusterError>)>> {
+export interface FailoverDBCluster extends Binding.Service<FailoverDBCluster, "AWS.RDS.FailoverDBCluster", (cluster: DBCluster) => Effect.Effect<(request?: Omit<rds.FailoverDBClusterMessage, "DBClusterIdentifier">) => Effect.Effect<rds.FailoverDBClusterResult, rds.FailoverDBClusterError>>> {
 }
 export declare const FailoverDBCluster: FailoverDBCluster;

@@ -1,7 +1,7 @@
 import type * as autoscaling from "@distilled.cloud/aws/auto-scaling";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AutoScalingGroup } from "./AutoScalingGroup.js";
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts";
 /**
  * Signal the result of a paused lifecycle action. The Auto Scaling group name is
  * injected by the binding; supply the hook name, the action token (from the

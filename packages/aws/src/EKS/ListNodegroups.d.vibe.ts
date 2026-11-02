@@ -1,7 +1,7 @@
 import type * as eks from "@distilled.cloud/aws/eks";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 /**
  * Runtime binding for `eks:ListNodegroups`.
  *
@@ -21,6 +21,6 @@ import type { Cluster } from "./Cluster.js";
  *
  * @binding
  */
-export interface ListNodegroups extends Binding.Service<ListNodegroups, "AWS.EKS.ListNodegroups", (cluster: Cluster) => Effect.Effect<((request?: Omit<eks.ListNodegroupsRequest, "clusterName">) => Effect.Effect<eks.ListNodegroupsResponse, eks.ListNodegroupsError>)>> {
+export interface ListNodegroups extends Binding.Service<ListNodegroups, "AWS.EKS.ListNodegroups", (cluster: Cluster) => Effect.Effect<(request?: Omit<eks.ListNodegroupsRequest, "clusterName">) => Effect.Effect<eks.ListNodegroupsResponse, eks.ListNodegroupsError>>> {
 }
 export declare const ListNodegroups: ListNodegroups;

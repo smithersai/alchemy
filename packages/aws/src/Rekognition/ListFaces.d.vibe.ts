@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListFaces extends Binding.Service<ListFaces, "AWS.Rekognition.ListFaces", () => Effect.Effect<((request: rekognition.ListFacesRequest) => Effect.Effect<rekognition.ListFacesResponse, rekognition.ListFacesError>)>> {
+export interface ListFaces extends Binding.Service<ListFaces, "AWS.Rekognition.ListFaces", () => Effect.Effect<(request: rekognition.ListFacesRequest) => Effect.Effect<rekognition.ListFacesResponse, rekognition.ListFacesError>>> {
 }
 export declare const ListFaces: ListFaces;

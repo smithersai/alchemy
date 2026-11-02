@@ -22,6 +22,6 @@ import type { ContactChannel } from "./ContactChannel.vibe";
  *
  * @binding
  */
-export interface SendActivationCode extends Binding.Service<SendActivationCode, "AWS.SSMContacts.SendActivationCode", (channel: ContactChannel) => Effect.Effect<(() => Effect.Effect<ssm.SendActivationCodeResult, ssm.SendActivationCodeError>)>> {
+export interface SendActivationCode extends Binding.Service<SendActivationCode, "AWS.SSMContacts.SendActivationCode", (channel: ContactChannel) => Effect.Effect<() => Effect.Effect<ssm.SendActivationCodeResult, ssm.SendActivationCodeError>>> {
 }
 export declare const SendActivationCode: SendActivationCode;

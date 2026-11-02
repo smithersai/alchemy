@@ -14,7 +14,7 @@ export declare const makeContactHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SSMContacts.StartEngagement`. */
     tag: string;
     /** The distilled operation; `ContactId` is injected from the contact. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the contact ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(contact: Contact) => Effect.Effect<(request?: Omit<I, "ContactId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -30,7 +30,7 @@ export declare const makeContactChannelHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SSMContacts.SendActivationCode`. */
     tag: string;
     /** The distilled operation; `ContactChannelId` is injected from the channel. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the contact channel ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(channel: ContactChannel) => Effect.Effect<(request?: Omit<I, "ContactChannelId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -46,7 +46,7 @@ export declare const makeRotationHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SSMContacts.ListRotationShifts`. */
     tag: string;
     /** The distilled operation; `RotationId` is injected from the rotation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the rotation ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(rotation: Rotation) => Effect.Effect<(request?: Omit<I, "RotationId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -60,7 +60,7 @@ export declare const makeAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.SSMContacts.StopEngagement`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

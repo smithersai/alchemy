@@ -2,7 +2,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { MySQL } from "./MySQL.js";
+import type { MySQL } from "./MySQL.ts";
 /**
  * Bind a {@link MySQL} service to a Railway {@link Service} and obtain
  * the Effect-native connection string for `Drizzle.MySQL` /

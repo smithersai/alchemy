@@ -40,6 +40,6 @@ export interface GetPriceListFileUrlRequest extends pricing.GetPriceListFileUrlR
  *
  * @binding
  */
-export interface GetPriceListFileUrl extends Binding.Service<GetPriceListFileUrl, "AWS.Pricing.GetPriceListFileUrl", () => Effect.Effect<((request: GetPriceListFileUrlRequest) => Effect.Effect<pricing.GetPriceListFileUrlResponse, pricing.GetPriceListFileUrlError>)>> {
+export interface GetPriceListFileUrl extends Binding.Service<GetPriceListFileUrl, "AWS.Pricing.GetPriceListFileUrl", () => Effect.Effect<(request: GetPriceListFileUrlRequest) => Effect.Effect<pricing.GetPriceListFileUrlResponse, pricing.GetPriceListFileUrlError>>> {
 }
 export declare const GetPriceListFileUrl: GetPriceListFileUrl;

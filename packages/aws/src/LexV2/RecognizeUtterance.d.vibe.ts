@@ -1,7 +1,7 @@
 import type * as lexr from "@distilled.cloud/aws/lex-runtime-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { BotAlias } from "./BotAlias.js";
+import type { BotAlias } from "./BotAlias.ts";
 /**
  * The `RecognizeUtterance` request with the binding-injected `botId` and
  * `botAliasId` removed. `requestContentType` selects the input media type
@@ -34,6 +34,6 @@ export interface RecognizeUtteranceRequest extends Omit<lexr.RecognizeUtteranceR
  *
  * @binding
  */
-export interface RecognizeUtterance extends Binding.Service<RecognizeUtterance, "AWS.LexV2.RecognizeUtterance", (alias: BotAlias) => Effect.Effect<((request: RecognizeUtteranceRequest) => Effect.Effect<lexr.RecognizeUtteranceResponse, lexr.RecognizeUtteranceError>)>> {
+export interface RecognizeUtterance extends Binding.Service<RecognizeUtterance, "AWS.LexV2.RecognizeUtterance", (alias: BotAlias) => Effect.Effect<(request: RecognizeUtteranceRequest) => Effect.Effect<lexr.RecognizeUtteranceResponse, lexr.RecognizeUtteranceError>>> {
 }
 export declare const RecognizeUtterance: RecognizeUtterance;

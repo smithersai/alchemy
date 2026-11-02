@@ -23,4 +23,4 @@ import { ReadBucket } from "./ReadBucket.vibe";
  * );
  * ```
  */
-export declare const ReadBucketLocal: Layer.Layer<ReadBucket, never, import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const ReadBucketLocal: Layer.Layer<ReadBucket, never, import("../CloudflareEnvironmentService.ts").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;

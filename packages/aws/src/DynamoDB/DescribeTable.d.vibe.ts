@@ -1,7 +1,7 @@
 import * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface DescribeTableRequest extends Omit<DynamoDB.DescribeTableInput, "TableName"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface DescribeTableRequest extends Omit<DynamoDB.DescribeTableInput, 
  *
  * @binding
  */
-export interface DescribeTable extends Binding.Service<DescribeTable, "AWS.DynamoDB.DescribeTable", <T extends Table>(table: T) => Effect.Effect<((request?: DescribeTableRequest) => Effect.Effect<DynamoDB.DescribeTableOutput, DynamoDB.DescribeTableError>)>> {
+export interface DescribeTable extends Binding.Service<DescribeTable, "AWS.DynamoDB.DescribeTable", <T extends Table>(table: T) => Effect.Effect<(request?: DescribeTableRequest) => Effect.Effect<DynamoDB.DescribeTableOutput, DynamoDB.DescribeTableError>>> {
 }
 export declare const DescribeTable: DescribeTable;

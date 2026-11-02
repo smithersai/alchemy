@@ -1,7 +1,7 @@
 import type * as lambda from "@distilled.cloud/aws/lambda";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type { FunctionUrlAuthType } from "@distilled.cloud/aws/lambda";
 export interface PermissionProps {
     /**

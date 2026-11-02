@@ -26,6 +26,6 @@ export interface DescribeAlarmHistoryRequest extends cloudwatch.DescribeAlarmHis
  *
  * @binding
  */
-export interface DescribeAlarmHistory extends Binding.Service<DescribeAlarmHistory, "AWS.CloudWatch.DescribeAlarmHistory", () => Effect.Effect<((request?: DescribeAlarmHistoryRequest) => Effect.Effect<cloudwatch.DescribeAlarmHistoryOutput, cloudwatch.DescribeAlarmHistoryError>)>> {
+export interface DescribeAlarmHistory extends Binding.Service<DescribeAlarmHistory, "AWS.CloudWatch.DescribeAlarmHistory", () => Effect.Effect<(request?: DescribeAlarmHistoryRequest) => Effect.Effect<cloudwatch.DescribeAlarmHistoryOutput, cloudwatch.DescribeAlarmHistoryError>>> {
 }
 export declare const DescribeAlarmHistory: DescribeAlarmHistory;

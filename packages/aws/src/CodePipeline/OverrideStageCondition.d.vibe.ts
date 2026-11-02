@@ -23,6 +23,6 @@ export interface OverrideStageConditionRequest extends Omit<SVC.OverrideStageCon
  *
  * @binding
  */
-export interface OverrideStageCondition extends Binding.Service<OverrideStageCondition, "AWS.CodePipeline.OverrideStageCondition", <P extends Pipeline>(pipeline: P) => Effect.Effect<((request: OverrideStageConditionRequest) => Effect.Effect<SVC.OverrideStageConditionResponse, SVC.OverrideStageConditionError>)>> {
+export interface OverrideStageCondition extends Binding.Service<OverrideStageCondition, "AWS.CodePipeline.OverrideStageCondition", <P extends Pipeline>(pipeline: P) => Effect.Effect<(request: OverrideStageConditionRequest) => Effect.Effect<SVC.OverrideStageConditionResponse, SVC.OverrideStageConditionError>>> {
 }
 export declare const OverrideStageCondition: OverrideStageCondition;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface EnableOrganizationAdminAccount extends Binding.Service<EnableOrganizationAdminAccount, "AWS.Macie2.EnableOrganizationAdminAccount", () => Effect.Effect<((request?: macie2.EnableOrganizationAdminAccountRequest) => Effect.Effect<macie2.EnableOrganizationAdminAccountResponse, macie2.EnableOrganizationAdminAccountError>)>> {
+export interface EnableOrganizationAdminAccount extends Binding.Service<EnableOrganizationAdminAccount, "AWS.Macie2.EnableOrganizationAdminAccount", () => Effect.Effect<(request?: macie2.EnableOrganizationAdminAccountRequest) => Effect.Effect<macie2.EnableOrganizationAdminAccountResponse, macie2.EnableOrganizationAdminAccountError>>> {
 }
 export declare const EnableOrganizationAdminAccount: EnableOrganizationAdminAccount;

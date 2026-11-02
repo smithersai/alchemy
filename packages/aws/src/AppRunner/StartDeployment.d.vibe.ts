@@ -20,6 +20,6 @@ import type { Service } from "./Service.vibe";
  *
  * @binding
  */
-export interface StartDeployment extends Binding.Service<StartDeployment, "AWS.AppRunner.StartDeployment", (service: Service) => Effect.Effect<(() => Effect.Effect<apprunner.StartDeploymentResponse, apprunner.StartDeploymentError>)>> {
+export interface StartDeployment extends Binding.Service<StartDeployment, "AWS.AppRunner.StartDeployment", (service: Service) => Effect.Effect<() => Effect.Effect<apprunner.StartDeploymentResponse, apprunner.StartDeploymentError>>> {
 }
 export declare const StartDeployment: StartDeployment;

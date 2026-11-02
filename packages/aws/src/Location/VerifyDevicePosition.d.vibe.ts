@@ -33,6 +33,6 @@ export interface VerifyDevicePositionRequest extends Omit<location.VerifyDeviceP
  *
  * @binding
  */
-export interface VerifyDevicePosition extends Binding.Service<VerifyDevicePosition, "AWS.Location.VerifyDevicePosition", (tracker: Tracker) => Effect.Effect<((request: VerifyDevicePositionRequest) => Effect.Effect<location.VerifyDevicePositionResponse, location.VerifyDevicePositionError>)>> {
+export interface VerifyDevicePosition extends Binding.Service<VerifyDevicePosition, "AWS.Location.VerifyDevicePosition", (tracker: Tracker) => Effect.Effect<(request: VerifyDevicePositionRequest) => Effect.Effect<location.VerifyDevicePositionResponse, location.VerifyDevicePositionError>>> {
 }
 export declare const VerifyDevicePosition: VerifyDevicePosition;

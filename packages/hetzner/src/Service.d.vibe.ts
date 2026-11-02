@@ -5,10 +5,10 @@ import { Resource } from "alchemy/Resource";
 import type { ServerHost } from "alchemy/Runtime/Process";
 import { Stack } from "alchemy/Stack";
 import * as Effect from "effect/Effect";
-import { type HetznerBuildOptions, type HetznerHostRuntimeContext } from "./hosted.js";
+import { type HetznerBuildOptions, type HetznerHostRuntimeContext } from "./hosted.ts";
 import type { ServiceBinding } from "./MountVolume.vibe";
 import type { Providers } from "./Providers.vibe";
-import type { Server } from "./Server.js";
+import type { Server } from "./Server.ts";
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces
  * it (so `yield* Server(...)` and `Server(...)` both type-check).
@@ -129,5 +129,5 @@ export declare class ServiceError extends ServiceError_base<{
     message: string;
 }> {
 }
-export declare const ServiceProvider: () => import("effect/Layer").Layer<Provider.Provider<Service>, never, Stack | import("alchemy/Stage").Stage | Hetzner.HetznerOpContext | import("./Ssh.js").SshServices>;
+export declare const ServiceProvider: () => import("effect/Layer").Layer<Provider.Provider<Service>, never, Stack | import("alchemy/Stage").Stage | Hetzner.HetznerOpContext | import("./Ssh.ts").SshServices>;
 export {};

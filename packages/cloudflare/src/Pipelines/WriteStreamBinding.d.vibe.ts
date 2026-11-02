@@ -1,8 +1,8 @@
 import * as Layer from "effect/Layer";
-import { Worker, WorkerEnvironment } from "../Workers/Worker.js";
-import { type LegacyPipeline } from "./LegacyPipeline.js";
-import type { Stream } from "./Stream.js";
-import { WriteStream, type WriteStreamClient } from "./WriteStream.js";
+import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
+import { type LegacyPipeline } from "./LegacyPipeline.ts";
+import type { Stream } from "./Stream.ts";
+import { WriteStream, type WriteStreamClient } from "./WriteStream.ts";
 /**
  * Implementation of the {@link WriteStream} service over a native Worker
  * `pipelines` binding. Registers the binding on the host Worker and, when

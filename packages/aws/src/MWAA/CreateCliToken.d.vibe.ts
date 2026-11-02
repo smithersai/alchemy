@@ -34,6 +34,6 @@ import type { Environment } from "./Environment.vibe";
  *
  * @binding
  */
-export interface CreateCliToken extends Binding.Service<CreateCliToken, "AWS.MWAA.CreateCliToken", (environment: Environment) => Effect.Effect<(() => Effect.Effect<mwaa.CreateCliTokenResponse, mwaa.CreateCliTokenError>)>> {
+export interface CreateCliToken extends Binding.Service<CreateCliToken, "AWS.MWAA.CreateCliToken", (environment: Environment) => Effect.Effect<() => Effect.Effect<mwaa.CreateCliTokenResponse, mwaa.CreateCliTokenError>>> {
 }
 export declare const CreateCliToken: CreateCliToken;

@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetBlacklistReports extends Binding.Service<GetBlacklistReports, "AWS.SES.GetBlacklistReports", () => Effect.Effect<((request: sesv2.GetBlacklistReportsRequest) => Effect.Effect<sesv2.GetBlacklistReportsResponse, sesv2.GetBlacklistReportsError>)>> {
+export interface GetBlacklistReports extends Binding.Service<GetBlacklistReports, "AWS.SES.GetBlacklistReports", () => Effect.Effect<(request: sesv2.GetBlacklistReportsRequest) => Effect.Effect<sesv2.GetBlacklistReportsResponse, sesv2.GetBlacklistReportsError>>> {
 }
 export declare const GetBlacklistReports: GetBlacklistReports;

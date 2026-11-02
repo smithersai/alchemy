@@ -12,6 +12,6 @@ export interface ListManagedMicrovmImageVersionsRequest extends microvms.ListMan
  *
  * @binding
  */
-export interface ListManagedMicrovmImageVersions extends Binding.Service<ListManagedMicrovmImageVersions, "AWS.Lambda.ListManagedMicrovmImageVersions", () => Effect.Effect<((request: ListManagedMicrovmImageVersionsRequest) => Effect.Effect<microvms.ListManagedMicrovmImageVersionsOutput, microvms.ListManagedMicrovmImageVersionsError>)>> {
+export interface ListManagedMicrovmImageVersions extends Binding.Service<ListManagedMicrovmImageVersions, "AWS.Lambda.ListManagedMicrovmImageVersions", () => Effect.Effect<(request: ListManagedMicrovmImageVersionsRequest) => Effect.Effect<microvms.ListManagedMicrovmImageVersionsOutput, microvms.ListManagedMicrovmImageVersionsError>>> {
 }
 export declare const ListManagedMicrovmImageVersions: ListManagedMicrovmImageVersions;

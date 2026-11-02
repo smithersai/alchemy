@@ -28,6 +28,6 @@ export interface GetBrowserSessionRequest extends Omit<agentcore.GetBrowserSessi
  *
  * @binding
  */
-export interface GetBrowserSession extends Binding.Service<GetBrowserSession, "AWS.BedrockAgentCore.GetBrowserSession", <R extends BrowserCustom>(browser: R) => Effect.Effect<((request: GetBrowserSessionRequest) => Effect.Effect<agentcore.GetBrowserSessionResponse, agentcore.GetBrowserSessionError>)>> {
+export interface GetBrowserSession extends Binding.Service<GetBrowserSession, "AWS.BedrockAgentCore.GetBrowserSession", <R extends BrowserCustom>(browser: R) => Effect.Effect<(request: GetBrowserSessionRequest) => Effect.Effect<agentcore.GetBrowserSessionResponse, agentcore.GetBrowserSessionError>>> {
 }
 export declare const GetBrowserSession: GetBrowserSession;

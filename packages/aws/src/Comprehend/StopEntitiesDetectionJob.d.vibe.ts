@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopEntitiesDetectionJob extends Binding.Service<StopEntitiesDetectionJob, "AWS.Comprehend.StopEntitiesDetectionJob", () => Effect.Effect<((request: comprehend.StopEntitiesDetectionJobRequest) => Effect.Effect<comprehend.StopEntitiesDetectionJobResponse, comprehend.StopEntitiesDetectionJobError>)>> {
+export interface StopEntitiesDetectionJob extends Binding.Service<StopEntitiesDetectionJob, "AWS.Comprehend.StopEntitiesDetectionJob", () => Effect.Effect<(request: comprehend.StopEntitiesDetectionJobRequest) => Effect.Effect<comprehend.StopEntitiesDetectionJobResponse, comprehend.StopEntitiesDetectionJobError>>> {
 }
 export declare const StopEntitiesDetectionJob: StopEntitiesDetectionJob;

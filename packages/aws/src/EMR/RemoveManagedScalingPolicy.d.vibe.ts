@@ -15,6 +15,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface RemoveManagedScalingPolicy extends Binding.Service<RemoveManagedScalingPolicy, "AWS.EMR.RemoveManagedScalingPolicy", <C extends Cluster>(cluster: C) => Effect.Effect<((request?: Omit<SVC.RemoveManagedScalingPolicyInput, "ClusterId">) => Effect.Effect<SVC.RemoveManagedScalingPolicyOutput, SVC.RemoveManagedScalingPolicyError>)>> {
+export interface RemoveManagedScalingPolicy extends Binding.Service<RemoveManagedScalingPolicy, "AWS.EMR.RemoveManagedScalingPolicy", <C extends Cluster>(cluster: C) => Effect.Effect<(request?: Omit<SVC.RemoveManagedScalingPolicyInput, "ClusterId">) => Effect.Effect<SVC.RemoveManagedScalingPolicyOutput, SVC.RemoveManagedScalingPolicyError>>> {
 }
 export declare const RemoveManagedScalingPolicy: RemoveManagedScalingPolicy;

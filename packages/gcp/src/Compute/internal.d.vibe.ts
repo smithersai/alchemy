@@ -23,10 +23,10 @@ export interface RunOperationOptions {
 export declare const ignoredCodes: (options: RunOperationOptions | undefined) => string[];
 export declare const runRegionOp: <E extends {
     readonly _tag: string;
-}, R>(project: string, region: string, start: Effect.Effect<compute.Operation, E, R>, options?: RunOperationOptions) => Effect.Effect<compute.Operation, E | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | compute.GetRegionOperationsError, R | compute.GcpOpContext>;
+}, R>(project: string, region: string, start: Effect.Effect<compute.Operation, E, R>, options?: RunOperationOptions) => Effect.Effect<compute.Operation, E | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | compute.GetRegionOperationsError, R | compute.GcpOpContext>;
 export declare const runGlobalOp: <E extends {
     readonly _tag: string;
-}, R>(project: string, start: Effect.Effect<compute.Operation, E, R>, options?: RunOperationOptions) => Effect.Effect<compute.Operation, E | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | compute.GetGlobalOperationsError, R | compute.GcpOpContext>;
+}, R>(project: string, start: Effect.Effect<compute.Operation, E, R>, options?: RunOperationOptions) => Effect.Effect<compute.Operation, E | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | compute.GetGlobalOperationsError, R | compute.GcpOpContext>;
 export declare const runOrgOp: <E extends {
     readonly _tag: string;
-}, R>(parentId: string, start: Effect.Effect<compute.Operation, E, R>, options?: RunOperationOptions) => Effect.Effect<compute.Operation, E | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | compute.GetGlobalOrganizationOperationsError, R | compute.GcpOpContext>;
+}, R>(parentId: string, start: Effect.Effect<compute.Operation, E, R>, options?: RunOperationOptions) => Effect.Effect<compute.Operation, E | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | compute.GetGlobalOrganizationOperationsError, R | compute.GcpOpContext>;

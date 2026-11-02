@@ -18,6 +18,6 @@ export interface GetDbSystemRequest extends Omit<oracle.GetProjectsLocationsDbSy
  * @binding
  * @category OracleDatabase
  */
-export interface GetDbSystem extends Binding.Service<GetDbSystem, "GCP.OracleDatabase.GetDbSystem", (system: DbSystem) => Effect.Effect<((request?: GetDbSystemRequest) => Effect.Effect<oracle.DbSystem, oracle.GetProjectsLocationsDbSystemsError, RuntimeContext>)>> {
+export interface GetDbSystem extends Binding.Service<GetDbSystem, "GCP.OracleDatabase.GetDbSystem", (system: DbSystem) => Effect.Effect<(request?: GetDbSystemRequest) => Effect.Effect<oracle.DbSystem, oracle.GetProjectsLocationsDbSystemsError, RuntimeContext>>> {
 }
 export declare const GetDbSystem: GetDbSystem;

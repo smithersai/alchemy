@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetPermission extends Binding.Service<GetPermission, "AWS.RAM.GetPermission", () => Effect.Effect<((request: ram.GetPermissionRequest) => Effect.Effect<ram.GetPermissionResponse, ram.GetPermissionError>)>> {
+export interface GetPermission extends Binding.Service<GetPermission, "AWS.RAM.GetPermission", () => Effect.Effect<(request: ram.GetPermissionRequest) => Effect.Effect<ram.GetPermissionResponse, ram.GetPermissionError>>> {
 }
 export declare const GetPermission: GetPermission;

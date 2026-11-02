@@ -21,6 +21,6 @@ import type { WorkGroup } from "./WorkGroup.vibe";
  *
  * @binding
  */
-export interface ListQueryExecutions extends Binding.Service<ListQueryExecutions, "AWS.Athena.ListQueryExecutions", (workGroup: WorkGroup) => Effect.Effect<((request: Omit<athena.ListQueryExecutionsInput, "WorkGroup">) => Effect.Effect<athena.ListQueryExecutionsOutput, athena.ListQueryExecutionsError>)>> {
+export interface ListQueryExecutions extends Binding.Service<ListQueryExecutions, "AWS.Athena.ListQueryExecutions", (workGroup: WorkGroup) => Effect.Effect<(request: Omit<athena.ListQueryExecutionsInput, "WorkGroup">) => Effect.Effect<athena.ListQueryExecutionsOutput, athena.ListQueryExecutionsError>>> {
 }
 export declare const ListQueryExecutions: ListQueryExecutions;

@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import type { Credentials } from "../Credentials.js";
-import type { Zone } from "../Zone/Zone.js";
-import type { DnsAuth } from "./DnsHttp.js";
+import type { Credentials } from "../Credentials.ts";
+import type { Zone } from "../Zone/Zone.ts";
+import type { DnsAuth } from "./DnsHttp.ts";
 /**
  * Shared scaffolding for the `*Local` DNS services.
  *

@@ -2,8 +2,8 @@ import * as rdsdata from "@distilled.cloud/aws/rds-data";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { DBCluster } from "../RDS/DBCluster.js";
-import type { Secret } from "../SecretsManager/Secret.js";
+import type { DBCluster } from "../RDS/DBCluster.ts";
+import type { Secret } from "../SecretsManager/Secret.ts";
 export interface ExecuteSqlOptions {
     secret: Secret;
     database?: string;
@@ -33,6 +33,6 @@ export interface ExecuteSqlRequest extends Omit<rdsdata.ExecuteSqlRequest, "dbCl
  *
  * @binding
  */
-export interface ExecuteSql extends Binding.Service<ExecuteSql, "AWS.RDSData.ExecuteSql", (cluster: DBCluster, options: ExecuteSqlOptions) => Effect.Effect<((request: ExecuteSqlRequest) => Effect.Effect<rdsdata.ExecuteSqlResponse, rdsdata.ExecuteSqlError, RuntimeContext>)>> {
+export interface ExecuteSql extends Binding.Service<ExecuteSql, "AWS.RDSData.ExecuteSql", (cluster: DBCluster, options: ExecuteSqlOptions) => Effect.Effect<(request: ExecuteSqlRequest) => Effect.Effect<rdsdata.ExecuteSqlResponse, rdsdata.ExecuteSqlError, RuntimeContext>>> {
 }
 export declare const ExecuteSql: ExecuteSql;

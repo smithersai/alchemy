@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelTagSyncTask extends Binding.Service<CancelTagSyncTask, "AWS.ResourceGroups.CancelTagSyncTask", () => Effect.Effect<((request: resourcegroups.CancelTagSyncTaskInput) => Effect.Effect<resourcegroups.CancelTagSyncTaskResponse, resourcegroups.CancelTagSyncTaskError>)>> {
+export interface CancelTagSyncTask extends Binding.Service<CancelTagSyncTask, "AWS.ResourceGroups.CancelTagSyncTask", () => Effect.Effect<(request: resourcegroups.CancelTagSyncTaskInput) => Effect.Effect<resourcegroups.CancelTagSyncTaskResponse, resourcegroups.CancelTagSyncTaskError>>> {
 }
 export declare const CancelTagSyncTask: CancelTagSyncTask;

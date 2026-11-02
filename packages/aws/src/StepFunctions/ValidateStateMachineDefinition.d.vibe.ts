@@ -27,6 +27,6 @@ export interface ValidateStateMachineDefinitionRequest extends sfn.ValidateState
  *
  * @binding
  */
-export interface ValidateStateMachineDefinition extends Binding.Service<ValidateStateMachineDefinition, "AWS.StepFunctions.ValidateStateMachineDefinition", () => Effect.Effect<((request: ValidateStateMachineDefinitionRequest) => Effect.Effect<sfn.ValidateStateMachineDefinitionOutput, sfn.ValidateStateMachineDefinitionError>)>> {
+export interface ValidateStateMachineDefinition extends Binding.Service<ValidateStateMachineDefinition, "AWS.StepFunctions.ValidateStateMachineDefinition", () => Effect.Effect<(request: ValidateStateMachineDefinitionRequest) => Effect.Effect<sfn.ValidateStateMachineDefinitionOutput, sfn.ValidateStateMachineDefinitionError>>> {
 }
 export declare const ValidateStateMachineDefinition: ValidateStateMachineDefinition;

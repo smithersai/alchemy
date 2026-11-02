@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetAWSDefaultServiceQuota extends Binding.Service<GetAWSDefaultServiceQuota, "AWS.ServiceQuotas.GetAWSDefaultServiceQuota", () => Effect.Effect<((request: servicequotas.GetAWSDefaultServiceQuotaRequest) => Effect.Effect<servicequotas.GetAWSDefaultServiceQuotaResponse, servicequotas.GetAWSDefaultServiceQuotaError>)>> {
+export interface GetAWSDefaultServiceQuota extends Binding.Service<GetAWSDefaultServiceQuota, "AWS.ServiceQuotas.GetAWSDefaultServiceQuota", () => Effect.Effect<(request: servicequotas.GetAWSDefaultServiceQuotaRequest) => Effect.Effect<servicequotas.GetAWSDefaultServiceQuotaResponse, servicequotas.GetAWSDefaultServiceQuotaError>>> {
 }
 export declare const GetAWSDefaultServiceQuota: GetAWSDefaultServiceQuota;

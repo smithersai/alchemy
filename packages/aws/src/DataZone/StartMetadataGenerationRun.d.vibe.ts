@@ -26,6 +26,6 @@ export interface StartMetadataGenerationRunRequest extends Omit<datazone.StartMe
  *
  * @binding
  */
-export interface StartMetadataGenerationRun extends Binding.Service<StartMetadataGenerationRun, "AWS.DataZone.StartMetadataGenerationRun", (domain: Domain) => Effect.Effect<((request: StartMetadataGenerationRunRequest) => Effect.Effect<datazone.StartMetadataGenerationRunOutput, datazone.StartMetadataGenerationRunError>)>> {
+export interface StartMetadataGenerationRun extends Binding.Service<StartMetadataGenerationRun, "AWS.DataZone.StartMetadataGenerationRun", (domain: Domain) => Effect.Effect<(request: StartMetadataGenerationRunRequest) => Effect.Effect<datazone.StartMetadataGenerationRunOutput, datazone.StartMetadataGenerationRunError>>> {
 }
 export declare const StartMetadataGenerationRun: StartMetadataGenerationRun;

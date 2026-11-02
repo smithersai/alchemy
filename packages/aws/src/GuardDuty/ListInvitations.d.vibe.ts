@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListInvitations extends Binding.Service<ListInvitations, "AWS.GuardDuty.ListInvitations", () => Effect.Effect<((request?: guardduty.ListInvitationsRequest) => Effect.Effect<guardduty.ListInvitationsResponse, guardduty.ListInvitationsError>)>> {
+export interface ListInvitations extends Binding.Service<ListInvitations, "AWS.GuardDuty.ListInvitations", () => Effect.Effect<(request?: guardduty.ListInvitationsRequest) => Effect.Effect<guardduty.ListInvitationsResponse, guardduty.ListInvitationsError>>> {
 }
 export declare const ListInvitations: ListInvitations;

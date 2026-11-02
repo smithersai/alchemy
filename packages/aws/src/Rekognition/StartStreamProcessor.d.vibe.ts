@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartStreamProcessor extends Binding.Service<StartStreamProcessor, "AWS.Rekognition.StartStreamProcessor", () => Effect.Effect<((request: rekognition.StartStreamProcessorRequest) => Effect.Effect<rekognition.StartStreamProcessorResponse, rekognition.StartStreamProcessorError>)>> {
+export interface StartStreamProcessor extends Binding.Service<StartStreamProcessor, "AWS.Rekognition.StartStreamProcessor", () => Effect.Effect<(request: rekognition.StartStreamProcessorRequest) => Effect.Effect<rekognition.StartStreamProcessorResponse, rekognition.StartStreamProcessorError>>> {
 }
 export declare const StartStreamProcessor: StartStreamProcessor;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetFindingsReportStatus extends Binding.Service<GetFindingsReportStatus, "AWS.Inspector2.GetFindingsReportStatus", () => Effect.Effect<((request?: inspector2.GetFindingsReportStatusRequest) => Effect.Effect<inspector2.GetFindingsReportStatusResponse, inspector2.GetFindingsReportStatusError>)>> {
+export interface GetFindingsReportStatus extends Binding.Service<GetFindingsReportStatus, "AWS.Inspector2.GetFindingsReportStatus", () => Effect.Effect<(request?: inspector2.GetFindingsReportStatusRequest) => Effect.Effect<inspector2.GetFindingsReportStatusResponse, inspector2.GetFindingsReportStatusError>>> {
 }
 export declare const GetFindingsReportStatus: GetFindingsReportStatus;

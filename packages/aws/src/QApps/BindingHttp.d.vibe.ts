@@ -39,7 +39,7 @@ export declare const makeQAppHttpBinding: <I extends {
     /** IAM actions granted on the app ARN + `{appArn}/*`. */
     iamActions: readonly string[];
     /** The distilled operation; `instanceId` (and `appId`) are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** Inject the bound app's `appId` into the request. */
     injectAppId?: boolean;
 }) => Effect.Effect<(app: QApp) => Effect.Effect<(request?: Omit<I, "instanceId" | "appId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -61,5 +61,5 @@ export declare const makeQAppsInstanceHttpBinding: <I extends {
     /** IAM actions granted on `Resource: ["*"]`. */
     iamActions: readonly string[];
     /** The distilled operation; `instanceId` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<(app: QApp) => Effect.Effect<(request?: Omit<I, "instanceId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

@@ -25,6 +25,6 @@ export interface GetTableRequest extends Omit<glue.GetTableRequest, "DatabaseNam
  *
  * @binding
  */
-export interface GetTable extends Binding.Service<GetTable, "AWS.Glue.GetTable", (table: Table) => Effect.Effect<((request?: GetTableRequest) => Effect.Effect<glue.GetTableResponse, glue.GetTableError>)>> {
+export interface GetTable extends Binding.Service<GetTable, "AWS.Glue.GetTable", (table: Table) => Effect.Effect<(request?: GetTableRequest) => Effect.Effect<glue.GetTableResponse, glue.GetTableError>>> {
 }
 export declare const GetTable: GetTable;

@@ -2,7 +2,7 @@ import type * as cloudbuild from "@distilled.cloud/gcp/cloudbuild_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.ts";
 export interface AccessReadTokenRequest extends Omit<cloudbuild.AccessReadTokenProjectsLocationsConnectionsRepositoriesRequest, "repository"> {
 }
 /**
@@ -22,6 +22,6 @@ export interface AccessReadTokenRequest extends Omit<cloudbuild.AccessReadTokenP
  * @binding
  * @category CloudBuild
  */
-export interface AccessReadToken extends Binding.Service<AccessReadToken, "GCP.CloudBuild.AccessReadToken", (repository: Repository) => Effect.Effect<((request?: AccessReadTokenRequest) => Effect.Effect<cloudbuild.FetchReadTokenResponse, cloudbuild.AccessReadTokenProjectsLocationsConnectionsRepositoriesError, RuntimeContext>)>> {
+export interface AccessReadToken extends Binding.Service<AccessReadToken, "GCP.CloudBuild.AccessReadToken", (repository: Repository) => Effect.Effect<(request?: AccessReadTokenRequest) => Effect.Effect<cloudbuild.FetchReadTokenResponse, cloudbuild.AccessReadTokenProjectsLocationsConnectionsRepositoriesError, RuntimeContext>>> {
 }
 export declare const AccessReadToken: AccessReadToken;

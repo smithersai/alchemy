@@ -1,8 +1,8 @@
 import type { InputProps } from "alchemy/Input";
 import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import { Secret } from "../SecretsStore/Secret.js";
-import { GatewayProvider } from "./GatewayProvider.js";
+import { Secret } from "../SecretsStore/Secret.ts";
+import { GatewayProvider } from "./GatewayProvider.ts";
 export interface ProviderKeyProps {
     /**
      * The AI Gateway the provider key belongs to. The gateway must have its
@@ -132,4 +132,4 @@ export type ProviderKey = {
 export declare const ProviderKey: (id: string, props: InputProps<ProviderKeyProps>) => Effect.Effect<{
     secret: Secret;
     gatewayProvider: GatewayProvider;
-}, never, import("../Providers.js").Providers>;
+}, never, import("../Providers.ts").Providers>;

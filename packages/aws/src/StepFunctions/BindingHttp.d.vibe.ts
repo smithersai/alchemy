@@ -1,7 +1,7 @@
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import type { Activity } from "./Activity.vibe";
-import type { StateMachine } from "./StateMachine.js";
+import type { StateMachine } from "./StateMachine.ts";
 /**
  * Shared scaffolding for AWS Step Functions HTTP bindings.
  *
@@ -38,7 +38,7 @@ export declare const makeStateMachineArnHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.StepFunctions.StartExecution`. */
     tag: string;
     /** The distilled operation; the machine ARN is injected as `stateMachineArn`. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the state machine ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(stateMachine: StateMachine) => Effect.Effect<(request?: Omit<I, "stateMachineArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -54,7 +54,7 @@ export declare const makeExecutionScopedHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.StepFunctions.StopExecution`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the derived ARN pattern. */
     actions: readonly string[];
     /**
@@ -75,7 +75,7 @@ export declare const makeActivityArnHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.StepFunctions.GetActivityTask`. */
     tag: string;
     /** The distilled operation; the activity ARN is injected as `activityArn`. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the activity ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(activity: Activity) => Effect.Effect<(request?: Omit<I, "activityArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -90,7 +90,7 @@ export declare const makeTaskCallbackHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.StepFunctions.SendTaskSuccess`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the activity ARN (or `*`). */
     actions: readonly string[];
 }) => Effect.Effect<(activity?: Activity | undefined) => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -104,7 +104,7 @@ export declare const makeSfnServiceHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.StepFunctions.TestState`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions the operation needs (service-scoped, `Resource: ["*"]`). */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

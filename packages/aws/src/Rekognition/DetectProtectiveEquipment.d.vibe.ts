@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DetectProtectiveEquipment extends Binding.Service<DetectProtectiveEquipment, "AWS.Rekognition.DetectProtectiveEquipment", () => Effect.Effect<((request: rekognition.DetectProtectiveEquipmentRequest) => Effect.Effect<rekognition.DetectProtectiveEquipmentResponse, rekognition.DetectProtectiveEquipmentError>)>> {
+export interface DetectProtectiveEquipment extends Binding.Service<DetectProtectiveEquipment, "AWS.Rekognition.DetectProtectiveEquipment", () => Effect.Effect<(request: rekognition.DetectProtectiveEquipmentRequest) => Effect.Effect<rekognition.DetectProtectiveEquipmentResponse, rekognition.DetectProtectiveEquipmentError>>> {
 }
 export declare const DetectProtectiveEquipment: DetectProtectiveEquipment;

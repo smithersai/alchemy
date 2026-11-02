@@ -1,9 +1,9 @@
 import * as apphub from "@distilled.cloud/gcp/apphub_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { type Attributes, type Scope } from "./internal.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { type Attributes, type Scope } from "./internal.ts";
 export type ApplicationProps = {
     /**
      * Application id (the `{application}` segment of

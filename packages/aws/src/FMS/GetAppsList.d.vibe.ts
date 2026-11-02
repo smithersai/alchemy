@@ -24,6 +24,6 @@ export interface GetAppsListRequest extends fms.GetAppsListRequest {
  *
  * @binding
  */
-export interface GetAppsList extends Binding.Service<GetAppsList, "AWS.FMS.GetAppsList", () => Effect.Effect<((request: GetAppsListRequest) => Effect.Effect<fms.GetAppsListResponse, fms.GetAppsListError>)>> {
+export interface GetAppsList extends Binding.Service<GetAppsList, "AWS.FMS.GetAppsList", () => Effect.Effect<(request: GetAppsListRequest) => Effect.Effect<fms.GetAppsListResponse, fms.GetAppsListError>>> {
 }
 export declare const GetAppsList: GetAppsList;

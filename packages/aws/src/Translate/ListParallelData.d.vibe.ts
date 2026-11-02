@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListParallelData extends Binding.Service<ListParallelData, "AWS.Translate.ListParallelData", () => Effect.Effect<((request?: translate.ListParallelDataRequest) => Effect.Effect<translate.ListParallelDataResponse, translate.ListParallelDataError>)>> {
+export interface ListParallelData extends Binding.Service<ListParallelData, "AWS.Translate.ListParallelData", () => Effect.Effect<(request?: translate.ListParallelDataRequest) => Effect.Effect<translate.ListParallelDataResponse, translate.ListParallelDataError>>> {
 }
 export declare const ListParallelData: ListParallelData;

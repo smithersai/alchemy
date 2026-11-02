@@ -30,6 +30,6 @@ export interface SearchPlaceIndexForSuggestionsRequest extends Omit<location.Sea
  *
  * @binding
  */
-export interface SearchPlaceIndexForSuggestions extends Binding.Service<SearchPlaceIndexForSuggestions, "AWS.Location.SearchPlaceIndexForSuggestions", (index: PlaceIndex) => Effect.Effect<((request: SearchPlaceIndexForSuggestionsRequest) => Effect.Effect<location.SearchPlaceIndexForSuggestionsResponse, location.SearchPlaceIndexForSuggestionsError>)>> {
+export interface SearchPlaceIndexForSuggestions extends Binding.Service<SearchPlaceIndexForSuggestions, "AWS.Location.SearchPlaceIndexForSuggestions", (index: PlaceIndex) => Effect.Effect<(request: SearchPlaceIndexForSuggestionsRequest) => Effect.Effect<location.SearchPlaceIndexForSuggestionsResponse, location.SearchPlaceIndexForSuggestionsError>>> {
 }
 export declare const SearchPlaceIndexForSuggestions: SearchPlaceIndexForSuggestions;

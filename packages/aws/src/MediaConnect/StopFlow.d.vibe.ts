@@ -26,6 +26,6 @@ import type { Flow } from "./Flow.vibe";
  *
  * @binding
  */
-export interface StopFlow extends Binding.Service<StopFlow, "AWS.MediaConnect.StopFlow", (flow: Flow) => Effect.Effect<(() => Effect.Effect<mediaconnect.StopFlowResponse, mediaconnect.StopFlowError>)>> {
+export interface StopFlow extends Binding.Service<StopFlow, "AWS.MediaConnect.StopFlow", (flow: Flow) => Effect.Effect<() => Effect.Effect<mediaconnect.StopFlowResponse, mediaconnect.StopFlowError>>> {
 }
 export declare const StopFlow: StopFlow;

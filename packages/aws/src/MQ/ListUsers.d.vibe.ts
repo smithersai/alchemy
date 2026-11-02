@@ -19,6 +19,6 @@ import type { Broker } from "./Broker.vibe";
  *
  * @binding
  */
-export interface ListUsers extends Binding.Service<ListUsers, "AWS.MQ.ListUsers", (broker: Broker) => Effect.Effect<((request?: Omit<mq.ListUsersRequest, "BrokerId">) => Effect.Effect<mq.ListUsersResponse, mq.ListUsersError>)>> {
+export interface ListUsers extends Binding.Service<ListUsers, "AWS.MQ.ListUsers", (broker: Broker) => Effect.Effect<(request?: Omit<mq.ListUsersRequest, "BrokerId">) => Effect.Effect<mq.ListUsersResponse, mq.ListUsersError>>> {
 }
 export declare const ListUsers: ListUsers;

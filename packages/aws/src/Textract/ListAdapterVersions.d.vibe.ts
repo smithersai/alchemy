@@ -19,6 +19,6 @@ import type { Adapter } from "./Adapter.vibe";
  *
  * @binding
  */
-export interface ListAdapterVersions extends Binding.Service<ListAdapterVersions, "AWS.Textract.ListAdapterVersions", <A extends Adapter>(adapter: A) => Effect.Effect<((request?: Omit<textract.ListAdapterVersionsRequest, "AdapterId">) => Effect.Effect<textract.ListAdapterVersionsResponse, textract.ListAdapterVersionsError>)>> {
+export interface ListAdapterVersions extends Binding.Service<ListAdapterVersions, "AWS.Textract.ListAdapterVersions", <A extends Adapter>(adapter: A) => Effect.Effect<(request?: Omit<textract.ListAdapterVersionsRequest, "AdapterId">) => Effect.Effect<textract.ListAdapterVersionsResponse, textract.ListAdapterVersionsError>>> {
 }
 export declare const ListAdapterVersions: ListAdapterVersions;

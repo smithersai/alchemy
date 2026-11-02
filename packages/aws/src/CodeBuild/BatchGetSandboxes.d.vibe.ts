@@ -15,6 +15,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface BatchGetSandboxes extends Binding.Service<BatchGetSandboxes, "AWS.CodeBuild.BatchGetSandboxes", <P extends Project>(project: P) => Effect.Effect<((request: SVC.BatchGetSandboxesInput) => Effect.Effect<SVC.BatchGetSandboxesOutput, SVC.BatchGetSandboxesError>)>> {
+export interface BatchGetSandboxes extends Binding.Service<BatchGetSandboxes, "AWS.CodeBuild.BatchGetSandboxes", <P extends Project>(project: P) => Effect.Effect<(request: SVC.BatchGetSandboxesInput) => Effect.Effect<SVC.BatchGetSandboxesOutput, SVC.BatchGetSandboxesError>>> {
 }
 export declare const BatchGetSandboxes: BatchGetSandboxes;

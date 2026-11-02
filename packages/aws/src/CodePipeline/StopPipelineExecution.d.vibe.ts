@@ -22,6 +22,6 @@ export interface StopPipelineExecutionRequest extends Omit<SVC.StopPipelineExecu
  *
  * @binding
  */
-export interface StopPipelineExecution extends Binding.Service<StopPipelineExecution, "AWS.CodePipeline.StopPipelineExecution", <P extends Pipeline>(pipeline: P) => Effect.Effect<((request: StopPipelineExecutionRequest) => Effect.Effect<SVC.StopPipelineExecutionOutput, SVC.StopPipelineExecutionError>)>> {
+export interface StopPipelineExecution extends Binding.Service<StopPipelineExecution, "AWS.CodePipeline.StopPipelineExecution", <P extends Pipeline>(pipeline: P) => Effect.Effect<(request: StopPipelineExecutionRequest) => Effect.Effect<SVC.StopPipelineExecutionOutput, SVC.StopPipelineExecutionError>>> {
 }
 export declare const StopPipelineExecution: StopPipelineExecution;

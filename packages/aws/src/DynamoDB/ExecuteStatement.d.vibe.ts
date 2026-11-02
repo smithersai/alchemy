@@ -1,7 +1,7 @@
 import * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface ExecuteStatementRequest extends DynamoDB.ExecuteStatementInput {
 }
 /**
@@ -22,6 +22,6 @@ export interface ExecuteStatementRequest extends DynamoDB.ExecuteStatementInput 
  *
  * @binding
  */
-export interface ExecuteStatement extends Binding.Service<ExecuteStatement, "AWS.DynamoDB.ExecuteStatement", <T extends Table>(table: T) => Effect.Effect<((request: ExecuteStatementRequest) => Effect.Effect<DynamoDB.ExecuteStatementOutput, DynamoDB.ExecuteStatementError>)>> {
+export interface ExecuteStatement extends Binding.Service<ExecuteStatement, "AWS.DynamoDB.ExecuteStatement", <T extends Table>(table: T) => Effect.Effect<(request: ExecuteStatementRequest) => Effect.Effect<DynamoDB.ExecuteStatementOutput, DynamoDB.ExecuteStatementError>>> {
 }
 export declare const ExecuteStatement: ExecuteStatement;

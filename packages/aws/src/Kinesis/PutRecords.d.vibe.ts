@@ -30,6 +30,6 @@ export interface PutRecordsRequest extends Omit<Kinesis.PutRecordsInput, "Stream
  *
  * @binding
  */
-export interface PutRecords extends Binding.Service<PutRecords, "AWS.Kinesis.PutRecords", (stream: Stream) => Effect.Effect<((request: PutRecordsRequest) => Effect.Effect<Kinesis.PutRecordsOutput, Kinesis.PutRecordsError>)>> {
+export interface PutRecords extends Binding.Service<PutRecords, "AWS.Kinesis.PutRecords", (stream: Stream) => Effect.Effect<(request: PutRecordsRequest) => Effect.Effect<Kinesis.PutRecordsOutput, Kinesis.PutRecordsError>>> {
 }
 export declare const PutRecords: PutRecords;

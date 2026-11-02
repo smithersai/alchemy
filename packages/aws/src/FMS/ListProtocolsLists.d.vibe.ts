@@ -24,6 +24,6 @@ export interface ListProtocolsListsRequest extends fms.ListProtocolsListsRequest
  *
  * @binding
  */
-export interface ListProtocolsLists extends Binding.Service<ListProtocolsLists, "AWS.FMS.ListProtocolsLists", () => Effect.Effect<((request: ListProtocolsListsRequest) => Effect.Effect<fms.ListProtocolsListsResponse, fms.ListProtocolsListsError>)>> {
+export interface ListProtocolsLists extends Binding.Service<ListProtocolsLists, "AWS.FMS.ListProtocolsLists", () => Effect.Effect<(request: ListProtocolsListsRequest) => Effect.Effect<fms.ListProtocolsListsResponse, fms.ListProtocolsListsError>>> {
 }
 export declare const ListProtocolsLists: ListProtocolsLists;

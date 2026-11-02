@@ -29,6 +29,6 @@ export interface DescribeConnectorEntityRequest extends Omit<appflow.DescribeCon
  *
  * @binding
  */
-export interface DescribeConnectorEntity extends Binding.Service<DescribeConnectorEntity, "AWS.AppFlow.DescribeConnectorEntity", (profile: ConnectorProfile) => Effect.Effect<((request: DescribeConnectorEntityRequest) => Effect.Effect<appflow.DescribeConnectorEntityResponse, appflow.DescribeConnectorEntityError>)>> {
+export interface DescribeConnectorEntity extends Binding.Service<DescribeConnectorEntity, "AWS.AppFlow.DescribeConnectorEntity", (profile: ConnectorProfile) => Effect.Effect<(request: DescribeConnectorEntityRequest) => Effect.Effect<appflow.DescribeConnectorEntityResponse, appflow.DescribeConnectorEntityError>>> {
 }
 export declare const DescribeConnectorEntity: DescribeConnectorEntity;

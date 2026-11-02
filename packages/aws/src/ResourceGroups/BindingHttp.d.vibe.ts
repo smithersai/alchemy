@@ -22,7 +22,7 @@ export declare const makeResourceGroupsGroupHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.ResourceGroups.GroupResources`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the group ARN. */
     actions: readonly string[];
     /**
@@ -42,7 +42,7 @@ export declare const makeResourceGroupsAccountHttpBinding: <I, A, E, R>(options:
     /** Fully-qualified binding tag, e.g. `AWS.ResourceGroups.SearchResources`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

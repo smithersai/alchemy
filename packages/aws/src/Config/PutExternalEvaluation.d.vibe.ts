@@ -32,6 +32,6 @@ export interface PutExternalEvaluationRequest extends Omit<config.PutExternalEva
  *
  * @binding
  */
-export interface PutExternalEvaluation extends Binding.Service<PutExternalEvaluation, "AWS.Config.PutExternalEvaluation", (rule: ConfigRule) => Effect.Effect<((request: PutExternalEvaluationRequest) => Effect.Effect<config.PutExternalEvaluationResponse, config.PutExternalEvaluationError>)>> {
+export interface PutExternalEvaluation extends Binding.Service<PutExternalEvaluation, "AWS.Config.PutExternalEvaluation", (rule: ConfigRule) => Effect.Effect<(request: PutExternalEvaluationRequest) => Effect.Effect<config.PutExternalEvaluationResponse, config.PutExternalEvaluationError>>> {
 }
 export declare const PutExternalEvaluation: PutExternalEvaluation;

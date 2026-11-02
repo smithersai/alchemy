@@ -14,6 +14,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface TerminateSession extends Binding.Service<TerminateSession, "AWS.EMR.TerminateSession", <C extends Cluster>(cluster: C) => Effect.Effect<((request: Omit<SVC.TerminateSessionInput, "ClusterId">) => Effect.Effect<SVC.TerminateSessionOutput, SVC.TerminateSessionError>)>> {
+export interface TerminateSession extends Binding.Service<TerminateSession, "AWS.EMR.TerminateSession", <C extends Cluster>(cluster: C) => Effect.Effect<(request: Omit<SVC.TerminateSessionInput, "ClusterId">) => Effect.Effect<SVC.TerminateSessionOutput, SVC.TerminateSessionError>>> {
 }
 export declare const TerminateSession: TerminateSession;

@@ -1,9 +1,9 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { AccountID } from "../Environment.js";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import type { AccountID } from "../Environment.ts";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 export type FlowLogId<ID extends string = string> = `fl-${ID}`;
 export type FlowLogArn<ID extends FlowLogId = FlowLogId> = `arn:aws:ec2:${RegionID}:${AccountID}:vpc-flow-log/${ID}`;
 declare const FlowLogOperationFailed_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {

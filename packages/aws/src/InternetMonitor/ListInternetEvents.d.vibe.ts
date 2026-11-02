@@ -25,6 +25,6 @@ export interface ListInternetEventsRequest extends im.ListInternetEventsInput {
  *
  * @binding
  */
-export interface ListInternetEvents extends Binding.Service<ListInternetEvents, "AWS.InternetMonitor.ListInternetEvents", () => Effect.Effect<((request?: ListInternetEventsRequest) => Effect.Effect<im.ListInternetEventsOutput, im.ListInternetEventsError>)>> {
+export interface ListInternetEvents extends Binding.Service<ListInternetEvents, "AWS.InternetMonitor.ListInternetEvents", () => Effect.Effect<(request?: ListInternetEventsRequest) => Effect.Effect<im.ListInternetEventsOutput, im.ListInternetEventsError>>> {
 }
 export declare const ListInternetEvents: ListInternetEvents;

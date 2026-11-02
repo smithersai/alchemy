@@ -2,7 +2,7 @@ import * as Hetzner from "@distilled.cloud/hetzner";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Certificate } from "./Certificate.js";
+import type { Certificate } from "./Certificate.ts";
 import type { Network } from "./Network.vibe";
 import type { Providers } from "./Providers.vibe";
 /**

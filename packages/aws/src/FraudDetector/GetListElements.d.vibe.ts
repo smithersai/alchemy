@@ -40,6 +40,6 @@ export interface GetListElementsRequest extends Omit<frauddetector.GetListElemen
  *
  * @binding
  */
-export interface GetListElements extends Binding.Service<GetListElements, "AWS.FraudDetector.GetListElements", (list: List) => Effect.Effect<((request: GetListElementsRequest) => Effect.Effect<frauddetector.GetListElementsResult, frauddetector.GetListElementsError>)>> {
+export interface GetListElements extends Binding.Service<GetListElements, "AWS.FraudDetector.GetListElements", (list: List) => Effect.Effect<(request: GetListElementsRequest) => Effect.Effect<frauddetector.GetListElementsResult, frauddetector.GetListElementsError>>> {
 }
 export declare const GetListElements: GetListElements;

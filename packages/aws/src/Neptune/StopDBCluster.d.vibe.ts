@@ -22,6 +22,6 @@ import type { DBCluster } from "./DBCluster.vibe";
  *
  * @binding
  */
-export interface StopDBCluster extends Binding.Service<StopDBCluster, "AWS.Neptune.StopDBCluster", (cluster: DBCluster) => Effect.Effect<(() => Effect.Effect<neptune.StopDBClusterResult, neptune.StopDBClusterError>)>> {
+export interface StopDBCluster extends Binding.Service<StopDBCluster, "AWS.Neptune.StopDBCluster", (cluster: DBCluster) => Effect.Effect<() => Effect.Effect<neptune.StopDBClusterResult, neptune.StopDBClusterError>>> {
 }
 export declare const StopDBCluster: StopDBCluster;

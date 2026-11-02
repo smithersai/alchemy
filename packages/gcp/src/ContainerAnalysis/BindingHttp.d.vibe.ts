@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
 import type { Note } from "./Note.vibe";
 import type { Occurrence } from "./Occurrence.vibe";
 /**

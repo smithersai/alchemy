@@ -18,6 +18,6 @@ import type { ServerlessCluster } from "./ServerlessCluster.vibe";
  *
  * @binding
  */
-export interface DeleteTopic extends Binding.Service<DeleteTopic, "AWS.Kafka.DeleteTopic", (cluster: ServerlessCluster) => Effect.Effect<((request: Omit<kafka.DeleteTopicRequest, "ClusterArn">) => Effect.Effect<kafka.DeleteTopicResponse, kafka.DeleteTopicError>)>> {
+export interface DeleteTopic extends Binding.Service<DeleteTopic, "AWS.Kafka.DeleteTopic", (cluster: ServerlessCluster) => Effect.Effect<(request: Omit<kafka.DeleteTopicRequest, "ClusterArn">) => Effect.Effect<kafka.DeleteTopicResponse, kafka.DeleteTopicError>>> {
 }
 export declare const DeleteTopic: DeleteTopic;

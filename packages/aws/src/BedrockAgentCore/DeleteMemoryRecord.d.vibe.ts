@@ -28,6 +28,6 @@ export interface DeleteMemoryRecordRequest extends Omit<agentcore.DeleteMemoryRe
  *
  * @binding
  */
-export interface DeleteMemoryRecord extends Binding.Service<DeleteMemoryRecord, "AWS.BedrockAgentCore.DeleteMemoryRecord", <R extends Memory>(memory: R) => Effect.Effect<((request: DeleteMemoryRecordRequest) => Effect.Effect<agentcore.DeleteMemoryRecordOutput, agentcore.DeleteMemoryRecordError>)>> {
+export interface DeleteMemoryRecord extends Binding.Service<DeleteMemoryRecord, "AWS.BedrockAgentCore.DeleteMemoryRecord", <R extends Memory>(memory: R) => Effect.Effect<(request: DeleteMemoryRecordRequest) => Effect.Effect<agentcore.DeleteMemoryRecordOutput, agentcore.DeleteMemoryRecordError>>> {
 }
 export declare const DeleteMemoryRecord: DeleteMemoryRecord;

@@ -1,7 +1,7 @@
 import type * as fis from "@distilled.cloud/aws/fis";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ExperimentTemplate } from "./ExperimentTemplate.js";
+import type { ExperimentTemplate } from "./ExperimentTemplate.ts";
 /**
  * Runtime binding for `fis:GetExperimentTemplate`.
  *
@@ -23,6 +23,6 @@ import type { ExperimentTemplate } from "./ExperimentTemplate.js";
  *
  * @binding
  */
-export interface GetExperimentTemplate extends Binding.Service<GetExperimentTemplate, "AWS.FIS.GetExperimentTemplate", (template: ExperimentTemplate) => Effect.Effect<(() => Effect.Effect<fis.GetExperimentTemplateResponse, fis.GetExperimentTemplateError>)>> {
+export interface GetExperimentTemplate extends Binding.Service<GetExperimentTemplate, "AWS.FIS.GetExperimentTemplate", (template: ExperimentTemplate) => Effect.Effect<() => Effect.Effect<fis.GetExperimentTemplateResponse, fis.GetExperimentTemplateError>>> {
 }
 export declare const GetExperimentTemplate: GetExperimentTemplate;

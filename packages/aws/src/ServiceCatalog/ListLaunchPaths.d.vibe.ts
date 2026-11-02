@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListLaunchPaths extends Binding.Service<ListLaunchPaths, "AWS.ServiceCatalog.ListLaunchPaths", () => Effect.Effect<((request: servicecatalog.ListLaunchPathsInput) => Effect.Effect<servicecatalog.ListLaunchPathsOutput, servicecatalog.ListLaunchPathsError>)>> {
+export interface ListLaunchPaths extends Binding.Service<ListLaunchPaths, "AWS.ServiceCatalog.ListLaunchPaths", () => Effect.Effect<(request: servicecatalog.ListLaunchPathsInput) => Effect.Effect<servicecatalog.ListLaunchPathsOutput, servicecatalog.ListLaunchPathsError>>> {
 }
 export declare const ListLaunchPaths: ListLaunchPaths;

@@ -21,6 +21,6 @@ import type { Environment } from "./Environment.vibe";
  *
  * @binding
  */
-export interface GetEnvironmentCredentials extends Binding.Service<GetEnvironmentCredentials, "AWS.DataZone.GetEnvironmentCredentials", (environment: Environment) => Effect.Effect<(() => Effect.Effect<datazone.GetEnvironmentCredentialsOutput, datazone.GetEnvironmentCredentialsError>)>> {
+export interface GetEnvironmentCredentials extends Binding.Service<GetEnvironmentCredentials, "AWS.DataZone.GetEnvironmentCredentials", (environment: Environment) => Effect.Effect<() => Effect.Effect<datazone.GetEnvironmentCredentialsOutput, datazone.GetEnvironmentCredentialsError>>> {
 }
 export declare const GetEnvironmentCredentials: GetEnvironmentCredentials;

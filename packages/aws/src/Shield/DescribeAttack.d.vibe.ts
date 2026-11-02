@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeAttack extends Binding.Service<DescribeAttack, "AWS.Shield.DescribeAttack", () => Effect.Effect<((request: shield.DescribeAttackRequest) => Effect.Effect<shield.DescribeAttackResponse, shield.DescribeAttackError>)>> {
+export interface DescribeAttack extends Binding.Service<DescribeAttack, "AWS.Shield.DescribeAttack", () => Effect.Effect<(request: shield.DescribeAttackRequest) => Effect.Effect<shield.DescribeAttackResponse, shield.DescribeAttackError>>> {
 }
 export declare const DescribeAttack: DescribeAttack;

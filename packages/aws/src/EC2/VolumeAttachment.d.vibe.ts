@@ -4,8 +4,8 @@ import type { Region } from "@distilled.cloud/aws/Region";
 import type { HttpClient } from "effect/http/HttpClient";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
-import type { InstanceId } from "./Instance.js";
+import type { Providers } from "../Providers.ts";
+import type { InstanceId } from "./Instance.ts";
 import type { VolumeId } from "./Volume.vibe";
 export interface VolumeAttachmentProps {
     /**

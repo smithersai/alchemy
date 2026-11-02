@@ -20,6 +20,6 @@ import type { DataSet } from "./DataSet.vibe";
  *
  * @binding
  */
-export interface CancelIngestion extends Binding.Service<CancelIngestion, "AWS.QuickSight.CancelIngestion", (dataSet: DataSet) => Effect.Effect<((request: Omit<quicksight.CancelIngestionRequest, "AwsAccountId" | "DataSetId">) => Effect.Effect<quicksight.CancelIngestionResponse, quicksight.CancelIngestionError>)>> {
+export interface CancelIngestion extends Binding.Service<CancelIngestion, "AWS.QuickSight.CancelIngestion", (dataSet: DataSet) => Effect.Effect<(request: Omit<quicksight.CancelIngestionRequest, "AwsAccountId" | "DataSetId">) => Effect.Effect<quicksight.CancelIngestionResponse, quicksight.CancelIngestionError>>> {
 }
 export declare const CancelIngestion: CancelIngestion;

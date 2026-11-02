@@ -1,7 +1,7 @@
 import type * as eks from "@distilled.cloud/aws/eks";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 /**
  * Runtime binding for `eks:DescribePodIdentityAssociation`.
  *
@@ -24,6 +24,6 @@ import type { Cluster } from "./Cluster.js";
  *
  * @binding
  */
-export interface DescribePodIdentityAssociation extends Binding.Service<DescribePodIdentityAssociation, "AWS.EKS.DescribePodIdentityAssociation", (cluster: Cluster) => Effect.Effect<((request: Omit<eks.DescribePodIdentityAssociationRequest, "clusterName">) => Effect.Effect<eks.DescribePodIdentityAssociationResponse, eks.DescribePodIdentityAssociationError>)>> {
+export interface DescribePodIdentityAssociation extends Binding.Service<DescribePodIdentityAssociation, "AWS.EKS.DescribePodIdentityAssociation", (cluster: Cluster) => Effect.Effect<(request: Omit<eks.DescribePodIdentityAssociationRequest, "clusterName">) => Effect.Effect<eks.DescribePodIdentityAssociationResponse, eks.DescribePodIdentityAssociationError>>> {
 }
 export declare const DescribePodIdentityAssociation: DescribePodIdentityAssociation;

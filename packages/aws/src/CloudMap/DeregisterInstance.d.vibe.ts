@@ -21,6 +21,6 @@ export interface DeregisterInstanceRequest extends Omit<SD.DeregisterInstanceReq
  *
  * @binding
  */
-export interface DeregisterInstance extends Binding.Service<DeregisterInstance, "AWS.CloudMap.DeregisterInstance", <S extends Service>(service: S) => Effect.Effect<((request: DeregisterInstanceRequest) => Effect.Effect<SD.DeregisterInstanceResponse, SD.DeregisterInstanceError>)>> {
+export interface DeregisterInstance extends Binding.Service<DeregisterInstance, "AWS.CloudMap.DeregisterInstance", <S extends Service>(service: S) => Effect.Effect<(request: DeregisterInstanceRequest) => Effect.Effect<SD.DeregisterInstanceResponse, SD.DeregisterInstanceError>>> {
 }
 export declare const DeregisterInstance: DeregisterInstance;

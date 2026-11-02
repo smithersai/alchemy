@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `Retrieve` request with `IndexId` injected from the bound index.
  */
@@ -30,6 +30,6 @@ export interface RetrieveRequest extends Omit<kendra.RetrieveRequest, "IndexId">
  *
  * @binding
  */
-export interface Retrieve extends Binding.Service<Retrieve, "AWS.Kendra.Retrieve", (index: Index) => Effect.Effect<((request: RetrieveRequest) => Effect.Effect<kendra.RetrieveResult, kendra.RetrieveError>)>> {
+export interface Retrieve extends Binding.Service<Retrieve, "AWS.Kendra.Retrieve", (index: Index) => Effect.Effect<(request: RetrieveRequest) => Effect.Effect<kendra.RetrieveResult, kendra.RetrieveError>>> {
 }
 export declare const Retrieve: Retrieve;

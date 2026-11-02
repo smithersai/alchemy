@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { CertificateAuthority } from "./CertificateAuthority.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
+import type { CertificateAuthority } from "./CertificateAuthority.ts";
 /**
  * Shared HTTP scaffolding for Certificate Authority Service bindings.
  * NOT exported from index.ts.

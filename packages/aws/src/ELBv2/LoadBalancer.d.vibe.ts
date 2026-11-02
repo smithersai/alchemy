@@ -2,10 +2,10 @@ import type { Input } from "alchemy/Input";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
-import type { SubnetId } from "../EC2/Subnet.js";
-import type { AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import type { SubnetId } from "../EC2/Subnet.ts";
+import type { AccountID } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 export type LoadBalancerName = string;
 export type LoadBalancerArn = `arn:aws:elasticloadbalancing:${RegionID}:${AccountID}:loadbalancer/${string}`;
 export interface LoadBalancerProps {

@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { HealthCheck } from "./HealthCheck.js";
+import type { HealthCheck } from "./HealthCheck.ts";
 import type { HostedZone } from "./HostedZone.vibe";
 /**
  * Shared scaffolding for the Route 53 runtime bindings.
@@ -23,7 +23,7 @@ export declare const makeRoute53ZoneHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Route53.ListResourceRecordSets`. */
     tag: string;
     /** The distilled operation; the zone id is injected under `requestKey`. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the hosted zone ARN. */
     actions: readonly string[];
     /**
@@ -50,7 +50,7 @@ export declare const makeRoute53HealthCheckHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Route53.GetHealthCheckStatus`. */
     tag: string;
     /** The distilled operation; `HealthCheckId` is injected from the check. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the health check ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(healthCheck: HealthCheck) => Effect.Effect<(request?: Omit<I, "HealthCheckId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -63,7 +63,7 @@ export declare const makeRoute53AccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Route53.ListHostedZones`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `resources`. */
     actions: readonly string[];
     /**

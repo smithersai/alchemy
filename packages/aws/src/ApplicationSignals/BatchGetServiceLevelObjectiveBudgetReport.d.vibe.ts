@@ -32,6 +32,6 @@ export interface GetBudgetReportRequest extends Omit<appsignals.BatchGetServiceL
  *
  * @binding
  */
-export interface BatchGetServiceLevelObjectiveBudgetReport extends Binding.Service<BatchGetServiceLevelObjectiveBudgetReport, "AWS.ApplicationSignals.BatchGetServiceLevelObjectiveBudgetReport", (slo: ServiceLevelObjective) => Effect.Effect<((request: GetBudgetReportRequest) => Effect.Effect<appsignals.BatchGetServiceLevelObjectiveBudgetReportOutput, appsignals.BatchGetServiceLevelObjectiveBudgetReportError>)>> {
+export interface BatchGetServiceLevelObjectiveBudgetReport extends Binding.Service<BatchGetServiceLevelObjectiveBudgetReport, "AWS.ApplicationSignals.BatchGetServiceLevelObjectiveBudgetReport", (slo: ServiceLevelObjective) => Effect.Effect<(request: GetBudgetReportRequest) => Effect.Effect<appsignals.BatchGetServiceLevelObjectiveBudgetReportOutput, appsignals.BatchGetServiceLevelObjectiveBudgetReportError>>> {
 }
 export declare const BatchGetServiceLevelObjectiveBudgetReport: BatchGetServiceLevelObjectiveBudgetReport;

@@ -31,6 +31,6 @@ export interface UpdatePartitionRequest extends Omit<glue.UpdatePartitionRequest
  *
  * @binding
  */
-export interface UpdatePartition extends Binding.Service<UpdatePartition, "AWS.Glue.UpdatePartition", (table: Table) => Effect.Effect<((request: UpdatePartitionRequest) => Effect.Effect<glue.UpdatePartitionResponse, glue.UpdatePartitionError>)>> {
+export interface UpdatePartition extends Binding.Service<UpdatePartition, "AWS.Glue.UpdatePartition", (table: Table) => Effect.Effect<(request: UpdatePartitionRequest) => Effect.Effect<glue.UpdatePartitionResponse, glue.UpdatePartitionError>>> {
 }
 export declare const UpdatePartition: UpdatePartition;

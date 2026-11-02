@@ -21,6 +21,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface DisassociateMembers extends Binding.Service<DisassociateMembers, "AWS.GuardDuty.DisassociateMembers", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.DisassociateMembersRequest, "DetectorId">) => Effect.Effect<guardduty.DisassociateMembersResponse, guardduty.DisassociateMembersError>)>> {
+export interface DisassociateMembers extends Binding.Service<DisassociateMembers, "AWS.GuardDuty.DisassociateMembers", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.DisassociateMembersRequest, "DetectorId">) => Effect.Effect<guardduty.DisassociateMembersResponse, guardduty.DisassociateMembersError>>> {
 }
 export declare const DisassociateMembers: DisassociateMembers;

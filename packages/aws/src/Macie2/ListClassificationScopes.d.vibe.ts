@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListClassificationScopes extends Binding.Service<ListClassificationScopes, "AWS.Macie2.ListClassificationScopes", () => Effect.Effect<((request?: macie2.ListClassificationScopesRequest) => Effect.Effect<macie2.ListClassificationScopesResponse, macie2.ListClassificationScopesError>)>> {
+export interface ListClassificationScopes extends Binding.Service<ListClassificationScopes, "AWS.Macie2.ListClassificationScopes", () => Effect.Effect<(request?: macie2.ListClassificationScopesRequest) => Effect.Effect<macie2.ListClassificationScopesResponse, macie2.ListClassificationScopesError>>> {
 }
 export declare const ListClassificationScopes: ListClassificationScopes;

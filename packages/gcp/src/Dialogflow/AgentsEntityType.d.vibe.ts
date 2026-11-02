@@ -1,8 +1,8 @@
 import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type EntityTypeKind = "KIND_UNSPECIFIED" | "KIND_MAP" | "KIND_LIST" | "KIND_REGEXP" | (string & {});
 export type EntityTypeEntity = {
     /** Canonical entity value. */

@@ -3,8 +3,8 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { ConnectClient } from "./Connect.js";
-import type { DatabaseSeed } from "./Database.js";
+import type { ConnectClient } from "./Connect.ts";
+import type { DatabaseSeed } from "./Database.ts";
 import type { Group } from "./Group.vibe";
 /** A database in the managed group. */
 export interface ManagedDatabase {

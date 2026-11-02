@@ -38,6 +38,6 @@ export interface UpdateTableMetadataLocationRequest extends Omit<s3tables.Update
  *
  * @binding
  */
-export interface UpdateTableMetadataLocation extends Binding.Service<UpdateTableMetadataLocation, "AWS.S3Tables.UpdateTableMetadataLocation", (table: Table) => Effect.Effect<((request: UpdateTableMetadataLocationRequest) => Effect.Effect<s3tables.UpdateTableMetadataLocationResponse, s3tables.UpdateTableMetadataLocationError>)>> {
+export interface UpdateTableMetadataLocation extends Binding.Service<UpdateTableMetadataLocation, "AWS.S3Tables.UpdateTableMetadataLocation", (table: Table) => Effect.Effect<(request: UpdateTableMetadataLocationRequest) => Effect.Effect<s3tables.UpdateTableMetadataLocationResponse, s3tables.UpdateTableMetadataLocationError>>> {
 }
 export declare const UpdateTableMetadataLocation: UpdateTableMetadataLocation;

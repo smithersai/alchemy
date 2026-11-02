@@ -13,6 +13,6 @@ export interface DeleteMicrovmImageVersionRequest extends Omit<microvms.DeleteMi
  *
  * @binding
  */
-export interface DeleteMicrovmImageVersion extends Binding.Service<DeleteMicrovmImageVersion, "AWS.Lambda.DeleteMicrovmImageVersion", (image: MicrovmImage) => Effect.Effect<((request: DeleteMicrovmImageVersionRequest) => Effect.Effect<microvms.DeleteMicrovmImageVersionOutput, microvms.DeleteMicrovmImageVersionError>)>> {
+export interface DeleteMicrovmImageVersion extends Binding.Service<DeleteMicrovmImageVersion, "AWS.Lambda.DeleteMicrovmImageVersion", (image: MicrovmImage) => Effect.Effect<(request: DeleteMicrovmImageVersionRequest) => Effect.Effect<microvms.DeleteMicrovmImageVersionOutput, microvms.DeleteMicrovmImageVersionError>>> {
 }
 export declare const DeleteMicrovmImageVersion: DeleteMicrovmImageVersion;

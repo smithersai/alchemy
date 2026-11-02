@@ -2,7 +2,7 @@ import type * as parametermanager from "@distilled.cloud/gcp/parametermanager_v1
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Parameter } from "./Parameter.js";
+import type { Parameter } from "./Parameter.ts";
 /**
  * Runtime binding for Parameter Manager `parameters.get`.
  *
@@ -23,6 +23,6 @@ import type { Parameter } from "./Parameter.js";
  * @binding
  * @category ParameterManager
  */
-export interface GetParameter extends Binding.Service<GetParameter, "GCP.ParameterManager.GetParameter", (parameter: Parameter) => Effect.Effect<(() => Effect.Effect<parametermanager.Parameter, parametermanager.GetProjectsLocationsParametersError, RuntimeContext>)>> {
+export interface GetParameter extends Binding.Service<GetParameter, "GCP.ParameterManager.GetParameter", (parameter: Parameter) => Effect.Effect<() => Effect.Effect<parametermanager.Parameter, parametermanager.GetProjectsLocationsParametersError, RuntimeContext>>> {
 }
 export declare const GetParameter: GetParameter;

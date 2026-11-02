@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeAddonConfiguration extends Binding.Service<DescribeAddonConfiguration, "AWS.EKS.DescribeAddonConfiguration", () => Effect.Effect<((request: eks.DescribeAddonConfigurationRequest) => Effect.Effect<eks.DescribeAddonConfigurationResponse, eks.DescribeAddonConfigurationError>)>> {
+export interface DescribeAddonConfiguration extends Binding.Service<DescribeAddonConfiguration, "AWS.EKS.DescribeAddonConfiguration", () => Effect.Effect<(request: eks.DescribeAddonConfigurationRequest) => Effect.Effect<eks.DescribeAddonConfigurationResponse, eks.DescribeAddonConfigurationError>>> {
 }
 export declare const DescribeAddonConfiguration: DescribeAddonConfiguration;

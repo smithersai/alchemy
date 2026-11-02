@@ -18,6 +18,6 @@ export interface OptInPhoneNumberRequest extends sns.OptInPhoneNumberInput {
  *
  * @binding
  */
-export interface OptInPhoneNumber extends Binding.Service<OptInPhoneNumber, "AWS.SNS.OptInPhoneNumber", () => Effect.Effect<((request: OptInPhoneNumberRequest) => Effect.Effect<sns.OptInPhoneNumberResponse, sns.OptInPhoneNumberError>)>> {
+export interface OptInPhoneNumber extends Binding.Service<OptInPhoneNumber, "AWS.SNS.OptInPhoneNumber", () => Effect.Effect<(request: OptInPhoneNumberRequest) => Effect.Effect<sns.OptInPhoneNumberResponse, sns.OptInPhoneNumberError>>> {
 }
 export declare const OptInPhoneNumber: OptInPhoneNumber;

@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Worker, WorkerEnvironment } from "../Workers/Worker.js";
+import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
 import { QuerySearch } from "./QuerySearch.vibe";
 /**
  * Runtime layer for {@link QuerySearch}.

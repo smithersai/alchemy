@@ -28,6 +28,6 @@ export interface GetSchemaVersionRequest extends mi.GetSchemaVersionRequest {
  *
  * @binding
  */
-export interface GetSchemaVersion extends Binding.Service<GetSchemaVersion, "AWS.IoTManagedIntegrations.GetSchemaVersion", () => Effect.Effect<((request: GetSchemaVersionRequest) => Effect.Effect<mi.GetSchemaVersionResponse, mi.GetSchemaVersionError>)>> {
+export interface GetSchemaVersion extends Binding.Service<GetSchemaVersion, "AWS.IoTManagedIntegrations.GetSchemaVersion", () => Effect.Effect<(request: GetSchemaVersionRequest) => Effect.Effect<mi.GetSchemaVersionResponse, mi.GetSchemaVersionError>>> {
 }
 export declare const GetSchemaVersion: GetSchemaVersion;

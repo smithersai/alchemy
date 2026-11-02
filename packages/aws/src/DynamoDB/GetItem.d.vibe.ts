@@ -1,7 +1,7 @@
 import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface GetItemRequest extends Omit<DynamoDB.GetItemInput, "TableName"> {
 }
 /**
@@ -23,6 +23,6 @@ export interface GetItemRequest extends Omit<DynamoDB.GetItemInput, "TableName">
  *
  * @binding
  */
-export interface GetItem extends Binding.Service<GetItem, "AWS.DynamoDB.GetItem", <T extends Table>(table: T) => Effect.Effect<((request: GetItemRequest) => Effect.Effect<DynamoDB.GetItemOutput, DynamoDB.GetItemError>)>> {
+export interface GetItem extends Binding.Service<GetItem, "AWS.DynamoDB.GetItem", <T extends Table>(table: T) => Effect.Effect<(request: GetItemRequest) => Effect.Effect<DynamoDB.GetItemOutput, DynamoDB.GetItemError>>> {
 }
 export declare const GetItem: GetItem;

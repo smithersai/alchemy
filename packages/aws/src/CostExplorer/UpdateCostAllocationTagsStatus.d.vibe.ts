@@ -27,6 +27,6 @@ export interface UpdateCostAllocationTagsStatusRequest extends ce.UpdateCostAllo
  *
  * @binding
  */
-export interface UpdateCostAllocationTagsStatus extends Binding.Service<UpdateCostAllocationTagsStatus, "AWS.CostExplorer.UpdateCostAllocationTagsStatus", () => Effect.Effect<((request: UpdateCostAllocationTagsStatusRequest) => Effect.Effect<ce.UpdateCostAllocationTagsStatusResponse, ce.UpdateCostAllocationTagsStatusError>)>> {
+export interface UpdateCostAllocationTagsStatus extends Binding.Service<UpdateCostAllocationTagsStatus, "AWS.CostExplorer.UpdateCostAllocationTagsStatus", () => Effect.Effect<(request: UpdateCostAllocationTagsStatusRequest) => Effect.Effect<ce.UpdateCostAllocationTagsStatusResponse, ce.UpdateCostAllocationTagsStatusError>>> {
 }
 export declare const UpdateCostAllocationTagsStatus: UpdateCostAllocationTagsStatus;

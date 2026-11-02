@@ -30,6 +30,6 @@ export interface CreateBlueprintVersionRequest extends Omit<bda.CreateBlueprintV
  *
  * @binding
  */
-export interface CreateBlueprintVersion extends Binding.Service<CreateBlueprintVersion, "AWS.BedrockDataAutomation.CreateBlueprintVersion", (blueprint: Blueprint) => Effect.Effect<((request: CreateBlueprintVersionRequest) => Effect.Effect<bda.CreateBlueprintVersionResponse, bda.CreateBlueprintVersionError>)>> {
+export interface CreateBlueprintVersion extends Binding.Service<CreateBlueprintVersion, "AWS.BedrockDataAutomation.CreateBlueprintVersion", (blueprint: Blueprint) => Effect.Effect<(request: CreateBlueprintVersionRequest) => Effect.Effect<bda.CreateBlueprintVersionResponse, bda.CreateBlueprintVersionError>>> {
 }
 export declare const CreateBlueprintVersion: CreateBlueprintVersion;

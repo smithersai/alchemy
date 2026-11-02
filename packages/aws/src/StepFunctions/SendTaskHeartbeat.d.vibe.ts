@@ -22,6 +22,6 @@ export interface SendTaskHeartbeatRequest extends sfn.SendTaskHeartbeatInput {
  *
  * @binding
  */
-export interface SendTaskHeartbeat extends Binding.Service<SendTaskHeartbeat, "AWS.StepFunctions.SendTaskHeartbeat", (activity?: Activity) => Effect.Effect<((request: SendTaskHeartbeatRequest) => Effect.Effect<sfn.SendTaskHeartbeatOutput, sfn.SendTaskHeartbeatError>)>> {
+export interface SendTaskHeartbeat extends Binding.Service<SendTaskHeartbeat, "AWS.StepFunctions.SendTaskHeartbeat", (activity?: Activity) => Effect.Effect<(request: SendTaskHeartbeatRequest) => Effect.Effect<sfn.SendTaskHeartbeatOutput, sfn.SendTaskHeartbeatError>>> {
 }
 export declare const SendTaskHeartbeat: SendTaskHeartbeat;

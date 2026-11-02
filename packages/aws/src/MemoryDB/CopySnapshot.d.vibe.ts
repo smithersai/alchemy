@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CopySnapshot extends Binding.Service<CopySnapshot, "AWS.MemoryDB.CopySnapshot", () => Effect.Effect<((request: memorydb.CopySnapshotRequest) => Effect.Effect<memorydb.CopySnapshotResponse, memorydb.CopySnapshotError>)>> {
+export interface CopySnapshot extends Binding.Service<CopySnapshot, "AWS.MemoryDB.CopySnapshot", () => Effect.Effect<(request: memorydb.CopySnapshotRequest) => Effect.Effect<memorydb.CopySnapshotResponse, memorydb.CopySnapshotError>>> {
 }
 export declare const CopySnapshot: CopySnapshot;

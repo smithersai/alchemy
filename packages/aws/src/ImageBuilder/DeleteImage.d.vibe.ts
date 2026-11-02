@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteImage extends Binding.Service<DeleteImage, "AWS.ImageBuilder.DeleteImage", () => Effect.Effect<((request: imagebuilder.DeleteImageRequest) => Effect.Effect<imagebuilder.DeleteImageResponse, imagebuilder.DeleteImageError>)>> {
+export interface DeleteImage extends Binding.Service<DeleteImage, "AWS.ImageBuilder.DeleteImage", () => Effect.Effect<(request: imagebuilder.DeleteImageRequest) => Effect.Effect<imagebuilder.DeleteImageResponse, imagebuilder.DeleteImageError>>> {
 }
 export declare const DeleteImage: DeleteImage;

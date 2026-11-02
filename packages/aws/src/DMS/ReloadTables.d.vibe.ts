@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ReloadTables extends Binding.Service<ReloadTables, "AWS.DMS.ReloadTables", () => Effect.Effect<((request: dms.ReloadTablesMessage) => Effect.Effect<dms.ReloadTablesResponse, dms.ReloadTablesError>)>> {
+export interface ReloadTables extends Binding.Service<ReloadTables, "AWS.DMS.ReloadTables", () => Effect.Effect<(request: dms.ReloadTablesMessage) => Effect.Effect<dms.ReloadTablesResponse, dms.ReloadTablesError>>> {
 }
 export declare const ReloadTables: ReloadTables;

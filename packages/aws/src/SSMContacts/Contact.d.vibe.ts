@@ -2,8 +2,8 @@ import * as contacts from "@distilled.cloud/aws/ssm-contacts";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 /** The kind of contact: a person, an escalation plan, or an on-call schedule. */
 export type ContactType = "PERSONAL" | "ESCALATION" | "ONCALL_SCHEDULE";
 export interface ContactProps {

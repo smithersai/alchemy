@@ -8,7 +8,7 @@ import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 import * as HttpApiSchema from "effect/http-api/HttpApiSchema";
 import * as Schema from "effect/Schema";
-import { ObjectNotFound, ReadOnlyRepo, Ref, RefConflict, RefNotFound, RepoNotFound, PushDenied } from "./Schema.js";
+import { ObjectNotFound, ReadOnlyRepo, Ref, RefConflict, RefNotFound, RepoNotFound, PushDenied } from "./Schema.ts";
 /** Lists refs, optionally filtered by prefix (e.g. `refs/heads/`). */
 export declare const ListRefs: HttpApiEndpoint.HttpApiEndpoint<"list", "GET", "/repos/:owner/:repo/refs", Schema.toCodecStringTree<Schema.Struct<{
     readonly owner: Schema.String;

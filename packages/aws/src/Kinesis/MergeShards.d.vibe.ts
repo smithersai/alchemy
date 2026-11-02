@@ -28,6 +28,6 @@ export interface MergeShardsRequest extends Omit<Kinesis.MergeShardsInput, "Stre
  *
  * @binding
  */
-export interface MergeShards extends Binding.Service<MergeShards, "AWS.Kinesis.MergeShards", (stream: Stream) => Effect.Effect<((request: MergeShardsRequest) => Effect.Effect<Kinesis.MergeShardsResponse, Kinesis.MergeShardsError>)>> {
+export interface MergeShards extends Binding.Service<MergeShards, "AWS.Kinesis.MergeShards", (stream: Stream) => Effect.Effect<(request: MergeShardsRequest) => Effect.Effect<Kinesis.MergeShardsResponse, Kinesis.MergeShardsError>>> {
 }
 export declare const MergeShards: MergeShards;

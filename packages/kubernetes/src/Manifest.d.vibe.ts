@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { type ClusterLike, type Connection } from "./Connection.js";
-import type { KubernetesObjectRef } from "./Objects.js";
+import { type ClusterLike, type Connection } from "./Connection.ts";
+import type { KubernetesObjectRef } from "./Objects.ts";
 import type { Providers } from "./Providers.vibe";
 declare const ManifestInvalidProps_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "ManifestInvalidProps";

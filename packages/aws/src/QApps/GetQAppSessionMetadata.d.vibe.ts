@@ -25,6 +25,6 @@ export interface GetQAppSessionMetadataRequest extends Omit<qapps.GetQAppSession
  *
  * @binding
  */
-export interface GetQAppSessionMetadata extends Binding.Service<GetQAppSessionMetadata, "AWS.QApps.GetQAppSessionMetadata", (app: QApp) => Effect.Effect<((request: GetQAppSessionMetadataRequest) => Effect.Effect<qapps.GetQAppSessionMetadataOutput, qapps.GetQAppSessionMetadataError>)>> {
+export interface GetQAppSessionMetadata extends Binding.Service<GetQAppSessionMetadata, "AWS.QApps.GetQAppSessionMetadata", (app: QApp) => Effect.Effect<(request: GetQAppSessionMetadataRequest) => Effect.Effect<qapps.GetQAppSessionMetadataOutput, qapps.GetQAppSessionMetadataError>>> {
 }
 export declare const GetQAppSessionMetadata: GetQAppSessionMetadata;

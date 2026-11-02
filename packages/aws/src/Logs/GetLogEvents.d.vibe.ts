@@ -1,7 +1,7 @@
 import type * as Logs from "@distilled.cloud/aws/cloudwatch-logs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LogGroup } from "./LogGroup.js";
+import type { LogGroup } from "./LogGroup.ts";
 export interface GetLogEventsRequest extends Omit<Logs.GetLogEventsRequest, "logGroupName" | "logGroupIdentifier"> {
 }
 /**
@@ -45,6 +45,6 @@ export interface GetLogEventsRequest extends Omit<Logs.GetLogEventsRequest, "log
  *
  * @binding
  */
-export interface GetLogEvents extends Binding.Service<GetLogEvents, "AWS.Logs.GetLogEvents", <G extends LogGroup>(logGroup: G) => Effect.Effect<((request: GetLogEventsRequest) => Effect.Effect<Logs.GetLogEventsResponse, Logs.GetLogEventsError>)>> {
+export interface GetLogEvents extends Binding.Service<GetLogEvents, "AWS.Logs.GetLogEvents", <G extends LogGroup>(logGroup: G) => Effect.Effect<(request: GetLogEventsRequest) => Effect.Effect<Logs.GetLogEventsResponse, Logs.GetLogEventsError>>> {
 }
 export declare const GetLogEvents: GetLogEvents;

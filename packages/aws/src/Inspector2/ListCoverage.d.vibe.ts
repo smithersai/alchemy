@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListCoverage extends Binding.Service<ListCoverage, "AWS.Inspector2.ListCoverage", () => Effect.Effect<((request?: inspector2.ListCoverageRequest) => Effect.Effect<inspector2.ListCoverageResponse, inspector2.ListCoverageError>)>> {
+export interface ListCoverage extends Binding.Service<ListCoverage, "AWS.Inspector2.ListCoverage", () => Effect.Effect<(request?: inspector2.ListCoverageRequest) => Effect.Effect<inspector2.ListCoverageResponse, inspector2.ListCoverageError>>> {
 }
 export declare const ListCoverage: ListCoverage;

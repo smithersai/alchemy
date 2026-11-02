@@ -33,6 +33,6 @@ export interface UpdateBrowserStreamRequest extends Omit<agentcore.UpdateBrowser
  *
  * @binding
  */
-export interface UpdateBrowserStream extends Binding.Service<UpdateBrowserStream, "AWS.BedrockAgentCore.UpdateBrowserStream", <R extends BrowserCustom>(browser: R) => Effect.Effect<((request: UpdateBrowserStreamRequest) => Effect.Effect<agentcore.UpdateBrowserStreamResponse, agentcore.UpdateBrowserStreamError>)>> {
+export interface UpdateBrowserStream extends Binding.Service<UpdateBrowserStream, "AWS.BedrockAgentCore.UpdateBrowserStream", <R extends BrowserCustom>(browser: R) => Effect.Effect<(request: UpdateBrowserStreamRequest) => Effect.Effect<agentcore.UpdateBrowserStreamResponse, agentcore.UpdateBrowserStreamError>>> {
 }
 export declare const UpdateBrowserStream: UpdateBrowserStream;

@@ -63,6 +63,6 @@ export interface CountTokensRequest extends Omit<bedrock.CountTokensRequest, "mo
  *
  * @binding
  */
-export interface CountTokens extends Binding.Service<CountTokens, "AWS.Bedrock.CountTokens", (model: string, ...additionalModels: string[]) => Effect.Effect<((request: CountTokensRequest) => Effect.Effect<bedrock.CountTokensResponse, bedrock.CountTokensError>)>> {
+export interface CountTokens extends Binding.Service<CountTokens, "AWS.Bedrock.CountTokens", (model: string, ...additionalModels: string[]) => Effect.Effect<(request: CountTokensRequest) => Effect.Effect<bedrock.CountTokensResponse, bedrock.CountTokensError>>> {
 }
 export declare const CountTokens: CountTokens;

@@ -25,6 +25,6 @@ export interface VerifyMacRequest extends Omit<paymentcryptographydata.VerifyMac
  *
  * @binding
  */
-export interface VerifyMac extends Binding.Service<VerifyMac, "AWS.PaymentCryptography.VerifyMac", <K extends Key>(key: K) => Effect.Effect<((request: VerifyMacRequest) => Effect.Effect<paymentcryptographydata.VerifyMacOutput, paymentcryptographydata.VerifyMacError>)>> {
+export interface VerifyMac extends Binding.Service<VerifyMac, "AWS.PaymentCryptography.VerifyMac", <K extends Key>(key: K) => Effect.Effect<(request: VerifyMacRequest) => Effect.Effect<paymentcryptographydata.VerifyMacOutput, paymentcryptographydata.VerifyMacError>>> {
 }
 export declare const VerifyMac: VerifyMac;

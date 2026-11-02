@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeConfigRuleEvaluationStatus extends Binding.Service<DescribeConfigRuleEvaluationStatus, "AWS.Config.DescribeConfigRuleEvaluationStatus", () => Effect.Effect<((request?: config.DescribeConfigRuleEvaluationStatusRequest) => Effect.Effect<config.DescribeConfigRuleEvaluationStatusResponse, config.DescribeConfigRuleEvaluationStatusError>)>> {
+export interface DescribeConfigRuleEvaluationStatus extends Binding.Service<DescribeConfigRuleEvaluationStatus, "AWS.Config.DescribeConfigRuleEvaluationStatus", () => Effect.Effect<(request?: config.DescribeConfigRuleEvaluationStatusRequest) => Effect.Effect<config.DescribeConfigRuleEvaluationStatusResponse, config.DescribeConfigRuleEvaluationStatusError>>> {
 }
 export declare const DescribeConfigRuleEvaluationStatus: DescribeConfigRuleEvaluationStatus;

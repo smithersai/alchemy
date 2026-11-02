@@ -18,6 +18,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface ResetGraph extends Binding.Service<ResetGraph, "AWS.NeptuneGraph.ResetGraph", (graph: Graph) => Effect.Effect<((request: Omit<neptunegraph.ResetGraphInput, "graphIdentifier">) => Effect.Effect<neptunegraph.ResetGraphOutput, neptunegraph.ResetGraphError>)>> {
+export interface ResetGraph extends Binding.Service<ResetGraph, "AWS.NeptuneGraph.ResetGraph", (graph: Graph) => Effect.Effect<(request: Omit<neptunegraph.ResetGraphInput, "graphIdentifier">) => Effect.Effect<neptunegraph.ResetGraphOutput, neptunegraph.ResetGraphError>>> {
 }
 export declare const ResetGraph: ResetGraph;

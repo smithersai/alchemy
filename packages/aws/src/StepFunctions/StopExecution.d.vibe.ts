@@ -1,7 +1,7 @@
 import type * as sfn from "@distilled.cloud/aws/sfn";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { StateMachine } from "./StateMachine.js";
+import type { StateMachine } from "./StateMachine.ts";
 export interface StopExecutionRequest extends sfn.StopExecutionInput {
 }
 /**
@@ -24,6 +24,6 @@ export interface StopExecutionRequest extends sfn.StopExecutionInput {
  *
  * @binding
  */
-export interface StopExecution extends Binding.Service<StopExecution, "AWS.StepFunctions.StopExecution", (stateMachine: StateMachine) => Effect.Effect<((request: StopExecutionRequest) => Effect.Effect<sfn.StopExecutionOutput, sfn.StopExecutionError>)>> {
+export interface StopExecution extends Binding.Service<StopExecution, "AWS.StepFunctions.StopExecution", (stateMachine: StateMachine) => Effect.Effect<(request: StopExecutionRequest) => Effect.Effect<sfn.StopExecutionOutput, sfn.StopExecutionError>>> {
 }
 export declare const StopExecution: StopExecution;

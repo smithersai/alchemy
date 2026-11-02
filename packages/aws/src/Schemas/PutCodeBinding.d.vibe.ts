@@ -25,11 +25,11 @@ import type { Schema } from "./Schema.vibe";
  *
  * @binding
  */
-export interface PutCodeBinding extends Binding.Service<PutCodeBinding, "AWS.Schemas.PutCodeBinding", (schema: Schema) => Effect.Effect<((request: {
+export interface PutCodeBinding extends Binding.Service<PutCodeBinding, "AWS.Schemas.PutCodeBinding", (schema: Schema) => Effect.Effect<(request: {
     /** The target language: `Java8`, `Python36`, `TypeScript3`, or `Go1`. */
     Language: string;
     /** The version of the schema to generate bindings for. Defaults to the latest. */
     SchemaVersion?: string;
-}) => Effect.Effect<schemas.PutCodeBindingResponse, schemas.PutCodeBindingError>)>> {
+}) => Effect.Effect<schemas.PutCodeBindingResponse, schemas.PutCodeBindingError>>> {
 }
 export declare const PutCodeBinding: PutCodeBinding;

@@ -34,6 +34,6 @@ export interface PutFeedbackRequest extends Omit<qbusiness.PutFeedbackRequest, "
  *
  * @binding
  */
-export interface PutFeedback extends Binding.Service<PutFeedback, "AWS.QBusiness.PutFeedback", (application: Application) => Effect.Effect<((request: PutFeedbackRequest) => Effect.Effect<qbusiness.PutFeedbackResponse, qbusiness.PutFeedbackError>)>> {
+export interface PutFeedback extends Binding.Service<PutFeedback, "AWS.QBusiness.PutFeedback", (application: Application) => Effect.Effect<(request: PutFeedbackRequest) => Effect.Effect<qbusiness.PutFeedbackResponse, qbusiness.PutFeedbackError>>> {
 }
 export declare const PutFeedback: PutFeedback;

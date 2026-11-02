@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListSpeechSynthesisTasks extends Binding.Service<ListSpeechSynthesisTasks, "AWS.Polly.ListSpeechSynthesisTasks", () => Effect.Effect<((request?: polly.ListSpeechSynthesisTasksInput) => Effect.Effect<polly.ListSpeechSynthesisTasksOutput, polly.ListSpeechSynthesisTasksError>)>> {
+export interface ListSpeechSynthesisTasks extends Binding.Service<ListSpeechSynthesisTasks, "AWS.Polly.ListSpeechSynthesisTasks", () => Effect.Effect<(request?: polly.ListSpeechSynthesisTasksInput) => Effect.Effect<polly.ListSpeechSynthesisTasksOutput, polly.ListSpeechSynthesisTasksError>>> {
 }
 export declare const ListSpeechSynthesisTasks: ListSpeechSynthesisTasks;

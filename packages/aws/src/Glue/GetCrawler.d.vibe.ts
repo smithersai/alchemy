@@ -30,6 +30,6 @@ import type { Crawler } from "./Crawler.vibe";
  *
  * @binding
  */
-export interface GetCrawler extends Binding.Service<GetCrawler, "AWS.Glue.GetCrawler", (crawler: Crawler) => Effect.Effect<(() => Effect.Effect<glue.GetCrawlerResponse, glue.GetCrawlerError>)>> {
+export interface GetCrawler extends Binding.Service<GetCrawler, "AWS.Glue.GetCrawler", (crawler: Crawler) => Effect.Effect<() => Effect.Effect<glue.GetCrawlerResponse, glue.GetCrawlerError>>> {
 }
 export declare const GetCrawler: GetCrawler;

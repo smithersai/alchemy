@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetDefaultScraperConfiguration extends Binding.Service<GetDefaultScraperConfiguration, "AWS.AMP.GetDefaultScraperConfiguration", () => Effect.Effect<(() => Effect.Effect<string, amp.GetDefaultScraperConfigurationError>)>> {
+export interface GetDefaultScraperConfiguration extends Binding.Service<GetDefaultScraperConfiguration, "AWS.AMP.GetDefaultScraperConfiguration", () => Effect.Effect<() => Effect.Effect<string, amp.GetDefaultScraperConfigurationError>>> {
 }
 export declare const GetDefaultScraperConfiguration: GetDefaultScraperConfiguration;

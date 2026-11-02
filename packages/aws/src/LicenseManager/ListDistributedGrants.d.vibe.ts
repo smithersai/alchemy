@@ -25,6 +25,6 @@ export interface ListDistributedGrantsRequest extends licensemanager.ListDistrib
  *
  * @binding
  */
-export interface ListDistributedGrants extends Binding.Service<ListDistributedGrants, "AWS.LicenseManager.ListDistributedGrants", () => Effect.Effect<((request?: ListDistributedGrantsRequest) => Effect.Effect<licensemanager.ListDistributedGrantsResponse, licensemanager.ListDistributedGrantsError>)>> {
+export interface ListDistributedGrants extends Binding.Service<ListDistributedGrants, "AWS.LicenseManager.ListDistributedGrants", () => Effect.Effect<(request?: ListDistributedGrantsRequest) => Effect.Effect<licensemanager.ListDistributedGrantsResponse, licensemanager.ListDistributedGrantsError>>> {
 }
 export declare const ListDistributedGrants: ListDistributedGrants;

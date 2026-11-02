@@ -8,7 +8,7 @@ import type * as Output from "alchemy/Output";
  */
 import type * as Duration from "effect/Duration";
 import type { PolicyStatement } from "../../IAM/Policy.vibe";
-import type { Expr } from "./Jsonata.js";
+import type { Expr } from "./Jsonata.ts";
 import type { SfnEffect } from "./Program.vibe";
 /**
  * The structural surface `Sfn.invoke` needs from a Lambda Function resource:

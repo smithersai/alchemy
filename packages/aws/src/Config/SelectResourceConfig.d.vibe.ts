@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SelectResourceConfig extends Binding.Service<SelectResourceConfig, "AWS.Config.SelectResourceConfig", () => Effect.Effect<((request: config.SelectResourceConfigRequest) => Effect.Effect<config.SelectResourceConfigResponse, config.SelectResourceConfigError>)>> {
+export interface SelectResourceConfig extends Binding.Service<SelectResourceConfig, "AWS.Config.SelectResourceConfig", () => Effect.Effect<(request: config.SelectResourceConfigRequest) => Effect.Effect<config.SelectResourceConfigResponse, config.SelectResourceConfigError>>> {
 }
 export declare const SelectResourceConfig: SelectResourceConfig;

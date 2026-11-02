@@ -26,6 +26,6 @@ export interface GetPlaceRequest extends Omit<location.GetPlaceRequest, "IndexNa
  *
  * @binding
  */
-export interface GetPlace extends Binding.Service<GetPlace, "AWS.Location.GetPlace", (index: PlaceIndex) => Effect.Effect<((request: GetPlaceRequest) => Effect.Effect<location.GetPlaceResponse, location.GetPlaceError>)>> {
+export interface GetPlace extends Binding.Service<GetPlace, "AWS.Location.GetPlace", (index: PlaceIndex) => Effect.Effect<(request: GetPlaceRequest) => Effect.Effect<location.GetPlaceResponse, location.GetPlaceError>>> {
 }
 export declare const GetPlace: GetPlace;

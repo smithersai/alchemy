@@ -21,6 +21,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface DisassociateFromAdministratorAccount extends Binding.Service<DisassociateFromAdministratorAccount, "AWS.GuardDuty.DisassociateFromAdministratorAccount", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.DisassociateFromAdministratorAccountRequest, "DetectorId">) => Effect.Effect<guardduty.DisassociateFromAdministratorAccountResponse, guardduty.DisassociateFromAdministratorAccountError>)>> {
+export interface DisassociateFromAdministratorAccount extends Binding.Service<DisassociateFromAdministratorAccount, "AWS.GuardDuty.DisassociateFromAdministratorAccount", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.DisassociateFromAdministratorAccountRequest, "DetectorId">) => Effect.Effect<guardduty.DisassociateFromAdministratorAccountResponse, guardduty.DisassociateFromAdministratorAccountError>>> {
 }
 export declare const DisassociateFromAdministratorAccount: DisassociateFromAdministratorAccount;

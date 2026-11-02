@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateDatasetImportJob extends Binding.Service<CreateDatasetImportJob, "AWS.Personalize.CreateDatasetImportJob", () => Effect.Effect<((request: personalize.CreateDatasetImportJobRequest) => Effect.Effect<personalize.CreateDatasetImportJobResponse, personalize.CreateDatasetImportJobError>)>> {
+export interface CreateDatasetImportJob extends Binding.Service<CreateDatasetImportJob, "AWS.Personalize.CreateDatasetImportJob", () => Effect.Effect<(request: personalize.CreateDatasetImportJobRequest) => Effect.Effect<personalize.CreateDatasetImportJobResponse, personalize.CreateDatasetImportJobError>>> {
 }
 export declare const CreateDatasetImportJob: CreateDatasetImportJob;

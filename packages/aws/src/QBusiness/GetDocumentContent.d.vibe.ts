@@ -26,6 +26,6 @@ export interface GetDocumentContentRequest extends Omit<qbusiness.GetDocumentCon
  *
  * @binding
  */
-export interface GetDocumentContent extends Binding.Service<GetDocumentContent, "AWS.QBusiness.GetDocumentContent", (index: Index) => Effect.Effect<((request: GetDocumentContentRequest) => Effect.Effect<qbusiness.GetDocumentContentResponse, qbusiness.GetDocumentContentError>)>> {
+export interface GetDocumentContent extends Binding.Service<GetDocumentContent, "AWS.QBusiness.GetDocumentContent", (index: Index) => Effect.Effect<(request: GetDocumentContentRequest) => Effect.Effect<qbusiness.GetDocumentContentResponse, qbusiness.GetDocumentContentError>>> {
 }
 export declare const GetDocumentContent: GetDocumentContent;

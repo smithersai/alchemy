@@ -2,8 +2,8 @@ import * as rdsdata from "@distilled.cloud/aws/rds-data";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { DBCluster } from "../RDS/DBCluster.js";
-import type { Secret } from "../SecretsManager/Secret.js";
+import type { DBCluster } from "../RDS/DBCluster.ts";
+import type { Secret } from "../SecretsManager/Secret.ts";
 export interface BatchExecuteStatementOptions {
     secret: Secret;
     database?: string;
@@ -40,6 +40,6 @@ export interface BatchExecuteStatementRequest extends Omit<rdsdata.BatchExecuteS
  *
  * @binding
  */
-export interface BatchExecuteStatement extends Binding.Service<BatchExecuteStatement, "AWS.RDSData.BatchExecuteStatement", (cluster: DBCluster, options: BatchExecuteStatementOptions) => Effect.Effect<((request: BatchExecuteStatementRequest) => Effect.Effect<rdsdata.BatchExecuteStatementResponse, rdsdata.BatchExecuteStatementError, RuntimeContext>)>> {
+export interface BatchExecuteStatement extends Binding.Service<BatchExecuteStatement, "AWS.RDSData.BatchExecuteStatement", (cluster: DBCluster, options: BatchExecuteStatementOptions) => Effect.Effect<(request: BatchExecuteStatementRequest) => Effect.Effect<rdsdata.BatchExecuteStatementResponse, rdsdata.BatchExecuteStatementError, RuntimeContext>>> {
 }
 export declare const BatchExecuteStatement: BatchExecuteStatement;

@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListDomainNames extends Binding.Service<ListDomainNames, "AWS.OpenSearch.ListDomainNames", () => Effect.Effect<((request?: opensearch.ListDomainNamesRequest) => Effect.Effect<opensearch.ListDomainNamesResponse, opensearch.ListDomainNamesError>)>> {
+export interface ListDomainNames extends Binding.Service<ListDomainNames, "AWS.OpenSearch.ListDomainNames", () => Effect.Effect<(request?: opensearch.ListDomainNamesRequest) => Effect.Effect<opensearch.ListDomainNamesResponse, opensearch.ListDomainNamesError>>> {
 }
 export declare const ListDomainNames: ListDomainNames;

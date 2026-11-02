@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { type FrameworkSiteProps } from "./FrameworkSite.js";
+import { type FrameworkSiteProps } from "./FrameworkSite.ts";
 /** The framework-integration package that drives the Astro build. */
 export declare const ASTRO_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/astro";
 /** The Node container deploy target for the Astro build. */
@@ -81,6 +81,6 @@ export declare const Astro: (id: string, props?: AstroProps) => Effect.Effect<{
     service: undefined;
 } | {
     url: string | import("alchemy/Output").Output<string | undefined, never>;
-    server: import("../Server.js").Server;
+    server: import("../Server.ts").Server;
     service: import("../Service.vibe").Service;
 }, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Provider").Provider<import("alchemy/Website/Server").Server> | import("../Providers.vibe").Providers>;

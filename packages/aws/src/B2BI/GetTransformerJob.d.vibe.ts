@@ -29,6 +29,6 @@ export interface GetTransformerJobRequest extends Omit<b2bi.GetTransformerJobReq
  *
  * @binding
  */
-export interface GetTransformerJob extends Binding.Service<GetTransformerJob, "AWS.B2BI.GetTransformerJob", (transformer: Transformer) => Effect.Effect<((request: GetTransformerJobRequest) => Effect.Effect<b2bi.GetTransformerJobResponse, b2bi.GetTransformerJobError>)>> {
+export interface GetTransformerJob extends Binding.Service<GetTransformerJob, "AWS.B2BI.GetTransformerJob", (transformer: Transformer) => Effect.Effect<(request: GetTransformerJobRequest) => Effect.Effect<b2bi.GetTransformerJobResponse, b2bi.GetTransformerJobError>>> {
 }
 export declare const GetTransformerJob: GetTransformerJob;

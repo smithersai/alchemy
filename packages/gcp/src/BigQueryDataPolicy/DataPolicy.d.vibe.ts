@@ -1,8 +1,8 @@
 import * as bqdp from "@distilled.cloud/gcp/bigquerydatapolicy_v2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type DataPolicyType = bqdp.DataPolicyDataPolicyTypeEnum | (string & {});
 export type DataMaskingPolicyPredefinedExpression = bqdp.DataMaskingPolicyPredefinedExpressionEnum | (string & {});
 export type DataMaskingPolicy = {

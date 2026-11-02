@@ -1,9 +1,9 @@
 import * as gkeonprem from "@distilled.cloud/gcp/gkeonprem_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { VmwareNodeConfig, VmwareNodePoolAutoscalingConfig } from "./types.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { VmwareNodeConfig, VmwareNodePoolAutoscalingConfig } from "./types.ts";
 export type VmwareClustersVmwareNodePoolProps = {
     /**
      * Parent VMware user cluster. Full name

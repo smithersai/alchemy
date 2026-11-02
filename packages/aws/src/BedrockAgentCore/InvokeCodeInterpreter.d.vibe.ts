@@ -30,6 +30,6 @@ export interface InvokeCodeInterpreterRequest extends Omit<agentcore.InvokeCodeI
  *
  * @binding
  */
-export interface InvokeCodeInterpreter extends Binding.Service<InvokeCodeInterpreter, "AWS.BedrockAgentCore.InvokeCodeInterpreter", <R extends CodeInterpreter>(codeInterpreter: R) => Effect.Effect<((request: InvokeCodeInterpreterRequest) => Effect.Effect<agentcore.InvokeCodeInterpreterResponse, agentcore.InvokeCodeInterpreterError>)>> {
+export interface InvokeCodeInterpreter extends Binding.Service<InvokeCodeInterpreter, "AWS.BedrockAgentCore.InvokeCodeInterpreter", <R extends CodeInterpreter>(codeInterpreter: R) => Effect.Effect<(request: InvokeCodeInterpreterRequest) => Effect.Effect<agentcore.InvokeCodeInterpreterResponse, agentcore.InvokeCodeInterpreterError>>> {
 }
 export declare const InvokeCodeInterpreter: InvokeCodeInterpreter;

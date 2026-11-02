@@ -24,6 +24,6 @@ export interface DescribeImageScanFindingsRequest extends Omit<ecr.DescribeImage
  *
  * @binding
  */
-export interface DescribeImageScanFindings extends Binding.Service<DescribeImageScanFindings, "AWS.ECR.DescribeImageScanFindings", (repository: Repository) => Effect.Effect<((request: DescribeImageScanFindingsRequest) => Effect.Effect<ecr.DescribeImageScanFindingsResponse, ecr.DescribeImageScanFindingsError>)>> {
+export interface DescribeImageScanFindings extends Binding.Service<DescribeImageScanFindings, "AWS.ECR.DescribeImageScanFindings", (repository: Repository) => Effect.Effect<(request: DescribeImageScanFindingsRequest) => Effect.Effect<ecr.DescribeImageScanFindingsResponse, ecr.DescribeImageScanFindingsError>>> {
 }
 export declare const DescribeImageScanFindings: DescribeImageScanFindings;

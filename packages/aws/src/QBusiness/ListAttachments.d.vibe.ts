@@ -25,6 +25,6 @@ export interface ListAttachmentsRequest extends Omit<qbusiness.ListAttachmentsRe
  *
  * @binding
  */
-export interface ListAttachments extends Binding.Service<ListAttachments, "AWS.QBusiness.ListAttachments", (application: Application) => Effect.Effect<((request?: ListAttachmentsRequest) => Effect.Effect<qbusiness.ListAttachmentsResponse, qbusiness.ListAttachmentsError>)>> {
+export interface ListAttachments extends Binding.Service<ListAttachments, "AWS.QBusiness.ListAttachments", (application: Application) => Effect.Effect<(request?: ListAttachmentsRequest) => Effect.Effect<qbusiness.ListAttachmentsResponse, qbusiness.ListAttachmentsError>>> {
 }
 export declare const ListAttachments: ListAttachments;

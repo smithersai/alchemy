@@ -25,6 +25,6 @@ export interface ResumeBatchLoadTaskRequest extends TSW.ResumeBatchLoadTaskReque
  *
  * @binding
  */
-export interface ResumeBatchLoadTask extends Binding.Service<ResumeBatchLoadTask, "AWS.Timestream.ResumeBatchLoadTask", () => Effect.Effect<((request: ResumeBatchLoadTaskRequest) => Effect.Effect<TSW.ResumeBatchLoadTaskResponse, TSW.ResumeBatchLoadTaskError | TSW.DescribeEndpointsError>)>> {
+export interface ResumeBatchLoadTask extends Binding.Service<ResumeBatchLoadTask, "AWS.Timestream.ResumeBatchLoadTask", () => Effect.Effect<(request: ResumeBatchLoadTaskRequest) => Effect.Effect<TSW.ResumeBatchLoadTaskResponse, TSW.ResumeBatchLoadTaskError | TSW.DescribeEndpointsError>>> {
 }
 export declare const ResumeBatchLoadTask: ResumeBatchLoadTask;

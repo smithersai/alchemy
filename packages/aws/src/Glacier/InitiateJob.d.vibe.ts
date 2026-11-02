@@ -31,6 +31,6 @@ export interface InitiateJobRequest extends Omit<glacier.InitiateJobInput, "acco
  *
  * @binding
  */
-export interface InitiateJob extends Binding.Service<InitiateJob, "AWS.Glacier.InitiateJob", (vault: Vault) => Effect.Effect<((request?: InitiateJobRequest) => Effect.Effect<glacier.InitiateJobOutput, glacier.InitiateJobError>)>> {
+export interface InitiateJob extends Binding.Service<InitiateJob, "AWS.Glacier.InitiateJob", (vault: Vault) => Effect.Effect<(request?: InitiateJobRequest) => Effect.Effect<glacier.InitiateJobOutput, glacier.InitiateJobError>>> {
 }
 export declare const InitiateJob: InitiateJob;

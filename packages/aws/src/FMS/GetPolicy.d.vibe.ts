@@ -24,6 +24,6 @@ export interface GetPolicyRequest extends fms.GetPolicyRequest {
  *
  * @binding
  */
-export interface GetPolicy extends Binding.Service<GetPolicy, "AWS.FMS.GetPolicy", () => Effect.Effect<((request: GetPolicyRequest) => Effect.Effect<fms.GetPolicyResponse, fms.GetPolicyError>)>> {
+export interface GetPolicy extends Binding.Service<GetPolicy, "AWS.FMS.GetPolicy", () => Effect.Effect<(request: GetPolicyRequest) => Effect.Effect<fms.GetPolicyResponse, fms.GetPolicyError>>> {
 }
 export declare const GetPolicy: GetPolicy;

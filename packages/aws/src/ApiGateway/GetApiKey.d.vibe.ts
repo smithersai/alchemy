@@ -24,6 +24,6 @@ export interface GetApiKeyRequest extends ag.GetApiKeyRequest {
  *
  * @binding
  */
-export interface GetApiKey extends Binding.Service<GetApiKey, "AWS.ApiGateway.GetApiKey", () => Effect.Effect<((request: GetApiKeyRequest) => Effect.Effect<ag.ApiKey, ag.GetApiKeyError>)>> {
+export interface GetApiKey extends Binding.Service<GetApiKey, "AWS.ApiGateway.GetApiKey", () => Effect.Effect<(request: GetApiKeyRequest) => Effect.Effect<ag.ApiKey, ag.GetApiKeyError>>> {
 }
 export declare const GetApiKey: GetApiKey;

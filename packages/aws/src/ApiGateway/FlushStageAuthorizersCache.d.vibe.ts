@@ -24,6 +24,6 @@ import type { ApiGatewayStage } from "./Stage.vibe";
  *
  * @binding
  */
-export interface FlushStageAuthorizersCache extends Binding.Service<FlushStageAuthorizersCache, "AWS.ApiGateway.FlushStageAuthorizersCache", <S extends ApiGatewayStage>(stage: S) => Effect.Effect<(() => Effect.Effect<ag.FlushStageAuthorizersCacheResponse, ag.FlushStageAuthorizersCacheError>)>> {
+export interface FlushStageAuthorizersCache extends Binding.Service<FlushStageAuthorizersCache, "AWS.ApiGateway.FlushStageAuthorizersCache", <S extends ApiGatewayStage>(stage: S) => Effect.Effect<() => Effect.Effect<ag.FlushStageAuthorizersCacheResponse, ag.FlushStageAuthorizersCacheError>>> {
 }
 export declare const FlushStageAuthorizersCache: FlushStageAuthorizersCache;

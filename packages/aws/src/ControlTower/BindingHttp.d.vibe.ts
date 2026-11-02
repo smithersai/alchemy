@@ -39,7 +39,7 @@ export declare const makeControlTowerHttpBinding: <Res extends ControlTowerBinda
     /** Resolve the injected identifier ARN from the bound resource. */
     identifier: (resource: Res) => Output.Output<string, IdReq>;
     /** The distilled operation; `requestKey` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<(resource: Res) => Effect.Effect<(request?: Omit<I, K> | undefined) => Effect.Effect<A, E, never>, never, IdReq>, never, never>;
 /**
  * Build the implementation effect for an account-level capability (no
@@ -60,5 +60,5 @@ export declare const makeControlTowerAccountHttpBinding: <I extends object, A, E
     /**
      * The distilled operation implementing the capability.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

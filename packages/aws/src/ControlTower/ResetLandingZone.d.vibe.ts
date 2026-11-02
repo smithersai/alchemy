@@ -23,6 +23,6 @@ import type { LandingZone } from "./LandingZone.vibe";
  *
  * @binding
  */
-export interface ResetLandingZone extends Binding.Service<ResetLandingZone, "AWS.ControlTower.ResetLandingZone", (landingZone: LandingZone) => Effect.Effect<(() => Effect.Effect<controltower.ResetLandingZoneOutput, controltower.ResetLandingZoneError>)>> {
+export interface ResetLandingZone extends Binding.Service<ResetLandingZone, "AWS.ControlTower.ResetLandingZone", (landingZone: LandingZone) => Effect.Effect<() => Effect.Effect<controltower.ResetLandingZoneOutput, controltower.ResetLandingZoneError>>> {
 }
 export declare const ResetLandingZone: ResetLandingZone;

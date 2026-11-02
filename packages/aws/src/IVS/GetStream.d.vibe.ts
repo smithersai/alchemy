@@ -1,7 +1,7 @@
 import type * as ivs from "@distilled.cloud/aws/ivs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Channel } from "./Channel.js";
+import type { Channel } from "./Channel.ts";
 /**
  * Runtime binding for `ivs:GetStream`.
  *
@@ -27,6 +27,6 @@ import type { Channel } from "./Channel.js";
  *
  * @binding
  */
-export interface GetStream extends Binding.Service<GetStream, "AWS.IVS.GetStream", (channel: Channel) => Effect.Effect<(() => Effect.Effect<ivs.GetStreamResponse, ivs.GetStreamError>)>> {
+export interface GetStream extends Binding.Service<GetStream, "AWS.IVS.GetStream", (channel: Channel) => Effect.Effect<() => Effect.Effect<ivs.GetStreamResponse, ivs.GetStreamError>>> {
 }
 export declare const GetStream: GetStream;

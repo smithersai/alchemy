@@ -1,7 +1,7 @@
 import * as macie2 from "@distilled.cloud/aws/macie2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface AllowListProps {
     /**
      * Custom name for the allow list (1-128 characters). Must be unique per

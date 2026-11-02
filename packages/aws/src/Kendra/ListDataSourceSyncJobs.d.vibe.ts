@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DataSource } from "./DataSource.js";
+import type { DataSource } from "./DataSource.ts";
 /**
  * `ListDataSourceSyncJobs` request with `Id` and `IndexId` injected from the bound data source.
  */
@@ -27,6 +27,6 @@ export interface ListDataSourceSyncJobsRequest extends Omit<kendra.ListDataSourc
  *
  * @binding
  */
-export interface ListDataSourceSyncJobs extends Binding.Service<ListDataSourceSyncJobs, "AWS.Kendra.ListDataSourceSyncJobs", (dataSource: DataSource) => Effect.Effect<((request?: ListDataSourceSyncJobsRequest) => Effect.Effect<kendra.ListDataSourceSyncJobsResponse, kendra.ListDataSourceSyncJobsError>)>> {
+export interface ListDataSourceSyncJobs extends Binding.Service<ListDataSourceSyncJobs, "AWS.Kendra.ListDataSourceSyncJobs", (dataSource: DataSource) => Effect.Effect<(request?: ListDataSourceSyncJobsRequest) => Effect.Effect<kendra.ListDataSourceSyncJobsResponse, kendra.ListDataSourceSyncJobsError>>> {
 }
 export declare const ListDataSourceSyncJobs: ListDataSourceSyncJobs;

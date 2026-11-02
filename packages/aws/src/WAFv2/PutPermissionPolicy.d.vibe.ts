@@ -1,7 +1,7 @@
 import type * as WAFV2 from "@distilled.cloud/aws/wafv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { RuleGroup } from "./RuleGroup.js";
+import type { RuleGroup } from "./RuleGroup.ts";
 export interface PutPermissionPolicyRequest extends Omit<WAFV2.PutPermissionPolicyRequest, "ResourceArn"> {
 }
 /**
@@ -37,6 +37,6 @@ export interface PutPermissionPolicyRequest extends Omit<WAFV2.PutPermissionPoli
  *
  * @binding
  */
-export interface PutPermissionPolicy extends Binding.Service<PutPermissionPolicy, "AWS.WAFv2.PutPermissionPolicy", (ruleGroup: RuleGroup) => Effect.Effect<((request: PutPermissionPolicyRequest) => Effect.Effect<WAFV2.PutPermissionPolicyResponse, WAFV2.PutPermissionPolicyError>)>> {
+export interface PutPermissionPolicy extends Binding.Service<PutPermissionPolicy, "AWS.WAFv2.PutPermissionPolicy", (ruleGroup: RuleGroup) => Effect.Effect<(request: PutPermissionPolicyRequest) => Effect.Effect<WAFV2.PutPermissionPolicyResponse, WAFV2.PutPermissionPolicyError>>> {
 }
 export declare const PutPermissionPolicy: PutPermissionPolicy;

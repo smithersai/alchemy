@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeClusters extends Binding.Service<DescribeClusters, "AWS.MemoryDB.DescribeClusters", () => Effect.Effect<((request?: memorydb.DescribeClustersRequest) => Effect.Effect<memorydb.DescribeClustersResponse, memorydb.DescribeClustersError>)>> {
+export interface DescribeClusters extends Binding.Service<DescribeClusters, "AWS.MemoryDB.DescribeClusters", () => Effect.Effect<(request?: memorydb.DescribeClustersRequest) => Effect.Effect<memorydb.DescribeClustersResponse, memorydb.DescribeClustersError>>> {
 }
 export declare const DescribeClusters: DescribeClusters;

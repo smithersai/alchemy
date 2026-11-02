@@ -1,7 +1,7 @@
 import * as DistilledRegion from "@distilled.cloud/gcp/Region";
 import * as Effect from "effect/Effect";
 import type * as Layer from "effect/Layer";
-import { GcpEnvironment } from "./Environment.js";
+import { GcpEnvironment } from "./Environment.ts";
 export type { RegionalEndpointMode, RegionName } from "@distilled.cloud/gcp/Region";
 /**
  * Override the default GCP region — the region regional resources land in
@@ -52,4 +52,4 @@ export declare const Region: (region: DistilledRegion.RegionName) => Layer.Layer
  */
 export declare const RegionalEndpoints: (mode: DistilledRegion.RegionalEndpointMode) => Layer.Layer<DistilledRegion.RegionalEndpoints>;
 /** The effective default region in the current scope. */
-export declare const currentRegion: Effect.Effect<string, import("./Environment.js").GcpProjectMissing, GcpEnvironment>;
+export declare const currentRegion: Effect.Effect<string, import("./Environment.ts").GcpProjectMissing, GcpEnvironment>;

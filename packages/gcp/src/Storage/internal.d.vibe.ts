@@ -1,6 +1,6 @@
 import * as storage from "@distilled.cloud/gcp/storage_v1";
 import * as Effect from "effect/Effect";
-import { GcpEnvironment } from "../Environment.js";
+import { GcpEnvironment } from "../Environment.ts";
 export declare const normalizeRole: (role: string) => string;
 export declare const normalizeEntity: (entity: string) => string;
 /** Default project-team ACL entries GCS stamps on fine-grained buckets. */
@@ -13,4 +13,4 @@ export declare const isProjectAclEntity: (entity: string | undefined) => boolean
 export declare const isUserManagedAclEntity: (entity: string | undefined) => boolean;
 export declare const withTrailingSlash: (name: string) => string;
 export declare const toFolderName: (id: string, name: string | undefined, existing?: string) => Effect.Effect<string, never, import("alchemy/ResourceContext").ResourceContext | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
-export declare const listAlchemyBuckets: () => Effect.Effect<storage.Bucket[], import("../Environment.js").GcpProjectMissing | storage.ListBucketsError, GcpEnvironment | storage.GcpOpContext>;
+export declare const listAlchemyBuckets: () => Effect.Effect<storage.Bucket[], import("../Environment.ts").GcpProjectMissing | storage.ListBucketsError, GcpEnvironment | storage.GcpOpContext>;

@@ -3,7 +3,7 @@ import { Resource } from "alchemy/Resource";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
-import type { Connection, ContainerRegistry } from "./Connection.js";
+import type { Connection, ContainerRegistry } from "./Connection.ts";
 import type { Providers } from "./Providers.vibe";
 export interface LocalClusterProps extends KindClusterConfig {
     /**

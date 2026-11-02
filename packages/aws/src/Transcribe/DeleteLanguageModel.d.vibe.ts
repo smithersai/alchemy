@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteLanguageModel extends Binding.Service<DeleteLanguageModel, "AWS.Transcribe.DeleteLanguageModel", () => Effect.Effect<((request: transcribe.DeleteLanguageModelRequest) => Effect.Effect<transcribe.DeleteLanguageModelResponse, transcribe.DeleteLanguageModelError>)>> {
+export interface DeleteLanguageModel extends Binding.Service<DeleteLanguageModel, "AWS.Transcribe.DeleteLanguageModel", () => Effect.Effect<(request: transcribe.DeleteLanguageModelRequest) => Effect.Effect<transcribe.DeleteLanguageModelResponse, transcribe.DeleteLanguageModelError>>> {
 }
 export declare const DeleteLanguageModel: DeleteLanguageModel;

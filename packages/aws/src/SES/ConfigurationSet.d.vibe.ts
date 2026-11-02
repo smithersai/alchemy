@@ -2,8 +2,8 @@ import * as sesv2 from "@distilled.cloud/aws/sesv2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 /**
  * Whether SES requires (`REQUIRE`) or merely prefers (`OPTIONAL`) a TLS
  * connection when delivering email through this configuration set.

@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetDirectoryLimits extends Binding.Service<GetDirectoryLimits, "AWS.DirectoryService.GetDirectoryLimits", () => Effect.Effect<(() => Effect.Effect<ds.GetDirectoryLimitsResult, ds.GetDirectoryLimitsError>)>> {
+export interface GetDirectoryLimits extends Binding.Service<GetDirectoryLimits, "AWS.DirectoryService.GetDirectoryLimits", () => Effect.Effect<() => Effect.Effect<ds.GetDirectoryLimitsResult, ds.GetDirectoryLimitsError>>> {
 }
 export declare const GetDirectoryLimits: GetDirectoryLimits;

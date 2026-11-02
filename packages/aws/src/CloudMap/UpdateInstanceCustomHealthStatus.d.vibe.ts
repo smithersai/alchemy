@@ -29,6 +29,6 @@ export interface UpdateInstanceCustomHealthStatusRequest extends Omit<SD.UpdateI
  *
  * @binding
  */
-export interface UpdateInstanceCustomHealthStatus extends Binding.Service<UpdateInstanceCustomHealthStatus, "AWS.CloudMap.UpdateInstanceCustomHealthStatus", <S extends Service>(service: S) => Effect.Effect<((request: UpdateInstanceCustomHealthStatusRequest) => Effect.Effect<SD.UpdateInstanceCustomHealthStatusResponse, SD.UpdateInstanceCustomHealthStatusError>)>> {
+export interface UpdateInstanceCustomHealthStatus extends Binding.Service<UpdateInstanceCustomHealthStatus, "AWS.CloudMap.UpdateInstanceCustomHealthStatus", <S extends Service>(service: S) => Effect.Effect<(request: UpdateInstanceCustomHealthStatusRequest) => Effect.Effect<SD.UpdateInstanceCustomHealthStatusResponse, SD.UpdateInstanceCustomHealthStatusError>>> {
 }
 export declare const UpdateInstanceCustomHealthStatus: UpdateInstanceCustomHealthStatus;

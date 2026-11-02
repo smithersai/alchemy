@@ -27,6 +27,6 @@ import type { Contact } from "./Contact.vibe";
  *
  * @binding
  */
-export interface StartEngagement extends Binding.Service<StartEngagement, "AWS.SSMContacts.StartEngagement", (contact: Contact) => Effect.Effect<((request: Omit<ssm.StartEngagementRequest, "ContactId">) => Effect.Effect<ssm.StartEngagementResult, ssm.StartEngagementError>)>> {
+export interface StartEngagement extends Binding.Service<StartEngagement, "AWS.SSMContacts.StartEngagement", (contact: Contact) => Effect.Effect<(request: Omit<ssm.StartEngagementRequest, "ContactId">) => Effect.Effect<ssm.StartEngagementResult, ssm.StartEngagementError>>> {
 }
 export declare const StartEngagement: StartEngagement;

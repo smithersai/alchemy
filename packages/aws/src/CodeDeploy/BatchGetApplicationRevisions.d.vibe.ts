@@ -20,6 +20,6 @@ export interface BatchGetApplicationRevisionsRequest extends Omit<SVC.BatchGetAp
  *
  * @binding
  */
-export interface BatchGetApplicationRevisions extends Binding.Service<BatchGetApplicationRevisions, "AWS.CodeDeploy.BatchGetApplicationRevisions", <P extends Application>(application: P) => Effect.Effect<((request: BatchGetApplicationRevisionsRequest) => Effect.Effect<SVC.BatchGetApplicationRevisionsOutput, SVC.BatchGetApplicationRevisionsError>)>> {
+export interface BatchGetApplicationRevisions extends Binding.Service<BatchGetApplicationRevisions, "AWS.CodeDeploy.BatchGetApplicationRevisions", <P extends Application>(application: P) => Effect.Effect<(request: BatchGetApplicationRevisionsRequest) => Effect.Effect<SVC.BatchGetApplicationRevisionsOutput, SVC.BatchGetApplicationRevisionsError>>> {
 }
 export declare const BatchGetApplicationRevisions: BatchGetApplicationRevisions;

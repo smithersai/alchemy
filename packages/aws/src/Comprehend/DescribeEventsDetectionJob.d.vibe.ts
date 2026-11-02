@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeEventsDetectionJob extends Binding.Service<DescribeEventsDetectionJob, "AWS.Comprehend.DescribeEventsDetectionJob", () => Effect.Effect<((request: comprehend.DescribeEventsDetectionJobRequest) => Effect.Effect<comprehend.DescribeEventsDetectionJobResponse, comprehend.DescribeEventsDetectionJobError>)>> {
+export interface DescribeEventsDetectionJob extends Binding.Service<DescribeEventsDetectionJob, "AWS.Comprehend.DescribeEventsDetectionJob", () => Effect.Effect<(request: comprehend.DescribeEventsDetectionJobRequest) => Effect.Effect<comprehend.DescribeEventsDetectionJobResponse, comprehend.DescribeEventsDetectionJobError>>> {
 }
 export declare const DescribeEventsDetectionJob: DescribeEventsDetectionJob;

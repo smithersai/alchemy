@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeCanariesLastRun extends Binding.Service<DescribeCanariesLastRun, "AWS.Synthetics.DescribeCanariesLastRun", () => Effect.Effect<((request?: synthetics.DescribeCanariesLastRunRequest) => Effect.Effect<synthetics.DescribeCanariesLastRunResponse, synthetics.DescribeCanariesLastRunError>)>> {
+export interface DescribeCanariesLastRun extends Binding.Service<DescribeCanariesLastRun, "AWS.Synthetics.DescribeCanariesLastRun", () => Effect.Effect<(request?: synthetics.DescribeCanariesLastRunRequest) => Effect.Effect<synthetics.DescribeCanariesLastRunResponse, synthetics.DescribeCanariesLastRunError>>> {
 }
 export declare const DescribeCanariesLastRun: DescribeCanariesLastRun;

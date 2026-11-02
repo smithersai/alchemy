@@ -2,7 +2,7 @@ import type * as kms from "@distilled.cloud/aws/kms";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { AliasName } from "./Alias.vibe";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.ts";
 export interface DecryptRequest extends Omit<kms.DecryptRequest, "KeyId"> {
 }
 /**
@@ -68,6 +68,6 @@ export interface DecryptRequest extends Omit<kms.DecryptRequest, "KeyId"> {
  *
  * @binding
  */
-export interface Decrypt extends Binding.Service<Decrypt, "AWS.KMS.Decrypt", (key: Key | AliasName) => Effect.Effect<((request: DecryptRequest) => Effect.Effect<kms.DecryptResponse, kms.DecryptError>)>> {
+export interface Decrypt extends Binding.Service<Decrypt, "AWS.KMS.Decrypt", (key: Key | AliasName) => Effect.Effect<(request: DecryptRequest) => Effect.Effect<kms.DecryptResponse, kms.DecryptError>>> {
 }
 export declare const Decrypt: Decrypt;

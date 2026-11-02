@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
 import type { CatalogsServingConfig } from "./CatalogsServingConfig.vibe";
 /**
  * Shared HTTP scaffolding for Retail serving-config bindings.

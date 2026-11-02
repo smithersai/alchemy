@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSegmentDetection extends Binding.Service<GetSegmentDetection, "AWS.Rekognition.GetSegmentDetection", () => Effect.Effect<((request: rekognition.GetSegmentDetectionRequest) => Effect.Effect<rekognition.GetSegmentDetectionResponse, rekognition.GetSegmentDetectionError>)>> {
+export interface GetSegmentDetection extends Binding.Service<GetSegmentDetection, "AWS.Rekognition.GetSegmentDetection", () => Effect.Effect<(request: rekognition.GetSegmentDetectionRequest) => Effect.Effect<rekognition.GetSegmentDetectionResponse, rekognition.GetSegmentDetectionError>>> {
 }
 export declare const GetSegmentDetection: GetSegmentDetection;

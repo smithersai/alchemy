@@ -24,6 +24,6 @@ export interface ListThingsRequest extends iot.ListThingsRequest {
  *
  * @binding
  */
-export interface ListThings extends Binding.Service<ListThings, "AWS.IoT.ListThings", () => Effect.Effect<((request?: ListThingsRequest) => Effect.Effect<iot.ListThingsResponse, iot.ListThingsError>)>> {
+export interface ListThings extends Binding.Service<ListThings, "AWS.IoT.ListThings", () => Effect.Effect<(request?: ListThingsRequest) => Effect.Effect<iot.ListThingsResponse, iot.ListThingsError>>> {
 }
 export declare const ListThings: ListThings;

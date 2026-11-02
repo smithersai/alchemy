@@ -24,6 +24,6 @@ export interface ListRecordsRequest extends Omit<featurestore.ListRecordsRequest
  *
  * @binding
  */
-export interface ListRecords extends Binding.Service<ListRecords, "AWS.SageMaker.ListRecords", <F extends FeatureGroup>(featureGroup: F) => Effect.Effect<((request?: ListRecordsRequest) => Effect.Effect<featurestore.ListRecordsResponse, featurestore.ListRecordsError>)>> {
+export interface ListRecords extends Binding.Service<ListRecords, "AWS.SageMaker.ListRecords", <F extends FeatureGroup>(featureGroup: F) => Effect.Effect<(request?: ListRecordsRequest) => Effect.Effect<featurestore.ListRecordsResponse, featurestore.ListRecordsError>>> {
 }
 export declare const ListRecords: ListRecords;

@@ -1,7 +1,7 @@
 import type * as ec2 from "@distilled.cloud/aws/ec2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 /**
  * `DescribeInstanceStatus` request with `InstanceIds` injected from the bound
  * {@link Instance}.
@@ -32,6 +32,6 @@ export interface DescribeInstanceStatusRequest extends Omit<ec2.DescribeInstance
  *
  * @binding
  */
-export interface DescribeInstanceStatus extends Binding.Service<DescribeInstanceStatus, "AWS.EC2.DescribeInstanceStatus", (instance: Instance) => Effect.Effect<((request?: DescribeInstanceStatusRequest) => Effect.Effect<ec2.DescribeInstanceStatusResult, ec2.DescribeInstanceStatusError>)>> {
+export interface DescribeInstanceStatus extends Binding.Service<DescribeInstanceStatus, "AWS.EC2.DescribeInstanceStatus", (instance: Instance) => Effect.Effect<(request?: DescribeInstanceStatusRequest) => Effect.Effect<ec2.DescribeInstanceStatusResult, ec2.DescribeInstanceStatusError>>> {
 }
 export declare const DescribeInstanceStatus: DescribeInstanceStatus;

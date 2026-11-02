@@ -22,6 +22,6 @@ export interface FetchReadTokenRequest extends Omit<developerconnect.FetchReadTo
  * @binding
  * @category DeveloperConnect
  */
-export interface FetchReadToken extends Binding.Service<FetchReadToken, "GCP.DeveloperConnect.FetchReadToken", (link: ConnectionsGitRepositoryLink) => Effect.Effect<((request?: FetchReadTokenRequest) => Effect.Effect<developerconnect.FetchReadTokenResponse, developerconnect.FetchReadTokenProjectsLocationsConnectionsGitRepositoryLinksError, RuntimeContext>)>> {
+export interface FetchReadToken extends Binding.Service<FetchReadToken, "GCP.DeveloperConnect.FetchReadToken", (link: ConnectionsGitRepositoryLink) => Effect.Effect<(request?: FetchReadTokenRequest) => Effect.Effect<developerconnect.FetchReadTokenResponse, developerconnect.FetchReadTokenProjectsLocationsConnectionsGitRepositoryLinksError, RuntimeContext>>> {
 }
 export declare const FetchReadToken: FetchReadToken;

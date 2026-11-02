@@ -21,6 +21,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface GetAdministratorAccount extends Binding.Service<GetAdministratorAccount, "AWS.GuardDuty.GetAdministratorAccount", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.GetAdministratorAccountRequest, "DetectorId">) => Effect.Effect<guardduty.GetAdministratorAccountResponse, guardduty.GetAdministratorAccountError>)>> {
+export interface GetAdministratorAccount extends Binding.Service<GetAdministratorAccount, "AWS.GuardDuty.GetAdministratorAccount", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.GetAdministratorAccountRequest, "DetectorId">) => Effect.Effect<guardduty.GetAdministratorAccountResponse, guardduty.GetAdministratorAccountError>>> {
 }
 export declare const GetAdministratorAccount: GetAdministratorAccount;

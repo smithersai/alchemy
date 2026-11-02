@@ -23,6 +23,6 @@ export interface ListContainerInstancesRequest extends Omit<ECS.ListContainerIns
  *
  * @binding
  */
-export interface ListContainerInstances extends Binding.Service<ListContainerInstances, "AWS.ECS.ListContainerInstances", (cluster: Cluster) => Effect.Effect<((request: ListContainerInstancesRequest) => Effect.Effect<ECS.ListContainerInstancesResponse, ECS.ListContainerInstancesError>)>> {
+export interface ListContainerInstances extends Binding.Service<ListContainerInstances, "AWS.ECS.ListContainerInstances", (cluster: Cluster) => Effect.Effect<(request: ListContainerInstancesRequest) => Effect.Effect<ECS.ListContainerInstancesResponse, ECS.ListContainerInstancesError>>> {
 }
 export declare const ListContainerInstances: ListContainerInstances;

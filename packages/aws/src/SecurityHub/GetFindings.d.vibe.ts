@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetFindings extends Binding.Service<GetFindings, "AWS.SecurityHub.GetFindings", () => Effect.Effect<((request?: securityhub.GetFindingsRequest) => Effect.Effect<securityhub.GetFindingsResponse, securityhub.GetFindingsError>)>> {
+export interface GetFindings extends Binding.Service<GetFindings, "AWS.SecurityHub.GetFindings", () => Effect.Effect<(request?: securityhub.GetFindingsRequest) => Effect.Effect<securityhub.GetFindingsResponse, securityhub.GetFindingsError>>> {
 }
 export declare const GetFindings: GetFindings;

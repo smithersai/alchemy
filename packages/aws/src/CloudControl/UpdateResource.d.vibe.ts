@@ -1,7 +1,7 @@
 import type * as cloudcontrol from "@distilled.cloud/aws/cloudcontrol";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { CloudControlBindingOptions } from "./BindingOptions.js";
+import type { CloudControlBindingOptions } from "./BindingOptions.ts";
 /**
  * Runtime binding for `cloudformation:UpdateResource`.
  *
@@ -36,6 +36,6 @@ import type { CloudControlBindingOptions } from "./BindingOptions.js";
  *
  * @binding
  */
-export interface UpdateResource extends Binding.Service<UpdateResource, "AWS.CloudControl.UpdateResource", (options?: CloudControlBindingOptions) => Effect.Effect<((request: cloudcontrol.UpdateResourceInput) => Effect.Effect<cloudcontrol.UpdateResourceOutput, cloudcontrol.UpdateResourceError>)>> {
+export interface UpdateResource extends Binding.Service<UpdateResource, "AWS.CloudControl.UpdateResource", (options?: CloudControlBindingOptions) => Effect.Effect<(request: cloudcontrol.UpdateResourceInput) => Effect.Effect<cloudcontrol.UpdateResourceOutput, cloudcontrol.UpdateResourceError>>> {
 }
 export declare const UpdateResource: UpdateResource;

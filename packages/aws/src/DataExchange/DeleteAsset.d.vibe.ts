@@ -20,6 +20,6 @@ import type { Revision } from "./Revision.vibe";
  *
  * @binding
  */
-export interface DeleteAsset extends Binding.Service<DeleteAsset, "AWS.DataExchange.DeleteAsset", (revision: Revision) => Effect.Effect<((request: Omit<dataexchange.DeleteAssetRequest, "DataSetId" | "RevisionId">) => Effect.Effect<dataexchange.DeleteAssetResponse, dataexchange.DeleteAssetError>)>> {
+export interface DeleteAsset extends Binding.Service<DeleteAsset, "AWS.DataExchange.DeleteAsset", (revision: Revision) => Effect.Effect<(request: Omit<dataexchange.DeleteAssetRequest, "DataSetId" | "RevisionId">) => Effect.Effect<dataexchange.DeleteAssetResponse, dataexchange.DeleteAssetError>>> {
 }
 export declare const DeleteAsset: DeleteAsset;

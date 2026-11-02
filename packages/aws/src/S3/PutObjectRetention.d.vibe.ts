@@ -1,7 +1,7 @@
 import * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface PutObjectRetentionRequest extends Omit<S3.PutObjectRetentionRequest, "Bucket"> {
 }
 /**
@@ -30,6 +30,6 @@ export interface PutObjectRetentionRequest extends Omit<S3.PutObjectRetentionReq
  *
  * @binding
  */
-export interface PutObjectRetention extends Binding.Service<PutObjectRetention, "AWS.S3.PutObjectRetention", (bucket: Bucket) => Effect.Effect<((request: PutObjectRetentionRequest) => Effect.Effect<S3.PutObjectRetentionOutput, S3.PutObjectRetentionError>)>> {
+export interface PutObjectRetention extends Binding.Service<PutObjectRetention, "AWS.S3.PutObjectRetention", (bucket: Bucket) => Effect.Effect<(request: PutObjectRetentionRequest) => Effect.Effect<S3.PutObjectRetentionOutput, S3.PutObjectRetentionError>>> {
 }
 export declare const PutObjectRetention: PutObjectRetention;

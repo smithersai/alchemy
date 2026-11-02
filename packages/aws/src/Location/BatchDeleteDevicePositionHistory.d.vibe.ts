@@ -25,6 +25,6 @@ export interface BatchDeleteDevicePositionHistoryRequest extends Omit<location.B
  *
  * @binding
  */
-export interface BatchDeleteDevicePositionHistory extends Binding.Service<BatchDeleteDevicePositionHistory, "AWS.Location.BatchDeleteDevicePositionHistory", (tracker: Tracker) => Effect.Effect<((request: BatchDeleteDevicePositionHistoryRequest) => Effect.Effect<location.BatchDeleteDevicePositionHistoryResponse, location.BatchDeleteDevicePositionHistoryError>)>> {
+export interface BatchDeleteDevicePositionHistory extends Binding.Service<BatchDeleteDevicePositionHistory, "AWS.Location.BatchDeleteDevicePositionHistory", (tracker: Tracker) => Effect.Effect<(request: BatchDeleteDevicePositionHistoryRequest) => Effect.Effect<location.BatchDeleteDevicePositionHistoryResponse, location.BatchDeleteDevicePositionHistoryError>>> {
 }
 export declare const BatchDeleteDevicePositionHistory: BatchDeleteDevicePositionHistory;

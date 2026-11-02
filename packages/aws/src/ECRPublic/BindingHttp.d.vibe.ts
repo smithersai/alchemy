@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { Region } from "../Region.js";
+import { Region } from "../Region.ts";
 import type { PublicRepository } from "./Repository.vibe";
 /** Pin a distilled `ecr-public` effect to the service's home region. */
 export declare const pinEcrPublic: <A, E, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, Exclude<R, Region>>;
@@ -20,7 +20,7 @@ export declare const makePublicRepositoryHttpBinding: <I extends {
     /** IAM actions granted on the repository ARN. */
     iamActions: readonly string[];
     /** The distilled operation; `repositoryName` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<(repository: PublicRepository) => Effect.Effect<(request?: Omit<I, "repositoryName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
 /**
  * Build the impl Effect for a registry-level ECR Public operation
@@ -37,5 +37,5 @@ export declare const makePublicRegistryHttpBinding: <I extends object, A, E, R>(
     /** IAM actions granted on `Resource: ["*"]`. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

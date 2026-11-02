@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListIncidentRecords extends Binding.Service<ListIncidentRecords, "AWS.SSMIncidents.ListIncidentRecords", () => Effect.Effect<((request: incidents.ListIncidentRecordsInput) => Effect.Effect<incidents.ListIncidentRecordsOutput, incidents.ListIncidentRecordsError>)>> {
+export interface ListIncidentRecords extends Binding.Service<ListIncidentRecords, "AWS.SSMIncidents.ListIncidentRecords", () => Effect.Effect<(request: incidents.ListIncidentRecordsInput) => Effect.Effect<incidents.ListIncidentRecordsOutput, incidents.ListIncidentRecordsError>>> {
 }
 export declare const ListIncidentRecords: ListIncidentRecords;

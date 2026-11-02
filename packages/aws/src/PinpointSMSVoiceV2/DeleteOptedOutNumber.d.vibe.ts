@@ -31,6 +31,6 @@ export interface DeleteOptedOutNumberRequest extends Omit<smsvoice.DeleteOptedOu
  *
  * @binding
  */
-export interface DeleteOptedOutNumber extends Binding.Service<DeleteOptedOutNumber, "AWS.PinpointSMSVoiceV2.DeleteOptedOutNumber", (optOutList: OptOutList) => Effect.Effect<((request: DeleteOptedOutNumberRequest) => Effect.Effect<smsvoice.DeleteOptedOutNumberResult, smsvoice.DeleteOptedOutNumberError>)>> {
+export interface DeleteOptedOutNumber extends Binding.Service<DeleteOptedOutNumber, "AWS.PinpointSMSVoiceV2.DeleteOptedOutNumber", (optOutList: OptOutList) => Effect.Effect<(request: DeleteOptedOutNumberRequest) => Effect.Effect<smsvoice.DeleteOptedOutNumberResult, smsvoice.DeleteOptedOutNumberError>>> {
 }
 export declare const DeleteOptedOutNumber: DeleteOptedOutNumber;

@@ -1,9 +1,9 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import { AWSEnvironment, type AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import { AWSEnvironment, type AccountID } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 export type DeliveryStreamName = string;
 export type DeliveryStreamArn = `arn:aws:firehose:${RegionID}:${AccountID}:deliverystream/${DeliveryStreamName}`;
 export type DeliveryStreamStatus = "CREATING" | "CREATING_FAILED" | "DELETING" | "DELETING_FAILED" | "ACTIVE";

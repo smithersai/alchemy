@@ -3,7 +3,7 @@ import type { CreateZoneRrsetError, CreateZoneRrsetRequest, CreateZoneRrsetRespo
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { Zone } from "./Zone.js";
+import type { Zone } from "./Zone.ts";
 /**
  * Binding that lets runtime code create, update, and delete Hetzner Cloud
  * DNS RRSets.

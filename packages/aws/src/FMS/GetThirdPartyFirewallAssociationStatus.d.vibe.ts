@@ -30,6 +30,6 @@ export interface GetThirdPartyFirewallAssociationStatusRequest extends fms.GetTh
  *
  * @binding
  */
-export interface GetThirdPartyFirewallAssociationStatus extends Binding.Service<GetThirdPartyFirewallAssociationStatus, "AWS.FMS.GetThirdPartyFirewallAssociationStatus", () => Effect.Effect<((request: GetThirdPartyFirewallAssociationStatusRequest) => Effect.Effect<fms.GetThirdPartyFirewallAssociationStatusResponse, fms.GetThirdPartyFirewallAssociationStatusError>)>> {
+export interface GetThirdPartyFirewallAssociationStatus extends Binding.Service<GetThirdPartyFirewallAssociationStatus, "AWS.FMS.GetThirdPartyFirewallAssociationStatus", () => Effect.Effect<(request: GetThirdPartyFirewallAssociationStatusRequest) => Effect.Effect<fms.GetThirdPartyFirewallAssociationStatusResponse, fms.GetThirdPartyFirewallAssociationStatusError>>> {
 }
 export declare const GetThirdPartyFirewallAssociationStatus: GetThirdPartyFirewallAssociationStatus;

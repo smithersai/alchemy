@@ -31,7 +31,7 @@ export declare const makeStreamMediaHttpBinding: <I extends {
     /** IAM actions granted on the stream ARN (GetDataEndpoint is implied). */
     actions: readonly string[];
     /** The distilled operation; `StreamARN` is injected from the stream. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<(stream: Stream) => Effect.Effect<(request?: Omit<I, "StreamARN" | "StreamName"> | undefined) => Effect.Effect<A, E | kv.GetDataEndpointError, never>, never, never>, never, never>;
 /**
  * Build the impl Effect for a channel-scoped signaling/WebRTC-storage
@@ -55,5 +55,5 @@ export declare const makeChannelSignalingHttpBinding: <K extends "ChannelARN" | 
     /** The request field the channel ARN is injected under. */
     key: K;
     /** The distilled operation; the channel ARN is injected under `key`. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<(channel: SignalingChannel) => Effect.Effect<(request?: Omit<I, K> | undefined) => Effect.Effect<A, E | import("./internal.vibe").SignalingEndpointUnavailable | kv.GetSignalingChannelEndpointError, never>, never, never>, never, never>;

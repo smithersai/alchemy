@@ -36,6 +36,6 @@ export interface GetResourcePositionRequest extends Omit<iotw.GetResourcePositio
  *
  * @binding
  */
-export interface GetResourcePosition extends Binding.Service<GetResourcePosition, "AWS.IoTWireless.GetResourcePosition", (device: WirelessDevice) => Effect.Effect<((request?: GetResourcePositionRequest) => Effect.Effect<iotw.GetResourcePositionResponse, iotw.GetResourcePositionError>)>> {
+export interface GetResourcePosition extends Binding.Service<GetResourcePosition, "AWS.IoTWireless.GetResourcePosition", (device: WirelessDevice) => Effect.Effect<(request?: GetResourcePositionRequest) => Effect.Effect<iotw.GetResourcePositionResponse, iotw.GetResourcePositionError>>> {
 }
 export declare const GetResourcePosition: GetResourcePosition;

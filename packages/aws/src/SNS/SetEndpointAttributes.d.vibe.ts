@@ -22,6 +22,6 @@ export interface SetEndpointAttributesRequest extends sns.SetEndpointAttributesI
  *
  * @binding
  */
-export interface SetEndpointAttributes extends Binding.Service<SetEndpointAttributes, "AWS.SNS.SetEndpointAttributes", (application: PlatformApplication) => Effect.Effect<((request: SetEndpointAttributesRequest) => Effect.Effect<sns.SetEndpointAttributesResponse, sns.SetEndpointAttributesError>)>> {
+export interface SetEndpointAttributes extends Binding.Service<SetEndpointAttributes, "AWS.SNS.SetEndpointAttributes", (application: PlatformApplication) => Effect.Effect<(request: SetEndpointAttributesRequest) => Effect.Effect<sns.SetEndpointAttributesResponse, sns.SetEndpointAttributesError>>> {
 }
 export declare const SetEndpointAttributes: SetEndpointAttributes;

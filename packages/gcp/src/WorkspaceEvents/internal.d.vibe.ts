@@ -66,7 +66,7 @@ export declare const operationResourceName: (operation: we.Operation) => string 
 /**
  * Wait for a Workspace Events long-running operation (subscription create/update/delete).
  */
-export declare const waitForOperation: (operation: we.Operation) => Effect.Effect<we.Operation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | we.GetOperationsError, pubsub.GcpOpContext>;
+export declare const waitForOperation: (operation: we.Operation) => Effect.Effect<we.Operation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | we.GetOperationsError, pubsub.GcpOpContext>;
 export declare const waitUntilExists: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved, R>;
 export declare const waitUntilGone: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<void, E | ResourceStillExists, R>;
 export declare const collectPages: <Page, A, E, R>(pages: Stream.Stream<Page, E, R>, items: (page: Page) => readonly A[] | undefined) => Effect.Effect<A[], E, R>;

@@ -22,6 +22,6 @@ export interface RegisterAdminRequest extends Omit<repostspace.RegisterAdminInpu
  *
  * @binding
  */
-export interface RegisterAdmin extends Binding.Service<RegisterAdmin, "AWS.RePostSpace.RegisterAdmin", (space: Space) => Effect.Effect<((request: RegisterAdminRequest) => Effect.Effect<repostspace.RegisterAdminResponse, repostspace.RegisterAdminError>)>> {
+export interface RegisterAdmin extends Binding.Service<RegisterAdmin, "AWS.RePostSpace.RegisterAdmin", (space: Space) => Effect.Effect<(request: RegisterAdminRequest) => Effect.Effect<repostspace.RegisterAdminResponse, repostspace.RegisterAdminError>>> {
 }
 export declare const RegisterAdmin: RegisterAdmin;

@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetMembershipDatasources extends Binding.Service<BatchGetMembershipDatasources, "AWS.Detective.BatchGetMembershipDatasources", () => Effect.Effect<((request: detective.BatchGetMembershipDatasourcesRequest) => Effect.Effect<detective.BatchGetMembershipDatasourcesResponse, detective.BatchGetMembershipDatasourcesError>)>> {
+export interface BatchGetMembershipDatasources extends Binding.Service<BatchGetMembershipDatasources, "AWS.Detective.BatchGetMembershipDatasources", () => Effect.Effect<(request: detective.BatchGetMembershipDatasourcesRequest) => Effect.Effect<detective.BatchGetMembershipDatasourcesResponse, detective.BatchGetMembershipDatasourcesError>>> {
 }
 export declare const BatchGetMembershipDatasources: BatchGetMembershipDatasources;

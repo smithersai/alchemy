@@ -1,7 +1,7 @@
 import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface RestoreTableFromBackupRequest extends Omit<DynamoDB.RestoreTableFromBackupInput, "TargetTableName"> {
 }
 /**
@@ -26,6 +26,6 @@ export interface RestoreTableFromBackupRequest extends Omit<DynamoDB.RestoreTabl
  *
  * @binding
  */
-export interface RestoreTableFromBackup extends Binding.Service<RestoreTableFromBackup, "AWS.DynamoDB.RestoreTableFromBackup", <From extends Table, To extends Table>(from: From, to: To) => Effect.Effect<((request: RestoreTableFromBackupRequest) => Effect.Effect<DynamoDB.RestoreTableFromBackupOutput, DynamoDB.RestoreTableFromBackupError>)>> {
+export interface RestoreTableFromBackup extends Binding.Service<RestoreTableFromBackup, "AWS.DynamoDB.RestoreTableFromBackup", <From extends Table, To extends Table>(from: From, to: To) => Effect.Effect<(request: RestoreTableFromBackupRequest) => Effect.Effect<DynamoDB.RestoreTableFromBackupOutput, DynamoDB.RestoreTableFromBackupError>>> {
 }
 export declare const RestoreTableFromBackup: RestoreTableFromBackup;

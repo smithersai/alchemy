@@ -1,7 +1,7 @@
 import type * as ds from "@distilled.cloud/aws/directory-service";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Directory } from "./Directory.js";
+import type { Directory } from "./Directory.ts";
 /**
  * Runtime binding for the `CreateSnapshot` operation (IAM action
  * `ds:CreateSnapshot`), scoped to one {@link Directory}.
@@ -24,6 +24,6 @@ import type { Directory } from "./Directory.js";
  *
  * @binding
  */
-export interface CreateSnapshot extends Binding.Service<CreateSnapshot, "AWS.DirectoryService.CreateSnapshot", (directory: Directory) => Effect.Effect<((request?: Omit<ds.CreateSnapshotRequest, "DirectoryId">) => Effect.Effect<ds.CreateSnapshotResult, ds.CreateSnapshotError>)>> {
+export interface CreateSnapshot extends Binding.Service<CreateSnapshot, "AWS.DirectoryService.CreateSnapshot", (directory: Directory) => Effect.Effect<(request?: Omit<ds.CreateSnapshotRequest, "DirectoryId">) => Effect.Effect<ds.CreateSnapshotResult, ds.CreateSnapshotError>>> {
 }
 export declare const CreateSnapshot: CreateSnapshot;

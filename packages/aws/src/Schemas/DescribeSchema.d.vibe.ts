@@ -24,9 +24,9 @@ import type { Schema } from "./Schema.vibe";
  *
  * @binding
  */
-export interface DescribeSchema extends Binding.Service<DescribeSchema, "AWS.Schemas.DescribeSchema", (schema: Schema) => Effect.Effect<((request?: {
+export interface DescribeSchema extends Binding.Service<DescribeSchema, "AWS.Schemas.DescribeSchema", (schema: Schema) => Effect.Effect<(request?: {
     /** The version of the schema to read. Defaults to the latest. */
     SchemaVersion?: string;
-}) => Effect.Effect<schemas.DescribeSchemaResponse, schemas.DescribeSchemaError>)>> {
+}) => Effect.Effect<schemas.DescribeSchemaResponse, schemas.DescribeSchemaError>>> {
 }
 export declare const DescribeSchema: DescribeSchema;

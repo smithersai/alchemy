@@ -27,6 +27,6 @@ export interface GetMetricMetadataRequest {
  *
  * @binding
  */
-export interface GetMetricMetadata extends Binding.Service<GetMetricMetadata, "AWS.AMP.GetMetricMetadata", (workspace: Workspace) => Effect.Effect<((request: GetMetricMetadataRequest) => Effect.Effect<Record<string, PrometheusMetricMetadata[]>, PrometheusApiError | Credentials.CredentialsError | SourceError | SigV4.SigningError>)>> {
+export interface GetMetricMetadata extends Binding.Service<GetMetricMetadata, "AWS.AMP.GetMetricMetadata", (workspace: Workspace) => Effect.Effect<(request: GetMetricMetadataRequest) => Effect.Effect<Record<string, PrometheusMetricMetadata[]>, PrometheusApiError | Credentials.CredentialsError | SourceError | SigV4.SigningError>>> {
 }
 export declare const GetMetricMetadata: GetMetricMetadata;

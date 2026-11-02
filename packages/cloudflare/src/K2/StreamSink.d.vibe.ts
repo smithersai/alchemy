@@ -3,7 +3,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type * as Sink from "effect/Sink";
 import type { ProduceError } from "./K2Types.vibe";
-import type { Stream, StreamRecord } from "./Stream.js";
+import type { Stream, StreamRecord } from "./Stream.ts";
 /**
  * Binding service that exposes a K2 {@link Stream} as an Effect `Sink`: run
  * a `Stream` of records into it and every element is appended.

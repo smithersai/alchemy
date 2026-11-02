@@ -24,6 +24,6 @@ import type { GraphqlApi } from "./GraphqlApi.vibe";
  *
  * @binding
  */
-export interface GetIntrospectionSchema extends Binding.Service<GetIntrospectionSchema, "AWS.AppSync.GetIntrospectionSchema", (api: GraphqlApi) => Effect.Effect<((request: Omit<appsync.GetIntrospectionSchemaRequest, "apiId">) => Effect.Effect<appsync.GetIntrospectionSchemaResponse, appsync.GetIntrospectionSchemaError>)>> {
+export interface GetIntrospectionSchema extends Binding.Service<GetIntrospectionSchema, "AWS.AppSync.GetIntrospectionSchema", (api: GraphqlApi) => Effect.Effect<(request: Omit<appsync.GetIntrospectionSchemaRequest, "apiId">) => Effect.Effect<appsync.GetIntrospectionSchemaResponse, appsync.GetIntrospectionSchemaError>>> {
 }
 export declare const GetIntrospectionSchema: GetIntrospectionSchema;

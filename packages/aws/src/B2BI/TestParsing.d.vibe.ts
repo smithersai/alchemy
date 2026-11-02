@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface TestParsing extends Binding.Service<TestParsing, "AWS.B2BI.TestParsing", () => Effect.Effect<((request: b2bi.TestParsingRequest) => Effect.Effect<b2bi.TestParsingResponse, b2bi.TestParsingError>)>> {
+export interface TestParsing extends Binding.Service<TestParsing, "AWS.B2BI.TestParsing", () => Effect.Effect<(request: b2bi.TestParsingRequest) => Effect.Effect<b2bi.TestParsingResponse, b2bi.TestParsingError>>> {
 }
 export declare const TestParsing: TestParsing;

@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface InviteAccountToOrganization extends Binding.Service<InviteAccountToOrganization, "AWS.Organizations.InviteAccountToOrganization", () => Effect.Effect<((request: organizations.InviteAccountToOrganizationRequest) => Effect.Effect<organizations.InviteAccountToOrganizationResponse, organizations.InviteAccountToOrganizationError>)>> {
+export interface InviteAccountToOrganization extends Binding.Service<InviteAccountToOrganization, "AWS.Organizations.InviteAccountToOrganization", () => Effect.Effect<(request: organizations.InviteAccountToOrganizationRequest) => Effect.Effect<organizations.InviteAccountToOrganizationResponse, organizations.InviteAccountToOrganizationError>>> {
 }
 export declare const InviteAccountToOrganization: InviteAccountToOrganization;

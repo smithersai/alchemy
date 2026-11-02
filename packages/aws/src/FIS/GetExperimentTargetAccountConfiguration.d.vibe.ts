@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetExperimentTargetAccountConfiguration extends Binding.Service<GetExperimentTargetAccountConfiguration, "AWS.FIS.GetExperimentTargetAccountConfiguration", () => Effect.Effect<((request: fis.GetExperimentTargetAccountConfigurationRequest) => Effect.Effect<fis.GetExperimentTargetAccountConfigurationResponse, fis.GetExperimentTargetAccountConfigurationError>)>> {
+export interface GetExperimentTargetAccountConfiguration extends Binding.Service<GetExperimentTargetAccountConfiguration, "AWS.FIS.GetExperimentTargetAccountConfiguration", () => Effect.Effect<(request: fis.GetExperimentTargetAccountConfigurationRequest) => Effect.Effect<fis.GetExperimentTargetAccountConfigurationResponse, fis.GetExperimentTargetAccountConfigurationError>>> {
 }
 export declare const GetExperimentTargetAccountConfiguration: GetExperimentTargetAccountConfiguration;

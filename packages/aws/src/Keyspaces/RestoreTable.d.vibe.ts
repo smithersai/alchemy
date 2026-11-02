@@ -1,8 +1,8 @@
 import type * as keyspaces from "@distilled.cloud/aws/keyspaces";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Keyspace } from "./Keyspace.js";
-import type { Table } from "./Table.js";
+import type { Keyspace } from "./Keyspace.ts";
+import type { Table } from "./Table.ts";
 export interface RestoreTableRequest extends Omit<keyspaces.RestoreTableRequest, "sourceKeyspaceName" | "sourceTableName" | "targetKeyspaceName"> {
 }
 /**
@@ -36,6 +36,6 @@ export interface RestoreTableRequest extends Omit<keyspaces.RestoreTableRequest,
  *
  * @binding
  */
-export interface RestoreTable extends Binding.Service<RestoreTable, "AWS.Keyspaces.RestoreTable", <From extends Table, To extends Keyspace>(source: From, targetKeyspace: To) => Effect.Effect<((request: RestoreTableRequest) => Effect.Effect<keyspaces.RestoreTableResponse, keyspaces.RestoreTableError>)>> {
+export interface RestoreTable extends Binding.Service<RestoreTable, "AWS.Keyspaces.RestoreTable", <From extends Table, To extends Keyspace>(source: From, targetKeyspace: To) => Effect.Effect<(request: RestoreTableRequest) => Effect.Effect<keyspaces.RestoreTableResponse, keyspaces.RestoreTableError>>> {
 }
 export declare const RestoreTable: RestoreTable;

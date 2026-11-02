@@ -57,6 +57,6 @@ export interface InvokeAgentRequest extends Omit<bedrock.InvokeAgentRequest, "ag
  *
  * @binding
  */
-export interface InvokeAgent extends Binding.Service<InvokeAgent, "AWS.Bedrock.InvokeAgent", <A extends AgentAlias>(alias: A) => Effect.Effect<((request: InvokeAgentRequest) => Effect.Effect<bedrock.InvokeAgentResponse, bedrock.InvokeAgentError>)>> {
+export interface InvokeAgent extends Binding.Service<InvokeAgent, "AWS.Bedrock.InvokeAgent", <A extends AgentAlias>(alias: A) => Effect.Effect<(request: InvokeAgentRequest) => Effect.Effect<bedrock.InvokeAgentResponse, bedrock.InvokeAgentError>>> {
 }
 export declare const InvokeAgent: InvokeAgent;

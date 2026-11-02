@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetRestoreJobMetadata extends Binding.Service<GetRestoreJobMetadata, "AWS.Backup.GetRestoreJobMetadata", () => Effect.Effect<((request: backup.GetRestoreJobMetadataInput) => Effect.Effect<backup.GetRestoreJobMetadataOutput, backup.GetRestoreJobMetadataError>)>> {
+export interface GetRestoreJobMetadata extends Binding.Service<GetRestoreJobMetadata, "AWS.Backup.GetRestoreJobMetadata", () => Effect.Effect<(request: backup.GetRestoreJobMetadataInput) => Effect.Effect<backup.GetRestoreJobMetadataOutput, backup.GetRestoreJobMetadataError>>> {
 }
 export declare const GetRestoreJobMetadata: GetRestoreJobMetadata;

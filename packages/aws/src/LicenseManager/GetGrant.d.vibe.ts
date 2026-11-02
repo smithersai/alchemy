@@ -24,6 +24,6 @@ export interface GetGrantRequest extends licensemanager.GetGrantRequest {
  *
  * @binding
  */
-export interface GetGrant extends Binding.Service<GetGrant, "AWS.LicenseManager.GetGrant", () => Effect.Effect<((request: GetGrantRequest) => Effect.Effect<licensemanager.GetGrantResponse, licensemanager.GetGrantError>)>> {
+export interface GetGrant extends Binding.Service<GetGrant, "AWS.LicenseManager.GetGrant", () => Effect.Effect<(request: GetGrantRequest) => Effect.Effect<licensemanager.GetGrantResponse, licensemanager.GetGrantError>>> {
 }
 export declare const GetGrant: GetGrant;

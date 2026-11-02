@@ -21,7 +21,7 @@ export declare const makeTransferServerHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Transfer.StartServer`. */
     tag: string;
     /** The distilled operation; `ServerId` is injected from the server. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the server ARN. */
     actions: readonly string[];
     /**
@@ -45,7 +45,7 @@ export declare const makeTransferUserHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Transfer.ImportSshPublicKey`. */
     tag: string;
     /** The distilled operation; `ServerId` + `UserName` are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the user ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(user: User) => Effect.Effect<(request?: Omit<I, "ServerId" | "UserName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -60,7 +60,7 @@ export declare const makeTransferAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Transfer.SendWorkflowStepState`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

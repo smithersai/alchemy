@@ -1,7 +1,7 @@
 import * as storage from "@distilled.cloud/gcp/storage_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type ObjectAccessControlProps = {
     /**
      * Name of the bucket that contains the object. Immutable — changing it
@@ -101,5 +101,5 @@ export declare class ObjectAccessControlNotResolved extends ObjectAccessControlN
     entity: string;
 }> {
 }
-export declare const ObjectAccessControlProvider: () => import("effect/Layer").Layer<Provider.Provider<ObjectAccessControl>, never, import("../Environment.js").GcpEnvironment | storage.GcpOpContext>;
+export declare const ObjectAccessControlProvider: () => import("effect/Layer").Layer<Provider.Provider<ObjectAccessControl>, never, import("../Environment.ts").GcpEnvironment | storage.GcpOpContext>;
 export {};

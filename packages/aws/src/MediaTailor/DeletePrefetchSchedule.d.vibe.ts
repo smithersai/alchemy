@@ -26,6 +26,6 @@ export interface DeletePrefetchScheduleRequest extends Omit<mediatailor.DeletePr
  *
  * @binding
  */
-export interface DeletePrefetchSchedule extends Binding.Service<DeletePrefetchSchedule, "AWS.MediaTailor.DeletePrefetchSchedule", (config: PlaybackConfiguration) => Effect.Effect<((request: DeletePrefetchScheduleRequest) => Effect.Effect<mediatailor.DeletePrefetchScheduleResponse, mediatailor.DeletePrefetchScheduleError>)>> {
+export interface DeletePrefetchSchedule extends Binding.Service<DeletePrefetchSchedule, "AWS.MediaTailor.DeletePrefetchSchedule", (config: PlaybackConfiguration) => Effect.Effect<(request: DeletePrefetchScheduleRequest) => Effect.Effect<mediatailor.DeletePrefetchScheduleResponse, mediatailor.DeletePrefetchScheduleError>>> {
 }
 export declare const DeletePrefetchSchedule: DeletePrefetchSchedule;

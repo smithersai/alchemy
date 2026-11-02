@@ -19,8 +19,8 @@
  * hashes the whole pack as it streams).
  */
 import * as Effect from "effect/Effect";
-import { type ObjectType, type Oid } from "./ObjectCodec.js";
-import { ObjectTooLargeError, PackFormatError } from "./PackParser.js";
+import { type ObjectType, type Oid } from "./ObjectCodec.ts";
+import { ObjectTooLargeError, PackFormatError } from "./PackParser.ts";
 export interface ScannedEntry {
     readonly oid: Oid;
     readonly type: ObjectType;

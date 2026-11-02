@@ -1,8 +1,8 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment, type AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import { AWSEnvironment, type AccountID } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 import type { VpcId } from "./Vpc.vibe";
 export type InternetGatewayId<ID extends string = string> = `igw-${ID}`;
 export declare const InternetGatewayId: <ID extends string>(id: ID) => ID & InternetGatewayId<ID>;

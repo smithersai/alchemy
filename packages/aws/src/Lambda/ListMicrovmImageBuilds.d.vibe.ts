@@ -14,6 +14,6 @@ export interface ListMicrovmImageBuildsRequest extends Omit<microvms.ListMicrovm
  *
  * @binding
  */
-export interface ListMicrovmImageBuilds extends Binding.Service<ListMicrovmImageBuilds, "AWS.Lambda.ListMicrovmImageBuilds", (image: MicrovmImage) => Effect.Effect<((request: ListMicrovmImageBuildsRequest) => Effect.Effect<microvms.ListMicrovmImageBuildsOutput, microvms.ListMicrovmImageBuildsError>)>> {
+export interface ListMicrovmImageBuilds extends Binding.Service<ListMicrovmImageBuilds, "AWS.Lambda.ListMicrovmImageBuilds", (image: MicrovmImage) => Effect.Effect<(request: ListMicrovmImageBuildsRequest) => Effect.Effect<microvms.ListMicrovmImageBuildsOutput, microvms.ListMicrovmImageBuildsError>>> {
 }
 export declare const ListMicrovmImageBuilds: ListMicrovmImageBuilds;

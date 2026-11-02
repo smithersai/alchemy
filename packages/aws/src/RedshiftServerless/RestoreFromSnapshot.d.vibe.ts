@@ -24,6 +24,6 @@ import type { Namespace } from "./Namespace.vibe";
  *
  * @binding
  */
-export interface RestoreFromSnapshot extends Binding.Service<RestoreFromSnapshot, "AWS.RedshiftServerless.RestoreFromSnapshot", (namespace: Namespace) => Effect.Effect<((request: Omit<serverless.RestoreFromSnapshotRequest, "namespaceName">) => Effect.Effect<serverless.RestoreFromSnapshotResponse, serverless.RestoreFromSnapshotError>)>> {
+export interface RestoreFromSnapshot extends Binding.Service<RestoreFromSnapshot, "AWS.RedshiftServerless.RestoreFromSnapshot", (namespace: Namespace) => Effect.Effect<(request: Omit<serverless.RestoreFromSnapshotRequest, "namespaceName">) => Effect.Effect<serverless.RestoreFromSnapshotResponse, serverless.RestoreFromSnapshotError>>> {
 }
 export declare const RestoreFromSnapshot: RestoreFromSnapshot;

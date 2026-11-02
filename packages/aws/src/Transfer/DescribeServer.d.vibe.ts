@@ -23,6 +23,6 @@ import type { Server } from "./Server.vibe";
  *
  * @binding
  */
-export interface DescribeServer extends Binding.Service<DescribeServer, "AWS.Transfer.DescribeServer", (server: Server) => Effect.Effect<((request?: Omit<transfer.DescribeServerRequest, "ServerId">) => Effect.Effect<transfer.DescribeServerResponse, transfer.DescribeServerError>)>> {
+export interface DescribeServer extends Binding.Service<DescribeServer, "AWS.Transfer.DescribeServer", (server: Server) => Effect.Effect<(request?: Omit<transfer.DescribeServerRequest, "ServerId">) => Effect.Effect<transfer.DescribeServerResponse, transfer.DescribeServerError>>> {
 }
 export declare const DescribeServer: DescribeServer;

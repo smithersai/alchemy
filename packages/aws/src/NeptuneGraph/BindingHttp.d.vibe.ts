@@ -36,7 +36,7 @@ export declare const makeNeptuneGraphGraphHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.NeptuneGraph.StopGraph`. */
     tag: string;
     /** The distilled operation; `graphIdentifier` is injected from the graph. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the graph ARN. */
     actions: readonly string[];
     /** Static IAM resources granted in addition to the graph ARN. */
@@ -58,7 +58,7 @@ export declare const makeNeptuneGraphAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.NeptuneGraph.GetImportTask`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted. */
     actions: readonly string[];
     /**

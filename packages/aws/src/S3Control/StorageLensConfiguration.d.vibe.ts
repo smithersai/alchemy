@@ -1,8 +1,8 @@
 import * as s3control from "@distilled.cloud/aws/s3-control";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export interface StorageLensConfigurationProps {
     /**
      * ID of the Storage Lens configuration (1-64 characters: letters,

@@ -1,9 +1,9 @@
 import * as apigateway from "@distilled.cloud/gcp/apigateway_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { type ApiConfigFile, type ApiConfigGrpcServiceDefinition, type ApiConfigOpenApiDocument } from "./internal.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { type ApiConfigFile, type ApiConfigGrpcServiceDefinition, type ApiConfigOpenApiDocument } from "./internal.ts";
 export type { ApiConfigFile, ApiConfigGrpcServiceDefinition, ApiConfigOpenApiDocument };
 export type ApisConfigProps = {
     /**

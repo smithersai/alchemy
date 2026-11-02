@@ -39,6 +39,6 @@ export interface SendTextMessageRequest extends Omit<smsvoice.SendTextMessageReq
  *
  * @binding
  */
-export interface SendTextMessage extends Binding.Service<SendTextMessage, "AWS.PinpointSMSVoiceV2.SendTextMessage", (phoneNumber: PhoneNumber) => Effect.Effect<((request: SendTextMessageRequest) => Effect.Effect<smsvoice.SendTextMessageResult, smsvoice.SendTextMessageError>)>> {
+export interface SendTextMessage extends Binding.Service<SendTextMessage, "AWS.PinpointSMSVoiceV2.SendTextMessage", (phoneNumber: PhoneNumber) => Effect.Effect<(request: SendTextMessageRequest) => Effect.Effect<smsvoice.SendTextMessageResult, smsvoice.SendTextMessageError>>> {
 }
 export declare const SendTextMessage: SendTextMessage;

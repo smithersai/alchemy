@@ -26,6 +26,6 @@ export interface GetDataProtectionPolicyRequest extends Omit<sns.GetDataProtecti
  *
  * @binding
  */
-export interface GetDataProtectionPolicy extends Binding.Service<GetDataProtectionPolicy, "AWS.SNS.GetDataProtectionPolicy", (topic: Topic) => Effect.Effect<((request?: GetDataProtectionPolicyRequest) => Effect.Effect<sns.GetDataProtectionPolicyResponse, sns.GetDataProtectionPolicyError>)>> {
+export interface GetDataProtectionPolicy extends Binding.Service<GetDataProtectionPolicy, "AWS.SNS.GetDataProtectionPolicy", (topic: Topic) => Effect.Effect<(request?: GetDataProtectionPolicyRequest) => Effect.Effect<sns.GetDataProtectionPolicyResponse, sns.GetDataProtectionPolicyError>>> {
 }
 export declare const GetDataProtectionPolicy: GetDataProtectionPolicy;

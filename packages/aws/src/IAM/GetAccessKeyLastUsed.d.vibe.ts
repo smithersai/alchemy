@@ -26,6 +26,6 @@ import type { AccessKey } from "./AccessKey.vibe";
  *
  * @binding
  */
-export interface GetAccessKeyLastUsed extends Binding.Service<GetAccessKeyLastUsed, "AWS.IAM.GetAccessKeyLastUsed", <K extends AccessKey>(accessKey: K) => Effect.Effect<(() => Effect.Effect<iam.GetAccessKeyLastUsedResponse, iam.GetAccessKeyLastUsedError>)>> {
+export interface GetAccessKeyLastUsed extends Binding.Service<GetAccessKeyLastUsed, "AWS.IAM.GetAccessKeyLastUsed", <K extends AccessKey>(accessKey: K) => Effect.Effect<() => Effect.Effect<iam.GetAccessKeyLastUsedResponse, iam.GetAccessKeyLastUsedError>>> {
 }
 export declare const GetAccessKeyLastUsed: GetAccessKeyLastUsed;

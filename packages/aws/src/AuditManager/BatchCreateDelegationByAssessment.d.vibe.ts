@@ -26,6 +26,6 @@ export interface BatchCreateDelegationByAssessmentRequest extends Omit<auditmana
  *
  * @binding
  */
-export interface BatchCreateDelegationByAssessment extends Binding.Service<BatchCreateDelegationByAssessment, "AWS.AuditManager.BatchCreateDelegationByAssessment", (assessment: Assessment) => Effect.Effect<((request: BatchCreateDelegationByAssessmentRequest) => Effect.Effect<auditmanager.BatchCreateDelegationByAssessmentResponse, auditmanager.BatchCreateDelegationByAssessmentError>)>> {
+export interface BatchCreateDelegationByAssessment extends Binding.Service<BatchCreateDelegationByAssessment, "AWS.AuditManager.BatchCreateDelegationByAssessment", (assessment: Assessment) => Effect.Effect<(request: BatchCreateDelegationByAssessmentRequest) => Effect.Effect<auditmanager.BatchCreateDelegationByAssessmentResponse, auditmanager.BatchCreateDelegationByAssessmentError>>> {
 }
 export declare const BatchCreateDelegationByAssessment: BatchCreateDelegationByAssessment;

@@ -20,6 +20,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface GetKxConnectionString extends Binding.Service<GetKxConnectionString, "AWS.FinSpace.GetKxConnectionString", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request: Omit<SVC.GetKxConnectionStringRequest, "environmentId">) => Effect.Effect<SVC.GetKxConnectionStringResponse, SVC.GetKxConnectionStringError>)>> {
+export interface GetKxConnectionString extends Binding.Service<GetKxConnectionString, "AWS.FinSpace.GetKxConnectionString", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request: Omit<SVC.GetKxConnectionStringRequest, "environmentId">) => Effect.Effect<SVC.GetKxConnectionStringResponse, SVC.GetKxConnectionStringError>>> {
 }
 export declare const GetKxConnectionString: GetKxConnectionString;

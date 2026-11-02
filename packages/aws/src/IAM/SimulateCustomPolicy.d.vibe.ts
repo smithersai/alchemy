@@ -35,6 +35,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SimulateCustomPolicy extends Binding.Service<SimulateCustomPolicy, "AWS.IAM.SimulateCustomPolicy", () => Effect.Effect<((request: iam.SimulateCustomPolicyRequest) => Effect.Effect<iam.SimulatePolicyResponse, iam.SimulateCustomPolicyError>)>> {
+export interface SimulateCustomPolicy extends Binding.Service<SimulateCustomPolicy, "AWS.IAM.SimulateCustomPolicy", () => Effect.Effect<(request: iam.SimulateCustomPolicyRequest) => Effect.Effect<iam.SimulatePolicyResponse, iam.SimulateCustomPolicyError>>> {
 }
 export declare const SimulateCustomPolicy: SimulateCustomPolicy;

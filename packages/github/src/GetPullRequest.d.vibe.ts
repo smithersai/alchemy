@@ -2,7 +2,7 @@ import type * as Pulls from "@distilled.cloud/github/pulls";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.ts";
 /** The `accept` media types GitHub answers with text instead of JSON. */
 export type PullRequestTextMediaType = Exclude<Pulls.GetRequestAccept, "application/vnd.github+json">;
 export interface GetPullRequestRequest extends Omit<Pulls.GetRequest, "owner" | "repo" | "accept"> {
@@ -33,8 +33,8 @@ export type GetPullRequestResponse = Pulls.PullRequest;
  * @binding
  * @product Pull Request
  */
-export interface GetPullRequest extends Binding.Service<GetPullRequest, "GitHub.GetPullRequest", (repo: Repository) => Effect.Effect<(<Accept extends GetPullRequestRequest["accept"] = undefined>(request: GetPullRequestRequest & {
+export interface GetPullRequest extends Binding.Service<GetPullRequest, "GitHub.GetPullRequest", (repo: Repository) => Effect.Effect<<Accept extends GetPullRequestRequest["accept"] = undefined>(request: GetPullRequestRequest & {
     readonly accept?: Accept;
-}) => Effect.Effect<(Accept extends PullRequestTextMediaType ? string : GetPullRequestResponse), Pulls.GetError, RuntimeContext>)>> {
+}) => Effect.Effect<Accept extends PullRequestTextMediaType ? string : GetPullRequestResponse, Pulls.GetError, RuntimeContext>>> {
 }
 export declare const GetPullRequest: GetPullRequest;

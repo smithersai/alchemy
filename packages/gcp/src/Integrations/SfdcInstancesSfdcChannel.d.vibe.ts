@@ -1,8 +1,8 @@
 import * as integrations from "@distilled.cloud/gcp/integrations_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type SfdcInstancesSfdcChannelProps = {
     /**
      * Parent SFDC instance resource name

@@ -15,6 +15,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface ListCommandExecutionsForSandbox extends Binding.Service<ListCommandExecutionsForSandbox, "AWS.CodeBuild.ListCommandExecutionsForSandbox", <P extends Project>(project: P) => Effect.Effect<((request: SVC.ListCommandExecutionsForSandboxInput) => Effect.Effect<SVC.ListCommandExecutionsForSandboxOutput, SVC.ListCommandExecutionsForSandboxError>)>> {
+export interface ListCommandExecutionsForSandbox extends Binding.Service<ListCommandExecutionsForSandbox, "AWS.CodeBuild.ListCommandExecutionsForSandbox", <P extends Project>(project: P) => Effect.Effect<(request: SVC.ListCommandExecutionsForSandboxInput) => Effect.Effect<SVC.ListCommandExecutionsForSandboxOutput, SVC.ListCommandExecutionsForSandboxError>>> {
 }
 export declare const ListCommandExecutionsForSandbox: ListCommandExecutionsForSandbox;

@@ -26,6 +26,6 @@ export interface RevokeCertificateRequest extends Omit<acm.RevokeCertificateRequ
  *
  * @binding
  */
-export interface RevokeCertificate extends Binding.Service<RevokeCertificate, "AWS.ACM.RevokeCertificate", (certificate: Certificate) => Effect.Effect<((request: RevokeCertificateRequest) => Effect.Effect<acm.RevokeCertificateResponse, acm.RevokeCertificateError>)>> {
+export interface RevokeCertificate extends Binding.Service<RevokeCertificate, "AWS.ACM.RevokeCertificate", (certificate: Certificate) => Effect.Effect<(request: RevokeCertificateRequest) => Effect.Effect<acm.RevokeCertificateResponse, acm.RevokeCertificateError>>> {
 }
 export declare const RevokeCertificate: RevokeCertificate;

@@ -17,6 +17,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListCompositions extends Binding.Service<ListCompositions, "AWS.IVSRealtime.ListCompositions", () => Effect.Effect<((request?: ivsrealtime.ListCompositionsRequest) => Effect.Effect<ivsrealtime.ListCompositionsResponse, ivsrealtime.ListCompositionsError>)>> {
+export interface ListCompositions extends Binding.Service<ListCompositions, "AWS.IVSRealtime.ListCompositions", () => Effect.Effect<(request?: ivsrealtime.ListCompositionsRequest) => Effect.Effect<ivsrealtime.ListCompositionsResponse, ivsrealtime.ListCompositionsError>>> {
 }
 export declare const ListCompositions: ListCompositions;

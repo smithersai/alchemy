@@ -25,6 +25,6 @@ export interface ListCostAllocationTagBackfillHistoryRequest extends ce.ListCost
  *
  * @binding
  */
-export interface ListCostAllocationTagBackfillHistory extends Binding.Service<ListCostAllocationTagBackfillHistory, "AWS.CostExplorer.ListCostAllocationTagBackfillHistory", () => Effect.Effect<((request?: ListCostAllocationTagBackfillHistoryRequest) => Effect.Effect<ce.ListCostAllocationTagBackfillHistoryResponse, ce.ListCostAllocationTagBackfillHistoryError>)>> {
+export interface ListCostAllocationTagBackfillHistory extends Binding.Service<ListCostAllocationTagBackfillHistory, "AWS.CostExplorer.ListCostAllocationTagBackfillHistory", () => Effect.Effect<(request?: ListCostAllocationTagBackfillHistoryRequest) => Effect.Effect<ce.ListCostAllocationTagBackfillHistoryResponse, ce.ListCostAllocationTagBackfillHistoryError>>> {
 }
 export declare const ListCostAllocationTagBackfillHistory: ListCostAllocationTagBackfillHistory;

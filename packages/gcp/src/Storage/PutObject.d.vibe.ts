@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type { Bucket } from "./Bucket.vibe";
-import type { ObjectNotFound, ObjectRequestFailed, PutObjectContent } from "./ObjectMedia.js";
+import type { ObjectNotFound, ObjectRequestFailed, PutObjectContent } from "./ObjectMedia.ts";
 export type PutObjectRequest = PutObjectContent;
 /**
  * Runtime binding that uploads an object's content to a Cloud Storage
@@ -34,6 +34,6 @@ export type PutObjectRequest = PutObjectContent;
  * @binding
  * @category Storage
  */
-export interface PutObject extends Binding.Service<PutObject, "GCP.Storage.PutObject", (bucket: Bucket) => Effect.Effect<((request: PutObjectRequest) => Effect.Effect<storage.Storage_Object, ObjectNotFound | ObjectRequestFailed, RuntimeContext>)>> {
+export interface PutObject extends Binding.Service<PutObject, "GCP.Storage.PutObject", (bucket: Bucket) => Effect.Effect<(request: PutObjectRequest) => Effect.Effect<storage.Storage_Object, ObjectNotFound | ObjectRequestFailed, RuntimeContext>>> {
 }
 export declare const PutObject: PutObject;

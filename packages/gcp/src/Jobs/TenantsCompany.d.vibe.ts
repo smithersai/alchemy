@@ -1,8 +1,8 @@
 import * as jobs from "@distilled.cloud/gcp/jobs_v4";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type TenantsCompanyProps = {
     /**
      * Parent tenant resource name `projects/{project}/tenants/{tenant}`

@@ -33,6 +33,6 @@ export interface ListSchedulesRequest extends Omit<scheduler.ListSchedulesInput,
  *
  * @binding
  */
-export interface ListSchedules extends Binding.Service<ListSchedules, "AWS.Scheduler.ListSchedules", (group?: ScheduleGroup) => Effect.Effect<((request?: ListSchedulesRequest) => Effect.Effect<scheduler.ListSchedulesOutput, scheduler.ListSchedulesError>)>> {
+export interface ListSchedules extends Binding.Service<ListSchedules, "AWS.Scheduler.ListSchedules", (group?: ScheduleGroup) => Effect.Effect<(request?: ListSchedulesRequest) => Effect.Effect<scheduler.ListSchedulesOutput, scheduler.ListSchedulesError>>> {
 }
 export declare const ListSchedules: ListSchedules;

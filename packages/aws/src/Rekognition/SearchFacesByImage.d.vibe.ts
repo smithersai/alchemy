@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SearchFacesByImage extends Binding.Service<SearchFacesByImage, "AWS.Rekognition.SearchFacesByImage", () => Effect.Effect<((request: rekognition.SearchFacesByImageRequest) => Effect.Effect<rekognition.SearchFacesByImageResponse, rekognition.SearchFacesByImageError>)>> {
+export interface SearchFacesByImage extends Binding.Service<SearchFacesByImage, "AWS.Rekognition.SearchFacesByImage", () => Effect.Effect<(request: rekognition.SearchFacesByImageRequest) => Effect.Effect<rekognition.SearchFacesByImageResponse, rekognition.SearchFacesByImageError>>> {
 }
 export declare const SearchFacesByImage: SearchFacesByImage;

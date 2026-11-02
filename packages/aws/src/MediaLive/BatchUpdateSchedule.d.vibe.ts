@@ -39,6 +39,6 @@ import type { Channel } from "./Channel.vibe";
  *
  * @binding
  */
-export interface BatchUpdateSchedule extends Binding.Service<BatchUpdateSchedule, "AWS.MediaLive.BatchUpdateSchedule", (channel: Channel) => Effect.Effect<((request?: Omit<medialive.BatchUpdateScheduleRequest, "ChannelId">) => Effect.Effect<medialive.BatchUpdateScheduleResponse, medialive.BatchUpdateScheduleError>)>> {
+export interface BatchUpdateSchedule extends Binding.Service<BatchUpdateSchedule, "AWS.MediaLive.BatchUpdateSchedule", (channel: Channel) => Effect.Effect<(request?: Omit<medialive.BatchUpdateScheduleRequest, "ChannelId">) => Effect.Effect<medialive.BatchUpdateScheduleResponse, medialive.BatchUpdateScheduleError>>> {
 }
 export declare const BatchUpdateSchedule: BatchUpdateSchedule;

@@ -26,6 +26,6 @@ export interface GetMapSpritesRequest extends Omit<location.GetMapSpritesRequest
  *
  * @binding
  */
-export interface GetMapSprites extends Binding.Service<GetMapSprites, "AWS.Location.GetMapSprites", (map: LocationMap) => Effect.Effect<((request: GetMapSpritesRequest) => Effect.Effect<location.GetMapSpritesResponse, location.GetMapSpritesError>)>> {
+export interface GetMapSprites extends Binding.Service<GetMapSprites, "AWS.Location.GetMapSprites", (map: LocationMap) => Effect.Effect<(request: GetMapSpritesRequest) => Effect.Effect<location.GetMapSpritesResponse, location.GetMapSpritesError>>> {
 }
 export declare const GetMapSprites: GetMapSprites;

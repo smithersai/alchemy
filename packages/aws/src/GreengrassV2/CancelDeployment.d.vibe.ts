@@ -22,6 +22,6 @@ import type { Deployment } from "./Deployment.vibe";
  *
  * @binding
  */
-export interface CancelDeployment extends Binding.Service<CancelDeployment, "AWS.GreengrassV2.CancelDeployment", (deployment: Deployment) => Effect.Effect<((request?: Omit<greengrassv2.CancelDeploymentRequest, "deploymentId">) => Effect.Effect<greengrassv2.CancelDeploymentResponse, greengrassv2.CancelDeploymentError>)>> {
+export interface CancelDeployment extends Binding.Service<CancelDeployment, "AWS.GreengrassV2.CancelDeployment", (deployment: Deployment) => Effect.Effect<(request?: Omit<greengrassv2.CancelDeploymentRequest, "deploymentId">) => Effect.Effect<greengrassv2.CancelDeploymentResponse, greengrassv2.CancelDeploymentError>>> {
 }
 export declare const CancelDeployment: CancelDeployment;

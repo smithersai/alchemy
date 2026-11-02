@@ -22,6 +22,6 @@ export interface BatchDeleteReadSetRequest extends Omit<omics.BatchDeleteReadSet
  *
  * @binding
  */
-export interface BatchDeleteReadSet extends Binding.Service<BatchDeleteReadSet, "AWS.Omics.BatchDeleteReadSet", (store: SequenceStore) => Effect.Effect<((request?: BatchDeleteReadSetRequest) => Effect.Effect<omics.BatchDeleteReadSetResponse, omics.BatchDeleteReadSetError>)>> {
+export interface BatchDeleteReadSet extends Binding.Service<BatchDeleteReadSet, "AWS.Omics.BatchDeleteReadSet", (store: SequenceStore) => Effect.Effect<(request?: BatchDeleteReadSetRequest) => Effect.Effect<omics.BatchDeleteReadSetResponse, omics.BatchDeleteReadSetError>>> {
 }
 export declare const BatchDeleteReadSet: BatchDeleteReadSet;

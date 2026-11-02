@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListEnabledProductsForImport extends Binding.Service<ListEnabledProductsForImport, "AWS.SecurityHub.ListEnabledProductsForImport", () => Effect.Effect<((request?: securityhub.ListEnabledProductsForImportRequest) => Effect.Effect<securityhub.ListEnabledProductsForImportResponse, securityhub.ListEnabledProductsForImportError>)>> {
+export interface ListEnabledProductsForImport extends Binding.Service<ListEnabledProductsForImport, "AWS.SecurityHub.ListEnabledProductsForImport", () => Effect.Effect<(request?: securityhub.ListEnabledProductsForImportRequest) => Effect.Effect<securityhub.ListEnabledProductsForImportResponse, securityhub.ListEnabledProductsForImportError>>> {
 }
 export declare const ListEnabledProductsForImport: ListEnabledProductsForImport;

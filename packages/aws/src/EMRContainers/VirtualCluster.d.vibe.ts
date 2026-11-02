@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface VirtualClusterContainerProvider {
     /**
      * The name of the underlying EKS cluster. Changing it replaces the virtual

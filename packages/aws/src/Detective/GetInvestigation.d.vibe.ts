@@ -26,6 +26,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface GetInvestigation extends Binding.Service<GetInvestigation, "AWS.Detective.GetInvestigation", (graph: Graph) => Effect.Effect<((request: Omit<detective.GetInvestigationRequest, "GraphArn">) => Effect.Effect<detective.GetInvestigationResponse, detective.GetInvestigationError>)>> {
+export interface GetInvestigation extends Binding.Service<GetInvestigation, "AWS.Detective.GetInvestigation", (graph: Graph) => Effect.Effect<(request: Omit<detective.GetInvestigationRequest, "GraphArn">) => Effect.Effect<detective.GetInvestigationResponse, detective.GetInvestigationError>>> {
 }
 export declare const GetInvestigation: GetInvestigation;

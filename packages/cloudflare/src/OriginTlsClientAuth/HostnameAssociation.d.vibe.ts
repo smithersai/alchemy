@@ -1,7 +1,7 @@
 import * as originTls from "@distilled.cloud/cloudflare/origin-tls-client-auth";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 declare const TypeId: "Cloudflare.OriginTlsClientAuth.HostnameAssociation";
 type TypeId = typeof TypeId;
 /**

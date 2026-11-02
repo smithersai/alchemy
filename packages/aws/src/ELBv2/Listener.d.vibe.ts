@@ -1,9 +1,9 @@
 import type { Input } from "alchemy/Input";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import type { AccountID } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 import { type ListenerAction } from "./common.vibe";
 import type { LoadBalancer, LoadBalancerArn } from "./LoadBalancer.vibe";
 import type { TargetGroup, TargetGroupArn } from "./TargetGroup.vibe";

@@ -20,7 +20,7 @@ export declare const makeIncidentsResponsePlanHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SSMIncidents.StartIncident`. */
     tag: string;
     /** The distilled operation; `responsePlanArn` is injected from the plan. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the response plan ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(plan: ResponsePlan) => Effect.Effect<(request?: Omit<I, "responsePlanArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -36,7 +36,7 @@ export declare const makeIncidentsAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.SSMIncidents.GetIncidentRecord`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

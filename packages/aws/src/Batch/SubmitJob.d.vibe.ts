@@ -1,7 +1,7 @@
 import type * as batch from "@distilled.cloud/aws/batch";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { JobDefinition } from "./JobDefinition.js";
+import type { JobDefinition } from "./JobDefinition.ts";
 import type { JobQueue } from "./JobQueue.vibe";
 /**
  * The queue and job definition are injected by the binding; everything else
@@ -25,6 +25,6 @@ export interface SubmitJobRequest extends Omit<batch.SubmitJobRequest, "jobQueue
  *
  * @binding
  */
-export interface SubmitJob extends Binding.Service<SubmitJob, "AWS.Batch.SubmitJob", (queue: JobQueue, jobDefinition: JobDefinition) => Effect.Effect<((request: SubmitJobRequest) => Effect.Effect<batch.SubmitJobResponse, batch.SubmitJobError>)>> {
+export interface SubmitJob extends Binding.Service<SubmitJob, "AWS.Batch.SubmitJob", (queue: JobQueue, jobDefinition: JobDefinition) => Effect.Effect<(request: SubmitJobRequest) => Effect.Effect<batch.SubmitJobResponse, batch.SubmitJobError>>> {
 }
 export declare const SubmitJob: SubmitJob;

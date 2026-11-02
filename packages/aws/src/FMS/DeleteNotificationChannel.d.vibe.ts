@@ -23,6 +23,6 @@ export interface DeleteNotificationChannelRequest extends fms.DeleteNotification
  *
  * @binding
  */
-export interface DeleteNotificationChannel extends Binding.Service<DeleteNotificationChannel, "AWS.FMS.DeleteNotificationChannel", () => Effect.Effect<((request?: DeleteNotificationChannelRequest) => Effect.Effect<fms.DeleteNotificationChannelResponse, fms.DeleteNotificationChannelError>)>> {
+export interface DeleteNotificationChannel extends Binding.Service<DeleteNotificationChannel, "AWS.FMS.DeleteNotificationChannel", () => Effect.Effect<(request?: DeleteNotificationChannelRequest) => Effect.Effect<fms.DeleteNotificationChannelResponse, fms.DeleteNotificationChannelError>>> {
 }
 export declare const DeleteNotificationChannel: DeleteNotificationChannel;

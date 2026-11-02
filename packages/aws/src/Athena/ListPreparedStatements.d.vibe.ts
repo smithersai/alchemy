@@ -22,6 +22,6 @@ import type { WorkGroup } from "./WorkGroup.vibe";
  *
  * @binding
  */
-export interface ListPreparedStatements extends Binding.Service<ListPreparedStatements, "AWS.Athena.ListPreparedStatements", (workGroup: WorkGroup) => Effect.Effect<((request: Omit<athena.ListPreparedStatementsInput, "WorkGroup">) => Effect.Effect<athena.ListPreparedStatementsOutput, athena.ListPreparedStatementsError>)>> {
+export interface ListPreparedStatements extends Binding.Service<ListPreparedStatements, "AWS.Athena.ListPreparedStatements", (workGroup: WorkGroup) => Effect.Effect<(request: Omit<athena.ListPreparedStatementsInput, "WorkGroup">) => Effect.Effect<athena.ListPreparedStatementsOutput, athena.ListPreparedStatementsError>>> {
 }
 export declare const ListPreparedStatements: ListPreparedStatements;

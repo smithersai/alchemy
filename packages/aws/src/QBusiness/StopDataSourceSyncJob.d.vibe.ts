@@ -25,6 +25,6 @@ export interface StopDataSourceSyncJobRequest extends Omit<qbusiness.StopDataSou
  *
  * @binding
  */
-export interface StopDataSourceSyncJob extends Binding.Service<StopDataSourceSyncJob, "AWS.QBusiness.StopDataSourceSyncJob", (dataSource: DataSource) => Effect.Effect<((request?: StopDataSourceSyncJobRequest) => Effect.Effect<qbusiness.StopDataSourceSyncJobResponse, qbusiness.StopDataSourceSyncJobError>)>> {
+export interface StopDataSourceSyncJob extends Binding.Service<StopDataSourceSyncJob, "AWS.QBusiness.StopDataSourceSyncJob", (dataSource: DataSource) => Effect.Effect<(request?: StopDataSourceSyncJobRequest) => Effect.Effect<qbusiness.StopDataSourceSyncJobResponse, qbusiness.StopDataSourceSyncJobError>>> {
 }
 export declare const StopDataSourceSyncJob: StopDataSourceSyncJob;

@@ -7,8 +7,8 @@ import { Resource } from "alchemy/Resource";
 import type { ProcessServices } from "alchemy/Runtime/Process";
 import type * as Duration from "effect/Duration";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.js";
-import { ContainerTypeId } from "./Container.js";
+import type { Providers } from "../Providers.ts";
+import { ContainerTypeId } from "./Container.ts";
 export { Credentials } from "@distilled.cloud/cloudflare/Credentials";
 export declare namespace ContainerApplication {
     type InstanceType = NonNullable<Containers.CreateContainerApplicationRequest["configuration"]["instanceType"]>;
@@ -897,4 +897,4 @@ export declare namespace DevContainerImage {
         readonly tag: string;
     }
 }
-export declare const ContainerProvider: () => import("effect/Layer").Layer<import("alchemy").Provider<ContainerApplication<unknown>>, never, import("alchemy").AlchemyContext | import("alchemy/Artifacts").ArtifactStore | import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@alchemy.run/docker/Docker").Docker | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy").Stack | import("alchemy").Stage | Containers.CloudflareOpContext>;
+export declare const ContainerProvider: () => import("effect/Layer").Layer<import("alchemy").Provider<ContainerApplication<unknown>>, never, import("alchemy").AlchemyContext | import("alchemy/Artifacts").ArtifactStore | import("../CloudflareEnvironmentService.ts").CloudflareEnvironment | import("@alchemy.run/docker/Docker").Docker | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy").Stack | import("alchemy").Stage | Containers.CloudflareOpContext>;

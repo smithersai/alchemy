@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetEncryptionKey extends Binding.Service<GetEncryptionKey, "AWS.Inspector2.GetEncryptionKey", () => Effect.Effect<((request: inspector2.GetEncryptionKeyRequest) => Effect.Effect<inspector2.GetEncryptionKeyResponse, inspector2.GetEncryptionKeyError>)>> {
+export interface GetEncryptionKey extends Binding.Service<GetEncryptionKey, "AWS.Inspector2.GetEncryptionKey", () => Effect.Effect<(request: inspector2.GetEncryptionKeyRequest) => Effect.Effect<inspector2.GetEncryptionKeyResponse, inspector2.GetEncryptionKeyError>>> {
 }
 export declare const GetEncryptionKey: GetEncryptionKey;

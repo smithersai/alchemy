@@ -18,6 +18,6 @@ export interface CheckIfPhoneNumberIsOptedOutRequest extends sns.CheckIfPhoneNum
  *
  * @binding
  */
-export interface CheckIfPhoneNumberIsOptedOut extends Binding.Service<CheckIfPhoneNumberIsOptedOut, "AWS.SNS.CheckIfPhoneNumberIsOptedOut", () => Effect.Effect<((request: CheckIfPhoneNumberIsOptedOutRequest) => Effect.Effect<sns.CheckIfPhoneNumberIsOptedOutResponse, sns.CheckIfPhoneNumberIsOptedOutError>)>> {
+export interface CheckIfPhoneNumberIsOptedOut extends Binding.Service<CheckIfPhoneNumberIsOptedOut, "AWS.SNS.CheckIfPhoneNumberIsOptedOut", () => Effect.Effect<(request: CheckIfPhoneNumberIsOptedOutRequest) => Effect.Effect<sns.CheckIfPhoneNumberIsOptedOutResponse, sns.CheckIfPhoneNumberIsOptedOutError>>> {
 }
 export declare const CheckIfPhoneNumberIsOptedOut: CheckIfPhoneNumberIsOptedOut;

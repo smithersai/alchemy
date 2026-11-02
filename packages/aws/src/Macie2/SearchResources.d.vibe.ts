@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SearchResources extends Binding.Service<SearchResources, "AWS.Macie2.SearchResources", () => Effect.Effect<((request?: macie2.SearchResourcesRequest) => Effect.Effect<macie2.SearchResourcesResponse, macie2.SearchResourcesError>)>> {
+export interface SearchResources extends Binding.Service<SearchResources, "AWS.Macie2.SearchResources", () => Effect.Effect<(request?: macie2.SearchResourcesRequest) => Effect.Effect<macie2.SearchResourcesResponse, macie2.SearchResourcesError>>> {
 }
 export declare const SearchResources: SearchResources;

@@ -29,6 +29,6 @@ export interface ListResourceRecordSetsRequest extends Omit<route53.ListResource
  *
  * @binding
  */
-export interface ListResourceRecordSets extends Binding.Service<ListResourceRecordSets, "AWS.Route53.ListResourceRecordSets", (zone: HostedZone) => Effect.Effect<((request?: ListResourceRecordSetsRequest) => Effect.Effect<route53.ListResourceRecordSetsResponse, route53.ListResourceRecordSetsError>)>> {
+export interface ListResourceRecordSets extends Binding.Service<ListResourceRecordSets, "AWS.Route53.ListResourceRecordSets", (zone: HostedZone) => Effect.Effect<(request?: ListResourceRecordSetsRequest) => Effect.Effect<route53.ListResourceRecordSetsResponse, route53.ListResourceRecordSetsError>>> {
 }
 export declare const ListResourceRecordSets: ListResourceRecordSets;

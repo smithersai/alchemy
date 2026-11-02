@@ -32,6 +32,6 @@ export interface ReceiveMessageRequest extends Omit<sqs.ReceiveMessageRequest, "
  *
  * @binding
  */
-export interface ReceiveMessage extends Binding.Service<ReceiveMessage, "AWS.SQS.ReceiveMessage", (queue: Queue) => Effect.Effect<((request: ReceiveMessageRequest) => Effect.Effect<sqs.ReceiveMessageResult, sqs.ReceiveMessageError>)>> {
+export interface ReceiveMessage extends Binding.Service<ReceiveMessage, "AWS.SQS.ReceiveMessage", (queue: Queue) => Effect.Effect<(request: ReceiveMessageRequest) => Effect.Effect<sqs.ReceiveMessageResult, sqs.ReceiveMessageError>>> {
 }
 export declare const ReceiveMessage: ReceiveMessage;

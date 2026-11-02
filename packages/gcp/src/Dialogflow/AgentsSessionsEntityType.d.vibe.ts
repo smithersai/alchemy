@@ -1,8 +1,8 @@
 import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type SessionEntityOverrideMode = "ENTITY_OVERRIDE_MODE_UNSPECIFIED" | "ENTITY_OVERRIDE_MODE_OVERRIDE" | "ENTITY_OVERRIDE_MODE_SUPPLEMENT";
 export type AgentsSessionsEntity = {
     /** Canonical entity value. */

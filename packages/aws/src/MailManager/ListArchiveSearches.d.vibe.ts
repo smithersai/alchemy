@@ -19,6 +19,6 @@ import type { Archive } from "./Archive.vibe";
  *
  * @binding
  */
-export interface ListArchiveSearches extends Binding.Service<ListArchiveSearches, "AWS.MailManager.ListArchiveSearches", (archive: Archive) => Effect.Effect<((request: Omit<mm.ListArchiveSearchesRequest, "ArchiveId">) => Effect.Effect<mm.ListArchiveSearchesResponse, mm.ListArchiveSearchesError>)>> {
+export interface ListArchiveSearches extends Binding.Service<ListArchiveSearches, "AWS.MailManager.ListArchiveSearches", (archive: Archive) => Effect.Effect<(request: Omit<mm.ListArchiveSearchesRequest, "ArchiveId">) => Effect.Effect<mm.ListArchiveSearchesResponse, mm.ListArchiveSearchesError>>> {
 }
 export declare const ListArchiveSearches: ListArchiveSearches;

@@ -23,6 +23,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface StartImportTask extends Binding.Service<StartImportTask, "AWS.NeptuneGraph.StartImportTask", (graph: Graph) => Effect.Effect<((request: Omit<neptunegraph.StartImportTaskInput, "graphIdentifier">) => Effect.Effect<neptunegraph.StartImportTaskOutput, neptunegraph.StartImportTaskError>)>> {
+export interface StartImportTask extends Binding.Service<StartImportTask, "AWS.NeptuneGraph.StartImportTask", (graph: Graph) => Effect.Effect<(request: Omit<neptunegraph.StartImportTaskInput, "graphIdentifier">) => Effect.Effect<neptunegraph.StartImportTaskOutput, neptunegraph.StartImportTaskError>>> {
 }
 export declare const StartImportTask: StartImportTask;

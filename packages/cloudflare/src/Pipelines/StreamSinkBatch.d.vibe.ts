@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { StreamSink, type StreamSinkClient } from "./StreamSink.vibe";
-import { WriteStream, type WriteStreamClient } from "./WriteStream.js";
+import { WriteStream, type WriteStreamClient } from "./WriteStream.ts";
 /**
  * Batch packing for {@link StreamSink}. Internal — not exported from the
  * Pipelines barrel.

@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetFaceDetection extends Binding.Service<GetFaceDetection, "AWS.Rekognition.GetFaceDetection", () => Effect.Effect<((request: rekognition.GetFaceDetectionRequest) => Effect.Effect<rekognition.GetFaceDetectionResponse, rekognition.GetFaceDetectionError>)>> {
+export interface GetFaceDetection extends Binding.Service<GetFaceDetection, "AWS.Rekognition.GetFaceDetection", () => Effect.Effect<(request: rekognition.GetFaceDetectionRequest) => Effect.Effect<rekognition.GetFaceDetectionResponse, rekognition.GetFaceDetectionError>>> {
 }
 export declare const GetFaceDetection: GetFaceDetection;

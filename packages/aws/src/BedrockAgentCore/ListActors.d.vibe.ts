@@ -30,6 +30,6 @@ export interface ListActorsRequest extends Omit<agentcore.ListActorsInput, "memo
  *
  * @binding
  */
-export interface ListActors extends Binding.Service<ListActors, "AWS.BedrockAgentCore.ListActors", <R extends Memory>(memory: R) => Effect.Effect<((request: ListActorsRequest) => Effect.Effect<agentcore.ListActorsOutput, agentcore.ListActorsError>)>> {
+export interface ListActors extends Binding.Service<ListActors, "AWS.BedrockAgentCore.ListActors", <R extends Memory>(memory: R) => Effect.Effect<(request: ListActorsRequest) => Effect.Effect<agentcore.ListActorsOutput, agentcore.ListActorsError>>> {
 }
 export declare const ListActors: ListActors;

@@ -29,6 +29,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListPreviewRotationShifts extends Binding.Service<ListPreviewRotationShifts, "AWS.SSMContacts.ListPreviewRotationShifts", () => Effect.Effect<((request: ssm.ListPreviewRotationShiftsRequest) => Effect.Effect<ssm.ListPreviewRotationShiftsResult, ssm.ListPreviewRotationShiftsError>)>> {
+export interface ListPreviewRotationShifts extends Binding.Service<ListPreviewRotationShifts, "AWS.SSMContacts.ListPreviewRotationShifts", () => Effect.Effect<(request: ssm.ListPreviewRotationShiftsRequest) => Effect.Effect<ssm.ListPreviewRotationShiftsResult, ssm.ListPreviewRotationShiftsError>>> {
 }
 export declare const ListPreviewRotationShifts: ListPreviewRotationShifts;

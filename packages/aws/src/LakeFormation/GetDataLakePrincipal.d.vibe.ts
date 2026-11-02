@@ -25,6 +25,6 @@ export interface GetDataLakePrincipalRequest extends lf.GetDataLakePrincipalRequ
  *
  * @binding
  */
-export interface GetDataLakePrincipal extends Binding.Service<GetDataLakePrincipal, "AWS.LakeFormation.GetDataLakePrincipal", () => Effect.Effect<((request?: GetDataLakePrincipalRequest) => Effect.Effect<lf.GetDataLakePrincipalResponse, lf.GetDataLakePrincipalError>)>> {
+export interface GetDataLakePrincipal extends Binding.Service<GetDataLakePrincipal, "AWS.LakeFormation.GetDataLakePrincipal", () => Effect.Effect<(request?: GetDataLakePrincipalRequest) => Effect.Effect<lf.GetDataLakePrincipalResponse, lf.GetDataLakePrincipalError>>> {
 }
 export declare const GetDataLakePrincipal: GetDataLakePrincipal;

@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { BatchRetryExhaustedError } from "alchemy/Util/BatchedSink";
 import type * as Effect from "effect/Effect";
 import type * as Sink from "effect/Sink";
-import type { LogGroup } from "./LogGroup.js";
+import type { LogGroup } from "./LogGroup.ts";
 export interface LogEventSinkProps {
     /**
      * Name of the target log stream. The stream must already exist — declare an

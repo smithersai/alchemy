@@ -26,6 +26,6 @@ export interface ListOperationsRequest extends Omit<apprunner.ListOperationsRequ
  *
  * @binding
  */
-export interface ListOperations extends Binding.Service<ListOperations, "AWS.AppRunner.ListOperations", (service: Service) => Effect.Effect<((request?: ListOperationsRequest) => Effect.Effect<apprunner.ListOperationsResponse, apprunner.ListOperationsError>)>> {
+export interface ListOperations extends Binding.Service<ListOperations, "AWS.AppRunner.ListOperations", (service: Service) => Effect.Effect<(request?: ListOperationsRequest) => Effect.Effect<apprunner.ListOperationsResponse, apprunner.ListOperationsError>>> {
 }
 export declare const ListOperations: ListOperations;

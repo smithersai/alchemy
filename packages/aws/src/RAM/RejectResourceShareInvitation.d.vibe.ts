@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface RejectResourceShareInvitation extends Binding.Service<RejectResourceShareInvitation, "AWS.RAM.RejectResourceShareInvitation", () => Effect.Effect<((request: ram.RejectResourceShareInvitationRequest) => Effect.Effect<ram.RejectResourceShareInvitationResponse, ram.RejectResourceShareInvitationError>)>> {
+export interface RejectResourceShareInvitation extends Binding.Service<RejectResourceShareInvitation, "AWS.RAM.RejectResourceShareInvitation", () => Effect.Effect<(request: ram.RejectResourceShareInvitationRequest) => Effect.Effect<ram.RejectResourceShareInvitationResponse, ram.RejectResourceShareInvitationError>>> {
 }
 export declare const RejectResourceShareInvitation: RejectResourceShareInvitation;

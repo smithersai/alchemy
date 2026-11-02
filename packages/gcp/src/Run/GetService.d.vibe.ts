@@ -2,7 +2,7 @@ import type * as cloudrun from "@distilled.cloud/gcp/run_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Service } from "./Service.js";
+import type { Service } from "./Service.ts";
 export interface GetServiceRequest extends Omit<cloudrun.GetProjectsLocationsServicesRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetServiceRequest extends Omit<cloudrun.GetProjectsLocationsSer
  * @binding
  * @category Run
  */
-export interface GetService extends Binding.Service<GetService, "GCP.Run.GetService", (service: Service) => Effect.Effect<((request?: GetServiceRequest) => Effect.Effect<cloudrun.GoogleCloudRunV2Service, cloudrun.GetProjectsLocationsServicesError, RuntimeContext>)>> {
+export interface GetService extends Binding.Service<GetService, "GCP.Run.GetService", (service: Service) => Effect.Effect<(request?: GetServiceRequest) => Effect.Effect<cloudrun.GoogleCloudRunV2Service, cloudrun.GetProjectsLocationsServicesError, RuntimeContext>>> {
 }
 export declare const GetService: GetService;

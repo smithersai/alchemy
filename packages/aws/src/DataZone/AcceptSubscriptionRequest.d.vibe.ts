@@ -22,6 +22,6 @@ export interface AcceptSubscriptionRequestRequest extends Omit<datazone.AcceptSu
  *
  * @binding
  */
-export interface AcceptSubscriptionRequest extends Binding.Service<AcceptSubscriptionRequest, "AWS.DataZone.AcceptSubscriptionRequest", (domain: Domain) => Effect.Effect<((request: AcceptSubscriptionRequestRequest) => Effect.Effect<datazone.AcceptSubscriptionRequestOutput, datazone.AcceptSubscriptionRequestError>)>> {
+export interface AcceptSubscriptionRequest extends Binding.Service<AcceptSubscriptionRequest, "AWS.DataZone.AcceptSubscriptionRequest", (domain: Domain) => Effect.Effect<(request: AcceptSubscriptionRequestRequest) => Effect.Effect<datazone.AcceptSubscriptionRequestOutput, datazone.AcceptSubscriptionRequestError>>> {
 }
 export declare const AcceptSubscriptionRequest: AcceptSubscriptionRequest;

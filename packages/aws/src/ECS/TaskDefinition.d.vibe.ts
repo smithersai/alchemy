@@ -1,8 +1,8 @@
 import * as ecs from "@distilled.cloud/aws/ecs";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 /**
  * Reference to an IAM role: a raw role ARN or anything exposing a `roleArn`
  * attribute (e.g. an `AWS.IAM.Role` resource).

@@ -1,7 +1,7 @@
 import type * as eks from "@distilled.cloud/aws/eks";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 /**
  * Runtime binding for `eks:DescribeUpdate`.
  *
@@ -22,6 +22,6 @@ import type { Cluster } from "./Cluster.js";
  *
  * @binding
  */
-export interface DescribeUpdate extends Binding.Service<DescribeUpdate, "AWS.EKS.DescribeUpdate", (cluster: Cluster) => Effect.Effect<((request: Omit<eks.DescribeUpdateRequest, "name">) => Effect.Effect<eks.DescribeUpdateResponse, eks.DescribeUpdateError>)>> {
+export interface DescribeUpdate extends Binding.Service<DescribeUpdate, "AWS.EKS.DescribeUpdate", (cluster: Cluster) => Effect.Effect<(request: Omit<eks.DescribeUpdateRequest, "name">) => Effect.Effect<eks.DescribeUpdateResponse, eks.DescribeUpdateError>>> {
 }
 export declare const DescribeUpdate: DescribeUpdate;

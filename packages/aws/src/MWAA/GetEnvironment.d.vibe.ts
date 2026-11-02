@@ -23,6 +23,6 @@ import type { Environment } from "./Environment.vibe";
  *
  * @binding
  */
-export interface GetEnvironment extends Binding.Service<GetEnvironment, "AWS.MWAA.GetEnvironment", (environment: Environment) => Effect.Effect<(() => Effect.Effect<mwaa.GetEnvironmentOutput, mwaa.GetEnvironmentError>)>> {
+export interface GetEnvironment extends Binding.Service<GetEnvironment, "AWS.MWAA.GetEnvironment", (environment: Environment) => Effect.Effect<() => Effect.Effect<mwaa.GetEnvironmentOutput, mwaa.GetEnvironmentError>>> {
 }
 export declare const GetEnvironment: GetEnvironment;

@@ -56,12 +56,12 @@ export declare const retryTransient: <A, E extends {
     readonly _tag: string;
 }, R>(effect: Effect.Effect<A, E, R>) => Effect.Effect<A, E, R>;
 /** Wait for an Agent Registry operation (control plane: minutes). */
-export declare const waitForOperation: (operation: registry.Operation) => Effect.Effect<import("../Operation.js").LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | registry.GetProjectsLocationsOperationsError, registry.GcpOpContext>;
+export declare const waitForOperation: (operation: registry.Operation) => Effect.Effect<import("../Operation.ts").LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | registry.GetProjectsLocationsOperationsError, registry.GcpOpContext>;
 /**
  * Wait for a delete operation. The operation record may already be
  * garbage-collected (`NotFound`) once the resource is gone.
  */
-export declare const waitForDeleteOperation: (operation: registry.Operation) => Effect.Effect<import("../Operation.js").LongRunningOperation, registry.Forbidden | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | registry.ServiceDisabled | registry.GcpOpError, registry.GcpOpContext>;
+export declare const waitForDeleteOperation: (operation: registry.Operation) => Effect.Effect<import("../Operation.ts").LongRunningOperation, registry.Forbidden | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | registry.ServiceDisabled | registry.GcpOpError, registry.GcpOpContext>;
 export declare const waitForVisible: <A, E, R>(get: Effect.Effect<A | undefined, E, R>) => Effect.Effect<A | undefined, Exclude<E, ResourcePending>, R>;
 declare const DeleteNotConfirmed_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "GCP.AgentRegistry.DeleteNotConfirmed";

@@ -29,6 +29,6 @@ export interface RevokeCertificateRequest extends Omit<acmpca.RevokeCertificateR
  *
  * @binding
  */
-export interface RevokeCertificate extends Binding.Service<RevokeCertificate, "AWS.ACMPCA.RevokeCertificate", (certificateAuthority: CertificateAuthority) => Effect.Effect<((request: RevokeCertificateRequest) => Effect.Effect<acmpca.RevokeCertificateResponse, acmpca.RevokeCertificateError>)>> {
+export interface RevokeCertificate extends Binding.Service<RevokeCertificate, "AWS.ACMPCA.RevokeCertificate", (certificateAuthority: CertificateAuthority) => Effect.Effect<(request: RevokeCertificateRequest) => Effect.Effect<acmpca.RevokeCertificateResponse, acmpca.RevokeCertificateError>>> {
 }
 export declare const RevokeCertificate: RevokeCertificate;

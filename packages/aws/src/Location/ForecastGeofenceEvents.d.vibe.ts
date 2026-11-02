@@ -29,6 +29,6 @@ export interface ForecastGeofenceEventsRequest extends Omit<location.ForecastGeo
  *
  * @binding
  */
-export interface ForecastGeofenceEvents extends Binding.Service<ForecastGeofenceEvents, "AWS.Location.ForecastGeofenceEvents", (collection: GeofenceCollection) => Effect.Effect<((request: ForecastGeofenceEventsRequest) => Effect.Effect<location.ForecastGeofenceEventsResponse, location.ForecastGeofenceEventsError>)>> {
+export interface ForecastGeofenceEvents extends Binding.Service<ForecastGeofenceEvents, "AWS.Location.ForecastGeofenceEvents", (collection: GeofenceCollection) => Effect.Effect<(request: ForecastGeofenceEventsRequest) => Effect.Effect<location.ForecastGeofenceEventsResponse, location.ForecastGeofenceEventsError>>> {
 }
 export declare const ForecastGeofenceEvents: ForecastGeofenceEvents;

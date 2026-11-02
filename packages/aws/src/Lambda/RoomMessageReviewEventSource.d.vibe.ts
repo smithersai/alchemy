@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { RoomMessageReviewEventSource as IVSChatRoomMessageReviewEventSource, type RoomMessageEvent } from "../IVSChat/RoomMessageReviewEventSource.vibe";
-import * as Lambda from "./Function.js";
+import * as Lambda from "./Function.ts";
 /**
  * An IVS Chat message review invocation — the PascalCase
  * `Content`/`MessageId`/`RoomArn` envelope IVS Chat sends the handler for

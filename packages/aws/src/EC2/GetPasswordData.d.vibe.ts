@@ -1,7 +1,7 @@
 import type * as ec2 from "@distilled.cloud/aws/ec2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 /**
  * `GetPasswordData` request with `InstanceId` injected from the bound
  * {@link Instance}.
@@ -30,6 +30,6 @@ export interface GetPasswordDataRequest extends Omit<ec2.GetPasswordDataRequest,
  *
  * @binding
  */
-export interface GetPasswordData extends Binding.Service<GetPasswordData, "AWS.EC2.GetPasswordData", (instance: Instance) => Effect.Effect<((request?: GetPasswordDataRequest) => Effect.Effect<ec2.GetPasswordDataResult, ec2.GetPasswordDataError>)>> {
+export interface GetPasswordData extends Binding.Service<GetPasswordData, "AWS.EC2.GetPasswordData", (instance: Instance) => Effect.Effect<(request?: GetPasswordDataRequest) => Effect.Effect<ec2.GetPasswordDataResult, ec2.GetPasswordDataError>>> {
 }
 export declare const GetPasswordData: GetPasswordData;

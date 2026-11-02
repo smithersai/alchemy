@@ -2,7 +2,7 @@ import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import type { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { type GcpHostRuntimeContext } from "./HostContext.js";
+import { type GcpHostRuntimeContext } from "./HostContext.ts";
 /**
  * Shared scaffolding for event sources that deliver over HTTPS to a GCP
  * host (Pub/Sub push, Cloud Scheduler): the host's endpoint and push
@@ -52,7 +52,7 @@ export declare const deliveryAudience: (url: Output.Output<string>, path: string
  * accepts the OIDC-authenticated deliveries even when the service requires
  * authentication.
  */
-export declare const grantSelfInvoker: (host: PushHost) => Effect.Effect<void, never, import("./Providers.js").Providers>;
+export declare const grantSelfInvoker: (host: PushHost) => Effect.Effect<void, never, import("./Providers.ts").Providers>;
 /**
  * Claim `POST {path}` deliveries: verify the OIDC token (audience + the
  * host's own service account), then run `handle`. Any other request is

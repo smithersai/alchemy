@@ -23,6 +23,6 @@ export interface DescribeEndpointRequest extends iot.DescribeEndpointRequest {
  *
  * @binding
  */
-export interface DescribeEndpoint extends Binding.Service<DescribeEndpoint, "AWS.IoT.DescribeEndpoint", () => Effect.Effect<((request?: DescribeEndpointRequest) => Effect.Effect<iot.DescribeEndpointResponse, iot.DescribeEndpointError>)>> {
+export interface DescribeEndpoint extends Binding.Service<DescribeEndpoint, "AWS.IoT.DescribeEndpoint", () => Effect.Effect<(request?: DescribeEndpointRequest) => Effect.Effect<iot.DescribeEndpointResponse, iot.DescribeEndpointError>>> {
 }
 export declare const DescribeEndpoint: DescribeEndpoint;

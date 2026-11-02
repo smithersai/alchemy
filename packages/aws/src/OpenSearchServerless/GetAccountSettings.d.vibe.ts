@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetAccountSettings extends Binding.Service<GetAccountSettings, "AWS.OpenSearchServerless.GetAccountSettings", () => Effect.Effect<((request?: aoss.GetAccountSettingsRequest) => Effect.Effect<aoss.GetAccountSettingsResponse, aoss.GetAccountSettingsError>)>> {
+export interface GetAccountSettings extends Binding.Service<GetAccountSettings, "AWS.OpenSearchServerless.GetAccountSettings", () => Effect.Effect<(request?: aoss.GetAccountSettingsRequest) => Effect.Effect<aoss.GetAccountSettingsResponse, aoss.GetAccountSettingsError>>> {
 }
 export declare const GetAccountSettings: GetAccountSettings;

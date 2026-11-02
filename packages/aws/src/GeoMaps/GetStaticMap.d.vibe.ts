@@ -33,6 +33,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetStaticMap extends Binding.Service<GetStaticMap, "AWS.GeoMaps.GetStaticMap", () => Effect.Effect<((request: geoMaps.GetStaticMapRequest) => Effect.Effect<geoMaps.GetStaticMapResponse, geoMaps.GetStaticMapError>)>> {
+export interface GetStaticMap extends Binding.Service<GetStaticMap, "AWS.GeoMaps.GetStaticMap", () => Effect.Effect<(request: geoMaps.GetStaticMapRequest) => Effect.Effect<geoMaps.GetStaticMapResponse, geoMaps.GetStaticMapError>>> {
 }
 export declare const GetStaticMap: GetStaticMap;

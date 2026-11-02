@@ -29,6 +29,6 @@ export interface GetApproximateUsageRecordsRequest extends ce.GetApproximateUsag
  *
  * @binding
  */
-export interface GetApproximateUsageRecords extends Binding.Service<GetApproximateUsageRecords, "AWS.CostExplorer.GetApproximateUsageRecords", () => Effect.Effect<((request: GetApproximateUsageRecordsRequest) => Effect.Effect<ce.GetApproximateUsageRecordsResponse, ce.GetApproximateUsageRecordsError>)>> {
+export interface GetApproximateUsageRecords extends Binding.Service<GetApproximateUsageRecords, "AWS.CostExplorer.GetApproximateUsageRecords", () => Effect.Effect<(request: GetApproximateUsageRecordsRequest) => Effect.Effect<ce.GetApproximateUsageRecordsResponse, ce.GetApproximateUsageRecordsError>>> {
 }
 export declare const GetApproximateUsageRecords: GetApproximateUsageRecords;

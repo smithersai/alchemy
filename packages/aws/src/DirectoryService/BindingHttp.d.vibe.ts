@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Directory } from "./Directory.js";
+import type { Directory } from "./Directory.ts";
 /**
  * Shared scaffolding for AWS Directory Service HTTP bindings.
  *
@@ -18,7 +18,7 @@ export declare const makeDirectoryServiceAccountHttpBinding: <I, A, E, R>(option
     /** Fully-qualified binding tag, e.g. `AWS.DirectoryService.GetDirectoryLimits`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -34,7 +34,7 @@ export declare const makeDirectoryHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DirectoryService.CreateSnapshot`. */
     tag: string;
     /** The distilled operation; `DirectoryId` is injected from the directory. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the directory ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(directory: Directory) => Effect.Effect<(request?: Omit<I, "DirectoryId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

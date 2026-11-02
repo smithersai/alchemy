@@ -21,6 +21,6 @@ import type { Instance } from "./Instance.vibe";
  *
  * @binding
  */
-export interface DeleteGroupMembership extends Binding.Service<DeleteGroupMembership, "AWS.IdentityCenter.DeleteGroupMembership", (instance: Instance) => Effect.Effect<((request: Omit<identitystore.DeleteGroupMembershipRequest, "IdentityStoreId">) => Effect.Effect<identitystore.DeleteGroupMembershipResponse, identitystore.DeleteGroupMembershipError>)>> {
+export interface DeleteGroupMembership extends Binding.Service<DeleteGroupMembership, "AWS.IdentityCenter.DeleteGroupMembership", (instance: Instance) => Effect.Effect<(request: Omit<identitystore.DeleteGroupMembershipRequest, "IdentityStoreId">) => Effect.Effect<identitystore.DeleteGroupMembershipResponse, identitystore.DeleteGroupMembershipError>>> {
 }
 export declare const DeleteGroupMembership: DeleteGroupMembership;

@@ -1,7 +1,7 @@
 import * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface CreateMultipartUploadRequest extends Omit<S3.CreateMultipartUploadRequest, "Bucket"> {
 }
 /**
@@ -29,6 +29,6 @@ export interface CreateMultipartUploadRequest extends Omit<S3.CreateMultipartUpl
  *
  * @binding
  */
-export interface CreateMultipartUpload extends Binding.Service<CreateMultipartUpload, "AWS.S3.CreateMultipartUpload", (bucket: Bucket) => Effect.Effect<((request: CreateMultipartUploadRequest) => Effect.Effect<S3.CreateMultipartUploadOutput, S3.CreateMultipartUploadError>)>> {
+export interface CreateMultipartUpload extends Binding.Service<CreateMultipartUpload, "AWS.S3.CreateMultipartUpload", (bucket: Bucket) => Effect.Effect<(request: CreateMultipartUploadRequest) => Effect.Effect<S3.CreateMultipartUploadOutput, S3.CreateMultipartUploadError>>> {
 }
 export declare const CreateMultipartUpload: CreateMultipartUpload;

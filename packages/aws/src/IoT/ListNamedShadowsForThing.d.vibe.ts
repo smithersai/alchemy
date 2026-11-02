@@ -21,6 +21,6 @@ export interface ListNamedShadowsForThingRequest extends Omit<iotdata.ListNamedS
  *
  * @binding
  */
-export interface ListNamedShadowsForThing extends Binding.Service<ListNamedShadowsForThing, "AWS.IoT.ListNamedShadowsForThing", (thing: Thing) => Effect.Effect<((request?: ListNamedShadowsForThingRequest) => Effect.Effect<iotdata.ListNamedShadowsForThingResponse, iotdata.ListNamedShadowsForThingError>)>> {
+export interface ListNamedShadowsForThing extends Binding.Service<ListNamedShadowsForThing, "AWS.IoT.ListNamedShadowsForThing", (thing: Thing) => Effect.Effect<(request?: ListNamedShadowsForThingRequest) => Effect.Effect<iotdata.ListNamedShadowsForThingResponse, iotdata.ListNamedShadowsForThingError>>> {
 }
 export declare const ListNamedShadowsForThing: ListNamedShadowsForThing;

@@ -1,7 +1,7 @@
 import type * as lexr from "@distilled.cloud/aws/lex-runtime-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { BotAlias } from "./BotAlias.js";
+import type { BotAlias } from "./BotAlias.ts";
 /**
  * The `DeleteSession` request with the binding-injected `botId` and
  * `botAliasId` removed.
@@ -28,6 +28,6 @@ export interface DeleteSessionRequest extends Omit<lexr.DeleteSessionRequest, "b
  *
  * @binding
  */
-export interface DeleteSession extends Binding.Service<DeleteSession, "AWS.LexV2.DeleteSession", (alias: BotAlias) => Effect.Effect<((request: DeleteSessionRequest) => Effect.Effect<lexr.DeleteSessionResponse, lexr.DeleteSessionError>)>> {
+export interface DeleteSession extends Binding.Service<DeleteSession, "AWS.LexV2.DeleteSession", (alias: BotAlias) => Effect.Effect<(request: DeleteSessionRequest) => Effect.Effect<lexr.DeleteSessionResponse, lexr.DeleteSessionError>>> {
 }
 export declare const DeleteSession: DeleteSession;

@@ -21,7 +21,7 @@ export declare const makeDataZoneDomainHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DataZone.Search`. */
     tag: string;
     /** The distilled operation; `domainIdentifier` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the domain ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(domain: Domain) => Effect.Effect<(request?: Omit<I, "domainIdentifier"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -38,7 +38,7 @@ export declare const makeDataZoneEnvironmentHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DataZone.GetEnvironmentCredentials`. */
     tag: string;
     /** The distilled operation; both identifiers are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the parent domain ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(environment: Environment) => Effect.Effect<(request?: Omit<I, "domainIdentifier" | "environmentIdentifier"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

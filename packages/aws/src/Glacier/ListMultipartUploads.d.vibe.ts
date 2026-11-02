@@ -28,6 +28,6 @@ export interface ListMultipartUploadsRequest extends Omit<glacier.ListMultipartU
  *
  * @binding
  */
-export interface ListMultipartUploads extends Binding.Service<ListMultipartUploads, "AWS.Glacier.ListMultipartUploads", (vault: Vault) => Effect.Effect<((request?: ListMultipartUploadsRequest) => Effect.Effect<glacier.ListMultipartUploadsOutput, glacier.ListMultipartUploadsError>)>> {
+export interface ListMultipartUploads extends Binding.Service<ListMultipartUploads, "AWS.Glacier.ListMultipartUploads", (vault: Vault) => Effect.Effect<(request?: ListMultipartUploadsRequest) => Effect.Effect<glacier.ListMultipartUploadsOutput, glacier.ListMultipartUploadsError>>> {
 }
 export declare const ListMultipartUploads: ListMultipartUploads;

@@ -21,6 +21,6 @@ export interface ListWorkspacesRequest extends amp.ListWorkspacesRequest {
  *
  * @binding
  */
-export interface ListWorkspaces extends Binding.Service<ListWorkspaces, "AWS.AMP.ListWorkspaces", () => Effect.Effect<((request?: ListWorkspacesRequest) => Effect.Effect<amp.ListWorkspacesResponse, amp.ListWorkspacesError>)>> {
+export interface ListWorkspaces extends Binding.Service<ListWorkspaces, "AWS.AMP.ListWorkspaces", () => Effect.Effect<(request?: ListWorkspacesRequest) => Effect.Effect<amp.ListWorkspacesResponse, amp.ListWorkspacesError>>> {
 }
 export declare const ListWorkspaces: ListWorkspaces;

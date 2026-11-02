@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartChannel extends Binding.Service<StartChannel, "AWS.MediaTailor.StartChannel", () => Effect.Effect<((request: mediatailor.StartChannelRequest) => Effect.Effect<mediatailor.StartChannelResponse, mediatailor.StartChannelError>)>> {
+export interface StartChannel extends Binding.Service<StartChannel, "AWS.MediaTailor.StartChannel", () => Effect.Effect<(request: mediatailor.StartChannelRequest) => Effect.Effect<mediatailor.StartChannelResponse, mediatailor.StartChannelError>>> {
 }
 export declare const StartChannel: StartChannel;

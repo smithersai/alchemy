@@ -13,7 +13,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
-import { type ClusterAdapterService } from "./ClusterAdapter.js";
+import { type ClusterAdapterService } from "./ClusterAdapter.ts";
 declare const BuiltinAdaptersInvalidProps_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "BuiltinAdaptersInvalidProps";
 } & Readonly<A>;

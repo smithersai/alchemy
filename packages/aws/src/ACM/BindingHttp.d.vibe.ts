@@ -17,9 +17,9 @@ export interface AcmHttpBindingConfig<Req extends object, Out, Err> {
     /**
      * The distilled ACM operation implementing the capability.
      */
-    operation: Effect.Effect<((input: Req & {
+    operation: Effect.Effect<(input: Req & {
         CertificateArn: string;
-    }) => Effect.Effect<Out, Err>), never, AcmRequirements>;
+    }) => Effect.Effect<Out, Err>, never, AcmRequirements>;
 }
 /**
  * Build the implementation effect for a certificate-scoped ACM capability:
@@ -46,7 +46,7 @@ export interface AcmAccountHttpBindingConfig<Req extends object, Out, Err> {
     /**
      * The distilled ACM operation implementing the capability.
      */
-    operation: Effect.Effect<((input: Req) => Effect.Effect<Out, Err>), never, AcmRequirements>;
+    operation: Effect.Effect<(input: Req) => Effect.Effect<Out, Err>, never, AcmRequirements>;
 }
 /**
  * Build the implementation effect for an account-level ACM capability (no

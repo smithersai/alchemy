@@ -1,7 +1,7 @@
 import type * as WAFV2 from "@distilled.cloud/aws/wafv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { WebACL } from "./WebACL.js";
+import type { WebACL } from "./WebACL.ts";
 export interface GetSampledRequestsRequest extends Omit<WAFV2.GetSampledRequestsRequest, "WebAclArn" | "Scope"> {
 }
 /**
@@ -31,6 +31,6 @@ export interface GetSampledRequestsRequest extends Omit<WAFV2.GetSampledRequests
  *
  * @binding
  */
-export interface GetSampledRequests extends Binding.Service<GetSampledRequests, "AWS.WAFv2.GetSampledRequests", (webAcl: WebACL) => Effect.Effect<((request: GetSampledRequestsRequest) => Effect.Effect<WAFV2.GetSampledRequestsResponse, WAFV2.GetSampledRequestsError>)>> {
+export interface GetSampledRequests extends Binding.Service<GetSampledRequests, "AWS.WAFv2.GetSampledRequests", (webAcl: WebACL) => Effect.Effect<(request: GetSampledRequestsRequest) => Effect.Effect<WAFV2.GetSampledRequestsResponse, WAFV2.GetSampledRequestsError>>> {
 }
 export declare const GetSampledRequests: GetSampledRequests;

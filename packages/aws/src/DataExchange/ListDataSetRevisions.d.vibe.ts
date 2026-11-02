@@ -22,6 +22,6 @@ import type { DataSet } from "./DataSet.vibe";
  *
  * @binding
  */
-export interface ListDataSetRevisions extends Binding.Service<ListDataSetRevisions, "AWS.DataExchange.ListDataSetRevisions", (dataSet: DataSet) => Effect.Effect<((request?: Omit<dataexchange.ListDataSetRevisionsRequest, "DataSetId">) => Effect.Effect<dataexchange.ListDataSetRevisionsResponse, dataexchange.ListDataSetRevisionsError>)>> {
+export interface ListDataSetRevisions extends Binding.Service<ListDataSetRevisions, "AWS.DataExchange.ListDataSetRevisions", (dataSet: DataSet) => Effect.Effect<(request?: Omit<dataexchange.ListDataSetRevisionsRequest, "DataSetId">) => Effect.Effect<dataexchange.ListDataSetRevisionsResponse, dataexchange.ListDataSetRevisionsError>>> {
 }
 export declare const ListDataSetRevisions: ListDataSetRevisions;

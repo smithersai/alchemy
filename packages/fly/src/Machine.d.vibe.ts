@@ -2,10 +2,10 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import { App } from "./App.vibe";
-import { type MachineCheck, type MachineDeploy, type MachineShutdown } from "./Deployment.js";
+import { type MachineCheck, type MachineDeploy, type MachineShutdown } from "./Deployment.ts";
 import type { DiskSpec, MountedDisk, ServiceBinding } from "./MountVolume.vibe";
 import type { Providers } from "./Providers.vibe";
-import { type Replica } from "./replicas.js";
+import { type Replica } from "./replicas.ts";
 export type { Replica };
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces

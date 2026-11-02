@@ -30,7 +30,7 @@ export declare const makePersonalizeDatasetHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Personalize.PutItems`. */
     tag: string;
     /** The distilled operation; `datasetArn` is injected from the dataset. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the dataset ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(dataset: Dataset) => Effect.Effect<(request: Omit<I, "datasetArn">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -47,7 +47,7 @@ export declare const makePersonalizeEventTrackerHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Personalize.PutEvents`. */
     tag: string;
     /** The distilled operation; `trackingId` is injected from the tracker. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the event tracker ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(tracker: EventTracker) => Effect.Effect<(request: Omit<I, "trackingId">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -62,7 +62,7 @@ export declare const makePersonalizeAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Personalize.GetRecommendations`. */
     tag: string;
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /**
      * IAM actions granted on `Resource: ["*"]` (the target ARNs are chosen by
      * the caller at runtime).

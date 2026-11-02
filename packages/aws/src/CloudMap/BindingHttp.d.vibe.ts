@@ -22,7 +22,7 @@ export declare const makeCloudMapServiceHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.CloudMap.GetInstance`. */
     tag: string;
     /** The distilled operation; `ServiceId` is injected from the service. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the service ARN. */
     actions: readonly string[];
     /** Additional statements granted alongside the service-scoped one. */
@@ -42,7 +42,7 @@ export declare const makeCloudMapDiscoveryHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.CloudMap.DiscoverInstances`. */
     tag: string;
     /** The distilled operation; the names are injected from the service. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*` (no resource-level scoping). */
     actions: readonly string[];
 }) => Effect.Effect<(service: Service) => Effect.Effect<(request?: Omit<I, "NamespaceName" | "ServiceName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -55,7 +55,7 @@ export declare const makeCloudMapAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.CloudMap.GetOperation`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

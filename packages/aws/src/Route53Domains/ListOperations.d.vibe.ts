@@ -35,6 +35,6 @@ export interface ListOperationsRequest extends route53domains.ListOperationsRequ
  *
  * @binding
  */
-export interface ListOperations extends Binding.Service<ListOperations, "AWS.Route53Domains.ListOperations", () => Effect.Effect<((request: ListOperationsRequest) => Effect.Effect<route53domains.ListOperationsResponse, route53domains.ListOperationsError>)>> {
+export interface ListOperations extends Binding.Service<ListOperations, "AWS.Route53Domains.ListOperations", () => Effect.Effect<(request: ListOperationsRequest) => Effect.Effect<route53domains.ListOperationsResponse, route53domains.ListOperationsError>>> {
 }
 export declare const ListOperations: ListOperations;

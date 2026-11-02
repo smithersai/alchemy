@@ -23,6 +23,6 @@ export interface DeleteAppsListRequest extends fms.DeleteAppsListRequest {
  *
  * @binding
  */
-export interface DeleteAppsList extends Binding.Service<DeleteAppsList, "AWS.FMS.DeleteAppsList", () => Effect.Effect<((request: DeleteAppsListRequest) => Effect.Effect<fms.DeleteAppsListResponse, fms.DeleteAppsListError>)>> {
+export interface DeleteAppsList extends Binding.Service<DeleteAppsList, "AWS.FMS.DeleteAppsList", () => Effect.Effect<(request: DeleteAppsListRequest) => Effect.Effect<fms.DeleteAppsListResponse, fms.DeleteAppsListError>>> {
 }
 export declare const DeleteAppsList: DeleteAppsList;

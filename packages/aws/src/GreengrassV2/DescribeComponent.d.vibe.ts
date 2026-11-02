@@ -26,6 +26,6 @@ import type { ComponentVersion } from "./ComponentVersion.vibe";
  *
  * @binding
  */
-export interface DescribeComponent extends Binding.Service<DescribeComponent, "AWS.GreengrassV2.DescribeComponent", (component: ComponentVersion) => Effect.Effect<((request?: Omit<greengrassv2.DescribeComponentRequest, "arn">) => Effect.Effect<greengrassv2.DescribeComponentResponse, greengrassv2.DescribeComponentError>)>> {
+export interface DescribeComponent extends Binding.Service<DescribeComponent, "AWS.GreengrassV2.DescribeComponent", (component: ComponentVersion) => Effect.Effect<(request?: Omit<greengrassv2.DescribeComponentRequest, "arn">) => Effect.Effect<greengrassv2.DescribeComponentResponse, greengrassv2.DescribeComponentError>>> {
 }
 export declare const DescribeComponent: DescribeComponent;

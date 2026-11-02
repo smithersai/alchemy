@@ -24,6 +24,6 @@ export interface RegisterApplicationRevisionRequest extends Omit<SVC.RegisterApp
  *
  * @binding
  */
-export interface RegisterApplicationRevision extends Binding.Service<RegisterApplicationRevision, "AWS.CodeDeploy.RegisterApplicationRevision", <P extends Application>(application: P) => Effect.Effect<((request: RegisterApplicationRevisionRequest) => Effect.Effect<SVC.RegisterApplicationRevisionResponse, SVC.RegisterApplicationRevisionError>)>> {
+export interface RegisterApplicationRevision extends Binding.Service<RegisterApplicationRevision, "AWS.CodeDeploy.RegisterApplicationRevision", <P extends Application>(application: P) => Effect.Effect<(request: RegisterApplicationRevisionRequest) => Effect.Effect<SVC.RegisterApplicationRevisionResponse, SVC.RegisterApplicationRevisionError>>> {
 }
 export declare const RegisterApplicationRevision: RegisterApplicationRevision;

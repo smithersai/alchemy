@@ -1,7 +1,7 @@
 import * as sesv2 from "@distilled.cloud/aws/sesv2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 import type { SuppressionListReason } from "./ConfigurationSet.vibe";
 /**
  * Whether an SES account feature is `ENABLED` or `DISABLED`.

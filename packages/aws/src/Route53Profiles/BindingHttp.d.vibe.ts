@@ -23,7 +23,7 @@ export declare const makeProfilesHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Route53Profiles.ListProfileAssociations`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted by the binding. */
     actions: readonly string[];
 }) => Effect.Effect<(profile: Profile) => Effect.Effect<(request?: Omit<I, "ProfileId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

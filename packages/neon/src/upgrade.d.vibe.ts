@@ -1,7 +1,7 @@
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { FunctionRequest } from "./FunctionEnvironment.js";
+import { FunctionRequest } from "./FunctionEnvironment.ts";
 /**
  * Upgrade the current request using Neon's native WebSocket implementation.
  * Return `response` unchanged; rebuilding it discards the native upgrade metadata.

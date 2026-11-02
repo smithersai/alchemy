@@ -26,6 +26,6 @@ export interface StartFlowCaptureRequest extends Omit<NFW.StartFlowCaptureReques
  *
  * @binding
  */
-export interface StartFlowCapture extends Binding.Service<StartFlowCapture, "AWS.NetworkFirewall.StartFlowCapture", (firewall: Firewall) => Effect.Effect<((request: StartFlowCaptureRequest) => Effect.Effect<NFW.StartFlowCaptureResponse, NFW.StartFlowCaptureError>)>> {
+export interface StartFlowCapture extends Binding.Service<StartFlowCapture, "AWS.NetworkFirewall.StartFlowCapture", (firewall: Firewall) => Effect.Effect<(request: StartFlowCaptureRequest) => Effect.Effect<NFW.StartFlowCaptureResponse, NFW.StartFlowCaptureError>>> {
 }
 export declare const StartFlowCapture: StartFlowCapture;

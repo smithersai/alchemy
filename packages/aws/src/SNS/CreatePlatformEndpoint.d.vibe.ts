@@ -20,6 +20,6 @@ export interface CreatePlatformEndpointRequest extends Omit<sns.CreatePlatformEn
  *
  * @binding
  */
-export interface CreatePlatformEndpoint extends Binding.Service<CreatePlatformEndpoint, "AWS.SNS.CreatePlatformEndpoint", (application: PlatformApplication) => Effect.Effect<((request: CreatePlatformEndpointRequest) => Effect.Effect<sns.CreateEndpointResponse, sns.CreatePlatformEndpointError>)>> {
+export interface CreatePlatformEndpoint extends Binding.Service<CreatePlatformEndpoint, "AWS.SNS.CreatePlatformEndpoint", (application: PlatformApplication) => Effect.Effect<(request: CreatePlatformEndpointRequest) => Effect.Effect<sns.CreateEndpointResponse, sns.CreatePlatformEndpointError>>> {
 }
 export declare const CreatePlatformEndpoint: CreatePlatformEndpoint;

@@ -25,6 +25,6 @@ export interface ListConversationsRequest extends Omit<qbusiness.ListConversatio
  *
  * @binding
  */
-export interface ListConversations extends Binding.Service<ListConversations, "AWS.QBusiness.ListConversations", (application: Application) => Effect.Effect<((request?: ListConversationsRequest) => Effect.Effect<qbusiness.ListConversationsResponse, qbusiness.ListConversationsError>)>> {
+export interface ListConversations extends Binding.Service<ListConversations, "AWS.QBusiness.ListConversations", (application: Application) => Effect.Effect<(request?: ListConversationsRequest) => Effect.Effect<qbusiness.ListConversationsResponse, qbusiness.ListConversationsError>>> {
 }
 export declare const ListConversations: ListConversations;

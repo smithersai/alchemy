@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListTelemetryRules extends Binding.Service<ListTelemetryRules, "AWS.ObservabilityAdmin.ListTelemetryRules", () => Effect.Effect<((request?: obs.ListTelemetryRulesInput) => Effect.Effect<obs.ListTelemetryRulesOutput, obs.ListTelemetryRulesError>)>> {
+export interface ListTelemetryRules extends Binding.Service<ListTelemetryRules, "AWS.ObservabilityAdmin.ListTelemetryRules", () => Effect.Effect<(request?: obs.ListTelemetryRulesInput) => Effect.Effect<obs.ListTelemetryRulesOutput, obs.ListTelemetryRulesError>>> {
 }
 export declare const ListTelemetryRules: ListTelemetryRules;

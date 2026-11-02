@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/kinesis-analytics-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 export interface StopApplicationRequest extends Omit<SVC.StopApplicationRequest, "ApplicationName"> {
 }
 /**
@@ -18,6 +18,6 @@ export interface StopApplicationRequest extends Omit<SVC.StopApplicationRequest,
  *
  * @binding
  */
-export interface StopApplication extends Binding.Service<StopApplication, "AWS.KinesisAnalyticsV2.StopApplication", <A extends Application>(application: A) => Effect.Effect<((request?: StopApplicationRequest) => Effect.Effect<SVC.StopApplicationResponse, SVC.StopApplicationError>)>> {
+export interface StopApplication extends Binding.Service<StopApplication, "AWS.KinesisAnalyticsV2.StopApplication", <A extends Application>(application: A) => Effect.Effect<(request?: StopApplicationRequest) => Effect.Effect<SVC.StopApplicationResponse, SVC.StopApplicationError>>> {
 }
 export declare const StopApplication: StopApplication;

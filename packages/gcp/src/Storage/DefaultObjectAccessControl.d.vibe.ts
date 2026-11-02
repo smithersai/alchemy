@@ -1,7 +1,7 @@
 import * as storage from "@distilled.cloud/gcp/storage_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type DefaultObjectAccessControlProps = {
     /**
      * Name of the bucket whose default object ACL this entry belongs to.
@@ -84,5 +84,5 @@ export declare class DefaultObjectAccessControlNotResolved extends DefaultObject
     entity: string;
 }> {
 }
-export declare const DefaultObjectAccessControlProvider: () => import("effect/Layer").Layer<Provider.Provider<DefaultObjectAccessControl>, never, import("../Environment.js").GcpEnvironment | storage.GcpOpContext>;
+export declare const DefaultObjectAccessControlProvider: () => import("effect/Layer").Layer<Provider.Provider<DefaultObjectAccessControl>, never, import("../Environment.ts").GcpEnvironment | storage.GcpOpContext>;
 export {};

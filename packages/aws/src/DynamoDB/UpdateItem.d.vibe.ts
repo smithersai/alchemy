@@ -1,7 +1,7 @@
 import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface UpdateItemRequest extends Omit<DynamoDB.UpdateItemInput, "TableName"> {
 }
 /**
@@ -30,6 +30,6 @@ export interface UpdateItemRequest extends Omit<DynamoDB.UpdateItemInput, "Table
  *
  * @binding
  */
-export interface UpdateItem extends Binding.Service<UpdateItem, "AWS.DynamoDB.UpdateItem", <T extends Table>(table: T) => Effect.Effect<((request: UpdateItemRequest) => Effect.Effect<DynamoDB.UpdateItemOutput, DynamoDB.UpdateItemError>)>> {
+export interface UpdateItem extends Binding.Service<UpdateItem, "AWS.DynamoDB.UpdateItem", <T extends Table>(table: T) => Effect.Effect<(request: UpdateItemRequest) => Effect.Effect<DynamoDB.UpdateItemOutput, DynamoDB.UpdateItemError>>> {
 }
 export declare const UpdateItem: UpdateItem;

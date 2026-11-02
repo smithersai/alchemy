@@ -1,7 +1,7 @@
 import * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface ListMultipartUploadsRequest extends Omit<S3.ListMultipartUploadsRequest, "Bucket"> {
 }
 /**
@@ -22,6 +22,6 @@ export interface ListMultipartUploadsRequest extends Omit<S3.ListMultipartUpload
  *
  * @binding
  */
-export interface ListMultipartUploads extends Binding.Service<ListMultipartUploads, "AWS.S3.ListMultipartUploads", (bucket: Bucket) => Effect.Effect<((request?: ListMultipartUploadsRequest) => Effect.Effect<S3.ListMultipartUploadsOutput, S3.ListMultipartUploadsError>)>> {
+export interface ListMultipartUploads extends Binding.Service<ListMultipartUploads, "AWS.S3.ListMultipartUploads", (bucket: Bucket) => Effect.Effect<(request?: ListMultipartUploadsRequest) => Effect.Effect<S3.ListMultipartUploadsOutput, S3.ListMultipartUploadsError>>> {
 }
 export declare const ListMultipartUploads: ListMultipartUploads;

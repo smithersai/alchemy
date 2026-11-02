@@ -46,6 +46,6 @@ export interface DeleteEventsByEventTypeRequest extends Omit<frauddetector.Delet
  *
  * @binding
  */
-export interface DeleteEventsByEventType extends Binding.Service<DeleteEventsByEventType, "AWS.FraudDetector.DeleteEventsByEventType", (eventType: EventType) => Effect.Effect<((request: DeleteEventsByEventTypeRequest) => Effect.Effect<frauddetector.DeleteEventsByEventTypeResult, frauddetector.DeleteEventsByEventTypeError>)>> {
+export interface DeleteEventsByEventType extends Binding.Service<DeleteEventsByEventType, "AWS.FraudDetector.DeleteEventsByEventType", (eventType: EventType) => Effect.Effect<(request: DeleteEventsByEventTypeRequest) => Effect.Effect<frauddetector.DeleteEventsByEventTypeResult, frauddetector.DeleteEventsByEventTypeError>>> {
 }
 export declare const DeleteEventsByEventType: DeleteEventsByEventType;

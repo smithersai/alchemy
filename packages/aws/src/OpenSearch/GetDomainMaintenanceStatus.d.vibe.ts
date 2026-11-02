@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetDomainMaintenanceStatus extends Binding.Service<GetDomainMaintenanceStatus, "AWS.OpenSearch.GetDomainMaintenanceStatus", () => Effect.Effect<((request: opensearch.GetDomainMaintenanceStatusRequest) => Effect.Effect<opensearch.GetDomainMaintenanceStatusResponse, opensearch.GetDomainMaintenanceStatusError>)>> {
+export interface GetDomainMaintenanceStatus extends Binding.Service<GetDomainMaintenanceStatus, "AWS.OpenSearch.GetDomainMaintenanceStatus", () => Effect.Effect<(request: opensearch.GetDomainMaintenanceStatusRequest) => Effect.Effect<opensearch.GetDomainMaintenanceStatusResponse, opensearch.GetDomainMaintenanceStatusError>>> {
 }
 export declare const GetDomainMaintenanceStatus: GetDomainMaintenanceStatus;

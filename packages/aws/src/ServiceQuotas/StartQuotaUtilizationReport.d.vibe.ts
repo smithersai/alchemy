@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartQuotaUtilizationReport extends Binding.Service<StartQuotaUtilizationReport, "AWS.ServiceQuotas.StartQuotaUtilizationReport", () => Effect.Effect<((request?: servicequotas.StartQuotaUtilizationReportRequest) => Effect.Effect<servicequotas.StartQuotaUtilizationReportResponse, servicequotas.StartQuotaUtilizationReportError>)>> {
+export interface StartQuotaUtilizationReport extends Binding.Service<StartQuotaUtilizationReport, "AWS.ServiceQuotas.StartQuotaUtilizationReport", () => Effect.Effect<(request?: servicequotas.StartQuotaUtilizationReportRequest) => Effect.Effect<servicequotas.StartQuotaUtilizationReportResponse, servicequotas.StartQuotaUtilizationReportError>>> {
 }
 export declare const StartQuotaUtilizationReport: StartQuotaUtilizationReport;

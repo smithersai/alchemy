@@ -35,6 +35,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAuditFindings extends Binding.Service<ListAuditFindings, "AWS.ApplicationSignals.ListAuditFindings", () => Effect.Effect<((request: appsignals.ListAuditFindingsInput) => Effect.Effect<appsignals.ListAuditFindingsOutput, appsignals.ListAuditFindingsError>)>> {
+export interface ListAuditFindings extends Binding.Service<ListAuditFindings, "AWS.ApplicationSignals.ListAuditFindings", () => Effect.Effect<(request: appsignals.ListAuditFindingsInput) => Effect.Effect<appsignals.ListAuditFindingsOutput, appsignals.ListAuditFindingsError>>> {
 }
 export declare const ListAuditFindings: ListAuditFindings;

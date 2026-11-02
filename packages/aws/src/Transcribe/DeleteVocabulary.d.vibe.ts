@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteVocabulary extends Binding.Service<DeleteVocabulary, "AWS.Transcribe.DeleteVocabulary", () => Effect.Effect<((request: transcribe.DeleteVocabularyRequest) => Effect.Effect<transcribe.DeleteVocabularyResponse, transcribe.DeleteVocabularyError>)>> {
+export interface DeleteVocabulary extends Binding.Service<DeleteVocabulary, "AWS.Transcribe.DeleteVocabulary", () => Effect.Effect<(request: transcribe.DeleteVocabularyRequest) => Effect.Effect<transcribe.DeleteVocabularyResponse, transcribe.DeleteVocabularyError>>> {
 }
 export declare const DeleteVocabulary: DeleteVocabulary;

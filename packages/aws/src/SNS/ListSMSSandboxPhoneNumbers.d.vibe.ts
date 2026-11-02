@@ -18,6 +18,6 @@ export interface ListSMSSandboxPhoneNumbersRequest extends sns.ListSMSSandboxPho
  *
  * @binding
  */
-export interface ListSMSSandboxPhoneNumbers extends Binding.Service<ListSMSSandboxPhoneNumbers, "AWS.SNS.ListSMSSandboxPhoneNumbers", () => Effect.Effect<((request?: ListSMSSandboxPhoneNumbersRequest) => Effect.Effect<sns.ListSMSSandboxPhoneNumbersResult, sns.ListSMSSandboxPhoneNumbersError>)>> {
+export interface ListSMSSandboxPhoneNumbers extends Binding.Service<ListSMSSandboxPhoneNumbers, "AWS.SNS.ListSMSSandboxPhoneNumbers", () => Effect.Effect<(request?: ListSMSSandboxPhoneNumbersRequest) => Effect.Effect<sns.ListSMSSandboxPhoneNumbersResult, sns.ListSMSSandboxPhoneNumbersError>>> {
 }
 export declare const ListSMSSandboxPhoneNumbers: ListSMSSandboxPhoneNumbers;

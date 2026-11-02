@@ -2,8 +2,8 @@ import type * as runtime from "@cloudflare/workers-types";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
-import type { R2Error, GetOptions, ListOptions, R2Object, ObjectBody, Objects } from "./BucketTypes.js";
+import type { Bucket } from "./Bucket.ts";
+import type { R2Error, GetOptions, ListOptions, R2Object, ObjectBody, Objects } from "./BucketTypes.ts";
 /**
  * @binding
  * @product R2

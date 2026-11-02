@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `ListGroupsOlderThanOrderingId` request with `IndexId` injected from the bound index.
  */
@@ -27,6 +27,6 @@ export interface ListGroupsOlderThanOrderingIdRequest extends Omit<kendra.ListGr
  *
  * @binding
  */
-export interface ListGroupsOlderThanOrderingId extends Binding.Service<ListGroupsOlderThanOrderingId, "AWS.Kendra.ListGroupsOlderThanOrderingId", (index: Index) => Effect.Effect<((request: ListGroupsOlderThanOrderingIdRequest) => Effect.Effect<kendra.ListGroupsOlderThanOrderingIdResponse, kendra.ListGroupsOlderThanOrderingIdError>)>> {
+export interface ListGroupsOlderThanOrderingId extends Binding.Service<ListGroupsOlderThanOrderingId, "AWS.Kendra.ListGroupsOlderThanOrderingId", (index: Index) => Effect.Effect<(request: ListGroupsOlderThanOrderingIdRequest) => Effect.Effect<kendra.ListGroupsOlderThanOrderingIdResponse, kendra.ListGroupsOlderThanOrderingIdError>>> {
 }
 export declare const ListGroupsOlderThanOrderingId: ListGroupsOlderThanOrderingId;

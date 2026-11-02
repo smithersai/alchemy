@@ -32,6 +32,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetTile extends Binding.Service<GetTile, "AWS.GeoMaps.GetTile", () => Effect.Effect<((request: geoMaps.GetTileRequest) => Effect.Effect<geoMaps.GetTileResponse, geoMaps.GetTileError>)>> {
+export interface GetTile extends Binding.Service<GetTile, "AWS.GeoMaps.GetTile", () => Effect.Effect<(request: geoMaps.GetTileRequest) => Effect.Effect<geoMaps.GetTileResponse, geoMaps.GetTileError>>> {
 }
 export declare const GetTile: GetTile;

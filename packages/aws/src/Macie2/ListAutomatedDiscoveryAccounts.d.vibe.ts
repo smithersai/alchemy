@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAutomatedDiscoveryAccounts extends Binding.Service<ListAutomatedDiscoveryAccounts, "AWS.Macie2.ListAutomatedDiscoveryAccounts", () => Effect.Effect<((request?: macie2.ListAutomatedDiscoveryAccountsRequest) => Effect.Effect<macie2.ListAutomatedDiscoveryAccountsResponse, macie2.ListAutomatedDiscoveryAccountsError>)>> {
+export interface ListAutomatedDiscoveryAccounts extends Binding.Service<ListAutomatedDiscoveryAccounts, "AWS.Macie2.ListAutomatedDiscoveryAccounts", () => Effect.Effect<(request?: macie2.ListAutomatedDiscoveryAccountsRequest) => Effect.Effect<macie2.ListAutomatedDiscoveryAccountsResponse, macie2.ListAutomatedDiscoveryAccountsError>>> {
 }
 export declare const ListAutomatedDiscoveryAccounts: ListAutomatedDiscoveryAccounts;

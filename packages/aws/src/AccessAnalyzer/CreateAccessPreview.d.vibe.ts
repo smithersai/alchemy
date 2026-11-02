@@ -1,7 +1,7 @@
 import type * as aa from "@distilled.cloud/aws/accessanalyzer";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Analyzer } from "./Analyzer.js";
+import type { Analyzer } from "./Analyzer.ts";
 /** `CreateAccessPreview` request with `analyzerArn` injected from the bound {@link Analyzer}. */
 export interface CreateAccessPreviewRequest extends Omit<aa.CreateAccessPreviewRequest, "analyzerArn"> {
 }
@@ -25,6 +25,6 @@ export interface CreateAccessPreviewRequest extends Omit<aa.CreateAccessPreviewR
  *
  * @binding
  */
-export interface CreateAccessPreview extends Binding.Service<CreateAccessPreview, "AWS.AccessAnalyzer.CreateAccessPreview", (analyzer: Analyzer) => Effect.Effect<((request: CreateAccessPreviewRequest) => Effect.Effect<aa.CreateAccessPreviewResponse, aa.CreateAccessPreviewError>)>> {
+export interface CreateAccessPreview extends Binding.Service<CreateAccessPreview, "AWS.AccessAnalyzer.CreateAccessPreview", (analyzer: Analyzer) => Effect.Effect<(request: CreateAccessPreviewRequest) => Effect.Effect<aa.CreateAccessPreviewResponse, aa.CreateAccessPreviewError>>> {
 }
 export declare const CreateAccessPreview: CreateAccessPreview;

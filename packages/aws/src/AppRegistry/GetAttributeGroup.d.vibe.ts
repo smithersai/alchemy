@@ -22,6 +22,6 @@ import type { AttributeGroup } from "./AttributeGroup.vibe";
  *
  * @binding
  */
-export interface GetAttributeGroup extends Binding.Service<GetAttributeGroup, "AWS.AppRegistry.GetAttributeGroup", (attributeGroup: AttributeGroup) => Effect.Effect<(() => Effect.Effect<appregistry.GetAttributeGroupResponse, appregistry.GetAttributeGroupError>)>> {
+export interface GetAttributeGroup extends Binding.Service<GetAttributeGroup, "AWS.AppRegistry.GetAttributeGroup", (attributeGroup: AttributeGroup) => Effect.Effect<() => Effect.Effect<appregistry.GetAttributeGroupResponse, appregistry.GetAttributeGroupError>>> {
 }
 export declare const GetAttributeGroup: GetAttributeGroup;

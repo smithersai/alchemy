@@ -1,7 +1,7 @@
 import type * as rds from "@distilled.cloud/aws/rds";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DBInstance } from "./DBInstance.js";
+import type { DBInstance } from "./DBInstance.ts";
 /**
  * Runtime binding for the `CreateDBSnapshot` operation (IAM actions
  * `rds:CreateDBSnapshot` +
@@ -25,6 +25,6 @@ import type { DBInstance } from "./DBInstance.js";
  *
  * @binding
  */
-export interface CreateDBSnapshot extends Binding.Service<CreateDBSnapshot, "AWS.RDS.CreateDBSnapshot", (instance: DBInstance) => Effect.Effect<((request: Omit<rds.CreateDBSnapshotMessage, "DBInstanceIdentifier">) => Effect.Effect<rds.CreateDBSnapshotResult, rds.CreateDBSnapshotError>)>> {
+export interface CreateDBSnapshot extends Binding.Service<CreateDBSnapshot, "AWS.RDS.CreateDBSnapshot", (instance: DBInstance) => Effect.Effect<(request: Omit<rds.CreateDBSnapshotMessage, "DBInstanceIdentifier">) => Effect.Effect<rds.CreateDBSnapshotResult, rds.CreateDBSnapshotError>>> {
 }
 export declare const CreateDBSnapshot: CreateDBSnapshot;

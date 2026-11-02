@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeProgram extends Binding.Service<DescribeProgram, "AWS.MediaTailor.DescribeProgram", () => Effect.Effect<((request: mediatailor.DescribeProgramRequest) => Effect.Effect<mediatailor.DescribeProgramResponse, mediatailor.DescribeProgramError>)>> {
+export interface DescribeProgram extends Binding.Service<DescribeProgram, "AWS.MediaTailor.DescribeProgram", () => Effect.Effect<(request: mediatailor.DescribeProgramRequest) => Effect.Effect<mediatailor.DescribeProgramResponse, mediatailor.DescribeProgramError>>> {
 }
 export declare const DescribeProgram: DescribeProgram;

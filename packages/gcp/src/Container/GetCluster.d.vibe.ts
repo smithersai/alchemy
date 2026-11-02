@@ -2,7 +2,7 @@ import type * as container from "@distilled.cloud/gcp/container_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 export interface GetClusterRequest extends Omit<container.GetProjectsLocationsClustersRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetClusterRequest extends Omit<container.GetProjectsLocationsCl
  * @binding
  * @category Container
  */
-export interface GetCluster extends Binding.Service<GetCluster, "GCP.Container.GetCluster", (cluster: Cluster) => Effect.Effect<((request?: GetClusterRequest) => Effect.Effect<container.Cluster, container.GetProjectsLocationsClustersError, RuntimeContext>)>> {
+export interface GetCluster extends Binding.Service<GetCluster, "GCP.Container.GetCluster", (cluster: Cluster) => Effect.Effect<(request?: GetClusterRequest) => Effect.Effect<container.Cluster, container.GetProjectsLocationsClustersError, RuntimeContext>>> {
 }
 export declare const GetCluster: GetCluster;

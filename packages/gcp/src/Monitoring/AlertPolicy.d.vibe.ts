@@ -1,8 +1,8 @@
 import * as monitoring from "@distilled.cloud/gcp/monitoring_v3";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type AlertPolicyCombiner = "AND" | "OR" | "AND_WITH_MATCHING_RESOURCE" | (string & {});
 export type AlertPolicySeverity = "CRITICAL" | "ERROR" | "WARNING" | (string & {});
 export type Aggregation = {

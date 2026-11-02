@@ -37,6 +37,6 @@ export interface CreateAccessPointRequest extends Omit<efs.CreateAccessPointRequ
  *
  * @binding
  */
-export interface CreateAccessPoint extends Binding.Service<CreateAccessPoint, "AWS.EFS.CreateAccessPoint", (fileSystem: FileSystem) => Effect.Effect<((request: CreateAccessPointRequest) => Effect.Effect<efs.AccessPointDescription, efs.CreateAccessPointError>)>> {
+export interface CreateAccessPoint extends Binding.Service<CreateAccessPoint, "AWS.EFS.CreateAccessPoint", (fileSystem: FileSystem) => Effect.Effect<(request: CreateAccessPointRequest) => Effect.Effect<efs.AccessPointDescription, efs.CreateAccessPointError>>> {
 }
 export declare const CreateAccessPoint: CreateAccessPoint;

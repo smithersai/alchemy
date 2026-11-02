@@ -20,7 +20,7 @@ export declare const makeSESHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.SES.GetAccount`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -35,7 +35,7 @@ export declare const makeTemplateScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SES.RenderEmailTemplate`. */
     tag: string;
     /** The distilled operation; `TemplateName` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the template ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(template: EmailTemplate) => Effect.Effect<(request: Omit<I, "TemplateName">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -80,7 +80,7 @@ export declare const makeVerificationScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SES.SendCustomVerificationEmail`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the identity/address/template ARNs. */
     actions: readonly string[];
 }) => Effect.Effect<(identity: EmailIdentity | EmailIdentityRef, configurationSet?: ConfigurationSet | undefined) => Effect.Effect<(request: Omit<I, "ConfigurationSetName">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -104,7 +104,7 @@ export declare const makeSendScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SES.SendEmail`. */
     tag: string;
     /** The distilled send operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the identity/address/template/config-set ARNs. */
     actions: readonly string[];
 }) => Effect.Effect<<Identity extends EmailIdentity>(identity: Identity, configurationSet?: ConfigurationSet | undefined) => Effect.Effect<(request: Omit<I, "ConfigurationSetName">) => Effect.Effect<A, E, never>, never, never>, never, never>;

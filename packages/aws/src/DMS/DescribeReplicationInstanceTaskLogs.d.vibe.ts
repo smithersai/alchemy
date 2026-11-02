@@ -21,6 +21,6 @@ import type { ReplicationInstance } from "./ReplicationInstance.vibe";
  *
  * @binding
  */
-export interface DescribeReplicationInstanceTaskLogs extends Binding.Service<DescribeReplicationInstanceTaskLogs, "AWS.DMS.DescribeReplicationInstanceTaskLogs", (instance: ReplicationInstance) => Effect.Effect<((request?: Omit<dms.DescribeReplicationInstanceTaskLogsMessage, "ReplicationInstanceArn">) => Effect.Effect<dms.DescribeReplicationInstanceTaskLogsResponse, dms.DescribeReplicationInstanceTaskLogsError>)>> {
+export interface DescribeReplicationInstanceTaskLogs extends Binding.Service<DescribeReplicationInstanceTaskLogs, "AWS.DMS.DescribeReplicationInstanceTaskLogs", (instance: ReplicationInstance) => Effect.Effect<(request?: Omit<dms.DescribeReplicationInstanceTaskLogsMessage, "ReplicationInstanceArn">) => Effect.Effect<dms.DescribeReplicationInstanceTaskLogsResponse, dms.DescribeReplicationInstanceTaskLogsError>>> {
 }
 export declare const DescribeReplicationInstanceTaskLogs: DescribeReplicationInstanceTaskLogs;

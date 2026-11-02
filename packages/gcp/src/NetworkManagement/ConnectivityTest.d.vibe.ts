@@ -1,8 +1,8 @@
 import * as networkmanagement from "@distilled.cloud/gcp/networkmanagement_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type ConnectivityTestNetworkType = networkmanagement.EndpointNetworkTypeEnum | (string & {});
 export type ConnectivityTestEndpoint = {
     /** IP address of the endpoint (internal or external). */

@@ -29,6 +29,6 @@ export interface BatchRemoveChannelRoleFromAccessorsRequest extends Omit<reposts
  *
  * @binding
  */
-export interface BatchRemoveChannelRoleFromAccessors extends Binding.Service<BatchRemoveChannelRoleFromAccessors, "AWS.RePostSpace.BatchRemoveChannelRoleFromAccessors", (space: Space) => Effect.Effect<((request: BatchRemoveChannelRoleFromAccessorsRequest) => Effect.Effect<repostspace.BatchRemoveChannelRoleFromAccessorsOutput, repostspace.BatchRemoveChannelRoleFromAccessorsError>)>> {
+export interface BatchRemoveChannelRoleFromAccessors extends Binding.Service<BatchRemoveChannelRoleFromAccessors, "AWS.RePostSpace.BatchRemoveChannelRoleFromAccessors", (space: Space) => Effect.Effect<(request: BatchRemoveChannelRoleFromAccessorsRequest) => Effect.Effect<repostspace.BatchRemoveChannelRoleFromAccessorsOutput, repostspace.BatchRemoveChannelRoleFromAccessorsError>>> {
 }
 export declare const BatchRemoveChannelRoleFromAccessors: BatchRemoveChannelRoleFromAccessors;

@@ -27,6 +27,6 @@ export interface CreateChannelRequest extends Omit<repostspace.CreateChannelInpu
  *
  * @binding
  */
-export interface CreateChannel extends Binding.Service<CreateChannel, "AWS.RePostSpace.CreateChannel", (space: Space) => Effect.Effect<((request: CreateChannelRequest) => Effect.Effect<repostspace.CreateChannelOutput, repostspace.CreateChannelError>)>> {
+export interface CreateChannel extends Binding.Service<CreateChannel, "AWS.RePostSpace.CreateChannel", (space: Space) => Effect.Effect<(request: CreateChannelRequest) => Effect.Effect<repostspace.CreateChannelOutput, repostspace.CreateChannelError>>> {
 }
 export declare const CreateChannel: CreateChannel;

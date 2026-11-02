@@ -23,6 +23,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface ListDatasourcePackages extends Binding.Service<ListDatasourcePackages, "AWS.Detective.ListDatasourcePackages", (graph: Graph) => Effect.Effect<((request?: Omit<detective.ListDatasourcePackagesRequest, "GraphArn">) => Effect.Effect<detective.ListDatasourcePackagesResponse, detective.ListDatasourcePackagesError>)>> {
+export interface ListDatasourcePackages extends Binding.Service<ListDatasourcePackages, "AWS.Detective.ListDatasourcePackages", (graph: Graph) => Effect.Effect<(request?: Omit<detective.ListDatasourcePackagesRequest, "GraphArn">) => Effect.Effect<detective.ListDatasourcePackagesResponse, detective.ListDatasourcePackagesError>>> {
 }
 export declare const ListDatasourcePackages: ListDatasourcePackages;

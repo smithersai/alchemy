@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/databrew";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Job } from "./Job.js";
+import type { Job } from "./Job.ts";
 export interface StopJobRunRequest extends Omit<SVC.StopJobRunRequest, "Name"> {
 }
 /**
@@ -17,6 +17,6 @@ export interface StopJobRunRequest extends Omit<SVC.StopJobRunRequest, "Name"> {
  *
  * @binding
  */
-export interface StopJobRun extends Binding.Service<StopJobRun, "AWS.DataBrew.StopJobRun", <J extends Job>(job: J) => Effect.Effect<((request: StopJobRunRequest) => Effect.Effect<SVC.StopJobRunResponse, SVC.StopJobRunError>)>> {
+export interface StopJobRun extends Binding.Service<StopJobRun, "AWS.DataBrew.StopJobRun", <J extends Job>(job: J) => Effect.Effect<(request: StopJobRunRequest) => Effect.Effect<SVC.StopJobRunResponse, SVC.StopJobRunError>>> {
 }
 export declare const StopJobRun: StopJobRun;

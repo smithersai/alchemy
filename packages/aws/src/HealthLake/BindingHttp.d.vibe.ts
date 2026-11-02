@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 import type { FHIRDatastore } from "./FHIRDatastore.vibe";
 /**
  * Shared scaffolding for AWS HealthLake HTTP bindings.
@@ -24,7 +24,7 @@ export declare const makeHealthLakeDatastoreHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.HealthLake.DescribeFHIRImportJob`. */
     tag: string;
     /** The distilled operation; `DatastoreId` is injected from the data store. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the data store ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(datastore: FHIRDatastore) => Effect.Effect<(request?: Omit<I, "DatastoreId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -48,7 +48,7 @@ export declare const makeHealthLakeStartJobHttpBinding: <I extends {
      * The distilled operation; `DatastoreId` and `DataAccessRoleArn` are
      * injected from the bound resources.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the data store ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(datastore: FHIRDatastore, dataAccessRole: Role) => Effect.Effect<(request: Omit<I, "DatastoreId" | "DataAccessRoleArn"> & {

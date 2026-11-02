@@ -31,6 +31,6 @@ export interface ListResourcesRequest extends Omit<RE2.ListResourcesInput, "View
  *
  * @binding
  */
-export interface ListResources extends Binding.Service<ListResources, "AWS.ResourceExplorer.ListResources", <V extends View>(view: V) => Effect.Effect<((request?: ListResourcesRequest) => Effect.Effect<RE2.ListResourcesOutput, RE2.ListResourcesError>)>> {
+export interface ListResources extends Binding.Service<ListResources, "AWS.ResourceExplorer.ListResources", <V extends View>(view: V) => Effect.Effect<(request?: ListResourcesRequest) => Effect.Effect<RE2.ListResourcesOutput, RE2.ListResourcesError>>> {
 }
 export declare const ListResources: ListResources;

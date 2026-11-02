@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListClientDevicesAssociatedWithCoreDevice extends Binding.Service<ListClientDevicesAssociatedWithCoreDevice, "AWS.GreengrassV2.ListClientDevicesAssociatedWithCoreDevice", () => Effect.Effect<((request: greengrassv2.ListClientDevicesAssociatedWithCoreDeviceRequest) => Effect.Effect<greengrassv2.ListClientDevicesAssociatedWithCoreDeviceResponse, greengrassv2.ListClientDevicesAssociatedWithCoreDeviceError>)>> {
+export interface ListClientDevicesAssociatedWithCoreDevice extends Binding.Service<ListClientDevicesAssociatedWithCoreDevice, "AWS.GreengrassV2.ListClientDevicesAssociatedWithCoreDevice", () => Effect.Effect<(request: greengrassv2.ListClientDevicesAssociatedWithCoreDeviceRequest) => Effect.Effect<greengrassv2.ListClientDevicesAssociatedWithCoreDeviceResponse, greengrassv2.ListClientDevicesAssociatedWithCoreDeviceError>>> {
 }
 export declare const ListClientDevicesAssociatedWithCoreDevice: ListClientDevicesAssociatedWithCoreDevice;

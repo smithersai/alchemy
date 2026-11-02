@@ -1,8 +1,8 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import { type Project } from "./Project.js";
-import type { Providers } from "./Providers.js";
+import { type Project } from "./Project.ts";
+import type { Providers } from "./Providers.ts";
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces
  * it (so `yield* Project(...)` and `Project(...)` both type-check).
@@ -196,5 +196,5 @@ export declare class GroupEnvironmentRequired extends GroupEnvironmentRequired_b
     message: string;
 }> {
 }
-export declare const GroupProvider: () => import("effect/Layer").Layer<Provider.Provider<Group>, never, import("@distilled.cloud/railway").GqlTransport | import("./Environment.js").RailwayEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
+export declare const GroupProvider: () => import("effect/Layer").Layer<Provider.Provider<Group>, never, import("@distilled.cloud/railway").GqlTransport | import("./Environment.ts").RailwayEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
 export {};

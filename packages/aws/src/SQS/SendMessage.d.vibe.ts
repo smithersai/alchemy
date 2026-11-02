@@ -46,6 +46,6 @@ export interface SendMessageRequest extends Omit<sqs.SendMessageRequest, "QueueU
  *
  * @binding
  */
-export interface SendMessage extends Binding.Service<SendMessage, "AWS.SQS.SendMessage", (queue: Queue) => Effect.Effect<((request: SendMessageRequest) => Effect.Effect<sqs.SendMessageResult, sqs.SendMessageError>)>> {
+export interface SendMessage extends Binding.Service<SendMessage, "AWS.SQS.SendMessage", (queue: Queue) => Effect.Effect<(request: SendMessageRequest) => Effect.Effect<sqs.SendMessageResult, sqs.SendMessageError>>> {
 }
 export declare const SendMessage: SendMessage;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.Organizations.ListTagsForResource", () => Effect.Effect<((request: organizations.ListTagsForResourceRequest) => Effect.Effect<organizations.ListTagsForResourceResponse, organizations.ListTagsForResourceError>)>> {
+export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.Organizations.ListTagsForResource", () => Effect.Effect<(request: organizations.ListTagsForResourceRequest) => Effect.Effect<organizations.ListTagsForResourceResponse, organizations.ListTagsForResourceError>>> {
 }
 export declare const ListTagsForResource: ListTagsForResource;

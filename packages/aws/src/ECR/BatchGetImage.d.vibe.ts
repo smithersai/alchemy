@@ -24,6 +24,6 @@ export interface BatchGetImageRequest extends Omit<ecr.BatchGetImageRequest, "re
  *
  * @binding
  */
-export interface BatchGetImage extends Binding.Service<BatchGetImage, "AWS.ECR.BatchGetImage", (repository: Repository) => Effect.Effect<((request: BatchGetImageRequest) => Effect.Effect<ecr.BatchGetImageResponse, ecr.BatchGetImageError>)>> {
+export interface BatchGetImage extends Binding.Service<BatchGetImage, "AWS.ECR.BatchGetImage", (repository: Repository) => Effect.Effect<(request: BatchGetImageRequest) => Effect.Effect<ecr.BatchGetImageResponse, ecr.BatchGetImageError>>> {
 }
 export declare const BatchGetImage: BatchGetImage;

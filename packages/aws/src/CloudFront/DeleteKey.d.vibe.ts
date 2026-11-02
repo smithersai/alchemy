@@ -25,6 +25,6 @@ export interface DeleteKeyRequest extends Omit<kvs.DeleteKeyRequest, "KvsARN"> {
  *
  * @binding
  */
-export interface DeleteKey extends Binding.Service<DeleteKey, "AWS.CloudFront.DeleteKey", (store: KeyValueStore) => Effect.Effect<((request: DeleteKeyRequest) => Effect.Effect<kvs.DeleteKeyResponse, kvs.DeleteKeyError>)>> {
+export interface DeleteKey extends Binding.Service<DeleteKey, "AWS.CloudFront.DeleteKey", (store: KeyValueStore) => Effect.Effect<(request: DeleteKeyRequest) => Effect.Effect<kvs.DeleteKeyResponse, kvs.DeleteKeyError>>> {
 }
 export declare const DeleteKey: DeleteKey;

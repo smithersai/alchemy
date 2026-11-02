@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DataSource } from "./DataSource.js";
+import type { DataSource } from "./DataSource.ts";
 /**
  * Runtime binding for the `StopDataSourceSyncJob` operation (IAM action
  * `kendra:StopDataSourceSyncJob`), scoped to one {@link DataSource}.
@@ -20,6 +20,6 @@ import type { DataSource } from "./DataSource.js";
  *
  * @binding
  */
-export interface StopDataSourceSyncJob extends Binding.Service<StopDataSourceSyncJob, "AWS.Kendra.StopDataSourceSyncJob", (dataSource: DataSource) => Effect.Effect<(() => Effect.Effect<kendra.StopDataSourceSyncJobResponse, kendra.StopDataSourceSyncJobError>)>> {
+export interface StopDataSourceSyncJob extends Binding.Service<StopDataSourceSyncJob, "AWS.Kendra.StopDataSourceSyncJob", (dataSource: DataSource) => Effect.Effect<() => Effect.Effect<kendra.StopDataSourceSyncJobResponse, kendra.StopDataSourceSyncJobError>>> {
 }
 export declare const StopDataSourceSyncJob: StopDataSourceSyncJob;

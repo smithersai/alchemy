@@ -52,6 +52,6 @@ export interface CreateEventRequest extends Omit<agentcore.CreateEventInput, "me
  *
  * @binding
  */
-export interface CreateEvent extends Binding.Service<CreateEvent, "AWS.BedrockAgentCore.CreateEvent", <R extends Memory>(memory: R) => Effect.Effect<((request: CreateEventRequest) => Effect.Effect<agentcore.CreateEventOutput, agentcore.CreateEventError>)>> {
+export interface CreateEvent extends Binding.Service<CreateEvent, "AWS.BedrockAgentCore.CreateEvent", <R extends Memory>(memory: R) => Effect.Effect<(request: CreateEventRequest) => Effect.Effect<agentcore.CreateEventOutput, agentcore.CreateEventError>>> {
 }
 export declare const CreateEvent: CreateEvent;

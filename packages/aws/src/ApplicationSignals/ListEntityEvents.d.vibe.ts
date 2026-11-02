@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListEntityEvents extends Binding.Service<ListEntityEvents, "AWS.ApplicationSignals.ListEntityEvents", () => Effect.Effect<((request: appsignals.ListEntityEventsInput) => Effect.Effect<appsignals.ListEntityEventsOutput, appsignals.ListEntityEventsError>)>> {
+export interface ListEntityEvents extends Binding.Service<ListEntityEvents, "AWS.ApplicationSignals.ListEntityEvents", () => Effect.Effect<(request: appsignals.ListEntityEventsInput) => Effect.Effect<appsignals.ListEntityEventsOutput, appsignals.ListEntityEventsError>>> {
 }
 export declare const ListEntityEvents: ListEntityEvents;

@@ -1,7 +1,7 @@
 import type * as emr from "@distilled.cloud/aws/emr-serverless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 /**
  * Request accepted by the {@link GetSessionEndpoint} runtime callable. The
  * `applicationId` is injected from the bound {@link Application}.
@@ -27,6 +27,6 @@ export type GetSessionEndpointInput = Omit<emr.GetSessionEndpointRequest, "appli
  *
  * @binding
  */
-export interface GetSessionEndpoint extends Binding.Service<GetSessionEndpoint, "AWS.EMRServerless.GetSessionEndpoint", (application: Application) => Effect.Effect<((request: GetSessionEndpointInput) => Effect.Effect<emr.GetSessionEndpointResponse, emr.GetSessionEndpointError>)>> {
+export interface GetSessionEndpoint extends Binding.Service<GetSessionEndpoint, "AWS.EMRServerless.GetSessionEndpoint", (application: Application) => Effect.Effect<(request: GetSessionEndpointInput) => Effect.Effect<emr.GetSessionEndpointResponse, emr.GetSessionEndpointError>>> {
 }
 export declare const GetSessionEndpoint: GetSessionEndpoint;

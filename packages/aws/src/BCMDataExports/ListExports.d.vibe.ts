@@ -26,6 +26,6 @@ export interface ListExportsRequest extends bcm.ListExportsRequest {
  *
  * @binding
  */
-export interface ListExports extends Binding.Service<ListExports, "AWS.BCMDataExports.ListExports", () => Effect.Effect<((request?: ListExportsRequest) => Effect.Effect<bcm.ListExportsResponse, bcm.ListExportsError>)>> {
+export interface ListExports extends Binding.Service<ListExports, "AWS.BCMDataExports.ListExports", () => Effect.Effect<(request?: ListExportsRequest) => Effect.Effect<bcm.ListExportsResponse, bcm.ListExportsError>>> {
 }
 export declare const ListExports: ListExports;

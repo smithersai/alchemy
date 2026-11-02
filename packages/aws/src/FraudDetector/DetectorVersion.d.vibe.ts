@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * An inline rule definition owned by a detector version. Fraud Detector rules
  * are versioned resources scoped to a detector; a detector version references

@@ -22,6 +22,6 @@ import type { EventDataStore } from "./EventDataStore.vibe";
  *
  * @binding
  */
-export interface ListQueries extends Binding.Service<ListQueries, "AWS.CloudTrail.ListQueries", (store: EventDataStore) => Effect.Effect<((request?: Omit<cloudtrail.ListQueriesRequest, "EventDataStore">) => Effect.Effect<cloudtrail.ListQueriesResponse, cloudtrail.ListQueriesError>)>> {
+export interface ListQueries extends Binding.Service<ListQueries, "AWS.CloudTrail.ListQueries", (store: EventDataStore) => Effect.Effect<(request?: Omit<cloudtrail.ListQueriesRequest, "EventDataStore">) => Effect.Effect<cloudtrail.ListQueriesResponse, cloudtrail.ListQueriesError>>> {
 }
 export declare const ListQueries: ListQueries;

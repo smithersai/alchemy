@@ -1,8 +1,8 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export interface DeploymentStrategyProps {
     /**
      * Name of the deployment strategy. Must be 1-64 characters. If omitted, a

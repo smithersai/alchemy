@@ -2,7 +2,7 @@ import type * as spanner from "@distilled.cloud/gcp/spanner_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 export interface GetInstanceRequest extends Omit<spanner.GetProjectsInstancesRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetInstanceRequest extends Omit<spanner.GetProjectsInstancesReq
  * @binding
  * @category Spanner
  */
-export interface GetInstance extends Binding.Service<GetInstance, "GCP.Spanner.GetInstance", (instance: Instance) => Effect.Effect<((request?: GetInstanceRequest) => Effect.Effect<spanner.Instance, spanner.GetProjectsInstancesError, RuntimeContext>)>> {
+export interface GetInstance extends Binding.Service<GetInstance, "GCP.Spanner.GetInstance", (instance: Instance) => Effect.Effect<(request?: GetInstanceRequest) => Effect.Effect<spanner.Instance, spanner.GetProjectsInstancesError, RuntimeContext>>> {
 }
 export declare const GetInstance: GetInstance;

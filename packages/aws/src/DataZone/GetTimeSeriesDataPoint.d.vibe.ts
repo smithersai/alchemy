@@ -27,6 +27,6 @@ export interface GetTimeSeriesDataPointRequest extends Omit<datazone.GetTimeSeri
  *
  * @binding
  */
-export interface GetTimeSeriesDataPoint extends Binding.Service<GetTimeSeriesDataPoint, "AWS.DataZone.GetTimeSeriesDataPoint", (domain: Domain) => Effect.Effect<((request: GetTimeSeriesDataPointRequest) => Effect.Effect<datazone.GetTimeSeriesDataPointOutput, datazone.GetTimeSeriesDataPointError>)>> {
+export interface GetTimeSeriesDataPoint extends Binding.Service<GetTimeSeriesDataPoint, "AWS.DataZone.GetTimeSeriesDataPoint", (domain: Domain) => Effect.Effect<(request: GetTimeSeriesDataPointRequest) => Effect.Effect<datazone.GetTimeSeriesDataPointOutput, datazone.GetTimeSeriesDataPointError>>> {
 }
 export declare const GetTimeSeriesDataPoint: GetTimeSeriesDataPoint;

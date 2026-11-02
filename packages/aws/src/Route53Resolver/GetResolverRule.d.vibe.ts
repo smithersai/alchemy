@@ -1,7 +1,7 @@
 import type * as r53r from "@distilled.cloud/aws/route53resolver";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ResolverRule } from "./ResolverRule.js";
+import type { ResolverRule } from "./ResolverRule.ts";
 /**
  * Runtime binding for `route53resolver:GetResolverRule` — read the bound
  * {@link ResolverRule}'s live state (domain name, target IPs, endpoint,
@@ -22,6 +22,6 @@ import type { ResolverRule } from "./ResolverRule.js";
  *
  * @binding
  */
-export interface GetResolverRule extends Binding.Service<GetResolverRule, "AWS.Route53Resolver.GetResolverRule", (rule: ResolverRule) => Effect.Effect<(() => Effect.Effect<r53r.GetResolverRuleResponse, r53r.GetResolverRuleError>)>> {
+export interface GetResolverRule extends Binding.Service<GetResolverRule, "AWS.Route53Resolver.GetResolverRule", (rule: ResolverRule) => Effect.Effect<() => Effect.Effect<r53r.GetResolverRuleResponse, r53r.GetResolverRuleError>>> {
 }
 export declare const GetResolverRule: GetResolverRule;

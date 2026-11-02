@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateJobPriority extends Binding.Service<UpdateJobPriority, "AWS.S3Control.UpdateJobPriority", () => Effect.Effect<((request: Omit<s3control.UpdateJobPriorityRequest, "AccountId">) => Effect.Effect<s3control.UpdateJobPriorityResult, s3control.UpdateJobPriorityError | sts.GetCallerIdentityError>)>> {
+export interface UpdateJobPriority extends Binding.Service<UpdateJobPriority, "AWS.S3Control.UpdateJobPriority", () => Effect.Effect<(request: Omit<s3control.UpdateJobPriorityRequest, "AccountId">) => Effect.Effect<s3control.UpdateJobPriorityResult, s3control.UpdateJobPriorityError | sts.GetCallerIdentityError>>> {
 }
 export declare const UpdateJobPriority: UpdateJobPriority;

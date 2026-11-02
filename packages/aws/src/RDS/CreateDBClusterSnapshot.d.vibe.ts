@@ -1,7 +1,7 @@
 import type * as rds from "@distilled.cloud/aws/rds";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DBCluster } from "./DBCluster.js";
+import type { DBCluster } from "./DBCluster.ts";
 /**
  * Runtime binding for the `CreateDBClusterSnapshot` operation (IAM actions
  * `rds:CreateDBClusterSnapshot` +
@@ -26,6 +26,6 @@ import type { DBCluster } from "./DBCluster.js";
  *
  * @binding
  */
-export interface CreateDBClusterSnapshot extends Binding.Service<CreateDBClusterSnapshot, "AWS.RDS.CreateDBClusterSnapshot", (cluster: DBCluster) => Effect.Effect<((request: Omit<rds.CreateDBClusterSnapshotMessage, "DBClusterIdentifier">) => Effect.Effect<rds.CreateDBClusterSnapshotResult, rds.CreateDBClusterSnapshotError>)>> {
+export interface CreateDBClusterSnapshot extends Binding.Service<CreateDBClusterSnapshot, "AWS.RDS.CreateDBClusterSnapshot", (cluster: DBCluster) => Effect.Effect<(request: Omit<rds.CreateDBClusterSnapshotMessage, "DBClusterIdentifier">) => Effect.Effect<rds.CreateDBClusterSnapshotResult, rds.CreateDBClusterSnapshotError>>> {
 }
 export declare const CreateDBClusterSnapshot: CreateDBClusterSnapshot;

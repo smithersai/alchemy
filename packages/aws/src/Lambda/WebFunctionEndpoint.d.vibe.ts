@@ -1,8 +1,8 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "../Providers.js";
-import { type WebFunctionAuthType, type WebFunctionCanary, type WebFunctionEndpointType, type WebFunctionRevisionWeight } from "./WebFunctionEndpointSync.js";
+import type { Providers } from "../Providers.ts";
+import { type WebFunctionAuthType, type WebFunctionCanary, type WebFunctionEndpointType, type WebFunctionRevisionWeight } from "./WebFunctionEndpointSync.ts";
 export declare const WebFunctionEndpointTypeId: "AWS.Lambda.WebFunctionEndpoint";
 export type WebFunctionEndpointTypeId = typeof WebFunctionEndpointTypeId;
 /** The parts of a Web Function an endpoint routes to. */
@@ -179,5 +179,5 @@ declare const WebFunctionEndpointResource: import("alchemy").ResourceClass<WebFu
  * @resource
  */
 export declare const WebFunctionEndpoint: typeof WebFunctionEndpointResource;
-export declare const WebFunctionEndpointProvider: () => import("effect/Layer").Layer<Provider.Provider<WebFunctionEndpoint>, never, import("../Environment.js").AWSEnvironment | import("@distilled.cloud/aws/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const WebFunctionEndpointProvider: () => import("effect/Layer").Layer<Provider.Provider<WebFunctionEndpoint>, never, import("../Environment.ts").AWSEnvironment | import("@distilled.cloud/aws/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
 export {};

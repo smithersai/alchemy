@@ -29,6 +29,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface Geocode extends Binding.Service<Geocode, "AWS.GeoPlaces.Geocode", () => Effect.Effect<((request: geoPlaces.GeocodeRequest) => Effect.Effect<geoPlaces.GeocodeResponse, geoPlaces.GeocodeError>)>> {
+export interface Geocode extends Binding.Service<Geocode, "AWS.GeoPlaces.Geocode", () => Effect.Effect<(request: geoPlaces.GeocodeRequest) => Effect.Effect<geoPlaces.GeocodeResponse, geoPlaces.GeocodeError>>> {
 }
 export declare const Geocode: Geocode;

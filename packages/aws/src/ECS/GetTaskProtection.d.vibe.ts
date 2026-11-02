@@ -22,6 +22,6 @@ export interface GetTaskProtectionRequest extends Omit<ECS.GetTaskProtectionRequ
  *
  * @binding
  */
-export interface GetTaskProtection extends Binding.Service<GetTaskProtection, "AWS.ECS.GetTaskProtection", (cluster: Cluster) => Effect.Effect<((request: GetTaskProtectionRequest) => Effect.Effect<ECS.GetTaskProtectionResponse, ECS.GetTaskProtectionError>)>> {
+export interface GetTaskProtection extends Binding.Service<GetTaskProtection, "AWS.ECS.GetTaskProtection", (cluster: Cluster) => Effect.Effect<(request: GetTaskProtectionRequest) => Effect.Effect<ECS.GetTaskProtectionResponse, ECS.GetTaskProtectionError>>> {
 }
 export declare const GetTaskProtection: GetTaskProtection;

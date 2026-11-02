@@ -22,6 +22,6 @@ import type { ServerlessCluster } from "./ServerlessCluster.vibe";
  *
  * @binding
  */
-export interface GetBootstrapBrokers extends Binding.Service<GetBootstrapBrokers, "AWS.Kafka.GetBootstrapBrokers", (cluster: ServerlessCluster) => Effect.Effect<(() => Effect.Effect<kafka.GetBootstrapBrokersResponse, kafka.GetBootstrapBrokersError>)>> {
+export interface GetBootstrapBrokers extends Binding.Service<GetBootstrapBrokers, "AWS.Kafka.GetBootstrapBrokers", (cluster: ServerlessCluster) => Effect.Effect<() => Effect.Effect<kafka.GetBootstrapBrokersResponse, kafka.GetBootstrapBrokersError>>> {
 }
 export declare const GetBootstrapBrokers: GetBootstrapBrokers;

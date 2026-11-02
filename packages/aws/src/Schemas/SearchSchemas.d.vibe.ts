@@ -22,13 +22,13 @@ import type { Registry } from "./Registry.vibe";
  *
  * @binding
  */
-export interface SearchSchemas extends Binding.Service<SearchSchemas, "AWS.Schemas.SearchSchemas", (registry: Registry) => Effect.Effect<((request?: {
+export interface SearchSchemas extends Binding.Service<SearchSchemas, "AWS.Schemas.SearchSchemas", (registry: Registry) => Effect.Effect<(request?: {
     /** Keywords matched against schema names and content. */
     Keywords?: string;
     /** The maximum number of results to return per page. */
     Limit?: number;
     /** The pagination token from a previous response. */
     NextToken?: string;
-}) => Effect.Effect<schemas.SearchSchemasResponse, schemas.SearchSchemasError>)>> {
+}) => Effect.Effect<schemas.SearchSchemasResponse, schemas.SearchSchemasError>>> {
 }
 export declare const SearchSchemas: SearchSchemas;

@@ -23,6 +23,6 @@ import type { DeliveryChannel } from "./DeliveryChannel.vibe";
  *
  * @binding
  */
-export interface DeliverConfigSnapshot extends Binding.Service<DeliverConfigSnapshot, "AWS.Config.DeliverConfigSnapshot", (channel: DeliveryChannel) => Effect.Effect<(() => Effect.Effect<config.DeliverConfigSnapshotResponse, config.DeliverConfigSnapshotError>)>> {
+export interface DeliverConfigSnapshot extends Binding.Service<DeliverConfigSnapshot, "AWS.Config.DeliverConfigSnapshot", (channel: DeliveryChannel) => Effect.Effect<() => Effect.Effect<config.DeliverConfigSnapshotResponse, config.DeliverConfigSnapshotError>>> {
 }
 export declare const DeliverConfigSnapshot: DeliverConfigSnapshot;

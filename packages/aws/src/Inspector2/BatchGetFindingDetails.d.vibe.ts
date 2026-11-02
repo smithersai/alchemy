@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetFindingDetails extends Binding.Service<BatchGetFindingDetails, "AWS.Inspector2.BatchGetFindingDetails", () => Effect.Effect<((request: inspector2.BatchGetFindingDetailsRequest) => Effect.Effect<inspector2.BatchGetFindingDetailsResponse, inspector2.BatchGetFindingDetailsError>)>> {
+export interface BatchGetFindingDetails extends Binding.Service<BatchGetFindingDetails, "AWS.Inspector2.BatchGetFindingDetails", () => Effect.Effect<(request: inspector2.BatchGetFindingDetailsRequest) => Effect.Effect<inspector2.BatchGetFindingDetailsResponse, inspector2.BatchGetFindingDetailsError>>> {
 }
 export declare const BatchGetFindingDetails: BatchGetFindingDetails;

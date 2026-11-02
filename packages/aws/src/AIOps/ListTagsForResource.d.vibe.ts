@@ -22,6 +22,6 @@ import type { InvestigationGroup } from "./InvestigationGroup.vibe";
  *
  * @binding
  */
-export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.AIOps.ListTagsForResource", (group: InvestigationGroup) => Effect.Effect<(() => Effect.Effect<aiops.ListTagsForResourceOutput, aiops.ListTagsForResourceError>)>> {
+export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.AIOps.ListTagsForResource", (group: InvestigationGroup) => Effect.Effect<() => Effect.Effect<aiops.ListTagsForResourceOutput, aiops.ListTagsForResourceError>>> {
 }
 export declare const ListTagsForResource: ListTagsForResource;

@@ -18,6 +18,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface CancelQuery extends Binding.Service<CancelQuery, "AWS.NeptuneGraph.CancelQuery", (graph: Graph) => Effect.Effect<((request: Omit<neptunegraph.CancelQueryInput, "graphIdentifier">) => Effect.Effect<neptunegraph.CancelQueryResponse, neptunegraph.CancelQueryError>)>> {
+export interface CancelQuery extends Binding.Service<CancelQuery, "AWS.NeptuneGraph.CancelQuery", (graph: Graph) => Effect.Effect<(request: Omit<neptunegraph.CancelQueryInput, "graphIdentifier">) => Effect.Effect<neptunegraph.CancelQueryResponse, neptunegraph.CancelQueryError>>> {
 }
 export declare const CancelQuery: CancelQuery;

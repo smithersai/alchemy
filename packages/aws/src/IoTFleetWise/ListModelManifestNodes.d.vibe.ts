@@ -28,6 +28,6 @@ export interface ListModelManifestNodesRequest extends Omit<iotfleetwise.ListMod
  *
  * @binding
  */
-export interface ListModelManifestNodes extends Binding.Service<ListModelManifestNodes, "AWS.IoTFleetWise.ListModelManifestNodes", (model: ModelManifest) => Effect.Effect<((request?: ListModelManifestNodesRequest) => Effect.Effect<iotfleetwise.ListModelManifestNodesResponse, iotfleetwise.ListModelManifestNodesError>)>> {
+export interface ListModelManifestNodes extends Binding.Service<ListModelManifestNodes, "AWS.IoTFleetWise.ListModelManifestNodes", (model: ModelManifest) => Effect.Effect<(request?: ListModelManifestNodesRequest) => Effect.Effect<iotfleetwise.ListModelManifestNodesResponse, iotfleetwise.ListModelManifestNodesError>>> {
 }
 export declare const ListModelManifestNodes: ListModelManifestNodes;

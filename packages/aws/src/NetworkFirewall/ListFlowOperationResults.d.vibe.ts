@@ -26,6 +26,6 @@ export interface ListFlowOperationResultsRequest extends Omit<NFW.ListFlowOperat
  *
  * @binding
  */
-export interface ListFlowOperationResults extends Binding.Service<ListFlowOperationResults, "AWS.NetworkFirewall.ListFlowOperationResults", (firewall: Firewall) => Effect.Effect<((request: ListFlowOperationResultsRequest) => Effect.Effect<NFW.ListFlowOperationResultsResponse, NFW.ListFlowOperationResultsError>)>> {
+export interface ListFlowOperationResults extends Binding.Service<ListFlowOperationResults, "AWS.NetworkFirewall.ListFlowOperationResults", (firewall: Firewall) => Effect.Effect<(request: ListFlowOperationResultsRequest) => Effect.Effect<NFW.ListFlowOperationResultsResponse, NFW.ListFlowOperationResultsError>>> {
 }
 export declare const ListFlowOperationResults: ListFlowOperationResults;

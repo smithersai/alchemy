@@ -1,9 +1,9 @@
 import * as resourcemanager from "@distilled.cloud/gcp/cloudresourcemanager_v3";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { SecurityPolicyAdaptiveProtectionConfig, SecurityPolicyAdvancedOptionsConfig, SecurityPolicyDdosProtectionConfig, SecurityPolicyRecaptchaOptionsConfig, SecurityPolicyRule, SecurityPolicyRuleMatcher, SecurityPolicyType, SecurityPolicyUserDefinedField } from "./SecurityPolicy.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { SecurityPolicyAdaptiveProtectionConfig, SecurityPolicyAdvancedOptionsConfig, SecurityPolicyDdosProtectionConfig, SecurityPolicyRecaptchaOptionsConfig, SecurityPolicyRule, SecurityPolicyRuleMatcher, SecurityPolicyType, SecurityPolicyUserDefinedField } from "./SecurityPolicy.ts";
 export type OrganizationSecurityPolicyType = SecurityPolicyType;
 export type OrganizationSecurityPolicyRule = SecurityPolicyRule;
 export type OrganizationSecurityPolicyRuleMatcher = SecurityPolicyRuleMatcher;

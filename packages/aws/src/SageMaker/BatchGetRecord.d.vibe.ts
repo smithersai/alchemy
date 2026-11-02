@@ -38,6 +38,6 @@ export interface BatchGetRecordRequest {
  *
  * @binding
  */
-export interface BatchGetRecord extends Binding.Service<BatchGetRecord, "AWS.SageMaker.BatchGetRecord", <F extends FeatureGroup>(featureGroup: F) => Effect.Effect<((request: BatchGetRecordRequest) => Effect.Effect<featurestore.BatchGetRecordResponse, featurestore.BatchGetRecordError>)>> {
+export interface BatchGetRecord extends Binding.Service<BatchGetRecord, "AWS.SageMaker.BatchGetRecord", <F extends FeatureGroup>(featureGroup: F) => Effect.Effect<(request: BatchGetRecordRequest) => Effect.Effect<featurestore.BatchGetRecordResponse, featurestore.BatchGetRecordError>>> {
 }
 export declare const BatchGetRecord: BatchGetRecord;

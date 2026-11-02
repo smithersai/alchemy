@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface InferSNOMEDCT extends Binding.Service<InferSNOMEDCT, "AWS.ComprehendMedical.InferSNOMEDCT", () => Effect.Effect<((request: comprehendmedical.InferSNOMEDCTRequest) => Effect.Effect<comprehendmedical.InferSNOMEDCTResponse, comprehendmedical.InferSNOMEDCTError>)>> {
+export interface InferSNOMEDCT extends Binding.Service<InferSNOMEDCT, "AWS.ComprehendMedical.InferSNOMEDCT", () => Effect.Effect<(request: comprehendmedical.InferSNOMEDCTRequest) => Effect.Effect<comprehendmedical.InferSNOMEDCTResponse, comprehendmedical.InferSNOMEDCTError>>> {
 }
 export declare const InferSNOMEDCT: InferSNOMEDCT;

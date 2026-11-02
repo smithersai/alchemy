@@ -31,6 +31,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface TranslateDocument extends Binding.Service<TranslateDocument, "AWS.Translate.TranslateDocument", () => Effect.Effect<((request: translate.TranslateDocumentRequest) => Effect.Effect<translate.TranslateDocumentResponse, translate.TranslateDocumentError>)>> {
+export interface TranslateDocument extends Binding.Service<TranslateDocument, "AWS.Translate.TranslateDocument", () => Effect.Effect<(request: translate.TranslateDocumentRequest) => Effect.Effect<translate.TranslateDocumentResponse, translate.TranslateDocumentError>>> {
 }
 export declare const TranslateDocument: TranslateDocument;

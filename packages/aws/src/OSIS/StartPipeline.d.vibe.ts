@@ -23,6 +23,6 @@ import type { Pipeline } from "./Pipeline.vibe";
  *
  * @binding
  */
-export interface StartPipeline extends Binding.Service<StartPipeline, "AWS.OSIS.StartPipeline", (pipeline: Pipeline) => Effect.Effect<(() => Effect.Effect<osis.StartPipelineResponse, osis.StartPipelineError>)>> {
+export interface StartPipeline extends Binding.Service<StartPipeline, "AWS.OSIS.StartPipeline", (pipeline: Pipeline) => Effect.Effect<() => Effect.Effect<osis.StartPipelineResponse, osis.StartPipelineError>>> {
 }
 export declare const StartPipeline: StartPipeline;

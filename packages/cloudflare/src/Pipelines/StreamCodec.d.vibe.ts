@@ -2,9 +2,9 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type { Pipeline, PipelineRecord } from "cloudflare:pipelines";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { type LegacyPipeline } from "./LegacyPipeline.js";
-import type { Stream } from "./Stream.js";
-import { StreamSendError, type WriteStreamClient } from "./WriteStream.js";
+import { type LegacyPipeline } from "./LegacyPipeline.ts";
+import type { Stream } from "./Stream.ts";
+import { StreamSendError, type WriteStreamClient } from "./WriteStream.ts";
 /**
  * Shared record encoding + client assembly for the WriteStream / StreamSink
  * implementations. Internal — not exported from the Pipelines barrel.

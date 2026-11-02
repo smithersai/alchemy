@@ -21,6 +21,6 @@ import type { ReplicationInstance } from "./ReplicationInstance.vibe";
  *
  * @binding
  */
-export interface RebootReplicationInstance extends Binding.Service<RebootReplicationInstance, "AWS.DMS.RebootReplicationInstance", (instance: ReplicationInstance) => Effect.Effect<((request?: Omit<dms.RebootReplicationInstanceMessage, "ReplicationInstanceArn">) => Effect.Effect<dms.RebootReplicationInstanceResponse, dms.RebootReplicationInstanceError>)>> {
+export interface RebootReplicationInstance extends Binding.Service<RebootReplicationInstance, "AWS.DMS.RebootReplicationInstance", (instance: ReplicationInstance) => Effect.Effect<(request?: Omit<dms.RebootReplicationInstanceMessage, "ReplicationInstanceArn">) => Effect.Effect<dms.RebootReplicationInstanceResponse, dms.RebootReplicationInstanceError>>> {
 }
 export declare const RebootReplicationInstance: RebootReplicationInstance;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeAccountHealth extends Binding.Service<DescribeAccountHealth, "AWS.DevOpsGuru.DescribeAccountHealth", () => Effect.Effect<((request?: devopsguru.DescribeAccountHealthRequest) => Effect.Effect<devopsguru.DescribeAccountHealthResponse, devopsguru.DescribeAccountHealthError>)>> {
+export interface DescribeAccountHealth extends Binding.Service<DescribeAccountHealth, "AWS.DevOpsGuru.DescribeAccountHealth", () => Effect.Effect<(request?: devopsguru.DescribeAccountHealthRequest) => Effect.Effect<devopsguru.DescribeAccountHealthResponse, devopsguru.DescribeAccountHealthError>>> {
 }
 export declare const DescribeAccountHealth: DescribeAccountHealth;

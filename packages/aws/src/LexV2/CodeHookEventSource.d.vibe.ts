@@ -1,6 +1,6 @@
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { BotAlias } from "./BotAlias.js";
+import type { BotAlias } from "./BotAlias.ts";
 /**
  * The intent inside a code hook event's `sessionState` — the intent Lex is
  * currently eliciting or fulfilling.

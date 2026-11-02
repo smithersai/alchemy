@@ -29,6 +29,6 @@ export interface ResetConnectorMetadataCacheRequest extends Omit<appflow.ResetCo
  *
  * @binding
  */
-export interface ResetConnectorMetadataCache extends Binding.Service<ResetConnectorMetadataCache, "AWS.AppFlow.ResetConnectorMetadataCache", (profile: ConnectorProfile) => Effect.Effect<((request?: ResetConnectorMetadataCacheRequest) => Effect.Effect<appflow.ResetConnectorMetadataCacheResponse, appflow.ResetConnectorMetadataCacheError>)>> {
+export interface ResetConnectorMetadataCache extends Binding.Service<ResetConnectorMetadataCache, "AWS.AppFlow.ResetConnectorMetadataCache", (profile: ConnectorProfile) => Effect.Effect<(request?: ResetConnectorMetadataCacheRequest) => Effect.Effect<appflow.ResetConnectorMetadataCacheResponse, appflow.ResetConnectorMetadataCacheError>>> {
 }
 export declare const ResetConnectorMetadataCache: ResetConnectorMetadataCache;

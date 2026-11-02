@@ -1,8 +1,8 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
-import type { CertificateAuthority } from "./CertificateAuthority.js";
-import type { KeyAlgorithm } from "./Pki.js";
+import type { CertificateAuthority } from "./CertificateAuthority.ts";
+import type { KeyAlgorithm } from "./Pki.ts";
 import type { Providers } from "./Providers.vibe";
 export interface ExternalAccountBinding {
     /** The key id the CA issued (ZeroSSL: `eab_kid`). */

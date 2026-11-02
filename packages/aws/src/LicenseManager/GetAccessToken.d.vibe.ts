@@ -26,6 +26,6 @@ export interface GetAccessTokenRequest extends licensemanager.GetAccessTokenRequ
  *
  * @binding
  */
-export interface GetAccessToken extends Binding.Service<GetAccessToken, "AWS.LicenseManager.GetAccessToken", () => Effect.Effect<((request: GetAccessTokenRequest) => Effect.Effect<licensemanager.GetAccessTokenResponse, licensemanager.GetAccessTokenError>)>> {
+export interface GetAccessToken extends Binding.Service<GetAccessToken, "AWS.LicenseManager.GetAccessToken", () => Effect.Effect<(request: GetAccessTokenRequest) => Effect.Effect<licensemanager.GetAccessTokenResponse, licensemanager.GetAccessTokenError>>> {
 }
 export declare const GetAccessToken: GetAccessToken;

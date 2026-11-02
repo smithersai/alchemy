@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ApplyPendingMaintenanceAction extends Binding.Service<ApplyPendingMaintenanceAction, "AWS.RDS.ApplyPendingMaintenanceAction", () => Effect.Effect<((request: rds.ApplyPendingMaintenanceActionMessage) => Effect.Effect<rds.ApplyPendingMaintenanceActionResult, rds.ApplyPendingMaintenanceActionError>)>> {
+export interface ApplyPendingMaintenanceAction extends Binding.Service<ApplyPendingMaintenanceAction, "AWS.RDS.ApplyPendingMaintenanceAction", () => Effect.Effect<(request: rds.ApplyPendingMaintenanceActionMessage) => Effect.Effect<rds.ApplyPendingMaintenanceActionResult, rds.ApplyPendingMaintenanceActionError>>> {
 }
 export declare const ApplyPendingMaintenanceAction: ApplyPendingMaintenanceAction;

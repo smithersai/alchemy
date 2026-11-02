@@ -32,6 +32,6 @@ export interface ListExecutionsRequest extends Omit<bcm.ListExecutionsRequest, "
  *
  * @binding
  */
-export interface ListExecutions extends Binding.Service<ListExecutions, "AWS.BCMDataExports.ListExecutions", (dataExport: Export) => Effect.Effect<((request?: ListExecutionsRequest) => Effect.Effect<bcm.ListExecutionsResponse, bcm.ListExecutionsError>)>> {
+export interface ListExecutions extends Binding.Service<ListExecutions, "AWS.BCMDataExports.ListExecutions", (dataExport: Export) => Effect.Effect<(request?: ListExecutionsRequest) => Effect.Effect<bcm.ListExecutionsResponse, bcm.ListExecutionsError>>> {
 }
 export declare const ListExecutions: ListExecutions;

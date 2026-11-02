@@ -2,7 +2,7 @@ import * as acm from "@distilled.cloud/gcp/accesscontextmanager_v1";
 import * as resourcemanager from "@distilled.cloud/gcp/cloudresourcemanager_v3";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { GcpEnvironment } from "../Environment.js";
+import { GcpEnvironment } from "../Environment.ts";
 export declare const MAX_TITLE_LENGTH = 256;
 export declare const MAX_DESCRIPTION_LENGTH = 1024;
 export declare const MAX_RESOURCE_ID_LENGTH = 50;
@@ -40,8 +40,8 @@ export declare const parseName: (name: string, collection: string) => {
     parent: string;
 };
 export declare const toAcmId: (id: string, requested: string | undefined, existing: string | undefined, maxLength?: number) => Effect.Effect<string, never, import("alchemy/ResourceContext").ResourceContext | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
-export declare const tryResolveOrganization: () => Effect.Effect<string | undefined, resourcemanager.FolderNotFound | resourcemanager.Forbidden | import("../Environment.js").GcpProjectMissing | resourcemanager.ProjectNotFound | acm.GcpOpError, GcpEnvironment | acm.GcpOpContext>;
-export declare const resolveOrganization: (explicit: string | undefined, existing: string | undefined) => Effect.Effect<string, resourcemanager.FolderNotFound | resourcemanager.Forbidden | import("../Environment.js").GcpProjectMissing | OrganizationRequired | resourcemanager.ProjectNotFound | acm.GcpOpError, GcpEnvironment | acm.GcpOpContext>;
+export declare const tryResolveOrganization: () => Effect.Effect<string | undefined, resourcemanager.FolderNotFound | resourcemanager.Forbidden | import("../Environment.ts").GcpProjectMissing | resourcemanager.ProjectNotFound | acm.GcpOpError, GcpEnvironment | acm.GcpOpContext>;
+export declare const resolveOrganization: (explicit: string | undefined, existing: string | undefined) => Effect.Effect<string, resourcemanager.FolderNotFound | resourcemanager.Forbidden | import("../Environment.ts").GcpProjectMissing | OrganizationRequired | resourcemanager.ProjectNotFound | acm.GcpOpError, GcpEnvironment | acm.GcpOpContext>;
 export declare const projectNumberOf: (project: string) => Effect.Effect<string | undefined, resourcemanager.Forbidden | resourcemanager.ProjectNotFound | acm.GcpOpError, acm.GcpOpContext>;
 export declare const normalizeScope: (scope: string, projectNumber?: string) => string;
 export declare const normalizeScopes: (scopes: readonly string[] | undefined, projectNumber?: string) => string[];
@@ -58,13 +58,13 @@ export declare const sortedStrings: (values: readonly string[] | undefined) => s
 export declare const sameStringList: (left: readonly string[] | undefined, right: readonly string[] | undefined) => boolean;
 export declare const collectPages: <Page, A, E, R>(pages: Stream.Stream<Page, E, R>, items: (page: Page) => readonly A[] | undefined) => Effect.Effect<A[], E, R>;
 export declare const listAccessPolicies: (organization: string) => Effect.Effect<acm.AccessPolicy[], acm.Forbidden | acm.GcpOpError, acm.GcpOpContext>;
-export declare const listOwnedPolicies: () => Effect.Effect<acm.AccessPolicy[], resourcemanager.FolderNotFound | resourcemanager.Forbidden | acm.Forbidden | import("../Environment.js").GcpProjectMissing | resourcemanager.ProjectNotFound | acm.GcpOpError, GcpEnvironment | acm.GcpOpContext>;
+export declare const listOwnedPolicies: () => Effect.Effect<acm.AccessPolicy[], resourcemanager.FolderNotFound | resourcemanager.Forbidden | acm.Forbidden | import("../Environment.ts").GcpProjectMissing | resourcemanager.ProjectNotFound | acm.GcpOpError, GcpEnvironment | acm.GcpOpContext>;
 export declare const resourceNameFromOperation: (operation: acm.Operation, prefix?: string) => string | undefined;
 /**
  * Wait for an Access Context Manager operation (a few minutes at most) and
  * return the finished operation so callers can read its `response`.
  */
-export declare const waitForOperation: (operation: acm.Operation) => Effect.Effect<acm.Operation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | acm.GetOperationsError, acm.GcpOpContext>;
+export declare const waitForOperation: (operation: acm.Operation) => Effect.Effect<acm.Operation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | acm.GetOperationsError, acm.GcpOpContext>;
 export declare const waitUntilExists: <A, E extends {
     readonly _tag: string;
 }, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved, R>;

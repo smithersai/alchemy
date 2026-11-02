@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDatasetImportJob extends Binding.Service<DescribeDatasetImportJob, "AWS.Forecast.DescribeDatasetImportJob", () => Effect.Effect<((request: forecast.DescribeDatasetImportJobRequest) => Effect.Effect<forecast.DescribeDatasetImportJobResponse, forecast.DescribeDatasetImportJobError>)>> {
+export interface DescribeDatasetImportJob extends Binding.Service<DescribeDatasetImportJob, "AWS.Forecast.DescribeDatasetImportJob", () => Effect.Effect<(request: forecast.DescribeDatasetImportJobRequest) => Effect.Effect<forecast.DescribeDatasetImportJobResponse, forecast.DescribeDatasetImportJobError>>> {
 }
 export declare const DescribeDatasetImportJob: DescribeDatasetImportJob;

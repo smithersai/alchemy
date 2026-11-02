@@ -24,6 +24,6 @@ export interface GetRepositoryEndpointRequest extends Omit<codeartifact.GetRepos
  *
  * @binding
  */
-export interface GetRepositoryEndpoint extends Binding.Service<GetRepositoryEndpoint, "AWS.CodeArtifact.GetRepositoryEndpoint", (repository: Repository) => Effect.Effect<((request: GetRepositoryEndpointRequest) => Effect.Effect<codeartifact.GetRepositoryEndpointResult, codeartifact.GetRepositoryEndpointError>)>> {
+export interface GetRepositoryEndpoint extends Binding.Service<GetRepositoryEndpoint, "AWS.CodeArtifact.GetRepositoryEndpoint", (repository: Repository) => Effect.Effect<(request: GetRepositoryEndpointRequest) => Effect.Effect<codeartifact.GetRepositoryEndpointResult, codeartifact.GetRepositoryEndpointError>>> {
 }
 export declare const GetRepositoryEndpoint: GetRepositoryEndpoint;

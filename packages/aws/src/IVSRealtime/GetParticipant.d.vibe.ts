@@ -24,6 +24,6 @@ export interface GetParticipantRequest extends Omit<ivsrealtime.GetParticipantRe
  *
  * @binding
  */
-export interface GetParticipant extends Binding.Service<GetParticipant, "AWS.IVSRealtime.GetParticipant", (stage: Stage) => Effect.Effect<((request: GetParticipantRequest) => Effect.Effect<ivsrealtime.GetParticipantResponse, ivsrealtime.GetParticipantError>)>> {
+export interface GetParticipant extends Binding.Service<GetParticipant, "AWS.IVSRealtime.GetParticipant", (stage: Stage) => Effect.Effect<(request: GetParticipantRequest) => Effect.Effect<ivsrealtime.GetParticipantResponse, ivsrealtime.GetParticipantError>>> {
 }
 export declare const GetParticipant: GetParticipant;

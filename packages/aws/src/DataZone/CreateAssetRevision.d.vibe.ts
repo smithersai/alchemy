@@ -22,6 +22,6 @@ export interface CreateAssetRevisionRequest extends Omit<datazone.CreateAssetRev
  *
  * @binding
  */
-export interface CreateAssetRevision extends Binding.Service<CreateAssetRevision, "AWS.DataZone.CreateAssetRevision", (domain: Domain) => Effect.Effect<((request: CreateAssetRevisionRequest) => Effect.Effect<datazone.CreateAssetRevisionOutput, datazone.CreateAssetRevisionError>)>> {
+export interface CreateAssetRevision extends Binding.Service<CreateAssetRevision, "AWS.DataZone.CreateAssetRevision", (domain: Domain) => Effect.Effect<(request: CreateAssetRevisionRequest) => Effect.Effect<datazone.CreateAssetRevisionOutput, datazone.CreateAssetRevisionError>>> {
 }
 export declare const CreateAssetRevision: CreateAssetRevision;

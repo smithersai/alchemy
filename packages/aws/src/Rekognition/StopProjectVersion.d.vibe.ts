@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopProjectVersion extends Binding.Service<StopProjectVersion, "AWS.Rekognition.StopProjectVersion", () => Effect.Effect<((request: rekognition.StopProjectVersionRequest) => Effect.Effect<rekognition.StopProjectVersionResponse, rekognition.StopProjectVersionError>)>> {
+export interface StopProjectVersion extends Binding.Service<StopProjectVersion, "AWS.Rekognition.StopProjectVersion", () => Effect.Effect<(request: rekognition.StopProjectVersionRequest) => Effect.Effect<rekognition.StopProjectVersionResponse, rekognition.StopProjectVersionError>>> {
 }
 export declare const StopProjectVersion: StopProjectVersion;

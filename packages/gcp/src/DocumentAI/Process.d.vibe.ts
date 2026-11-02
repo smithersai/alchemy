@@ -29,6 +29,6 @@ export interface ProcessRequest extends Omit<documentai.ProcessProjectsLocations
  * @binding
  * @category DocumentAI
  */
-export interface Process extends Binding.Service<Process, "GCP.DocumentAI.Process", (processor: Processor) => Effect.Effect<((request?: ProcessRequest) => Effect.Effect<documentai.GoogleCloudDocumentaiV1ProcessResponse, documentai.ProcessProjectsLocationsProcessorsError, RuntimeContext>)>> {
+export interface Process extends Binding.Service<Process, "GCP.DocumentAI.Process", (processor: Processor) => Effect.Effect<(request?: ProcessRequest) => Effect.Effect<documentai.GoogleCloudDocumentaiV1ProcessResponse, documentai.ProcessProjectsLocationsProcessorsError, RuntimeContext>>> {
 }
 export declare const Process: Process;

@@ -22,6 +22,6 @@ export interface GetReadSetImportJobRequest extends Omit<omics.GetReadSetImportJ
  *
  * @binding
  */
-export interface GetReadSetImportJob extends Binding.Service<GetReadSetImportJob, "AWS.Omics.GetReadSetImportJob", (store: SequenceStore) => Effect.Effect<((request?: GetReadSetImportJobRequest) => Effect.Effect<omics.GetReadSetImportJobResponse, omics.GetReadSetImportJobError>)>> {
+export interface GetReadSetImportJob extends Binding.Service<GetReadSetImportJob, "AWS.Omics.GetReadSetImportJob", (store: SequenceStore) => Effect.Effect<(request?: GetReadSetImportJobRequest) => Effect.Effect<omics.GetReadSetImportJobResponse, omics.GetReadSetImportJobError>>> {
 }
 export declare const GetReadSetImportJob: GetReadSetImportJob;

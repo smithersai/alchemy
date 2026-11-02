@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
 import type { WorkstationCluster } from "./WorkstationCluster.vibe";
 import type { WorkstationClustersWorkstationConfig } from "./WorkstationClustersWorkstationConfig.vibe";
 import type { WorkstationClustersWorkstationConfigsWorkstation } from "./WorkstationClustersWorkstationConfigsWorkstation.vibe";

@@ -16,6 +16,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface StartSandbox extends Binding.Service<StartSandbox, "AWS.CodeBuild.StartSandbox", <P extends Project>(project: P) => Effect.Effect<((request?: Omit<SVC.StartSandboxInput, "projectName">) => Effect.Effect<SVC.StartSandboxOutput, SVC.StartSandboxError>)>> {
+export interface StartSandbox extends Binding.Service<StartSandbox, "AWS.CodeBuild.StartSandbox", <P extends Project>(project: P) => Effect.Effect<(request?: Omit<SVC.StartSandboxInput, "projectName">) => Effect.Effect<SVC.StartSandboxOutput, SVC.StartSandboxError>>> {
 }
 export declare const StartSandbox: StartSandbox;

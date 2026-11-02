@@ -1,9 +1,9 @@
 import * as osconfig from "@distilled.cloud/gcp/osconfig_v2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { type OrchestratedResource, type OrchestrationScope } from "./internal.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { type OrchestratedResource, type OrchestrationScope } from "./internal.ts";
 export type FoldersLocationsGlobalPolicyOrchestratorProps = {
     /**
      * Folder (`folders/{folder}` or the numeric id). When omitted, the

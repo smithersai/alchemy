@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSecurityControlDefinition extends Binding.Service<GetSecurityControlDefinition, "AWS.SecurityHub.GetSecurityControlDefinition", () => Effect.Effect<((request?: securityhub.GetSecurityControlDefinitionRequest) => Effect.Effect<securityhub.GetSecurityControlDefinitionResponse, securityhub.GetSecurityControlDefinitionError>)>> {
+export interface GetSecurityControlDefinition extends Binding.Service<GetSecurityControlDefinition, "AWS.SecurityHub.GetSecurityControlDefinition", () => Effect.Effect<(request?: securityhub.GetSecurityControlDefinitionRequest) => Effect.Effect<securityhub.GetSecurityControlDefinitionResponse, securityhub.GetSecurityControlDefinitionError>>> {
 }
 export declare const GetSecurityControlDefinition: GetSecurityControlDefinition;

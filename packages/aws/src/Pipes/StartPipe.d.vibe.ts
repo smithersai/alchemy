@@ -24,6 +24,6 @@ import type { Pipe } from "./Pipe.vibe";
  *
  * @binding
  */
-export interface StartPipe extends Binding.Service<StartPipe, "AWS.Pipes.StartPipe", (pipe: Pipe) => Effect.Effect<(() => Effect.Effect<pipes.StartPipeResponse, pipes.StartPipeError>)>> {
+export interface StartPipe extends Binding.Service<StartPipe, "AWS.Pipes.StartPipe", (pipe: Pipe) => Effect.Effect<() => Effect.Effect<pipes.StartPipeResponse, pipes.StartPipeError>>> {
 }
 export declare const StartPipe: StartPipe;

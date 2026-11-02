@@ -90,10 +90,10 @@ export declare const Astro: (id: string, props?: AstroProps) => Effect.Effect<{
     project: undefined;
 } | {
     url: string;
-    service: import("../Service.js").Service;
-    project: import("../Project.js").Project;
+    service: import("../Service.ts").Service;
+    project: import("../Project.ts").Project;
 } | {
     url: import("alchemy/Output").Output<string | undefined, never>;
-    service: import("../Service.js").Service;
-    project: import("../Project.js").Project;
-}, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Provider").Provider<import("alchemy/Website/Server").Server> | import("../Providers.js").Providers>;
+    service: import("../Service.ts").Service;
+    project: import("../Project.ts").Project;
+}, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Provider").Provider<import("alchemy/Website/Server").Server> | import("../Providers.ts").Providers>;

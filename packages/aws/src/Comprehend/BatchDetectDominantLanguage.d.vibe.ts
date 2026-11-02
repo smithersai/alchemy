@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchDetectDominantLanguage extends Binding.Service<BatchDetectDominantLanguage, "AWS.Comprehend.BatchDetectDominantLanguage", () => Effect.Effect<((request: comprehend.BatchDetectDominantLanguageRequest) => Effect.Effect<comprehend.BatchDetectDominantLanguageResponse, comprehend.BatchDetectDominantLanguageError>)>> {
+export interface BatchDetectDominantLanguage extends Binding.Service<BatchDetectDominantLanguage, "AWS.Comprehend.BatchDetectDominantLanguage", () => Effect.Effect<(request: comprehend.BatchDetectDominantLanguageRequest) => Effect.Effect<comprehend.BatchDetectDominantLanguageResponse, comprehend.BatchDetectDominantLanguageError>>> {
 }
 export declare const BatchDetectDominantLanguage: BatchDetectDominantLanguage;

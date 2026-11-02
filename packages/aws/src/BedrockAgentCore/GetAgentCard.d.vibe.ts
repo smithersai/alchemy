@@ -28,6 +28,6 @@ export interface GetAgentCardRequest extends Omit<agentcore.GetAgentCardRequest,
  *
  * @binding
  */
-export interface GetAgentCard extends Binding.Service<GetAgentCard, "AWS.BedrockAgentCore.GetAgentCard", <R extends Runtime>(runtime: R) => Effect.Effect<((request: GetAgentCardRequest) => Effect.Effect<agentcore.GetAgentCardResponse, agentcore.GetAgentCardError>)>> {
+export interface GetAgentCard extends Binding.Service<GetAgentCard, "AWS.BedrockAgentCore.GetAgentCard", <R extends Runtime>(runtime: R) => Effect.Effect<(request: GetAgentCardRequest) => Effect.Effect<agentcore.GetAgentCardResponse, agentcore.GetAgentCardError>>> {
 }
 export declare const GetAgentCard: GetAgentCard;

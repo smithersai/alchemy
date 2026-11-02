@@ -42,6 +42,6 @@ export interface RetrieveDomainAuthCodeRequest extends route53domains.RetrieveDo
  *
  * @binding
  */
-export interface RetrieveDomainAuthCode extends Binding.Service<RetrieveDomainAuthCode, "AWS.Route53Domains.RetrieveDomainAuthCode", () => Effect.Effect<((request: RetrieveDomainAuthCodeRequest) => Effect.Effect<route53domains.RetrieveDomainAuthCodeResponse, route53domains.RetrieveDomainAuthCodeError>)>> {
+export interface RetrieveDomainAuthCode extends Binding.Service<RetrieveDomainAuthCode, "AWS.Route53Domains.RetrieveDomainAuthCode", () => Effect.Effect<(request: RetrieveDomainAuthCodeRequest) => Effect.Effect<route53domains.RetrieveDomainAuthCodeResponse, route53domains.RetrieveDomainAuthCodeError>>> {
 }
 export declare const RetrieveDomainAuthCode: RetrieveDomainAuthCode;

@@ -29,6 +29,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SendWorkflowStepState extends Binding.Service<SendWorkflowStepState, "AWS.Transfer.SendWorkflowStepState", () => Effect.Effect<((request: transfer.SendWorkflowStepStateRequest) => Effect.Effect<transfer.SendWorkflowStepStateResponse, transfer.SendWorkflowStepStateError>)>> {
+export interface SendWorkflowStepState extends Binding.Service<SendWorkflowStepState, "AWS.Transfer.SendWorkflowStepState", () => Effect.Effect<(request: transfer.SendWorkflowStepStateRequest) => Effect.Effect<transfer.SendWorkflowStepStateResponse, transfer.SendWorkflowStepStateError>>> {
 }
 export declare const SendWorkflowStepState: SendWorkflowStepState;

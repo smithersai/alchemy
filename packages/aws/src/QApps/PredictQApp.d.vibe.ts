@@ -29,6 +29,6 @@ export interface PredictQAppRequest extends Omit<qapps.PredictQAppInput, "instan
  *
  * @binding
  */
-export interface PredictQApp extends Binding.Service<PredictQApp, "AWS.QApps.PredictQApp", (app: QApp) => Effect.Effect<((request?: PredictQAppRequest) => Effect.Effect<qapps.PredictQAppOutput, qapps.PredictQAppError>)>> {
+export interface PredictQApp extends Binding.Service<PredictQApp, "AWS.QApps.PredictQApp", (app: QApp) => Effect.Effect<(request?: PredictQAppRequest) => Effect.Effect<qapps.PredictQAppOutput, qapps.PredictQAppError>>> {
 }
 export declare const PredictQApp: PredictQApp;

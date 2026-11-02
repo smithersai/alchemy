@@ -1,9 +1,9 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { Object, ObjectDecodeError } from "./Object.js";
+import type { Object, ObjectDecodeError } from "./Object.ts";
 import type { ReadBucketClient } from "./ReadBucket.vibe";
-import type { StorageBindingOptions } from "./StorageBinding.js";
+import type { StorageBindingOptions } from "./StorageBinding.ts";
 export type ObjectValue<T> = [T] extends [never] ? Uint8Array : T;
 export interface ReadObjectClient<T> {
     /** Decode typed JSON, or return bytes for a raw body/file resource. */

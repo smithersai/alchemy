@@ -28,6 +28,6 @@ export interface GetJobOutputRequest extends Omit<glacier.GetJobOutputInput, "ac
  *
  * @binding
  */
-export interface GetJobOutput extends Binding.Service<GetJobOutput, "AWS.Glacier.GetJobOutput", (vault: Vault) => Effect.Effect<((request: GetJobOutputRequest) => Effect.Effect<glacier.GetJobOutputOutput, glacier.GetJobOutputError>)>> {
+export interface GetJobOutput extends Binding.Service<GetJobOutput, "AWS.Glacier.GetJobOutput", (vault: Vault) => Effect.Effect<(request: GetJobOutputRequest) => Effect.Effect<glacier.GetJobOutputOutput, glacier.GetJobOutputError>>> {
 }
 export declare const GetJobOutput: GetJobOutput;

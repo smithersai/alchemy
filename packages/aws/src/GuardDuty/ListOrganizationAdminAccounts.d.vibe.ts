@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListOrganizationAdminAccounts extends Binding.Service<ListOrganizationAdminAccounts, "AWS.GuardDuty.ListOrganizationAdminAccounts", () => Effect.Effect<((request?: guardduty.ListOrganizationAdminAccountsRequest) => Effect.Effect<guardduty.ListOrganizationAdminAccountsResponse, guardduty.ListOrganizationAdminAccountsError>)>> {
+export interface ListOrganizationAdminAccounts extends Binding.Service<ListOrganizationAdminAccounts, "AWS.GuardDuty.ListOrganizationAdminAccounts", () => Effect.Effect<(request?: guardduty.ListOrganizationAdminAccountsRequest) => Effect.Effect<guardduty.ListOrganizationAdminAccountsResponse, guardduty.ListOrganizationAdminAccountsError>>> {
 }
 export declare const ListOrganizationAdminAccounts: ListOrganizationAdminAccounts;

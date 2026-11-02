@@ -1,7 +1,7 @@
 import type * as lambda from "aws-lambda";
 import * as Layer from "effect/Layer";
 import { EventSource as EventBridgeEventSource } from "../EventBridge/EventSource.vibe";
-import * as Lambda from "./Function.js";
+import * as Lambda from "./Function.ts";
 /**
  * Narrow an arbitrary Lambda invocation payload to an EventBridge event.
  */

@@ -35,6 +35,6 @@ export interface VerifyPinDataRequest extends Omit<paymentcryptographydata.Verif
  *
  * @binding
  */
-export interface VerifyPinData extends Binding.Service<VerifyPinData, "AWS.PaymentCryptography.VerifyPinData", <V extends Key, E extends Key>(verificationKey: V, encryptionKey: E) => Effect.Effect<((request: VerifyPinDataRequest) => Effect.Effect<paymentcryptographydata.VerifyPinDataOutput, paymentcryptographydata.VerifyPinDataError>)>> {
+export interface VerifyPinData extends Binding.Service<VerifyPinData, "AWS.PaymentCryptography.VerifyPinData", <V extends Key, E extends Key>(verificationKey: V, encryptionKey: E) => Effect.Effect<(request: VerifyPinDataRequest) => Effect.Effect<paymentcryptographydata.VerifyPinDataOutput, paymentcryptographydata.VerifyPinDataError>>> {
 }
 export declare const VerifyPinData: VerifyPinData;

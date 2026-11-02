@@ -1,7 +1,7 @@
 import type * as WAFV2 from "@distilled.cloud/aws/wafv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { WebACL } from "./WebACL.js";
+import type { WebACL } from "./WebACL.ts";
 export interface ListResourcesForWebACLRequest extends Omit<WAFV2.ListResourcesForWebACLRequest, "WebACLArn"> {
 }
 /**
@@ -23,6 +23,6 @@ export interface ListResourcesForWebACLRequest extends Omit<WAFV2.ListResourcesF
  *
  * @binding
  */
-export interface ListResourcesForWebACL extends Binding.Service<ListResourcesForWebACL, "AWS.WAFv2.ListResourcesForWebACL", (webAcl: WebACL) => Effect.Effect<((request?: ListResourcesForWebACLRequest) => Effect.Effect<WAFV2.ListResourcesForWebACLResponse, WAFV2.ListResourcesForWebACLError>)>> {
+export interface ListResourcesForWebACL extends Binding.Service<ListResourcesForWebACL, "AWS.WAFv2.ListResourcesForWebACL", (webAcl: WebACL) => Effect.Effect<(request?: ListResourcesForWebACLRequest) => Effect.Effect<WAFV2.ListResourcesForWebACLResponse, WAFV2.ListResourcesForWebACLError>>> {
 }
 export declare const ListResourcesForWebACL: ListResourcesForWebACL;

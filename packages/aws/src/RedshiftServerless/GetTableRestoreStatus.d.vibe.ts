@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetTableRestoreStatus extends Binding.Service<GetTableRestoreStatus, "AWS.RedshiftServerless.GetTableRestoreStatus", () => Effect.Effect<((request: serverless.GetTableRestoreStatusRequest) => Effect.Effect<serverless.GetTableRestoreStatusResponse, serverless.GetTableRestoreStatusError>)>> {
+export interface GetTableRestoreStatus extends Binding.Service<GetTableRestoreStatus, "AWS.RedshiftServerless.GetTableRestoreStatus", () => Effect.Effect<(request: serverless.GetTableRestoreStatusRequest) => Effect.Effect<serverless.GetTableRestoreStatusResponse, serverless.GetTableRestoreStatusError>>> {
 }
 export declare const GetTableRestoreStatus: GetTableRestoreStatus;

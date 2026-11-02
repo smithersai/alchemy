@@ -29,6 +29,6 @@ export interface GetCostComparisonDriversRequest extends ce.GetCostComparisonDri
  *
  * @binding
  */
-export interface GetCostComparisonDrivers extends Binding.Service<GetCostComparisonDrivers, "AWS.CostExplorer.GetCostComparisonDrivers", () => Effect.Effect<((request: GetCostComparisonDriversRequest) => Effect.Effect<ce.GetCostComparisonDriversResponse, ce.GetCostComparisonDriversError>)>> {
+export interface GetCostComparisonDrivers extends Binding.Service<GetCostComparisonDrivers, "AWS.CostExplorer.GetCostComparisonDrivers", () => Effect.Effect<(request: GetCostComparisonDriversRequest) => Effect.Effect<ce.GetCostComparisonDriversResponse, ce.GetCostComparisonDriversError>>> {
 }
 export declare const GetCostComparisonDrivers: GetCostComparisonDrivers;

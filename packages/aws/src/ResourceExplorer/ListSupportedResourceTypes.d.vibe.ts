@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListSupportedResourceTypes extends Binding.Service<ListSupportedResourceTypes, "AWS.ResourceExplorer.ListSupportedResourceTypes", () => Effect.Effect<((request?: RE2.ListSupportedResourceTypesInput) => Effect.Effect<RE2.ListSupportedResourceTypesOutput, RE2.ListSupportedResourceTypesError>)>> {
+export interface ListSupportedResourceTypes extends Binding.Service<ListSupportedResourceTypes, "AWS.ResourceExplorer.ListSupportedResourceTypes", () => Effect.Effect<(request?: RE2.ListSupportedResourceTypesInput) => Effect.Effect<RE2.ListSupportedResourceTypesOutput, RE2.ListSupportedResourceTypesError>>> {
 }
 export declare const ListSupportedResourceTypes: ListSupportedResourceTypes;

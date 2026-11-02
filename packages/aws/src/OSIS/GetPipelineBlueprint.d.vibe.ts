@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetPipelineBlueprint extends Binding.Service<GetPipelineBlueprint, "AWS.OSIS.GetPipelineBlueprint", () => Effect.Effect<((request: osis.GetPipelineBlueprintRequest) => Effect.Effect<osis.GetPipelineBlueprintResponse, osis.GetPipelineBlueprintError>)>> {
+export interface GetPipelineBlueprint extends Binding.Service<GetPipelineBlueprint, "AWS.OSIS.GetPipelineBlueprint", () => Effect.Effect<(request: osis.GetPipelineBlueprintRequest) => Effect.Effect<osis.GetPipelineBlueprintResponse, osis.GetPipelineBlueprintError>>> {
 }
 export declare const GetPipelineBlueprint: GetPipelineBlueprint;

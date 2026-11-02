@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDataRepositoryAssociations extends Binding.Service<DescribeDataRepositoryAssociations, "AWS.FSx.DescribeDataRepositoryAssociations", () => Effect.Effect<((request?: fsx.DescribeDataRepositoryAssociationsRequest) => Effect.Effect<fsx.DescribeDataRepositoryAssociationsResponse, fsx.DescribeDataRepositoryAssociationsError>)>> {
+export interface DescribeDataRepositoryAssociations extends Binding.Service<DescribeDataRepositoryAssociations, "AWS.FSx.DescribeDataRepositoryAssociations", () => Effect.Effect<(request?: fsx.DescribeDataRepositoryAssociationsRequest) => Effect.Effect<fsx.DescribeDataRepositoryAssociationsResponse, fsx.DescribeDataRepositoryAssociationsError>>> {
 }
 export declare const DescribeDataRepositoryAssociations: DescribeDataRepositoryAssociations;

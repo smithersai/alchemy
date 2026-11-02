@@ -27,6 +27,6 @@ export interface AbortMultipartUploadRequest extends Omit<glacier.AbortMultipart
  *
  * @binding
  */
-export interface AbortMultipartUpload extends Binding.Service<AbortMultipartUpload, "AWS.Glacier.AbortMultipartUpload", (vault: Vault) => Effect.Effect<((request: AbortMultipartUploadRequest) => Effect.Effect<glacier.AbortMultipartUploadResponse, glacier.AbortMultipartUploadError>)>> {
+export interface AbortMultipartUpload extends Binding.Service<AbortMultipartUpload, "AWS.Glacier.AbortMultipartUpload", (vault: Vault) => Effect.Effect<(request: AbortMultipartUploadRequest) => Effect.Effect<glacier.AbortMultipartUploadResponse, glacier.AbortMultipartUploadError>>> {
 }
 export declare const AbortMultipartUpload: AbortMultipartUpload;

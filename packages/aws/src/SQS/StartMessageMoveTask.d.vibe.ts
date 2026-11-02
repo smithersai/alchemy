@@ -48,6 +48,6 @@ export interface StartMessageMoveTask extends Binding.Service<StartMessageMoveTa
      * `sqs:SendMessage` on `*`).
      */
     destination?: Queue;
-}) => Effect.Effect<((request?: StartMessageMoveTaskRequest) => Effect.Effect<sqs.StartMessageMoveTaskResult, sqs.StartMessageMoveTaskError>)>> {
+}) => Effect.Effect<(request?: StartMessageMoveTaskRequest) => Effect.Effect<sqs.StartMessageMoveTaskResult, sqs.StartMessageMoveTaskError>>> {
 }
 export declare const StartMessageMoveTask: StartMessageMoveTask;

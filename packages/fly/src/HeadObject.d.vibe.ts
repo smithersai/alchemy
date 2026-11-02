@@ -2,7 +2,7 @@ import type * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 import type { TigrisCredentialsMissing } from "./Errors.vibe";
 export interface HeadObjectRequest extends Omit<S3.HeadObjectRequest, "Bucket"> {
 }
@@ -22,6 +22,6 @@ export interface HeadObjectRequest extends Omit<S3.HeadObjectRequest, "Bucket"> 
  * @binding
  * @product Bucket
  */
-export interface HeadObject extends Binding.Service<HeadObject, "Fly.HeadObject", (bucket: Bucket) => Effect.Effect<((request: HeadObjectRequest) => Effect.Effect<S3.HeadObjectOutput, S3.HeadObjectError | TigrisCredentialsMissing, RuntimeContext>)>> {
+export interface HeadObject extends Binding.Service<HeadObject, "Fly.HeadObject", (bucket: Bucket) => Effect.Effect<(request: HeadObjectRequest) => Effect.Effect<S3.HeadObjectOutput, S3.HeadObjectError | TigrisCredentialsMissing, RuntimeContext>>> {
 }
 export declare const HeadObject: HeadObject;

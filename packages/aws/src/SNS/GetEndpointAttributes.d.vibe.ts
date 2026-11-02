@@ -22,6 +22,6 @@ export interface GetEndpointAttributesRequest extends sns.GetEndpointAttributesI
  *
  * @binding
  */
-export interface GetEndpointAttributes extends Binding.Service<GetEndpointAttributes, "AWS.SNS.GetEndpointAttributes", (application: PlatformApplication) => Effect.Effect<((request: GetEndpointAttributesRequest) => Effect.Effect<sns.GetEndpointAttributesResponse, sns.GetEndpointAttributesError>)>> {
+export interface GetEndpointAttributes extends Binding.Service<GetEndpointAttributes, "AWS.SNS.GetEndpointAttributes", (application: PlatformApplication) => Effect.Effect<(request: GetEndpointAttributesRequest) => Effect.Effect<sns.GetEndpointAttributesResponse, sns.GetEndpointAttributesError>>> {
 }
 export declare const GetEndpointAttributes: GetEndpointAttributes;

@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDRTAccess extends Binding.Service<DescribeDRTAccess, "AWS.Shield.DescribeDRTAccess", () => Effect.Effect<((request?: shield.DescribeDRTAccessRequest) => Effect.Effect<shield.DescribeDRTAccessResponse, shield.DescribeDRTAccessError>)>> {
+export interface DescribeDRTAccess extends Binding.Service<DescribeDRTAccess, "AWS.Shield.DescribeDRTAccess", () => Effect.Effect<(request?: shield.DescribeDRTAccessRequest) => Effect.Effect<shield.DescribeDRTAccessResponse, shield.DescribeDRTAccessError>>> {
 }
 export declare const DescribeDRTAccess: DescribeDRTAccess;

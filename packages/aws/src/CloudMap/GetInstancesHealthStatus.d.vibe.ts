@@ -34,6 +34,6 @@ export interface GetInstancesHealthStatusRequest extends Omit<SD.GetInstancesHea
  *
  * @binding
  */
-export interface GetInstancesHealthStatus extends Binding.Service<GetInstancesHealthStatus, "AWS.CloudMap.GetInstancesHealthStatus", <S extends Service>(service: S) => Effect.Effect<((request?: GetInstancesHealthStatusRequest) => Effect.Effect<SD.GetInstancesHealthStatusResponse, SD.GetInstancesHealthStatusError>)>> {
+export interface GetInstancesHealthStatus extends Binding.Service<GetInstancesHealthStatus, "AWS.CloudMap.GetInstancesHealthStatus", <S extends Service>(service: S) => Effect.Effect<(request?: GetInstancesHealthStatusRequest) => Effect.Effect<SD.GetInstancesHealthStatusResponse, SD.GetInstancesHealthStatusError>>> {
 }
 export declare const GetInstancesHealthStatus: GetInstancesHealthStatus;

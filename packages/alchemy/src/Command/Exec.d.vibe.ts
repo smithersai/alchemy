@@ -1,7 +1,7 @@
-import * as Provider from "../Provider.js";
-import { Resource } from "../Resource.js";
-import { CommandExecutor, type CommandRunProps } from "./Command.js";
-import { type MemoOptions } from "./Memo.js";
+import * as Provider from "../Provider.ts";
+import { Resource } from "../Resource.ts";
+import { CommandExecutor, type CommandRunProps } from "./Command.ts";
+import { type MemoOptions } from "./Memo.ts";
 export interface ExecProps extends CommandRunProps {
     /**
      * Controls which files are hashed to decide whether the command should
@@ -75,5 +75,5 @@ export interface Exec extends Resource<"Command.Exec", ExecProps, {
  *
  * @resource
  */
-export declare const Exec: import("../Resource.js").ResourceClass<Exec>;
+export declare const Exec: import("../Resource.ts").ResourceClass<Exec>;
 export declare const ExecProvider: () => import("effect/Layer").Layer<Provider.Provider<Exec>, never, CommandExecutor | import("effect/FileSystem").FileSystem | import("effect/Path").Path>;

@@ -22,6 +22,6 @@ import type { Workspace } from "./Workspace.vibe";
  *
  * @binding
  */
-export interface DeleteWorkspaceServiceAccount extends Binding.Service<DeleteWorkspaceServiceAccount, "AWS.Grafana.DeleteWorkspaceServiceAccount", (workspace: Workspace) => Effect.Effect<((request: Omit<grafana.DeleteWorkspaceServiceAccountRequest, "workspaceId">) => Effect.Effect<grafana.DeleteWorkspaceServiceAccountResponse, grafana.DeleteWorkspaceServiceAccountError>)>> {
+export interface DeleteWorkspaceServiceAccount extends Binding.Service<DeleteWorkspaceServiceAccount, "AWS.Grafana.DeleteWorkspaceServiceAccount", (workspace: Workspace) => Effect.Effect<(request: Omit<grafana.DeleteWorkspaceServiceAccountRequest, "workspaceId">) => Effect.Effect<grafana.DeleteWorkspaceServiceAccountResponse, grafana.DeleteWorkspaceServiceAccountError>>> {
 }
 export declare const DeleteWorkspaceServiceAccount: DeleteWorkspaceServiceAccount;

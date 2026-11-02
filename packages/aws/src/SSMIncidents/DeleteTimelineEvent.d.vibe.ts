@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteTimelineEvent extends Binding.Service<DeleteTimelineEvent, "AWS.SSMIncidents.DeleteTimelineEvent", () => Effect.Effect<((request: incidents.DeleteTimelineEventInput) => Effect.Effect<incidents.DeleteTimelineEventOutput, incidents.DeleteTimelineEventError>)>> {
+export interface DeleteTimelineEvent extends Binding.Service<DeleteTimelineEvent, "AWS.SSMIncidents.DeleteTimelineEvent", () => Effect.Effect<(request: incidents.DeleteTimelineEventInput) => Effect.Effect<incidents.DeleteTimelineEventOutput, incidents.DeleteTimelineEventError>>> {
 }
 export declare const DeleteTimelineEvent: DeleteTimelineEvent;

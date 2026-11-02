@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetInvitationsCount extends Binding.Service<GetInvitationsCount, "AWS.Macie2.GetInvitationsCount", () => Effect.Effect<((request?: macie2.GetInvitationsCountRequest) => Effect.Effect<macie2.GetInvitationsCountResponse, macie2.GetInvitationsCountError>)>> {
+export interface GetInvitationsCount extends Binding.Service<GetInvitationsCount, "AWS.Macie2.GetInvitationsCount", () => Effect.Effect<(request?: macie2.GetInvitationsCountRequest) => Effect.Effect<macie2.GetInvitationsCountResponse, macie2.GetInvitationsCountError>>> {
 }
 export declare const GetInvitationsCount: GetInvitationsCount;

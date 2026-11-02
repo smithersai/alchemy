@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetEnabledStandards extends Binding.Service<GetEnabledStandards, "AWS.SecurityHub.GetEnabledStandards", () => Effect.Effect<((request?: securityhub.GetEnabledStandardsRequest) => Effect.Effect<securityhub.GetEnabledStandardsResponse, securityhub.GetEnabledStandardsError>)>> {
+export interface GetEnabledStandards extends Binding.Service<GetEnabledStandards, "AWS.SecurityHub.GetEnabledStandards", () => Effect.Effect<(request?: securityhub.GetEnabledStandardsRequest) => Effect.Effect<securityhub.GetEnabledStandardsResponse, securityhub.GetEnabledStandardsError>>> {
 }
 export declare const GetEnabledStandards: GetEnabledStandards;

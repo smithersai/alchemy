@@ -23,6 +23,6 @@ import type { Canary } from "./Canary.vibe";
  *
  * @binding
  */
-export interface StopCanary extends Binding.Service<StopCanary, "AWS.Synthetics.StopCanary", (canary: Canary) => Effect.Effect<(() => Effect.Effect<synthetics.StopCanaryResponse, synthetics.StopCanaryError>)>> {
+export interface StopCanary extends Binding.Service<StopCanary, "AWS.Synthetics.StopCanary", (canary: Canary) => Effect.Effect<() => Effect.Effect<synthetics.StopCanaryResponse, synthetics.StopCanaryError>>> {
 }
 export declare const StopCanary: StopCanary;

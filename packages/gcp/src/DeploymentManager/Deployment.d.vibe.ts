@@ -1,8 +1,8 @@
 import * as deploymentmanager from "@distilled.cloud/gcp/deploymentmanager_v2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type ImportFile = {
     /**
      * Import name, as referenced from `target.config` (`path` / `type`).

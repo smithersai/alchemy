@@ -28,6 +28,6 @@ import type { LinkedWhatsAppBusinessAccount } from "./LinkedWhatsAppBusinessAcco
  *
  * @binding
  */
-export interface DeleteWhatsAppMessageMedia extends Binding.Service<DeleteWhatsAppMessageMedia, "AWS.SocialMessaging.DeleteWhatsAppMessageMedia", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: socialmessaging.DeleteWhatsAppMessageMediaInput) => Effect.Effect<socialmessaging.DeleteWhatsAppMessageMediaOutput, socialmessaging.DeleteWhatsAppMessageMediaError>)>> {
+export interface DeleteWhatsAppMessageMedia extends Binding.Service<DeleteWhatsAppMessageMedia, "AWS.SocialMessaging.DeleteWhatsAppMessageMedia", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: socialmessaging.DeleteWhatsAppMessageMediaInput) => Effect.Effect<socialmessaging.DeleteWhatsAppMessageMediaOutput, socialmessaging.DeleteWhatsAppMessageMediaError>>> {
 }
 export declare const DeleteWhatsAppMessageMedia: DeleteWhatsAppMessageMedia;

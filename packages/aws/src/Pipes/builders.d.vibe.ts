@@ -1,9 +1,9 @@
 import type * as pipes from "@distilled.cloud/aws/pipes";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import type { Table } from "../DynamoDB/Table.js";
+import type { Table } from "../DynamoDB/Table.ts";
 import type { Stream } from "../Kinesis/Stream.vibe";
-import type { Function } from "../Lambda/Function.js";
+import type { Function } from "../Lambda/Function.ts";
 import type { Queue } from "../SQS/Queue.vibe";
 import { Pipe, type PipeDesiredState } from "./Pipe.vibe";
 /**
@@ -96,9 +96,9 @@ export declare const from: (source: PipeSource, options?: PipeSourceOptions) => 
     /**
      * Deliver batches to a Lambda function target.
      */
-    toLambda: (fn: Function, options?: LambdaTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.js").Providers>;
+    toLambda: (fn: Function, options?: LambdaTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.ts").Providers>;
     /**
      * Deliver batches to an SQS queue target.
      */
-    toQueue: (queue: Queue, options?: QueueTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.js").Providers>;
+    toQueue: (queue: Queue, options?: QueueTargetOptions) => Effect.Effect<Pipe, never, import("../Providers.ts").Providers>;
 };

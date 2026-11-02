@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopDominantLanguageDetectionJob extends Binding.Service<StopDominantLanguageDetectionJob, "AWS.Comprehend.StopDominantLanguageDetectionJob", () => Effect.Effect<((request: comprehend.StopDominantLanguageDetectionJobRequest) => Effect.Effect<comprehend.StopDominantLanguageDetectionJobResponse, comprehend.StopDominantLanguageDetectionJobError>)>> {
+export interface StopDominantLanguageDetectionJob extends Binding.Service<StopDominantLanguageDetectionJob, "AWS.Comprehend.StopDominantLanguageDetectionJob", () => Effect.Effect<(request: comprehend.StopDominantLanguageDetectionJobRequest) => Effect.Effect<comprehend.StopDominantLanguageDetectionJobResponse, comprehend.StopDominantLanguageDetectionJobError>>> {
 }
 export declare const StopDominantLanguageDetectionJob: StopDominantLanguageDetectionJob;

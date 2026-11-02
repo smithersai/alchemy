@@ -1,8 +1,8 @@
 import * as dm from "@distilled.cloud/gcp/datamigration_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type MappingRuleRuleScope = dm.MappingRuleRuleScopeEnum | (string & {});
 export type MappingRuleState = dm.MappingRuleStateEnum | (string & {});
 export type MappingRuleFilter = dm.MappingRuleFilter;

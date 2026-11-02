@@ -24,6 +24,6 @@ export interface ListPoliciesRequest extends fms.ListPoliciesRequest {
  *
  * @binding
  */
-export interface ListPolicies extends Binding.Service<ListPolicies, "AWS.FMS.ListPolicies", () => Effect.Effect<((request?: ListPoliciesRequest) => Effect.Effect<fms.ListPoliciesResponse, fms.ListPoliciesError>)>> {
+export interface ListPolicies extends Binding.Service<ListPolicies, "AWS.FMS.ListPolicies", () => Effect.Effect<(request?: ListPoliciesRequest) => Effect.Effect<fms.ListPoliciesResponse, fms.ListPoliciesError>>> {
 }
 export declare const ListPolicies: ListPolicies;

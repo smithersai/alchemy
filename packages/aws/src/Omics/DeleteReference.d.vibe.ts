@@ -22,6 +22,6 @@ export interface DeleteReferenceRequest extends Omit<omics.DeleteReferenceReques
  *
  * @binding
  */
-export interface DeleteReference extends Binding.Service<DeleteReference, "AWS.Omics.DeleteReference", (store: ReferenceStore) => Effect.Effect<((request?: DeleteReferenceRequest) => Effect.Effect<omics.DeleteReferenceResponse, omics.DeleteReferenceError>)>> {
+export interface DeleteReference extends Binding.Service<DeleteReference, "AWS.Omics.DeleteReference", (store: ReferenceStore) => Effect.Effect<(request?: DeleteReferenceRequest) => Effect.Effect<omics.DeleteReferenceResponse, omics.DeleteReferenceError>>> {
 }
 export declare const DeleteReference: DeleteReference;

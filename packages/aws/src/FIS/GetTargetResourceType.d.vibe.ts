@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetTargetResourceType extends Binding.Service<GetTargetResourceType, "AWS.FIS.GetTargetResourceType", () => Effect.Effect<((request: fis.GetTargetResourceTypeRequest) => Effect.Effect<fis.GetTargetResourceTypeResponse, fis.GetTargetResourceTypeError>)>> {
+export interface GetTargetResourceType extends Binding.Service<GetTargetResourceType, "AWS.FIS.GetTargetResourceType", () => Effect.Effect<(request: fis.GetTargetResourceTypeRequest) => Effect.Effect<fis.GetTargetResourceTypeResponse, fis.GetTargetResourceTypeError>>> {
 }
 export declare const GetTargetResourceType: GetTargetResourceType;

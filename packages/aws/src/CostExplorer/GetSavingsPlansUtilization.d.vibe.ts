@@ -26,6 +26,6 @@ export interface GetSavingsPlansUtilizationRequest extends ce.GetSavingsPlansUti
  *
  * @binding
  */
-export interface GetSavingsPlansUtilization extends Binding.Service<GetSavingsPlansUtilization, "AWS.CostExplorer.GetSavingsPlansUtilization", () => Effect.Effect<((request: GetSavingsPlansUtilizationRequest) => Effect.Effect<ce.GetSavingsPlansUtilizationResponse, ce.GetSavingsPlansUtilizationError>)>> {
+export interface GetSavingsPlansUtilization extends Binding.Service<GetSavingsPlansUtilization, "AWS.CostExplorer.GetSavingsPlansUtilization", () => Effect.Effect<(request: GetSavingsPlansUtilizationRequest) => Effect.Effect<ce.GetSavingsPlansUtilizationResponse, ce.GetSavingsPlansUtilizationError>>> {
 }
 export declare const GetSavingsPlansUtilization: GetSavingsPlansUtilization;

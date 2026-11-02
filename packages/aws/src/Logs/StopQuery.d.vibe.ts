@@ -1,7 +1,7 @@
 import type * as Logs from "@distilled.cloud/aws/cloudwatch-logs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LogGroup } from "./LogGroup.js";
+import type { LogGroup } from "./LogGroup.ts";
 export interface StopQueryRequest extends Logs.StopQueryRequest {
 }
 /**
@@ -22,6 +22,6 @@ export interface StopQueryRequest extends Logs.StopQueryRequest {
  *
  * @binding
  */
-export interface StopQuery extends Binding.Service<StopQuery, "AWS.Logs.StopQuery", <G extends LogGroup>(logGroup: G) => Effect.Effect<((request: StopQueryRequest) => Effect.Effect<Logs.StopQueryResponse, Logs.StopQueryError>)>> {
+export interface StopQuery extends Binding.Service<StopQuery, "AWS.Logs.StopQuery", <G extends LogGroup>(logGroup: G) => Effect.Effect<(request: StopQueryRequest) => Effect.Effect<Logs.StopQueryResponse, Logs.StopQueryError>>> {
 }
 export declare const StopQuery: StopQuery;

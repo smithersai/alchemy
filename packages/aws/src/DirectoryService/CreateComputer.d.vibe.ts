@@ -1,7 +1,7 @@
 import type * as ds from "@distilled.cloud/aws/directory-service";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Directory } from "./Directory.js";
+import type { Directory } from "./Directory.ts";
 /**
  * Runtime binding for the `CreateComputer` operation (IAM action
  * `ds:CreateComputer`), scoped to one {@link Directory}.
@@ -27,6 +27,6 @@ import type { Directory } from "./Directory.js";
  *
  * @binding
  */
-export interface CreateComputer extends Binding.Service<CreateComputer, "AWS.DirectoryService.CreateComputer", (directory: Directory) => Effect.Effect<((request: Omit<ds.CreateComputerRequest, "DirectoryId">) => Effect.Effect<ds.CreateComputerResult, ds.CreateComputerError>)>> {
+export interface CreateComputer extends Binding.Service<CreateComputer, "AWS.DirectoryService.CreateComputer", (directory: Directory) => Effect.Effect<(request: Omit<ds.CreateComputerRequest, "DirectoryId">) => Effect.Effect<ds.CreateComputerResult, ds.CreateComputerError>>> {
 }
 export declare const CreateComputer: CreateComputer;

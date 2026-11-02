@@ -22,6 +22,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface RebootCluster extends Binding.Service<RebootCluster, "AWS.Redshift.RebootCluster", (cluster: Cluster) => Effect.Effect<(() => Effect.Effect<redshift.RebootClusterResult, redshift.RebootClusterError>)>> {
+export interface RebootCluster extends Binding.Service<RebootCluster, "AWS.Redshift.RebootCluster", (cluster: Cluster) => Effect.Effect<() => Effect.Effect<redshift.RebootClusterResult, redshift.RebootClusterError>>> {
 }
 export declare const RebootCluster: RebootCluster;

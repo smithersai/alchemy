@@ -77,5 +77,5 @@ export type ApiToken = Resource<"Turso.ApiToken", ApiTokenProps, ApiTokenAttribu
  * @product API Token
  */
 export declare const ApiToken: import("alchemy/Resource").ResourceClass<ApiToken>;
-export declare const ApiTokenProvider: () => import("effect/Layer").Layer<Provider.Provider<ApiToken>, never, import("./Credentials.js").Organization | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | turso.TursoOpContext>;
+export declare const ApiTokenProvider: () => import("effect/Layer").Layer<Provider.Provider<ApiToken>, never, import("./Credentials.ts").Organization | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | turso.TursoOpContext>;
 export {};

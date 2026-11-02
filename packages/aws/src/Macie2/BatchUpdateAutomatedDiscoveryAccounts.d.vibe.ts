@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchUpdateAutomatedDiscoveryAccounts extends Binding.Service<BatchUpdateAutomatedDiscoveryAccounts, "AWS.Macie2.BatchUpdateAutomatedDiscoveryAccounts", () => Effect.Effect<((request?: macie2.BatchUpdateAutomatedDiscoveryAccountsRequest) => Effect.Effect<macie2.BatchUpdateAutomatedDiscoveryAccountsResponse, macie2.BatchUpdateAutomatedDiscoveryAccountsError>)>> {
+export interface BatchUpdateAutomatedDiscoveryAccounts extends Binding.Service<BatchUpdateAutomatedDiscoveryAccounts, "AWS.Macie2.BatchUpdateAutomatedDiscoveryAccounts", () => Effect.Effect<(request?: macie2.BatchUpdateAutomatedDiscoveryAccountsRequest) => Effect.Effect<macie2.BatchUpdateAutomatedDiscoveryAccountsResponse, macie2.BatchUpdateAutomatedDiscoveryAccountsError>>> {
 }
 export declare const BatchUpdateAutomatedDiscoveryAccounts: BatchUpdateAutomatedDiscoveryAccounts;

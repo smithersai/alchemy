@@ -88,7 +88,7 @@ export declare const isFailedState: (state: string | undefined) => boolean;
 export declare const waitForOperation: (operation: oracle.Operation, options?: {
     notFoundOk?: boolean;
     alreadyExistsOk?: boolean;
-}) => Effect.Effect<oracle.Operation, oracle.Forbidden | oracle.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | oracle.ServiceDisabled | oracle.GcpOpError, oracle.GcpOpContext>;
+}) => Effect.Effect<oracle.Operation, oracle.Forbidden | oracle.NotFound | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | oracle.ServiceDisabled | oracle.GcpOpError, oracle.GcpOpContext>;
 export declare const waitUntilExists: <A, E extends {
     _tag: string;
 }, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<A, E | ResourceNotResolved, R>;

@@ -26,6 +26,6 @@ export interface ListSubscriptionsByTopicRequest extends Omit<sns.ListSubscripti
  *
  * @binding
  */
-export interface ListSubscriptionsByTopic extends Binding.Service<ListSubscriptionsByTopic, "AWS.SNS.ListSubscriptionsByTopic", (topic: Topic) => Effect.Effect<((request?: ListSubscriptionsByTopicRequest) => Effect.Effect<sns.ListSubscriptionsByTopicResponse, sns.ListSubscriptionsByTopicError>)>> {
+export interface ListSubscriptionsByTopic extends Binding.Service<ListSubscriptionsByTopic, "AWS.SNS.ListSubscriptionsByTopic", (topic: Topic) => Effect.Effect<(request?: ListSubscriptionsByTopicRequest) => Effect.Effect<sns.ListSubscriptionsByTopicResponse, sns.ListSubscriptionsByTopicError>>> {
 }
 export declare const ListSubscriptionsByTopic: ListSubscriptionsByTopic;

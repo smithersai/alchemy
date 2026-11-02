@@ -34,6 +34,6 @@ export interface GetTimeSeriesServiceStatisticsRequest extends xray.GetTimeSerie
  *
  * @binding
  */
-export interface GetTimeSeriesServiceStatistics extends Binding.Service<GetTimeSeriesServiceStatistics, "AWS.XRay.GetTimeSeriesServiceStatistics", () => Effect.Effect<((request: GetTimeSeriesServiceStatisticsRequest) => Effect.Effect<xray.GetTimeSeriesServiceStatisticsResult, xray.GetTimeSeriesServiceStatisticsError>)>> {
+export interface GetTimeSeriesServiceStatistics extends Binding.Service<GetTimeSeriesServiceStatistics, "AWS.XRay.GetTimeSeriesServiceStatistics", () => Effect.Effect<(request: GetTimeSeriesServiceStatisticsRequest) => Effect.Effect<xray.GetTimeSeriesServiceStatisticsResult, xray.GetTimeSeriesServiceStatisticsError>>> {
 }
 export declare const GetTimeSeriesServiceStatistics: GetTimeSeriesServiceStatistics;

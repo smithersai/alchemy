@@ -19,6 +19,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface GetQuery extends Binding.Service<GetQuery, "AWS.NeptuneGraph.GetQuery", (graph: Graph) => Effect.Effect<((request: Omit<neptunegraph.GetQueryInput, "graphIdentifier">) => Effect.Effect<neptunegraph.GetQueryOutput, neptunegraph.GetQueryError>)>> {
+export interface GetQuery extends Binding.Service<GetQuery, "AWS.NeptuneGraph.GetQuery", (graph: Graph) => Effect.Effect<(request: Omit<neptunegraph.GetQueryInput, "graphIdentifier">) => Effect.Effect<neptunegraph.GetQueryOutput, neptunegraph.GetQueryError>>> {
 }
 export declare const GetQuery: GetQuery;

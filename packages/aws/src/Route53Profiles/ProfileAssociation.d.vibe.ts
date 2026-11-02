@@ -1,7 +1,7 @@
 import * as profiles from "@distilled.cloud/aws/route53profiles";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface ProfileAssociationProps {
     /**
      * ID of the Route 53 Profile to apply. Changing it forces replacement.

@@ -29,6 +29,6 @@ export interface BatchAddChannelRoleToAccessorsRequest extends Omit<repostspace.
  *
  * @binding
  */
-export interface BatchAddChannelRoleToAccessors extends Binding.Service<BatchAddChannelRoleToAccessors, "AWS.RePostSpace.BatchAddChannelRoleToAccessors", (space: Space) => Effect.Effect<((request: BatchAddChannelRoleToAccessorsRequest) => Effect.Effect<repostspace.BatchAddChannelRoleToAccessorsOutput, repostspace.BatchAddChannelRoleToAccessorsError>)>> {
+export interface BatchAddChannelRoleToAccessors extends Binding.Service<BatchAddChannelRoleToAccessors, "AWS.RePostSpace.BatchAddChannelRoleToAccessors", (space: Space) => Effect.Effect<(request: BatchAddChannelRoleToAccessorsRequest) => Effect.Effect<repostspace.BatchAddChannelRoleToAccessorsOutput, repostspace.BatchAddChannelRoleToAccessorsError>>> {
 }
 export declare const BatchAddChannelRoleToAccessors: BatchAddChannelRoleToAccessors;

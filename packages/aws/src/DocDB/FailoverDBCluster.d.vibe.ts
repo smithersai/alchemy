@@ -25,6 +25,6 @@ import type { DBCluster } from "./DBCluster.vibe";
  *
  * @binding
  */
-export interface FailoverDBCluster extends Binding.Service<FailoverDBCluster, "AWS.DocDB.FailoverDBCluster", (cluster: DBCluster) => Effect.Effect<((request?: Omit<docdb.FailoverDBClusterMessage, "DBClusterIdentifier">) => Effect.Effect<docdb.FailoverDBClusterResult, docdb.FailoverDBClusterError>)>> {
+export interface FailoverDBCluster extends Binding.Service<FailoverDBCluster, "AWS.DocDB.FailoverDBCluster", (cluster: DBCluster) => Effect.Effect<(request?: Omit<docdb.FailoverDBClusterMessage, "DBClusterIdentifier">) => Effect.Effect<docdb.FailoverDBClusterResult, docdb.FailoverDBClusterError>>> {
 }
 export declare const FailoverDBCluster: FailoverDBCluster;

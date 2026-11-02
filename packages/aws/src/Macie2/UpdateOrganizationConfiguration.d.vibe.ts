@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateOrganizationConfiguration extends Binding.Service<UpdateOrganizationConfiguration, "AWS.Macie2.UpdateOrganizationConfiguration", () => Effect.Effect<((request?: macie2.UpdateOrganizationConfigurationRequest) => Effect.Effect<macie2.UpdateOrganizationConfigurationResponse, macie2.UpdateOrganizationConfigurationError>)>> {
+export interface UpdateOrganizationConfiguration extends Binding.Service<UpdateOrganizationConfiguration, "AWS.Macie2.UpdateOrganizationConfiguration", () => Effect.Effect<(request?: macie2.UpdateOrganizationConfigurationRequest) => Effect.Effect<macie2.UpdateOrganizationConfigurationResponse, macie2.UpdateOrganizationConfigurationError>>> {
 }
 export declare const UpdateOrganizationConfiguration: UpdateOrganizationConfiguration;

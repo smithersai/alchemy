@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListStackInstancesForProvisionedProduct extends Binding.Service<ListStackInstancesForProvisionedProduct, "AWS.ServiceCatalog.ListStackInstancesForProvisionedProduct", () => Effect.Effect<((request: servicecatalog.ListStackInstancesForProvisionedProductInput) => Effect.Effect<servicecatalog.ListStackInstancesForProvisionedProductOutput, servicecatalog.ListStackInstancesForProvisionedProductError>)>> {
+export interface ListStackInstancesForProvisionedProduct extends Binding.Service<ListStackInstancesForProvisionedProduct, "AWS.ServiceCatalog.ListStackInstancesForProvisionedProduct", () => Effect.Effect<(request: servicecatalog.ListStackInstancesForProvisionedProductInput) => Effect.Effect<servicecatalog.ListStackInstancesForProvisionedProductOutput, servicecatalog.ListStackInstancesForProvisionedProductError>>> {
 }
 export declare const ListStackInstancesForProvisionedProduct: ListStackInstancesForProvisionedProduct;

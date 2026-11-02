@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListImagePackages extends Binding.Service<ListImagePackages, "AWS.ImageBuilder.ListImagePackages", () => Effect.Effect<((request: imagebuilder.ListImagePackagesRequest) => Effect.Effect<imagebuilder.ListImagePackagesResponse, imagebuilder.ListImagePackagesError>)>> {
+export interface ListImagePackages extends Binding.Service<ListImagePackages, "AWS.ImageBuilder.ListImagePackages", () => Effect.Effect<(request: imagebuilder.ListImagePackagesRequest) => Effect.Effect<imagebuilder.ListImagePackagesResponse, imagebuilder.ListImagePackagesError>>> {
 }
 export declare const ListImagePackages: ListImagePackages;

@@ -1,7 +1,7 @@
 import * as incidents from "@distilled.cloud/aws/ssm-incidents";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface ResponsePlanProps {
     /**
      * The name of the response plan. Must be unique in the account and can't

@@ -1,7 +1,7 @@
 import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface CreateBackupRequest extends Omit<DynamoDB.CreateBackupInput, "TableName"> {
 }
 /**
@@ -22,6 +22,6 @@ export interface CreateBackupRequest extends Omit<DynamoDB.CreateBackupInput, "T
  *
  * @binding
  */
-export interface CreateBackup extends Binding.Service<CreateBackup, "AWS.DynamoDB.CreateBackup", <T extends Table>(table: T) => Effect.Effect<((request: CreateBackupRequest) => Effect.Effect<DynamoDB.CreateBackupOutput, DynamoDB.CreateBackupError>)>> {
+export interface CreateBackup extends Binding.Service<CreateBackup, "AWS.DynamoDB.CreateBackup", <T extends Table>(table: T) => Effect.Effect<(request: CreateBackupRequest) => Effect.Effect<DynamoDB.CreateBackupOutput, DynamoDB.CreateBackupError>>> {
 }
 export declare const CreateBackup: CreateBackup;

@@ -18,7 +18,7 @@ export declare const makeRePostSpaceHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.RePostSpace.SendInvites`. */
     tag: string;
     /** The distilled operation; `spaceId` is injected from the bound space. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the space ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(space: Space) => Effect.Effect<(request?: Omit<I, "spaceId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

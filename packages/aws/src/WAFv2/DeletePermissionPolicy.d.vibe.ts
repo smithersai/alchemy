@@ -1,7 +1,7 @@
 import type * as WAFV2 from "@distilled.cloud/aws/wafv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { RuleGroup } from "./RuleGroup.js";
+import type { RuleGroup } from "./RuleGroup.ts";
 /**
  * Runtime binding for `wafv2:DeletePermissionPolicy` — remove the IAM
  * policy that shares the bound {@link RuleGroup} with other accounts; the
@@ -22,6 +22,6 @@ import type { RuleGroup } from "./RuleGroup.js";
  *
  * @binding
  */
-export interface DeletePermissionPolicy extends Binding.Service<DeletePermissionPolicy, "AWS.WAFv2.DeletePermissionPolicy", (ruleGroup: RuleGroup) => Effect.Effect<(() => Effect.Effect<WAFV2.DeletePermissionPolicyResponse, WAFV2.DeletePermissionPolicyError>)>> {
+export interface DeletePermissionPolicy extends Binding.Service<DeletePermissionPolicy, "AWS.WAFv2.DeletePermissionPolicy", (ruleGroup: RuleGroup) => Effect.Effect<() => Effect.Effect<WAFV2.DeletePermissionPolicyResponse, WAFV2.DeletePermissionPolicyError>>> {
 }
 export declare const DeletePermissionPolicy: DeletePermissionPolicy;

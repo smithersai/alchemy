@@ -26,6 +26,6 @@ export interface SearchTablesByLFTagsRequest extends lf.SearchTablesByLFTagsRequ
  *
  * @binding
  */
-export interface SearchTablesByLFTags extends Binding.Service<SearchTablesByLFTags, "AWS.LakeFormation.SearchTablesByLFTags", () => Effect.Effect<((request: SearchTablesByLFTagsRequest) => Effect.Effect<lf.SearchTablesByLFTagsResponse, lf.SearchTablesByLFTagsError>)>> {
+export interface SearchTablesByLFTags extends Binding.Service<SearchTablesByLFTags, "AWS.LakeFormation.SearchTablesByLFTags", () => Effect.Effect<(request: SearchTablesByLFTagsRequest) => Effect.Effect<lf.SearchTablesByLFTagsResponse, lf.SearchTablesByLFTagsError>>> {
 }
 export declare const SearchTablesByLFTags: SearchTablesByLFTags;

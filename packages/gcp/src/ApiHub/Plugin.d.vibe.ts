@@ -1,8 +1,8 @@
 import * as apihub from "@distilled.cloud/gcp/apihub_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 type PluginActionConfig = apihub.GoogleCloudApihubV1PluginActionConfig;
 type PluginCategory = apihub.GoogleCloudApihubV1PluginPluginCategoryEnum;
 type PluginGatewayType = apihub.GoogleCloudApihubV1PluginGatewayTypeEnum;

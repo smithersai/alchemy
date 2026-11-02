@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * A single filter criterion evaluated against a finding attribute. Provide at
  * least one comparison; multiple comparisons on one criterion are ANDed.

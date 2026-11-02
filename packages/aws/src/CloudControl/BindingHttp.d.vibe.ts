@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { CloudControlBindingOptions } from "./BindingOptions.js";
+import type { CloudControlBindingOptions } from "./BindingOptions.ts";
 /**
  * Shared scaffolding for Cloud Control HTTP bindings.
  *
@@ -20,7 +20,7 @@ export declare const makeCloudControlHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.CloudControl.GetResource`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*` (Cloud Control has no resource-level scoping). */
     actions: readonly string[];
 }) => Effect.Effect<(bindOptions?: CloudControlBindingOptions | undefined) => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

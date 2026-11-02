@@ -31,6 +31,6 @@ import type { DataSet } from "./DataSet.vibe";
  *
  * @binding
  */
-export interface DescribeIngestion extends Binding.Service<DescribeIngestion, "AWS.QuickSight.DescribeIngestion", (dataSet: DataSet) => Effect.Effect<((request: Omit<quicksight.DescribeIngestionRequest, "AwsAccountId" | "DataSetId">) => Effect.Effect<quicksight.DescribeIngestionResponse, quicksight.DescribeIngestionError>)>> {
+export interface DescribeIngestion extends Binding.Service<DescribeIngestion, "AWS.QuickSight.DescribeIngestion", (dataSet: DataSet) => Effect.Effect<(request: Omit<quicksight.DescribeIngestionRequest, "AwsAccountId" | "DataSetId">) => Effect.Effect<quicksight.DescribeIngestionResponse, quicksight.DescribeIngestionError>>> {
 }
 export declare const DescribeIngestion: DescribeIngestion;

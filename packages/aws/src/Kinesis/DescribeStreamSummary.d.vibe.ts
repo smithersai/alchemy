@@ -25,6 +25,6 @@ export interface DescribeStreamSummaryRequest extends Omit<Kinesis.DescribeStrea
  *
  * @binding
  */
-export interface DescribeStreamSummary extends Binding.Service<DescribeStreamSummary, "AWS.Kinesis.DescribeStreamSummary", (stream: Stream) => Effect.Effect<((request?: DescribeStreamSummaryRequest) => Effect.Effect<Kinesis.DescribeStreamSummaryOutput, Kinesis.DescribeStreamSummaryError>)>> {
+export interface DescribeStreamSummary extends Binding.Service<DescribeStreamSummary, "AWS.Kinesis.DescribeStreamSummary", (stream: Stream) => Effect.Effect<(request?: DescribeStreamSummaryRequest) => Effect.Effect<Kinesis.DescribeStreamSummaryOutput, Kinesis.DescribeStreamSummaryError>>> {
 }
 export declare const DescribeStreamSummary: DescribeStreamSummary;

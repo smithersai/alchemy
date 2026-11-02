@@ -32,6 +32,6 @@ export interface PublishPackageVersionRequest extends Omit<codeartifact.PublishP
  *
  * @binding
  */
-export interface PublishPackageVersion extends Binding.Service<PublishPackageVersion, "AWS.CodeArtifact.PublishPackageVersion", (repository: Repository) => Effect.Effect<((request: PublishPackageVersionRequest) => Effect.Effect<codeartifact.PublishPackageVersionResult, codeartifact.PublishPackageVersionError>)>> {
+export interface PublishPackageVersion extends Binding.Service<PublishPackageVersion, "AWS.CodeArtifact.PublishPackageVersion", (repository: Repository) => Effect.Effect<(request: PublishPackageVersionRequest) => Effect.Effect<codeartifact.PublishPackageVersionResult, codeartifact.PublishPackageVersionError>>> {
 }
 export declare const PublishPackageVersion: PublishPackageVersion;

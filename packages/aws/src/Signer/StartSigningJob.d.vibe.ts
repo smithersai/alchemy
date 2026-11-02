@@ -29,6 +29,6 @@ import type { SigningProfile } from "./SigningProfile.vibe";
  *
  * @binding
  */
-export interface StartSigningJob extends Binding.Service<StartSigningJob, "AWS.Signer.StartSigningJob", (profile: SigningProfile) => Effect.Effect<((request: Omit<signer.StartSigningJobRequest, "profileName">) => Effect.Effect<signer.StartSigningJobResponse, signer.StartSigningJobError>)>> {
+export interface StartSigningJob extends Binding.Service<StartSigningJob, "AWS.Signer.StartSigningJob", (profile: SigningProfile) => Effect.Effect<(request: Omit<signer.StartSigningJobRequest, "profileName">) => Effect.Effect<signer.StartSigningJobResponse, signer.StartSigningJobError>>> {
 }
 export declare const StartSigningJob: StartSigningJob;

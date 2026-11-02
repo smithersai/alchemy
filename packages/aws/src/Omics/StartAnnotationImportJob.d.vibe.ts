@@ -27,6 +27,6 @@ export interface StartAnnotationImportJobRequest extends Omit<omics.StartAnnotat
  *
  * @binding
  */
-export interface StartAnnotationImportJob extends Binding.Service<StartAnnotationImportJob, "AWS.Omics.StartAnnotationImportJob", (store: AnnotationStore) => Effect.Effect<((request: StartAnnotationImportJobRequest) => Effect.Effect<omics.StartAnnotationImportResponse, omics.StartAnnotationImportJobError>)>> {
+export interface StartAnnotationImportJob extends Binding.Service<StartAnnotationImportJob, "AWS.Omics.StartAnnotationImportJob", (store: AnnotationStore) => Effect.Effect<(request: StartAnnotationImportJobRequest) => Effect.Effect<omics.StartAnnotationImportResponse, omics.StartAnnotationImportJobError>>> {
 }
 export declare const StartAnnotationImportJob: StartAnnotationImportJob;

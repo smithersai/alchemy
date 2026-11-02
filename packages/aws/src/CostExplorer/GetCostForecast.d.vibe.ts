@@ -29,6 +29,6 @@ export interface GetCostForecastRequest extends ce.GetCostForecastRequest {
  *
  * @binding
  */
-export interface GetCostForecast extends Binding.Service<GetCostForecast, "AWS.CostExplorer.GetCostForecast", () => Effect.Effect<((request: GetCostForecastRequest) => Effect.Effect<ce.GetCostForecastResponse, ce.GetCostForecastError>)>> {
+export interface GetCostForecast extends Binding.Service<GetCostForecast, "AWS.CostExplorer.GetCostForecast", () => Effect.Effect<(request: GetCostForecastRequest) => Effect.Effect<ce.GetCostForecastResponse, ce.GetCostForecastError>>> {
 }
 export declare const GetCostForecast: GetCostForecast;

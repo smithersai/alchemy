@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeEvents extends Binding.Service<DescribeEvents, "AWS.DMS.DescribeEvents", () => Effect.Effect<((request?: dms.DescribeEventsMessage) => Effect.Effect<dms.DescribeEventsResponse, dms.DescribeEventsError>)>> {
+export interface DescribeEvents extends Binding.Service<DescribeEvents, "AWS.DMS.DescribeEvents", () => Effect.Effect<(request?: dms.DescribeEventsMessage) => Effect.Effect<dms.DescribeEventsResponse, dms.DescribeEventsError>>> {
 }
 export declare const DescribeEvents: DescribeEvents;

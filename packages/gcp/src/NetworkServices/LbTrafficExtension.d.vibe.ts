@@ -1,8 +1,8 @@
 import * as networkservices from "@distilled.cloud/gcp/networkservices_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 import type { ExtensionChain, ExtensionChainExtension, ExtensionChainMatchCondition } from "./LbEdgeExtension.vibe";
 export type LbTrafficExtensionLoadBalancingScheme = networkservices.LbTrafficExtensionLoadBalancingSchemeEnum | (string & {});
 export type ExtensionEvent = networkservices.ExtensionChainExtensionSupportedEventsItemEnum | (string & {});

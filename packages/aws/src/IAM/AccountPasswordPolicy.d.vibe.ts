@@ -2,7 +2,7 @@ import * as iam from "@distilled.cloud/aws/iam";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface AccountPasswordPolicyProps extends Omit<iam.UpdateAccountPasswordPolicyRequest, "MaxPasswordAge"> {
     /**
      * Maximum password validity duration, e.g. `"90 days"` or

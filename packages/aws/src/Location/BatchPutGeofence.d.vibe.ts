@@ -33,6 +33,6 @@ export interface BatchPutGeofenceRequest extends Omit<location.BatchPutGeofenceR
  *
  * @binding
  */
-export interface BatchPutGeofence extends Binding.Service<BatchPutGeofence, "AWS.Location.BatchPutGeofence", (collection: GeofenceCollection) => Effect.Effect<((request: BatchPutGeofenceRequest) => Effect.Effect<location.BatchPutGeofenceResponse, location.BatchPutGeofenceError>)>> {
+export interface BatchPutGeofence extends Binding.Service<BatchPutGeofence, "AWS.Location.BatchPutGeofence", (collection: GeofenceCollection) => Effect.Effect<(request: BatchPutGeofenceRequest) => Effect.Effect<location.BatchPutGeofenceResponse, location.BatchPutGeofenceError>>> {
 }
 export declare const BatchPutGeofence: BatchPutGeofence;

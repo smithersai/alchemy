@@ -1,6 +1,6 @@
 import type * as scheduler from "@distilled.cloud/aws/scheduler";
 import * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 import type { ScheduleGroup } from "./ScheduleGroup.vibe";
 /**
  * Build the impl Effect for a group-scoped Scheduler operation: the
@@ -13,7 +13,7 @@ export declare const makeScheduleGroupScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Scheduler.GetSchedule`. */
     tag: string;
     /** The distilled operation; `GroupName` is injected from the bound group. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the group's schedule ARN pattern. */
     actions: readonly string[];
     /**
@@ -49,7 +49,7 @@ export declare const makeScheduleWriteHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Scheduler.CreateSchedule`. */
     tag: string;
     /** The distilled operation; group, time window, and role are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the group's schedule ARN pattern. */
     actions: readonly string[];
 }) => Effect.Effect<<Ro extends Role>(executionRole: Ro, group?: ScheduleGroup | undefined) => Effect.Effect<(request: Omit<I, "GroupName" | "Target" | "FlexibleTimeWindow"> & {

@@ -32,6 +32,6 @@ export interface PublishBatchRequest extends Omit<sns.PublishBatchInput, "TopicA
  *
  * @binding
  */
-export interface PublishBatch extends Binding.Service<PublishBatch, "AWS.SNS.PublishBatch", (topic: Topic) => Effect.Effect<((request: PublishBatchRequest) => Effect.Effect<sns.PublishBatchResponse, sns.PublishBatchError>)>> {
+export interface PublishBatch extends Binding.Service<PublishBatch, "AWS.SNS.PublishBatch", (topic: Topic) => Effect.Effect<(request: PublishBatchRequest) => Effect.Effect<sns.PublishBatchResponse, sns.PublishBatchError>>> {
 }
 export declare const PublishBatch: PublishBatch;

@@ -23,6 +23,6 @@ export interface ListShardsRequest extends Omit<Kinesis.ListShardsInput, "Stream
  *
  * @binding
  */
-export interface ListShards extends Binding.Service<ListShards, "AWS.Kinesis.ListShards", (stream: Stream) => Effect.Effect<((request?: ListShardsRequest) => Effect.Effect<Kinesis.ListShardsOutput, Kinesis.ListShardsError>)>> {
+export interface ListShards extends Binding.Service<ListShards, "AWS.Kinesis.ListShards", (stream: Stream) => Effect.Effect<(request?: ListShardsRequest) => Effect.Effect<Kinesis.ListShardsOutput, Kinesis.ListShardsError>>> {
 }
 export declare const ListShards: ListShards;

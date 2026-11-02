@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListImageBuildVersions extends Binding.Service<ListImageBuildVersions, "AWS.ImageBuilder.ListImageBuildVersions", () => Effect.Effect<((request: imagebuilder.ListImageBuildVersionsRequest) => Effect.Effect<imagebuilder.ListImageBuildVersionsResponse, imagebuilder.ListImageBuildVersionsError>)>> {
+export interface ListImageBuildVersions extends Binding.Service<ListImageBuildVersions, "AWS.ImageBuilder.ListImageBuildVersions", () => Effect.Effect<(request: imagebuilder.ListImageBuildVersionsRequest) => Effect.Effect<imagebuilder.ListImageBuildVersionsResponse, imagebuilder.ListImageBuildVersionsError>>> {
 }
 export declare const ListImageBuildVersions: ListImageBuildVersions;

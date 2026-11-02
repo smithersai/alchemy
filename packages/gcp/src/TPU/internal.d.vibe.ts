@@ -76,7 +76,7 @@ export declare const replaceOnIdentity: (input: {
  */
 export declare const waitForOperation: (operation: tpu.Operation, options?: {
     notFoundOk?: boolean;
-}) => Effect.Effect<void, tpu.Forbidden | tpu.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | tpu.ServiceDisabled | tpu.GcpOpError, tpu.GcpOpContext>;
+}) => Effect.Effect<void, tpu.Forbidden | tpu.NotFound | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | tpu.ServiceDisabled | tpu.GcpOpError, tpu.GcpOpContext>;
 export declare const waitUntilExists: <A, E extends {
     readonly _tag: string;
 }, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved, R>;

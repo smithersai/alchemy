@@ -41,6 +41,6 @@ export interface DisconnectUserRequest extends Omit<ivschat.DisconnectUserReques
  *
  * @binding
  */
-export interface DisconnectUser extends Binding.Service<DisconnectUser, "AWS.IVSChat.DisconnectUser", (room: Room) => Effect.Effect<((request: DisconnectUserRequest) => Effect.Effect<ivschat.DisconnectUserResponse, ivschat.DisconnectUserError>)>> {
+export interface DisconnectUser extends Binding.Service<DisconnectUser, "AWS.IVSChat.DisconnectUser", (room: Room) => Effect.Effect<(request: DisconnectUserRequest) => Effect.Effect<ivschat.DisconnectUserResponse, ivschat.DisconnectUserError>>> {
 }
 export declare const DisconnectUser: DisconnectUser;

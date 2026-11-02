@@ -20,6 +20,6 @@ import type { Broker } from "./Broker.vibe";
  *
  * @binding
  */
-export interface DeleteUser extends Binding.Service<DeleteUser, "AWS.MQ.DeleteUser", (broker: Broker) => Effect.Effect<((request: Omit<mq.DeleteUserRequest, "BrokerId">) => Effect.Effect<mq.DeleteUserResponse, mq.DeleteUserError>)>> {
+export interface DeleteUser extends Binding.Service<DeleteUser, "AWS.MQ.DeleteUser", (broker: Broker) => Effect.Effect<(request: Omit<mq.DeleteUserRequest, "BrokerId">) => Effect.Effect<mq.DeleteUserResponse, mq.DeleteUserError>>> {
 }
 export declare const DeleteUser: DeleteUser;

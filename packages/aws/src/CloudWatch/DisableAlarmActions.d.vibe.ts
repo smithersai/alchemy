@@ -1,7 +1,7 @@
 import * as cloudwatch from "@distilled.cloud/aws/cloudwatch";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { AlarmResource } from "./binding-common.js";
+import type { AlarmResource } from "./binding-common.ts";
 type AlarmResources = [AlarmResource, ...AlarmResource[]];
 /**
  * Runtime binding for `cloudwatch:DisableAlarmActions` — suppress the
@@ -24,7 +24,7 @@ type AlarmResources = [AlarmResource, ...AlarmResource[]];
  *
  * @binding
  */
-export interface DisableAlarmActions extends Binding.Service<DisableAlarmActions, "AWS.CloudWatch.DisableAlarmActions", (...alarms: AlarmResources) => Effect.Effect<(() => Effect.Effect<cloudwatch.DisableAlarmActionsResponse, any>)>> {
+export interface DisableAlarmActions extends Binding.Service<DisableAlarmActions, "AWS.CloudWatch.DisableAlarmActions", (...alarms: AlarmResources) => Effect.Effect<() => Effect.Effect<cloudwatch.DisableAlarmActionsResponse, any>>> {
 }
 export declare const DisableAlarmActions: DisableAlarmActions;
 export {};

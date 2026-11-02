@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { type IoTMessage, TopicRuleEventSource as IoTTopicRuleEventSource } from "../IoT/TopicRuleEventSource.vibe";
-import * as Lambda from "./Function.js";
+import * as Lambda from "./Function.ts";
 /**
  * An IoT rule action delivers the raw SQL `SELECT` payload as the Lambda
  * event — an arbitrary JSON object. We discriminate it from the Records-based

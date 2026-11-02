@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetEc2DeepInspectionConfiguration extends Binding.Service<GetEc2DeepInspectionConfiguration, "AWS.Inspector2.GetEc2DeepInspectionConfiguration", () => Effect.Effect<((request: inspector2.GetEc2DeepInspectionConfigurationRequest) => Effect.Effect<inspector2.GetEc2DeepInspectionConfigurationResponse, inspector2.GetEc2DeepInspectionConfigurationError>)>> {
+export interface GetEc2DeepInspectionConfiguration extends Binding.Service<GetEc2DeepInspectionConfiguration, "AWS.Inspector2.GetEc2DeepInspectionConfiguration", () => Effect.Effect<(request: inspector2.GetEc2DeepInspectionConfigurationRequest) => Effect.Effect<inspector2.GetEc2DeepInspectionConfigurationResponse, inspector2.GetEc2DeepInspectionConfigurationError>>> {
 }
 export declare const GetEc2DeepInspectionConfiguration: GetEc2DeepInspectionConfiguration;

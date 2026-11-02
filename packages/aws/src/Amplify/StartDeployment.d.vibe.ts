@@ -37,6 +37,6 @@ export interface StartDeploymentRequest extends Omit<amplify.StartDeploymentRequ
  *
  * @binding
  */
-export interface StartDeployment extends Binding.Service<StartDeployment, "AWS.Amplify.StartDeployment", (app: App) => Effect.Effect<((request: StartDeploymentRequest) => Effect.Effect<amplify.StartDeploymentResult, amplify.StartDeploymentError>)>> {
+export interface StartDeployment extends Binding.Service<StartDeployment, "AWS.Amplify.StartDeployment", (app: App) => Effect.Effect<(request: StartDeploymentRequest) => Effect.Effect<amplify.StartDeploymentResult, amplify.StartDeploymentError>>> {
 }
 export declare const StartDeployment: StartDeployment;

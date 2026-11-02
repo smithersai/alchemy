@@ -25,6 +25,6 @@ export interface AcceptGrantRequest extends licensemanager.AcceptGrantRequest {
  *
  * @binding
  */
-export interface AcceptGrant extends Binding.Service<AcceptGrant, "AWS.LicenseManager.AcceptGrant", () => Effect.Effect<((request: AcceptGrantRequest) => Effect.Effect<licensemanager.AcceptGrantResponse, licensemanager.AcceptGrantError>)>> {
+export interface AcceptGrant extends Binding.Service<AcceptGrant, "AWS.LicenseManager.AcceptGrant", () => Effect.Effect<(request: AcceptGrantRequest) => Effect.Effect<licensemanager.AcceptGrantResponse, licensemanager.AcceptGrantError>>> {
 }
 export declare const AcceptGrant: AcceptGrant;

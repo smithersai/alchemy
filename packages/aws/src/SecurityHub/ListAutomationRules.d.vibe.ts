@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAutomationRules extends Binding.Service<ListAutomationRules, "AWS.SecurityHub.ListAutomationRules", () => Effect.Effect<((request?: securityhub.ListAutomationRulesRequest) => Effect.Effect<securityhub.ListAutomationRulesResponse, securityhub.ListAutomationRulesError>)>> {
+export interface ListAutomationRules extends Binding.Service<ListAutomationRules, "AWS.SecurityHub.ListAutomationRules", () => Effect.Effect<(request?: securityhub.ListAutomationRulesRequest) => Effect.Effect<securityhub.ListAutomationRulesResponse, securityhub.ListAutomationRulesError>>> {
 }
 export declare const ListAutomationRules: ListAutomationRules;

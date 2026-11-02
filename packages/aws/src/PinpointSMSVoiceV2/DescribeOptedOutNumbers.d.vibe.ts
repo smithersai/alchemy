@@ -33,6 +33,6 @@ export interface DescribeOptedOutNumbersRequest extends Omit<smsvoice.DescribeOp
  *
  * @binding
  */
-export interface DescribeOptedOutNumbers extends Binding.Service<DescribeOptedOutNumbers, "AWS.PinpointSMSVoiceV2.DescribeOptedOutNumbers", (optOutList: OptOutList) => Effect.Effect<((request: DescribeOptedOutNumbersRequest) => Effect.Effect<smsvoice.DescribeOptedOutNumbersResult, smsvoice.DescribeOptedOutNumbersError>)>> {
+export interface DescribeOptedOutNumbers extends Binding.Service<DescribeOptedOutNumbers, "AWS.PinpointSMSVoiceV2.DescribeOptedOutNumbers", (optOutList: OptOutList) => Effect.Effect<(request: DescribeOptedOutNumbersRequest) => Effect.Effect<smsvoice.DescribeOptedOutNumbersResult, smsvoice.DescribeOptedOutNumbersError>>> {
 }
 export declare const DescribeOptedOutNumbers: DescribeOptedOutNumbers;

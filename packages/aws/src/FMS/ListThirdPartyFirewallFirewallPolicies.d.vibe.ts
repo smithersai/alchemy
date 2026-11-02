@@ -28,6 +28,6 @@ export interface ListThirdPartyFirewallFirewallPoliciesRequest extends fms.ListT
  *
  * @binding
  */
-export interface ListThirdPartyFirewallFirewallPolicies extends Binding.Service<ListThirdPartyFirewallFirewallPolicies, "AWS.FMS.ListThirdPartyFirewallFirewallPolicies", () => Effect.Effect<((request: ListThirdPartyFirewallFirewallPoliciesRequest) => Effect.Effect<fms.ListThirdPartyFirewallFirewallPoliciesResponse, fms.ListThirdPartyFirewallFirewallPoliciesError>)>> {
+export interface ListThirdPartyFirewallFirewallPolicies extends Binding.Service<ListThirdPartyFirewallFirewallPolicies, "AWS.FMS.ListThirdPartyFirewallFirewallPolicies", () => Effect.Effect<(request: ListThirdPartyFirewallFirewallPoliciesRequest) => Effect.Effect<fms.ListThirdPartyFirewallFirewallPoliciesResponse, fms.ListThirdPartyFirewallFirewallPoliciesError>>> {
 }
 export declare const ListThirdPartyFirewallFirewallPolicies: ListThirdPartyFirewallFirewallPolicies;

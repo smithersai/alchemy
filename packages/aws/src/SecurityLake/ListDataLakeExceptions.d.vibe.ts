@@ -22,6 +22,6 @@ import type { DataLake } from "./DataLake.vibe";
  *
  * @binding
  */
-export interface ListDataLakeExceptions extends Binding.Service<ListDataLakeExceptions, "AWS.SecurityLake.ListDataLakeExceptions", (lake: DataLake) => Effect.Effect<((request?: securitylake.ListDataLakeExceptionsRequest) => Effect.Effect<securitylake.ListDataLakeExceptionsResponse, securitylake.ListDataLakeExceptionsError>)>> {
+export interface ListDataLakeExceptions extends Binding.Service<ListDataLakeExceptions, "AWS.SecurityLake.ListDataLakeExceptions", (lake: DataLake) => Effect.Effect<(request?: securitylake.ListDataLakeExceptionsRequest) => Effect.Effect<securitylake.ListDataLakeExceptionsResponse, securitylake.ListDataLakeExceptionsError>>> {
 }
 export declare const ListDataLakeExceptions: ListDataLakeExceptions;

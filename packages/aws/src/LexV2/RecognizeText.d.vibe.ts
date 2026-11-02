@@ -1,7 +1,7 @@
 import type * as lexr from "@distilled.cloud/aws/lex-runtime-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { BotAlias } from "./BotAlias.js";
+import type { BotAlias } from "./BotAlias.ts";
 /**
  * The `RecognizeText` request with the binding-injected `botId` and
  * `botAliasId` removed. `localeId` selects the conversation language and
@@ -60,6 +60,6 @@ export interface RecognizeTextRequest extends Omit<lexr.RecognizeTextRequest, "b
  *
  * @binding
  */
-export interface RecognizeText extends Binding.Service<RecognizeText, "AWS.LexV2.RecognizeText", (alias: BotAlias) => Effect.Effect<((request: RecognizeTextRequest) => Effect.Effect<lexr.RecognizeTextResponse, lexr.RecognizeTextError>)>> {
+export interface RecognizeText extends Binding.Service<RecognizeText, "AWS.LexV2.RecognizeText", (alias: BotAlias) => Effect.Effect<(request: RecognizeTextRequest) => Effect.Effect<lexr.RecognizeTextResponse, lexr.RecognizeTextError>>> {
 }
 export declare const RecognizeText: RecognizeText;

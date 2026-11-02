@@ -32,6 +32,6 @@ export interface ListQueuedMessagesRequest extends Omit<iotw.ListQueuedMessagesR
  *
  * @binding
  */
-export interface ListQueuedMessages extends Binding.Service<ListQueuedMessages, "AWS.IoTWireless.ListQueuedMessages", (device: WirelessDevice) => Effect.Effect<((request?: ListQueuedMessagesRequest) => Effect.Effect<iotw.ListQueuedMessagesResponse, iotw.ListQueuedMessagesError>)>> {
+export interface ListQueuedMessages extends Binding.Service<ListQueuedMessages, "AWS.IoTWireless.ListQueuedMessages", (device: WirelessDevice) => Effect.Effect<(request?: ListQueuedMessagesRequest) => Effect.Effect<iotw.ListQueuedMessagesResponse, iotw.ListQueuedMessagesError>>> {
 }
 export declare const ListQueuedMessages: ListQueuedMessages;

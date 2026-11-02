@@ -25,6 +25,6 @@ export interface PutActionsRequest extends Omit<personalizeevents.PutActionsRequ
  *
  * @binding
  */
-export interface PutActions extends Binding.Service<PutActions, "AWS.Personalize.PutActions", (dataset: Dataset) => Effect.Effect<((request: PutActionsRequest) => Effect.Effect<personalizeevents.PutActionsResponse, personalizeevents.PutActionsError>)>> {
+export interface PutActions extends Binding.Service<PutActions, "AWS.Personalize.PutActions", (dataset: Dataset) => Effect.Effect<(request: PutActionsRequest) => Effect.Effect<personalizeevents.PutActionsResponse, personalizeevents.PutActionsError>>> {
 }
 export declare const PutActions: PutActions;

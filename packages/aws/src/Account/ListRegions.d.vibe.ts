@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListRegions extends Binding.Service<ListRegions, "AWS.Account.ListRegions", () => Effect.Effect<((request?: account.ListRegionsRequest) => Effect.Effect<account.ListRegionsResponse, account.ListRegionsError>)>> {
+export interface ListRegions extends Binding.Service<ListRegions, "AWS.Account.ListRegions", () => Effect.Effect<(request?: account.ListRegionsRequest) => Effect.Effect<account.ListRegionsResponse, account.ListRegionsError>>> {
 }
 export declare const ListRegions: ListRegions;

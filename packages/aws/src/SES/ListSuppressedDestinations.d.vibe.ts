@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListSuppressedDestinations extends Binding.Service<ListSuppressedDestinations, "AWS.SES.ListSuppressedDestinations", () => Effect.Effect<((request?: sesv2.ListSuppressedDestinationsRequest) => Effect.Effect<sesv2.ListSuppressedDestinationsResponse, sesv2.ListSuppressedDestinationsError>)>> {
+export interface ListSuppressedDestinations extends Binding.Service<ListSuppressedDestinations, "AWS.SES.ListSuppressedDestinations", () => Effect.Effect<(request?: sesv2.ListSuppressedDestinationsRequest) => Effect.Effect<sesv2.ListSuppressedDestinationsResponse, sesv2.ListSuppressedDestinationsError>>> {
 }
 export declare const ListSuppressedDestinations: ListSuppressedDestinations;

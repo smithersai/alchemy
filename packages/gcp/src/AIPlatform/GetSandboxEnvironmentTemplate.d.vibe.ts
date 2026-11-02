@@ -2,7 +2,7 @@ import type * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { ReasoningEnginesSandboxEnvironmentTemplate } from "./ReasoningEnginesSandboxEnvironmentTemplate.js";
+import type { ReasoningEnginesSandboxEnvironmentTemplate } from "./ReasoningEnginesSandboxEnvironmentTemplate.ts";
 export interface GetSandboxEnvironmentTemplateRequest extends Omit<aiplatform.GetReasoningEnginesSandboxEnvironmentTemplatesRequest, "name"> {
 }
 /**
@@ -22,6 +22,6 @@ export interface GetSandboxEnvironmentTemplateRequest extends Omit<aiplatform.Ge
  * @binding
  * @category AIPlatform
  */
-export interface GetSandboxEnvironmentTemplate extends Binding.Service<GetSandboxEnvironmentTemplate, "GCP.AIPlatform.GetSandboxEnvironmentTemplate", (template: ReasoningEnginesSandboxEnvironmentTemplate) => Effect.Effect<((request?: GetSandboxEnvironmentTemplateRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1SandboxEnvironmentTemplate, aiplatform.GetReasoningEnginesSandboxEnvironmentTemplatesError, RuntimeContext>)>> {
+export interface GetSandboxEnvironmentTemplate extends Binding.Service<GetSandboxEnvironmentTemplate, "GCP.AIPlatform.GetSandboxEnvironmentTemplate", (template: ReasoningEnginesSandboxEnvironmentTemplate) => Effect.Effect<(request?: GetSandboxEnvironmentTemplateRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1SandboxEnvironmentTemplate, aiplatform.GetReasoningEnginesSandboxEnvironmentTemplatesError, RuntimeContext>>> {
 }
 export declare const GetSandboxEnvironmentTemplate: GetSandboxEnvironmentTemplate;

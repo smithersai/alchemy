@@ -26,6 +26,6 @@ import * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetRandomPassword extends Binding.Service<GetRandomPassword, "AWS.SecretsManager.GetRandomPassword", () => Effect.Effect<((request?: secretsmanager.GetRandomPasswordRequest) => Effect.Effect<secretsmanager.GetRandomPasswordResponse, secretsmanager.GetRandomPasswordError>)>> {
+export interface GetRandomPassword extends Binding.Service<GetRandomPassword, "AWS.SecretsManager.GetRandomPassword", () => Effect.Effect<(request?: secretsmanager.GetRandomPasswordRequest) => Effect.Effect<secretsmanager.GetRandomPasswordResponse, secretsmanager.GetRandomPasswordError>>> {
 }
 export declare const GetRandomPassword: GetRandomPassword;

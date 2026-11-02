@@ -12,7 +12,7 @@ export declare const makeQueueUrlHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SQS.SendMessage`. */
     tag: string;
     /** The distilled operation; the queue URL is injected as `QueueUrl`. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the queue ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(queue: Queue) => Effect.Effect<(request?: Omit<I, "QueueUrl"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -28,7 +28,7 @@ export declare const makeQueueArnHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SQS.ListMessageMoveTasks`. */
     tag: string;
     /** The distilled operation; the queue ARN is injected as `SourceArn`. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the queue ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(queue: Queue) => Effect.Effect<(request?: Omit<I, "SourceArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -42,7 +42,7 @@ export declare const makeQueueGrantHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.SQS.CancelMessageMoveTask`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the queue ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(queue: Queue) => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

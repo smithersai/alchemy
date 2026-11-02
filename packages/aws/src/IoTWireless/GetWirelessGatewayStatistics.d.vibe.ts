@@ -32,6 +32,6 @@ export interface GetWirelessGatewayStatisticsRequest extends Omit<iotw.GetWirele
  *
  * @binding
  */
-export interface GetWirelessGatewayStatistics extends Binding.Service<GetWirelessGatewayStatistics, "AWS.IoTWireless.GetWirelessGatewayStatistics", (gateway: WirelessGateway) => Effect.Effect<((request?: GetWirelessGatewayStatisticsRequest) => Effect.Effect<iotw.GetWirelessGatewayStatisticsResponse, iotw.GetWirelessGatewayStatisticsError>)>> {
+export interface GetWirelessGatewayStatistics extends Binding.Service<GetWirelessGatewayStatistics, "AWS.IoTWireless.GetWirelessGatewayStatistics", (gateway: WirelessGateway) => Effect.Effect<(request?: GetWirelessGatewayStatisticsRequest) => Effect.Effect<iotw.GetWirelessGatewayStatisticsResponse, iotw.GetWirelessGatewayStatisticsError>>> {
 }
 export declare const GetWirelessGatewayStatistics: GetWirelessGatewayStatistics;

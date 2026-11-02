@@ -23,6 +23,6 @@ export interface GetQueryResultsRequest extends Omit<im.GetQueryResultsInput, "M
  *
  * @binding
  */
-export interface GetQueryResults extends Binding.Service<GetQueryResults, "AWS.InternetMonitor.GetQueryResults", (monitor: Monitor) => Effect.Effect<((request: GetQueryResultsRequest) => Effect.Effect<im.GetQueryResultsOutput, im.GetQueryResultsError>)>> {
+export interface GetQueryResults extends Binding.Service<GetQueryResults, "AWS.InternetMonitor.GetQueryResults", (monitor: Monitor) => Effect.Effect<(request: GetQueryResultsRequest) => Effect.Effect<im.GetQueryResultsOutput, im.GetQueryResultsError>>> {
 }
 export declare const GetQueryResults: GetQueryResults;

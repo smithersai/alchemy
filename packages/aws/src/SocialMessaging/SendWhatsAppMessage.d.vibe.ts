@@ -38,6 +38,6 @@ import type { LinkedWhatsAppBusinessAccount } from "./LinkedWhatsAppBusinessAcco
  *
  * @binding
  */
-export interface SendWhatsAppMessage extends Binding.Service<SendWhatsAppMessage, "AWS.SocialMessaging.SendWhatsAppMessage", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: socialmessaging.SendWhatsAppMessageInput) => Effect.Effect<socialmessaging.SendWhatsAppMessageOutput, socialmessaging.SendWhatsAppMessageError>)>> {
+export interface SendWhatsAppMessage extends Binding.Service<SendWhatsAppMessage, "AWS.SocialMessaging.SendWhatsAppMessage", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: socialmessaging.SendWhatsAppMessageInput) => Effect.Effect<socialmessaging.SendWhatsAppMessageOutput, socialmessaging.SendWhatsAppMessageError>>> {
 }
 export declare const SendWhatsAppMessage: SendWhatsAppMessage;

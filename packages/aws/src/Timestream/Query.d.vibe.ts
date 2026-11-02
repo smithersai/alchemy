@@ -30,6 +30,6 @@ export interface QueryRequest extends TSQ.QueryRequest {
  *
  * @binding
  */
-export interface Query extends Binding.Service<Query, "AWS.Timestream.Query", (table: Table) => Effect.Effect<((request: QueryRequest) => Effect.Effect<TSQ.QueryResponse, TSQ.QueryError | TSQ.DescribeEndpointsError>)>> {
+export interface Query extends Binding.Service<Query, "AWS.Timestream.Query", (table: Table) => Effect.Effect<(request: QueryRequest) => Effect.Effect<TSQ.QueryResponse, TSQ.QueryError | TSQ.DescribeEndpointsError>>> {
 }
 export declare const Query: Query;

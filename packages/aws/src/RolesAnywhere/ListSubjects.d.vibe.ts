@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListSubjects extends Binding.Service<ListSubjects, "AWS.RolesAnywhere.ListSubjects", () => Effect.Effect<((request?: rolesanywhere.ListSubjectsRequest) => Effect.Effect<rolesanywhere.ListSubjectsResponse, rolesanywhere.ListSubjectsError>)>> {
+export interface ListSubjects extends Binding.Service<ListSubjects, "AWS.RolesAnywhere.ListSubjects", () => Effect.Effect<(request?: rolesanywhere.ListSubjectsRequest) => Effect.Effect<rolesanywhere.ListSubjectsResponse, rolesanywhere.ListSubjectsError>>> {
 }
 export declare const ListSubjects: ListSubjects;

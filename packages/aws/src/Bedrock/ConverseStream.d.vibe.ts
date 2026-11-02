@@ -49,6 +49,6 @@ export interface ConverseStreamRequest extends Omit<bedrock.ConverseStreamReques
  *
  * @binding
  */
-export interface ConverseStream extends Binding.Service<ConverseStream, "AWS.Bedrock.ConverseStream", (model: string, ...additionalModels: string[]) => Effect.Effect<((request: ConverseStreamRequest) => Effect.Effect<bedrock.ConverseStreamResponse, bedrock.ConverseStreamError>)>> {
+export interface ConverseStream extends Binding.Service<ConverseStream, "AWS.Bedrock.ConverseStream", (model: string, ...additionalModels: string[]) => Effect.Effect<(request: ConverseStreamRequest) => Effect.Effect<bedrock.ConverseStreamResponse, bedrock.ConverseStreamError>>> {
 }
 export declare const ConverseStream: ConverseStream;

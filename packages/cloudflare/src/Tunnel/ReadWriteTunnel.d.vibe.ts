@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { CloudflareEnvironment } from "../CloudflareEnvironment.js";
-import type { Worker } from "../Workers/Worker.js";
+import type { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import type { Worker } from "../Workers/Worker.ts";
 import { type ReadTunnelClient } from "./ReadTunnel.vibe";
 import { type TunnelAuth } from "./TunnelBinding.vibe";
 import { type WriteTunnelClient } from "./WriteTunnel.vibe";

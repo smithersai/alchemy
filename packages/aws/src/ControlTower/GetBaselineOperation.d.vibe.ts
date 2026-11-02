@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetBaselineOperation extends Binding.Service<GetBaselineOperation, "AWS.ControlTower.GetBaselineOperation", () => Effect.Effect<((request: controltower.GetBaselineOperationInput) => Effect.Effect<controltower.GetBaselineOperationOutput, controltower.GetBaselineOperationError>)>> {
+export interface GetBaselineOperation extends Binding.Service<GetBaselineOperation, "AWS.ControlTower.GetBaselineOperation", () => Effect.Effect<(request: controltower.GetBaselineOperationInput) => Effect.Effect<controltower.GetBaselineOperationOutput, controltower.GetBaselineOperationError>>> {
 }
 export declare const GetBaselineOperation: GetBaselineOperation;

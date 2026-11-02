@@ -1,7 +1,7 @@
 import type * as obs from "@distilled.cloud/aws/observabilityadmin";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { TelemetryRule } from "./TelemetryRule.js";
+import type { TelemetryRule } from "./TelemetryRule.ts";
 /**
  * Runtime binding for `observabilityadmin:GetTelemetryRule` — reads the full
  * configuration and per-region status of the bound
@@ -22,6 +22,6 @@ import type { TelemetryRule } from "./TelemetryRule.js";
  *
  * @binding
  */
-export interface GetTelemetryRule extends Binding.Service<GetTelemetryRule, "AWS.ObservabilityAdmin.GetTelemetryRule", (rule: TelemetryRule) => Effect.Effect<(() => Effect.Effect<obs.GetTelemetryRuleOutput, obs.GetTelemetryRuleError>)>> {
+export interface GetTelemetryRule extends Binding.Service<GetTelemetryRule, "AWS.ObservabilityAdmin.GetTelemetryRule", (rule: TelemetryRule) => Effect.Effect<() => Effect.Effect<obs.GetTelemetryRuleOutput, obs.GetTelemetryRuleError>>> {
 }
 export declare const GetTelemetryRule: GetTelemetryRule;

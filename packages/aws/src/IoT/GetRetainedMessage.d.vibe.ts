@@ -21,6 +21,6 @@ export interface GetRetainedMessageRequest extends iotdata.GetRetainedMessageReq
  *
  * @binding
  */
-export interface GetRetainedMessage extends Binding.Service<GetRetainedMessage, "AWS.IoT.GetRetainedMessage", (topicFilter?: string) => Effect.Effect<((request: GetRetainedMessageRequest) => Effect.Effect<iotdata.GetRetainedMessageResponse, iotdata.GetRetainedMessageError>)>> {
+export interface GetRetainedMessage extends Binding.Service<GetRetainedMessage, "AWS.IoT.GetRetainedMessage", (topicFilter?: string) => Effect.Effect<(request: GetRetainedMessageRequest) => Effect.Effect<iotdata.GetRetainedMessageResponse, iotdata.GetRetainedMessageError>>> {
 }
 export declare const GetRetainedMessage: GetRetainedMessage;

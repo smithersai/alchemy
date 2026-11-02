@@ -28,6 +28,6 @@ export interface BatchAddRoleRequest extends Omit<repostspace.BatchAddRoleInput,
  *
  * @binding
  */
-export interface BatchAddRole extends Binding.Service<BatchAddRole, "AWS.RePostSpace.BatchAddRole", (space: Space) => Effect.Effect<((request: BatchAddRoleRequest) => Effect.Effect<repostspace.BatchAddRoleOutput, repostspace.BatchAddRoleError>)>> {
+export interface BatchAddRole extends Binding.Service<BatchAddRole, "AWS.RePostSpace.BatchAddRole", (space: Space) => Effect.Effect<(request: BatchAddRoleRequest) => Effect.Effect<repostspace.BatchAddRoleOutput, repostspace.BatchAddRoleError>>> {
 }
 export declare const BatchAddRole: BatchAddRole;

@@ -1,6 +1,6 @@
 import { ServerHost } from "alchemy/Runtime/Process";
 import * as Layer from "effect/Layer";
-import { TopicEventSource as PubSubTopicEventSource } from "../PubSub/TopicEventSource.js";
+import { TopicEventSource as PubSubTopicEventSource } from "../PubSub/TopicEventSource.ts";
 /**
  * Pull implementation of `GCP.PubSub.TopicEventSource` for hosts without
  * an inbound URL (`GCP.Run.Job`, `GCP.Run.WorkerPool`; any host with

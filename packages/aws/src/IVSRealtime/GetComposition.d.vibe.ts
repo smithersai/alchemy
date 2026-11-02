@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetComposition extends Binding.Service<GetComposition, "AWS.IVSRealtime.GetComposition", () => Effect.Effect<((request: ivsrealtime.GetCompositionRequest) => Effect.Effect<ivsrealtime.GetCompositionResponse, ivsrealtime.GetCompositionError>)>> {
+export interface GetComposition extends Binding.Service<GetComposition, "AWS.IVSRealtime.GetComposition", () => Effect.Effect<(request: ivsrealtime.GetCompositionRequest) => Effect.Effect<ivsrealtime.GetCompositionResponse, ivsrealtime.GetCompositionError>>> {
 }
 export declare const GetComposition: GetComposition;

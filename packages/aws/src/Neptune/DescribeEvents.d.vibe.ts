@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeEvents extends Binding.Service<DescribeEvents, "AWS.Neptune.DescribeEvents", () => Effect.Effect<((request?: neptune.DescribeEventsMessage) => Effect.Effect<neptune.EventsMessage, neptune.DescribeEventsError>)>> {
+export interface DescribeEvents extends Binding.Service<DescribeEvents, "AWS.Neptune.DescribeEvents", () => Effect.Effect<(request?: neptune.DescribeEventsMessage) => Effect.Effect<neptune.EventsMessage, neptune.DescribeEventsError>>> {
 }
 export declare const DescribeEvents: DescribeEvents;

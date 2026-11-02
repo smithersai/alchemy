@@ -24,6 +24,6 @@ import type { VirtualCluster } from "./VirtualCluster.vibe";
  *
  * @binding
  */
-export interface ListJobRuns extends Binding.Service<ListJobRuns, "AWS.EMRContainers.ListJobRuns", (virtualCluster: VirtualCluster) => Effect.Effect<((request?: Omit<emrc.ListJobRunsRequest, "virtualClusterId">) => Effect.Effect<emrc.ListJobRunsResponse, emrc.ListJobRunsError>)>> {
+export interface ListJobRuns extends Binding.Service<ListJobRuns, "AWS.EMRContainers.ListJobRuns", (virtualCluster: VirtualCluster) => Effect.Effect<(request?: Omit<emrc.ListJobRunsRequest, "virtualClusterId">) => Effect.Effect<emrc.ListJobRunsResponse, emrc.ListJobRunsError>>> {
 }
 export declare const ListJobRuns: ListJobRuns;

@@ -47,6 +47,6 @@ export interface GetEventPredictionMetadataRequest extends Omit<frauddetector.Ge
  *
  * @binding
  */
-export interface GetEventPredictionMetadata extends Binding.Service<GetEventPredictionMetadata, "AWS.FraudDetector.GetEventPredictionMetadata", (detector: Detector) => Effect.Effect<((request: GetEventPredictionMetadataRequest) => Effect.Effect<frauddetector.GetEventPredictionMetadataResult, frauddetector.GetEventPredictionMetadataError>)>> {
+export interface GetEventPredictionMetadata extends Binding.Service<GetEventPredictionMetadata, "AWS.FraudDetector.GetEventPredictionMetadata", (detector: Detector) => Effect.Effect<(request: GetEventPredictionMetadataRequest) => Effect.Effect<frauddetector.GetEventPredictionMetadataResult, frauddetector.GetEventPredictionMetadataError>>> {
 }
 export declare const GetEventPredictionMetadata: GetEventPredictionMetadata;

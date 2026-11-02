@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetImage extends Binding.Service<GetImage, "AWS.ImageBuilder.GetImage", () => Effect.Effect<((request: imagebuilder.GetImageRequest) => Effect.Effect<imagebuilder.GetImageResponse, imagebuilder.GetImageError>)>> {
+export interface GetImage extends Binding.Service<GetImage, "AWS.ImageBuilder.GetImage", () => Effect.Effect<(request: imagebuilder.GetImageRequest) => Effect.Effect<imagebuilder.GetImageResponse, imagebuilder.GetImageError>>> {
 }
 export declare const GetImage: GetImage;

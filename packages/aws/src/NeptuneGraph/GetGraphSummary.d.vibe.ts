@@ -19,6 +19,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface GetGraphSummary extends Binding.Service<GetGraphSummary, "AWS.NeptuneGraph.GetGraphSummary", (graph: Graph) => Effect.Effect<((request?: Omit<neptunegraph.GetGraphSummaryInput, "graphIdentifier">) => Effect.Effect<neptunegraph.GetGraphSummaryOutput, neptunegraph.GetGraphSummaryError>)>> {
+export interface GetGraphSummary extends Binding.Service<GetGraphSummary, "AWS.NeptuneGraph.GetGraphSummary", (graph: Graph) => Effect.Effect<(request?: Omit<neptunegraph.GetGraphSummaryInput, "graphIdentifier">) => Effect.Effect<neptunegraph.GetGraphSummaryOutput, neptunegraph.GetGraphSummaryError>>> {
 }
 export declare const GetGraphSummary: GetGraphSummary;

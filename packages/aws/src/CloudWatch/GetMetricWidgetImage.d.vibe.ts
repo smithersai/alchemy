@@ -29,6 +29,6 @@ export interface GetMetricWidgetImageRequest extends cloudwatch.GetMetricWidgetI
  *
  * @binding
  */
-export interface GetMetricWidgetImage extends Binding.Service<GetMetricWidgetImage, "AWS.CloudWatch.GetMetricWidgetImage", () => Effect.Effect<((request: GetMetricWidgetImageRequest) => Effect.Effect<cloudwatch.GetMetricWidgetImageOutput, cloudwatch.GetMetricWidgetImageError>)>> {
+export interface GetMetricWidgetImage extends Binding.Service<GetMetricWidgetImage, "AWS.CloudWatch.GetMetricWidgetImage", () => Effect.Effect<(request: GetMetricWidgetImageRequest) => Effect.Effect<cloudwatch.GetMetricWidgetImageOutput, cloudwatch.GetMetricWidgetImageError>>> {
 }
 export declare const GetMetricWidgetImage: GetMetricWidgetImage;

@@ -2,7 +2,7 @@ import type * as sqladmin from "@distilled.cloud/gcp/sqladmin_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { User } from "./User.js";
+import type { User } from "./User.ts";
 export interface GetUserRequest extends Omit<sqladmin.GetUsersRequest, "instance" | "project" | "name"> {
 }
 /**
@@ -26,6 +26,6 @@ export interface GetUserRequest extends Omit<sqladmin.GetUsersRequest, "instance
  * @binding
  * @category SQL
  */
-export interface GetUser extends Binding.Service<GetUser, "GCP.SQL.GetUser", (user: User) => Effect.Effect<((request?: GetUserRequest) => Effect.Effect<sqladmin.User, sqladmin.GetUsersError, RuntimeContext>)>> {
+export interface GetUser extends Binding.Service<GetUser, "GCP.SQL.GetUser", (user: User) => Effect.Effect<(request?: GetUserRequest) => Effect.Effect<sqladmin.User, sqladmin.GetUsersError, RuntimeContext>>> {
 }
 export declare const GetUser: GetUser;

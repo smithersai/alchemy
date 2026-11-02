@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type { LocationsSecret } from "./LocationsSecret.vibe";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 export interface AddSecretVersionRequest {
     /**
      * Secret payload. `data` is the standard-base64 encoding of at most
@@ -28,6 +28,6 @@ export interface AddSecretVersionRequest {
  * @binding
  * @category SecretManager
  */
-export interface AddSecretVersion extends Binding.Service<AddSecretVersion, "GCP.SecretManager.AddSecretVersion", (secret: Secret | LocationsSecret) => Effect.Effect<((request: AddSecretVersionRequest) => Effect.Effect<secretmanager.SecretVersion, secretmanager.AddVersionProjectsSecretsError, RuntimeContext>)>> {
+export interface AddSecretVersion extends Binding.Service<AddSecretVersion, "GCP.SecretManager.AddSecretVersion", (secret: Secret | LocationsSecret) => Effect.Effect<(request: AddSecretVersionRequest) => Effect.Effect<secretmanager.SecretVersion, secretmanager.AddVersionProjectsSecretsError, RuntimeContext>>> {
 }
 export declare const AddSecretVersion: AddSecretVersion;

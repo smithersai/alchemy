@@ -1,7 +1,7 @@
 import type * as cloudcontrol from "@distilled.cloud/aws/cloudcontrol";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { CloudControlBindingOptions } from "./BindingOptions.js";
+import type { CloudControlBindingOptions } from "./BindingOptions.ts";
 /**
  * Runtime binding for `cloudformation:DeleteResource`.
  *
@@ -29,6 +29,6 @@ import type { CloudControlBindingOptions } from "./BindingOptions.js";
  *
  * @binding
  */
-export interface DeleteResource extends Binding.Service<DeleteResource, "AWS.CloudControl.DeleteResource", (options?: CloudControlBindingOptions) => Effect.Effect<((request: cloudcontrol.DeleteResourceInput) => Effect.Effect<cloudcontrol.DeleteResourceOutput, cloudcontrol.DeleteResourceError>)>> {
+export interface DeleteResource extends Binding.Service<DeleteResource, "AWS.CloudControl.DeleteResource", (options?: CloudControlBindingOptions) => Effect.Effect<(request: cloudcontrol.DeleteResourceInput) => Effect.Effect<cloudcontrol.DeleteResourceOutput, cloudcontrol.DeleteResourceError>>> {
 }
 export declare const DeleteResource: DeleteResource;

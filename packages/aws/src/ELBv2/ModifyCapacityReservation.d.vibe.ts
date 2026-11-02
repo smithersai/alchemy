@@ -37,6 +37,6 @@ export interface ModifyCapacityReservationRequest extends Omit<elbv2.ModifyCapac
  *
  * @binding
  */
-export interface ModifyCapacityReservation extends Binding.Service<ModifyCapacityReservation, "AWS.ELBv2.ModifyCapacityReservation", (loadBalancer: LoadBalancer) => Effect.Effect<((request: ModifyCapacityReservationRequest) => Effect.Effect<elbv2.ModifyCapacityReservationOutput, elbv2.ModifyCapacityReservationError>)>> {
+export interface ModifyCapacityReservation extends Binding.Service<ModifyCapacityReservation, "AWS.ELBv2.ModifyCapacityReservation", (loadBalancer: LoadBalancer) => Effect.Effect<(request: ModifyCapacityReservationRequest) => Effect.Effect<elbv2.ModifyCapacityReservationOutput, elbv2.ModifyCapacityReservationError>>> {
 }
 export declare const ModifyCapacityReservation: ModifyCapacityReservation;

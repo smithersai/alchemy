@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetCustomDataIdentifiers extends Binding.Service<BatchGetCustomDataIdentifiers, "AWS.Macie2.BatchGetCustomDataIdentifiers", () => Effect.Effect<((request?: macie2.BatchGetCustomDataIdentifiersRequest) => Effect.Effect<macie2.BatchGetCustomDataIdentifiersResponse, macie2.BatchGetCustomDataIdentifiersError>)>> {
+export interface BatchGetCustomDataIdentifiers extends Binding.Service<BatchGetCustomDataIdentifiers, "AWS.Macie2.BatchGetCustomDataIdentifiers", () => Effect.Effect<(request?: macie2.BatchGetCustomDataIdentifiersRequest) => Effect.Effect<macie2.BatchGetCustomDataIdentifiersResponse, macie2.BatchGetCustomDataIdentifiersError>>> {
 }
 export declare const BatchGetCustomDataIdentifiers: BatchGetCustomDataIdentifiers;

@@ -22,6 +22,6 @@ export interface RejectPredictionsRequest extends Omit<datazone.RejectPrediction
  *
  * @binding
  */
-export interface RejectPredictions extends Binding.Service<RejectPredictions, "AWS.DataZone.RejectPredictions", (domain: Domain) => Effect.Effect<((request: RejectPredictionsRequest) => Effect.Effect<datazone.RejectPredictionsOutput, datazone.RejectPredictionsError>)>> {
+export interface RejectPredictions extends Binding.Service<RejectPredictions, "AWS.DataZone.RejectPredictions", (domain: Domain) => Effect.Effect<(request: RejectPredictionsRequest) => Effect.Effect<datazone.RejectPredictionsOutput, datazone.RejectPredictionsError>>> {
 }
 export declare const RejectPredictions: RejectPredictions;

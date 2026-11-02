@@ -33,6 +33,6 @@ export interface GetInstrumentationConfigurationStatusRequest extends Omit<appsi
  *
  * @binding
  */
-export interface GetInstrumentationConfigurationStatus extends Binding.Service<GetInstrumentationConfigurationStatus, "AWS.ApplicationSignals.GetInstrumentationConfigurationStatus", (configuration: InstrumentationConfiguration) => Effect.Effect<((request?: GetInstrumentationConfigurationStatusRequest) => Effect.Effect<appsignals.GetInstrumentationConfigurationStatusResponse, appsignals.GetInstrumentationConfigurationStatusError>)>> {
+export interface GetInstrumentationConfigurationStatus extends Binding.Service<GetInstrumentationConfigurationStatus, "AWS.ApplicationSignals.GetInstrumentationConfigurationStatus", (configuration: InstrumentationConfiguration) => Effect.Effect<(request?: GetInstrumentationConfigurationStatusRequest) => Effect.Effect<appsignals.GetInstrumentationConfigurationStatusResponse, appsignals.GetInstrumentationConfigurationStatusError>>> {
 }
 export declare const GetInstrumentationConfigurationStatus: GetInstrumentationConfigurationStatus;

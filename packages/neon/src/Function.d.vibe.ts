@@ -4,9 +4,9 @@ import { type Main, Platform, type PlatformProps } from "alchemy/Platform";
 import type { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { BranchScope } from "./BranchScope.js";
-import type { FunctionEnvironment, FunctionRequest } from "./FunctionEnvironment.js";
-import { type FunctionRuntimeContext } from "./FunctionRuntimeContext.js";
+import type { BranchScope } from "./BranchScope.ts";
+import type { FunctionEnvironment, FunctionRequest } from "./FunctionEnvironment.ts";
+import { type FunctionRuntimeContext } from "./FunctionRuntimeContext.ts";
 import type { Providers } from "./Providers.vibe";
 /**
  * Prebuilt Node 24 Fetch application. The directory or ZIP must contain

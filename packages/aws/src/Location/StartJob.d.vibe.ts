@@ -1,7 +1,7 @@
 import type * as location from "@distilled.cloud/aws/location";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 /**
  * `StartJob` request with `ExecutionRoleArn` injected from the bound
  * execution role.
@@ -34,6 +34,6 @@ export interface StartJobRequest extends Omit<location.StartJobRequest, "Executi
  *
  * @binding
  */
-export interface StartJob extends Binding.Service<StartJob, "AWS.Location.StartJob", (executionRole: Role) => Effect.Effect<((request: StartJobRequest) => Effect.Effect<location.StartJobResponse, location.StartJobError>)>> {
+export interface StartJob extends Binding.Service<StartJob, "AWS.Location.StartJob", (executionRole: Role) => Effect.Effect<(request: StartJobRequest) => Effect.Effect<location.StartJobResponse, location.StartJobError>>> {
 }
 export declare const StartJob: StartJob;

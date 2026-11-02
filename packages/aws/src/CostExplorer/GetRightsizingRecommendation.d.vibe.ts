@@ -27,6 +27,6 @@ export interface GetRightsizingRecommendationRequest extends ce.GetRightsizingRe
  *
  * @binding
  */
-export interface GetRightsizingRecommendation extends Binding.Service<GetRightsizingRecommendation, "AWS.CostExplorer.GetRightsizingRecommendation", () => Effect.Effect<((request: GetRightsizingRecommendationRequest) => Effect.Effect<ce.GetRightsizingRecommendationResponse, ce.GetRightsizingRecommendationError>)>> {
+export interface GetRightsizingRecommendation extends Binding.Service<GetRightsizingRecommendation, "AWS.CostExplorer.GetRightsizingRecommendation", () => Effect.Effect<(request: GetRightsizingRecommendationRequest) => Effect.Effect<ce.GetRightsizingRecommendationResponse, ce.GetRightsizingRecommendationError>>> {
 }
 export declare const GetRightsizingRecommendation: GetRightsizingRecommendation;

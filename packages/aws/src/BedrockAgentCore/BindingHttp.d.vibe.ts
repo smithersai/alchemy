@@ -30,7 +30,7 @@ export declare const makeAgentCoreHttpBinding: <Res extends AgentCoreBindable, I
     /** Fully-qualified binding tag, e.g. `AWS.BedrockAgentCore.GetEvent`. */
     tag: string;
     /** The distilled operation; `requestKey` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `arns`. */
     actions: readonly string[];
     /** The request field the resolved identifier is injected as. */

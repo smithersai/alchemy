@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteClusterSnapshot extends Binding.Service<DeleteClusterSnapshot, "AWS.DocDBElastic.DeleteClusterSnapshot", () => Effect.Effect<((request: docdbelastic.DeleteClusterSnapshotInput) => Effect.Effect<docdbelastic.DeleteClusterSnapshotOutput, docdbelastic.DeleteClusterSnapshotError>)>> {
+export interface DeleteClusterSnapshot extends Binding.Service<DeleteClusterSnapshot, "AWS.DocDBElastic.DeleteClusterSnapshot", () => Effect.Effect<(request: docdbelastic.DeleteClusterSnapshotInput) => Effect.Effect<docdbelastic.DeleteClusterSnapshotOutput, docdbelastic.DeleteClusterSnapshotError>>> {
 }
 export declare const DeleteClusterSnapshot: DeleteClusterSnapshot;

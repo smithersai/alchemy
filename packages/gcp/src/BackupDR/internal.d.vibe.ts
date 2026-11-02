@@ -73,7 +73,7 @@ export declare const isFailedState: (state: string | undefined) => boolean;
  * Wait for a Backup and DR long-running operation. Management servers take
  * up to ~30 minutes; vaults, plans, and associations a few minutes.
  */
-export declare const waitForOperation: (operation: backupdr.Operation) => Effect.Effect<import("../Operation.js").LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | backupdr.GetProjectsLocationsOperationsError, backupdr.GcpOpContext>;
+export declare const waitForOperation: (operation: backupdr.Operation) => Effect.Effect<import("../Operation.ts").LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | backupdr.GetProjectsLocationsOperationsError, backupdr.GcpOpContext>;
 export declare const waitUntilExists: <A, E extends {
     readonly _tag: string;
 }, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved, R>;

@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateConnectivityInfo extends Binding.Service<UpdateConnectivityInfo, "AWS.GreengrassV2.UpdateConnectivityInfo", () => Effect.Effect<((request: greengrassv2.UpdateConnectivityInfoRequest) => Effect.Effect<greengrassv2.UpdateConnectivityInfoResponse, greengrassv2.UpdateConnectivityInfoError>)>> {
+export interface UpdateConnectivityInfo extends Binding.Service<UpdateConnectivityInfo, "AWS.GreengrassV2.UpdateConnectivityInfo", () => Effect.Effect<(request: greengrassv2.UpdateConnectivityInfoRequest) => Effect.Effect<greengrassv2.UpdateConnectivityInfoResponse, greengrassv2.UpdateConnectivityInfoError>>> {
 }
 export declare const UpdateConnectivityInfo: UpdateConnectivityInfo;

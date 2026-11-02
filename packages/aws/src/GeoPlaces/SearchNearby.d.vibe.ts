@@ -32,6 +32,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SearchNearby extends Binding.Service<SearchNearby, "AWS.GeoPlaces.SearchNearby", () => Effect.Effect<((request: geoPlaces.SearchNearbyRequest) => Effect.Effect<geoPlaces.SearchNearbyResponse, geoPlaces.SearchNearbyError>)>> {
+export interface SearchNearby extends Binding.Service<SearchNearby, "AWS.GeoPlaces.SearchNearby", () => Effect.Effect<(request: geoPlaces.SearchNearbyRequest) => Effect.Effect<geoPlaces.SearchNearbyResponse, geoPlaces.SearchNearbyError>>> {
 }
 export declare const SearchNearby: SearchNearby;

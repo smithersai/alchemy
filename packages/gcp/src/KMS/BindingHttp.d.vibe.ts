@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { CryptoKey } from "./CryptoKey.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
+import type { CryptoKey } from "./CryptoKey.ts";
 /**
  * Shared HTTP scaffolding for Cloud KMS CryptoKey bindings.
  * NOT exported from index.ts.

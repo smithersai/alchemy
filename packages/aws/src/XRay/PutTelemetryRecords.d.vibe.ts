@@ -34,6 +34,6 @@ export interface PutTelemetryRecordsRequest extends xray.PutTelemetryRecordsRequ
  *
  * @binding
  */
-export interface PutTelemetryRecords extends Binding.Service<PutTelemetryRecords, "AWS.XRay.PutTelemetryRecords", () => Effect.Effect<((request: PutTelemetryRecordsRequest) => Effect.Effect<xray.PutTelemetryRecordsResult, xray.PutTelemetryRecordsError>)>> {
+export interface PutTelemetryRecords extends Binding.Service<PutTelemetryRecords, "AWS.XRay.PutTelemetryRecords", () => Effect.Effect<(request: PutTelemetryRecordsRequest) => Effect.Effect<xray.PutTelemetryRecordsResult, xray.PutTelemetryRecordsError>>> {
 }
 export declare const PutTelemetryRecords: PutTelemetryRecords;

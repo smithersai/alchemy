@@ -28,6 +28,6 @@ import type { Channel } from "./Channel.vibe";
  *
  * @binding
  */
-export interface DescribeThumbnails extends Binding.Service<DescribeThumbnails, "AWS.MediaLive.DescribeThumbnails", (channel: Channel) => Effect.Effect<((request?: Omit<medialive.DescribeThumbnailsRequest, "ChannelId">) => Effect.Effect<medialive.DescribeThumbnailsResponse, medialive.DescribeThumbnailsError>)>> {
+export interface DescribeThumbnails extends Binding.Service<DescribeThumbnails, "AWS.MediaLive.DescribeThumbnails", (channel: Channel) => Effect.Effect<(request?: Omit<medialive.DescribeThumbnailsRequest, "ChannelId">) => Effect.Effect<medialive.DescribeThumbnailsResponse, medialive.DescribeThumbnailsError>>> {
 }
 export declare const DescribeThumbnails: DescribeThumbnails;

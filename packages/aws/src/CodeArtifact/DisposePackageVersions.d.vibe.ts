@@ -29,6 +29,6 @@ export interface DisposePackageVersionsRequest extends Omit<codeartifact.Dispose
  *
  * @binding
  */
-export interface DisposePackageVersions extends Binding.Service<DisposePackageVersions, "AWS.CodeArtifact.DisposePackageVersions", (repository: Repository) => Effect.Effect<((request: DisposePackageVersionsRequest) => Effect.Effect<codeartifact.DisposePackageVersionsResult, codeartifact.DisposePackageVersionsError>)>> {
+export interface DisposePackageVersions extends Binding.Service<DisposePackageVersions, "AWS.CodeArtifact.DisposePackageVersions", (repository: Repository) => Effect.Effect<(request: DisposePackageVersionsRequest) => Effect.Effect<codeartifact.DisposePackageVersionsResult, codeartifact.DisposePackageVersionsError>>> {
 }
 export declare const DisposePackageVersions: DisposePackageVersions;

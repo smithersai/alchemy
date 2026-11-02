@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeHandshake extends Binding.Service<DescribeHandshake, "AWS.Organizations.DescribeHandshake", () => Effect.Effect<((request: organizations.DescribeHandshakeRequest) => Effect.Effect<organizations.DescribeHandshakeResponse, organizations.DescribeHandshakeError>)>> {
+export interface DescribeHandshake extends Binding.Service<DescribeHandshake, "AWS.Organizations.DescribeHandshake", () => Effect.Effect<(request: organizations.DescribeHandshakeRequest) => Effect.Effect<organizations.DescribeHandshakeResponse, organizations.DescribeHandshakeError>>> {
 }
 export declare const DescribeHandshake: DescribeHandshake;

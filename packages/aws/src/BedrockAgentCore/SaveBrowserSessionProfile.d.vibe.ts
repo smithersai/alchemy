@@ -31,6 +31,6 @@ export interface SaveBrowserSessionProfileRequest extends Omit<agentcore.SaveBro
  *
  * @binding
  */
-export interface SaveBrowserSessionProfile extends Binding.Service<SaveBrowserSessionProfile, "AWS.BedrockAgentCore.SaveBrowserSessionProfile", <R extends BrowserCustom>(browser: R) => Effect.Effect<((request: SaveBrowserSessionProfileRequest) => Effect.Effect<agentcore.SaveBrowserSessionProfileResponse, agentcore.SaveBrowserSessionProfileError>)>> {
+export interface SaveBrowserSessionProfile extends Binding.Service<SaveBrowserSessionProfile, "AWS.BedrockAgentCore.SaveBrowserSessionProfile", <R extends BrowserCustom>(browser: R) => Effect.Effect<(request: SaveBrowserSessionProfileRequest) => Effect.Effect<agentcore.SaveBrowserSessionProfileResponse, agentcore.SaveBrowserSessionProfileError>>> {
 }
 export declare const SaveBrowserSessionProfile: SaveBrowserSessionProfile;

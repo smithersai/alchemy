@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { type FrameworkSiteProps } from "./FrameworkSite.js";
+import { type FrameworkSiteProps } from "./FrameworkSite.ts";
 /** The framework-integration package that drives the Astro build. */
 export declare const ASTRO_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/astro";
 /** The Node container deploy target for the Astro build. */

@@ -34,6 +34,6 @@ export interface BatchUpdatePartitionRequest extends Omit<glue.BatchUpdatePartit
  *
  * @binding
  */
-export interface BatchUpdatePartition extends Binding.Service<BatchUpdatePartition, "AWS.Glue.BatchUpdatePartition", (table: Table) => Effect.Effect<((request: BatchUpdatePartitionRequest) => Effect.Effect<glue.BatchUpdatePartitionResponse, glue.BatchUpdatePartitionError>)>> {
+export interface BatchUpdatePartition extends Binding.Service<BatchUpdatePartition, "AWS.Glue.BatchUpdatePartition", (table: Table) => Effect.Effect<(request: BatchUpdatePartitionRequest) => Effect.Effect<glue.BatchUpdatePartitionResponse, glue.BatchUpdatePartitionError>>> {
 }
 export declare const BatchUpdatePartition: BatchUpdatePartition;

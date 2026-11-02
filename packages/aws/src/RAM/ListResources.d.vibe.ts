@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListResources extends Binding.Service<ListResources, "AWS.RAM.ListResources", () => Effect.Effect<((request: ram.ListResourcesRequest) => Effect.Effect<ram.ListResourcesResponse, ram.ListResourcesError>)>> {
+export interface ListResources extends Binding.Service<ListResources, "AWS.RAM.ListResources", () => Effect.Effect<(request: ram.ListResourcesRequest) => Effect.Effect<ram.ListResourcesResponse, ram.ListResourcesError>>> {
 }
 export declare const ListResources: ListResources;

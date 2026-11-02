@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeComplianceByResource extends Binding.Service<DescribeComplianceByResource, "AWS.Config.DescribeComplianceByResource", () => Effect.Effect<((request?: config.DescribeComplianceByResourceRequest) => Effect.Effect<config.DescribeComplianceByResourceResponse, config.DescribeComplianceByResourceError>)>> {
+export interface DescribeComplianceByResource extends Binding.Service<DescribeComplianceByResource, "AWS.Config.DescribeComplianceByResource", () => Effect.Effect<(request?: config.DescribeComplianceByResourceRequest) => Effect.Effect<config.DescribeComplianceByResourceResponse, config.DescribeComplianceByResourceError>>> {
 }
 export declare const DescribeComplianceByResource: DescribeComplianceByResource;

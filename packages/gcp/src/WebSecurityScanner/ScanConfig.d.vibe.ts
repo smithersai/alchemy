@@ -1,8 +1,8 @@
 import * as websecurityscanner from "@distilled.cloud/gcp/websecurityscanner_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type ScanConfigSchedule = {
     /**
      * RFC3339 time of the next run. The server refreshes this after each

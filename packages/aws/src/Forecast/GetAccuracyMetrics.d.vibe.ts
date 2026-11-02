@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetAccuracyMetrics extends Binding.Service<GetAccuracyMetrics, "AWS.Forecast.GetAccuracyMetrics", () => Effect.Effect<((request: forecast.GetAccuracyMetricsRequest) => Effect.Effect<forecast.GetAccuracyMetricsResponse, forecast.GetAccuracyMetricsError>)>> {
+export interface GetAccuracyMetrics extends Binding.Service<GetAccuracyMetrics, "AWS.Forecast.GetAccuracyMetrics", () => Effect.Effect<(request: forecast.GetAccuracyMetricsRequest) => Effect.Effect<forecast.GetAccuracyMetricsResponse, forecast.GetAccuracyMetricsError>>> {
 }
 export declare const GetAccuracyMetrics: GetAccuracyMetrics;

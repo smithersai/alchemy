@@ -54,7 +54,7 @@ export declare const toAttrs: (index: datastore.GoogleDatastoreAdminV1Index, pro
 export declare const getById: (projectId: string, indexId: string) => Effect.Effect<datastore.GoogleDatastoreAdminV1Index | undefined, datastore.Forbidden | datastore.GcpOpError, datastore.GcpOpContext>;
 export declare const listIndexes: (projectId: string) => Effect.Effect<datastore.GoogleDatastoreAdminV1Index[], datastore.ListProjectsIndexesError, datastore.GcpOpContext>;
 /** Wait for a Datastore admin operation (index builds can take minutes). */
-export declare const waitForOperation: (operation: datastore.GoogleLongrunningOperation) => Effect.Effect<datastore.GoogleLongrunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | datastore.GetProjectsOperationsError, datastore.GcpOpContext>;
+export declare const waitForOperation: (operation: datastore.GoogleLongrunningOperation) => Effect.Effect<datastore.GoogleLongrunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | datastore.GetProjectsOperationsError, datastore.GcpOpContext>;
 export declare const indexIdFromOperation: (operation: datastore.GoogleLongrunningOperation | undefined) => string | undefined;
 export declare const waitUntilExists: (projectId: string, indexId: string) => Effect.Effect<datastore.GoogleDatastoreAdminV1Index, datastore.Forbidden | IndexNotResolved | datastore.GcpOpError, datastore.GcpOpContext>;
 export declare const waitUntilGone: (projectId: string, indexId: string) => Effect.Effect<void, datastore.Forbidden | IndexStillExists | datastore.GcpOpError, datastore.GcpOpContext>;

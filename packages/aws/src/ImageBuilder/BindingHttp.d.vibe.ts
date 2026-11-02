@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { ImagePipeline } from "./ImagePipeline.js";
+import type { ImagePipeline } from "./ImagePipeline.ts";
 /**
  * Shared scaffolding for the EC2 Image Builder HTTP bindings.
  *
@@ -23,7 +23,7 @@ export declare const makeImageBuilderPipelineHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.ImageBuilder.GetImagePipeline`. */
     tag: string;
     /** The distilled operation; `imagePipelineArn` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the pipeline ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(pipeline: ImagePipeline) => Effect.Effect<(request?: Omit<I, "imagePipelineArn" | "clientToken"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -38,7 +38,7 @@ export declare const makeImageBuilderAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.ImageBuilder.GetImage`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: Omit<I, "clientToken"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

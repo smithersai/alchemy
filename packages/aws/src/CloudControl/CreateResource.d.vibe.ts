@@ -1,7 +1,7 @@
 import type * as cloudcontrol from "@distilled.cloud/aws/cloudcontrol";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { CloudControlBindingOptions } from "./BindingOptions.js";
+import type { CloudControlBindingOptions } from "./BindingOptions.ts";
 /**
  * Runtime binding for `cloudformation:CreateResource`.
  *
@@ -40,6 +40,6 @@ import type { CloudControlBindingOptions } from "./BindingOptions.js";
  *
  * @binding
  */
-export interface CreateResource extends Binding.Service<CreateResource, "AWS.CloudControl.CreateResource", (options?: CloudControlBindingOptions) => Effect.Effect<((request: cloudcontrol.CreateResourceInput) => Effect.Effect<cloudcontrol.CreateResourceOutput, cloudcontrol.CreateResourceError>)>> {
+export interface CreateResource extends Binding.Service<CreateResource, "AWS.CloudControl.CreateResource", (options?: CloudControlBindingOptions) => Effect.Effect<(request: cloudcontrol.CreateResourceInput) => Effect.Effect<cloudcontrol.CreateResourceOutput, cloudcontrol.CreateResourceError>>> {
 }
 export declare const CreateResource: CreateResource;

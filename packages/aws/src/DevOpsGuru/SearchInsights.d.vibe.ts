@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SearchInsights extends Binding.Service<SearchInsights, "AWS.DevOpsGuru.SearchInsights", () => Effect.Effect<((request: devopsguru.SearchInsightsRequest) => Effect.Effect<devopsguru.SearchInsightsResponse, devopsguru.SearchInsightsError>)>> {
+export interface SearchInsights extends Binding.Service<SearchInsights, "AWS.DevOpsGuru.SearchInsights", () => Effect.Effect<(request: devopsguru.SearchInsightsRequest) => Effect.Effect<devopsguru.SearchInsightsResponse, devopsguru.SearchInsightsError>>> {
 }
 export declare const SearchInsights: SearchInsights;

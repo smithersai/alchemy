@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDomainChangeProgress extends Binding.Service<DescribeDomainChangeProgress, "AWS.OpenSearch.DescribeDomainChangeProgress", () => Effect.Effect<((request: opensearch.DescribeDomainChangeProgressRequest) => Effect.Effect<opensearch.DescribeDomainChangeProgressResponse, opensearch.DescribeDomainChangeProgressError>)>> {
+export interface DescribeDomainChangeProgress extends Binding.Service<DescribeDomainChangeProgress, "AWS.OpenSearch.DescribeDomainChangeProgress", () => Effect.Effect<(request: opensearch.DescribeDomainChangeProgressRequest) => Effect.Effect<opensearch.DescribeDomainChangeProgressResponse, opensearch.DescribeDomainChangeProgressError>>> {
 }
 export declare const DescribeDomainChangeProgress: DescribeDomainChangeProgress;

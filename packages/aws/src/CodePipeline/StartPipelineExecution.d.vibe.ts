@@ -23,6 +23,6 @@ export interface StartPipelineExecutionRequest extends Omit<SVC.StartPipelineExe
  *
  * @binding
  */
-export interface StartPipelineExecution extends Binding.Service<StartPipelineExecution, "AWS.CodePipeline.StartPipelineExecution", <P extends Pipeline>(pipeline: P) => Effect.Effect<((request?: StartPipelineExecutionRequest) => Effect.Effect<SVC.StartPipelineExecutionOutput, SVC.StartPipelineExecutionError>)>> {
+export interface StartPipelineExecution extends Binding.Service<StartPipelineExecution, "AWS.CodePipeline.StartPipelineExecution", <P extends Pipeline>(pipeline: P) => Effect.Effect<(request?: StartPipelineExecutionRequest) => Effect.Effect<SVC.StartPipelineExecutionOutput, SVC.StartPipelineExecutionError>>> {
 }
 export declare const StartPipelineExecution: StartPipelineExecution;

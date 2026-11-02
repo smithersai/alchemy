@@ -1,9 +1,9 @@
 import * as SigV4 from "@distilled.cloud/aws4signer";
 import * as Effect from "effect/Effect";
-import { Worker, WorkerEnvironment } from "../Workers/Worker.js";
-import type { Bucket } from "./Bucket.js";
-import type { PresignError } from "./BucketTypes.js";
-import { type S3CredentialsAccess, type S3CredentialsValue } from "./S3Credentials.js";
+import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
+import type { Bucket } from "./Bucket.ts";
+import type { PresignError } from "./BucketTypes.ts";
+import { type S3CredentialsAccess, type S3CredentialsValue } from "./S3Credentials.ts";
 /**
  * Shared scaffolding for the R2 presign bindings (`PresignGetObjectToken`,
  * `PresignPutObjectToken`): resolve the bucket's `S3Credentials` and

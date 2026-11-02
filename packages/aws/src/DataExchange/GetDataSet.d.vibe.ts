@@ -23,6 +23,6 @@ import type { DataSet } from "./DataSet.vibe";
  *
  * @binding
  */
-export interface GetDataSet extends Binding.Service<GetDataSet, "AWS.DataExchange.GetDataSet", (dataSet: DataSet) => Effect.Effect<(() => Effect.Effect<dataexchange.GetDataSetResponse, dataexchange.GetDataSetError>)>> {
+export interface GetDataSet extends Binding.Service<GetDataSet, "AWS.DataExchange.GetDataSet", (dataSet: DataSet) => Effect.Effect<() => Effect.Effect<dataexchange.GetDataSetResponse, dataexchange.GetDataSetError>>> {
 }
 export declare const GetDataSet: GetDataSet;

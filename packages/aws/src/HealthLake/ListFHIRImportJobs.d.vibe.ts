@@ -27,6 +27,6 @@ export interface ListFHIRImportJobsRequest extends Omit<healthlake.ListFHIRImpor
  *
  * @binding
  */
-export interface ListFHIRImportJobs extends Binding.Service<ListFHIRImportJobs, "AWS.HealthLake.ListFHIRImportJobs", (datastore: FHIRDatastore) => Effect.Effect<((request?: ListFHIRImportJobsRequest) => Effect.Effect<healthlake.ListFHIRImportJobsResponse, healthlake.ListFHIRImportJobsError>)>> {
+export interface ListFHIRImportJobs extends Binding.Service<ListFHIRImportJobs, "AWS.HealthLake.ListFHIRImportJobs", (datastore: FHIRDatastore) => Effect.Effect<(request?: ListFHIRImportJobsRequest) => Effect.Effect<healthlake.ListFHIRImportJobsResponse, healthlake.ListFHIRImportJobsError>>> {
 }
 export declare const ListFHIRImportJobs: ListFHIRImportJobs;

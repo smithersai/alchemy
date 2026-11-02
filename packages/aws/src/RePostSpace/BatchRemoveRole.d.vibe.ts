@@ -27,6 +27,6 @@ export interface BatchRemoveRoleRequest extends Omit<repostspace.BatchRemoveRole
  *
  * @binding
  */
-export interface BatchRemoveRole extends Binding.Service<BatchRemoveRole, "AWS.RePostSpace.BatchRemoveRole", (space: Space) => Effect.Effect<((request: BatchRemoveRoleRequest) => Effect.Effect<repostspace.BatchRemoveRoleOutput, repostspace.BatchRemoveRoleError>)>> {
+export interface BatchRemoveRole extends Binding.Service<BatchRemoveRole, "AWS.RePostSpace.BatchRemoveRole", (space: Space) => Effect.Effect<(request: BatchRemoveRoleRequest) => Effect.Effect<repostspace.BatchRemoveRoleOutput, repostspace.BatchRemoveRoleError>>> {
 }
 export declare const BatchRemoveRole: BatchRemoveRole;

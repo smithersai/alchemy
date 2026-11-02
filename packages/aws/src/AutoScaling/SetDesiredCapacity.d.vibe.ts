@@ -1,7 +1,7 @@
 import type * as autoscaling from "@distilled.cloud/aws/auto-scaling";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AutoScalingGroup } from "./AutoScalingGroup.js";
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts";
 /**
  * `SetDesiredCapacity` request with `AutoScalingGroupName` injected from the
  * bound {@link AutoScalingGroup}.
@@ -28,6 +28,6 @@ export interface SetDesiredCapacityRequest extends Omit<autoscaling.SetDesiredCa
  *
  * @binding
  */
-export interface SetDesiredCapacity extends Binding.Service<SetDesiredCapacity, "AWS.AutoScaling.SetDesiredCapacity", (group: AutoScalingGroup) => Effect.Effect<((request: SetDesiredCapacityRequest) => Effect.Effect<autoscaling.SetDesiredCapacityResponse, autoscaling.SetDesiredCapacityError>)>> {
+export interface SetDesiredCapacity extends Binding.Service<SetDesiredCapacity, "AWS.AutoScaling.SetDesiredCapacity", (group: AutoScalingGroup) => Effect.Effect<(request: SetDesiredCapacityRequest) => Effect.Effect<autoscaling.SetDesiredCapacityResponse, autoscaling.SetDesiredCapacityError>>> {
 }
 export declare const SetDesiredCapacity: SetDesiredCapacity;

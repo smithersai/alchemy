@@ -22,6 +22,6 @@ export interface RetryStageExecutionRequest extends Omit<SVC.RetryStageExecution
  *
  * @binding
  */
-export interface RetryStageExecution extends Binding.Service<RetryStageExecution, "AWS.CodePipeline.RetryStageExecution", <P extends Pipeline>(pipeline: P) => Effect.Effect<((request: RetryStageExecutionRequest) => Effect.Effect<SVC.RetryStageExecutionOutput, SVC.RetryStageExecutionError>)>> {
+export interface RetryStageExecution extends Binding.Service<RetryStageExecution, "AWS.CodePipeline.RetryStageExecution", <P extends Pipeline>(pipeline: P) => Effect.Effect<(request: RetryStageExecutionRequest) => Effect.Effect<SVC.RetryStageExecutionOutput, SVC.RetryStageExecutionError>>> {
 }
 export declare const RetryStageExecution: RetryStageExecution;

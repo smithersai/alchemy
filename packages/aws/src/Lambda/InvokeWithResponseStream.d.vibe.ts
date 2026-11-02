@@ -1,7 +1,7 @@
 import type * as Lambda from "@distilled.cloud/aws/lambda";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Function } from "./Function.js";
+import type { Function } from "./Function.ts";
 export interface InvokeWithResponseStreamRequest extends Omit<Lambda.InvokeWithResponseStreamRequest, "FunctionName"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface InvokeWithResponseStreamRequest extends Omit<Lambda.InvokeWithR
  *
  * @binding
  */
-export interface InvokeWithResponseStream extends Binding.Service<InvokeWithResponseStream, "AWS.Lambda.InvokeWithResponseStream", (func: Function) => Effect.Effect<((request?: InvokeWithResponseStreamRequest) => Effect.Effect<Lambda.InvokeWithResponseStreamResponse, Lambda.InvokeWithResponseStreamError>)>> {
+export interface InvokeWithResponseStream extends Binding.Service<InvokeWithResponseStream, "AWS.Lambda.InvokeWithResponseStream", (func: Function) => Effect.Effect<(request?: InvokeWithResponseStreamRequest) => Effect.Effect<Lambda.InvokeWithResponseStreamResponse, Lambda.InvokeWithResponseStreamError>>> {
 }
 export declare const InvokeWithResponseStream: InvokeWithResponseStream;

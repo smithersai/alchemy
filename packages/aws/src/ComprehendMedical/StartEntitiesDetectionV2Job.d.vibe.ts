@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartEntitiesDetectionV2Job extends Binding.Service<StartEntitiesDetectionV2Job, "AWS.ComprehendMedical.StartEntitiesDetectionV2Job", () => Effect.Effect<((request: comprehendmedical.StartEntitiesDetectionV2JobRequest) => Effect.Effect<comprehendmedical.StartEntitiesDetectionV2JobResponse, comprehendmedical.StartEntitiesDetectionV2JobError>)>> {
+export interface StartEntitiesDetectionV2Job extends Binding.Service<StartEntitiesDetectionV2Job, "AWS.ComprehendMedical.StartEntitiesDetectionV2Job", () => Effect.Effect<(request: comprehendmedical.StartEntitiesDetectionV2JobRequest) => Effect.Effect<comprehendmedical.StartEntitiesDetectionV2JobResponse, comprehendmedical.StartEntitiesDetectionV2JobError>>> {
 }
 export declare const StartEntitiesDetectionV2Job: StartEntitiesDetectionV2Job;

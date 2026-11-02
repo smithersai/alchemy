@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import * as Lambda from "../Lambda/Function.js";
+import * as Lambda from "../Lambda/Function.ts";
 import { CodeHookEventSource, type CodeHookEvent } from "./CodeHookEventSource.vibe";
 /**
  * An Amazon Lex V2 code hook invocation — the

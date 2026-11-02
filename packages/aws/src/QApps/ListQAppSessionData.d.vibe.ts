@@ -25,6 +25,6 @@ export interface ListQAppSessionDataRequest extends Omit<qapps.ListQAppSessionDa
  *
  * @binding
  */
-export interface ListQAppSessionData extends Binding.Service<ListQAppSessionData, "AWS.QApps.ListQAppSessionData", (app: QApp) => Effect.Effect<((request: ListQAppSessionDataRequest) => Effect.Effect<qapps.ListQAppSessionDataOutput, qapps.ListQAppSessionDataError>)>> {
+export interface ListQAppSessionData extends Binding.Service<ListQAppSessionData, "AWS.QApps.ListQAppSessionData", (app: QApp) => Effect.Effect<(request: ListQAppSessionDataRequest) => Effect.Effect<qapps.ListQAppSessionDataOutput, qapps.ListQAppSessionDataError>>> {
 }
 export declare const ListQAppSessionData: ListQAppSessionData;

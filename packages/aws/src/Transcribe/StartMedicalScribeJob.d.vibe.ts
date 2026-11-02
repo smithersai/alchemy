@@ -1,7 +1,7 @@
 import type * as transcribe from "@distilled.cloud/aws/transcribe";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 /**
  * `StartMedicalScribeJob` request with `DataAccessRoleArn` defaulting to the role the
  * binding was constructed with.
@@ -40,6 +40,6 @@ export interface StartMedicalScribeJobRequest extends Omit<transcribe.StartMedic
  *
  * @binding
  */
-export interface StartMedicalScribeJob extends Binding.Service<StartMedicalScribeJob, "AWS.Transcribe.StartMedicalScribeJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<((request: StartMedicalScribeJobRequest) => Effect.Effect<transcribe.StartMedicalScribeJobResponse, transcribe.StartMedicalScribeJobError>)>> {
+export interface StartMedicalScribeJob extends Binding.Service<StartMedicalScribeJob, "AWS.Transcribe.StartMedicalScribeJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<(request: StartMedicalScribeJobRequest) => Effect.Effect<transcribe.StartMedicalScribeJobResponse, transcribe.StartMedicalScribeJobError>>> {
 }
 export declare const StartMedicalScribeJob: StartMedicalScribeJob;

@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListResourcesInProtectionGroup extends Binding.Service<ListResourcesInProtectionGroup, "AWS.Shield.ListResourcesInProtectionGroup", () => Effect.Effect<((request: shield.ListResourcesInProtectionGroupRequest) => Effect.Effect<shield.ListResourcesInProtectionGroupResponse, shield.ListResourcesInProtectionGroupError>)>> {
+export interface ListResourcesInProtectionGroup extends Binding.Service<ListResourcesInProtectionGroup, "AWS.Shield.ListResourcesInProtectionGroup", () => Effect.Effect<(request: shield.ListResourcesInProtectionGroupRequest) => Effect.Effect<shield.ListResourcesInProtectionGroupResponse, shield.ListResourcesInProtectionGroupError>>> {
 }
 export declare const ListResourcesInProtectionGroup: ListResourcesInProtectionGroup;

@@ -15,7 +15,7 @@ export declare const makeModelScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Bedrock.Converse`. */
     tag: string;
     /** The distilled operation; `modelId` defaults to the first bound model. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the bound model ARNs. */
     actions: readonly string[];
 }) => Effect.Effect<(model: string, ...additionalModels: string[]) => Effect.Effect<(request: Omit<I, "modelId"> & {
@@ -33,7 +33,7 @@ export declare const makeKnowledgeBaseScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Bedrock.Retrieve`. */
     tag: string;
     /** The distilled operation; `knowledgeBaseId` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the knowledge-base ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<K extends KnowledgeBase>(knowledgeBase: K) => Effect.Effect<(request: Omit<I, "knowledgeBaseId">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -52,7 +52,7 @@ export declare const makeDataSourceScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Bedrock.StartIngestionJob`. */
     tag: string;
     /** The distilled operation; both identifiers are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the parent knowledge-base ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<D extends DataSource>(dataSource: D) => Effect.Effect<(request: Omit<I, "knowledgeBaseId" | "dataSourceId">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -69,7 +69,7 @@ export declare const makeAgentAliasScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Bedrock.InvokeAgent`. */
     tag: string;
     /** The distilled operation; both identifiers are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the agent-alias ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<AA extends AgentAlias>(alias: AA) => Effect.Effect<(request: Omit<I, "agentId" | "agentAliasId">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -86,5 +86,5 @@ export declare const makeRagHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Bedrock.RetrieveAndGenerate`. */
     tag: string;
     /** The distilled operation; the request passes through unchanged. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<<K extends KnowledgeBase>(knowledgeBase: K, ...models: string[]) => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

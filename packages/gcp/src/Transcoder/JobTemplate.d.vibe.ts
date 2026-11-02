@@ -1,9 +1,9 @@
 import * as transcoder from "@distilled.cloud/gcp/transcoder_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { JobTemplateNotResolved, JobTemplateStillExists } from "./internal.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { JobTemplateNotResolved, JobTemplateStillExists } from "./internal.ts";
 export type JobConfig = transcoder.JobConfig;
 export type ElementaryStream = transcoder.ElementaryStream;
 export type MuxStream = transcoder.MuxStream;

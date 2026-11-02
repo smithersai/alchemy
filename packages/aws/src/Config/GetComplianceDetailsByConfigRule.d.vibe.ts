@@ -29,6 +29,6 @@ export interface GetComplianceDetailsByConfigRuleRequest extends Omit<config.Get
  *
  * @binding
  */
-export interface GetComplianceDetailsByConfigRule extends Binding.Service<GetComplianceDetailsByConfigRule, "AWS.Config.GetComplianceDetailsByConfigRule", (rule: ConfigRule) => Effect.Effect<((request?: GetComplianceDetailsByConfigRuleRequest) => Effect.Effect<config.GetComplianceDetailsByConfigRuleResponse, config.GetComplianceDetailsByConfigRuleError>)>> {
+export interface GetComplianceDetailsByConfigRule extends Binding.Service<GetComplianceDetailsByConfigRule, "AWS.Config.GetComplianceDetailsByConfigRule", (rule: ConfigRule) => Effect.Effect<(request?: GetComplianceDetailsByConfigRuleRequest) => Effect.Effect<config.GetComplianceDetailsByConfigRuleResponse, config.GetComplianceDetailsByConfigRuleError>>> {
 }
 export declare const GetComplianceDetailsByConfigRule: GetComplianceDetailsByConfigRule;

@@ -20,6 +20,6 @@ import type { IdMappingWorkflow } from "./IdMappingWorkflow.vibe";
  *
  * @binding
  */
-export interface StartIdMappingJob extends Binding.Service<StartIdMappingJob, "AWS.EntityResolution.StartIdMappingJob", (workflow: IdMappingWorkflow) => Effect.Effect<((request: Omit<entityresolution.StartIdMappingJobInput, "workflowName">) => Effect.Effect<entityresolution.StartIdMappingJobOutput, entityresolution.StartIdMappingJobError>)>> {
+export interface StartIdMappingJob extends Binding.Service<StartIdMappingJob, "AWS.EntityResolution.StartIdMappingJob", (workflow: IdMappingWorkflow) => Effect.Effect<(request: Omit<entityresolution.StartIdMappingJobInput, "workflowName">) => Effect.Effect<entityresolution.StartIdMappingJobOutput, entityresolution.StartIdMappingJobError>>> {
 }
 export declare const StartIdMappingJob: StartIdMappingJob;

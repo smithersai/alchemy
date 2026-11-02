@@ -30,6 +30,6 @@ export interface RenderEmailTemplateRequest extends Omit<sesv2.TestRenderEmailTe
  *
  * @binding
  */
-export interface RenderEmailTemplate extends Binding.Service<RenderEmailTemplate, "AWS.SES.RenderEmailTemplate", <T extends EmailTemplate>(template: T) => Effect.Effect<((request: RenderEmailTemplateRequest) => Effect.Effect<sesv2.TestRenderEmailTemplateResponse, sesv2.TestRenderEmailTemplateError>)>> {
+export interface RenderEmailTemplate extends Binding.Service<RenderEmailTemplate, "AWS.SES.RenderEmailTemplate", <T extends EmailTemplate>(template: T) => Effect.Effect<(request: RenderEmailTemplateRequest) => Effect.Effect<sesv2.TestRenderEmailTemplateResponse, sesv2.TestRenderEmailTemplateError>>> {
 }
 export declare const RenderEmailTemplate: RenderEmailTemplate;

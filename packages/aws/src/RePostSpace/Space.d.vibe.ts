@@ -1,7 +1,7 @@
 import * as repostspace from "@distilled.cloud/aws/repostspace";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface SpaceSupportedEmailDomains {
     /**
      * Whether the supported-email-domains feature is enabled for the

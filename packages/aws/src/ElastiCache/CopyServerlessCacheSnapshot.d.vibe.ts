@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CopyServerlessCacheSnapshot extends Binding.Service<CopyServerlessCacheSnapshot, "AWS.ElastiCache.CopyServerlessCacheSnapshot", () => Effect.Effect<((request: elasticache.CopyServerlessCacheSnapshotRequest) => Effect.Effect<elasticache.CopyServerlessCacheSnapshotResponse, elasticache.CopyServerlessCacheSnapshotError>)>> {
+export interface CopyServerlessCacheSnapshot extends Binding.Service<CopyServerlessCacheSnapshot, "AWS.ElastiCache.CopyServerlessCacheSnapshot", () => Effect.Effect<(request: elasticache.CopyServerlessCacheSnapshotRequest) => Effect.Effect<elasticache.CopyServerlessCacheSnapshotResponse, elasticache.CopyServerlessCacheSnapshotError>>> {
 }
 export declare const CopyServerlessCacheSnapshot: CopyServerlessCacheSnapshot;

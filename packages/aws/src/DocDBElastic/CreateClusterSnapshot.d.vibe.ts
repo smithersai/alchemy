@@ -22,6 +22,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface CreateClusterSnapshot extends Binding.Service<CreateClusterSnapshot, "AWS.DocDBElastic.CreateClusterSnapshot", (cluster: Cluster) => Effect.Effect<((request: Omit<docdbelastic.CreateClusterSnapshotInput, "clusterArn">) => Effect.Effect<docdbelastic.CreateClusterSnapshotOutput, docdbelastic.CreateClusterSnapshotError>)>> {
+export interface CreateClusterSnapshot extends Binding.Service<CreateClusterSnapshot, "AWS.DocDBElastic.CreateClusterSnapshot", (cluster: Cluster) => Effect.Effect<(request: Omit<docdbelastic.CreateClusterSnapshotInput, "clusterArn">) => Effect.Effect<docdbelastic.CreateClusterSnapshotOutput, docdbelastic.CreateClusterSnapshotError>>> {
 }
 export declare const CreateClusterSnapshot: CreateClusterSnapshot;

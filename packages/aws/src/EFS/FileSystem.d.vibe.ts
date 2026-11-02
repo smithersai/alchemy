@@ -1,9 +1,9 @@
 import * as efs from "@distilled.cloud/aws/efs";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
+import { AWSEnvironment } from "../Environment.ts";
 import { type PolicyDocument } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * A single EFS lifecycle-management rule. EFS requires each rule to carry
  * exactly one transition setting, so a full configuration is expressed as an

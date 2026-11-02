@@ -1,8 +1,8 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "../Providers.js";
-import type { WebFunctionAuthType } from "./WebFunctionEndpointSync.js";
+import type { Providers } from "../Providers.ts";
+import type { WebFunctionAuthType } from "./WebFunctionEndpointSync.ts";
 export declare const WebFunctionPermissionTypeId: "AWS.Lambda.WebFunctionPermission";
 export type WebFunctionPermissionTypeId = typeof WebFunctionPermissionTypeId;
 /** The parts of an endpoint a permission grants access to. */

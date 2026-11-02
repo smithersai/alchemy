@@ -28,6 +28,6 @@ export interface GetReservationCoverageRequest extends ce.GetReservationCoverage
  *
  * @binding
  */
-export interface GetReservationCoverage extends Binding.Service<GetReservationCoverage, "AWS.CostExplorer.GetReservationCoverage", () => Effect.Effect<((request: GetReservationCoverageRequest) => Effect.Effect<ce.GetReservationCoverageResponse, ce.GetReservationCoverageError>)>> {
+export interface GetReservationCoverage extends Binding.Service<GetReservationCoverage, "AWS.CostExplorer.GetReservationCoverage", () => Effect.Effect<(request: GetReservationCoverageRequest) => Effect.Effect<ce.GetReservationCoverageResponse, ce.GetReservationCoverageError>>> {
 }
 export declare const GetReservationCoverage: GetReservationCoverage;

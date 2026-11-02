@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 /**
  * Create, update, and delete Fly.io App secrets at runtime.
  *

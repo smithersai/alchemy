@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelServiceSoftwareUpdate extends Binding.Service<CancelServiceSoftwareUpdate, "AWS.OpenSearch.CancelServiceSoftwareUpdate", () => Effect.Effect<((request: opensearch.CancelServiceSoftwareUpdateRequest) => Effect.Effect<opensearch.CancelServiceSoftwareUpdateResponse, opensearch.CancelServiceSoftwareUpdateError>)>> {
+export interface CancelServiceSoftwareUpdate extends Binding.Service<CancelServiceSoftwareUpdate, "AWS.OpenSearch.CancelServiceSoftwareUpdate", () => Effect.Effect<(request: opensearch.CancelServiceSoftwareUpdateRequest) => Effect.Effect<opensearch.CancelServiceSoftwareUpdateResponse, opensearch.CancelServiceSoftwareUpdateError>>> {
 }
 export declare const CancelServiceSoftwareUpdate: CancelServiceSoftwareUpdate;

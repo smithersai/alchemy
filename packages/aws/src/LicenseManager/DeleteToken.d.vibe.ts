@@ -25,6 +25,6 @@ export interface DeleteTokenRequest extends licensemanager.DeleteTokenRequest {
  *
  * @binding
  */
-export interface DeleteToken extends Binding.Service<DeleteToken, "AWS.LicenseManager.DeleteToken", () => Effect.Effect<((request: DeleteTokenRequest) => Effect.Effect<licensemanager.DeleteTokenResponse, licensemanager.DeleteTokenError>)>> {
+export interface DeleteToken extends Binding.Service<DeleteToken, "AWS.LicenseManager.DeleteToken", () => Effect.Effect<(request: DeleteTokenRequest) => Effect.Effect<licensemanager.DeleteTokenResponse, licensemanager.DeleteTokenError>>> {
 }
 export declare const DeleteToken: DeleteToken;

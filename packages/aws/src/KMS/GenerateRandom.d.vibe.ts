@@ -29,6 +29,6 @@ export interface GenerateRandomRequest extends kms.GenerateRandomRequest {
  *
  * @binding
  */
-export interface GenerateRandom extends Binding.Service<GenerateRandom, "AWS.KMS.GenerateRandom", () => Effect.Effect<((request?: GenerateRandomRequest) => Effect.Effect<kms.GenerateRandomResponse, kms.GenerateRandomError>)>> {
+export interface GenerateRandom extends Binding.Service<GenerateRandom, "AWS.KMS.GenerateRandom", () => Effect.Effect<(request?: GenerateRandomRequest) => Effect.Effect<kms.GenerateRandomResponse, kms.GenerateRandomError>>> {
 }
 export declare const GenerateRandom: GenerateRandom;

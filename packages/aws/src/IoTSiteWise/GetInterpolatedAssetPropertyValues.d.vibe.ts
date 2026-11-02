@@ -45,6 +45,6 @@ export interface GetInterpolatedAssetPropertyValuesRequest extends Omit<sitewise
  *
  * @binding
  */
-export interface GetInterpolatedAssetPropertyValues extends Binding.Service<GetInterpolatedAssetPropertyValues, "AWS.IoTSiteWise.GetInterpolatedAssetPropertyValues", (asset: Asset) => Effect.Effect<((request: GetInterpolatedAssetPropertyValuesRequest) => Effect.Effect<sitewise.GetInterpolatedAssetPropertyValuesResponse, sitewise.GetInterpolatedAssetPropertyValuesError>)>> {
+export interface GetInterpolatedAssetPropertyValues extends Binding.Service<GetInterpolatedAssetPropertyValues, "AWS.IoTSiteWise.GetInterpolatedAssetPropertyValues", (asset: Asset) => Effect.Effect<(request: GetInterpolatedAssetPropertyValuesRequest) => Effect.Effect<sitewise.GetInterpolatedAssetPropertyValuesResponse, sitewise.GetInterpolatedAssetPropertyValuesError>>> {
 }
 export declare const GetInterpolatedAssetPropertyValues: GetInterpolatedAssetPropertyValues;

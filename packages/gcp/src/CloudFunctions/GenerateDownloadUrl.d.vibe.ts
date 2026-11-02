@@ -2,7 +2,7 @@ import type * as cloudfunctions from "@distilled.cloud/gcp/cloudfunctions_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Function as CloudFunction } from "./Function.js";
+import type { Function as CloudFunction } from "./Function.ts";
 export interface GenerateDownloadUrlRequest extends Omit<cloudfunctions.GenerateDownloadUrlProjectsLocationsFunctionsRequest, "name"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface GenerateDownloadUrlRequest extends Omit<cloudfunctions.Generate
  * @binding
  * @category CloudFunctions
  */
-export interface GenerateDownloadUrl extends Binding.Service<GenerateDownloadUrl, "GCP.CloudFunctions.GenerateDownloadUrl", (fn: CloudFunction) => Effect.Effect<((request?: GenerateDownloadUrlRequest) => Effect.Effect<cloudfunctions.GenerateDownloadUrlResponse, cloudfunctions.GenerateDownloadUrlProjectsLocationsFunctionsError, RuntimeContext>)>> {
+export interface GenerateDownloadUrl extends Binding.Service<GenerateDownloadUrl, "GCP.CloudFunctions.GenerateDownloadUrl", (fn: CloudFunction) => Effect.Effect<(request?: GenerateDownloadUrlRequest) => Effect.Effect<cloudfunctions.GenerateDownloadUrlResponse, cloudfunctions.GenerateDownloadUrlProjectsLocationsFunctionsError, RuntimeContext>>> {
 }
 export declare const GenerateDownloadUrl: GenerateDownloadUrl;

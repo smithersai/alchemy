@@ -34,6 +34,6 @@ export interface DeleteWhatsAppMessageTemplateRequest extends Omit<socialmessagi
  *
  * @binding
  */
-export interface DeleteWhatsAppMessageTemplate extends Binding.Service<DeleteWhatsAppMessageTemplate, "AWS.SocialMessaging.DeleteWhatsAppMessageTemplate", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: DeleteWhatsAppMessageTemplateRequest) => Effect.Effect<socialmessaging.DeleteWhatsAppMessageTemplateOutput, socialmessaging.DeleteWhatsAppMessageTemplateError>)>> {
+export interface DeleteWhatsAppMessageTemplate extends Binding.Service<DeleteWhatsAppMessageTemplate, "AWS.SocialMessaging.DeleteWhatsAppMessageTemplate", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: DeleteWhatsAppMessageTemplateRequest) => Effect.Effect<socialmessaging.DeleteWhatsAppMessageTemplateOutput, socialmessaging.DeleteWhatsAppMessageTemplateError>>> {
 }
 export declare const DeleteWhatsAppMessageTemplate: DeleteWhatsAppMessageTemplate;

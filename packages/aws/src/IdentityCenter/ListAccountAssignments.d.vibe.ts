@@ -24,6 +24,6 @@ import type { Instance } from "./Instance.vibe";
  *
  * @binding
  */
-export interface ListAccountAssignments extends Binding.Service<ListAccountAssignments, "AWS.IdentityCenter.ListAccountAssignments", (instance: Instance) => Effect.Effect<((request: Omit<ssoAdmin.ListAccountAssignmentsRequest, "InstanceArn">) => Effect.Effect<ssoAdmin.ListAccountAssignmentsResponse, ssoAdmin.ListAccountAssignmentsError>)>> {
+export interface ListAccountAssignments extends Binding.Service<ListAccountAssignments, "AWS.IdentityCenter.ListAccountAssignments", (instance: Instance) => Effect.Effect<(request: Omit<ssoAdmin.ListAccountAssignmentsRequest, "InstanceArn">) => Effect.Effect<ssoAdmin.ListAccountAssignmentsResponse, ssoAdmin.ListAccountAssignmentsError>>> {
 }
 export declare const ListAccountAssignments: ListAccountAssignments;

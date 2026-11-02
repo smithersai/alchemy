@@ -25,6 +25,6 @@ export interface StartQAppSessionRequest extends Omit<qapps.StartQAppSessionInpu
  *
  * @binding
  */
-export interface StartQAppSession extends Binding.Service<StartQAppSession, "AWS.QApps.StartQAppSession", (app: QApp) => Effect.Effect<((request: StartQAppSessionRequest) => Effect.Effect<qapps.StartQAppSessionOutput, qapps.StartQAppSessionError>)>> {
+export interface StartQAppSession extends Binding.Service<StartQAppSession, "AWS.QApps.StartQAppSession", (app: QApp) => Effect.Effect<(request: StartQAppSessionRequest) => Effect.Effect<qapps.StartQAppSessionOutput, qapps.StartQAppSessionError>>> {
 }
 export declare const StartQAppSession: StartQAppSession;

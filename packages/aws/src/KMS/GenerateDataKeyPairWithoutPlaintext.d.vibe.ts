@@ -2,7 +2,7 @@ import type * as kms from "@distilled.cloud/aws/kms";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { AliasName } from "./Alias.vibe";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.ts";
 export interface GenerateDataKeyPairWithoutPlaintextRequest extends Omit<kms.GenerateDataKeyPairWithoutPlaintextRequest, "KeyId"> {
 }
 /**
@@ -27,6 +27,6 @@ export interface GenerateDataKeyPairWithoutPlaintextRequest extends Omit<kms.Gen
  *
  * @binding
  */
-export interface GenerateDataKeyPairWithoutPlaintext extends Binding.Service<GenerateDataKeyPairWithoutPlaintext, "AWS.KMS.GenerateDataKeyPairWithoutPlaintext", (key: Key | AliasName) => Effect.Effect<((request: GenerateDataKeyPairWithoutPlaintextRequest) => Effect.Effect<kms.GenerateDataKeyPairWithoutPlaintextResponse, kms.GenerateDataKeyPairWithoutPlaintextError>)>> {
+export interface GenerateDataKeyPairWithoutPlaintext extends Binding.Service<GenerateDataKeyPairWithoutPlaintext, "AWS.KMS.GenerateDataKeyPairWithoutPlaintext", (key: Key | AliasName) => Effect.Effect<(request: GenerateDataKeyPairWithoutPlaintextRequest) => Effect.Effect<kms.GenerateDataKeyPairWithoutPlaintextResponse, kms.GenerateDataKeyPairWithoutPlaintextError>>> {
 }
 export declare const GenerateDataKeyPairWithoutPlaintext: GenerateDataKeyPairWithoutPlaintext;

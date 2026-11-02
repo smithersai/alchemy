@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetEvidenceFileUploadUrl extends Binding.Service<GetEvidenceFileUploadUrl, "AWS.AuditManager.GetEvidenceFileUploadUrl", () => Effect.Effect<((request: auditmanager.GetEvidenceFileUploadUrlRequest) => Effect.Effect<auditmanager.GetEvidenceFileUploadUrlResponse, auditmanager.GetEvidenceFileUploadUrlError>)>> {
+export interface GetEvidenceFileUploadUrl extends Binding.Service<GetEvidenceFileUploadUrl, "AWS.AuditManager.GetEvidenceFileUploadUrl", () => Effect.Effect<(request: auditmanager.GetEvidenceFileUploadUrlRequest) => Effect.Effect<auditmanager.GetEvidenceFileUploadUrlResponse, auditmanager.GetEvidenceFileUploadUrlError>>> {
 }
 export declare const GetEvidenceFileUploadUrl: GetEvidenceFileUploadUrl;

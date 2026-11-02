@@ -1,8 +1,8 @@
 import * as guardduty from "@distilled.cloud/aws/guardduty";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 /** Action taken on findings that match the filter's criteria. */
 export type FilterAction = "NOOP" | "ARCHIVE";
 export interface FilterProps {

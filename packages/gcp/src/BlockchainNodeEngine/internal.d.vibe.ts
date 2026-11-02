@@ -78,7 +78,7 @@ export declare const isFailedState: (state: string | undefined) => boolean;
  */
 export declare const waitForOperation: (operation: bne.Operation, options?: {
     notFoundOk?: boolean;
-}) => Effect.Effect<import("../Operation.js").LongRunningOperation | bne.Operation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | bne.GetProjectsLocationsOperationsError, bne.GcpOpContext>;
+}) => Effect.Effect<import("../Operation.ts").LongRunningOperation | bne.Operation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | bne.GetProjectsLocationsOperationsError, bne.GcpOpContext>;
 export declare const waitUntilExists: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved, R>;
 export declare const waitUntilGone: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<void, E | ResourceStillExists, R>;
 export declare const waitUntilReady: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string, stateOf: (value: NonNullable<A>) => string | undefined, messageOf?: (value: NonNullable<A>) => string | undefined) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved | ResourceFailed | ResourceNotReady, R>;

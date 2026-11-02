@@ -25,7 +25,7 @@ export declare const makeMediaLiveChannelHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MediaLive.StartChannel`. */
     tag: string;
     /** The distilled operation; `ChannelId` is injected from the channel. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the channel ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(channel: Channel) => Effect.Effect<(request?: Omit<I, "ChannelId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -41,7 +41,7 @@ export declare const makeMediaLiveInputHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MediaLive.DescribeInput`. */
     tag: string;
     /** The distilled operation; `InputId` is injected from the input. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the input ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(input: Input) => Effect.Effect<(request?: Omit<I, "InputId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -55,7 +55,7 @@ export declare const makeMediaLiveAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.MediaLive.ListChannels`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

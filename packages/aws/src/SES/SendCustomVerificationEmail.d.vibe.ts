@@ -64,6 +64,6 @@ import type { EmailIdentity } from "./EmailIdentity.vibe";
  *
  * @binding
  */
-export interface SendCustomVerificationEmail extends Binding.Service<SendCustomVerificationEmail, "AWS.SES.SendCustomVerificationEmail", (identity: EmailIdentity | EmailIdentityRef, configurationSet?: ConfigurationSet) => Effect.Effect<((request: Omit<sesv2.SendCustomVerificationEmailRequest, "ConfigurationSetName">) => Effect.Effect<sesv2.SendCustomVerificationEmailResponse, sesv2.SendCustomVerificationEmailError>)>> {
+export interface SendCustomVerificationEmail extends Binding.Service<SendCustomVerificationEmail, "AWS.SES.SendCustomVerificationEmail", (identity: EmailIdentity | EmailIdentityRef, configurationSet?: ConfigurationSet) => Effect.Effect<(request: Omit<sesv2.SendCustomVerificationEmailRequest, "ConfigurationSetName">) => Effect.Effect<sesv2.SendCustomVerificationEmailResponse, sesv2.SendCustomVerificationEmailError>>> {
 }
 export declare const SendCustomVerificationEmail: SendCustomVerificationEmail;

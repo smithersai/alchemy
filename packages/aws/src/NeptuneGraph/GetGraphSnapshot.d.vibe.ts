@@ -17,6 +17,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetGraphSnapshot extends Binding.Service<GetGraphSnapshot, "AWS.NeptuneGraph.GetGraphSnapshot", () => Effect.Effect<((request: neptunegraph.GetGraphSnapshotInput) => Effect.Effect<neptunegraph.GetGraphSnapshotOutput, neptunegraph.GetGraphSnapshotError>)>> {
+export interface GetGraphSnapshot extends Binding.Service<GetGraphSnapshot, "AWS.NeptuneGraph.GetGraphSnapshot", () => Effect.Effect<(request: neptunegraph.GetGraphSnapshotInput) => Effect.Effect<neptunegraph.GetGraphSnapshotOutput, neptunegraph.GetGraphSnapshotError>>> {
 }
 export declare const GetGraphSnapshot: GetGraphSnapshot;

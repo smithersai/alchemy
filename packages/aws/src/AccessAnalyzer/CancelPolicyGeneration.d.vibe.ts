@@ -16,6 +16,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelPolicyGeneration extends Binding.Service<CancelPolicyGeneration, "AWS.AccessAnalyzer.CancelPolicyGeneration", () => Effect.Effect<((request: aa.CancelPolicyGenerationRequest) => Effect.Effect<aa.CancelPolicyGenerationResponse, aa.CancelPolicyGenerationError>)>> {
+export interface CancelPolicyGeneration extends Binding.Service<CancelPolicyGeneration, "AWS.AccessAnalyzer.CancelPolicyGeneration", () => Effect.Effect<(request: aa.CancelPolicyGenerationRequest) => Effect.Effect<aa.CancelPolicyGenerationResponse, aa.CancelPolicyGenerationError>>> {
 }
 export declare const CancelPolicyGeneration: CancelPolicyGeneration;

@@ -10,8 +10,8 @@
  * login UX stays uniform.
  */
 import * as Effect from "effect/Effect";
-import * as Interaction from "../Interaction.js";
-import { type DeviceAuthorization } from "./OAuthFlow.js";
+import * as Interaction from "../Interaction.ts";
+import { type DeviceAuthorization } from "./OAuthFlow.ts";
 export interface BrowserOAuthOptions<A, E1, R1, E2, R2> {
     /** Display name, e.g. "Cloudflare" — used in the prompt title. */
     provider: string;

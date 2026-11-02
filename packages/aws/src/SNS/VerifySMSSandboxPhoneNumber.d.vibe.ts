@@ -21,6 +21,6 @@ export interface VerifySMSSandboxPhoneNumberRequest extends sns.VerifySMSSandbox
  *
  * @binding
  */
-export interface VerifySMSSandboxPhoneNumber extends Binding.Service<VerifySMSSandboxPhoneNumber, "AWS.SNS.VerifySMSSandboxPhoneNumber", () => Effect.Effect<((request: VerifySMSSandboxPhoneNumberRequest) => Effect.Effect<sns.VerifySMSSandboxPhoneNumberResult, sns.VerifySMSSandboxPhoneNumberError>)>> {
+export interface VerifySMSSandboxPhoneNumber extends Binding.Service<VerifySMSSandboxPhoneNumber, "AWS.SNS.VerifySMSSandboxPhoneNumber", () => Effect.Effect<(request: VerifySMSSandboxPhoneNumberRequest) => Effect.Effect<sns.VerifySMSSandboxPhoneNumberResult, sns.VerifySMSSandboxPhoneNumberError>>> {
 }
 export declare const VerifySMSSandboxPhoneNumber: VerifySMSSandboxPhoneNumber;

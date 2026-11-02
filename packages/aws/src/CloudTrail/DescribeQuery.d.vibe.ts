@@ -21,6 +21,6 @@ import type { EventDataStore } from "./EventDataStore.vibe";
  *
  * @binding
  */
-export interface DescribeQuery extends Binding.Service<DescribeQuery, "AWS.CloudTrail.DescribeQuery", (store: EventDataStore) => Effect.Effect<((request: Omit<cloudtrail.DescribeQueryRequest, "EventDataStore">) => Effect.Effect<cloudtrail.DescribeQueryResponse, cloudtrail.DescribeQueryError>)>> {
+export interface DescribeQuery extends Binding.Service<DescribeQuery, "AWS.CloudTrail.DescribeQuery", (store: EventDataStore) => Effect.Effect<(request: Omit<cloudtrail.DescribeQueryRequest, "EventDataStore">) => Effect.Effect<cloudtrail.DescribeQueryResponse, cloudtrail.DescribeQueryError>>> {
 }
 export declare const DescribeQuery: DescribeQuery;

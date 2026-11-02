@@ -1,7 +1,7 @@
 import * as resourcemanager from "@distilled.cloud/gcp/cloudresourcemanager_v3";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type FolderProps = {
     /**
      * User-visible display name. Unique among sibling folders. 1-30
@@ -86,5 +86,5 @@ export declare class FolderStillExists extends FolderStillExists_base<{
     resourceName: string;
 }> {
 }
-export declare const FolderProvider: () => import("effect/Layer").Layer<Provider.Provider<Folder>, never, import("../Environment.js").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | resourcemanager.GcpOpContext>;
+export declare const FolderProvider: () => import("effect/Layer").Layer<Provider.Provider<Folder>, never, import("../Environment.ts").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | resourcemanager.GcpOpContext>;
 export {};

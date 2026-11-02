@@ -27,6 +27,6 @@ import type { SigningProfile } from "./SigningProfile.vibe";
  *
  * @binding
  */
-export interface RevokeSigningProfile extends Binding.Service<RevokeSigningProfile, "AWS.Signer.RevokeSigningProfile", (profile: SigningProfile) => Effect.Effect<((request: Omit<signer.RevokeSigningProfileRequest, "profileName">) => Effect.Effect<signer.RevokeSigningProfileResponse, signer.RevokeSigningProfileError>)>> {
+export interface RevokeSigningProfile extends Binding.Service<RevokeSigningProfile, "AWS.Signer.RevokeSigningProfile", (profile: SigningProfile) => Effect.Effect<(request: Omit<signer.RevokeSigningProfileRequest, "profileName">) => Effect.Effect<signer.RevokeSigningProfileResponse, signer.RevokeSigningProfileError>>> {
 }
 export declare const RevokeSigningProfile: RevokeSigningProfile;

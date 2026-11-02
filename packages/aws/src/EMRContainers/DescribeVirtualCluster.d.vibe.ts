@@ -25,6 +25,6 @@ import type { VirtualCluster } from "./VirtualCluster.vibe";
  *
  * @binding
  */
-export interface DescribeVirtualCluster extends Binding.Service<DescribeVirtualCluster, "AWS.EMRContainers.DescribeVirtualCluster", (virtualCluster: VirtualCluster) => Effect.Effect<(() => Effect.Effect<emrc.DescribeVirtualClusterResponse, emrc.DescribeVirtualClusterError>)>> {
+export interface DescribeVirtualCluster extends Binding.Service<DescribeVirtualCluster, "AWS.EMRContainers.DescribeVirtualCluster", (virtualCluster: VirtualCluster) => Effect.Effect<() => Effect.Effect<emrc.DescribeVirtualClusterResponse, emrc.DescribeVirtualClusterError>>> {
 }
 export declare const DescribeVirtualCluster: DescribeVirtualCluster;

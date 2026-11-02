@@ -31,6 +31,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SearchResources extends Binding.Service<SearchResources, "AWS.ResourceGroups.SearchResources", () => Effect.Effect<((request: resourcegroups.SearchResourcesInput) => Effect.Effect<resourcegroups.SearchResourcesOutput, resourcegroups.SearchResourcesError>)>> {
+export interface SearchResources extends Binding.Service<SearchResources, "AWS.ResourceGroups.SearchResources", () => Effect.Effect<(request: resourcegroups.SearchResourcesInput) => Effect.Effect<resourcegroups.SearchResourcesOutput, resourcegroups.SearchResourcesError>>> {
 }
 export declare const SearchResources: SearchResources;

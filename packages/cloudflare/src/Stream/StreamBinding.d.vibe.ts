@@ -1,5 +1,5 @@
-import type * as Binding from "../Workers/Binding.js";
-import { Stream, type StreamClient } from "./Stream.js";
+import type * as Binding from "../Workers/Binding.ts";
+import { Stream, type StreamClient } from "./Stream.ts";
 /** The binding value produced by calling {@link Stream} (declared on `env` or `yield*`-ed). */
 export type StreamBinding = Binding.Binding<Stream["key"], StreamClient, Stream>;
 /**
@@ -12,4 +12,4 @@ export type StreamBinding = Binding.Binding<Stream["key"], StreamClient, Stream>
  * the Effect-native {@link StreamClient} (wrapping the raw `cf.StreamBinding`
  * handle so every operation returns an `Effect`).
  */
-export declare const StreamBinding: import("effect/Layer").Layer<Stream, never, import("../index.js").WorkerEnvironment>;
+export declare const StreamBinding: import("effect/Layer").Layer<Stream, never, import("../index.ts").WorkerEnvironment>;

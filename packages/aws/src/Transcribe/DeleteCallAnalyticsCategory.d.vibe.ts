@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteCallAnalyticsCategory extends Binding.Service<DeleteCallAnalyticsCategory, "AWS.Transcribe.DeleteCallAnalyticsCategory", () => Effect.Effect<((request: transcribe.DeleteCallAnalyticsCategoryRequest) => Effect.Effect<transcribe.DeleteCallAnalyticsCategoryResponse, transcribe.DeleteCallAnalyticsCategoryError>)>> {
+export interface DeleteCallAnalyticsCategory extends Binding.Service<DeleteCallAnalyticsCategory, "AWS.Transcribe.DeleteCallAnalyticsCategory", () => Effect.Effect<(request: transcribe.DeleteCallAnalyticsCategoryRequest) => Effect.Effect<transcribe.DeleteCallAnalyticsCategoryResponse, transcribe.DeleteCallAnalyticsCategoryError>>> {
 }
 export declare const DeleteCallAnalyticsCategory: DeleteCallAnalyticsCategory;

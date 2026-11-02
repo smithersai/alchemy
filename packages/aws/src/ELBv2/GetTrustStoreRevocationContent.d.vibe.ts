@@ -31,6 +31,6 @@ export interface GetTrustStoreRevocationContentRequest extends Omit<elbv2.GetTru
  *
  * @binding
  */
-export interface GetTrustStoreRevocationContent extends Binding.Service<GetTrustStoreRevocationContent, "AWS.ELBv2.GetTrustStoreRevocationContent", (trustStore: TrustStore) => Effect.Effect<((request?: GetTrustStoreRevocationContentRequest) => Effect.Effect<elbv2.GetTrustStoreRevocationContentOutput, elbv2.GetTrustStoreRevocationContentError>)>> {
+export interface GetTrustStoreRevocationContent extends Binding.Service<GetTrustStoreRevocationContent, "AWS.ELBv2.GetTrustStoreRevocationContent", (trustStore: TrustStore) => Effect.Effect<(request?: GetTrustStoreRevocationContentRequest) => Effect.Effect<elbv2.GetTrustStoreRevocationContentOutput, elbv2.GetTrustStoreRevocationContentError>>> {
 }
 export declare const GetTrustStoreRevocationContent: GetTrustStoreRevocationContent;

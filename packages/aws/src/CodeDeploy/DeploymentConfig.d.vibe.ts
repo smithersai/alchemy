@@ -2,8 +2,8 @@ import * as codedeploy from "@distilled.cloud/aws/codedeploy";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 /**
  * Zonal deployment behaviour (EC2/on-prem `Server` platform): deploy one
  * Availability Zone at a time, monitoring each zone before moving on.

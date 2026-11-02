@@ -1,7 +1,7 @@
 import { AlchemyContext } from "alchemy/AlchemyContext";
 import * as Bundle from "alchemy/Bundle/Bundle";
 import * as Effect from "effect/Effect";
-import { Docker } from "./Docker.js";
+import { Docker } from "./Docker.ts";
 /**
  * INTERNAL — image machinery for the effectful `Docker.Service` platform.
  *
@@ -66,7 +66,7 @@ export declare const makeServiceImage: Effect.Effect<{
     }) => Effect.Effect<{
         imageRef: string;
         codeHash: string;
-    }, Bundle.BundleError | import("./RegistryError.js").DockerImagePublicationError, import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
+    }, Bundle.BundleError | import("./RegistryError.ts").DockerImagePublicationError, import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
     hash: (options: {
         source: BundledServiceSource;
         isExternal?: boolean;

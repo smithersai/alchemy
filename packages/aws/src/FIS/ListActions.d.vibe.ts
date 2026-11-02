@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListActions extends Binding.Service<ListActions, "AWS.FIS.ListActions", () => Effect.Effect<((request?: fis.ListActionsRequest) => Effect.Effect<fis.ListActionsResponse, fis.ListActionsError>)>> {
+export interface ListActions extends Binding.Service<ListActions, "AWS.FIS.ListActions", () => Effect.Effect<(request?: fis.ListActionsRequest) => Effect.Effect<fis.ListActionsResponse, fis.ListActionsError>>> {
 }
 export declare const ListActions: ListActions;

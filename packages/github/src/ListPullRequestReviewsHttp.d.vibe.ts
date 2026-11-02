@@ -1,6 +1,6 @@
 import * as Pulls from "@distilled.cloud/github/pulls";
 import * as Layer from "effect/Layer";
-import * as BindingHttp from "./BindingHttp.js";
+import * as BindingHttp from "./BindingHttp.ts";
 import { ListPullRequestReviews, type ListPullRequestReviewsRequest } from "./ListPullRequestReviews.vibe";
 export declare const listPullRequestReviewsOperation: BindingHttp.Operation<[request: ListPullRequestReviewsRequest], Pulls.ListReviewsResponseBodyList, Pulls.GithubOpError>;
 /**

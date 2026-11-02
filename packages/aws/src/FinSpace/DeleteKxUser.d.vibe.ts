@@ -16,6 +16,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface DeleteKxUser extends Binding.Service<DeleteKxUser, "AWS.FinSpace.DeleteKxUser", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request: Omit<SVC.DeleteKxUserRequest, "environmentId">) => Effect.Effect<SVC.DeleteKxUserResponse, SVC.DeleteKxUserError>)>> {
+export interface DeleteKxUser extends Binding.Service<DeleteKxUser, "AWS.FinSpace.DeleteKxUser", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request: Omit<SVC.DeleteKxUserRequest, "environmentId">) => Effect.Effect<SVC.DeleteKxUserResponse, SVC.DeleteKxUserError>>> {
 }
 export declare const DeleteKxUser: DeleteKxUser;

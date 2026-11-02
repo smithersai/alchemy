@@ -28,6 +28,6 @@ export interface ChatSyncRequest extends Omit<qbusiness.ChatSyncInput, "applicat
  *
  * @binding
  */
-export interface ChatSync extends Binding.Service<ChatSync, "AWS.QBusiness.ChatSync", (application: Application) => Effect.Effect<((request?: ChatSyncRequest) => Effect.Effect<qbusiness.ChatSyncOutput, qbusiness.ChatSyncError>)>> {
+export interface ChatSync extends Binding.Service<ChatSync, "AWS.QBusiness.ChatSync", (application: Application) => Effect.Effect<(request?: ChatSyncRequest) => Effect.Effect<qbusiness.ChatSyncOutput, qbusiness.ChatSyncError>>> {
 }
 export declare const ChatSync: ChatSync;

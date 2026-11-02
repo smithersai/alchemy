@@ -1,7 +1,7 @@
 import type * as healthlake from "@distilled.cloud/aws/healthlake";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 import type { FHIRDatastore } from "./FHIRDatastore.vibe";
 /**
  * `StartFHIRExportJob` request with `DatastoreId` injected from the bound
@@ -50,6 +50,6 @@ export interface StartFHIRExportJobRequest extends Omit<healthlake.StartFHIRExpo
  *
  * @binding
  */
-export interface StartFHIRExportJob extends Binding.Service<StartFHIRExportJob, "AWS.HealthLake.StartFHIRExportJob", (datastore: FHIRDatastore, dataAccessRole: Role) => Effect.Effect<((request: StartFHIRExportJobRequest) => Effect.Effect<healthlake.StartFHIRExportJobResponse, healthlake.StartFHIRExportJobError>)>> {
+export interface StartFHIRExportJob extends Binding.Service<StartFHIRExportJob, "AWS.HealthLake.StartFHIRExportJob", (datastore: FHIRDatastore, dataAccessRole: Role) => Effect.Effect<(request: StartFHIRExportJobRequest) => Effect.Effect<healthlake.StartFHIRExportJobResponse, healthlake.StartFHIRExportJobError>>> {
 }
 export declare const StartFHIRExportJob: StartFHIRExportJob;

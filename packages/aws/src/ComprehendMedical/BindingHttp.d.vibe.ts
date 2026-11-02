@@ -27,7 +27,7 @@ export declare const makeComprehendMedicalHttpBinding: <I, A, E, R>(options: {
     /**
      * The distilled operation implementing the capability.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /**
      * Grant `iam:PassRole` (conditioned to `comprehendmedical.amazonaws.com`)
      * so the function can hand the service the `DataAccessRoleArn` a batch job

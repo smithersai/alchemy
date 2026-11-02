@@ -34,6 +34,6 @@ export interface GetWhatsAppFlowPreviewRequest extends Omit<socialmessaging.GetW
  *
  * @binding
  */
-export interface GetWhatsAppFlowPreview extends Binding.Service<GetWhatsAppFlowPreview, "AWS.SocialMessaging.GetWhatsAppFlowPreview", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: GetWhatsAppFlowPreviewRequest) => Effect.Effect<socialmessaging.GetWhatsAppFlowPreviewOutput, socialmessaging.GetWhatsAppFlowPreviewError>)>> {
+export interface GetWhatsAppFlowPreview extends Binding.Service<GetWhatsAppFlowPreview, "AWS.SocialMessaging.GetWhatsAppFlowPreview", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: GetWhatsAppFlowPreviewRequest) => Effect.Effect<socialmessaging.GetWhatsAppFlowPreviewOutput, socialmessaging.GetWhatsAppFlowPreviewError>>> {
 }
 export declare const GetWhatsAppFlowPreview: GetWhatsAppFlowPreview;

@@ -3,8 +3,8 @@ import type { Input } from "alchemy/Input";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "../Providers.js";
-import type { AppSyncDataSource } from "./DataSource.js";
+import type { Providers } from "../Providers.ts";
+import type { AppSyncDataSource } from "./DataSource.ts";
 import type { GraphqlApi } from "./GraphqlApi.vibe";
 /** The modern JavaScript resolver runtime. */
 export declare const APPSYNC_JS: appsync.AppSyncRuntime;

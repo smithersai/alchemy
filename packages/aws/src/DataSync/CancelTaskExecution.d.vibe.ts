@@ -23,6 +23,6 @@ import type { Task } from "./Task.vibe";
  *
  * @binding
  */
-export interface CancelTaskExecution extends Binding.Service<CancelTaskExecution, "AWS.DataSync.CancelTaskExecution", (task: Task) => Effect.Effect<((request: datasync.CancelTaskExecutionRequest) => Effect.Effect<datasync.CancelTaskExecutionResponse, datasync.CancelTaskExecutionError>)>> {
+export interface CancelTaskExecution extends Binding.Service<CancelTaskExecution, "AWS.DataSync.CancelTaskExecution", (task: Task) => Effect.Effect<(request: datasync.CancelTaskExecutionRequest) => Effect.Effect<datasync.CancelTaskExecutionResponse, datasync.CancelTaskExecutionError>>> {
 }
 export declare const CancelTaskExecution: CancelTaskExecution;

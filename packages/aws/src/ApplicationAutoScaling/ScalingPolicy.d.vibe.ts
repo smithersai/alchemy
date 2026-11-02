@@ -1,7 +1,7 @@
 import * as aas from "@distilled.cloud/aws/application-auto-scaling";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface ScalingPolicyProps {
     /**
      * Policy name. If omitted, a deterministic name is generated.

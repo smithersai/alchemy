@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { BucketEventSource as S3BucketEventSource } from "../S3/BucketEventSource.vibe";
-import * as Lambda from "./Function.js";
+import * as Lambda from "./Function.ts";
 /**
  * Connects an S3 bucket notification stream to the current Lambda function.
  *

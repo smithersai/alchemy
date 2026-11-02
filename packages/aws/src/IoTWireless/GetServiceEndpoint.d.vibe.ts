@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetServiceEndpoint extends Binding.Service<GetServiceEndpoint, "AWS.IoTWireless.GetServiceEndpoint", () => Effect.Effect<((request?: iotw.GetServiceEndpointRequest) => Effect.Effect<iotw.GetServiceEndpointResponse, iotw.GetServiceEndpointError>)>> {
+export interface GetServiceEndpoint extends Binding.Service<GetServiceEndpoint, "AWS.IoTWireless.GetServiceEndpoint", () => Effect.Effect<(request?: iotw.GetServiceEndpointRequest) => Effect.Effect<iotw.GetServiceEndpointResponse, iotw.GetServiceEndpointError>>> {
 }
 export declare const GetServiceEndpoint: GetServiceEndpoint;

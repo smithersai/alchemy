@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import type { AccessPoint } from "./AccessPoint.js";
-import type { MultiRegionAccessPoint } from "./MultiRegionAccessPoint.js";
+import type { AccessPoint } from "./AccessPoint.ts";
+import type { MultiRegionAccessPoint } from "./MultiRegionAccessPoint.ts";
 /**
  * Build the impl Effect for an S3 Control operation scoped to an
  * {@link AccessPoint}: the deploy-time half grants `actions` on the bound
@@ -14,7 +14,7 @@ export declare const makeS3ControlAccessPointHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.S3Control.GetAccessPoint`. */
     tag: string;
     /** The distilled operation; `AccountId`/`Name` are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the access point ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(accessPoint: AccessPoint) => Effect.Effect<(request?: Omit<I, "AccountId" | "Name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -32,7 +32,7 @@ export declare const makeS3ControlMrapHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.S3Control.GetMultiRegionAccessPointRoutes`. */
     tag: string;
     /** The distilled operation; `AccountId`/`Mrap` are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the Multi-Region Access Point ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(mrap: MultiRegionAccessPoint) => Effect.Effect<(request?: Omit<I, "AccountId" | "Mrap"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -50,7 +50,7 @@ export declare const makeS3ControlAccountHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.S3Control.ListJobs`. */
     tag: string;
     /** The distilled operation; `AccountId` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
     /**

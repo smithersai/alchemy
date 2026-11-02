@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { BlobStoreShape } from "../BlobStore.js";
+import type { BlobStoreShape } from "../BlobStore.ts";
 import { StoreError } from "../Protocol/Store.vibe";
 /**
  * The delete-purge alarm job (DESIGN.md §2.3 Delete).

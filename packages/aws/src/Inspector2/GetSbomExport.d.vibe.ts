@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSbomExport extends Binding.Service<GetSbomExport, "AWS.Inspector2.GetSbomExport", () => Effect.Effect<((request: inspector2.GetSbomExportRequest) => Effect.Effect<inspector2.GetSbomExportResponse, inspector2.GetSbomExportError>)>> {
+export interface GetSbomExport extends Binding.Service<GetSbomExport, "AWS.Inspector2.GetSbomExport", () => Effect.Effect<(request: inspector2.GetSbomExportRequest) => Effect.Effect<inspector2.GetSbomExportResponse, inspector2.GetSbomExportError>>> {
 }
 export declare const GetSbomExport: GetSbomExport;

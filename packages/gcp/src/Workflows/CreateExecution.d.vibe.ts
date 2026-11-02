@@ -2,7 +2,7 @@ import type * as workflowexecutions from "@distilled.cloud/gcp/workflowexecution
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Workflow } from "./Workflow.js";
+import type { Workflow } from "./Workflow.ts";
 export interface CreateExecutionRequest extends Omit<workflowexecutions.CreateProjectsLocationsWorkflowsExecutionsRequest, "parent"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface CreateExecutionRequest extends Omit<workflowexecutions.CreatePr
  * @binding
  * @category Workflows
  */
-export interface CreateExecution extends Binding.Service<CreateExecution, "GCP.Workflows.CreateExecution", (workflow: Workflow) => Effect.Effect<((request?: CreateExecutionRequest) => Effect.Effect<workflowexecutions.Execution, workflowexecutions.CreateProjectsLocationsWorkflowsExecutionsError, RuntimeContext>)>> {
+export interface CreateExecution extends Binding.Service<CreateExecution, "GCP.Workflows.CreateExecution", (workflow: Workflow) => Effect.Effect<(request?: CreateExecutionRequest) => Effect.Effect<workflowexecutions.Execution, workflowexecutions.CreateProjectsLocationsWorkflowsExecutionsError, RuntimeContext>>> {
 }
 export declare const CreateExecution: CreateExecution;

@@ -26,6 +26,6 @@ export interface UpdateApiKeyRequest extends ag.UpdateApiKeyRequest {
  *
  * @binding
  */
-export interface UpdateApiKey extends Binding.Service<UpdateApiKey, "AWS.ApiGateway.UpdateApiKey", () => Effect.Effect<((request: UpdateApiKeyRequest) => Effect.Effect<ag.ApiKey, ag.UpdateApiKeyError>)>> {
+export interface UpdateApiKey extends Binding.Service<UpdateApiKey, "AWS.ApiGateway.UpdateApiKey", () => Effect.Effect<(request: UpdateApiKeyRequest) => Effect.Effect<ag.ApiKey, ag.UpdateApiKeyError>>> {
 }
 export declare const UpdateApiKey: UpdateApiKey;

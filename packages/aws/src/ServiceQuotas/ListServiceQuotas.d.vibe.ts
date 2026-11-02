@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListServiceQuotas extends Binding.Service<ListServiceQuotas, "AWS.ServiceQuotas.ListServiceQuotas", () => Effect.Effect<((request: servicequotas.ListServiceQuotasRequest) => Effect.Effect<servicequotas.ListServiceQuotasResponse, servicequotas.ListServiceQuotasError>)>> {
+export interface ListServiceQuotas extends Binding.Service<ListServiceQuotas, "AWS.ServiceQuotas.ListServiceQuotas", () => Effect.Effect<(request: servicequotas.ListServiceQuotasRequest) => Effect.Effect<servicequotas.ListServiceQuotasResponse, servicequotas.ListServiceQuotasError>>> {
 }
 export declare const ListServiceQuotas: ListServiceQuotas;

@@ -18,6 +18,6 @@ export interface RetrievePaymentMethodDomainRequest extends Omit<GetPaymentMetho
  * @binding
  * @product Payment Methods
  */
-export interface RetrievePaymentMethodDomain extends Binding.Service<RetrievePaymentMethodDomain, "Stripe.RetrievePaymentMethodDomain", (domain: PaymentMethodDomain) => Effect.Effect<((request?: RetrievePaymentMethodDomainRequest) => Effect.Effect<StripePaymentMethodDomain, GetPaymentMethodDomainError, RuntimeContext>)>> {
+export interface RetrievePaymentMethodDomain extends Binding.Service<RetrievePaymentMethodDomain, "Stripe.RetrievePaymentMethodDomain", (domain: PaymentMethodDomain) => Effect.Effect<(request?: RetrievePaymentMethodDomainRequest) => Effect.Effect<StripePaymentMethodDomain, GetPaymentMethodDomainError, RuntimeContext>>> {
 }
 export declare const RetrievePaymentMethodDomain: RetrievePaymentMethodDomain;

@@ -30,6 +30,6 @@ export interface CreateUserRequest extends Omit<qbusiness.CreateUserRequest, "ap
  *
  * @binding
  */
-export interface CreateUser extends Binding.Service<CreateUser, "AWS.QBusiness.CreateUser", (application: Application) => Effect.Effect<((request: CreateUserRequest) => Effect.Effect<qbusiness.CreateUserResponse, qbusiness.CreateUserError>)>> {
+export interface CreateUser extends Binding.Service<CreateUser, "AWS.QBusiness.CreateUser", (application: Application) => Effect.Effect<(request: CreateUserRequest) => Effect.Effect<qbusiness.CreateUserResponse, qbusiness.CreateUserError>>> {
 }
 export declare const CreateUser: CreateUser;

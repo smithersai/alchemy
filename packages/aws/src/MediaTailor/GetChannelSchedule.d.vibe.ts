@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetChannelSchedule extends Binding.Service<GetChannelSchedule, "AWS.MediaTailor.GetChannelSchedule", () => Effect.Effect<((request: mediatailor.GetChannelScheduleRequest) => Effect.Effect<mediatailor.GetChannelScheduleResponse, mediatailor.GetChannelScheduleError>)>> {
+export interface GetChannelSchedule extends Binding.Service<GetChannelSchedule, "AWS.MediaTailor.GetChannelSchedule", () => Effect.Effect<(request: mediatailor.GetChannelScheduleRequest) => Effect.Effect<mediatailor.GetChannelScheduleResponse, mediatailor.GetChannelScheduleError>>> {
 }
 export declare const GetChannelSchedule: GetChannelSchedule;

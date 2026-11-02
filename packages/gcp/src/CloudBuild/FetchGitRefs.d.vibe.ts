@@ -2,7 +2,7 @@ import type * as cloudbuild from "@distilled.cloud/gcp/cloudbuild_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.ts";
 export interface FetchGitRefsRequest extends Omit<cloudbuild.FetchGitRefsProjectsLocationsConnectionsRepositoriesRequest, "repository"> {
 }
 /**
@@ -26,6 +26,6 @@ export interface FetchGitRefsRequest extends Omit<cloudbuild.FetchGitRefsProject
  * @binding
  * @category CloudBuild
  */
-export interface FetchGitRefs extends Binding.Service<FetchGitRefs, "GCP.CloudBuild.FetchGitRefs", (repository: Repository) => Effect.Effect<((request?: FetchGitRefsRequest) => Effect.Effect<cloudbuild.FetchGitRefsResponse, cloudbuild.FetchGitRefsProjectsLocationsConnectionsRepositoriesError, RuntimeContext>)>> {
+export interface FetchGitRefs extends Binding.Service<FetchGitRefs, "GCP.CloudBuild.FetchGitRefs", (repository: Repository) => Effect.Effect<(request?: FetchGitRefsRequest) => Effect.Effect<cloudbuild.FetchGitRefsResponse, cloudbuild.FetchGitRefsProjectsLocationsConnectionsRepositoriesError, RuntimeContext>>> {
 }
 export declare const FetchGitRefs: FetchGitRefs;

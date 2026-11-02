@@ -23,7 +23,7 @@ export declare const makeDocDBAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.DocDB.DescribeEvents`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -40,7 +40,7 @@ export declare const makeDocDBClusterHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DocDB.FailoverDBCluster`. */
     tag: string;
     /** The distilled operation; `DBClusterIdentifier` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the cluster ARN. */
     actions: readonly string[];
     /** Additional IAM resource ARNs derived from the cluster ARN. */
@@ -58,7 +58,7 @@ export declare const makeDocDBInstanceHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DocDB.RebootDBInstance`. */
     tag: string;
     /** The distilled operation; `DBInstanceIdentifier` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the instance ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(instance: DBInstance) => Effect.Effect<(request?: Omit<I, "DBInstanceIdentifier"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

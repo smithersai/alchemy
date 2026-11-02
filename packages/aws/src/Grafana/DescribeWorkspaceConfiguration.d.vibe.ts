@@ -22,6 +22,6 @@ import type { Workspace } from "./Workspace.vibe";
  *
  * @binding
  */
-export interface DescribeWorkspaceConfiguration extends Binding.Service<DescribeWorkspaceConfiguration, "AWS.Grafana.DescribeWorkspaceConfiguration", (workspace: Workspace) => Effect.Effect<(() => Effect.Effect<grafana.DescribeWorkspaceConfigurationResponse, grafana.DescribeWorkspaceConfigurationError>)>> {
+export interface DescribeWorkspaceConfiguration extends Binding.Service<DescribeWorkspaceConfiguration, "AWS.Grafana.DescribeWorkspaceConfiguration", (workspace: Workspace) => Effect.Effect<() => Effect.Effect<grafana.DescribeWorkspaceConfigurationResponse, grafana.DescribeWorkspaceConfigurationError>>> {
 }
 export declare const DescribeWorkspaceConfiguration: DescribeWorkspaceConfiguration;

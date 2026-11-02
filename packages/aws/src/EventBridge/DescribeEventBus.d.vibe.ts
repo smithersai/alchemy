@@ -24,6 +24,6 @@ export interface DescribeEventBusRequest extends Omit<eventbridge.DescribeEventB
  *
  * @binding
  */
-export interface DescribeEventBus extends Binding.Service<DescribeEventBus, "AWS.EventBridge.DescribeEventBus", (bus: EventBus) => Effect.Effect<((request?: DescribeEventBusRequest) => Effect.Effect<eventbridge.DescribeEventBusResponse, eventbridge.DescribeEventBusError>)>> {
+export interface DescribeEventBus extends Binding.Service<DescribeEventBus, "AWS.EventBridge.DescribeEventBus", (bus: EventBus) => Effect.Effect<(request?: DescribeEventBusRequest) => Effect.Effect<eventbridge.DescribeEventBusResponse, eventbridge.DescribeEventBusError>>> {
 }
 export declare const DescribeEventBus: DescribeEventBus;

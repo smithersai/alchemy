@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSolutionMetrics extends Binding.Service<GetSolutionMetrics, "AWS.Personalize.GetSolutionMetrics", () => Effect.Effect<((request: personalize.GetSolutionMetricsRequest) => Effect.Effect<personalize.GetSolutionMetricsResponse, personalize.GetSolutionMetricsError>)>> {
+export interface GetSolutionMetrics extends Binding.Service<GetSolutionMetrics, "AWS.Personalize.GetSolutionMetrics", () => Effect.Effect<(request: personalize.GetSolutionMetricsRequest) => Effect.Effect<personalize.GetSolutionMetricsResponse, personalize.GetSolutionMetricsError>>> {
 }
 export declare const GetSolutionMetrics: GetSolutionMetrics;

@@ -30,6 +30,6 @@ import type { SearchJob } from "./SearchJob.vibe";
  *
  * @binding
  */
-export interface GetSearchJob extends Binding.Service<GetSearchJob, "AWS.BackupSearch.GetSearchJob", (searchJob: SearchJob) => Effect.Effect<(() => Effect.Effect<backupsearch.GetSearchJobOutput, backupsearch.GetSearchJobError>)>> {
+export interface GetSearchJob extends Binding.Service<GetSearchJob, "AWS.BackupSearch.GetSearchJob", (searchJob: SearchJob) => Effect.Effect<() => Effect.Effect<backupsearch.GetSearchJobOutput, backupsearch.GetSearchJobError>>> {
 }
 export declare const GetSearchJob: GetSearchJob;

@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelImageCreation extends Binding.Service<CancelImageCreation, "AWS.ImageBuilder.CancelImageCreation", () => Effect.Effect<((request: Omit<imagebuilder.CancelImageCreationRequest, "clientToken">) => Effect.Effect<imagebuilder.CancelImageCreationResponse, imagebuilder.CancelImageCreationError>)>> {
+export interface CancelImageCreation extends Binding.Service<CancelImageCreation, "AWS.ImageBuilder.CancelImageCreation", () => Effect.Effect<(request: Omit<imagebuilder.CancelImageCreationRequest, "clientToken">) => Effect.Effect<imagebuilder.CancelImageCreationResponse, imagebuilder.CancelImageCreationError>>> {
 }
 export declare const CancelImageCreation: CancelImageCreation;

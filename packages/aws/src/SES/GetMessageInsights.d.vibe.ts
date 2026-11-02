@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetMessageInsights extends Binding.Service<GetMessageInsights, "AWS.SES.GetMessageInsights", () => Effect.Effect<((request: sesv2.GetMessageInsightsRequest) => Effect.Effect<sesv2.GetMessageInsightsResponse, sesv2.GetMessageInsightsError>)>> {
+export interface GetMessageInsights extends Binding.Service<GetMessageInsights, "AWS.SES.GetMessageInsights", () => Effect.Effect<(request: sesv2.GetMessageInsightsRequest) => Effect.Effect<sesv2.GetMessageInsightsResponse, sesv2.GetMessageInsightsError>>> {
 }
 export declare const GetMessageInsights: GetMessageInsights;

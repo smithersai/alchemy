@@ -28,7 +28,7 @@ import type { Schema } from "./Schema.vibe";
  *
  * @binding
  */
-export interface ExportSchema extends Binding.Service<ExportSchema, "AWS.Schemas.ExportSchema", (schema: Schema) => Effect.Effect<((request?: {
+export interface ExportSchema extends Binding.Service<ExportSchema, "AWS.Schemas.ExportSchema", (schema: Schema) => Effect.Effect<(request?: {
     /** The version of the schema to export. Defaults to the latest. */
     SchemaVersion?: string;
     /**
@@ -36,6 +36,6 @@ export interface ExportSchema extends Binding.Service<ExportSchema, "AWS.Schemas
      * @default "JSONSchemaDraft4"
      */
     Type?: string;
-}) => Effect.Effect<schemas.ExportSchemaResponse, schemas.ExportSchemaError>)>> {
+}) => Effect.Effect<schemas.ExportSchemaResponse, schemas.ExportSchemaError>>> {
 }
 export declare const ExportSchema: ExportSchema;

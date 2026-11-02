@@ -23,6 +23,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface GetRemainingFreeTrialDays extends Binding.Service<GetRemainingFreeTrialDays, "AWS.GuardDuty.GetRemainingFreeTrialDays", (detector: Detector) => Effect.Effect<((request: Omit<guardduty.GetRemainingFreeTrialDaysRequest, "DetectorId">) => Effect.Effect<guardduty.GetRemainingFreeTrialDaysResponse, guardduty.GetRemainingFreeTrialDaysError>)>> {
+export interface GetRemainingFreeTrialDays extends Binding.Service<GetRemainingFreeTrialDays, "AWS.GuardDuty.GetRemainingFreeTrialDays", (detector: Detector) => Effect.Effect<(request: Omit<guardduty.GetRemainingFreeTrialDaysRequest, "DetectorId">) => Effect.Effect<guardduty.GetRemainingFreeTrialDaysResponse, guardduty.GetRemainingFreeTrialDaysError>>> {
 }
 export declare const GetRemainingFreeTrialDays: GetRemainingFreeTrialDays;

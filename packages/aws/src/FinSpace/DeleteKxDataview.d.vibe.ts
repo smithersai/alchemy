@@ -20,6 +20,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface DeleteKxDataview extends Binding.Service<DeleteKxDataview, "AWS.FinSpace.DeleteKxDataview", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request: Omit<SVC.DeleteKxDataviewRequest, "environmentId">) => Effect.Effect<SVC.DeleteKxDataviewResponse, SVC.DeleteKxDataviewError>)>> {
+export interface DeleteKxDataview extends Binding.Service<DeleteKxDataview, "AWS.FinSpace.DeleteKxDataview", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request: Omit<SVC.DeleteKxDataviewRequest, "environmentId">) => Effect.Effect<SVC.DeleteKxDataviewResponse, SVC.DeleteKxDataviewError>>> {
 }
 export declare const DeleteKxDataview: DeleteKxDataview;

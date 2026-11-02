@@ -19,6 +19,6 @@ export interface BatchDeleteDelegationByAssessmentRequest extends Omit<auditmana
  *
  * @binding
  */
-export interface BatchDeleteDelegationByAssessment extends Binding.Service<BatchDeleteDelegationByAssessment, "AWS.AuditManager.BatchDeleteDelegationByAssessment", (assessment: Assessment) => Effect.Effect<((request: BatchDeleteDelegationByAssessmentRequest) => Effect.Effect<auditmanager.BatchDeleteDelegationByAssessmentResponse, auditmanager.BatchDeleteDelegationByAssessmentError>)>> {
+export interface BatchDeleteDelegationByAssessment extends Binding.Service<BatchDeleteDelegationByAssessment, "AWS.AuditManager.BatchDeleteDelegationByAssessment", (assessment: Assessment) => Effect.Effect<(request: BatchDeleteDelegationByAssessmentRequest) => Effect.Effect<auditmanager.BatchDeleteDelegationByAssessmentResponse, auditmanager.BatchDeleteDelegationByAssessmentError>>> {
 }
 export declare const BatchDeleteDelegationByAssessment: BatchDeleteDelegationByAssessment;

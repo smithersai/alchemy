@@ -33,6 +33,6 @@ export interface GetWirelessDeviceStatisticsRequest extends Omit<iotw.GetWireles
  *
  * @binding
  */
-export interface GetWirelessDeviceStatistics extends Binding.Service<GetWirelessDeviceStatistics, "AWS.IoTWireless.GetWirelessDeviceStatistics", (device: WirelessDevice) => Effect.Effect<((request?: GetWirelessDeviceStatisticsRequest) => Effect.Effect<iotw.GetWirelessDeviceStatisticsResponse, iotw.GetWirelessDeviceStatisticsError>)>> {
+export interface GetWirelessDeviceStatistics extends Binding.Service<GetWirelessDeviceStatistics, "AWS.IoTWireless.GetWirelessDeviceStatistics", (device: WirelessDevice) => Effect.Effect<(request?: GetWirelessDeviceStatisticsRequest) => Effect.Effect<iotw.GetWirelessDeviceStatisticsResponse, iotw.GetWirelessDeviceStatisticsError>>> {
 }
 export declare const GetWirelessDeviceStatistics: GetWirelessDeviceStatistics;

@@ -1,7 +1,7 @@
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import type { LogGroup } from "./LogGroup.js";
+import type { LogGroup } from "./LogGroup.ts";
 /**
  * Raw Lambda invocation payload produced by a CloudWatch Logs subscription
  * filter: the log events are gzipped, base64-encoded JSON under

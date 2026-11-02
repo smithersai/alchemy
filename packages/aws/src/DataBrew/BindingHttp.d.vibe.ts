@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Job } from "./Job.js";
+import type { Job } from "./Job.ts";
 import type { Project } from "./Project.vibe";
 import type { Recipe } from "./Recipe.vibe";
 /**
@@ -23,7 +23,7 @@ export declare const makeDataBrewJobHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DataBrew.StartJobRun`. */
     tag: string;
     /** The distilled operation; `Name` is injected from the job. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the job ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<J extends Job>(job: J) => Effect.Effect<(request?: Omit<I, "Name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -38,7 +38,7 @@ export declare const makeDataBrewProjectHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DataBrew.StartProjectSession`. */
     tag: string;
     /** The distilled operation; `Name` is injected from the project. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the project ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<P extends Project>(project: P) => Effect.Effect<(request?: Omit<I, "Name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -53,7 +53,7 @@ export declare const makeDataBrewRecipeHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DataBrew.PublishRecipe`. */
     tag: string;
     /** The distilled operation; `Name` is injected from the recipe. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the recipe ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<Rec extends Recipe>(recipe: Rec) => Effect.Effect<(request?: Omit<I, "Name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

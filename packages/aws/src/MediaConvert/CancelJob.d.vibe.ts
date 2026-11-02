@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelJob extends Binding.Service<CancelJob, "AWS.MediaConvert.CancelJob", () => Effect.Effect<((request: mediaconvert.CancelJobRequest) => Effect.Effect<mediaconvert.CancelJobResponse, mediaconvert.CancelJobError>)>> {
+export interface CancelJob extends Binding.Service<CancelJob, "AWS.MediaConvert.CancelJob", () => Effect.Effect<(request: mediaconvert.CancelJobRequest) => Effect.Effect<mediaconvert.CancelJobResponse, mediaconvert.CancelJobError>>> {
 }
 export declare const CancelJob: CancelJob;

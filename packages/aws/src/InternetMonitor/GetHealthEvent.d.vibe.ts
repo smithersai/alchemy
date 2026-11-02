@@ -25,6 +25,6 @@ export interface GetHealthEventRequest extends Omit<im.GetHealthEventInput, "Mon
  *
  * @binding
  */
-export interface GetHealthEvent extends Binding.Service<GetHealthEvent, "AWS.InternetMonitor.GetHealthEvent", (monitor: Monitor) => Effect.Effect<((request: GetHealthEventRequest) => Effect.Effect<im.GetHealthEventOutput, im.GetHealthEventError>)>> {
+export interface GetHealthEvent extends Binding.Service<GetHealthEvent, "AWS.InternetMonitor.GetHealthEvent", (monitor: Monitor) => Effect.Effect<(request: GetHealthEventRequest) => Effect.Effect<im.GetHealthEventOutput, im.GetHealthEventError>>> {
 }
 export declare const GetHealthEvent: GetHealthEvent;

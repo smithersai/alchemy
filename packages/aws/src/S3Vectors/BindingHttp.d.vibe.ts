@@ -19,7 +19,7 @@ export declare const makeVectorsHttpBinding: <Client, R>(options: {
     /** IAM actions granted on the bound index's ARN. */
     actions: readonly string[];
     /** Layer-scoped builder of the per-index typed runtime client. */
-    makeClient: Effect.Effect<((indexArn: Effect.Effect<string>, label: string) => Client), never, R>;
+    makeClient: Effect.Effect<(indexArn: Effect.Effect<string>, label: string) => Client, never, R>;
 }) => Effect.Effect<<I extends Index>(index: I) => Effect.Effect<Client, never, never>, never, R>;
 /** Layer-scoped builder of the read-level {@link ReadVectorsClient}. */
 export declare const makeReadVectorsClient: Effect.Effect<(IndexArn: Effect.Effect<string>, label: string) => ReadVectorsClient, never, never>;

@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchUpdateMemberEc2DeepInspectionStatus extends Binding.Service<BatchUpdateMemberEc2DeepInspectionStatus, "AWS.Inspector2.BatchUpdateMemberEc2DeepInspectionStatus", () => Effect.Effect<((request: inspector2.BatchUpdateMemberEc2DeepInspectionStatusRequest) => Effect.Effect<inspector2.BatchUpdateMemberEc2DeepInspectionStatusResponse, inspector2.BatchUpdateMemberEc2DeepInspectionStatusError>)>> {
+export interface BatchUpdateMemberEc2DeepInspectionStatus extends Binding.Service<BatchUpdateMemberEc2DeepInspectionStatus, "AWS.Inspector2.BatchUpdateMemberEc2DeepInspectionStatus", () => Effect.Effect<(request: inspector2.BatchUpdateMemberEc2DeepInspectionStatusRequest) => Effect.Effect<inspector2.BatchUpdateMemberEc2DeepInspectionStatusResponse, inspector2.BatchUpdateMemberEc2DeepInspectionStatusError>>> {
 }
 export declare const BatchUpdateMemberEc2DeepInspectionStatus: BatchUpdateMemberEc2DeepInspectionStatus;

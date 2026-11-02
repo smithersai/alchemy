@@ -24,6 +24,6 @@ import type { FileSystem } from "./FileSystem.vibe";
  *
  * @binding
  */
-export interface DescribeFileSystem extends Binding.Service<DescribeFileSystem, "AWS.FSx.DescribeFileSystem", (fileSystem: FileSystem) => Effect.Effect<(() => Effect.Effect<fsx.DescribeFileSystemsResponse, fsx.DescribeFileSystemsError>)>> {
+export interface DescribeFileSystem extends Binding.Service<DescribeFileSystem, "AWS.FSx.DescribeFileSystem", (fileSystem: FileSystem) => Effect.Effect<() => Effect.Effect<fsx.DescribeFileSystemsResponse, fsx.DescribeFileSystemsError>>> {
 }
 export declare const DescribeFileSystem: DescribeFileSystem;

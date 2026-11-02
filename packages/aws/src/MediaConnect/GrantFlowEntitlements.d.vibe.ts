@@ -28,6 +28,6 @@ import type { Flow } from "./Flow.vibe";
  *
  * @binding
  */
-export interface GrantFlowEntitlements extends Binding.Service<GrantFlowEntitlements, "AWS.MediaConnect.GrantFlowEntitlements", (flow: Flow) => Effect.Effect<((request: Omit<mediaconnect.GrantFlowEntitlementsRequest, "FlowArn">) => Effect.Effect<mediaconnect.GrantFlowEntitlementsResponse, mediaconnect.GrantFlowEntitlementsError>)>> {
+export interface GrantFlowEntitlements extends Binding.Service<GrantFlowEntitlements, "AWS.MediaConnect.GrantFlowEntitlements", (flow: Flow) => Effect.Effect<(request: Omit<mediaconnect.GrantFlowEntitlementsRequest, "FlowArn">) => Effect.Effect<mediaconnect.GrantFlowEntitlementsResponse, mediaconnect.GrantFlowEntitlementsError>>> {
 }
 export declare const GrantFlowEntitlements: GrantFlowEntitlements;

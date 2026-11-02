@@ -23,6 +23,6 @@ export interface PutApprovalResultRequest extends Omit<SVC.PutApprovalResultInpu
  *
  * @binding
  */
-export interface PutApprovalResult extends Binding.Service<PutApprovalResult, "AWS.CodePipeline.PutApprovalResult", <P extends Pipeline>(pipeline: P) => Effect.Effect<((request: PutApprovalResultRequest) => Effect.Effect<SVC.PutApprovalResultOutput, SVC.PutApprovalResultError>)>> {
+export interface PutApprovalResult extends Binding.Service<PutApprovalResult, "AWS.CodePipeline.PutApprovalResult", <P extends Pipeline>(pipeline: P) => Effect.Effect<(request: PutApprovalResultRequest) => Effect.Effect<SVC.PutApprovalResultOutput, SVC.PutApprovalResultError>>> {
 }
 export declare const PutApprovalResult: PutApprovalResult;

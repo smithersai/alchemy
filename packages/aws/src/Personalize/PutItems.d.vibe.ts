@@ -31,6 +31,6 @@ export interface PutItemsRequest extends Omit<personalizeevents.PutItemsRequest,
  *
  * @binding
  */
-export interface PutItems extends Binding.Service<PutItems, "AWS.Personalize.PutItems", (dataset: Dataset) => Effect.Effect<((request: PutItemsRequest) => Effect.Effect<personalizeevents.PutItemsResponse, personalizeevents.PutItemsError>)>> {
+export interface PutItems extends Binding.Service<PutItems, "AWS.Personalize.PutItems", (dataset: Dataset) => Effect.Effect<(request: PutItemsRequest) => Effect.Effect<personalizeevents.PutItemsResponse, personalizeevents.PutItemsError>>> {
 }
 export declare const PutItems: PutItems;

@@ -31,6 +31,6 @@ export interface GetActivityTaskRequest extends Omit<sfn.GetActivityTaskInput, "
  *
  * @binding
  */
-export interface GetActivityTask extends Binding.Service<GetActivityTask, "AWS.StepFunctions.GetActivityTask", (activity: Activity) => Effect.Effect<((request?: GetActivityTaskRequest) => Effect.Effect<sfn.GetActivityTaskOutput, sfn.GetActivityTaskError>)>> {
+export interface GetActivityTask extends Binding.Service<GetActivityTask, "AWS.StepFunctions.GetActivityTask", (activity: Activity) => Effect.Effect<(request?: GetActivityTaskRequest) => Effect.Effect<sfn.GetActivityTaskOutput, sfn.GetActivityTaskError>>> {
 }
 export declare const GetActivityTask: GetActivityTask;

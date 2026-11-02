@@ -64,6 +64,6 @@ export interface RemoteWriteRequest {
  *
  * @binding
  */
-export interface RemoteWrite extends Binding.Service<RemoteWrite, "AWS.AMP.RemoteWrite", (workspace: Workspace) => Effect.Effect<((request: RemoteWriteRequest) => Effect.Effect<void, PrometheusApiError | Credentials.CredentialsError | SourceError | SigV4.SigningError>)>> {
+export interface RemoteWrite extends Binding.Service<RemoteWrite, "AWS.AMP.RemoteWrite", (workspace: Workspace) => Effect.Effect<(request: RemoteWriteRequest) => Effect.Effect<void, PrometheusApiError | Credentials.CredentialsError | SourceError | SigV4.SigningError>>> {
 }
 export declare const RemoteWrite: RemoteWrite;

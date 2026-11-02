@@ -25,6 +25,6 @@ export interface ListLibraryItemsRequest extends Omit<qapps.ListLibraryItemsInpu
  *
  * @binding
  */
-export interface ListLibraryItems extends Binding.Service<ListLibraryItems, "AWS.QApps.ListLibraryItems", (app: QApp) => Effect.Effect<((request?: ListLibraryItemsRequest) => Effect.Effect<qapps.ListLibraryItemsOutput, qapps.ListLibraryItemsError>)>> {
+export interface ListLibraryItems extends Binding.Service<ListLibraryItems, "AWS.QApps.ListLibraryItems", (app: QApp) => Effect.Effect<(request?: ListLibraryItemsRequest) => Effect.Effect<qapps.ListLibraryItemsOutput, qapps.ListLibraryItemsError>>> {
 }
 export declare const ListLibraryItems: ListLibraryItems;

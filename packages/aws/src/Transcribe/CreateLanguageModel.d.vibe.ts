@@ -1,7 +1,7 @@
 import type * as transcribe from "@distilled.cloud/aws/transcribe";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 /**
  * `CreateLanguageModel` request with `InputDataConfig.DataAccessRoleArn`
  * defaulting to the role the binding was constructed with.
@@ -45,6 +45,6 @@ export interface CreateLanguageModelRequest extends Omit<transcribe.CreateLangua
  *
  * @binding
  */
-export interface CreateLanguageModel extends Binding.Service<CreateLanguageModel, "AWS.Transcribe.CreateLanguageModel", <R extends Role>(dataAccessRole: R) => Effect.Effect<((request: CreateLanguageModelRequest) => Effect.Effect<transcribe.CreateLanguageModelResponse, transcribe.CreateLanguageModelError>)>> {
+export interface CreateLanguageModel extends Binding.Service<CreateLanguageModel, "AWS.Transcribe.CreateLanguageModel", <R extends Role>(dataAccessRole: R) => Effect.Effect<(request: CreateLanguageModelRequest) => Effect.Effect<transcribe.CreateLanguageModelResponse, transcribe.CreateLanguageModelError>>> {
 }
 export declare const CreateLanguageModel: CreateLanguageModel;

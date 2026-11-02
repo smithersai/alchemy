@@ -22,6 +22,6 @@ export interface GetReadSetActivationJobRequest extends Omit<omics.GetReadSetAct
  *
  * @binding
  */
-export interface GetReadSetActivationJob extends Binding.Service<GetReadSetActivationJob, "AWS.Omics.GetReadSetActivationJob", (store: SequenceStore) => Effect.Effect<((request?: GetReadSetActivationJobRequest) => Effect.Effect<omics.GetReadSetActivationJobResponse, omics.GetReadSetActivationJobError>)>> {
+export interface GetReadSetActivationJob extends Binding.Service<GetReadSetActivationJob, "AWS.Omics.GetReadSetActivationJob", (store: SequenceStore) => Effect.Effect<(request?: GetReadSetActivationJobRequest) => Effect.Effect<omics.GetReadSetActivationJobResponse, omics.GetReadSetActivationJobError>>> {
 }
 export declare const GetReadSetActivationJob: GetReadSetActivationJob;

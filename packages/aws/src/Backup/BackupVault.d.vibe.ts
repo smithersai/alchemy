@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { type PolicyDocument } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface BackupVaultProps {
     /**
      * Name of the backup vault. Must be between 2 and 50 characters and

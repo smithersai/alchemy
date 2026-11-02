@@ -40,6 +40,6 @@ export interface CreateBatchLoadTaskRequest extends Omit<TSW.CreateBatchLoadTask
  *
  * @binding
  */
-export interface CreateBatchLoadTask extends Binding.Service<CreateBatchLoadTask, "AWS.Timestream.CreateBatchLoadTask", (table: Table) => Effect.Effect<((request: CreateBatchLoadTaskRequest) => Effect.Effect<TSW.CreateBatchLoadTaskResponse, TSW.CreateBatchLoadTaskError | TSW.DescribeEndpointsError>)>> {
+export interface CreateBatchLoadTask extends Binding.Service<CreateBatchLoadTask, "AWS.Timestream.CreateBatchLoadTask", (table: Table) => Effect.Effect<(request: CreateBatchLoadTaskRequest) => Effect.Effect<TSW.CreateBatchLoadTaskResponse, TSW.CreateBatchLoadTaskError | TSW.DescribeEndpointsError>>> {
 }
 export declare const CreateBatchLoadTask: CreateBatchLoadTask;

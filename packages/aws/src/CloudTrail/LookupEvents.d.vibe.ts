@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface LookupEvents extends Binding.Service<LookupEvents, "AWS.CloudTrail.LookupEvents", () => Effect.Effect<((request?: cloudtrail.LookupEventsRequest) => Effect.Effect<cloudtrail.LookupEventsResponse, cloudtrail.LookupEventsError>)>> {
+export interface LookupEvents extends Binding.Service<LookupEvents, "AWS.CloudTrail.LookupEvents", () => Effect.Effect<(request?: cloudtrail.LookupEventsRequest) => Effect.Effect<cloudtrail.LookupEventsResponse, cloudtrail.LookupEventsError>>> {
 }
 export declare const LookupEvents: LookupEvents;

@@ -56,7 +56,7 @@ export declare const replaceOnIdentity: (input: {
  */
 export declare const waitForOperation: (operation: developerconnect.Operation, options?: {
     notFoundOk?: boolean;
-}) => Effect.Effect<import("../Operation.js").LongRunningOperation | developerconnect.Operation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | developerconnect.GetProjectsLocationsOperationsError, developerconnect.GcpOpContext>;
+}) => Effect.Effect<import("../Operation.ts").LongRunningOperation | developerconnect.Operation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | developerconnect.GetProjectsLocationsOperationsError, developerconnect.GcpOpContext>;
 export declare const waitUntilExists: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved, R>;
 export declare const waitUntilGone: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<void, E | ResourceStillExists, R>;
 export declare const listAtLocation: <A, E, R>(project: string, region: string, list: (parent: string) => Effect.Effect<A[], E, R>) => Effect.Effect<A[], E, R>;

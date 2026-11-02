@@ -1,7 +1,7 @@
 import type * as runtime from "@cloudflare/workers-types";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Index } from "./VectorizeIndex.js";
+import type { Index } from "./VectorizeIndex.ts";
 /**
  * Bind a {@link Index} to a Worker and obtain the Effect-native Vectorize
  * client (`describe`, `query`, `upsert`, …).

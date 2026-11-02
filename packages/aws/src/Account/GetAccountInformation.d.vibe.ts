@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetAccountInformation extends Binding.Service<GetAccountInformation, "AWS.Account.GetAccountInformation", () => Effect.Effect<((request?: account.GetAccountInformationRequest) => Effect.Effect<account.GetAccountInformationResponse, account.GetAccountInformationError>)>> {
+export interface GetAccountInformation extends Binding.Service<GetAccountInformation, "AWS.Account.GetAccountInformation", () => Effect.Effect<(request?: account.GetAccountInformationRequest) => Effect.Effect<account.GetAccountInformationResponse, account.GetAccountInformationError>>> {
 }
 export declare const GetAccountInformation: GetAccountInformation;

@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { type GcpHttpOp } from "../HttpBinding.js";
+import { type GcpHttpOp } from "../HttpBinding.ts";
 import type { Bucket } from "./Bucket.vibe";
 /**
  * Grant `role` on the bound bucket's own IAM policy (not the project), the

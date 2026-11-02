@@ -2,7 +2,7 @@ import type * as composer from "@distilled.cloud/gcp/composer_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Environment } from "./Environment.js";
+import type { Environment } from "./Environment.ts";
 export interface GetEnvironmentRequest extends Omit<composer.GetProjectsLocationsEnvironmentsRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetEnvironmentRequest extends Omit<composer.GetProjectsLocation
  * @binding
  * @category Composer
  */
-export interface GetEnvironment extends Binding.Service<GetEnvironment, "GCP.Composer.GetEnvironment", (environment: Environment) => Effect.Effect<((request?: GetEnvironmentRequest) => Effect.Effect<composer.Environment, composer.GetProjectsLocationsEnvironmentsError, RuntimeContext>)>> {
+export interface GetEnvironment extends Binding.Service<GetEnvironment, "GCP.Composer.GetEnvironment", (environment: Environment) => Effect.Effect<(request?: GetEnvironmentRequest) => Effect.Effect<composer.Environment, composer.GetProjectsLocationsEnvironmentsError, RuntimeContext>>> {
 }
 export declare const GetEnvironment: GetEnvironment;

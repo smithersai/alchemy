@@ -20,6 +20,6 @@ export interface DeleteAssessmentReportRequest extends Omit<auditmanager.DeleteA
  *
  * @binding
  */
-export interface DeleteAssessmentReport extends Binding.Service<DeleteAssessmentReport, "AWS.AuditManager.DeleteAssessmentReport", (assessment: Assessment) => Effect.Effect<((request: DeleteAssessmentReportRequest) => Effect.Effect<auditmanager.DeleteAssessmentReportResponse, auditmanager.DeleteAssessmentReportError>)>> {
+export interface DeleteAssessmentReport extends Binding.Service<DeleteAssessmentReport, "AWS.AuditManager.DeleteAssessmentReport", (assessment: Assessment) => Effect.Effect<(request: DeleteAssessmentReportRequest) => Effect.Effect<auditmanager.DeleteAssessmentReportResponse, auditmanager.DeleteAssessmentReportError>>> {
 }
 export declare const DeleteAssessmentReport: DeleteAssessmentReport;

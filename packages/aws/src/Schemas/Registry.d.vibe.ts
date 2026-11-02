@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import { type PolicyDocument } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface RegistryProps {
     /**
      * Name of the registry. Must match `[a-zA-Z0-9-_.@]+` and be at most 64

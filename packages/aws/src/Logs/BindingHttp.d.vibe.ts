@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { LogGroup } from "./LogGroup.js";
+import type { LogGroup } from "./LogGroup.ts";
 /**
  * Shared scaffolding for CloudWatch Logs HTTP bindings.
  *
@@ -29,7 +29,7 @@ export declare const makeLogGroupHttpBinding: <I, A, E, R>(options: {
      * Effect half alone defeats inference for requests without `logGroupName`
      * (e.g. `GetLogRecord`, `GetQueryResults`, `StopQuery`).
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R> & ((input: I) => Effect.Effect<A, E, R>);
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R> & ((input: I) => Effect.Effect<A, E, R>);
     /** IAM actions granted on the bound log group. */
     actions: readonly string[];
     /**

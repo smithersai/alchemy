@@ -1,8 +1,8 @@
 import * as lf from "@distilled.cloud/aws/lakeformation";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 /**
  * A principal/permissions pair used for database and table default
  * permissions.

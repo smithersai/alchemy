@@ -1,7 +1,7 @@
 import { type ConnectionSource } from "@alchemy.run/sql/ConnectionSource";
 import * as Layer from "effect/Layer";
-import { Database } from "./Database.js";
-import { type SqlLayerOptions } from "./Postgres.js";
+import { Database } from "./Database.ts";
+import { type SqlLayerOptions } from "./Postgres.ts";
 export interface NeonOptions extends SqlLayerOptions {
 }
 /**

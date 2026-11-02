@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListHostedZonesByName extends Binding.Service<ListHostedZonesByName, "AWS.Route53.ListHostedZonesByName", () => Effect.Effect<((request?: route53.ListHostedZonesByNameRequest) => Effect.Effect<route53.ListHostedZonesByNameResponse, route53.ListHostedZonesByNameError>)>> {
+export interface ListHostedZonesByName extends Binding.Service<ListHostedZonesByName, "AWS.Route53.ListHostedZonesByName", () => Effect.Effect<(request?: route53.ListHostedZonesByNameRequest) => Effect.Effect<route53.ListHostedZonesByNameResponse, route53.ListHostedZonesByNameError>>> {
 }
 export declare const ListHostedZonesByName: ListHostedZonesByName;

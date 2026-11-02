@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateProvisionedProduct extends Binding.Service<UpdateProvisionedProduct, "AWS.ServiceCatalog.UpdateProvisionedProduct", () => Effect.Effect<((request: servicecatalog.UpdateProvisionedProductInput) => Effect.Effect<servicecatalog.UpdateProvisionedProductOutput, servicecatalog.UpdateProvisionedProductError>)>> {
+export interface UpdateProvisionedProduct extends Binding.Service<UpdateProvisionedProduct, "AWS.ServiceCatalog.UpdateProvisionedProduct", () => Effect.Effect<(request: servicecatalog.UpdateProvisionedProductInput) => Effect.Effect<servicecatalog.UpdateProvisionedProductOutput, servicecatalog.UpdateProvisionedProductError>>> {
 }
 export declare const UpdateProvisionedProduct: UpdateProvisionedProduct;

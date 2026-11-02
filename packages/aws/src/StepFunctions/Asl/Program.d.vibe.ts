@@ -1,5 +1,5 @@
 import type { Pipeable } from "effect/Pipeable";
-import type { Expr, UnwrapExpr } from "./Jsonata.js";
+import type { Expr, UnwrapExpr } from "./Jsonata.ts";
 import type { AslNode } from "./Node.vibe";
 /** Brand distinguishing `SfnEffect` from `Effect` (and everything else). */
 export declare const SfnTypeId: unique symbol;

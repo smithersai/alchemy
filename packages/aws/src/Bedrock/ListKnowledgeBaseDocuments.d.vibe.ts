@@ -29,6 +29,6 @@ export interface ListKnowledgeBaseDocumentsRequest extends Omit<bedrock.ListKnow
  *
  * @binding
  */
-export interface ListKnowledgeBaseDocuments extends Binding.Service<ListKnowledgeBaseDocuments, "AWS.Bedrock.ListKnowledgeBaseDocuments", <D extends DataSource>(dataSource: D) => Effect.Effect<((request: ListKnowledgeBaseDocumentsRequest) => Effect.Effect<bedrock.ListKnowledgeBaseDocumentsResponse, bedrock.ListKnowledgeBaseDocumentsError>)>> {
+export interface ListKnowledgeBaseDocuments extends Binding.Service<ListKnowledgeBaseDocuments, "AWS.Bedrock.ListKnowledgeBaseDocuments", <D extends DataSource>(dataSource: D) => Effect.Effect<(request: ListKnowledgeBaseDocumentsRequest) => Effect.Effect<bedrock.ListKnowledgeBaseDocumentsResponse, bedrock.ListKnowledgeBaseDocumentsError>>> {
 }
 export declare const ListKnowledgeBaseDocuments: ListKnowledgeBaseDocuments;

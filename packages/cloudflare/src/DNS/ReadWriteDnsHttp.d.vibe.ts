@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { type DnsAuth } from "./DnsHttp.js";
+import { type DnsAuth } from "./DnsHttp.ts";
 import { ReadWriteDns, type ReadWriteDnsClient } from "./ReadWriteDns.vibe";
 /** Runtime layer for {@link ReadWriteDns}. */
 export declare const ReadWriteDnsHttp: Layer.Layer<ReadWriteDns, never, import("alchemy/Self").Self<{

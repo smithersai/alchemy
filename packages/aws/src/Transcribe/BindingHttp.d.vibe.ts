@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 /**
  * Shared scaffolding for AWS Transcribe HTTP bindings.
  *
@@ -21,7 +21,7 @@ export declare const makeTranscribeHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Transcribe.GetTranscriptionJob`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -42,7 +42,7 @@ export declare const makeTranscribeRoleHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Transcribe.StartMedicalScribeJob`. */
     tag: string;
     /** The distilled operation; `DataAccessRoleArn` is injected from the role. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<<Rl extends Role>(dataAccessRole: Rl) => Effect.Effect<(request: Omit<I, "DataAccessRoleArn"> & {

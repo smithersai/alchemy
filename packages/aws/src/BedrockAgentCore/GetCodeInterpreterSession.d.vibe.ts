@@ -28,6 +28,6 @@ export interface GetCodeInterpreterSessionRequest extends Omit<agentcore.GetCode
  *
  * @binding
  */
-export interface GetCodeInterpreterSession extends Binding.Service<GetCodeInterpreterSession, "AWS.BedrockAgentCore.GetCodeInterpreterSession", <R extends CodeInterpreter>(codeInterpreter: R) => Effect.Effect<((request: GetCodeInterpreterSessionRequest) => Effect.Effect<agentcore.GetCodeInterpreterSessionResponse, agentcore.GetCodeInterpreterSessionError>)>> {
+export interface GetCodeInterpreterSession extends Binding.Service<GetCodeInterpreterSession, "AWS.BedrockAgentCore.GetCodeInterpreterSession", <R extends CodeInterpreter>(codeInterpreter: R) => Effect.Effect<(request: GetCodeInterpreterSessionRequest) => Effect.Effect<agentcore.GetCodeInterpreterSessionResponse, agentcore.GetCodeInterpreterSessionError>>> {
 }
 export declare const GetCodeInterpreterSession: GetCodeInterpreterSession;

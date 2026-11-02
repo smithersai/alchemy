@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
+import { AWSEnvironment } from "../Environment.ts";
 /**
  * Single sign-on configuration for a DataZone domain via IAM Identity Center.
  */

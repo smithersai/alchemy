@@ -28,6 +28,6 @@ export interface PutImageRequest extends Omit<ecr.PutImageRequest, "registryId" 
  *
  * @binding
  */
-export interface PutImage extends Binding.Service<PutImage, "AWS.ECR.PutImage", (repository: Repository) => Effect.Effect<((request: PutImageRequest) => Effect.Effect<ecr.PutImageResponse, ecr.PutImageError>)>> {
+export interface PutImage extends Binding.Service<PutImage, "AWS.ECR.PutImage", (repository: Repository) => Effect.Effect<(request: PutImageRequest) => Effect.Effect<ecr.PutImageResponse, ecr.PutImageError>>> {
 }
 export declare const PutImage: PutImage;

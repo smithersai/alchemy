@@ -25,7 +25,7 @@ export declare const makeConnectionScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.CodeConnections.GetConnection`. */
     tag: string;
     /** The distilled operation; `ConnectionArn` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the connection ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(connection: Connection) => Effect.Effect<(request?: Omit<I, "ConnectionArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -41,7 +41,7 @@ export declare const makeRepositoryLinkScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag. */
     tag: string;
     /** The distilled operation; `RepositoryLinkId` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the repository link ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(repositoryLink: RepositoryLink) => Effect.Effect<(request: Omit<I, "RepositoryLinkId">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -59,7 +59,7 @@ export declare const makeSyncConfigurationScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag. */
     tag: string;
     /** The distilled operation; `ResourceName` + `SyncType` are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<(syncConfiguration: SyncConfiguration) => Effect.Effect<(request?: Omit<I, "ResourceName" | "SyncType"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -71,7 +71,7 @@ export declare const makeCodeConnectionsAccountHttpBinding: <I, A, E, R>(options
     /** Fully-qualified binding tag, e.g. `AWS.CodeConnections.ListConnections`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

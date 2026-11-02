@@ -24,6 +24,6 @@ import type { Revision } from "./Revision.vibe";
  *
  * @binding
  */
-export interface RevokeRevision extends Binding.Service<RevokeRevision, "AWS.DataExchange.RevokeRevision", (revision: Revision) => Effect.Effect<((request: Omit<dataexchange.RevokeRevisionRequest, "DataSetId" | "RevisionId">) => Effect.Effect<dataexchange.RevokeRevisionResponse, dataexchange.RevokeRevisionError>)>> {
+export interface RevokeRevision extends Binding.Service<RevokeRevision, "AWS.DataExchange.RevokeRevision", (revision: Revision) => Effect.Effect<(request: Omit<dataexchange.RevokeRevisionRequest, "DataSetId" | "RevisionId">) => Effect.Effect<dataexchange.RevokeRevisionResponse, dataexchange.RevokeRevisionError>>> {
 }
 export declare const RevokeRevision: RevokeRevision;

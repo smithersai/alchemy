@@ -31,6 +31,6 @@ export type StartWorkflowRunInput = Omit<mwaa.StartWorkflowRunRequest, "Workflow
  *
  * @binding
  */
-export interface StartWorkflowRun extends Binding.Service<StartWorkflowRun, "AWS.MWAAServerless.StartWorkflowRun", (workflow: Workflow) => Effect.Effect<((request?: StartWorkflowRunInput) => Effect.Effect<mwaa.StartWorkflowRunResponse, mwaa.StartWorkflowRunError>)>> {
+export interface StartWorkflowRun extends Binding.Service<StartWorkflowRun, "AWS.MWAAServerless.StartWorkflowRun", (workflow: Workflow) => Effect.Effect<(request?: StartWorkflowRunInput) => Effect.Effect<mwaa.StartWorkflowRunResponse, mwaa.StartWorkflowRunError>>> {
 }
 export declare const StartWorkflowRun: StartWorkflowRun;

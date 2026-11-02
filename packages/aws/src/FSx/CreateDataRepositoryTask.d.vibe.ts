@@ -30,6 +30,6 @@ import type { FileSystem } from "./FileSystem.vibe";
  *
  * @binding
  */
-export interface CreateDataRepositoryTask extends Binding.Service<CreateDataRepositoryTask, "AWS.FSx.CreateDataRepositoryTask", (fileSystem: FileSystem) => Effect.Effect<((request: Omit<fsx.CreateDataRepositoryTaskRequest, "FileSystemId">) => Effect.Effect<fsx.CreateDataRepositoryTaskResponse, fsx.CreateDataRepositoryTaskError>)>> {
+export interface CreateDataRepositoryTask extends Binding.Service<CreateDataRepositoryTask, "AWS.FSx.CreateDataRepositoryTask", (fileSystem: FileSystem) => Effect.Effect<(request: Omit<fsx.CreateDataRepositoryTaskRequest, "FileSystemId">) => Effect.Effect<fsx.CreateDataRepositoryTaskResponse, fsx.CreateDataRepositoryTaskError>>> {
 }
 export declare const CreateDataRepositoryTask: CreateDataRepositoryTask;

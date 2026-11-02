@@ -26,6 +26,6 @@ export interface BatchUpdateCategoryRequest extends Omit<qapps.BatchUpdateCatego
  *
  * @binding
  */
-export interface BatchUpdateCategory extends Binding.Service<BatchUpdateCategory, "AWS.QApps.BatchUpdateCategory", (app: QApp) => Effect.Effect<((request: BatchUpdateCategoryRequest) => Effect.Effect<qapps.BatchUpdateCategoryResponse, qapps.BatchUpdateCategoryError>)>> {
+export interface BatchUpdateCategory extends Binding.Service<BatchUpdateCategory, "AWS.QApps.BatchUpdateCategory", (app: QApp) => Effect.Effect<(request: BatchUpdateCategoryRequest) => Effect.Effect<qapps.BatchUpdateCategoryResponse, qapps.BatchUpdateCategoryError>>> {
 }
 export declare const BatchUpdateCategory: BatchUpdateCategory;

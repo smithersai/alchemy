@@ -65,6 +65,6 @@ export interface SendEmailRequest extends Omit<sesv2.SendEmailRequest, "Configur
  *
  * @binding
  */
-export interface SendEmail extends Binding.Service<SendEmail, "AWS.SES.SendEmail", <I extends EmailIdentity>(identity: I, configurationSet?: ConfigurationSet) => Effect.Effect<((request: SendEmailRequest) => Effect.Effect<sesv2.SendEmailResponse, sesv2.SendEmailError>)>> {
+export interface SendEmail extends Binding.Service<SendEmail, "AWS.SES.SendEmail", <I extends EmailIdentity>(identity: I, configurationSet?: ConfigurationSet) => Effect.Effect<(request: SendEmailRequest) => Effect.Effect<sesv2.SendEmailResponse, sesv2.SendEmailError>>> {
 }
 export declare const SendEmail: SendEmail;

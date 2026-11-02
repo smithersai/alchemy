@@ -1,7 +1,7 @@
 import * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface PutObjectLegalHoldRequest extends Omit<S3.PutObjectLegalHoldRequest, "Bucket"> {
 }
 /**
@@ -30,6 +30,6 @@ export interface PutObjectLegalHoldRequest extends Omit<S3.PutObjectLegalHoldReq
  *
  * @binding
  */
-export interface PutObjectLegalHold extends Binding.Service<PutObjectLegalHold, "AWS.S3.PutObjectLegalHold", (bucket: Bucket) => Effect.Effect<((request: PutObjectLegalHoldRequest) => Effect.Effect<S3.PutObjectLegalHoldOutput, S3.PutObjectLegalHoldError>)>> {
+export interface PutObjectLegalHold extends Binding.Service<PutObjectLegalHold, "AWS.S3.PutObjectLegalHold", (bucket: Bucket) => Effect.Effect<(request: PutObjectLegalHoldRequest) => Effect.Effect<S3.PutObjectLegalHoldOutput, S3.PutObjectLegalHoldError>>> {
 }
 export declare const PutObjectLegalHold: PutObjectLegalHold;

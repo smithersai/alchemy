@@ -34,6 +34,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ResolveComponentCandidates extends Binding.Service<ResolveComponentCandidates, "AWS.GreengrassV2.ResolveComponentCandidates", () => Effect.Effect<((request?: greengrassv2.ResolveComponentCandidatesRequest) => Effect.Effect<greengrassv2.ResolveComponentCandidatesResponse, greengrassv2.ResolveComponentCandidatesError>)>> {
+export interface ResolveComponentCandidates extends Binding.Service<ResolveComponentCandidates, "AWS.GreengrassV2.ResolveComponentCandidates", () => Effect.Effect<(request?: greengrassv2.ResolveComponentCandidatesRequest) => Effect.Effect<greengrassv2.ResolveComponentCandidatesResponse, greengrassv2.ResolveComponentCandidatesError>>> {
 }
 export declare const ResolveComponentCandidates: ResolveComponentCandidates;

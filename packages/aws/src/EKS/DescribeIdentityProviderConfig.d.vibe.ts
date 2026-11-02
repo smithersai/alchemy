@@ -1,7 +1,7 @@
 import type * as eks from "@distilled.cloud/aws/eks";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 /**
  * Runtime binding for `eks:DescribeIdentityProviderConfig`.
  *
@@ -25,6 +25,6 @@ import type { Cluster } from "./Cluster.js";
  *
  * @binding
  */
-export interface DescribeIdentityProviderConfig extends Binding.Service<DescribeIdentityProviderConfig, "AWS.EKS.DescribeIdentityProviderConfig", (cluster: Cluster) => Effect.Effect<((request: Omit<eks.DescribeIdentityProviderConfigRequest, "clusterName">) => Effect.Effect<eks.DescribeIdentityProviderConfigResponse, eks.DescribeIdentityProviderConfigError>)>> {
+export interface DescribeIdentityProviderConfig extends Binding.Service<DescribeIdentityProviderConfig, "AWS.EKS.DescribeIdentityProviderConfig", (cluster: Cluster) => Effect.Effect<(request: Omit<eks.DescribeIdentityProviderConfigRequest, "clusterName">) => Effect.Effect<eks.DescribeIdentityProviderConfigResponse, eks.DescribeIdentityProviderConfigError>>> {
 }
 export declare const DescribeIdentityProviderConfig: DescribeIdentityProviderConfig;

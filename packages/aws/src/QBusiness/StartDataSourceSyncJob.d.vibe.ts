@@ -26,6 +26,6 @@ export interface StartDataSourceSyncJobRequest extends Omit<qbusiness.StartDataS
  *
  * @binding
  */
-export interface StartDataSourceSyncJob extends Binding.Service<StartDataSourceSyncJob, "AWS.QBusiness.StartDataSourceSyncJob", (dataSource: DataSource) => Effect.Effect<((request?: StartDataSourceSyncJobRequest) => Effect.Effect<qbusiness.StartDataSourceSyncJobResponse, qbusiness.StartDataSourceSyncJobError>)>> {
+export interface StartDataSourceSyncJob extends Binding.Service<StartDataSourceSyncJob, "AWS.QBusiness.StartDataSourceSyncJob", (dataSource: DataSource) => Effect.Effect<(request?: StartDataSourceSyncJobRequest) => Effect.Effect<qbusiness.StartDataSourceSyncJobResponse, qbusiness.StartDataSourceSyncJobError>>> {
 }
 export declare const StartDataSourceSyncJob: StartDataSourceSyncJob;

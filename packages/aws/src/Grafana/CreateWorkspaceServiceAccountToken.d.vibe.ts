@@ -44,6 +44,6 @@ export interface CreateWorkspaceServiceAccountTokenRequest {
  *
  * @binding
  */
-export interface CreateWorkspaceServiceAccountToken extends Binding.Service<CreateWorkspaceServiceAccountToken, "AWS.Grafana.CreateWorkspaceServiceAccountToken", (workspace: Workspace) => Effect.Effect<((request: CreateWorkspaceServiceAccountTokenRequest) => Effect.Effect<grafana.CreateWorkspaceServiceAccountTokenResponse, grafana.CreateWorkspaceServiceAccountTokenError>)>> {
+export interface CreateWorkspaceServiceAccountToken extends Binding.Service<CreateWorkspaceServiceAccountToken, "AWS.Grafana.CreateWorkspaceServiceAccountToken", (workspace: Workspace) => Effect.Effect<(request: CreateWorkspaceServiceAccountTokenRequest) => Effect.Effect<grafana.CreateWorkspaceServiceAccountTokenResponse, grafana.CreateWorkspaceServiceAccountTokenError>>> {
 }
 export declare const CreateWorkspaceServiceAccountToken: CreateWorkspaceServiceAccountToken;

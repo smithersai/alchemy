@@ -18,6 +18,6 @@ export interface RetrieveShippingRateRequest extends Omit<GetShippingRateRequest
  * @binding
  * @product Product
  */
-export interface RetrieveShippingRate extends Binding.Service<RetrieveShippingRate, "Stripe.RetrieveShippingRate", (shippingRate: ShippingRate) => Effect.Effect<((request?: RetrieveShippingRateRequest) => Effect.Effect<StripeShippingRate, GetShippingRateError, RuntimeContext>)>> {
+export interface RetrieveShippingRate extends Binding.Service<RetrieveShippingRate, "Stripe.RetrieveShippingRate", (shippingRate: ShippingRate) => Effect.Effect<(request?: RetrieveShippingRateRequest) => Effect.Effect<StripeShippingRate, GetShippingRateError, RuntimeContext>>> {
 }
 export declare const RetrieveShippingRate: RetrieveShippingRate;

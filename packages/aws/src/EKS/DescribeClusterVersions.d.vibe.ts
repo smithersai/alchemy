@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeClusterVersions extends Binding.Service<DescribeClusterVersions, "AWS.EKS.DescribeClusterVersions", () => Effect.Effect<((request?: eks.DescribeClusterVersionsRequest) => Effect.Effect<eks.DescribeClusterVersionsResponse, eks.DescribeClusterVersionsError>)>> {
+export interface DescribeClusterVersions extends Binding.Service<DescribeClusterVersions, "AWS.EKS.DescribeClusterVersions", () => Effect.Effect<(request?: eks.DescribeClusterVersionsRequest) => Effect.Effect<eks.DescribeClusterVersionsResponse, eks.DescribeClusterVersionsError>>> {
 }
 export declare const DescribeClusterVersions: DescribeClusterVersions;

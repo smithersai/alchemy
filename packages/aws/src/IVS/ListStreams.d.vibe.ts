@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListStreams extends Binding.Service<ListStreams, "AWS.IVS.ListStreams", () => Effect.Effect<((request?: ivs.ListStreamsRequest) => Effect.Effect<ivs.ListStreamsResponse, ivs.ListStreamsError>)>> {
+export interface ListStreams extends Binding.Service<ListStreams, "AWS.IVS.ListStreams", () => Effect.Effect<(request?: ivs.ListStreamsRequest) => Effect.Effect<ivs.ListStreamsResponse, ivs.ListStreamsError>>> {
 }
 export declare const ListStreams: ListStreams;

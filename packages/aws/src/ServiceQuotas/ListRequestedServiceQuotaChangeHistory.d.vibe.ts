@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListRequestedServiceQuotaChangeHistory extends Binding.Service<ListRequestedServiceQuotaChangeHistory, "AWS.ServiceQuotas.ListRequestedServiceQuotaChangeHistory", () => Effect.Effect<((request?: servicequotas.ListRequestedServiceQuotaChangeHistoryRequest) => Effect.Effect<servicequotas.ListRequestedServiceQuotaChangeHistoryResponse, servicequotas.ListRequestedServiceQuotaChangeHistoryError>)>> {
+export interface ListRequestedServiceQuotaChangeHistory extends Binding.Service<ListRequestedServiceQuotaChangeHistory, "AWS.ServiceQuotas.ListRequestedServiceQuotaChangeHistory", () => Effect.Effect<(request?: servicequotas.ListRequestedServiceQuotaChangeHistoryRequest) => Effect.Effect<servicequotas.ListRequestedServiceQuotaChangeHistoryResponse, servicequotas.ListRequestedServiceQuotaChangeHistoryError>>> {
 }
 export declare const ListRequestedServiceQuotaChangeHistory: ListRequestedServiceQuotaChangeHistory;

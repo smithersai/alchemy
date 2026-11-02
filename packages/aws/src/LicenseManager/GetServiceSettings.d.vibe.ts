@@ -27,6 +27,6 @@ export interface GetServiceSettingsRequest extends licensemanager.GetServiceSett
  *
  * @binding
  */
-export interface GetServiceSettings extends Binding.Service<GetServiceSettings, "AWS.LicenseManager.GetServiceSettings", () => Effect.Effect<((request?: GetServiceSettingsRequest) => Effect.Effect<licensemanager.GetServiceSettingsResponse, licensemanager.GetServiceSettingsError>)>> {
+export interface GetServiceSettings extends Binding.Service<GetServiceSettings, "AWS.LicenseManager.GetServiceSettings", () => Effect.Effect<(request?: GetServiceSettingsRequest) => Effect.Effect<licensemanager.GetServiceSettingsResponse, licensemanager.GetServiceSettingsError>>> {
 }
 export declare const GetServiceSettings: GetServiceSettings;

@@ -1,7 +1,7 @@
 import type * as aa from "@distilled.cloud/aws/accessanalyzer";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Analyzer } from "./Analyzer.js";
+import type { Analyzer } from "./Analyzer.ts";
 /** `ApplyArchiveRule` request with `analyzerArn` injected from the bound {@link Analyzer}. */
 export interface ApplyArchiveRuleRequest extends Omit<aa.ApplyArchiveRuleRequest, "analyzerArn"> {
 }
@@ -20,6 +20,6 @@ export interface ApplyArchiveRuleRequest extends Omit<aa.ApplyArchiveRuleRequest
  *
  * @binding
  */
-export interface ApplyArchiveRule extends Binding.Service<ApplyArchiveRule, "AWS.AccessAnalyzer.ApplyArchiveRule", (analyzer: Analyzer) => Effect.Effect<((request: ApplyArchiveRuleRequest) => Effect.Effect<aa.ApplyArchiveRuleResponse, aa.ApplyArchiveRuleError>)>> {
+export interface ApplyArchiveRule extends Binding.Service<ApplyArchiveRule, "AWS.AccessAnalyzer.ApplyArchiveRule", (analyzer: Analyzer) => Effect.Effect<(request: ApplyArchiveRuleRequest) => Effect.Effect<aa.ApplyArchiveRuleResponse, aa.ApplyArchiveRuleError>>> {
 }
 export declare const ApplyArchiveRule: ApplyArchiveRule;

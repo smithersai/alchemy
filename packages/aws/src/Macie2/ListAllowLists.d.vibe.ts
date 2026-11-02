@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAllowLists extends Binding.Service<ListAllowLists, "AWS.Macie2.ListAllowLists", () => Effect.Effect<((request?: macie2.ListAllowListsRequest) => Effect.Effect<macie2.ListAllowListsResponse, macie2.ListAllowListsError>)>> {
+export interface ListAllowLists extends Binding.Service<ListAllowLists, "AWS.Macie2.ListAllowLists", () => Effect.Effect<(request?: macie2.ListAllowListsRequest) => Effect.Effect<macie2.ListAllowListsResponse, macie2.ListAllowListsError>>> {
 }
 export declare const ListAllowLists: ListAllowLists;

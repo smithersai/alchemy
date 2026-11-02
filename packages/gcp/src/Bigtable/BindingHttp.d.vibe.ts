@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { Cluster } from "./Cluster.js";
-import type { Instance } from "./Instance.js";
-import type { Table } from "./Table.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
+import type { Cluster } from "./Cluster.ts";
+import type { Instance } from "./Instance.ts";
+import type { Table } from "./Table.ts";
 /**
  * Shared HTTP scaffolding for Bigtable instance, cluster, and table
  * bindings. NOT exported from index.ts.

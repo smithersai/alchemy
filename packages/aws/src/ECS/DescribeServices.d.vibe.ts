@@ -22,6 +22,6 @@ export interface DescribeServicesRequest extends Omit<ECS.DescribeServicesReques
  *
  * @binding
  */
-export interface DescribeServices extends Binding.Service<DescribeServices, "AWS.ECS.DescribeServices", (cluster: Cluster) => Effect.Effect<((request: DescribeServicesRequest) => Effect.Effect<ECS.DescribeServicesResponse, ECS.DescribeServicesError>)>> {
+export interface DescribeServices extends Binding.Service<DescribeServices, "AWS.ECS.DescribeServices", (cluster: Cluster) => Effect.Effect<(request: DescribeServicesRequest) => Effect.Effect<ECS.DescribeServicesResponse, ECS.DescribeServicesError>>> {
 }
 export declare const DescribeServices: DescribeServices;

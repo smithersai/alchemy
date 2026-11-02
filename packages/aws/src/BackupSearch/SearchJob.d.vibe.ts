@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface BackupCreationTimeFilter {
     /** Only include recovery points created after this ISO-8601 timestamp. */
     createdAfter?: string;

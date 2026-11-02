@@ -43,7 +43,7 @@ import type { FindImageOptions } from "./Image.vibe";
  *
  * @binding
  */
-export interface GetAmi extends Binding.Service<GetAmi, "AWS.EC2.GetAmi", (options: FindImageOptions) => Effect.Effect<(() => Effect.Effect<ec2.Image | undefined, ec2.DescribeImagesError>)>> {
+export interface GetAmi extends Binding.Service<GetAmi, "AWS.EC2.GetAmi", (options: FindImageOptions) => Effect.Effect<() => Effect.Effect<ec2.Image | undefined, ec2.DescribeImagesError>>> {
 }
 export declare const GetAmi: GetAmi;
 /**

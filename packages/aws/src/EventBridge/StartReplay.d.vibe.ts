@@ -34,6 +34,6 @@ export interface StartReplayRequest extends Omit<eventbridge.StartReplayRequest,
  *
  * @binding
  */
-export interface StartReplay extends Binding.Service<StartReplay, "AWS.EventBridge.StartReplay", (archive: Archive) => Effect.Effect<((request: StartReplayRequest) => Effect.Effect<eventbridge.StartReplayResponse, eventbridge.StartReplayError>)>> {
+export interface StartReplay extends Binding.Service<StartReplay, "AWS.EventBridge.StartReplay", (archive: Archive) => Effect.Effect<(request: StartReplayRequest) => Effect.Effect<eventbridge.StartReplayResponse, eventbridge.StartReplayError>>> {
 }
 export declare const StartReplay: StartReplay;

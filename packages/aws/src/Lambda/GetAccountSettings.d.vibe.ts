@@ -19,6 +19,6 @@ import * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetAccountSettings extends Binding.Service<GetAccountSettings, "AWS.Lambda.GetAccountSettings", () => Effect.Effect<(() => Effect.Effect<Lambda.GetAccountSettingsResponse, Lambda.GetAccountSettingsError>)>> {
+export interface GetAccountSettings extends Binding.Service<GetAccountSettings, "AWS.Lambda.GetAccountSettings", () => Effect.Effect<() => Effect.Effect<Lambda.GetAccountSettingsResponse, Lambda.GetAccountSettingsError>>> {
 }
 export declare const GetAccountSettings: GetAccountSettings;

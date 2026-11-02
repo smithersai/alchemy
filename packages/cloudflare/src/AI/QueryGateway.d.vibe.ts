@@ -3,7 +3,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type { LanguageModel } from "effect/ai/LanguageModel";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { Gateway as GatewayResource } from "./Gateway.js";
+import type { Gateway as GatewayResource } from "./Gateway.ts";
 import { type LanguageModelOptions } from "./LanguageModel.vibe";
 /**
  * Binding service that turns a {@link Gateway} resource

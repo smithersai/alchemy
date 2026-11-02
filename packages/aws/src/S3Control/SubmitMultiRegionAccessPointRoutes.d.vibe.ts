@@ -1,7 +1,7 @@
 import type * as s3control from "@distilled.cloud/aws/s3-control";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { MultiRegionAccessPoint } from "./MultiRegionAccessPoint.js";
+import type { MultiRegionAccessPoint } from "./MultiRegionAccessPoint.ts";
 /**
  * Runtime binding for `s3:SubmitMultiRegionAccessPointRoutes`.
  *
@@ -29,6 +29,6 @@ import type { MultiRegionAccessPoint } from "./MultiRegionAccessPoint.js";
  *
  * @binding
  */
-export interface SubmitMultiRegionAccessPointRoutes extends Binding.Service<SubmitMultiRegionAccessPointRoutes, "AWS.S3Control.SubmitMultiRegionAccessPointRoutes", (mrap: MultiRegionAccessPoint) => Effect.Effect<((request: Omit<s3control.SubmitMultiRegionAccessPointRoutesRequest, "AccountId" | "Mrap">) => Effect.Effect<s3control.SubmitMultiRegionAccessPointRoutesResult, s3control.SubmitMultiRegionAccessPointRoutesError>)>> {
+export interface SubmitMultiRegionAccessPointRoutes extends Binding.Service<SubmitMultiRegionAccessPointRoutes, "AWS.S3Control.SubmitMultiRegionAccessPointRoutes", (mrap: MultiRegionAccessPoint) => Effect.Effect<(request: Omit<s3control.SubmitMultiRegionAccessPointRoutesRequest, "AccountId" | "Mrap">) => Effect.Effect<s3control.SubmitMultiRegionAccessPointRoutesResult, s3control.SubmitMultiRegionAccessPointRoutesError>>> {
 }
 export declare const SubmitMultiRegionAccessPointRoutes: SubmitMultiRegionAccessPointRoutes;

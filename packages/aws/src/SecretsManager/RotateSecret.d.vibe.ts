@@ -1,7 +1,7 @@
 import * as secretsmanager from "@distilled.cloud/aws/secrets-manager";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 export interface RotateSecretRequest extends Omit<secretsmanager.RotateSecretRequest, "SecretId"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface RotateSecretRequest extends Omit<secretsmanager.RotateSecretReq
  *
  * @binding
  */
-export interface RotateSecret extends Binding.Service<RotateSecret, "AWS.SecretsManager.RotateSecret", (secret: Secret) => Effect.Effect<((request?: RotateSecretRequest) => Effect.Effect<secretsmanager.RotateSecretResponse, secretsmanager.RotateSecretError>)>> {
+export interface RotateSecret extends Binding.Service<RotateSecret, "AWS.SecretsManager.RotateSecret", (secret: Secret) => Effect.Effect<(request?: RotateSecretRequest) => Effect.Effect<secretsmanager.RotateSecretResponse, secretsmanager.RotateSecretError>>> {
 }
 export declare const RotateSecret: RotateSecret;

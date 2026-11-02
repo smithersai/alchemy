@@ -25,6 +25,6 @@ import type { DBCluster } from "./DBCluster.vibe";
  *
  * @binding
  */
-export interface FailoverDBCluster extends Binding.Service<FailoverDBCluster, "AWS.Neptune.FailoverDBCluster", (cluster: DBCluster) => Effect.Effect<((request?: Omit<neptune.FailoverDBClusterMessage, "DBClusterIdentifier">) => Effect.Effect<neptune.FailoverDBClusterResult, neptune.FailoverDBClusterError>)>> {
+export interface FailoverDBCluster extends Binding.Service<FailoverDBCluster, "AWS.Neptune.FailoverDBCluster", (cluster: DBCluster) => Effect.Effect<(request?: Omit<neptune.FailoverDBClusterMessage, "DBClusterIdentifier">) => Effect.Effect<neptune.FailoverDBClusterResult, neptune.FailoverDBClusterError>>> {
 }
 export declare const FailoverDBCluster: FailoverDBCluster;

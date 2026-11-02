@@ -26,6 +26,6 @@ export interface DescribeContainerInstancesRequest extends Omit<ECS.DescribeCont
  *
  * @binding
  */
-export interface DescribeContainerInstances extends Binding.Service<DescribeContainerInstances, "AWS.ECS.DescribeContainerInstances", (cluster: Cluster) => Effect.Effect<((request: DescribeContainerInstancesRequest) => Effect.Effect<ECS.DescribeContainerInstancesResponse, ECS.DescribeContainerInstancesError>)>> {
+export interface DescribeContainerInstances extends Binding.Service<DescribeContainerInstances, "AWS.ECS.DescribeContainerInstances", (cluster: Cluster) => Effect.Effect<(request: DescribeContainerInstancesRequest) => Effect.Effect<ECS.DescribeContainerInstancesResponse, ECS.DescribeContainerInstancesError>>> {
 }
 export declare const DescribeContainerInstances: DescribeContainerInstances;

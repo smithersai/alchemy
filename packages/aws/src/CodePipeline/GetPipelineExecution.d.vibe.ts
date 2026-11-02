@@ -19,6 +19,6 @@ export interface GetPipelineExecutionRequest extends Omit<SVC.GetPipelineExecuti
  *
  * @binding
  */
-export interface GetPipelineExecution extends Binding.Service<GetPipelineExecution, "AWS.CodePipeline.GetPipelineExecution", <P extends Pipeline>(pipeline: P) => Effect.Effect<((request: GetPipelineExecutionRequest) => Effect.Effect<SVC.GetPipelineExecutionOutput, SVC.GetPipelineExecutionError>)>> {
+export interface GetPipelineExecution extends Binding.Service<GetPipelineExecution, "AWS.CodePipeline.GetPipelineExecution", <P extends Pipeline>(pipeline: P) => Effect.Effect<(request: GetPipelineExecutionRequest) => Effect.Effect<SVC.GetPipelineExecutionOutput, SVC.GetPipelineExecutionError>>> {
 }
 export declare const GetPipelineExecution: GetPipelineExecution;

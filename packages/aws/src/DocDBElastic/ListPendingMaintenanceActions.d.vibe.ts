@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListPendingMaintenanceActions extends Binding.Service<ListPendingMaintenanceActions, "AWS.DocDBElastic.ListPendingMaintenanceActions", () => Effect.Effect<((request?: docdbelastic.ListPendingMaintenanceActionsInput) => Effect.Effect<docdbelastic.ListPendingMaintenanceActionsOutput, docdbelastic.ListPendingMaintenanceActionsError>)>> {
+export interface ListPendingMaintenanceActions extends Binding.Service<ListPendingMaintenanceActions, "AWS.DocDBElastic.ListPendingMaintenanceActions", () => Effect.Effect<(request?: docdbelastic.ListPendingMaintenanceActionsInput) => Effect.Effect<docdbelastic.ListPendingMaintenanceActionsOutput, docdbelastic.ListPendingMaintenanceActionsError>>> {
 }
 export declare const ListPendingMaintenanceActions: ListPendingMaintenanceActions;

@@ -21,7 +21,7 @@ export declare const makeDeliveryStreamHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Firehose.PutRecord`. */
     tag: string;
     /** The distilled operation; `DeliveryStreamName` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the delivery stream ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(deliveryStream: DeliveryStream) => Effect.Effect<(request: Omit<I, "DeliveryStreamName">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -35,7 +35,7 @@ export declare const makeFirehoseAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Firehose.ListDeliveryStreams`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

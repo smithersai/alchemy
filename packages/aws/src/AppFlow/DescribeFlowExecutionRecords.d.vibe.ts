@@ -28,6 +28,6 @@ export interface DescribeFlowExecutionRecordsRequest extends Omit<appflow.Descri
  *
  * @binding
  */
-export interface DescribeFlowExecutionRecords extends Binding.Service<DescribeFlowExecutionRecords, "AWS.AppFlow.DescribeFlowExecutionRecords", (flow: Flow) => Effect.Effect<((request?: DescribeFlowExecutionRecordsRequest) => Effect.Effect<appflow.DescribeFlowExecutionRecordsResponse, appflow.DescribeFlowExecutionRecordsError>)>> {
+export interface DescribeFlowExecutionRecords extends Binding.Service<DescribeFlowExecutionRecords, "AWS.AppFlow.DescribeFlowExecutionRecords", (flow: Flow) => Effect.Effect<(request?: DescribeFlowExecutionRecordsRequest) => Effect.Effect<appflow.DescribeFlowExecutionRecordsResponse, appflow.DescribeFlowExecutionRecordsError>>> {
 }
 export declare const DescribeFlowExecutionRecords: DescribeFlowExecutionRecords;

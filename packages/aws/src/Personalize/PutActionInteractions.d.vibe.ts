@@ -34,6 +34,6 @@ export interface PutActionInteractionsRequest extends Omit<personalizeevents.Put
  *
  * @binding
  */
-export interface PutActionInteractions extends Binding.Service<PutActionInteractions, "AWS.Personalize.PutActionInteractions", (tracker: EventTracker) => Effect.Effect<((request: PutActionInteractionsRequest) => Effect.Effect<personalizeevents.PutActionInteractionsResponse, personalizeevents.PutActionInteractionsError>)>> {
+export interface PutActionInteractions extends Binding.Service<PutActionInteractions, "AWS.Personalize.PutActionInteractions", (tracker: EventTracker) => Effect.Effect<(request: PutActionInteractionsRequest) => Effect.Effect<personalizeevents.PutActionInteractionsResponse, personalizeevents.PutActionInteractionsError>>> {
 }
 export declare const PutActionInteractions: PutActionInteractions;

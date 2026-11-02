@@ -1,7 +1,7 @@
 import * as cloudwatch from "@distilled.cloud/aws/cloudwatch";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { InsightRuleResource } from "./binding-common.js";
+import type { InsightRuleResource } from "./binding-common.ts";
 type InsightRules = [InsightRuleResource, ...InsightRuleResource[]];
 /**
  * Runtime binding for `cloudwatch:DisableInsightRules` — pause data
@@ -24,7 +24,7 @@ type InsightRules = [InsightRuleResource, ...InsightRuleResource[]];
  *
  * @binding
  */
-export interface DisableInsightRules extends Binding.Service<DisableInsightRules, "AWS.CloudWatch.DisableInsightRules", (...rules: InsightRules) => Effect.Effect<(() => Effect.Effect<cloudwatch.DisableInsightRulesOutput, any>)>> {
+export interface DisableInsightRules extends Binding.Service<DisableInsightRules, "AWS.CloudWatch.DisableInsightRules", (...rules: InsightRules) => Effect.Effect<() => Effect.Effect<cloudwatch.DisableInsightRulesOutput, any>>> {
 }
 export declare const DisableInsightRules: DisableInsightRules;
 export {};

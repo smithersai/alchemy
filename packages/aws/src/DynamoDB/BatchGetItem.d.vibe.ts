@@ -1,7 +1,7 @@
 import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export type BatchGetItemTables = [Table, ...Table[]];
 type BatchGetItemKeysAndAttributes = NonNullable<DynamoDB.BatchGetItemInput["RequestItems"]>[string];
 export interface BatchGetItemRequest extends Omit<DynamoDB.BatchGetItemInput, "RequestItems"> {
@@ -32,7 +32,7 @@ export interface BatchGetItemRequest extends Omit<DynamoDB.BatchGetItemInput, "R
  *
  * @binding
  */
-export interface BatchGetItem extends Binding.Service<BatchGetItem, "AWS.DynamoDB.BatchGetItem", (...tables: BatchGetItemTables) => Effect.Effect<((request: BatchGetItemRequest) => Effect.Effect<DynamoDB.BatchGetItemOutput, DynamoDB.BatchGetItemError>)>> {
+export interface BatchGetItem extends Binding.Service<BatchGetItem, "AWS.DynamoDB.BatchGetItem", (...tables: BatchGetItemTables) => Effect.Effect<(request: BatchGetItemRequest) => Effect.Effect<DynamoDB.BatchGetItemOutput, DynamoDB.BatchGetItemError>>> {
 }
 export declare const BatchGetItem: BatchGetItem;
 export {};

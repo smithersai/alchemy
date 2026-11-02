@@ -33,6 +33,6 @@ export interface StartDeploymentRequest extends Omit<appconfig.StartDeploymentRe
  *
  * @binding
  */
-export interface StartDeployment extends Binding.Service<StartDeployment, "AWS.AppConfig.StartDeployment", (application: Application, environment: Environment, configurationProfile: ConfigurationProfile, deploymentStrategy: DeploymentStrategy) => Effect.Effect<((request: StartDeploymentRequest) => Effect.Effect<appconfig.Deployment, appconfig.StartDeploymentError>)>> {
+export interface StartDeployment extends Binding.Service<StartDeployment, "AWS.AppConfig.StartDeployment", (application: Application, environment: Environment, configurationProfile: ConfigurationProfile, deploymentStrategy: DeploymentStrategy) => Effect.Effect<(request: StartDeploymentRequest) => Effect.Effect<appconfig.Deployment, appconfig.StartDeploymentError>>> {
 }
 export declare const StartDeployment: StartDeployment;

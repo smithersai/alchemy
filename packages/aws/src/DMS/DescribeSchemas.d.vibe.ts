@@ -21,6 +21,6 @@ import type { Endpoint } from "./Endpoint.vibe";
  *
  * @binding
  */
-export interface DescribeSchemas extends Binding.Service<DescribeSchemas, "AWS.DMS.DescribeSchemas", (endpoint: Endpoint) => Effect.Effect<((request?: Omit<dms.DescribeSchemasMessage, "EndpointArn">) => Effect.Effect<dms.DescribeSchemasResponse, dms.DescribeSchemasError>)>> {
+export interface DescribeSchemas extends Binding.Service<DescribeSchemas, "AWS.DMS.DescribeSchemas", (endpoint: Endpoint) => Effect.Effect<(request?: Omit<dms.DescribeSchemasMessage, "EndpointArn">) => Effect.Effect<dms.DescribeSchemasResponse, dms.DescribeSchemasError>>> {
 }
 export declare const DescribeSchemas: DescribeSchemas;

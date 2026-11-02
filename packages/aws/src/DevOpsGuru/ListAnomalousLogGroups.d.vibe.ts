@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAnomalousLogGroups extends Binding.Service<ListAnomalousLogGroups, "AWS.DevOpsGuru.ListAnomalousLogGroups", () => Effect.Effect<((request: devopsguru.ListAnomalousLogGroupsRequest) => Effect.Effect<devopsguru.ListAnomalousLogGroupsResponse, devopsguru.ListAnomalousLogGroupsError>)>> {
+export interface ListAnomalousLogGroups extends Binding.Service<ListAnomalousLogGroups, "AWS.DevOpsGuru.ListAnomalousLogGroups", () => Effect.Effect<(request: devopsguru.ListAnomalousLogGroupsRequest) => Effect.Effect<devopsguru.ListAnomalousLogGroupsResponse, devopsguru.ListAnomalousLogGroupsError>>> {
 }
 export declare const ListAnomalousLogGroups: ListAnomalousLogGroups;

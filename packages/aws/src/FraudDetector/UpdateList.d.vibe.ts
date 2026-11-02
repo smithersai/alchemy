@@ -42,6 +42,6 @@ export interface UpdateListRequest extends Omit<frauddetector.UpdateListRequest,
  *
  * @binding
  */
-export interface UpdateList extends Binding.Service<UpdateList, "AWS.FraudDetector.UpdateList", (list: List) => Effect.Effect<((request: UpdateListRequest) => Effect.Effect<frauddetector.UpdateListResult, frauddetector.UpdateListError>)>> {
+export interface UpdateList extends Binding.Service<UpdateList, "AWS.FraudDetector.UpdateList", (list: List) => Effect.Effect<(request: UpdateListRequest) => Effect.Effect<frauddetector.UpdateListResult, frauddetector.UpdateListError>>> {
 }
 export declare const UpdateList: UpdateList;

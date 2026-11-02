@@ -1,8 +1,8 @@
 import * as dlp from "@distilled.cloud/gcp/dlp_v2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type InspectJobConfig = dlp.GooglePrivacyDlpV2InspectJobConfig;
 export type JobTriggerTrigger = dlp.GooglePrivacyDlpV2Trigger;
 export type JobTriggerStatus = dlp.GooglePrivacyDlpV2JobTriggerStatusEnum | (string & {});

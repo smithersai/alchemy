@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CarrierLookup extends Binding.Service<CarrierLookup, "AWS.PinpointSMSVoiceV2.CarrierLookup", () => Effect.Effect<((request: smsvoice.CarrierLookupRequest) => Effect.Effect<smsvoice.CarrierLookupResult, smsvoice.CarrierLookupError>)>> {
+export interface CarrierLookup extends Binding.Service<CarrierLookup, "AWS.PinpointSMSVoiceV2.CarrierLookup", () => Effect.Effect<(request: smsvoice.CarrierLookupRequest) => Effect.Effect<smsvoice.CarrierLookupResult, smsvoice.CarrierLookupError>>> {
 }
 export declare const CarrierLookup: CarrierLookup;

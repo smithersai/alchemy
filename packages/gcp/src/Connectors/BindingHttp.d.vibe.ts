@@ -1,9 +1,9 @@
 import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
-import { type BindingIam } from "../HttpBinding.js";
+import { type BindingIam } from "../HttpBinding.ts";
 import type { ConnectionsEntityTypesEntity } from "./ConnectionsEntityTypesEntity.vibe";
-type GcpHttpOp<I, A, E> = Effect.Effect<((input: I) => Effect.Effect<A, E>), never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
+type GcpHttpOp<I, A, E> = Effect.Effect<(input: I) => Effect.Effect<A, E>, never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
 /**
  * Shared HTTP scaffolding for Integration Connectors entity bindings.
  * NOT exported from index.ts.

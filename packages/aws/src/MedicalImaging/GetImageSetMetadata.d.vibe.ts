@@ -29,6 +29,6 @@ export interface GetImageSetMetadataRequest extends Omit<medicalimaging.GetImage
  *
  * @binding
  */
-export interface GetImageSetMetadata extends Binding.Service<GetImageSetMetadata, "AWS.MedicalImaging.GetImageSetMetadata", (datastore: Datastore) => Effect.Effect<((request: GetImageSetMetadataRequest) => Effect.Effect<medicalimaging.GetImageSetMetadataResponse, medicalimaging.GetImageSetMetadataError>)>> {
+export interface GetImageSetMetadata extends Binding.Service<GetImageSetMetadata, "AWS.MedicalImaging.GetImageSetMetadata", (datastore: Datastore) => Effect.Effect<(request: GetImageSetMetadataRequest) => Effect.Effect<medicalimaging.GetImageSetMetadataResponse, medicalimaging.GetImageSetMetadataError>>> {
 }
 export declare const GetImageSetMetadata: GetImageSetMetadata;

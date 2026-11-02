@@ -26,6 +26,6 @@ export interface CreateSubscriptionRequestRequest extends Omit<datazone.CreateSu
  *
  * @binding
  */
-export interface CreateSubscriptionRequest extends Binding.Service<CreateSubscriptionRequest, "AWS.DataZone.CreateSubscriptionRequest", (domain: Domain) => Effect.Effect<((request: CreateSubscriptionRequestRequest) => Effect.Effect<datazone.CreateSubscriptionRequestOutput, datazone.CreateSubscriptionRequestError>)>> {
+export interface CreateSubscriptionRequest extends Binding.Service<CreateSubscriptionRequest, "AWS.DataZone.CreateSubscriptionRequest", (domain: Domain) => Effect.Effect<(request: CreateSubscriptionRequestRequest) => Effect.Effect<datazone.CreateSubscriptionRequestOutput, datazone.CreateSubscriptionRequestError>>> {
 }
 export declare const CreateSubscriptionRequest: CreateSubscriptionRequest;

@@ -22,6 +22,6 @@ export interface StartReferenceImportJobRequest extends Omit<omics.StartReferenc
  *
  * @binding
  */
-export interface StartReferenceImportJob extends Binding.Service<StartReferenceImportJob, "AWS.Omics.StartReferenceImportJob", (store: ReferenceStore) => Effect.Effect<((request?: StartReferenceImportJobRequest) => Effect.Effect<omics.StartReferenceImportJobResponse, omics.StartReferenceImportJobError>)>> {
+export interface StartReferenceImportJob extends Binding.Service<StartReferenceImportJob, "AWS.Omics.StartReferenceImportJob", (store: ReferenceStore) => Effect.Effect<(request?: StartReferenceImportJobRequest) => Effect.Effect<omics.StartReferenceImportJobResponse, omics.StartReferenceImportJobError>>> {
 }
 export declare const StartReferenceImportJob: StartReferenceImportJob;

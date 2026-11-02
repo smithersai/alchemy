@@ -32,6 +32,6 @@ export interface DescribeReplicationConfigurationsRequest extends Omit<efs.Descr
  *
  * @binding
  */
-export interface DescribeReplicationConfigurations extends Binding.Service<DescribeReplicationConfigurations, "AWS.EFS.DescribeReplicationConfigurations", (fileSystem: FileSystem) => Effect.Effect<((request?: DescribeReplicationConfigurationsRequest) => Effect.Effect<efs.DescribeReplicationConfigurationsResponse, efs.DescribeReplicationConfigurationsError>)>> {
+export interface DescribeReplicationConfigurations extends Binding.Service<DescribeReplicationConfigurations, "AWS.EFS.DescribeReplicationConfigurations", (fileSystem: FileSystem) => Effect.Effect<(request?: DescribeReplicationConfigurationsRequest) => Effect.Effect<efs.DescribeReplicationConfigurationsResponse, efs.DescribeReplicationConfigurationsError>>> {
 }
 export declare const DescribeReplicationConfigurations: DescribeReplicationConfigurations;

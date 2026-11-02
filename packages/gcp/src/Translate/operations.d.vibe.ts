@@ -1,7 +1,7 @@
 import * as translate from "@distilled.cloud/gcp/translate_v3";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import { OperationFailed } from "../Operation.js";
+import { OperationFailed } from "../Operation.ts";
 /**
  * Wait for a Translate long-running operation, then re-read it so the
  * returned operation carries its `response`. Model create/delete and
@@ -13,4 +13,4 @@ import { OperationFailed } from "../Operation.js";
 export declare const waitForOperation: (operation: translate.Operation, options?: {
     notFoundOk?: boolean;
     budget?: Duration.Input;
-}) => Effect.Effect<translate.Operation, OperationFailed | import("../Operation.js").OperationTimedOut | translate.GetProjectsLocationsOperationsError, translate.GcpOpContext>;
+}) => Effect.Effect<translate.Operation, OperationFailed | import("../Operation.ts").OperationTimedOut | translate.GetProjectsLocationsOperationsError, translate.GcpOpContext>;

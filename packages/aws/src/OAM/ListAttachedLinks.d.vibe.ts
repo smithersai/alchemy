@@ -31,6 +31,6 @@ export interface ListAttachedLinksRequest extends Omit<oam.ListAttachedLinksInpu
  *
  * @binding
  */
-export interface ListAttachedLinks extends Binding.Service<ListAttachedLinks, "AWS.OAM.ListAttachedLinks", (sink: Sink) => Effect.Effect<((request?: ListAttachedLinksRequest) => Effect.Effect<oam.ListAttachedLinksOutput, oam.ListAttachedLinksError>)>> {
+export interface ListAttachedLinks extends Binding.Service<ListAttachedLinks, "AWS.OAM.ListAttachedLinks", (sink: Sink) => Effect.Effect<(request?: ListAttachedLinksRequest) => Effect.Effect<oam.ListAttachedLinksOutput, oam.ListAttachedLinksError>>> {
 }
 export declare const ListAttachedLinks: ListAttachedLinks;

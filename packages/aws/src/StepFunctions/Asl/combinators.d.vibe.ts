@@ -11,7 +11,7 @@
  * compiled program cannot branch on runtime JS.
  */
 import * as Duration from "effect/Duration";
-import type { Expr, UnwrapExpr } from "./Jsonata.js";
+import type { Expr, UnwrapExpr } from "./Jsonata.ts";
 import type { ErrorOutput, ForEachOptions, IntegrationOptions, InvokableFunction, RetryOptions } from "./Node.vibe";
 import { type Error as ErrorOf, type SfnEffect, type Success } from "./Program.vibe";
 /**

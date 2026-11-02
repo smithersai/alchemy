@@ -39,6 +39,6 @@ export interface RenewDomainRequest extends route53domains.RenewDomainRequest {
  *
  * @binding
  */
-export interface RenewDomain extends Binding.Service<RenewDomain, "AWS.Route53Domains.RenewDomain", () => Effect.Effect<((request: RenewDomainRequest) => Effect.Effect<route53domains.RenewDomainResponse, route53domains.RenewDomainError>)>> {
+export interface RenewDomain extends Binding.Service<RenewDomain, "AWS.Route53Domains.RenewDomain", () => Effect.Effect<(request: RenewDomainRequest) => Effect.Effect<route53domains.RenewDomainResponse, route53domains.RenewDomainError>>> {
 }
 export declare const RenewDomain: RenewDomain;

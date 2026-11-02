@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeClusters extends Binding.Service<DescribeClusters, "AWS.CloudHSMV2.DescribeClusters", () => Effect.Effect<((request?: cloudhsm.DescribeClustersRequest) => Effect.Effect<cloudhsm.DescribeClustersResponse, cloudhsm.DescribeClustersError>)>> {
+export interface DescribeClusters extends Binding.Service<DescribeClusters, "AWS.CloudHSMV2.DescribeClusters", () => Effect.Effect<(request?: cloudhsm.DescribeClustersRequest) => Effect.Effect<cloudhsm.DescribeClustersResponse, cloudhsm.DescribeClustersError>>> {
 }
 export declare const DescribeClusters: DescribeClusters;

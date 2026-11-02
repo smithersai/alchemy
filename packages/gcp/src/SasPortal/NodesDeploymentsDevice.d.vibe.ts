@@ -1,9 +1,9 @@
 import * as sasportal from "@distilled.cloud/gcp/sasportal_v1alpha1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { type DeviceConfig, type DeviceGrant, type DeviceMetadata, type FrequencyRange } from "./internal.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { type DeviceConfig, type DeviceGrant, type DeviceMetadata, type FrequencyRange } from "./internal.ts";
 export type NodesDeploymentsDeviceProps = {
     /**
      * Parent SAS deployment under a node, as `nodes/{node}/deployments/{deployment}`.

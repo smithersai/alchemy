@@ -1,8 +1,8 @@
 import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type NluSettings = {
     /** Model type. */
     modelType?: "MODEL_TYPE_UNSPECIFIED" | "MODEL_TYPE_STANDARD" | "MODEL_TYPE_ADVANCED" | (string & {});

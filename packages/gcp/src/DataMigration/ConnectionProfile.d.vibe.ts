@@ -1,8 +1,8 @@
 import * as dm from "@distilled.cloud/gcp/datamigration_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type ConnectionProfileProvider = dm.ConnectionProfileProviderEnum | (string & {});
 export type ConnectionProfileState = dm.ConnectionProfileStateEnum | (string & {});
 export type ConnectionProfileRole = dm.ConnectionProfileRoleEnum | (string & {});

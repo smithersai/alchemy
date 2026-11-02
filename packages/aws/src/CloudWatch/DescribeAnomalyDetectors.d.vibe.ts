@@ -25,6 +25,6 @@ export interface DescribeAnomalyDetectorsRequest extends cloudwatch.DescribeAnom
  *
  * @binding
  */
-export interface DescribeAnomalyDetectors extends Binding.Service<DescribeAnomalyDetectors, "AWS.CloudWatch.DescribeAnomalyDetectors", () => Effect.Effect<((request?: DescribeAnomalyDetectorsRequest) => Effect.Effect<cloudwatch.DescribeAnomalyDetectorsOutput, cloudwatch.DescribeAnomalyDetectorsError>)>> {
+export interface DescribeAnomalyDetectors extends Binding.Service<DescribeAnomalyDetectors, "AWS.CloudWatch.DescribeAnomalyDetectors", () => Effect.Effect<(request?: DescribeAnomalyDetectorsRequest) => Effect.Effect<cloudwatch.DescribeAnomalyDetectorsOutput, cloudwatch.DescribeAnomalyDetectorsError>>> {
 }
 export declare const DescribeAnomalyDetectors: DescribeAnomalyDetectors;

@@ -26,6 +26,6 @@ export interface SendDirectMessageRequest extends iotdata.SendDirectMessageReque
  *
  * @binding
  */
-export interface SendDirectMessage extends Binding.Service<SendDirectMessage, "AWS.IoT.SendDirectMessage", (clientIdFilter?: string) => Effect.Effect<((request: SendDirectMessageRequest) => Effect.Effect<iotdata.SendDirectMessageResponse, iotdata.SendDirectMessageError>)>> {
+export interface SendDirectMessage extends Binding.Service<SendDirectMessage, "AWS.IoT.SendDirectMessage", (clientIdFilter?: string) => Effect.Effect<(request: SendDirectMessageRequest) => Effect.Effect<iotdata.SendDirectMessageResponse, iotdata.SendDirectMessageError>>> {
 }
 export declare const SendDirectMessage: SendDirectMessage;

@@ -23,6 +23,6 @@ import type { Table } from "./Table.vibe";
  *
  * @binding
  */
-export interface GetTableMetadataLocation extends Binding.Service<GetTableMetadataLocation, "AWS.S3Tables.GetTableMetadataLocation", (table: Table) => Effect.Effect<(() => Effect.Effect<s3tables.GetTableMetadataLocationResponse, s3tables.GetTableMetadataLocationError>)>> {
+export interface GetTableMetadataLocation extends Binding.Service<GetTableMetadataLocation, "AWS.S3Tables.GetTableMetadataLocation", (table: Table) => Effect.Effect<() => Effect.Effect<s3tables.GetTableMetadataLocationResponse, s3tables.GetTableMetadataLocationError>>> {
 }
 export declare const GetTableMetadataLocation: GetTableMetadataLocation;

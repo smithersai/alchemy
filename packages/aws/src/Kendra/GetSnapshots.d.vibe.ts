@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `GetSnapshots` request with `IndexId` injected from the bound index.
  */
@@ -29,6 +29,6 @@ export interface GetSnapshotsRequest extends Omit<kendra.GetSnapshotsRequest, "I
  *
  * @binding
  */
-export interface GetSnapshots extends Binding.Service<GetSnapshots, "AWS.Kendra.GetSnapshots", (index: Index) => Effect.Effect<((request: GetSnapshotsRequest) => Effect.Effect<kendra.GetSnapshotsResponse, kendra.GetSnapshotsError>)>> {
+export interface GetSnapshots extends Binding.Service<GetSnapshots, "AWS.Kendra.GetSnapshots", (index: Index) => Effect.Effect<(request: GetSnapshotsRequest) => Effect.Effect<kendra.GetSnapshotsResponse, kendra.GetSnapshotsError>>> {
 }
 export declare const GetSnapshots: GetSnapshots;

@@ -13,7 +13,7 @@ export declare const makeAddressListHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MailManager.GetMemberOfAddressList`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the address list ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(list: AddressList) => Effect.Effect<(request: Omit<I, "AddressListId">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -27,7 +27,7 @@ export declare const makeAddressListJobHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.MailManager.StartAddressListImportJob`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the address list ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(list: AddressList) => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -43,7 +43,7 @@ export declare const makeArchiveHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MailManager.StartArchiveSearch`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the archive ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(archive: Archive) => Effect.Effect<(request: Omit<I, "ArchiveId">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -58,7 +58,7 @@ export declare const makeArchiveTaskHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.MailManager.GetArchiveSearchResults`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the archive ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(archive: Archive) => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

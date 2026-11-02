@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `ListAccessControlConfigurations` request with `IndexId` injected from the bound index.
  */
@@ -26,6 +26,6 @@ export interface ListAccessControlConfigurationsRequest extends Omit<kendra.List
  *
  * @binding
  */
-export interface ListAccessControlConfigurations extends Binding.Service<ListAccessControlConfigurations, "AWS.Kendra.ListAccessControlConfigurations", (index: Index) => Effect.Effect<((request?: ListAccessControlConfigurationsRequest) => Effect.Effect<kendra.ListAccessControlConfigurationsResponse, kendra.ListAccessControlConfigurationsError>)>> {
+export interface ListAccessControlConfigurations extends Binding.Service<ListAccessControlConfigurations, "AWS.Kendra.ListAccessControlConfigurations", (index: Index) => Effect.Effect<(request?: ListAccessControlConfigurationsRequest) => Effect.Effect<kendra.ListAccessControlConfigurationsResponse, kendra.ListAccessControlConfigurationsError>>> {
 }
 export declare const ListAccessControlConfigurations: ListAccessControlConfigurations;

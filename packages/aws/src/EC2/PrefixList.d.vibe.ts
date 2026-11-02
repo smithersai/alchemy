@@ -1,9 +1,9 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { AccountID } from "../Environment.js";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import type { AccountID } from "../Environment.ts";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 export type PrefixListId<ID extends string = string> = `pl-${ID}`;
 export declare const PrefixListId: <ID extends string>(id: ID) => ID & PrefixListId<ID>;
 export type PrefixListArn<ID extends PrefixListId = PrefixListId> = `arn:aws:ec2:${RegionID}:${AccountID}:prefix-list/${ID}`;

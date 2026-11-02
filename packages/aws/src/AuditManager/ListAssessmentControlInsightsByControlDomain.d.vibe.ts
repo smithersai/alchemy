@@ -20,6 +20,6 @@ export interface ListAssessmentControlInsightsByControlDomainRequest extends Omi
  *
  * @binding
  */
-export interface ListAssessmentControlInsightsByControlDomain extends Binding.Service<ListAssessmentControlInsightsByControlDomain, "AWS.AuditManager.ListAssessmentControlInsightsByControlDomain", (assessment: Assessment) => Effect.Effect<((request: ListAssessmentControlInsightsByControlDomainRequest) => Effect.Effect<auditmanager.ListAssessmentControlInsightsByControlDomainResponse, auditmanager.ListAssessmentControlInsightsByControlDomainError>)>> {
+export interface ListAssessmentControlInsightsByControlDomain extends Binding.Service<ListAssessmentControlInsightsByControlDomain, "AWS.AuditManager.ListAssessmentControlInsightsByControlDomain", (assessment: Assessment) => Effect.Effect<(request: ListAssessmentControlInsightsByControlDomainRequest) => Effect.Effect<auditmanager.ListAssessmentControlInsightsByControlDomainResponse, auditmanager.ListAssessmentControlInsightsByControlDomainError>>> {
 }
 export declare const ListAssessmentControlInsightsByControlDomain: ListAssessmentControlInsightsByControlDomain;

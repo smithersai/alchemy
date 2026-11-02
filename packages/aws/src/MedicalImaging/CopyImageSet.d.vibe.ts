@@ -33,6 +33,6 @@ export interface CopyImageSetRequest extends Omit<medicalimaging.CopyImageSetReq
  *
  * @binding
  */
-export interface CopyImageSet extends Binding.Service<CopyImageSet, "AWS.MedicalImaging.CopyImageSet", (datastore: Datastore) => Effect.Effect<((request: CopyImageSetRequest) => Effect.Effect<medicalimaging.CopyImageSetResponse, medicalimaging.CopyImageSetError>)>> {
+export interface CopyImageSet extends Binding.Service<CopyImageSet, "AWS.MedicalImaging.CopyImageSet", (datastore: Datastore) => Effect.Effect<(request: CopyImageSetRequest) => Effect.Effect<medicalimaging.CopyImageSetResponse, medicalimaging.CopyImageSetError>>> {
 }
 export declare const CopyImageSet: CopyImageSet;

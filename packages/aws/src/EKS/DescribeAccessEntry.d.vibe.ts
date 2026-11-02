@@ -1,7 +1,7 @@
 import type * as eks from "@distilled.cloud/aws/eks";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 /**
  * Runtime binding for `eks:DescribeAccessEntry`.
  *
@@ -21,6 +21,6 @@ import type { Cluster } from "./Cluster.js";
  *
  * @binding
  */
-export interface DescribeAccessEntry extends Binding.Service<DescribeAccessEntry, "AWS.EKS.DescribeAccessEntry", (cluster: Cluster) => Effect.Effect<((request: Omit<eks.DescribeAccessEntryRequest, "clusterName">) => Effect.Effect<eks.DescribeAccessEntryResponse, eks.DescribeAccessEntryError>)>> {
+export interface DescribeAccessEntry extends Binding.Service<DescribeAccessEntry, "AWS.EKS.DescribeAccessEntry", (cluster: Cluster) => Effect.Effect<(request: Omit<eks.DescribeAccessEntryRequest, "clusterName">) => Effect.Effect<eks.DescribeAccessEntryResponse, eks.DescribeAccessEntryError>>> {
 }
 export declare const DescribeAccessEntry: DescribeAccessEntry;

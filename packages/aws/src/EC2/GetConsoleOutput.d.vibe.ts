@@ -1,7 +1,7 @@
 import type * as ec2 from "@distilled.cloud/aws/ec2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 /**
  * `GetConsoleOutput` request with `InstanceId` injected from the bound
  * {@link Instance}.
@@ -30,6 +30,6 @@ export interface GetConsoleOutputRequest extends Omit<ec2.GetConsoleOutputReques
  *
  * @binding
  */
-export interface GetConsoleOutput extends Binding.Service<GetConsoleOutput, "AWS.EC2.GetConsoleOutput", (instance: Instance) => Effect.Effect<((request?: GetConsoleOutputRequest) => Effect.Effect<ec2.GetConsoleOutputResult, ec2.GetConsoleOutputError>)>> {
+export interface GetConsoleOutput extends Binding.Service<GetConsoleOutput, "AWS.EC2.GetConsoleOutput", (instance: Instance) => Effect.Effect<(request?: GetConsoleOutputRequest) => Effect.Effect<ec2.GetConsoleOutputResult, ec2.GetConsoleOutputError>>> {
 }
 export declare const GetConsoleOutput: GetConsoleOutput;

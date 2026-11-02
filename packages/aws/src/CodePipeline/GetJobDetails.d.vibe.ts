@@ -21,6 +21,6 @@ export interface GetJobDetailsRequest extends SVC.GetJobDetailsInput {
  *
  * @binding
  */
-export interface GetJobDetails extends Binding.Service<GetJobDetails, "AWS.CodePipeline.GetJobDetails", () => Effect.Effect<((request: GetJobDetailsRequest) => Effect.Effect<SVC.GetJobDetailsOutput, SVC.GetJobDetailsError>)>> {
+export interface GetJobDetails extends Binding.Service<GetJobDetails, "AWS.CodePipeline.GetJobDetails", () => Effect.Effect<(request: GetJobDetailsRequest) => Effect.Effect<SVC.GetJobDetailsOutput, SVC.GetJobDetailsError>>> {
 }
 export declare const GetJobDetails: GetJobDetails;

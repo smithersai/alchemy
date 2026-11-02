@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ResumeResource extends Binding.Service<ResumeResource, "AWS.Forecast.ResumeResource", () => Effect.Effect<((request: forecast.ResumeResourceRequest) => Effect.Effect<forecast.ResumeResourceResponse, forecast.ResumeResourceError>)>> {
+export interface ResumeResource extends Binding.Service<ResumeResource, "AWS.Forecast.ResumeResource", () => Effect.Effect<(request: forecast.ResumeResourceRequest) => Effect.Effect<forecast.ResumeResourceResponse, forecast.ResumeResourceError>>> {
 }
 export declare const ResumeResource: ResumeResource;

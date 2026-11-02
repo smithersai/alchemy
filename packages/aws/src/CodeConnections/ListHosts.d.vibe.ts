@@ -28,6 +28,6 @@ export interface ListHostsRequest extends codeconnections.ListHostsInput {
  *
  * @binding
  */
-export interface ListHosts extends Binding.Service<ListHosts, "AWS.CodeConnections.ListHosts", () => Effect.Effect<((request?: ListHostsRequest) => Effect.Effect<codeconnections.ListHostsOutput, codeconnections.ListHostsError>)>> {
+export interface ListHosts extends Binding.Service<ListHosts, "AWS.CodeConnections.ListHosts", () => Effect.Effect<(request?: ListHostsRequest) => Effect.Effect<codeconnections.ListHostsOutput, codeconnections.ListHostsError>>> {
 }
 export declare const ListHosts: ListHosts;

@@ -1,7 +1,7 @@
 import * as cloudwatch from "@distilled.cloud/aws/cloudwatch";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { InsightRule } from "./InsightRule.js";
+import type { InsightRule } from "./InsightRule.ts";
 export interface GetInsightRuleReportRequest extends Omit<cloudwatch.GetInsightRuleReportInput, "RuleName"> {
 }
 /**
@@ -29,6 +29,6 @@ export interface GetInsightRuleReportRequest extends Omit<cloudwatch.GetInsightR
  *
  * @binding
  */
-export interface GetInsightRuleReport extends Binding.Service<GetInsightRuleReport, "AWS.CloudWatch.GetInsightRuleReport", (rule: InsightRule) => Effect.Effect<((request: GetInsightRuleReportRequest) => Effect.Effect<cloudwatch.GetInsightRuleReportOutput, cloudwatch.GetInsightRuleReportError>)>> {
+export interface GetInsightRuleReport extends Binding.Service<GetInsightRuleReport, "AWS.CloudWatch.GetInsightRuleReport", (rule: InsightRule) => Effect.Effect<(request: GetInsightRuleReportRequest) => Effect.Effect<cloudwatch.GetInsightRuleReportOutput, cloudwatch.GetInsightRuleReportError>>> {
 }
 export declare const GetInsightRuleReport: GetInsightRuleReport;

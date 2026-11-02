@@ -20,6 +20,6 @@ export interface RollbackStageRequest extends Omit<SVC.RollbackStageInput, "pipe
  *
  * @binding
  */
-export interface RollbackStage extends Binding.Service<RollbackStage, "AWS.CodePipeline.RollbackStage", <P extends Pipeline>(pipeline: P) => Effect.Effect<((request: RollbackStageRequest) => Effect.Effect<SVC.RollbackStageOutput, SVC.RollbackStageError>)>> {
+export interface RollbackStage extends Binding.Service<RollbackStage, "AWS.CodePipeline.RollbackStage", <P extends Pipeline>(pipeline: P) => Effect.Effect<(request: RollbackStageRequest) => Effect.Effect<SVC.RollbackStageOutput, SVC.RollbackStageError>>> {
 }
 export declare const RollbackStage: RollbackStage;

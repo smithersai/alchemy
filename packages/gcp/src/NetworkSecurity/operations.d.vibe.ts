@@ -1,7 +1,7 @@
 import * as resourcemanager from "@distilled.cloud/gcp/cloudresourcemanager_v3";
 import * as networksecurity from "@distilled.cloud/gcp/networksecurity_v1";
 import * as Effect from "effect/Effect";
-import { GcpEnvironment } from "../Environment.js";
+import { GcpEnvironment } from "../Environment.ts";
 export declare const DEFAULT_LOCATION = "global";
 export declare const DEFAULT_ZONE = "us-central1-a";
 export declare const MAX_NAME_LENGTH = 63;
@@ -52,9 +52,9 @@ export declare const sameStringList: (left: readonly string[] | undefined, right
  */
 export declare const waitForOperation: (operation: networksecurity.Operation, options?: {
     notFoundOk?: boolean;
-}) => Effect.Effect<void | import("../Operation.js").LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | networksecurity.GetProjectsLocationsOperationsError, resourcemanager.GcpOpContext>;
+}) => Effect.Effect<void | import("../Operation.ts").LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | networksecurity.GetProjectsLocationsOperationsError, resourcemanager.GcpOpContext>;
 export declare const waitUntilExists: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved, R>;
 export declare const waitUntilGone: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<void, E | ResourceStillExists, R>;
-export declare const resolveOrganization: (explicit: string | undefined, existing: string | undefined) => Effect.Effect<string, resourcemanager.FolderNotFound | resourcemanager.Forbidden | import("../Environment.js").GcpProjectMissing | OrganizationRequired | resourcemanager.ProjectNotFound | resourcemanager.GcpOpError, GcpEnvironment | resourcemanager.GcpOpContext>;
+export declare const resolveOrganization: (explicit: string | undefined, existing: string | undefined) => Effect.Effect<string, resourcemanager.FolderNotFound | resourcemanager.Forbidden | import("../Environment.ts").GcpProjectMissing | OrganizationRequired | resourcemanager.ProjectNotFound | resourcemanager.GcpOpError, GcpEnvironment | resourcemanager.GcpOpContext>;
 export declare const listOrganizations: (project: string) => Effect.Effect<string[], resourcemanager.FolderNotFound | resourcemanager.Forbidden | resourcemanager.ProjectNotFound | resourcemanager.GcpOpError, resourcemanager.GcpOpContext>;
 export {};

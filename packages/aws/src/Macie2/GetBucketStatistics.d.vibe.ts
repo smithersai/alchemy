@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetBucketStatistics extends Binding.Service<GetBucketStatistics, "AWS.Macie2.GetBucketStatistics", () => Effect.Effect<((request?: macie2.GetBucketStatisticsRequest) => Effect.Effect<macie2.GetBucketStatisticsResponse, macie2.GetBucketStatisticsError>)>> {
+export interface GetBucketStatistics extends Binding.Service<GetBucketStatistics, "AWS.Macie2.GetBucketStatistics", () => Effect.Effect<(request?: macie2.GetBucketStatisticsRequest) => Effect.Effect<macie2.GetBucketStatisticsResponse, macie2.GetBucketStatisticsError>>> {
 }
 export declare const GetBucketStatistics: GetBucketStatistics;

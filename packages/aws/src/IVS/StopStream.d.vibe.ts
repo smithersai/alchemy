@@ -1,7 +1,7 @@
 import type * as ivs from "@distilled.cloud/aws/ivs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Channel } from "./Channel.js";
+import type { Channel } from "./Channel.ts";
 /**
  * Runtime binding for `ivs:StopStream`.
  *
@@ -25,6 +25,6 @@ import type { Channel } from "./Channel.js";
  *
  * @binding
  */
-export interface StopStream extends Binding.Service<StopStream, "AWS.IVS.StopStream", (channel: Channel) => Effect.Effect<(() => Effect.Effect<ivs.StopStreamResponse, ivs.StopStreamError>)>> {
+export interface StopStream extends Binding.Service<StopStream, "AWS.IVS.StopStream", (channel: Channel) => Effect.Effect<() => Effect.Effect<ivs.StopStreamResponse, ivs.StopStreamError>>> {
 }
 export declare const StopStream: StopStream;

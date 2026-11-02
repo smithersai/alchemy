@@ -24,6 +24,6 @@ export interface PutJobSuccessResultRequest extends SVC.PutJobSuccessResultInput
  *
  * @binding
  */
-export interface PutJobSuccessResult extends Binding.Service<PutJobSuccessResult, "AWS.CodePipeline.PutJobSuccessResult", () => Effect.Effect<((request: PutJobSuccessResultRequest) => Effect.Effect<SVC.PutJobSuccessResultResponse, SVC.PutJobSuccessResultError>)>> {
+export interface PutJobSuccessResult extends Binding.Service<PutJobSuccessResult, "AWS.CodePipeline.PutJobSuccessResult", () => Effect.Effect<(request: PutJobSuccessResultRequest) => Effect.Effect<SVC.PutJobSuccessResultResponse, SVC.PutJobSuccessResultError>>> {
 }
 export declare const PutJobSuccessResult: PutJobSuccessResult;

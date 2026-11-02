@@ -31,6 +31,6 @@ export interface DeprecateWhatsAppFlowRequest extends Omit<socialmessaging.Depre
  *
  * @binding
  */
-export interface DeprecateWhatsAppFlow extends Binding.Service<DeprecateWhatsAppFlow, "AWS.SocialMessaging.DeprecateWhatsAppFlow", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: DeprecateWhatsAppFlowRequest) => Effect.Effect<socialmessaging.DeprecateWhatsAppFlowOutput, socialmessaging.DeprecateWhatsAppFlowError>)>> {
+export interface DeprecateWhatsAppFlow extends Binding.Service<DeprecateWhatsAppFlow, "AWS.SocialMessaging.DeprecateWhatsAppFlow", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: DeprecateWhatsAppFlowRequest) => Effect.Effect<socialmessaging.DeprecateWhatsAppFlowOutput, socialmessaging.DeprecateWhatsAppFlowError>>> {
 }
 export declare const DeprecateWhatsAppFlow: DeprecateWhatsAppFlow;

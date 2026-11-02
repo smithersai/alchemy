@@ -23,6 +23,6 @@ export interface StopDeploymentRequest extends Omit<appconfig.StopDeploymentRequ
  *
  * @binding
  */
-export interface StopDeployment extends Binding.Service<StopDeployment, "AWS.AppConfig.StopDeployment", (application: Application, environment: Environment) => Effect.Effect<((request: StopDeploymentRequest) => Effect.Effect<appconfig.Deployment, appconfig.StopDeploymentError>)>> {
+export interface StopDeployment extends Binding.Service<StopDeployment, "AWS.AppConfig.StopDeployment", (application: Application, environment: Environment) => Effect.Effect<(request: StopDeploymentRequest) => Effect.Effect<appconfig.Deployment, appconfig.StopDeploymentError>>> {
 }
 export declare const StopDeployment: StopDeployment;

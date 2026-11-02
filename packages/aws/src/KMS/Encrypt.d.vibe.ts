@@ -2,7 +2,7 @@ import type * as kms from "@distilled.cloud/aws/kms";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { AliasName } from "./Alias.vibe";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.ts";
 export interface EncryptRequest extends Omit<kms.EncryptRequest, "KeyId"> {
 }
 /**
@@ -71,6 +71,6 @@ export interface EncryptRequest extends Omit<kms.EncryptRequest, "KeyId"> {
  *
  * @binding
  */
-export interface Encrypt extends Binding.Service<Encrypt, "AWS.KMS.Encrypt", (key: Key | AliasName) => Effect.Effect<((request: EncryptRequest) => Effect.Effect<kms.EncryptResponse, kms.EncryptError>)>> {
+export interface Encrypt extends Binding.Service<Encrypt, "AWS.KMS.Encrypt", (key: Key | AliasName) => Effect.Effect<(request: EncryptRequest) => Effect.Effect<kms.EncryptResponse, kms.EncryptError>>> {
 }
 export declare const Encrypt: Encrypt;

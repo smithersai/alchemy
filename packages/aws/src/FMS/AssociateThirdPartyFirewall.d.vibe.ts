@@ -27,6 +27,6 @@ export interface AssociateThirdPartyFirewallRequest extends fms.AssociateThirdPa
  *
  * @binding
  */
-export interface AssociateThirdPartyFirewall extends Binding.Service<AssociateThirdPartyFirewall, "AWS.FMS.AssociateThirdPartyFirewall", () => Effect.Effect<((request: AssociateThirdPartyFirewallRequest) => Effect.Effect<fms.AssociateThirdPartyFirewallResponse, fms.AssociateThirdPartyFirewallError>)>> {
+export interface AssociateThirdPartyFirewall extends Binding.Service<AssociateThirdPartyFirewall, "AWS.FMS.AssociateThirdPartyFirewall", () => Effect.Effect<(request: AssociateThirdPartyFirewallRequest) => Effect.Effect<fms.AssociateThirdPartyFirewallResponse, fms.AssociateThirdPartyFirewallError>>> {
 }
 export declare const AssociateThirdPartyFirewall: AssociateThirdPartyFirewall;

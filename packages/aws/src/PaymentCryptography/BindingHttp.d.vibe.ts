@@ -23,7 +23,7 @@ export declare const makePaymentCryptographyKeyHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.PaymentCryptography.EncryptData`. */
     tag: string;
     /** The distilled operation; `KeyIdentifier` is injected from the key. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the bound key's ARN. */
     actions: readonly `payment-cryptography:${string}`[];
 }) => Effect.Effect<<K extends Key>(key: K) => Effect.Effect<(request?: Omit<I, "KeyIdentifier"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -38,7 +38,7 @@ export declare const makePaymentCryptographyKeyPairHttpBinding: <F1 extends stri
     /** Fully-qualified binding tag, e.g. `AWS.PaymentCryptography.ReEncryptData`. */
     tag: string;
     /** The distilled operation; both key fields are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on both bound keys' ARNs. */
     actions: readonly `payment-cryptography:${string}`[];
     /** Request fields carrying the two keys' ARNs, in bind-argument order. */

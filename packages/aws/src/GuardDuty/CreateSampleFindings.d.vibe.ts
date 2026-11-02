@@ -23,6 +23,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface CreateSampleFindings extends Binding.Service<CreateSampleFindings, "AWS.GuardDuty.CreateSampleFindings", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.CreateSampleFindingsRequest, "DetectorId">) => Effect.Effect<guardduty.CreateSampleFindingsResponse, guardduty.CreateSampleFindingsError>)>> {
+export interface CreateSampleFindings extends Binding.Service<CreateSampleFindings, "AWS.GuardDuty.CreateSampleFindings", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.CreateSampleFindingsRequest, "DetectorId">) => Effect.Effect<guardduty.CreateSampleFindingsResponse, guardduty.CreateSampleFindingsError>>> {
 }
 export declare const CreateSampleFindings: CreateSampleFindings;

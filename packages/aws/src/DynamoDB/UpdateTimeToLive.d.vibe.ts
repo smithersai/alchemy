@@ -1,7 +1,7 @@
 import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface UpdateTimeToLiveRequest extends Omit<DynamoDB.UpdateTimeToLiveInput, "TableName"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface UpdateTimeToLiveRequest extends Omit<DynamoDB.UpdateTimeToLiveI
  *
  * @binding
  */
-export interface UpdateTimeToLive extends Binding.Service<UpdateTimeToLive, "AWS.DynamoDB.UpdateTimeToLive", <T extends Table>(table: T) => Effect.Effect<((request: UpdateTimeToLiveRequest) => Effect.Effect<DynamoDB.UpdateTimeToLiveOutput, DynamoDB.UpdateTimeToLiveError>)>> {
+export interface UpdateTimeToLive extends Binding.Service<UpdateTimeToLive, "AWS.DynamoDB.UpdateTimeToLive", <T extends Table>(table: T) => Effect.Effect<(request: UpdateTimeToLiveRequest) => Effect.Effect<DynamoDB.UpdateTimeToLiveOutput, DynamoDB.UpdateTimeToLiveError>>> {
 }
 export declare const UpdateTimeToLive: UpdateTimeToLive;

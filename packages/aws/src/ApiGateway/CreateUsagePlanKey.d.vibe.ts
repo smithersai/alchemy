@@ -32,6 +32,6 @@ export interface CreateUsagePlanKeyRequest extends Omit<ag.CreateUsagePlanKeyReq
  *
  * @binding
  */
-export interface CreateUsagePlanKey extends Binding.Service<CreateUsagePlanKey, "AWS.ApiGateway.CreateUsagePlanKey", <P extends UsagePlan>(usagePlan: P) => Effect.Effect<((request: CreateUsagePlanKeyRequest) => Effect.Effect<ag.UsagePlanKey, ag.CreateUsagePlanKeyError>)>> {
+export interface CreateUsagePlanKey extends Binding.Service<CreateUsagePlanKey, "AWS.ApiGateway.CreateUsagePlanKey", <P extends UsagePlan>(usagePlan: P) => Effect.Effect<(request: CreateUsagePlanKeyRequest) => Effect.Effect<ag.UsagePlanKey, ag.CreateUsagePlanKeyError>>> {
 }
 export declare const CreateUsagePlanKey: CreateUsagePlanKey;

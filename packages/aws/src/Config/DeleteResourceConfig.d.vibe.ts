@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteResourceConfig extends Binding.Service<DeleteResourceConfig, "AWS.Config.DeleteResourceConfig", () => Effect.Effect<((request: config.DeleteResourceConfigRequest) => Effect.Effect<config.DeleteResourceConfigResponse, config.DeleteResourceConfigError>)>> {
+export interface DeleteResourceConfig extends Binding.Service<DeleteResourceConfig, "AWS.Config.DeleteResourceConfig", () => Effect.Effect<(request: config.DeleteResourceConfigRequest) => Effect.Effect<config.DeleteResourceConfigResponse, config.DeleteResourceConfigError>>> {
 }
 export declare const DeleteResourceConfig: DeleteResourceConfig;

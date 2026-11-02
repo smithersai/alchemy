@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DetectToxicContent extends Binding.Service<DetectToxicContent, "AWS.Comprehend.DetectToxicContent", () => Effect.Effect<((request: comprehend.DetectToxicContentRequest) => Effect.Effect<comprehend.DetectToxicContentResponse, comprehend.DetectToxicContentError>)>> {
+export interface DetectToxicContent extends Binding.Service<DetectToxicContent, "AWS.Comprehend.DetectToxicContent", () => Effect.Effect<(request: comprehend.DetectToxicContentRequest) => Effect.Effect<comprehend.DetectToxicContentResponse, comprehend.DetectToxicContentError>>> {
 }
 export declare const DetectToxicContent: DetectToxicContent;

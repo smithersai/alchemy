@@ -28,6 +28,6 @@ export interface StopRuntimeSessionRequest extends Omit<agentcore.StopRuntimeSes
  *
  * @binding
  */
-export interface StopRuntimeSession extends Binding.Service<StopRuntimeSession, "AWS.BedrockAgentCore.StopRuntimeSession", <R extends Runtime>(runtime: R) => Effect.Effect<((request: StopRuntimeSessionRequest) => Effect.Effect<agentcore.StopRuntimeSessionResponse, agentcore.StopRuntimeSessionError>)>> {
+export interface StopRuntimeSession extends Binding.Service<StopRuntimeSession, "AWS.BedrockAgentCore.StopRuntimeSession", <R extends Runtime>(runtime: R) => Effect.Effect<(request: StopRuntimeSessionRequest) => Effect.Effect<agentcore.StopRuntimeSessionResponse, agentcore.StopRuntimeSessionError>>> {
 }
 export declare const StopRuntimeSession: StopRuntimeSession;

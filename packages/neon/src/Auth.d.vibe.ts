@@ -4,7 +4,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import { InvalidBranchScope, type BranchScope } from "./BranchScope.js";
+import { InvalidBranchScope, type BranchScope } from "./BranchScope.ts";
 import type { Providers } from "./Providers.vibe";
 /** Unspecified settings are preserved. Removing previously managed settings requires an explicit reset value. */
 export type AuthProps = BranchScope & {

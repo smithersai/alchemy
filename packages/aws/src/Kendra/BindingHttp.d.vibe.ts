@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import type { DataSource } from "./DataSource.js";
-import type { Index } from "./SearchIndex.js";
+import type { DataSource } from "./DataSource.ts";
+import type { Index } from "./SearchIndex.ts";
 /**
  * Shared scaffolding for AWS Kendra HTTP bindings.
  *
@@ -31,7 +31,7 @@ export declare const makeKendraIndexHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Kendra.Query`. */
     tag: string;
     /** The distilled operation; `IndexId` is injected from the index. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the index ARN. */
     actions: readonly string[];
     /**
@@ -60,7 +60,7 @@ export declare const makeKendraDataSourceHttpBinding: <I extends {
      * The distilled operation; `Id` and `IndexId` are injected from the data
      * source.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the data source ARN + its parent index ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(dataSource: DataSource) => Effect.Effect<(request?: Omit<I, "IndexId" | "Id"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

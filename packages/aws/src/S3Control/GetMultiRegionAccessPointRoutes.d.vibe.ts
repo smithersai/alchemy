@@ -1,7 +1,7 @@
 import type * as s3control from "@distilled.cloud/aws/s3-control";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { MultiRegionAccessPoint } from "./MultiRegionAccessPoint.js";
+import type { MultiRegionAccessPoint } from "./MultiRegionAccessPoint.ts";
 /**
  * Runtime binding for `s3:GetMultiRegionAccessPointRoutes`.
  *
@@ -24,6 +24,6 @@ import type { MultiRegionAccessPoint } from "./MultiRegionAccessPoint.js";
  *
  * @binding
  */
-export interface GetMultiRegionAccessPointRoutes extends Binding.Service<GetMultiRegionAccessPointRoutes, "AWS.S3Control.GetMultiRegionAccessPointRoutes", (mrap: MultiRegionAccessPoint) => Effect.Effect<(() => Effect.Effect<s3control.GetMultiRegionAccessPointRoutesResult, s3control.GetMultiRegionAccessPointRoutesError>)>> {
+export interface GetMultiRegionAccessPointRoutes extends Binding.Service<GetMultiRegionAccessPointRoutes, "AWS.S3Control.GetMultiRegionAccessPointRoutes", (mrap: MultiRegionAccessPoint) => Effect.Effect<() => Effect.Effect<s3control.GetMultiRegionAccessPointRoutesResult, s3control.GetMultiRegionAccessPointRoutesError>>> {
 }
 export declare const GetMultiRegionAccessPointRoutes: GetMultiRegionAccessPointRoutes;

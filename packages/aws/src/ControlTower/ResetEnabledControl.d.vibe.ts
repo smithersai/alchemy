@@ -23,6 +23,6 @@ import type { EnabledControl } from "./EnabledControl.vibe";
  *
  * @binding
  */
-export interface ResetEnabledControl extends Binding.Service<ResetEnabledControl, "AWS.ControlTower.ResetEnabledControl", (enabledControl: EnabledControl) => Effect.Effect<(() => Effect.Effect<controltower.ResetEnabledControlOutput, controltower.ResetEnabledControlError>)>> {
+export interface ResetEnabledControl extends Binding.Service<ResetEnabledControl, "AWS.ControlTower.ResetEnabledControl", (enabledControl: EnabledControl) => Effect.Effect<() => Effect.Effect<controltower.ResetEnabledControlOutput, controltower.ResetEnabledControlError>>> {
 }
 export declare const ResetEnabledControl: ResetEnabledControl;

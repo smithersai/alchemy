@@ -1,6 +1,6 @@
 import * as appengine from "@distilled.cloud/gcp/appengine_v1";
 import * as Effect from "effect/Effect";
-import { GcpEnvironment } from "../Environment.js";
+import { GcpEnvironment } from "../Environment.ts";
 export declare const DEFAULT_LOCATION = "us-central";
 export declare const DEFAULT_SERVICE = "default";
 export declare const DEFAULT_ACTION = "ALLOW";
@@ -34,7 +34,7 @@ export declare const rfc1035: (name: string, maxLength: number) => string;
 export declare const toResourceId: (id: string, requested: string | undefined, existing: string | undefined, maxLength?: number) => Effect.Effect<string, never, import("alchemy/ResourceContext").ResourceContext | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
 export declare const toDisplayName: (id: string, requested: string | undefined, existing: string | undefined) => Effect.Effect<string, never, import("alchemy/ResourceContext").ResourceContext | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
 export declare const toPriority: (id: string, requested: number | undefined, existing: number | undefined) => Effect.Effect<number, never, import("alchemy/ResourceContext").ResourceContext | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
-export declare const resolveAppsId: (requested: string | undefined, existing: string | undefined) => Effect.Effect<string, import("../Environment.js").GcpProjectMissing, GcpEnvironment>;
+export declare const resolveAppsId: (requested: string | undefined, existing: string | undefined) => Effect.Effect<string, import("../Environment.ts").GcpProjectMissing, GcpEnvironment>;
 export declare const getApplication: (appsId: string) => Effect.Effect<appengine.Application | undefined, appengine.Forbidden | appengine.ServiceDisabled | appengine.GcpOpError, appengine.GcpOpContext>;
 export declare const resolveLocation: (requested: string | undefined, existing: string | undefined, appsId: string) => Effect.Effect<string, appengine.Forbidden | appengine.ServiceDisabled | appengine.GcpOpError, appengine.GcpOpContext>;
 export declare const catchMissing: <A, E extends {

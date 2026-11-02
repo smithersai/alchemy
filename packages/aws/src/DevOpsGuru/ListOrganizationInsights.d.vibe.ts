@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListOrganizationInsights extends Binding.Service<ListOrganizationInsights, "AWS.DevOpsGuru.ListOrganizationInsights", () => Effect.Effect<((request: devopsguru.ListOrganizationInsightsRequest) => Effect.Effect<devopsguru.ListOrganizationInsightsResponse, devopsguru.ListOrganizationInsightsError>)>> {
+export interface ListOrganizationInsights extends Binding.Service<ListOrganizationInsights, "AWS.DevOpsGuru.ListOrganizationInsights", () => Effect.Effect<(request: devopsguru.ListOrganizationInsightsRequest) => Effect.Effect<devopsguru.ListOrganizationInsightsResponse, devopsguru.ListOrganizationInsightsError>>> {
 }
 export declare const ListOrganizationInsights: ListOrganizationInsights;

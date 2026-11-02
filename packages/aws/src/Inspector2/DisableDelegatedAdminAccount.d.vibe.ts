@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DisableDelegatedAdminAccount extends Binding.Service<DisableDelegatedAdminAccount, "AWS.Inspector2.DisableDelegatedAdminAccount", () => Effect.Effect<((request: inspector2.DisableDelegatedAdminAccountRequest) => Effect.Effect<inspector2.DisableDelegatedAdminAccountResponse, inspector2.DisableDelegatedAdminAccountError>)>> {
+export interface DisableDelegatedAdminAccount extends Binding.Service<DisableDelegatedAdminAccount, "AWS.Inspector2.DisableDelegatedAdminAccount", () => Effect.Effect<(request: inspector2.DisableDelegatedAdminAccountRequest) => Effect.Effect<inspector2.DisableDelegatedAdminAccountResponse, inspector2.DisableDelegatedAdminAccountError>>> {
 }
 export declare const DisableDelegatedAdminAccount: DisableDelegatedAdminAccount;

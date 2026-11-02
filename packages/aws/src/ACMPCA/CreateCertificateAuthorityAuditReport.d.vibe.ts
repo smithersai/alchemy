@@ -32,6 +32,6 @@ export interface CreateCertificateAuthorityAuditReportRequest extends Omit<acmpc
  *
  * @binding
  */
-export interface CreateCertificateAuthorityAuditReport extends Binding.Service<CreateCertificateAuthorityAuditReport, "AWS.ACMPCA.CreateCertificateAuthorityAuditReport", (certificateAuthority: CertificateAuthority) => Effect.Effect<((request: CreateCertificateAuthorityAuditReportRequest) => Effect.Effect<acmpca.CreateCertificateAuthorityAuditReportResponse, acmpca.CreateCertificateAuthorityAuditReportError>)>> {
+export interface CreateCertificateAuthorityAuditReport extends Binding.Service<CreateCertificateAuthorityAuditReport, "AWS.ACMPCA.CreateCertificateAuthorityAuditReport", (certificateAuthority: CertificateAuthority) => Effect.Effect<(request: CreateCertificateAuthorityAuditReportRequest) => Effect.Effect<acmpca.CreateCertificateAuthorityAuditReportResponse, acmpca.CreateCertificateAuthorityAuditReportError>>> {
 }
 export declare const CreateCertificateAuthorityAuditReport: CreateCertificateAuthorityAuditReport;

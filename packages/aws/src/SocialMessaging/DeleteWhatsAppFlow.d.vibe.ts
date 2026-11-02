@@ -31,6 +31,6 @@ export interface DeleteWhatsAppFlowRequest extends Omit<socialmessaging.DeleteWh
  *
  * @binding
  */
-export interface DeleteWhatsAppFlow extends Binding.Service<DeleteWhatsAppFlow, "AWS.SocialMessaging.DeleteWhatsAppFlow", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: DeleteWhatsAppFlowRequest) => Effect.Effect<socialmessaging.DeleteWhatsAppFlowOutput, socialmessaging.DeleteWhatsAppFlowError>)>> {
+export interface DeleteWhatsAppFlow extends Binding.Service<DeleteWhatsAppFlow, "AWS.SocialMessaging.DeleteWhatsAppFlow", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: DeleteWhatsAppFlowRequest) => Effect.Effect<socialmessaging.DeleteWhatsAppFlowOutput, socialmessaging.DeleteWhatsAppFlowError>>> {
 }
 export declare const DeleteWhatsAppFlow: DeleteWhatsAppFlow;

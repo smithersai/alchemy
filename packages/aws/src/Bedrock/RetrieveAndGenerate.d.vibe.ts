@@ -48,6 +48,6 @@ export interface RetrieveAndGenerateRequest extends bedrock.RetrieveAndGenerateR
  *
  * @binding
  */
-export interface RetrieveAndGenerate extends Binding.Service<RetrieveAndGenerate, "AWS.Bedrock.RetrieveAndGenerate", <K extends KnowledgeBase>(knowledgeBase: K, ...models: string[]) => Effect.Effect<((request: RetrieveAndGenerateRequest) => Effect.Effect<bedrock.RetrieveAndGenerateResponse, bedrock.RetrieveAndGenerateError>)>> {
+export interface RetrieveAndGenerate extends Binding.Service<RetrieveAndGenerate, "AWS.Bedrock.RetrieveAndGenerate", <K extends KnowledgeBase>(knowledgeBase: K, ...models: string[]) => Effect.Effect<(request: RetrieveAndGenerateRequest) => Effect.Effect<bedrock.RetrieveAndGenerateResponse, bedrock.RetrieveAndGenerateError>>> {
 }
 export declare const RetrieveAndGenerate: RetrieveAndGenerate;

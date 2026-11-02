@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListDataSets extends Binding.Service<ListDataSets, "AWS.DataExchange.ListDataSets", () => Effect.Effect<((request?: dataexchange.ListDataSetsRequest) => Effect.Effect<dataexchange.ListDataSetsResponse, dataexchange.ListDataSetsError>)>> {
+export interface ListDataSets extends Binding.Service<ListDataSets, "AWS.DataExchange.ListDataSets", () => Effect.Effect<(request?: dataexchange.ListDataSetsRequest) => Effect.Effect<dataexchange.ListDataSetsResponse, dataexchange.ListDataSetsError>>> {
 }
 export declare const ListDataSets: ListDataSets;

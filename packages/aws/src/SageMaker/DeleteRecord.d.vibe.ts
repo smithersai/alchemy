@@ -28,6 +28,6 @@ export interface DeleteRecordRequest extends Omit<featurestore.DeleteRecordReque
  *
  * @binding
  */
-export interface DeleteRecord extends Binding.Service<DeleteRecord, "AWS.SageMaker.DeleteRecord", <F extends FeatureGroup>(featureGroup: F) => Effect.Effect<((request: DeleteRecordRequest) => Effect.Effect<featurestore.DeleteRecordResponse, featurestore.DeleteRecordError>)>> {
+export interface DeleteRecord extends Binding.Service<DeleteRecord, "AWS.SageMaker.DeleteRecord", <F extends FeatureGroup>(featureGroup: F) => Effect.Effect<(request: DeleteRecordRequest) => Effect.Effect<featurestore.DeleteRecordResponse, featurestore.DeleteRecordError>>> {
 }
 export declare const DeleteRecord: DeleteRecord;

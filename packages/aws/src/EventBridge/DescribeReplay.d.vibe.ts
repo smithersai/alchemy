@@ -23,6 +23,6 @@ export interface DescribeReplayRequest extends eventbridge.DescribeReplayRequest
  *
  * @binding
  */
-export interface DescribeReplay extends Binding.Service<DescribeReplay, "AWS.EventBridge.DescribeReplay", () => Effect.Effect<((request: DescribeReplayRequest) => Effect.Effect<eventbridge.DescribeReplayResponse, eventbridge.DescribeReplayError>)>> {
+export interface DescribeReplay extends Binding.Service<DescribeReplay, "AWS.EventBridge.DescribeReplay", () => Effect.Effect<(request: DescribeReplayRequest) => Effect.Effect<eventbridge.DescribeReplayResponse, eventbridge.DescribeReplayError>>> {
 }
 export declare const DescribeReplay: DescribeReplay;

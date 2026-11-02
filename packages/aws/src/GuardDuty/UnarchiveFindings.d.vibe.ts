@@ -21,6 +21,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface UnarchiveFindings extends Binding.Service<UnarchiveFindings, "AWS.GuardDuty.UnarchiveFindings", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.UnarchiveFindingsRequest, "DetectorId">) => Effect.Effect<guardduty.UnarchiveFindingsResponse, guardduty.UnarchiveFindingsError>)>> {
+export interface UnarchiveFindings extends Binding.Service<UnarchiveFindings, "AWS.GuardDuty.UnarchiveFindings", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.UnarchiveFindingsRequest, "DetectorId">) => Effect.Effect<guardduty.UnarchiveFindingsResponse, guardduty.UnarchiveFindingsError>>> {
 }
 export declare const UnarchiveFindings: UnarchiveFindings;

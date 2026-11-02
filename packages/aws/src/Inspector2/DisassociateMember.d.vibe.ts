@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DisassociateMember extends Binding.Service<DisassociateMember, "AWS.Inspector2.DisassociateMember", () => Effect.Effect<((request: inspector2.DisassociateMemberRequest) => Effect.Effect<inspector2.DisassociateMemberResponse, inspector2.DisassociateMemberError>)>> {
+export interface DisassociateMember extends Binding.Service<DisassociateMember, "AWS.Inspector2.DisassociateMember", () => Effect.Effect<(request: inspector2.DisassociateMemberRequest) => Effect.Effect<inspector2.DisassociateMemberResponse, inspector2.DisassociateMemberError>>> {
 }
 export declare const DisassociateMember: DisassociateMember;

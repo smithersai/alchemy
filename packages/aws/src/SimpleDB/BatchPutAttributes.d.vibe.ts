@@ -32,6 +32,6 @@ export interface BatchPutAttributesRequest extends Omit<sdb.BatchPutAttributesRe
  *
  * @binding
  */
-export interface BatchPutAttributes extends Binding.Service<BatchPutAttributes, "AWS.SimpleDB.BatchPutAttributes", (domain: Domain) => Effect.Effect<((request: BatchPutAttributesRequest) => Effect.Effect<sdb.BatchPutAttributesResponse, sdb.BatchPutAttributesError, RuntimeContext>)>> {
+export interface BatchPutAttributes extends Binding.Service<BatchPutAttributes, "AWS.SimpleDB.BatchPutAttributes", (domain: Domain) => Effect.Effect<(request: BatchPutAttributesRequest) => Effect.Effect<sdb.BatchPutAttributesResponse, sdb.BatchPutAttributesError, RuntimeContext>>> {
 }
 export declare const BatchPutAttributes: BatchPutAttributes;

@@ -24,6 +24,6 @@ import type { TrustStore } from "./TrustStore.vibe";
  *
  * @binding
  */
-export interface GetTrustStoreCaCertificatesBundle extends Binding.Service<GetTrustStoreCaCertificatesBundle, "AWS.ELBv2.GetTrustStoreCaCertificatesBundle", (trustStore: TrustStore) => Effect.Effect<((request?: Omit<elbv2.GetTrustStoreCaCertificatesBundleInput, "TrustStoreArn">) => Effect.Effect<elbv2.GetTrustStoreCaCertificatesBundleOutput, elbv2.GetTrustStoreCaCertificatesBundleError>)>> {
+export interface GetTrustStoreCaCertificatesBundle extends Binding.Service<GetTrustStoreCaCertificatesBundle, "AWS.ELBv2.GetTrustStoreCaCertificatesBundle", (trustStore: TrustStore) => Effect.Effect<(request?: Omit<elbv2.GetTrustStoreCaCertificatesBundleInput, "TrustStoreArn">) => Effect.Effect<elbv2.GetTrustStoreCaCertificatesBundleOutput, elbv2.GetTrustStoreCaCertificatesBundleError>>> {
 }
 export declare const GetTrustStoreCaCertificatesBundle: GetTrustStoreCaCertificatesBundle;

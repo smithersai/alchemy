@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { Repository } from "./Repository.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
+import type { Repository } from "./Repository.ts";
 /**
  * Shared HTTP scaffolding for Cloud Build v2 repository bindings.
  * NOT exported from index.ts.

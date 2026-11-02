@@ -2,8 +2,8 @@ import type { CreateTunnelCloudflaredError, CreateTunnelCloudflaredRequest, Crea
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { CloudflareEnvironment } from "../CloudflareEnvironment.js";
-import type { Worker } from "../Workers/Worker.js";
+import type { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import type { Worker } from "../Workers/Worker.ts";
 import { type TunnelAuth } from "./TunnelBinding.vibe";
 /**
  * Binding that lets a Worker create, update, and delete Cloudflare Tunnels at

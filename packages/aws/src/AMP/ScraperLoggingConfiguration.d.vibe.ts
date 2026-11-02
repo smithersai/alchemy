@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface ScraperComponentConfig {
     /**
      * The scraper component the logging applies to (e.g. `"SERVICE_DISCOVERY"`,

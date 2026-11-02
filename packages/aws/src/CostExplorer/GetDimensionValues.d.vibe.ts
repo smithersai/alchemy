@@ -29,6 +29,6 @@ export interface GetDimensionValuesRequest extends ce.GetDimensionValuesRequest 
  *
  * @binding
  */
-export interface GetDimensionValues extends Binding.Service<GetDimensionValues, "AWS.CostExplorer.GetDimensionValues", () => Effect.Effect<((request: GetDimensionValuesRequest) => Effect.Effect<ce.GetDimensionValuesResponse, ce.GetDimensionValuesError>)>> {
+export interface GetDimensionValues extends Binding.Service<GetDimensionValues, "AWS.CostExplorer.GetDimensionValues", () => Effect.Effect<(request: GetDimensionValuesRequest) => Effect.Effect<ce.GetDimensionValuesResponse, ce.GetDimensionValuesError>>> {
 }
 export declare const GetDimensionValues: GetDimensionValues;

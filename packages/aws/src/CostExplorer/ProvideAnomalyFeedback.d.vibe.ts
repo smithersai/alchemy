@@ -29,6 +29,6 @@ export interface ProvideAnomalyFeedbackRequest extends ce.ProvideAnomalyFeedback
  *
  * @binding
  */
-export interface ProvideAnomalyFeedback extends Binding.Service<ProvideAnomalyFeedback, "AWS.CostExplorer.ProvideAnomalyFeedback", () => Effect.Effect<((request: ProvideAnomalyFeedbackRequest) => Effect.Effect<ce.ProvideAnomalyFeedbackResponse, ce.ProvideAnomalyFeedbackError>)>> {
+export interface ProvideAnomalyFeedback extends Binding.Service<ProvideAnomalyFeedback, "AWS.CostExplorer.ProvideAnomalyFeedback", () => Effect.Effect<(request: ProvideAnomalyFeedbackRequest) => Effect.Effect<ce.ProvideAnomalyFeedbackResponse, ce.ProvideAnomalyFeedbackError>>> {
 }
 export declare const ProvideAnomalyFeedback: ProvideAnomalyFeedback;

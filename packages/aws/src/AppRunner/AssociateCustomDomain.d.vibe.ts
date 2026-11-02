@@ -28,6 +28,6 @@ export interface AssociateCustomDomainRequest extends Omit<apprunner.AssociateCu
  *
  * @binding
  */
-export interface AssociateCustomDomain extends Binding.Service<AssociateCustomDomain, "AWS.AppRunner.AssociateCustomDomain", (service: Service) => Effect.Effect<((request: AssociateCustomDomainRequest) => Effect.Effect<apprunner.AssociateCustomDomainResponse, apprunner.AssociateCustomDomainError>)>> {
+export interface AssociateCustomDomain extends Binding.Service<AssociateCustomDomain, "AWS.AppRunner.AssociateCustomDomain", (service: Service) => Effect.Effect<(request: AssociateCustomDomainRequest) => Effect.Effect<apprunner.AssociateCustomDomainResponse, apprunner.AssociateCustomDomainError>>> {
 }
 export declare const AssociateCustomDomain: AssociateCustomDomain;

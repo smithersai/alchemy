@@ -26,6 +26,6 @@ export interface BatchGetDevicePositionRequest extends Omit<location.BatchGetDev
  *
  * @binding
  */
-export interface BatchGetDevicePosition extends Binding.Service<BatchGetDevicePosition, "AWS.Location.BatchGetDevicePosition", (tracker: Tracker) => Effect.Effect<((request: BatchGetDevicePositionRequest) => Effect.Effect<location.BatchGetDevicePositionResponse, location.BatchGetDevicePositionError>)>> {
+export interface BatchGetDevicePosition extends Binding.Service<BatchGetDevicePosition, "AWS.Location.BatchGetDevicePosition", (tracker: Tracker) => Effect.Effect<(request: BatchGetDevicePositionRequest) => Effect.Effect<location.BatchGetDevicePositionResponse, location.BatchGetDevicePositionError>>> {
 }
 export declare const BatchGetDevicePosition: BatchGetDevicePosition;

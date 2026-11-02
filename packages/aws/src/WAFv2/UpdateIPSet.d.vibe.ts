@@ -1,7 +1,7 @@
 import type * as WAFV2 from "@distilled.cloud/aws/wafv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { IPSet } from "./IPSet.js";
+import type { IPSet } from "./IPSet.ts";
 export interface UpdateIPSetRequest {
     /**
      * The complete new set of IP addresses and CIDR ranges — WAF replaces
@@ -37,6 +37,6 @@ export interface UpdateIPSetRequest {
  *
  * @binding
  */
-export interface UpdateIPSet extends Binding.Service<UpdateIPSet, "AWS.WAFv2.UpdateIPSet", (ipSet: IPSet) => Effect.Effect<((request: UpdateIPSetRequest) => Effect.Effect<WAFV2.UpdateIPSetResponse, WAFV2.GetIPSetError | WAFV2.UpdateIPSetError>)>> {
+export interface UpdateIPSet extends Binding.Service<UpdateIPSet, "AWS.WAFv2.UpdateIPSet", (ipSet: IPSet) => Effect.Effect<(request: UpdateIPSetRequest) => Effect.Effect<WAFV2.UpdateIPSetResponse, WAFV2.GetIPSetError | WAFV2.UpdateIPSetError>>> {
 }
 export declare const UpdateIPSet: UpdateIPSet;

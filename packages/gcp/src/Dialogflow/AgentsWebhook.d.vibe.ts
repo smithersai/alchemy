@@ -1,8 +1,8 @@
 import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type WebhookHttpMethod = "HTTP_METHOD_UNSPECIFIED" | "POST" | "GET" | "HEAD" | "PUT" | "DELETE" | "PATCH" | "OPTIONS";
 export type WebhookType = "WEBHOOK_TYPE_UNSPECIFIED" | "STANDARD" | "FLEXIBLE";
 export type WebhookServiceAgentAuth = "SERVICE_AGENT_AUTH_UNSPECIFIED" | "NONE" | "ID_TOKEN" | "ACCESS_TOKEN";

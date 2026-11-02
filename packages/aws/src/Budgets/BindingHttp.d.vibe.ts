@@ -26,7 +26,7 @@ export declare const makeBudgetHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Budgets.DescribeBudget`. */
     tag: string;
     /** The distilled operation; `AccountId`/`BudgetName` are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the budget ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(budget: Budget) => Effect.Effect<(request?: Omit<I, "AccountId" | "BudgetName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -44,7 +44,7 @@ export declare const makeBudgetActionHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Budgets.ExecuteBudgetAction`. */
     tag: string;
     /** The distilled operation; the action identifiers are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the budget action ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(action: BudgetAction) => Effect.Effect<(request: Omit<I, "AccountId" | "BudgetName" | "ActionId">) => Effect.Effect<A, E, never>, never, never>, never, never>;

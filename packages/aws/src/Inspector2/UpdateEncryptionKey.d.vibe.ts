@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateEncryptionKey extends Binding.Service<UpdateEncryptionKey, "AWS.Inspector2.UpdateEncryptionKey", () => Effect.Effect<((request: inspector2.UpdateEncryptionKeyRequest) => Effect.Effect<inspector2.UpdateEncryptionKeyResponse, inspector2.UpdateEncryptionKeyError>)>> {
+export interface UpdateEncryptionKey extends Binding.Service<UpdateEncryptionKey, "AWS.Inspector2.UpdateEncryptionKey", () => Effect.Effect<(request: inspector2.UpdateEncryptionKeyRequest) => Effect.Effect<inspector2.UpdateEncryptionKeyResponse, inspector2.UpdateEncryptionKeyError>>> {
 }
 export declare const UpdateEncryptionKey: UpdateEncryptionKey;

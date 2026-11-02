@@ -24,6 +24,6 @@ import type { Queue } from "./Queue.vibe";
  *
  * @binding
  */
-export interface SearchTasks extends Binding.Service<SearchTasks, "AWS.Deadline.SearchTasks", (queue: Queue) => Effect.Effect<((request: Omit<deadline.SearchTasksRequest, "farmId" | "queueIds">) => Effect.Effect<deadline.SearchTasksResponse, deadline.SearchTasksError>)>> {
+export interface SearchTasks extends Binding.Service<SearchTasks, "AWS.Deadline.SearchTasks", (queue: Queue) => Effect.Effect<(request: Omit<deadline.SearchTasksRequest, "farmId" | "queueIds">) => Effect.Effect<deadline.SearchTasksResponse, deadline.SearchTasksError>>> {
 }
 export declare const SearchTasks: SearchTasks;

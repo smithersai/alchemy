@@ -30,6 +30,6 @@ export interface GetServiceGraphRequest extends xray.GetServiceGraphRequest {
  *
  * @binding
  */
-export interface GetServiceGraph extends Binding.Service<GetServiceGraph, "AWS.XRay.GetServiceGraph", () => Effect.Effect<((request: GetServiceGraphRequest) => Effect.Effect<xray.GetServiceGraphResult, xray.GetServiceGraphError>)>> {
+export interface GetServiceGraph extends Binding.Service<GetServiceGraph, "AWS.XRay.GetServiceGraph", () => Effect.Effect<(request: GetServiceGraphRequest) => Effect.Effect<xray.GetServiceGraphResult, xray.GetServiceGraphError>>> {
 }
 export declare const GetServiceGraph: GetServiceGraph;

@@ -1,7 +1,7 @@
 import type * as emr from "@distilled.cloud/aws/emr-serverless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 /**
  * Request accepted by the {@link StartJobRun} runtime callable. The
  * `applicationId` is injected from the bound {@link Application}; the
@@ -46,6 +46,6 @@ export type StartJobRunInput = Omit<emr.StartJobRunRequest, "applicationId" | "c
  *
  * @binding
  */
-export interface StartJobRun extends Binding.Service<StartJobRun, "AWS.EMRServerless.StartJobRun", (application: Application) => Effect.Effect<((request: StartJobRunInput) => Effect.Effect<emr.StartJobRunResponse, emr.StartJobRunError>)>> {
+export interface StartJobRun extends Binding.Service<StartJobRun, "AWS.EMRServerless.StartJobRun", (application: Application) => Effect.Effect<(request: StartJobRunInput) => Effect.Effect<emr.StartJobRunResponse, emr.StartJobRunError>>> {
 }
 export declare const StartJobRun: StartJobRun;

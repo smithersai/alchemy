@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import type { HttpEffect } from "../Http.js";
-import type { BaseRuntimeContext } from "../RuntimeContext.js";
+import type { HttpEffect } from "../Http.ts";
+import type { BaseRuntimeContext } from "../RuntimeContext.ts";
 export interface FunctionContext extends BaseRuntimeContext {
     /**
      * Register an HTTP handler. The optional `shape` payload is the user's

@@ -31,6 +31,6 @@ export interface CreatePrefetchScheduleRequest extends Omit<mediatailor.CreatePr
  *
  * @binding
  */
-export interface CreatePrefetchSchedule extends Binding.Service<CreatePrefetchSchedule, "AWS.MediaTailor.CreatePrefetchSchedule", (config: PlaybackConfiguration) => Effect.Effect<((request: CreatePrefetchScheduleRequest) => Effect.Effect<mediatailor.CreatePrefetchScheduleResponse, mediatailor.CreatePrefetchScheduleError>)>> {
+export interface CreatePrefetchSchedule extends Binding.Service<CreatePrefetchSchedule, "AWS.MediaTailor.CreatePrefetchSchedule", (config: PlaybackConfiguration) => Effect.Effect<(request: CreatePrefetchScheduleRequest) => Effect.Effect<mediatailor.CreatePrefetchScheduleResponse, mediatailor.CreatePrefetchScheduleError>>> {
 }
 export declare const CreatePrefetchSchedule: CreatePrefetchSchedule;

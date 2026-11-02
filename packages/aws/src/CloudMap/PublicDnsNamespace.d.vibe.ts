@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface PublicDnsNamespaceProps {
     /**
      * Name of the namespace — must be a domain name you intend to serve

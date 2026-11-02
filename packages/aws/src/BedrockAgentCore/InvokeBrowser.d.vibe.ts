@@ -33,6 +33,6 @@ export interface InvokeBrowserRequest extends Omit<agentcore.InvokeBrowserReques
  *
  * @binding
  */
-export interface InvokeBrowser extends Binding.Service<InvokeBrowser, "AWS.BedrockAgentCore.InvokeBrowser", <R extends BrowserCustom>(browser: R) => Effect.Effect<((request: InvokeBrowserRequest) => Effect.Effect<agentcore.InvokeBrowserResponse, agentcore.InvokeBrowserError>)>> {
+export interface InvokeBrowser extends Binding.Service<InvokeBrowser, "AWS.BedrockAgentCore.InvokeBrowser", <R extends BrowserCustom>(browser: R) => Effect.Effect<(request: InvokeBrowserRequest) => Effect.Effect<agentcore.InvokeBrowserResponse, agentcore.InvokeBrowserError>>> {
 }
 export declare const InvokeBrowser: InvokeBrowser;

@@ -17,7 +17,7 @@
  *   instead of growing memory.
  */
 import * as Effect from "effect/Effect";
-import type { RandomAccess } from "../Protocol/PackParser.js";
+import type { RandomAccess } from "../Protocol/PackParser.ts";
 import { StoreError } from "../Protocol/Store.vibe";
 export declare const SLAB_BYTES: number;
 export declare const RETAIN_BYTES: number;

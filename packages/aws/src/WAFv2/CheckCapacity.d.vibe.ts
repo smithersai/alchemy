@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CheckCapacity extends Binding.Service<CheckCapacity, "AWS.WAFv2.CheckCapacity", () => Effect.Effect<((request: WAFV2.CheckCapacityRequest) => Effect.Effect<WAFV2.CheckCapacityResponse, WAFV2.CheckCapacityError>)>> {
+export interface CheckCapacity extends Binding.Service<CheckCapacity, "AWS.WAFv2.CheckCapacity", () => Effect.Effect<(request: WAFV2.CheckCapacityRequest) => Effect.Effect<WAFV2.CheckCapacityResponse, WAFV2.CheckCapacityError>>> {
 }
 export declare const CheckCapacity: CheckCapacity;

@@ -1,7 +1,7 @@
 import * as Pulls from "@distilled.cloud/github/pulls";
 import type { Self } from "alchemy/Self";
 import * as Layer from "effect/Layer";
-import * as BindingHttp from "./BindingHttp.js";
+import * as BindingHttp from "./BindingHttp.ts";
 import { GetPullRequest, type GetPullRequestRequest } from "./GetPullRequest.vibe";
 export declare const getPullRequestOperation: BindingHttp.Operation<[GetPullRequestRequest], string | Pulls.PullRequest, Pulls.GetError>;
 /**

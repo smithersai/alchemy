@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateStarterMappingTemplate extends Binding.Service<CreateStarterMappingTemplate, "AWS.B2BI.CreateStarterMappingTemplate", () => Effect.Effect<((request: b2bi.CreateStarterMappingTemplateRequest) => Effect.Effect<b2bi.CreateStarterMappingTemplateResponse, b2bi.CreateStarterMappingTemplateError>)>> {
+export interface CreateStarterMappingTemplate extends Binding.Service<CreateStarterMappingTemplate, "AWS.B2BI.CreateStarterMappingTemplate", () => Effect.Effect<(request: b2bi.CreateStarterMappingTemplateRequest) => Effect.Effect<b2bi.CreateStarterMappingTemplateResponse, b2bi.CreateStarterMappingTemplateError>>> {
 }
 export declare const CreateStarterMappingTemplate: CreateStarterMappingTemplate;

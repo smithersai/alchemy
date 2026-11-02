@@ -2,7 +2,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { Postgres } from "./Postgres.js";
+import type { Postgres } from "./Postgres.ts";
 /**
  * Bind a {@link Postgres} cluster to a Fly {@link Service} and obtain
  * the Effect-native connection strings for `Drizzle.Postgres` /

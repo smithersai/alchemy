@@ -29,6 +29,6 @@ export interface SetSubscriptionAttributesRequest extends Omit<sns.SetSubscripti
  *
  * @binding
  */
-export interface SetSubscriptionAttributes extends Binding.Service<SetSubscriptionAttributes, "AWS.SNS.SetSubscriptionAttributes", (subscription: Subscription) => Effect.Effect<((request: SetSubscriptionAttributesRequest) => Effect.Effect<sns.SetSubscriptionAttributesResponse, sns.SetSubscriptionAttributesError>)>> {
+export interface SetSubscriptionAttributes extends Binding.Service<SetSubscriptionAttributes, "AWS.SNS.SetSubscriptionAttributes", (subscription: Subscription) => Effect.Effect<(request: SetSubscriptionAttributesRequest) => Effect.Effect<sns.SetSubscriptionAttributesResponse, sns.SetSubscriptionAttributesError>>> {
 }
 export declare const SetSubscriptionAttributes: SetSubscriptionAttributes;

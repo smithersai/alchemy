@@ -33,6 +33,6 @@ export interface ExchangeDebugTokenRequest {
  * @binding
  * @category FirebaseAppCheck
  */
-export interface ExchangeDebugToken extends Binding.Service<ExchangeDebugToken, "GCP.FirebaseAppCheck.ExchangeDebugToken", (debugToken: AppsDebugToken) => Effect.Effect<((request?: ExchangeDebugTokenRequest) => Effect.Effect<firebaseappcheck.GoogleFirebaseAppcheckV1AppCheckToken, firebaseappcheck.ExchangeDebugTokenProjectsAppsError, RuntimeContext>)>> {
+export interface ExchangeDebugToken extends Binding.Service<ExchangeDebugToken, "GCP.FirebaseAppCheck.ExchangeDebugToken", (debugToken: AppsDebugToken) => Effect.Effect<(request?: ExchangeDebugTokenRequest) => Effect.Effect<firebaseappcheck.GoogleFirebaseAppcheckV1AppCheckToken, firebaseappcheck.ExchangeDebugTokenProjectsAppsError, RuntimeContext>>> {
 }
 export declare const ExchangeDebugToken: ExchangeDebugToken;

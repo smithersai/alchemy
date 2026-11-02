@@ -32,7 +32,7 @@ export declare const makeCodeDeployGroupNameHttpBinding: <I extends {
      * The distilled operation; `applicationName` and `deploymentGroupName`
      * are injected from the group.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the deployment-group ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<G extends DeploymentGroup>(group: G) => Effect.Effect<(request?: Omit<I, "applicationName" | "deploymentGroupName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -48,7 +48,7 @@ export declare const makeCodeDeployGroupHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.CodeDeploy.GetDeployment`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the deployment-group ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<G extends DeploymentGroup>(group: G) => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -64,7 +64,7 @@ export declare const makeCodeDeployApplicationHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.CodeDeploy.GetApplicationRevision`. */
     tag: string;
     /** The distilled operation; `applicationName` is injected from the app. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the application ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<P extends Application>(application: P) => Effect.Effect<(request?: Omit<I, "applicationName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

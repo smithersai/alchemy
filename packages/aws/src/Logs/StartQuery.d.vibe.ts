@@ -1,7 +1,7 @@
 import type * as Logs from "@distilled.cloud/aws/cloudwatch-logs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LogGroup } from "./LogGroup.js";
+import type { LogGroup } from "./LogGroup.ts";
 export interface StartQueryRequest extends Omit<Logs.StartQueryRequest, "logGroupName" | "logGroupNames" | "logGroupIdentifiers"> {
 }
 /**
@@ -54,6 +54,6 @@ export interface StartQueryRequest extends Omit<Logs.StartQueryRequest, "logGrou
  *
  * @binding
  */
-export interface StartQuery extends Binding.Service<StartQuery, "AWS.Logs.StartQuery", <G extends LogGroup>(logGroup: G) => Effect.Effect<((request: StartQueryRequest) => Effect.Effect<Logs.StartQueryResponse, Logs.StartQueryError>)>> {
+export interface StartQuery extends Binding.Service<StartQuery, "AWS.Logs.StartQuery", <G extends LogGroup>(logGroup: G) => Effect.Effect<(request: StartQueryRequest) => Effect.Effect<Logs.StartQueryResponse, Logs.StartQueryError>>> {
 }
 export declare const StartQuery: StartQuery;

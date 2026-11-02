@@ -1,7 +1,7 @@
 import * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface ListObjectsV2Request extends Omit<S3.ListObjectsV2Request, "Bucket"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface ListObjectsV2Request extends Omit<S3.ListObjectsV2Request, "Buc
  *
  * @binding
  */
-export interface ListObjectsV2 extends Binding.Service<ListObjectsV2, "AWS.S3.ListObjectsV2", (bucket: Bucket) => Effect.Effect<((request?: ListObjectsV2Request) => Effect.Effect<S3.ListObjectsV2Output, S3.ListObjectsV2Error>)>> {
+export interface ListObjectsV2 extends Binding.Service<ListObjectsV2, "AWS.S3.ListObjectsV2", (bucket: Bucket) => Effect.Effect<(request?: ListObjectsV2Request) => Effect.Effect<S3.ListObjectsV2Output, S3.ListObjectsV2Error>>> {
 }
 export declare const ListObjectsV2: ListObjectsV2;

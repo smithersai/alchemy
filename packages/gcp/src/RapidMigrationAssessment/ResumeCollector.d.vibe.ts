@@ -26,6 +26,6 @@ export interface ResumeCollectorRequest extends Omit<rma.ResumeProjectsLocations
  * @binding
  * @category RapidMigrationAssessment
  */
-export interface ResumeCollector extends Binding.Service<ResumeCollector, "GCP.RapidMigrationAssessment.ResumeCollector", (collector: Collector) => Effect.Effect<((request?: ResumeCollectorRequest) => Effect.Effect<rma.Operation, rma.ResumeProjectsLocationsCollectorsError, RuntimeContext>)>> {
+export interface ResumeCollector extends Binding.Service<ResumeCollector, "GCP.RapidMigrationAssessment.ResumeCollector", (collector: Collector) => Effect.Effect<(request?: ResumeCollectorRequest) => Effect.Effect<rma.Operation, rma.ResumeProjectsLocationsCollectorsError, RuntimeContext>>> {
 }
 export declare const ResumeCollector: ResumeCollector;

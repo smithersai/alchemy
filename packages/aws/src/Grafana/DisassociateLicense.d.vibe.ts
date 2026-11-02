@@ -19,6 +19,6 @@ import type { Workspace } from "./Workspace.vibe";
  *
  * @binding
  */
-export interface DisassociateLicense extends Binding.Service<DisassociateLicense, "AWS.Grafana.DisassociateLicense", (workspace: Workspace) => Effect.Effect<((request: Omit<grafana.DisassociateLicenseRequest, "workspaceId">) => Effect.Effect<grafana.DisassociateLicenseResponse, grafana.DisassociateLicenseError>)>> {
+export interface DisassociateLicense extends Binding.Service<DisassociateLicense, "AWS.Grafana.DisassociateLicense", (workspace: Workspace) => Effect.Effect<(request: Omit<grafana.DisassociateLicenseRequest, "workspaceId">) => Effect.Effect<grafana.DisassociateLicenseResponse, grafana.DisassociateLicenseError>>> {
 }
 export declare const DisassociateLicense: DisassociateLicense;

@@ -39,6 +39,6 @@ export interface GenerateEmbedUrlForRegisteredUserRequest extends Omit<quicksigh
  *
  * @binding
  */
-export interface GenerateEmbedUrlForRegisteredUser extends Binding.Service<GenerateEmbedUrlForRegisteredUser, "AWS.QuickSight.GenerateEmbedUrlForRegisteredUser", (dashboard: Dashboard) => Effect.Effect<((request: GenerateEmbedUrlForRegisteredUserRequest) => Effect.Effect<quicksight.GenerateEmbedUrlForRegisteredUserResponse, quicksight.GenerateEmbedUrlForRegisteredUserError>)>> {
+export interface GenerateEmbedUrlForRegisteredUser extends Binding.Service<GenerateEmbedUrlForRegisteredUser, "AWS.QuickSight.GenerateEmbedUrlForRegisteredUser", (dashboard: Dashboard) => Effect.Effect<(request: GenerateEmbedUrlForRegisteredUserRequest) => Effect.Effect<quicksight.GenerateEmbedUrlForRegisteredUserResponse, quicksight.GenerateEmbedUrlForRegisteredUserError>>> {
 }
 export declare const GenerateEmbedUrlForRegisteredUser: GenerateEmbedUrlForRegisteredUser;

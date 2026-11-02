@@ -51,7 +51,7 @@ export declare const replaceOnIdentity: (input: {
 export declare const waitForOperation: (operation: mc.Operation, options?: {
     notFoundOk?: boolean;
     alreadyExistsOk?: boolean;
-}) => Effect.Effect<mc.Operation, mc.Forbidden | mc.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | mc.GcpOpError, mc.GcpOpContext>;
+}) => Effect.Effect<mc.Operation, mc.Forbidden | mc.NotFound | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | mc.GcpOpError, mc.GcpOpContext>;
 export declare const waitUntilExists: <A, E extends {
     readonly _tag: string;
 }, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved, R>;

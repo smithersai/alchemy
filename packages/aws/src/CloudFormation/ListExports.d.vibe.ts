@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListExports extends Binding.Service<ListExports, "AWS.CloudFormation.ListExports", () => Effect.Effect<((request?: cloudformation.ListExportsInput) => Effect.Effect<cloudformation.ListExportsOutput, cloudformation.ListExportsError>)>> {
+export interface ListExports extends Binding.Service<ListExports, "AWS.CloudFormation.ListExports", () => Effect.Effect<(request?: cloudformation.ListExportsInput) => Effect.Effect<cloudformation.ListExportsOutput, cloudformation.ListExportsError>>> {
 }
 export declare const ListExports: ListExports;

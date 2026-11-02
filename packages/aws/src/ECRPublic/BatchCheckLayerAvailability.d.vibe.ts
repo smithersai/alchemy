@@ -29,6 +29,6 @@ export interface BatchCheckLayerAvailabilityRequest extends Omit<ecrpublic.Batch
  *
  * @binding
  */
-export interface BatchCheckLayerAvailability extends Binding.Service<BatchCheckLayerAvailability, "AWS.ECRPublic.BatchCheckLayerAvailability", <R extends PublicRepository>(repository: R) => Effect.Effect<((request: BatchCheckLayerAvailabilityRequest) => Effect.Effect<ecrpublic.BatchCheckLayerAvailabilityResponse, ecrpublic.BatchCheckLayerAvailabilityError>)>> {
+export interface BatchCheckLayerAvailability extends Binding.Service<BatchCheckLayerAvailability, "AWS.ECRPublic.BatchCheckLayerAvailability", <R extends PublicRepository>(repository: R) => Effect.Effect<(request: BatchCheckLayerAvailabilityRequest) => Effect.Effect<ecrpublic.BatchCheckLayerAvailabilityResponse, ecrpublic.BatchCheckLayerAvailabilityError>>> {
 }
 export declare const BatchCheckLayerAvailability: BatchCheckLayerAvailability;

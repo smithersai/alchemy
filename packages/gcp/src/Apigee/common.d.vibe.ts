@@ -1,6 +1,6 @@
 import * as apigee from "@distilled.cloud/gcp/apigee_v1";
 import * as Effect from "effect/Effect";
-import { GcpEnvironment } from "../Environment.js";
+import { GcpEnvironment } from "../Environment.ts";
 export declare const lastSegment: (value: string) => string;
 export declare const segmentAfter: (value: string, key: string) => string | undefined;
 export declare const stripRevision: (name: string) => string;
@@ -44,6 +44,6 @@ export type ProjectEnvironment = {
     environmentId: string;
     parent: string;
 };
-export declare const listProjectEnvironments: () => Effect.Effect<ProjectEnvironment[], apigee.Forbidden | import("../Environment.js").GcpProjectMissing | apigee.GcpOpError, GcpEnvironment | apigee.GcpOpContext>;
+export declare const listProjectEnvironments: () => Effect.Effect<ProjectEnvironment[], apigee.Forbidden | import("../Environment.ts").GcpProjectMissing | apigee.GcpOpError, GcpEnvironment | apigee.GcpOpContext>;
 export declare const listNameArray: (values: readonly string[] | undefined) => string[];
 export declare const namesFromListPayload: (payload: unknown) => string[];

@@ -25,6 +25,6 @@ export interface DisconnectParticipantRequest extends Omit<ivsrealtime.Disconnec
  *
  * @binding
  */
-export interface DisconnectParticipant extends Binding.Service<DisconnectParticipant, "AWS.IVSRealtime.DisconnectParticipant", (stage: Stage) => Effect.Effect<((request: DisconnectParticipantRequest) => Effect.Effect<ivsrealtime.DisconnectParticipantResponse, ivsrealtime.DisconnectParticipantError>)>> {
+export interface DisconnectParticipant extends Binding.Service<DisconnectParticipant, "AWS.IVSRealtime.DisconnectParticipant", (stage: Stage) => Effect.Effect<(request: DisconnectParticipantRequest) => Effect.Effect<ivsrealtime.DisconnectParticipantResponse, ivsrealtime.DisconnectParticipantError>>> {
 }
 export declare const DisconnectParticipant: DisconnectParticipant;

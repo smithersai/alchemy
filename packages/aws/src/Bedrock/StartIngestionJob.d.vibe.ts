@@ -33,6 +33,6 @@ export interface StartIngestionJobRequest extends Omit<bedrock.StartIngestionJob
  *
  * @binding
  */
-export interface StartIngestionJob extends Binding.Service<StartIngestionJob, "AWS.Bedrock.StartIngestionJob", <D extends DataSource>(dataSource: D) => Effect.Effect<((request: StartIngestionJobRequest) => Effect.Effect<bedrock.StartIngestionJobResponse, bedrock.StartIngestionJobError>)>> {
+export interface StartIngestionJob extends Binding.Service<StartIngestionJob, "AWS.Bedrock.StartIngestionJob", <D extends DataSource>(dataSource: D) => Effect.Effect<(request: StartIngestionJobRequest) => Effect.Effect<bedrock.StartIngestionJobResponse, bedrock.StartIngestionJobError>>> {
 }
 export declare const StartIngestionJob: StartIngestionJob;

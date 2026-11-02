@@ -1,7 +1,7 @@
 import type * as cloudfront from "@distilled.cloud/aws/cloudfront";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Distribution } from "./Distribution.js";
+import type { Distribution } from "./Distribution.ts";
 export interface ListInvalidationsRequest extends Omit<cloudfront.ListInvalidationsRequest, "DistributionId"> {
 }
 /**
@@ -23,6 +23,6 @@ export interface ListInvalidationsRequest extends Omit<cloudfront.ListInvalidati
  *
  * @binding
  */
-export interface ListInvalidations extends Binding.Service<ListInvalidations, "AWS.CloudFront.ListInvalidations", (distribution: Distribution) => Effect.Effect<((request: ListInvalidationsRequest) => Effect.Effect<cloudfront.ListInvalidationsResult, cloudfront.ListInvalidationsError>)>> {
+export interface ListInvalidations extends Binding.Service<ListInvalidations, "AWS.CloudFront.ListInvalidations", (distribution: Distribution) => Effect.Effect<(request: ListInvalidationsRequest) => Effect.Effect<cloudfront.ListInvalidationsResult, cloudfront.ListInvalidationsError>>> {
 }
 export declare const ListInvalidations: ListInvalidations;

@@ -15,6 +15,6 @@ import type { ReportGroup } from "./ReportGroup.vibe";
  *
  * @binding
  */
-export interface ListReportsForReportGroup extends Binding.Service<ListReportsForReportGroup, "AWS.CodeBuild.ListReportsForReportGroup", <G extends ReportGroup>(reportGroup: G) => Effect.Effect<((request?: Omit<SVC.ListReportsForReportGroupInput, "reportGroupArn">) => Effect.Effect<SVC.ListReportsForReportGroupOutput, SVC.ListReportsForReportGroupError>)>> {
+export interface ListReportsForReportGroup extends Binding.Service<ListReportsForReportGroup, "AWS.CodeBuild.ListReportsForReportGroup", <G extends ReportGroup>(reportGroup: G) => Effect.Effect<(request?: Omit<SVC.ListReportsForReportGroupInput, "reportGroupArn">) => Effect.Effect<SVC.ListReportsForReportGroupOutput, SVC.ListReportsForReportGroupError>>> {
 }
 export declare const ListReportsForReportGroup: ListReportsForReportGroup;

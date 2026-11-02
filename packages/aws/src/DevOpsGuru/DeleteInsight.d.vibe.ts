@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteInsight extends Binding.Service<DeleteInsight, "AWS.DevOpsGuru.DeleteInsight", () => Effect.Effect<((request: devopsguru.DeleteInsightRequest) => Effect.Effect<devopsguru.DeleteInsightResponse, devopsguru.DeleteInsightError>)>> {
+export interface DeleteInsight extends Binding.Service<DeleteInsight, "AWS.DevOpsGuru.DeleteInsight", () => Effect.Effect<(request: devopsguru.DeleteInsightRequest) => Effect.Effect<devopsguru.DeleteInsightResponse, devopsguru.DeleteInsightError>>> {
 }
 export declare const DeleteInsight: DeleteInsight;

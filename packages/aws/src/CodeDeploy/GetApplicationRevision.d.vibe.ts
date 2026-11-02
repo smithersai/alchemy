@@ -24,6 +24,6 @@ export interface GetApplicationRevisionRequest extends Omit<SVC.GetApplicationRe
  *
  * @binding
  */
-export interface GetApplicationRevision extends Binding.Service<GetApplicationRevision, "AWS.CodeDeploy.GetApplicationRevision", <P extends Application>(application: P) => Effect.Effect<((request: GetApplicationRevisionRequest) => Effect.Effect<SVC.GetApplicationRevisionOutput, SVC.GetApplicationRevisionError>)>> {
+export interface GetApplicationRevision extends Binding.Service<GetApplicationRevision, "AWS.CodeDeploy.GetApplicationRevision", <P extends Application>(application: P) => Effect.Effect<(request: GetApplicationRevisionRequest) => Effect.Effect<SVC.GetApplicationRevisionOutput, SVC.GetApplicationRevisionError>>> {
 }
 export declare const GetApplicationRevision: GetApplicationRevision;

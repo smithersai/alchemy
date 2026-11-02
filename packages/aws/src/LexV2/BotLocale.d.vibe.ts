@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface BotLocaleProps {
     /**
      * ID of the bot the locale belongs to. Changing it replaces the locale.

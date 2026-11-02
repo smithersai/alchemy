@@ -1,7 +1,7 @@
 import type * as rds from "@distilled.cloud/aws/rds";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DBInstance } from "./DBInstance.js";
+import type { DBInstance } from "./DBInstance.ts";
 /**
  * Runtime binding for the `RebootDBInstance` operation (IAM action
  * `rds:RebootDBInstance`).
@@ -22,6 +22,6 @@ import type { DBInstance } from "./DBInstance.js";
  *
  * @binding
  */
-export interface RebootDBInstance extends Binding.Service<RebootDBInstance, "AWS.RDS.RebootDBInstance", (instance: DBInstance) => Effect.Effect<((request?: Omit<rds.RebootDBInstanceMessage, "DBInstanceIdentifier">) => Effect.Effect<rds.RebootDBInstanceResult, rds.RebootDBInstanceError>)>> {
+export interface RebootDBInstance extends Binding.Service<RebootDBInstance, "AWS.RDS.RebootDBInstance", (instance: DBInstance) => Effect.Effect<(request?: Omit<rds.RebootDBInstanceMessage, "DBInstanceIdentifier">) => Effect.Effect<rds.RebootDBInstanceResult, rds.RebootDBInstanceError>>> {
 }
 export declare const RebootDBInstance: RebootDBInstance;

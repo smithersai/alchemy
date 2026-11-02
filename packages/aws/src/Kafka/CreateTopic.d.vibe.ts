@@ -23,6 +23,6 @@ import type { ServerlessCluster } from "./ServerlessCluster.vibe";
  *
  * @binding
  */
-export interface CreateTopic extends Binding.Service<CreateTopic, "AWS.Kafka.CreateTopic", (cluster: ServerlessCluster) => Effect.Effect<((request: Omit<kafka.CreateTopicRequest, "ClusterArn">) => Effect.Effect<kafka.CreateTopicResponse, kafka.CreateTopicError>)>> {
+export interface CreateTopic extends Binding.Service<CreateTopic, "AWS.Kafka.CreateTopic", (cluster: ServerlessCluster) => Effect.Effect<(request: Omit<kafka.CreateTopicRequest, "ClusterArn">) => Effect.Effect<kafka.CreateTopicResponse, kafka.CreateTopicError>>> {
 }
 export declare const CreateTopic: CreateTopic;

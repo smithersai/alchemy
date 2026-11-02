@@ -1,9 +1,9 @@
 import * as rtb from "@distilled.cloud/gcp/realtimebidding_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { type AppTargetingValue, type CreativeDimensionsValue, type NumericTargetingDimensionValue, type PretargetingState, type StringTargetingDimensionValue } from "./internal.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { type AppTargetingValue, type CreativeDimensionsValue, type NumericTargetingDimensionValue, type PretargetingState, type StringTargetingDimensionValue } from "./internal.ts";
 export type StringTargetingDimension = StringTargetingDimensionValue;
 export type NumericTargetingDimension = NumericTargetingDimensionValue;
 export type CreativeDimensions = CreativeDimensionsValue;

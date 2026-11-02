@@ -24,6 +24,6 @@ export interface GetResourceSetRequest extends fms.GetResourceSetRequest {
  *
  * @binding
  */
-export interface GetResourceSet extends Binding.Service<GetResourceSet, "AWS.FMS.GetResourceSet", () => Effect.Effect<((request: GetResourceSetRequest) => Effect.Effect<fms.GetResourceSetResponse, fms.GetResourceSetError>)>> {
+export interface GetResourceSet extends Binding.Service<GetResourceSet, "AWS.FMS.GetResourceSet", () => Effect.Effect<(request: GetResourceSetRequest) => Effect.Effect<fms.GetResourceSetResponse, fms.GetResourceSetError>>> {
 }
 export declare const GetResourceSet: GetResourceSet;

@@ -24,6 +24,6 @@ export interface SubscribeRequest extends Omit<sns.SubscribeInput, "TopicArn"> {
  *
  * @binding
  */
-export interface Subscribe extends Binding.Service<Subscribe, "AWS.SNS.Subscribe", (topic: Topic) => Effect.Effect<((request: SubscribeRequest) => Effect.Effect<sns.SubscribeResponse, sns.SubscribeError>)>> {
+export interface Subscribe extends Binding.Service<Subscribe, "AWS.SNS.Subscribe", (topic: Topic) => Effect.Effect<(request: SubscribeRequest) => Effect.Effect<sns.SubscribeResponse, sns.SubscribeError>>> {
 }
 export declare const Subscribe: Subscribe;

@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ValidatePipeline extends Binding.Service<ValidatePipeline, "AWS.OSIS.ValidatePipeline", () => Effect.Effect<((request: osis.ValidatePipelineRequest) => Effect.Effect<osis.ValidatePipelineResponse, osis.ValidatePipelineError>)>> {
+export interface ValidatePipeline extends Binding.Service<ValidatePipeline, "AWS.OSIS.ValidatePipeline", () => Effect.Effect<(request: osis.ValidatePipelineRequest) => Effect.Effect<osis.ValidatePipelineResponse, osis.ValidatePipelineError>>> {
 }
 export declare const ValidatePipeline: ValidatePipeline;

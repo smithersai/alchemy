@@ -1,7 +1,7 @@
 import type { PresignError } from "@distilled.cloud/aws/Presign";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface PresignPutObjectRequest {
     /**
      * Key of the object to mint a presigned upload URL for.
@@ -46,6 +46,6 @@ export interface PresignPutObjectRequest {
  *
  * @binding
  */
-export interface PresignPutObject extends Binding.Service<PresignPutObject, "AWS.S3.PresignPutObject", (bucket: Bucket) => Effect.Effect<((request: PresignPutObjectRequest) => Effect.Effect<string, PresignError>)>> {
+export interface PresignPutObject extends Binding.Service<PresignPutObject, "AWS.S3.PresignPutObject", (bucket: Bucket) => Effect.Effect<(request: PresignPutObjectRequest) => Effect.Effect<string, PresignError>>> {
 }
 export declare const PresignPutObject: PresignPutObject;

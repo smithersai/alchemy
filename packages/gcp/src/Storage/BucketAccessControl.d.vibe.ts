@@ -1,7 +1,7 @@
 import * as storage from "@distilled.cloud/gcp/storage_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type BucketAccessControlProps = {
     /**
      * Name of the bucket this ACL entry is attached to. Immutable —
@@ -83,5 +83,5 @@ export declare class BucketAccessControlNotResolved extends BucketAccessControlN
     entity: string;
 }> {
 }
-export declare const BucketAccessControlProvider: () => import("effect/Layer").Layer<Provider.Provider<BucketAccessControl>, never, import("../Environment.js").GcpEnvironment | storage.GcpOpContext>;
+export declare const BucketAccessControlProvider: () => import("effect/Layer").Layer<Provider.Provider<BucketAccessControl>, never, import("../Environment.ts").GcpEnvironment | storage.GcpOpContext>;
 export {};

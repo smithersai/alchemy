@@ -29,6 +29,6 @@ export interface CheckDocumentAccessRequest extends Omit<qbusiness.CheckDocument
  *
  * @binding
  */
-export interface CheckDocumentAccess extends Binding.Service<CheckDocumentAccess, "AWS.QBusiness.CheckDocumentAccess", (index: Index) => Effect.Effect<((request: CheckDocumentAccessRequest) => Effect.Effect<qbusiness.CheckDocumentAccessResponse, qbusiness.CheckDocumentAccessError>)>> {
+export interface CheckDocumentAccess extends Binding.Service<CheckDocumentAccess, "AWS.QBusiness.CheckDocumentAccess", (index: Index) => Effect.Effect<(request: CheckDocumentAccessRequest) => Effect.Effect<qbusiness.CheckDocumentAccessResponse, qbusiness.CheckDocumentAccessError>>> {
 }
 export declare const CheckDocumentAccess: CheckDocumentAccess;

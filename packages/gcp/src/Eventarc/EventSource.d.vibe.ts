@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import type { Input } from "alchemy/Input";
 import type * as Effect from "effect/Effect";
-import type { EventFilter } from "./Trigger.js";
+import type { EventFilter } from "./Trigger.ts";
 /**
  * A CloudEvent delivered by Eventarc (binary content mode: attributes
  * arrive as `ce-*` headers, `data` as the body).

@@ -1,7 +1,7 @@
 import type * as glue from "@distilled.cloud/aws/glue";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Job } from "./Job.js";
+import type { Job } from "./Job.ts";
 export interface BatchStopJobRunRequest extends Omit<glue.BatchStopJobRunRequest, "JobName"> {
 }
 /**
@@ -26,6 +26,6 @@ export interface BatchStopJobRunRequest extends Omit<glue.BatchStopJobRunRequest
  *
  * @binding
  */
-export interface BatchStopJobRun extends Binding.Service<BatchStopJobRun, "AWS.Glue.BatchStopJobRun", (job: Job) => Effect.Effect<((request: BatchStopJobRunRequest) => Effect.Effect<glue.BatchStopJobRunResponse, glue.BatchStopJobRunError>)>> {
+export interface BatchStopJobRun extends Binding.Service<BatchStopJobRun, "AWS.Glue.BatchStopJobRun", (job: Job) => Effect.Effect<(request: BatchStopJobRunRequest) => Effect.Effect<glue.BatchStopJobRunResponse, glue.BatchStopJobRunError>>> {
 }
 export declare const BatchStopJobRun: BatchStopJobRun;

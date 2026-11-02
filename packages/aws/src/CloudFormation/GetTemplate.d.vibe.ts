@@ -20,6 +20,6 @@ import type { Stack } from "./Stack.vibe";
  *
  * @binding
  */
-export interface GetTemplate extends Binding.Service<GetTemplate, "AWS.CloudFormation.GetTemplate", (stack: Stack) => Effect.Effect<((request?: Omit<cloudformation.GetTemplateInput, "StackName">) => Effect.Effect<cloudformation.GetTemplateOutput, cloudformation.GetTemplateError>)>> {
+export interface GetTemplate extends Binding.Service<GetTemplate, "AWS.CloudFormation.GetTemplate", (stack: Stack) => Effect.Effect<(request?: Omit<cloudformation.GetTemplateInput, "StackName">) => Effect.Effect<cloudformation.GetTemplateOutput, cloudformation.GetTemplateError>>> {
 }
 export declare const GetTemplate: GetTemplate;

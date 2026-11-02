@@ -27,6 +27,6 @@ export interface GenerateAccessLogsRequest extends Omit<amplify.GenerateAccessLo
  *
  * @binding
  */
-export interface GenerateAccessLogs extends Binding.Service<GenerateAccessLogs, "AWS.Amplify.GenerateAccessLogs", (app: App) => Effect.Effect<((request: GenerateAccessLogsRequest) => Effect.Effect<amplify.GenerateAccessLogsResult, amplify.GenerateAccessLogsError>)>> {
+export interface GenerateAccessLogs extends Binding.Service<GenerateAccessLogs, "AWS.Amplify.GenerateAccessLogs", (app: App) => Effect.Effect<(request: GenerateAccessLogsRequest) => Effect.Effect<amplify.GenerateAccessLogsResult, amplify.GenerateAccessLogsError>>> {
 }
 export declare const GenerateAccessLogs: GenerateAccessLogs;

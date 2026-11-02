@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDataRepositoryTasks extends Binding.Service<DescribeDataRepositoryTasks, "AWS.FSx.DescribeDataRepositoryTasks", () => Effect.Effect<((request?: fsx.DescribeDataRepositoryTasksRequest) => Effect.Effect<fsx.DescribeDataRepositoryTasksResponse, fsx.DescribeDataRepositoryTasksError>)>> {
+export interface DescribeDataRepositoryTasks extends Binding.Service<DescribeDataRepositoryTasks, "AWS.FSx.DescribeDataRepositoryTasks", () => Effect.Effect<(request?: fsx.DescribeDataRepositoryTasksRequest) => Effect.Effect<fsx.DescribeDataRepositoryTasksResponse, fsx.DescribeDataRepositoryTasksError>>> {
 }
 export declare const DescribeDataRepositoryTasks: DescribeDataRepositoryTasks;

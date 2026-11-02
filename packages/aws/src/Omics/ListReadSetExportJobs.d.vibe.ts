@@ -22,6 +22,6 @@ export interface ListReadSetExportJobsRequest extends Omit<omics.ListReadSetExpo
  *
  * @binding
  */
-export interface ListReadSetExportJobs extends Binding.Service<ListReadSetExportJobs, "AWS.Omics.ListReadSetExportJobs", (store: SequenceStore) => Effect.Effect<((request?: ListReadSetExportJobsRequest) => Effect.Effect<omics.ListReadSetExportJobsResponse, omics.ListReadSetExportJobsError>)>> {
+export interface ListReadSetExportJobs extends Binding.Service<ListReadSetExportJobs, "AWS.Omics.ListReadSetExportJobs", (store: SequenceStore) => Effect.Effect<(request?: ListReadSetExportJobsRequest) => Effect.Effect<omics.ListReadSetExportJobsResponse, omics.ListReadSetExportJobsError>>> {
 }
 export declare const ListReadSetExportJobs: ListReadSetExportJobs;

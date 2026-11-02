@@ -35,6 +35,6 @@ export interface UpdateTaskProtectionRequest extends Omit<ECS.UpdateTaskProtecti
  *
  * @binding
  */
-export interface UpdateTaskProtection extends Binding.Service<UpdateTaskProtection, "AWS.ECS.UpdateTaskProtection", (cluster: Cluster) => Effect.Effect<((request: UpdateTaskProtectionRequest) => Effect.Effect<ECS.UpdateTaskProtectionResponse, ECS.UpdateTaskProtectionError>)>> {
+export interface UpdateTaskProtection extends Binding.Service<UpdateTaskProtection, "AWS.ECS.UpdateTaskProtection", (cluster: Cluster) => Effect.Effect<(request: UpdateTaskProtectionRequest) => Effect.Effect<ECS.UpdateTaskProtectionResponse, ECS.UpdateTaskProtectionError>>> {
 }
 export declare const UpdateTaskProtection: UpdateTaskProtection;

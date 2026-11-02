@@ -28,6 +28,6 @@ export interface ListNotificationEventsRequest extends notifications.ListNotific
  *
  * @binding
  */
-export interface ListNotificationEvents extends Binding.Service<ListNotificationEvents, "AWS.Notifications.ListNotificationEvents", () => Effect.Effect<((request?: ListNotificationEventsRequest) => Effect.Effect<notifications.ListNotificationEventsResponse, notifications.ListNotificationEventsError>)>> {
+export interface ListNotificationEvents extends Binding.Service<ListNotificationEvents, "AWS.Notifications.ListNotificationEvents", () => Effect.Effect<(request?: ListNotificationEventsRequest) => Effect.Effect<notifications.ListNotificationEventsResponse, notifications.ListNotificationEventsError>>> {
 }
 export declare const ListNotificationEvents: ListNotificationEvents;

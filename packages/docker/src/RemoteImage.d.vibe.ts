@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { Docker } from "./Docker.js";
+import { Docker } from "./Docker.ts";
 import type { Providers } from "./Providers.vibe";
 import { type ImageRegistry } from "./Registry.vibe";
 export interface RemoteImageProps {

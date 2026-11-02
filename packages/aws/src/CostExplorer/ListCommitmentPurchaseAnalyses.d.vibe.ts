@@ -24,6 +24,6 @@ export interface ListCommitmentPurchaseAnalysesRequest extends ce.ListCommitment
  *
  * @binding
  */
-export interface ListCommitmentPurchaseAnalyses extends Binding.Service<ListCommitmentPurchaseAnalyses, "AWS.CostExplorer.ListCommitmentPurchaseAnalyses", () => Effect.Effect<((request?: ListCommitmentPurchaseAnalysesRequest) => Effect.Effect<ce.ListCommitmentPurchaseAnalysesResponse, ce.ListCommitmentPurchaseAnalysesError>)>> {
+export interface ListCommitmentPurchaseAnalyses extends Binding.Service<ListCommitmentPurchaseAnalyses, "AWS.CostExplorer.ListCommitmentPurchaseAnalyses", () => Effect.Effect<(request?: ListCommitmentPurchaseAnalysesRequest) => Effect.Effect<ce.ListCommitmentPurchaseAnalysesResponse, ce.ListCommitmentPurchaseAnalysesError>>> {
 }
 export declare const ListCommitmentPurchaseAnalyses: ListCommitmentPurchaseAnalyses;

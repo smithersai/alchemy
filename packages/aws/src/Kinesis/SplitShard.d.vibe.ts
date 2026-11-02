@@ -28,6 +28,6 @@ export interface SplitShardRequest extends Omit<Kinesis.SplitShardInput, "Stream
  *
  * @binding
  */
-export interface SplitShard extends Binding.Service<SplitShard, "AWS.Kinesis.SplitShard", (stream: Stream) => Effect.Effect<((request: SplitShardRequest) => Effect.Effect<Kinesis.SplitShardResponse, Kinesis.SplitShardError>)>> {
+export interface SplitShard extends Binding.Service<SplitShard, "AWS.Kinesis.SplitShard", (stream: Stream) => Effect.Effect<(request: SplitShardRequest) => Effect.Effect<Kinesis.SplitShardResponse, Kinesis.SplitShardError>>> {
 }
 export declare const SplitShard: SplitShard;

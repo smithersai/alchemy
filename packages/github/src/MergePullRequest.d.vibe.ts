@@ -2,7 +2,7 @@ import type * as Pulls from "@distilled.cloud/github/pulls";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.ts";
 export interface MergePullRequestRequest extends Omit<Pulls.MergeRequest, "owner" | "repo"> {
 }
 export type MergePullRequestResponse = Pulls.PullRequestMergeResult;
@@ -28,6 +28,6 @@ export type MergePullRequestResponse = Pulls.PullRequestMergeResult;
  * @binding
  * @product Pull Request
  */
-export interface MergePullRequest extends Binding.Service<MergePullRequest, "GitHub.MergePullRequest", (repo: Repository) => Effect.Effect<((request: MergePullRequestRequest) => Effect.Effect<MergePullRequestResponse, Pulls.MergeError, RuntimeContext>)>> {
+export interface MergePullRequest extends Binding.Service<MergePullRequest, "GitHub.MergePullRequest", (repo: Repository) => Effect.Effect<(request: MergePullRequestRequest) => Effect.Effect<MergePullRequestResponse, Pulls.MergeError, RuntimeContext>>> {
 }
 export declare const MergePullRequest: MergePullRequest;

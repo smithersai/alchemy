@@ -24,6 +24,6 @@ import type { Channel } from "./Channel.vibe";
  *
  * @binding
  */
-export interface ListAlerts extends Binding.Service<ListAlerts, "AWS.MediaLive.ListAlerts", (channel: Channel) => Effect.Effect<((request?: Omit<medialive.ListAlertsRequest, "ChannelId">) => Effect.Effect<medialive.ListAlertsResponse, medialive.ListAlertsError>)>> {
+export interface ListAlerts extends Binding.Service<ListAlerts, "AWS.MediaLive.ListAlerts", (channel: Channel) => Effect.Effect<(request?: Omit<medialive.ListAlertsRequest, "ChannelId">) => Effect.Effect<medialive.ListAlertsResponse, medialive.ListAlertsError>>> {
 }
 export declare const ListAlerts: ListAlerts;

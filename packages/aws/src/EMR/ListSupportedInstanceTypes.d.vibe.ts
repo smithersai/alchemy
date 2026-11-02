@@ -15,6 +15,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListSupportedInstanceTypes extends Binding.Service<ListSupportedInstanceTypes, "AWS.EMR.ListSupportedInstanceTypes", () => Effect.Effect<((request: SVC.ListSupportedInstanceTypesInput) => Effect.Effect<SVC.ListSupportedInstanceTypesOutput, SVC.ListSupportedInstanceTypesError>)>> {
+export interface ListSupportedInstanceTypes extends Binding.Service<ListSupportedInstanceTypes, "AWS.EMR.ListSupportedInstanceTypes", () => Effect.Effect<(request: SVC.ListSupportedInstanceTypesInput) => Effect.Effect<SVC.ListSupportedInstanceTypesOutput, SVC.ListSupportedInstanceTypesError>>> {
 }
 export declare const ListSupportedInstanceTypes: ListSupportedInstanceTypes;

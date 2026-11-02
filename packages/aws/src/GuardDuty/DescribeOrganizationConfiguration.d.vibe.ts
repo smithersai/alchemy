@@ -22,6 +22,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface DescribeOrganizationConfiguration extends Binding.Service<DescribeOrganizationConfiguration, "AWS.GuardDuty.DescribeOrganizationConfiguration", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.DescribeOrganizationConfigurationRequest, "DetectorId">) => Effect.Effect<guardduty.DescribeOrganizationConfigurationResponse, guardduty.DescribeOrganizationConfigurationError>)>> {
+export interface DescribeOrganizationConfiguration extends Binding.Service<DescribeOrganizationConfiguration, "AWS.GuardDuty.DescribeOrganizationConfiguration", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.DescribeOrganizationConfigurationRequest, "DetectorId">) => Effect.Effect<guardduty.DescribeOrganizationConfigurationResponse, guardduty.DescribeOrganizationConfigurationError>>> {
 }
 export declare const DescribeOrganizationConfiguration: DescribeOrganizationConfiguration;

@@ -2,7 +2,7 @@ import * as acmpca from "@distilled.cloud/aws/acm-pca";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Duration from "effect/Duration";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * X.500 distinguished name of the certificate authority. At least one
  * field must be set (typically `commonName`).

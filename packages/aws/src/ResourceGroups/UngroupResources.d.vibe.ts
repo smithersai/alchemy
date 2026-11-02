@@ -28,6 +28,6 @@ export type UngroupResourcesRequest = Omit<resourcegroups.UngroupResourcesInput,
  *
  * @binding
  */
-export interface UngroupResources extends Binding.Service<UngroupResources, "AWS.ResourceGroups.UngroupResources", (group: Group) => Effect.Effect<((request: UngroupResourcesRequest) => Effect.Effect<resourcegroups.UngroupResourcesOutput, resourcegroups.UngroupResourcesError>)>> {
+export interface UngroupResources extends Binding.Service<UngroupResources, "AWS.ResourceGroups.UngroupResources", (group: Group) => Effect.Effect<(request: UngroupResourcesRequest) => Effect.Effect<resourcegroups.UngroupResourcesOutput, resourcegroups.UngroupResourcesError>>> {
 }
 export declare const UngroupResources: UngroupResources;

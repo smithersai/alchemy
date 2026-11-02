@@ -25,6 +25,6 @@ export interface BatchDeleteDocumentRequest extends Omit<qbusiness.BatchDeleteDo
  *
  * @binding
  */
-export interface BatchDeleteDocument extends Binding.Service<BatchDeleteDocument, "AWS.QBusiness.BatchDeleteDocument", (index: Index) => Effect.Effect<((request: BatchDeleteDocumentRequest) => Effect.Effect<qbusiness.BatchDeleteDocumentResponse, qbusiness.BatchDeleteDocumentError>)>> {
+export interface BatchDeleteDocument extends Binding.Service<BatchDeleteDocument, "AWS.QBusiness.BatchDeleteDocument", (index: Index) => Effect.Effect<(request: BatchDeleteDocumentRequest) => Effect.Effect<qbusiness.BatchDeleteDocumentResponse, qbusiness.BatchDeleteDocumentError>>> {
 }
 export declare const BatchDeleteDocument: BatchDeleteDocument;

@@ -34,6 +34,6 @@ export interface DeleteKnowledgeBaseDocumentsRequest extends Omit<bedrock.Delete
  *
  * @binding
  */
-export interface DeleteKnowledgeBaseDocuments extends Binding.Service<DeleteKnowledgeBaseDocuments, "AWS.Bedrock.DeleteKnowledgeBaseDocuments", <D extends DataSource>(dataSource: D) => Effect.Effect<((request: DeleteKnowledgeBaseDocumentsRequest) => Effect.Effect<bedrock.DeleteKnowledgeBaseDocumentsResponse, bedrock.DeleteKnowledgeBaseDocumentsError>)>> {
+export interface DeleteKnowledgeBaseDocuments extends Binding.Service<DeleteKnowledgeBaseDocuments, "AWS.Bedrock.DeleteKnowledgeBaseDocuments", <D extends DataSource>(dataSource: D) => Effect.Effect<(request: DeleteKnowledgeBaseDocumentsRequest) => Effect.Effect<bedrock.DeleteKnowledgeBaseDocumentsResponse, bedrock.DeleteKnowledgeBaseDocumentsError>>> {
 }
 export declare const DeleteKnowledgeBaseDocuments: DeleteKnowledgeBaseDocuments;

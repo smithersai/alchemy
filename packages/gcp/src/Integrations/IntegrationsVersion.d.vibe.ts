@@ -1,9 +1,9 @@
 import * as integrations from "@distilled.cloud/gcp/integrations_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { TriggerConfig } from "./shared.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { TriggerConfig } from "./shared.ts";
 export type IntegrationsVersionProps = {
     /**
      * Integration id (the `{integration}` segment of

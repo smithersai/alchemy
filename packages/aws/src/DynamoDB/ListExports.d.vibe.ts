@@ -1,7 +1,7 @@
 import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface ListExportsRequest extends Omit<DynamoDB.ListExportsInput, "TableArn"> {
 }
 /**
@@ -22,6 +22,6 @@ export interface ListExportsRequest extends Omit<DynamoDB.ListExportsInput, "Tab
  *
  * @binding
  */
-export interface ListExports extends Binding.Service<ListExports, "AWS.DynamoDB.ListExports", <T extends Table>(table: T) => Effect.Effect<((request?: ListExportsRequest) => Effect.Effect<DynamoDB.ListExportsOutput, DynamoDB.ListExportsError>)>> {
+export interface ListExports extends Binding.Service<ListExports, "AWS.DynamoDB.ListExports", <T extends Table>(table: T) => Effect.Effect<(request?: ListExportsRequest) => Effect.Effect<DynamoDB.ListExportsOutput, DynamoDB.ListExportsError>>> {
 }
 export declare const ListExports: ListExports;

@@ -2,8 +2,8 @@ import * as codedeploy from "@distilled.cloud/aws/codedeploy";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 /**
  * Blue/green deployment behaviour for a deployment group. Mirrors the wire
  * `BlueGreenDeploymentConfiguration` with `Duration.Input` wait times

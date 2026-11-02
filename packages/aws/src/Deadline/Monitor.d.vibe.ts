@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 declare const DeadlineMonitorInvalidProps_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "DeadlineMonitorInvalidProps";
 } & Readonly<A>;
@@ -118,5 +118,5 @@ export interface Monitor extends Resource<"AWS.Deadline.Monitor", MonitorProps, 
  * @resource
  */
 export declare const Monitor: import("alchemy").ResourceClass<Monitor>;
-export declare const MonitorProvider: () => import("effect/Layer").Layer<Provider.Provider<Monitor>, never, import("../Environment.js").AWSEnvironment | import("@distilled.cloud/aws/Credentials").Credentials | import("effect/http/HttpClient").HttpClient | import("alchemy").Stack | import("alchemy").Stage>;
+export declare const MonitorProvider: () => import("effect/Layer").Layer<Provider.Provider<Monitor>, never, import("../Environment.ts").AWSEnvironment | import("@distilled.cloud/aws/Credentials").Credentials | import("effect/http/HttpClient").HttpClient | import("alchemy").Stack | import("alchemy").Stage>;
 export {};

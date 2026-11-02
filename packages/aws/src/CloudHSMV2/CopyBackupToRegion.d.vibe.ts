@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CopyBackupToRegion extends Binding.Service<CopyBackupToRegion, "AWS.CloudHSMV2.CopyBackupToRegion", () => Effect.Effect<((request: cloudhsm.CopyBackupToRegionRequest) => Effect.Effect<cloudhsm.CopyBackupToRegionResponse, cloudhsm.CopyBackupToRegionError>)>> {
+export interface CopyBackupToRegion extends Binding.Service<CopyBackupToRegion, "AWS.CloudHSMV2.CopyBackupToRegion", () => Effect.Effect<(request: cloudhsm.CopyBackupToRegionRequest) => Effect.Effect<cloudhsm.CopyBackupToRegionResponse, cloudhsm.CopyBackupToRegionError>>> {
 }
 export declare const CopyBackupToRegion: CopyBackupToRegion;

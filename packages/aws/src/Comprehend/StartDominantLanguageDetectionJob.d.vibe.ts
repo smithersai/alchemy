@@ -1,7 +1,7 @@
 import type * as comprehend from "@distilled.cloud/aws/comprehend";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 /**
  * `StartDominantLanguageDetectionJob` request with `DataAccessRoleArn` defaulting to the role the
  * binding was constructed with.
@@ -44,6 +44,6 @@ export interface StartDominantLanguageDetectionJobRequest extends Omit<comprehen
  *
  * @binding
  */
-export interface StartDominantLanguageDetectionJob extends Binding.Service<StartDominantLanguageDetectionJob, "AWS.Comprehend.StartDominantLanguageDetectionJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<((request: StartDominantLanguageDetectionJobRequest) => Effect.Effect<comprehend.StartDominantLanguageDetectionJobResponse, comprehend.StartDominantLanguageDetectionJobError>)>> {
+export interface StartDominantLanguageDetectionJob extends Binding.Service<StartDominantLanguageDetectionJob, "AWS.Comprehend.StartDominantLanguageDetectionJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<(request: StartDominantLanguageDetectionJobRequest) => Effect.Effect<comprehend.StartDominantLanguageDetectionJobResponse, comprehend.StartDominantLanguageDetectionJobError>>> {
 }
 export declare const StartDominantLanguageDetectionJob: StartDominantLanguageDetectionJob;

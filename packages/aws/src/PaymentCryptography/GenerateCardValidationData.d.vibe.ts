@@ -26,6 +26,6 @@ export interface GenerateCardValidationDataRequest extends Omit<paymentcryptogra
  *
  * @binding
  */
-export interface GenerateCardValidationData extends Binding.Service<GenerateCardValidationData, "AWS.PaymentCryptography.GenerateCardValidationData", <K extends Key>(key: K) => Effect.Effect<((request: GenerateCardValidationDataRequest) => Effect.Effect<paymentcryptographydata.GenerateCardValidationDataOutput, paymentcryptographydata.GenerateCardValidationDataError>)>> {
+export interface GenerateCardValidationData extends Binding.Service<GenerateCardValidationData, "AWS.PaymentCryptography.GenerateCardValidationData", <K extends Key>(key: K) => Effect.Effect<(request: GenerateCardValidationDataRequest) => Effect.Effect<paymentcryptographydata.GenerateCardValidationDataOutput, paymentcryptographydata.GenerateCardValidationDataError>>> {
 }
 export declare const GenerateCardValidationData: GenerateCardValidationData;

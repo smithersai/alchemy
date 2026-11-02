@@ -18,6 +18,6 @@ export interface RetrieveTerminalReaderRequest extends Omit<GetTerminalReaderReq
  * @binding
  * @product Terminal
  */
-export interface RetrieveTerminalReader extends Binding.Service<RetrieveTerminalReader, "Stripe.RetrieveTerminalReader", (reader: TerminalReader) => Effect.Effect<((request?: RetrieveTerminalReaderRequest) => Effect.Effect<GetTerminalReaderResponse, GetTerminalReaderError, RuntimeContext>)>> {
+export interface RetrieveTerminalReader extends Binding.Service<RetrieveTerminalReader, "Stripe.RetrieveTerminalReader", (reader: TerminalReader) => Effect.Effect<(request?: RetrieveTerminalReaderRequest) => Effect.Effect<GetTerminalReaderResponse, GetTerminalReaderError, RuntimeContext>>> {
 }
 export declare const RetrieveTerminalReader: RetrieveTerminalReader;

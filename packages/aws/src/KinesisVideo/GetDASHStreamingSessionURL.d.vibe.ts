@@ -26,6 +26,6 @@ export interface GetDASHStreamingSessionURLRequest extends Omit<kvam.GetDASHStre
  *
  * @binding
  */
-export interface GetDASHStreamingSessionURL extends Binding.Service<GetDASHStreamingSessionURL, "AWS.KinesisVideo.GetDASHStreamingSessionURL", <S extends Stream>(stream: S) => Effect.Effect<((request?: GetDASHStreamingSessionURLRequest) => Effect.Effect<kvam.GetDASHStreamingSessionURLOutput, kvam.GetDASHStreamingSessionURLError | kv.GetDataEndpointError>)>> {
+export interface GetDASHStreamingSessionURL extends Binding.Service<GetDASHStreamingSessionURL, "AWS.KinesisVideo.GetDASHStreamingSessionURL", <S extends Stream>(stream: S) => Effect.Effect<(request?: GetDASHStreamingSessionURLRequest) => Effect.Effect<kvam.GetDASHStreamingSessionURLOutput, kvam.GetDASHStreamingSessionURLError | kv.GetDataEndpointError>>> {
 }
 export declare const GetDASHStreamingSessionURL: GetDASHStreamingSessionURL;

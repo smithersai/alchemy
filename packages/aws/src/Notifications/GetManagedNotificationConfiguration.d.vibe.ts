@@ -28,6 +28,6 @@ export interface GetManagedNotificationConfigurationRequest extends notification
  *
  * @binding
  */
-export interface GetManagedNotificationConfiguration extends Binding.Service<GetManagedNotificationConfiguration, "AWS.Notifications.GetManagedNotificationConfiguration", () => Effect.Effect<((request: GetManagedNotificationConfigurationRequest) => Effect.Effect<notifications.GetManagedNotificationConfigurationResponse, notifications.GetManagedNotificationConfigurationError>)>> {
+export interface GetManagedNotificationConfiguration extends Binding.Service<GetManagedNotificationConfiguration, "AWS.Notifications.GetManagedNotificationConfiguration", () => Effect.Effect<(request: GetManagedNotificationConfigurationRequest) => Effect.Effect<notifications.GetManagedNotificationConfigurationResponse, notifications.GetManagedNotificationConfigurationError>>> {
 }
 export declare const GetManagedNotificationConfiguration: GetManagedNotificationConfiguration;

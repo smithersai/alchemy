@@ -31,6 +31,6 @@ export interface GetInsightSummariesRequest extends xray.GetInsightSummariesRequ
  *
  * @binding
  */
-export interface GetInsightSummaries extends Binding.Service<GetInsightSummaries, "AWS.XRay.GetInsightSummaries", () => Effect.Effect<((request: GetInsightSummariesRequest) => Effect.Effect<xray.GetInsightSummariesResult, xray.GetInsightSummariesError>)>> {
+export interface GetInsightSummaries extends Binding.Service<GetInsightSummaries, "AWS.XRay.GetInsightSummaries", () => Effect.Effect<(request: GetInsightSummariesRequest) => Effect.Effect<xray.GetInsightSummariesResult, xray.GetInsightSummariesError>>> {
 }
 export declare const GetInsightSummaries: GetInsightSummaries;

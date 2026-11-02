@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface RestoreBackup extends Binding.Service<RestoreBackup, "AWS.CloudHSMV2.RestoreBackup", () => Effect.Effect<((request: cloudhsm.RestoreBackupRequest) => Effect.Effect<cloudhsm.RestoreBackupResponse, cloudhsm.RestoreBackupError>)>> {
+export interface RestoreBackup extends Binding.Service<RestoreBackup, "AWS.CloudHSMV2.RestoreBackup", () => Effect.Effect<(request: cloudhsm.RestoreBackupRequest) => Effect.Effect<cloudhsm.RestoreBackupResponse, cloudhsm.RestoreBackupError>>> {
 }
 export declare const RestoreBackup: RestoreBackup;

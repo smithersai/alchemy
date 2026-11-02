@@ -31,6 +31,6 @@ export interface PutDataProtectionPolicyRequest extends Omit<sns.PutDataProtecti
  *
  * @binding
  */
-export interface PutDataProtectionPolicy extends Binding.Service<PutDataProtectionPolicy, "AWS.SNS.PutDataProtectionPolicy", (topic: Topic) => Effect.Effect<((request: PutDataProtectionPolicyRequest) => Effect.Effect<sns.PutDataProtectionPolicyResponse, sns.PutDataProtectionPolicyError>)>> {
+export interface PutDataProtectionPolicy extends Binding.Service<PutDataProtectionPolicy, "AWS.SNS.PutDataProtectionPolicy", (topic: Topic) => Effect.Effect<(request: PutDataProtectionPolicyRequest) => Effect.Effect<sns.PutDataProtectionPolicyResponse, sns.PutDataProtectionPolicyError>>> {
 }
 export declare const PutDataProtectionPolicy: PutDataProtectionPolicy;

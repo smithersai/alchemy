@@ -1,7 +1,7 @@
 import type * as emr from "@distilled.cloud/aws/emr-serverless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 /**
  * Request accepted by the {@link GetResourceDashboard} runtime callable. The
  * `applicationId` is injected from the bound {@link Application}.
@@ -26,6 +26,6 @@ export type GetResourceDashboardInput = Omit<emr.GetResourceDashboardRequest, "a
  *
  * @binding
  */
-export interface GetResourceDashboard extends Binding.Service<GetResourceDashboard, "AWS.EMRServerless.GetResourceDashboard", (application: Application) => Effect.Effect<((request: GetResourceDashboardInput) => Effect.Effect<emr.GetResourceDashboardResponse, emr.GetResourceDashboardError>)>> {
+export interface GetResourceDashboard extends Binding.Service<GetResourceDashboard, "AWS.EMRServerless.GetResourceDashboard", (application: Application) => Effect.Effect<(request: GetResourceDashboardInput) => Effect.Effect<emr.GetResourceDashboardResponse, emr.GetResourceDashboardError>>> {
 }
 export declare const GetResourceDashboard: GetResourceDashboard;

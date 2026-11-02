@@ -37,6 +37,6 @@ export interface UpdateResourcePositionRequest extends Omit<iotw.UpdateResourceP
  *
  * @binding
  */
-export interface UpdateResourcePosition extends Binding.Service<UpdateResourcePosition, "AWS.IoTWireless.UpdateResourcePosition", (device: WirelessDevice) => Effect.Effect<((request: UpdateResourcePositionRequest) => Effect.Effect<iotw.UpdateResourcePositionResponse, iotw.UpdateResourcePositionError>)>> {
+export interface UpdateResourcePosition extends Binding.Service<UpdateResourcePosition, "AWS.IoTWireless.UpdateResourcePosition", (device: WirelessDevice) => Effect.Effect<(request: UpdateResourcePositionRequest) => Effect.Effect<iotw.UpdateResourcePositionResponse, iotw.UpdateResourcePositionError>>> {
 }
 export declare const UpdateResourcePosition: UpdateResourcePosition;

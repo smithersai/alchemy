@@ -24,7 +24,7 @@ export declare const makeIotWirelessDeviceHttpBinding: <I, A, E, R, Req>(options
     /** IAM actions granted on the bound device's ARN. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** Map the public request shape + bound device id onto the wire request. */
     prepare: (request: Req, wirelessDeviceId: string) => I;
     /**
@@ -48,7 +48,7 @@ export declare const makeIotWirelessGatewayHttpBinding: <I, A, E, R, Req>(option
     /** IAM actions granted on the bound gateway's ARN. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** Map the public request shape + bound gateway id onto the wire request. */
     prepare: (request: Req, wirelessGatewayId: string) => I;
 }) => Effect.Effect<(gateway: WirelessGateway) => Effect.Effect<(request: Req) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -63,7 +63,7 @@ export declare const makeIotWirelessAccountHttpBinding: <I, A, E, R, Req>(option
     /** IAM actions granted on `Resource: ["*"]`. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** Map the public request shape onto the wire request. */
     prepare: (request: Req) => I;
 }) => Effect.Effect<() => Effect.Effect<(request: Req) => Effect.Effect<A, E, never>, never, never>, never, never>;

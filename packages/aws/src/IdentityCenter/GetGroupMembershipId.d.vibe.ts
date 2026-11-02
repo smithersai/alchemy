@@ -24,6 +24,6 @@ import type { Instance } from "./Instance.vibe";
  *
  * @binding
  */
-export interface GetGroupMembershipId extends Binding.Service<GetGroupMembershipId, "AWS.IdentityCenter.GetGroupMembershipId", (instance: Instance) => Effect.Effect<((request: Omit<identitystore.GetGroupMembershipIdRequest, "IdentityStoreId">) => Effect.Effect<identitystore.GetGroupMembershipIdResponse, identitystore.GetGroupMembershipIdError>)>> {
+export interface GetGroupMembershipId extends Binding.Service<GetGroupMembershipId, "AWS.IdentityCenter.GetGroupMembershipId", (instance: Instance) => Effect.Effect<(request: Omit<identitystore.GetGroupMembershipIdRequest, "IdentityStoreId">) => Effect.Effect<identitystore.GetGroupMembershipIdResponse, identitystore.GetGroupMembershipIdError>>> {
 }
 export declare const GetGroupMembershipId: GetGroupMembershipId;

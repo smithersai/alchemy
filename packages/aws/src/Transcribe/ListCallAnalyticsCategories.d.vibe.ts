@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListCallAnalyticsCategories extends Binding.Service<ListCallAnalyticsCategories, "AWS.Transcribe.ListCallAnalyticsCategories", () => Effect.Effect<((request?: transcribe.ListCallAnalyticsCategoriesRequest) => Effect.Effect<transcribe.ListCallAnalyticsCategoriesResponse, transcribe.ListCallAnalyticsCategoriesError>)>> {
+export interface ListCallAnalyticsCategories extends Binding.Service<ListCallAnalyticsCategories, "AWS.Transcribe.ListCallAnalyticsCategories", () => Effect.Effect<(request?: transcribe.ListCallAnalyticsCategoriesRequest) => Effect.Effect<transcribe.ListCallAnalyticsCategoriesResponse, transcribe.ListCallAnalyticsCategoriesError>>> {
 }
 export declare const ListCallAnalyticsCategories: ListCallAnalyticsCategories;

@@ -20,7 +20,7 @@ export declare const makeAssessmentScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.AuditManager.GetEvidence`. */
     tag: string;
     /** The distilled operation; `assessmentId` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the assessment ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(assessment: Assessment) => Effect.Effect<(request?: Omit<I, "assessmentId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -34,7 +34,7 @@ export declare const makeAuditManagerAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.AuditManager.GetInsights`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

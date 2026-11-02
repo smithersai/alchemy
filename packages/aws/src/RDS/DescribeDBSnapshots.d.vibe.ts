@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDBSnapshots extends Binding.Service<DescribeDBSnapshots, "AWS.RDS.DescribeDBSnapshots", () => Effect.Effect<((request?: rds.DescribeDBSnapshotsMessage) => Effect.Effect<rds.DBSnapshotMessage, rds.DescribeDBSnapshotsError>)>> {
+export interface DescribeDBSnapshots extends Binding.Service<DescribeDBSnapshots, "AWS.RDS.DescribeDBSnapshots", () => Effect.Effect<(request?: rds.DescribeDBSnapshotsMessage) => Effect.Effect<rds.DBSnapshotMessage, rds.DescribeDBSnapshotsError>>> {
 }
 export declare const DescribeDBSnapshots: DescribeDBSnapshots;

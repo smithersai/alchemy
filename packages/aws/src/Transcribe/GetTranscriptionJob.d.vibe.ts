@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetTranscriptionJob extends Binding.Service<GetTranscriptionJob, "AWS.Transcribe.GetTranscriptionJob", () => Effect.Effect<((request: transcribe.GetTranscriptionJobRequest) => Effect.Effect<transcribe.GetTranscriptionJobResponse, transcribe.GetTranscriptionJobError>)>> {
+export interface GetTranscriptionJob extends Binding.Service<GetTranscriptionJob, "AWS.Transcribe.GetTranscriptionJob", () => Effect.Effect<(request: transcribe.GetTranscriptionJobRequest) => Effect.Effect<transcribe.GetTranscriptionJobResponse, transcribe.GetTranscriptionJobError>>> {
 }
 export declare const GetTranscriptionJob: GetTranscriptionJob;

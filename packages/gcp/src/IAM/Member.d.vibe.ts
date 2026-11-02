@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { type GcpIamResourceKind } from "../IamPolicy.js";
-import type { Providers } from "../Providers.js";
+import { type GcpIamResourceKind } from "../IamPolicy.ts";
+import type { Providers } from "../Providers.ts";
 export type MemberProps = {
     /**
      * Kind of resource whose IAM policy receives the member, e.g.

@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
-import { TopicEventSource } from "../PubSub/TopicEventSource.js";
-import { BucketEventSource } from "./BucketEventSource.js";
+import { TopicEventSource } from "../PubSub/TopicEventSource.ts";
+import { BucketEventSource } from "./BucketEventSource.ts";
 /**
  * Implementation of `GCP.Storage.BucketEventSource` over Pub/Sub.
  *

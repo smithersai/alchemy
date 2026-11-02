@@ -24,6 +24,6 @@ export interface GetMetricStreamRequest extends Omit<cloudwatch.GetMetricStreamI
  *
  * @binding
  */
-export interface GetMetricStream extends Binding.Service<GetMetricStream, "AWS.CloudWatch.GetMetricStream", (metricStream: MetricStream) => Effect.Effect<((request?: GetMetricStreamRequest) => Effect.Effect<cloudwatch.GetMetricStreamOutput, cloudwatch.GetMetricStreamError>)>> {
+export interface GetMetricStream extends Binding.Service<GetMetricStream, "AWS.CloudWatch.GetMetricStream", (metricStream: MetricStream) => Effect.Effect<(request?: GetMetricStreamRequest) => Effect.Effect<cloudwatch.GetMetricStreamOutput, cloudwatch.GetMetricStreamError>>> {
 }
 export declare const GetMetricStream: GetMetricStream;

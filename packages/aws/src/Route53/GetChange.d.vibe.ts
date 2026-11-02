@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetChange extends Binding.Service<GetChange, "AWS.Route53.GetChange", () => Effect.Effect<((request: route53.GetChangeRequest) => Effect.Effect<route53.GetChangeResponse, route53.GetChangeError>)>> {
+export interface GetChange extends Binding.Service<GetChange, "AWS.Route53.GetChange", () => Effect.Effect<(request: route53.GetChangeRequest) => Effect.Effect<route53.GetChangeResponse, route53.GetChangeError>>> {
 }
 export declare const GetChange: GetChange;

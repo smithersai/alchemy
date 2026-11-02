@@ -26,6 +26,6 @@ export interface ListManagedInsightRulesRequest extends cloudwatch.ListManagedIn
  *
  * @binding
  */
-export interface ListManagedInsightRules extends Binding.Service<ListManagedInsightRules, "AWS.CloudWatch.ListManagedInsightRules", () => Effect.Effect<((request?: ListManagedInsightRulesRequest) => Effect.Effect<cloudwatch.ListManagedInsightRulesOutput, cloudwatch.ListManagedInsightRulesError>)>> {
+export interface ListManagedInsightRules extends Binding.Service<ListManagedInsightRules, "AWS.CloudWatch.ListManagedInsightRules", () => Effect.Effect<(request?: ListManagedInsightRulesRequest) => Effect.Effect<cloudwatch.ListManagedInsightRulesOutput, cloudwatch.ListManagedInsightRulesError>>> {
 }
 export declare const ListManagedInsightRules: ListManagedInsightRules;

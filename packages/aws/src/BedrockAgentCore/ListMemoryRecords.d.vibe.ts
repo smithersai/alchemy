@@ -33,6 +33,6 @@ export interface ListMemoryRecordsRequest extends Omit<agentcore.ListMemoryRecor
  *
  * @binding
  */
-export interface ListMemoryRecords extends Binding.Service<ListMemoryRecords, "AWS.BedrockAgentCore.ListMemoryRecords", <R extends Memory>(memory: R) => Effect.Effect<((request: ListMemoryRecordsRequest) => Effect.Effect<agentcore.ListMemoryRecordsOutput, agentcore.ListMemoryRecordsError>)>> {
+export interface ListMemoryRecords extends Binding.Service<ListMemoryRecords, "AWS.BedrockAgentCore.ListMemoryRecords", <R extends Memory>(memory: R) => Effect.Effect<(request: ListMemoryRecordsRequest) => Effect.Effect<agentcore.ListMemoryRecordsOutput, agentcore.ListMemoryRecordsError>>> {
 }
 export declare const ListMemoryRecords: ListMemoryRecords;

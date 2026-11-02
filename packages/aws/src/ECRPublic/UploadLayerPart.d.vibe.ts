@@ -29,6 +29,6 @@ export interface UploadLayerPartRequest extends Omit<ecrpublic.UploadLayerPartRe
  *
  * @binding
  */
-export interface UploadLayerPart extends Binding.Service<UploadLayerPart, "AWS.ECRPublic.UploadLayerPart", <R extends PublicRepository>(repository: R) => Effect.Effect<((request: UploadLayerPartRequest) => Effect.Effect<ecrpublic.UploadLayerPartResponse, ecrpublic.UploadLayerPartError>)>> {
+export interface UploadLayerPart extends Binding.Service<UploadLayerPart, "AWS.ECRPublic.UploadLayerPart", <R extends PublicRepository>(repository: R) => Effect.Effect<(request: UploadLayerPartRequest) => Effect.Effect<ecrpublic.UploadLayerPartResponse, ecrpublic.UploadLayerPartError>>> {
 }
 export declare const UploadLayerPart: UploadLayerPart;

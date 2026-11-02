@@ -32,6 +32,6 @@ export interface StartTraceRetrievalRequest extends xray.StartTraceRetrievalRequ
  *
  * @binding
  */
-export interface StartTraceRetrieval extends Binding.Service<StartTraceRetrieval, "AWS.XRay.StartTraceRetrieval", () => Effect.Effect<((request: StartTraceRetrievalRequest) => Effect.Effect<xray.StartTraceRetrievalResult, xray.StartTraceRetrievalError>)>> {
+export interface StartTraceRetrieval extends Binding.Service<StartTraceRetrieval, "AWS.XRay.StartTraceRetrieval", () => Effect.Effect<(request: StartTraceRetrievalRequest) => Effect.Effect<xray.StartTraceRetrievalResult, xray.StartTraceRetrievalError>>> {
 }
 export declare const StartTraceRetrieval: StartTraceRetrieval;

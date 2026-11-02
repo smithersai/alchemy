@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ClassifyDocument extends Binding.Service<ClassifyDocument, "AWS.Comprehend.ClassifyDocument", () => Effect.Effect<((request: comprehend.ClassifyDocumentRequest) => Effect.Effect<comprehend.ClassifyDocumentResponse, comprehend.ClassifyDocumentError>)>> {
+export interface ClassifyDocument extends Binding.Service<ClassifyDocument, "AWS.Comprehend.ClassifyDocument", () => Effect.Effect<(request: comprehend.ClassifyDocumentRequest) => Effect.Effect<comprehend.ClassifyDocumentResponse, comprehend.ClassifyDocumentError>>> {
 }
 export declare const ClassifyDocument: ClassifyDocument;

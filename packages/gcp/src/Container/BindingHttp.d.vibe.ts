@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { Cluster } from "./Cluster.js";
-import type { ClustersNodePool } from "./ClustersNodePool.js";
-import type { NodePool } from "./NodePool.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
+import type { Cluster } from "./Cluster.ts";
+import type { ClustersNodePool } from "./ClustersNodePool.ts";
+import type { NodePool } from "./NodePool.ts";
 /**
  * Shared HTTP scaffolding for GKE cluster and node pool bindings.
  * NOT exported from index.ts.

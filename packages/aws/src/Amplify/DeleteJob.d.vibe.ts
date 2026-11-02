@@ -23,6 +23,6 @@ export interface DeleteJobRequest extends Omit<amplify.DeleteJobRequest, "appId"
  *
  * @binding
  */
-export interface DeleteJob extends Binding.Service<DeleteJob, "AWS.Amplify.DeleteJob", (app: App) => Effect.Effect<((request: DeleteJobRequest) => Effect.Effect<amplify.DeleteJobResult, amplify.DeleteJobError>)>> {
+export interface DeleteJob extends Binding.Service<DeleteJob, "AWS.Amplify.DeleteJob", (app: App) => Effect.Effect<(request: DeleteJobRequest) => Effect.Effect<amplify.DeleteJobResult, amplify.DeleteJobError>>> {
 }
 export declare const DeleteJob: DeleteJob;

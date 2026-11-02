@@ -20,6 +20,6 @@ export interface BatchDisassociateAssessmentReportEvidenceRequest extends Omit<a
  *
  * @binding
  */
-export interface BatchDisassociateAssessmentReportEvidence extends Binding.Service<BatchDisassociateAssessmentReportEvidence, "AWS.AuditManager.BatchDisassociateAssessmentReportEvidence", (assessment: Assessment) => Effect.Effect<((request: BatchDisassociateAssessmentReportEvidenceRequest) => Effect.Effect<auditmanager.BatchDisassociateAssessmentReportEvidenceResponse, auditmanager.BatchDisassociateAssessmentReportEvidenceError>)>> {
+export interface BatchDisassociateAssessmentReportEvidence extends Binding.Service<BatchDisassociateAssessmentReportEvidence, "AWS.AuditManager.BatchDisassociateAssessmentReportEvidence", (assessment: Assessment) => Effect.Effect<(request: BatchDisassociateAssessmentReportEvidenceRequest) => Effect.Effect<auditmanager.BatchDisassociateAssessmentReportEvidenceResponse, auditmanager.BatchDisassociateAssessmentReportEvidenceError>>> {
 }
 export declare const BatchDisassociateAssessmentReportEvidence: BatchDisassociateAssessmentReportEvidence;

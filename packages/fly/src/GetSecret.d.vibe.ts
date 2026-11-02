@@ -2,7 +2,7 @@ import type { AppSecret, GetSecretError } from "@distilled.cloud/fly-io/machines
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 /**
  * Fetch one Fly.io App secret. The App and name are fixed by
  * `GetSecret(secret)`. Calls take no `app_name`.
@@ -37,6 +37,6 @@ import type { Secret } from "./Secret.js";
  * @binding
  * @product Secret
  */
-export interface GetSecret extends Binding.Service<GetSecret, "Fly.GetSecret", (secret: Secret) => Effect.Effect<(() => Effect.Effect<AppSecret, GetSecretError, RuntimeContext>)>> {
+export interface GetSecret extends Binding.Service<GetSecret, "Fly.GetSecret", (secret: Secret) => Effect.Effect<() => Effect.Effect<AppSecret, GetSecretError, RuntimeContext>>> {
 }
 export declare const GetSecret: GetSecret;

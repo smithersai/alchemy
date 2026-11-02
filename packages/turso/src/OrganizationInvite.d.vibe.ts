@@ -42,4 +42,4 @@ export type OrganizationInvite = Resource<"Turso.OrganizationInvite", Organizati
  * @product Organization
  */
 export declare const OrganizationInvite: import("alchemy/Resource").ResourceClass<OrganizationInvite>;
-export declare const OrganizationInviteProvider: () => import("effect/Layer").Layer<Provider.Provider<OrganizationInvite>, never, import("./Credentials.js").Organization | turso.TursoOpContext>;
+export declare const OrganizationInviteProvider: () => import("effect/Layer").Layer<Provider.Provider<OrganizationInvite>, never, import("./Credentials.ts").Organization | turso.TursoOpContext>;

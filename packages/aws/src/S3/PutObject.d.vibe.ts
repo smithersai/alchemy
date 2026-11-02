@@ -1,7 +1,7 @@
 import * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface PutObjectRequest extends Omit<S3.PutObjectRequest, "Bucket"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface PutObjectRequest extends Omit<S3.PutObjectRequest, "Bucket"> {
  *
  * @binding
  */
-export interface PutObject extends Binding.Service<PutObject, "AWS.S3.PutObject", (bucket: Bucket) => Effect.Effect<((request: PutObjectRequest) => Effect.Effect<S3.PutObjectOutput, S3.PutObjectError>)>> {
+export interface PutObject extends Binding.Service<PutObject, "AWS.S3.PutObject", (bucket: Bucket) => Effect.Effect<(request: PutObjectRequest) => Effect.Effect<S3.PutObjectOutput, S3.PutObjectError>>> {
 }
 export declare const PutObject: PutObject;

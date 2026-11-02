@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSnapshot extends Binding.Service<GetSnapshot, "AWS.RedshiftServerless.GetSnapshot", () => Effect.Effect<((request: serverless.GetSnapshotRequest) => Effect.Effect<serverless.GetSnapshotResponse, serverless.GetSnapshotError>)>> {
+export interface GetSnapshot extends Binding.Service<GetSnapshot, "AWS.RedshiftServerless.GetSnapshot", () => Effect.Effect<(request: serverless.GetSnapshotRequest) => Effect.Effect<serverless.GetSnapshotResponse, serverless.GetSnapshotError>>> {
 }
 export declare const GetSnapshot: GetSnapshot;

@@ -1,7 +1,7 @@
 import type * as Duration from "effect/Duration";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * Behaviour when stack creation fails.
  * - `ROLLBACK` (default) — roll the stack back and delete created resources.

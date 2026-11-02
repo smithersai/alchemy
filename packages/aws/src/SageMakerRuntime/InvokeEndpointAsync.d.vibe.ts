@@ -45,6 +45,6 @@ export interface InvokeEndpointAsyncRequest extends Omit<sagemaker.InvokeEndpoin
  *
  * @binding
  */
-export interface InvokeEndpointAsync extends Binding.Service<InvokeEndpointAsync, "AWS.SageMakerRuntime.InvokeEndpointAsync", (endpoint: string, ...additionalEndpoints: string[]) => Effect.Effect<((request: InvokeEndpointAsyncRequest) => Effect.Effect<sagemaker.InvokeEndpointAsyncOutput, sagemaker.InvokeEndpointAsyncError>)>> {
+export interface InvokeEndpointAsync extends Binding.Service<InvokeEndpointAsync, "AWS.SageMakerRuntime.InvokeEndpointAsync", (endpoint: string, ...additionalEndpoints: string[]) => Effect.Effect<(request: InvokeEndpointAsyncRequest) => Effect.Effect<sagemaker.InvokeEndpointAsyncOutput, sagemaker.InvokeEndpointAsyncError>>> {
 }
 export declare const InvokeEndpointAsync: InvokeEndpointAsync;

@@ -25,6 +25,6 @@ export interface DescribeRegistriesRequest extends ecrpublic.DescribeRegistriesR
  *
  * @binding
  */
-export interface DescribeRegistries extends Binding.Service<DescribeRegistries, "AWS.ECRPublic.DescribeRegistries", () => Effect.Effect<((request?: DescribeRegistriesRequest) => Effect.Effect<ecrpublic.DescribeRegistriesResponse, ecrpublic.DescribeRegistriesError>)>> {
+export interface DescribeRegistries extends Binding.Service<DescribeRegistries, "AWS.ECRPublic.DescribeRegistries", () => Effect.Effect<(request?: DescribeRegistriesRequest) => Effect.Effect<ecrpublic.DescribeRegistriesResponse, ecrpublic.DescribeRegistriesError>>> {
 }
 export declare const DescribeRegistries: DescribeRegistries;

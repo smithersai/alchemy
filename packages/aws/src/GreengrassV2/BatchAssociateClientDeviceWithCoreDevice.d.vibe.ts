@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchAssociateClientDeviceWithCoreDevice extends Binding.Service<BatchAssociateClientDeviceWithCoreDevice, "AWS.GreengrassV2.BatchAssociateClientDeviceWithCoreDevice", () => Effect.Effect<((request: greengrassv2.BatchAssociateClientDeviceWithCoreDeviceRequest) => Effect.Effect<greengrassv2.BatchAssociateClientDeviceWithCoreDeviceResponse, greengrassv2.BatchAssociateClientDeviceWithCoreDeviceError>)>> {
+export interface BatchAssociateClientDeviceWithCoreDevice extends Binding.Service<BatchAssociateClientDeviceWithCoreDevice, "AWS.GreengrassV2.BatchAssociateClientDeviceWithCoreDevice", () => Effect.Effect<(request: greengrassv2.BatchAssociateClientDeviceWithCoreDeviceRequest) => Effect.Effect<greengrassv2.BatchAssociateClientDeviceWithCoreDeviceResponse, greengrassv2.BatchAssociateClientDeviceWithCoreDeviceError>>> {
 }
 export declare const BatchAssociateClientDeviceWithCoreDevice: BatchAssociateClientDeviceWithCoreDevice;

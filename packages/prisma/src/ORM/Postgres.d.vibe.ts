@@ -6,12 +6,12 @@ import type { PostgresStaticContext } from "@prisma/orm-postgres/static";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { type ClientError, RollbackError } from "./Errors.js";
-import { type EffectOrm } from "./OrmClient.js";
-import { type Prepare } from "./Prepared.js";
-export type { Prepare, Prepared, PreparedQuery, PreparedMutation } from "./Prepared.js";
-export * from "./Errors.js";
-export type { EffectCollection, EffectOrm, WhereFilter } from "./OrmClient.js";
+import { type ClientError, RollbackError } from "./Errors.ts";
+import { type EffectOrm } from "./OrmClient.ts";
+import { type Prepare } from "./Prepared.ts";
+export type { Prepare, Prepared, PreparedQuery, PreparedMutation } from "./Prepared.ts";
+export * from "./Errors.ts";
+export type { EffectCollection, EffectOrm, WhereFilter } from "./OrmClient.ts";
 /** A Prisma Postgres contract, authored directly or described by emitted types. */
 export type AnyPostgresContract = Contract<SqlStorage>;
 /** A plan produced by the `sql` builder lane (`db.sql...build()`) or `raw`. */

@@ -1,7 +1,7 @@
 import type * as runtime from "@cloudflare/workers-types";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { NamespaceError } from "./NamespaceTypes.js";
+import type { NamespaceError } from "./NamespaceTypes.ts";
 import type { ReadNamespaceClient } from "./ReadNamespace.vibe";
 import type { WriteNamespaceClient } from "./WriteNamespace.vibe";
 /** Instant lists all matching keys in one request; pagination is unsupported. */

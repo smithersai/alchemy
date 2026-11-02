@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ContainsPiiEntities extends Binding.Service<ContainsPiiEntities, "AWS.Comprehend.ContainsPiiEntities", () => Effect.Effect<((request: comprehend.ContainsPiiEntitiesRequest) => Effect.Effect<comprehend.ContainsPiiEntitiesResponse, comprehend.ContainsPiiEntitiesError>)>> {
+export interface ContainsPiiEntities extends Binding.Service<ContainsPiiEntities, "AWS.Comprehend.ContainsPiiEntities", () => Effect.Effect<(request: comprehend.ContainsPiiEntitiesRequest) => Effect.Effect<comprehend.ContainsPiiEntitiesResponse, comprehend.ContainsPiiEntitiesError>>> {
 }
 export declare const ContainsPiiEntities: ContainsPiiEntities;

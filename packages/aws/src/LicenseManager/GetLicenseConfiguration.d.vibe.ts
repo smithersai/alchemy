@@ -26,6 +26,6 @@ import type { LicenseConfiguration } from "./LicenseConfiguration.vibe";
  *
  * @binding
  */
-export interface GetLicenseConfiguration extends Binding.Service<GetLicenseConfiguration, "AWS.LicenseManager.GetLicenseConfiguration", (configuration: LicenseConfiguration) => Effect.Effect<(() => Effect.Effect<licensemanager.GetLicenseConfigurationResponse, licensemanager.GetLicenseConfigurationError>)>> {
+export interface GetLicenseConfiguration extends Binding.Service<GetLicenseConfiguration, "AWS.LicenseManager.GetLicenseConfiguration", (configuration: LicenseConfiguration) => Effect.Effect<() => Effect.Effect<licensemanager.GetLicenseConfigurationResponse, licensemanager.GetLicenseConfigurationError>>> {
 }
 export declare const GetLicenseConfiguration: GetLicenseConfiguration;

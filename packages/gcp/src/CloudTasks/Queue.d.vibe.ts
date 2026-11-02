@@ -1,8 +1,8 @@
 import * as cloudtasks from "@distilled.cloud/gcp/cloudtasks_v2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type QueueRetryConfig = {
     /** Attempts per task, including the first. `-1` means unlimited. */
     maxAttempts?: number;

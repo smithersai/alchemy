@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListEnabledBaselines extends Binding.Service<ListEnabledBaselines, "AWS.ControlTower.ListEnabledBaselines", () => Effect.Effect<((request?: controltower.ListEnabledBaselinesInput) => Effect.Effect<controltower.ListEnabledBaselinesOutput, controltower.ListEnabledBaselinesError>)>> {
+export interface ListEnabledBaselines extends Binding.Service<ListEnabledBaselines, "AWS.ControlTower.ListEnabledBaselines", () => Effect.Effect<(request?: controltower.ListEnabledBaselinesInput) => Effect.Effect<controltower.ListEnabledBaselinesOutput, controltower.ListEnabledBaselinesError>>> {
 }
 export declare const ListEnabledBaselines: ListEnabledBaselines;

@@ -27,6 +27,6 @@ export interface StartQueryRequest extends Omit<im.StartQueryInput, "MonitorName
  *
  * @binding
  */
-export interface StartQuery extends Binding.Service<StartQuery, "AWS.InternetMonitor.StartQuery", (monitor: Monitor) => Effect.Effect<((request: StartQueryRequest) => Effect.Effect<im.StartQueryOutput, im.StartQueryError>)>> {
+export interface StartQuery extends Binding.Service<StartQuery, "AWS.InternetMonitor.StartQuery", (monitor: Monitor) => Effect.Effect<(request: StartQueryRequest) => Effect.Effect<im.StartQueryOutput, im.StartQueryError>>> {
 }
 export declare const StartQuery: StartQuery;

@@ -1,7 +1,7 @@
 import type * as autoscaling from "@distilled.cloud/aws/auto-scaling";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AutoScalingGroup } from "./AutoScalingGroup.js";
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts";
 /**
  * `SetInstanceProtection` request with `AutoScalingGroupName` injected from
  * the bound {@link AutoScalingGroup}.
@@ -32,6 +32,6 @@ export interface SetInstanceProtectionRequest extends Omit<autoscaling.SetInstan
  *
  * @binding
  */
-export interface SetInstanceProtection extends Binding.Service<SetInstanceProtection, "AWS.AutoScaling.SetInstanceProtection", (group: AutoScalingGroup) => Effect.Effect<((request: SetInstanceProtectionRequest) => Effect.Effect<autoscaling.SetInstanceProtectionAnswer, autoscaling.SetInstanceProtectionError>)>> {
+export interface SetInstanceProtection extends Binding.Service<SetInstanceProtection, "AWS.AutoScaling.SetInstanceProtection", (group: AutoScalingGroup) => Effect.Effect<(request: SetInstanceProtectionRequest) => Effect.Effect<autoscaling.SetInstanceProtectionAnswer, autoscaling.SetInstanceProtectionError>>> {
 }
 export declare const SetInstanceProtection: SetInstanceProtection;

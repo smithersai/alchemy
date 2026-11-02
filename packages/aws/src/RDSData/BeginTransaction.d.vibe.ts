@@ -2,8 +2,8 @@ import * as rdsdata from "@distilled.cloud/aws/rds-data";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { DBCluster } from "../RDS/DBCluster.js";
-import type { Secret } from "../SecretsManager/Secret.js";
+import type { DBCluster } from "../RDS/DBCluster.ts";
+import type { Secret } from "../SecretsManager/Secret.ts";
 export interface BeginTransactionOptions {
     secret: Secret;
     database?: string;
@@ -50,6 +50,6 @@ export interface BeginTransactionOptions {
  *
  * @binding
  */
-export interface BeginTransaction extends Binding.Service<BeginTransaction, "AWS.RDSData.BeginTransaction", (cluster: DBCluster, options: BeginTransactionOptions) => Effect.Effect<(() => Effect.Effect<rdsdata.BeginTransactionResponse, rdsdata.BeginTransactionError, RuntimeContext>)>> {
+export interface BeginTransaction extends Binding.Service<BeginTransaction, "AWS.RDSData.BeginTransaction", (cluster: DBCluster, options: BeginTransactionOptions) => Effect.Effect<() => Effect.Effect<rdsdata.BeginTransactionResponse, rdsdata.BeginTransactionError, RuntimeContext>>> {
 }
 export declare const BeginTransaction: BeginTransaction;

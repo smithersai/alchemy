@@ -26,7 +26,7 @@ export declare const makeTextractHttpBinding: <I extends object, A, E, R>(option
     /** IAM actions granted on `Resource: ["*"]`. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
 /**
  * Build the impl Effect for an adapter-scoped Textract operation: the
@@ -43,5 +43,5 @@ export declare const makeTextractAdapterHttpBinding: <I extends {
     /** IAM actions granted on the adapter ARN + `/versions/*`. */
     iamActions: readonly string[];
     /** The distilled operation; `AdapterId` is injected from the adapter. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<<Ad extends Adapter>(adapter: Ad) => Effect.Effect<(request?: Omit<I, "AdapterId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

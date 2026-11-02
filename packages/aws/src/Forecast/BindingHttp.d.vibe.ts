@@ -28,7 +28,7 @@ export declare const makeForecastHttpBinding: <I, A, E, R>(options: {
     /**
      * The distilled operation implementing the capability.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /**
      * Grant `iam:PassRole` (conditioned to `forecast.amazonaws.com`) so the
      * function can hand the service the role it assumes to read S3 training

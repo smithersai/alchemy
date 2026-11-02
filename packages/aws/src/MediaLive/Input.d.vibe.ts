@@ -1,7 +1,7 @@
 import * as medialive from "@distilled.cloud/aws/medialive";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface InputProps {
     /**
      * Name of the input. If omitted, a unique name is generated from the app,

@@ -24,6 +24,6 @@ export interface SendTaskSuccessRequest extends sfn.SendTaskSuccessInput {
  *
  * @binding
  */
-export interface SendTaskSuccess extends Binding.Service<SendTaskSuccess, "AWS.StepFunctions.SendTaskSuccess", (activity?: Activity) => Effect.Effect<((request: SendTaskSuccessRequest) => Effect.Effect<sfn.SendTaskSuccessOutput, sfn.SendTaskSuccessError>)>> {
+export interface SendTaskSuccess extends Binding.Service<SendTaskSuccess, "AWS.StepFunctions.SendTaskSuccess", (activity?: Activity) => Effect.Effect<(request: SendTaskSuccessRequest) => Effect.Effect<sfn.SendTaskSuccessOutput, sfn.SendTaskSuccessError>>> {
 }
 export declare const SendTaskSuccess: SendTaskSuccess;

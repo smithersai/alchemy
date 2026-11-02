@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateAccountPreferences extends Binding.Service<UpdateAccountPreferences, "AWS.Chatbot.UpdateAccountPreferences", () => Effect.Effect<((request?: chatbot.UpdateAccountPreferencesRequest) => Effect.Effect<chatbot.UpdateAccountPreferencesResult, chatbot.UpdateAccountPreferencesError>)>> {
+export interface UpdateAccountPreferences extends Binding.Service<UpdateAccountPreferences, "AWS.Chatbot.UpdateAccountPreferences", () => Effect.Effect<(request?: chatbot.UpdateAccountPreferencesRequest) => Effect.Effect<chatbot.UpdateAccountPreferencesResult, chatbot.UpdateAccountPreferencesError>>> {
 }
 export declare const UpdateAccountPreferences: UpdateAccountPreferences;

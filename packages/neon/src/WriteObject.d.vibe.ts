@@ -1,9 +1,9 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { Object, ObjectDecodeError } from "./Object.js";
+import type { Object, ObjectDecodeError } from "./Object.ts";
 import type { ReadBucketClient } from "./ReadBucket.vibe";
-import type { StorageBindingOptions } from "./StorageBinding.js";
+import type { StorageBindingOptions } from "./StorageBinding.ts";
 import type { WriteBucketClient } from "./WriteBucket.vibe";
 export interface WriteObjectClient<T> {
     /** Serialize a typed JSON value, or upload exact bytes/text to a raw object. */

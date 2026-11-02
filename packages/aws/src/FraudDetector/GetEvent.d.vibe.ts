@@ -38,6 +38,6 @@ export interface GetEventRequest extends Omit<frauddetector.GetEventRequest, "ev
  *
  * @binding
  */
-export interface GetEvent extends Binding.Service<GetEvent, "AWS.FraudDetector.GetEvent", (eventType: EventType) => Effect.Effect<((request: GetEventRequest) => Effect.Effect<frauddetector.GetEventResult, frauddetector.GetEventError>)>> {
+export interface GetEvent extends Binding.Service<GetEvent, "AWS.FraudDetector.GetEvent", (eventType: EventType) => Effect.Effect<(request: GetEventRequest) => Effect.Effect<frauddetector.GetEventResult, frauddetector.GetEventError>>> {
 }
 export declare const GetEvent: GetEvent;

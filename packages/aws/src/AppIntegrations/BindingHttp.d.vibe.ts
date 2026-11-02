@@ -23,7 +23,7 @@ export declare const makeAppIntegrationsHttpBinding: <Res extends {
     /** Capability name used in the bind sid and runtime span. */
     name: string;
     /** The distilled AppIntegrations operation backing the binding. */
-    operation: Effect.Effect<((input: WireReq) => Effect.Effect<Out, Err>), never, OpR>;
+    operation: Effect.Effect<(input: WireReq) => Effect.Effect<Out, Err>, never, OpR>;
     /** Wire key the resolved resource identifier is injected under. */
     requestKey: IdKey;
     /** The resource attribute used as the wire identifier. */
@@ -49,7 +49,7 @@ export declare const makeAppIntegrationsAccountHttpBinding: <WireReq, Out, Err, 
     /** Capability name used in the bind sid and runtime span. */
     name: string;
     /** The distilled AppIntegrations operation backing the binding. */
-    operation: Effect.Effect<((input: WireReq) => Effect.Effect<Out, Err>), never, OpR>;
+    operation: Effect.Effect<(input: WireReq) => Effect.Effect<Out, Err>, never, OpR>;
     /** IAM actions granted on the host at deploy time. */
     iamActions: string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: WireReq | undefined) => Effect.Effect<Out, Err, never>, never, never>, never, never>;

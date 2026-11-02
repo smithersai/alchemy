@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.ts";
 /**
  * A DNS record Railway requires for a custom domain.
  */
@@ -177,5 +177,5 @@ export declare class CustomDomainServiceMissing extends CustomDomainServiceMissi
     domain: string;
 }> {
 }
-export declare const CustomDomainProvider: () => import("effect/Layer").Layer<Provider.Provider<CustomDomain>, never, import("@distilled.cloud/railway").GqlTransport | import("./Environment.js").RailwayEnvironment>;
+export declare const CustomDomainProvider: () => import("effect/Layer").Layer<Provider.Provider<CustomDomain>, never, import("@distilled.cloud/railway").GqlTransport | import("./Environment.ts").RailwayEnvironment>;
 export {};

@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeCreateAccountStatus extends Binding.Service<DescribeCreateAccountStatus, "AWS.Organizations.DescribeCreateAccountStatus", () => Effect.Effect<((request: organizations.DescribeCreateAccountStatusRequest) => Effect.Effect<organizations.DescribeCreateAccountStatusResponse, organizations.DescribeCreateAccountStatusError>)>> {
+export interface DescribeCreateAccountStatus extends Binding.Service<DescribeCreateAccountStatus, "AWS.Organizations.DescribeCreateAccountStatus", () => Effect.Effect<(request: organizations.DescribeCreateAccountStatusRequest) => Effect.Effect<organizations.DescribeCreateAccountStatusResponse, organizations.DescribeCreateAccountStatusError>>> {
 }
 export declare const DescribeCreateAccountStatus: DescribeCreateAccountStatus;

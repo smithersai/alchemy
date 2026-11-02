@@ -15,7 +15,7 @@ export interface AppFlowHttpBindingOptions<R extends {
      */
     action: string;
     /** The distilled AppFlow operation invoked at runtime. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, OpR>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, OpR>;
     /**
      * Resolve the identifier the operation is keyed by (the flow name or the
      * connector profile name).

@@ -20,6 +20,6 @@ import type { DeploymentGroup } from "./DeploymentGroup.vibe";
  *
  * @binding
  */
-export interface ContinueDeployment extends Binding.Service<ContinueDeployment, "AWS.CodeDeploy.ContinueDeployment", <G extends DeploymentGroup>(group: G) => Effect.Effect<((request: SVC.ContinueDeploymentInput) => Effect.Effect<SVC.ContinueDeploymentResponse, SVC.ContinueDeploymentError>)>> {
+export interface ContinueDeployment extends Binding.Service<ContinueDeployment, "AWS.CodeDeploy.ContinueDeployment", <G extends DeploymentGroup>(group: G) => Effect.Effect<(request: SVC.ContinueDeploymentInput) => Effect.Effect<SVC.ContinueDeploymentResponse, SVC.ContinueDeploymentError>>> {
 }
 export declare const ContinueDeployment: ContinueDeployment;

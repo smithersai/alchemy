@@ -31,6 +31,6 @@ export interface ImportCertificateAuthorityCertificateRequest extends Omit<acmpc
  *
  * @binding
  */
-export interface ImportCertificateAuthorityCertificate extends Binding.Service<ImportCertificateAuthorityCertificate, "AWS.ACMPCA.ImportCertificateAuthorityCertificate", (certificateAuthority: CertificateAuthority) => Effect.Effect<((request: ImportCertificateAuthorityCertificateRequest) => Effect.Effect<acmpca.ImportCertificateAuthorityCertificateResponse, acmpca.ImportCertificateAuthorityCertificateError>)>> {
+export interface ImportCertificateAuthorityCertificate extends Binding.Service<ImportCertificateAuthorityCertificate, "AWS.ACMPCA.ImportCertificateAuthorityCertificate", (certificateAuthority: CertificateAuthority) => Effect.Effect<(request: ImportCertificateAuthorityCertificateRequest) => Effect.Effect<acmpca.ImportCertificateAuthorityCertificateResponse, acmpca.ImportCertificateAuthorityCertificateError>>> {
 }
 export declare const ImportCertificateAuthorityCertificate: ImportCertificateAuthorityCertificate;

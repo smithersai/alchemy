@@ -26,6 +26,6 @@ export type ListWorkflowRunsInput = Omit<mwaa.ListWorkflowRunsRequest, "Workflow
  *
  * @binding
  */
-export interface ListWorkflowRuns extends Binding.Service<ListWorkflowRuns, "AWS.MWAAServerless.ListWorkflowRuns", (workflow: Workflow) => Effect.Effect<((request?: ListWorkflowRunsInput) => Effect.Effect<mwaa.ListWorkflowRunsResponse, mwaa.ListWorkflowRunsError>)>> {
+export interface ListWorkflowRuns extends Binding.Service<ListWorkflowRuns, "AWS.MWAAServerless.ListWorkflowRuns", (workflow: Workflow) => Effect.Effect<(request?: ListWorkflowRunsInput) => Effect.Effect<mwaa.ListWorkflowRunsResponse, mwaa.ListWorkflowRunsError>>> {
 }
 export declare const ListWorkflowRuns: ListWorkflowRuns;

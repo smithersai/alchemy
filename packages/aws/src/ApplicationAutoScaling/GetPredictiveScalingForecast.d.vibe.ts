@@ -39,6 +39,6 @@ export interface GetPredictiveScalingForecastRequest extends Omit<aas.GetPredict
  *
  * @binding
  */
-export interface GetPredictiveScalingForecast extends Binding.Service<GetPredictiveScalingForecast, "AWS.ApplicationAutoScaling.GetPredictiveScalingForecast", (policy: ScalingPolicy) => Effect.Effect<((request: GetPredictiveScalingForecastRequest) => Effect.Effect<aas.GetPredictiveScalingForecastResponse, aas.GetPredictiveScalingForecastError>)>> {
+export interface GetPredictiveScalingForecast extends Binding.Service<GetPredictiveScalingForecast, "AWS.ApplicationAutoScaling.GetPredictiveScalingForecast", (policy: ScalingPolicy) => Effect.Effect<(request: GetPredictiveScalingForecastRequest) => Effect.Effect<aas.GetPredictiveScalingForecastResponse, aas.GetPredictiveScalingForecastError>>> {
 }
 export declare const GetPredictiveScalingForecast: GetPredictiveScalingForecast;

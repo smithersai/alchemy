@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetJobsQueryResults extends Binding.Service<GetJobsQueryResults, "AWS.MediaConvert.GetJobsQueryResults", () => Effect.Effect<((request: mediaconvert.GetJobsQueryResultsRequest) => Effect.Effect<mediaconvert.GetJobsQueryResultsResponse, mediaconvert.GetJobsQueryResultsError>)>> {
+export interface GetJobsQueryResults extends Binding.Service<GetJobsQueryResults, "AWS.MediaConvert.GetJobsQueryResults", () => Effect.Effect<(request: mediaconvert.GetJobsQueryResultsRequest) => Effect.Effect<mediaconvert.GetJobsQueryResultsResponse, mediaconvert.GetJobsQueryResultsError>>> {
 }
 export declare const GetJobsQueryResults: GetJobsQueryResults;

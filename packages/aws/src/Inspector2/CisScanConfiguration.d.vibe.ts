@@ -1,7 +1,7 @@
 import * as inspector2 from "@distilled.cloud/aws/inspector2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /** CIS Benchmark hardening level the scan checks against. */
 export type CisSecurityLevel = "LEVEL_1" | "LEVEL_2";
 export interface CisScanConfigurationProps {

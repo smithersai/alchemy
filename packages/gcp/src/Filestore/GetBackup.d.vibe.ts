@@ -21,6 +21,6 @@ export interface GetBackupRequest extends Omit<file.GetProjectsLocationsBackupsR
  * @binding
  * @category Filestore
  */
-export interface GetBackup extends Binding.Service<GetBackup, "GCP.Filestore.GetBackup", (backup: Backup) => Effect.Effect<((request?: GetBackupRequest) => Effect.Effect<file.Backup, file.GetProjectsLocationsBackupsError, RuntimeContext>)>> {
+export interface GetBackup extends Binding.Service<GetBackup, "GCP.Filestore.GetBackup", (backup: Backup) => Effect.Effect<(request?: GetBackupRequest) => Effect.Effect<file.Backup, file.GetProjectsLocationsBackupsError, RuntimeContext>>> {
 }
 export declare const GetBackup: GetBackup;

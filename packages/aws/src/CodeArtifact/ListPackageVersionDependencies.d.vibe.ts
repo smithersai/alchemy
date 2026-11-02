@@ -28,6 +28,6 @@ export interface ListPackageVersionDependenciesRequest extends Omit<codeartifact
  *
  * @binding
  */
-export interface ListPackageVersionDependencies extends Binding.Service<ListPackageVersionDependencies, "AWS.CodeArtifact.ListPackageVersionDependencies", (repository: Repository) => Effect.Effect<((request: ListPackageVersionDependenciesRequest) => Effect.Effect<codeartifact.ListPackageVersionDependenciesResult, codeartifact.ListPackageVersionDependenciesError>)>> {
+export interface ListPackageVersionDependencies extends Binding.Service<ListPackageVersionDependencies, "AWS.CodeArtifact.ListPackageVersionDependencies", (repository: Repository) => Effect.Effect<(request: ListPackageVersionDependenciesRequest) => Effect.Effect<codeartifact.ListPackageVersionDependenciesResult, codeartifact.ListPackageVersionDependenciesError>>> {
 }
 export declare const ListPackageVersionDependencies: ListPackageVersionDependencies;

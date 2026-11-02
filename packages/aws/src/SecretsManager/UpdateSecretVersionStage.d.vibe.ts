@@ -1,7 +1,7 @@
 import * as secretsmanager from "@distilled.cloud/aws/secrets-manager";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 export interface UpdateSecretVersionStageRequest extends Omit<secretsmanager.UpdateSecretVersionStageRequest, "SecretId"> {
 }
 /**
@@ -28,6 +28,6 @@ export interface UpdateSecretVersionStageRequest extends Omit<secretsmanager.Upd
  *
  * @binding
  */
-export interface UpdateSecretVersionStage extends Binding.Service<UpdateSecretVersionStage, "AWS.SecretsManager.UpdateSecretVersionStage", (secret: Secret) => Effect.Effect<((request: UpdateSecretVersionStageRequest) => Effect.Effect<secretsmanager.UpdateSecretVersionStageResponse, secretsmanager.UpdateSecretVersionStageError>)>> {
+export interface UpdateSecretVersionStage extends Binding.Service<UpdateSecretVersionStage, "AWS.SecretsManager.UpdateSecretVersionStage", (secret: Secret) => Effect.Effect<(request: UpdateSecretVersionStageRequest) => Effect.Effect<secretsmanager.UpdateSecretVersionStageResponse, secretsmanager.UpdateSecretVersionStageError>>> {
 }
 export declare const UpdateSecretVersionStage: UpdateSecretVersionStage;

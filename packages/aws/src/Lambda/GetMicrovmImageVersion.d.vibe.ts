@@ -13,6 +13,6 @@ export interface GetMicrovmImageVersionRequest extends Omit<microvms.GetMicrovmI
  *
  * @binding
  */
-export interface GetMicrovmImageVersion extends Binding.Service<GetMicrovmImageVersion, "AWS.Lambda.GetMicrovmImageVersion", (image: MicrovmImage) => Effect.Effect<((request: GetMicrovmImageVersionRequest) => Effect.Effect<microvms.GetMicrovmImageVersionOutput, microvms.GetMicrovmImageVersionError>)>> {
+export interface GetMicrovmImageVersion extends Binding.Service<GetMicrovmImageVersion, "AWS.Lambda.GetMicrovmImageVersion", (image: MicrovmImage) => Effect.Effect<(request: GetMicrovmImageVersionRequest) => Effect.Effect<microvms.GetMicrovmImageVersionOutput, microvms.GetMicrovmImageVersionError>>> {
 }
 export declare const GetMicrovmImageVersion: GetMicrovmImageVersion;

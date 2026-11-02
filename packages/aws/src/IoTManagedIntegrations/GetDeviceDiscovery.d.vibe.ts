@@ -24,6 +24,6 @@ export interface GetDeviceDiscoveryRequest extends mi.GetDeviceDiscoveryRequest 
  *
  * @binding
  */
-export interface GetDeviceDiscovery extends Binding.Service<GetDeviceDiscovery, "AWS.IoTManagedIntegrations.GetDeviceDiscovery", () => Effect.Effect<((request: GetDeviceDiscoveryRequest) => Effect.Effect<mi.GetDeviceDiscoveryResponse, mi.GetDeviceDiscoveryError>)>> {
+export interface GetDeviceDiscovery extends Binding.Service<GetDeviceDiscovery, "AWS.IoTManagedIntegrations.GetDeviceDiscovery", () => Effect.Effect<(request: GetDeviceDiscoveryRequest) => Effect.Effect<mi.GetDeviceDiscoveryResponse, mi.GetDeviceDiscoveryError>>> {
 }
 export declare const GetDeviceDiscovery: GetDeviceDiscovery;

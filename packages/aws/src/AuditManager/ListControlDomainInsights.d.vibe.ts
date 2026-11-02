@@ -16,6 +16,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListControlDomainInsights extends Binding.Service<ListControlDomainInsights, "AWS.AuditManager.ListControlDomainInsights", () => Effect.Effect<((request?: auditmanager.ListControlDomainInsightsRequest) => Effect.Effect<auditmanager.ListControlDomainInsightsResponse, auditmanager.ListControlDomainInsightsError>)>> {
+export interface ListControlDomainInsights extends Binding.Service<ListControlDomainInsights, "AWS.AuditManager.ListControlDomainInsights", () => Effect.Effect<(request?: auditmanager.ListControlDomainInsightsRequest) => Effect.Effect<auditmanager.ListControlDomainInsightsResponse, auditmanager.ListControlDomainInsightsError>>> {
 }
 export declare const ListControlDomainInsights: ListControlDomainInsights;

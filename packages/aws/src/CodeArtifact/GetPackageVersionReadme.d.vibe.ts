@@ -28,6 +28,6 @@ export interface GetPackageVersionReadmeRequest extends Omit<codeartifact.GetPac
  *
  * @binding
  */
-export interface GetPackageVersionReadme extends Binding.Service<GetPackageVersionReadme, "AWS.CodeArtifact.GetPackageVersionReadme", (repository: Repository) => Effect.Effect<((request: GetPackageVersionReadmeRequest) => Effect.Effect<codeartifact.GetPackageVersionReadmeResult, codeartifact.GetPackageVersionReadmeError>)>> {
+export interface GetPackageVersionReadme extends Binding.Service<GetPackageVersionReadme, "AWS.CodeArtifact.GetPackageVersionReadme", (repository: Repository) => Effect.Effect<(request: GetPackageVersionReadmeRequest) => Effect.Effect<codeartifact.GetPackageVersionReadmeResult, codeartifact.GetPackageVersionReadmeError>>> {
 }
 export declare const GetPackageVersionReadme: GetPackageVersionReadme;

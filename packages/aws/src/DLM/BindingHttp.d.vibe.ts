@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { LifecyclePolicy } from "./LifecyclePolicy.js";
+import type { LifecyclePolicy } from "./LifecyclePolicy.ts";
 /**
  * Shared scaffolding for Amazon Data Lifecycle Manager (DLM) HTTP bindings.
  *
@@ -20,7 +20,7 @@ export declare const makeDlmPolicyHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DLM.GetLifecyclePolicy`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the lifecycle policy ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(policy: LifecyclePolicy) => Effect.Effect<(request?: Omit<I, "PolicyId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -34,7 +34,7 @@ export declare const makeDlmAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.DLM.GetLifecyclePolicies`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

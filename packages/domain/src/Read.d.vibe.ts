@@ -1,6 +1,6 @@
 import type * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import type * as Aggregate from "./Aggregate.js";
+import type * as Aggregate from "./Aggregate.ts";
 import type * as Middleware from "./Middleware.vibe";
 import type * as Rejection from "./Rejection.vibe";
 /** How a client reads a View or an aggregate. */

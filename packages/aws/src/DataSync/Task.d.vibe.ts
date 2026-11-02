@@ -1,7 +1,7 @@
 import * as datasync from "@distilled.cloud/aws/datasync";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface TaskProps {
     /**
      * ARN of the source location data is transferred from. Cannot be changed

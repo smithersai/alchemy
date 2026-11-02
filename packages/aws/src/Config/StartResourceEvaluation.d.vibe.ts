@@ -31,6 +31,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartResourceEvaluation extends Binding.Service<StartResourceEvaluation, "AWS.Config.StartResourceEvaluation", () => Effect.Effect<((request: config.StartResourceEvaluationRequest) => Effect.Effect<config.StartResourceEvaluationResponse, config.StartResourceEvaluationError>)>> {
+export interface StartResourceEvaluation extends Binding.Service<StartResourceEvaluation, "AWS.Config.StartResourceEvaluation", () => Effect.Effect<(request: config.StartResourceEvaluationRequest) => Effect.Effect<config.StartResourceEvaluationResponse, config.StartResourceEvaluationError>>> {
 }
 export declare const StartResourceEvaluation: StartResourceEvaluation;

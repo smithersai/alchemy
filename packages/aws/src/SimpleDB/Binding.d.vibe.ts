@@ -28,5 +28,5 @@ export declare const makeSimpleDbBinding: <Req extends {
     DomainName: string;
 }, A, E, R>(options: {
     readonly operation: string;
-    readonly method: Effect.Effect<((input: Req) => Effect.Effect<A, E>), never, R>;
+    readonly method: Effect.Effect<(input: Req) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<(domain: Domain) => Effect.Effect<(request?: Omit<Req, "DomainName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

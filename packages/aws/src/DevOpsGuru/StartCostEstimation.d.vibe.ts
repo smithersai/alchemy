@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartCostEstimation extends Binding.Service<StartCostEstimation, "AWS.DevOpsGuru.StartCostEstimation", () => Effect.Effect<((request: devopsguru.StartCostEstimationRequest) => Effect.Effect<devopsguru.StartCostEstimationResponse, devopsguru.StartCostEstimationError>)>> {
+export interface StartCostEstimation extends Binding.Service<StartCostEstimation, "AWS.DevOpsGuru.StartCostEstimation", () => Effect.Effect<(request: devopsguru.StartCostEstimationRequest) => Effect.Effect<devopsguru.StartCostEstimationResponse, devopsguru.StartCostEstimationError>>> {
 }
 export declare const StartCostEstimation: StartCostEstimation;

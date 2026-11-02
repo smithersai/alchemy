@@ -21,6 +21,6 @@ export interface GetModelRequest extends Omit<ml.GetProjectsModelsRequest, "name
  * @binding
  * @category ML
  */
-export interface GetModel extends Binding.Service<GetModel, "GCP.ML.GetModel", (model: Model) => Effect.Effect<((request?: GetModelRequest) => Effect.Effect<ml.GoogleCloudMlV1__Model, ml.GetProjectsModelsError, RuntimeContext>)>> {
+export interface GetModel extends Binding.Service<GetModel, "GCP.ML.GetModel", (model: Model) => Effect.Effect<(request?: GetModelRequest) => Effect.Effect<ml.GoogleCloudMlV1__Model, ml.GetProjectsModelsError, RuntimeContext>>> {
 }
 export declare const GetModel: GetModel;

@@ -1,7 +1,7 @@
 import type * as ec2 from "@distilled.cloud/aws/ec2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 /**
  * `StopInstances` request with `InstanceIds` injected from the bound
  * {@link Instance}.
@@ -29,6 +29,6 @@ export interface StopInstanceRequest extends Omit<ec2.StopInstancesRequest, "Ins
  *
  * @binding
  */
-export interface StopInstance extends Binding.Service<StopInstance, "AWS.EC2.StopInstance", (instance: Instance) => Effect.Effect<((request?: StopInstanceRequest) => Effect.Effect<ec2.StopInstancesResult, ec2.StopInstancesError>)>> {
+export interface StopInstance extends Binding.Service<StopInstance, "AWS.EC2.StopInstance", (instance: Instance) => Effect.Effect<(request?: StopInstanceRequest) => Effect.Effect<ec2.StopInstancesResult, ec2.StopInstancesError>>> {
 }
 export declare const StopInstance: StopInstance;

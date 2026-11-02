@@ -1,7 +1,7 @@
 import type * as aa from "@distilled.cloud/aws/accessanalyzer";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Analyzer } from "./Analyzer.js";
+import type { Analyzer } from "./Analyzer.ts";
 /** `GetFindingV2` request with `analyzerArn` injected from the bound {@link Analyzer}. */
 export interface GetFindingV2Request extends Omit<aa.GetFindingV2Request, "analyzerArn"> {
 }
@@ -21,6 +21,6 @@ export interface GetFindingV2Request extends Omit<aa.GetFindingV2Request, "analy
  *
  * @binding
  */
-export interface GetFindingV2 extends Binding.Service<GetFindingV2, "AWS.AccessAnalyzer.GetFindingV2", (analyzer: Analyzer) => Effect.Effect<((request: GetFindingV2Request) => Effect.Effect<aa.GetFindingV2Response, aa.GetFindingV2Error>)>> {
+export interface GetFindingV2 extends Binding.Service<GetFindingV2, "AWS.AccessAnalyzer.GetFindingV2", (analyzer: Analyzer) => Effect.Effect<(request: GetFindingV2Request) => Effect.Effect<aa.GetFindingV2Response, aa.GetFindingV2Error>>> {
 }
 export declare const GetFindingV2: GetFindingV2;

@@ -22,6 +22,6 @@ export interface AcceptPredictionsRequest extends Omit<datazone.AcceptPrediction
  *
  * @binding
  */
-export interface AcceptPredictions extends Binding.Service<AcceptPredictions, "AWS.DataZone.AcceptPredictions", (domain: Domain) => Effect.Effect<((request: AcceptPredictionsRequest) => Effect.Effect<datazone.AcceptPredictionsOutput, datazone.AcceptPredictionsError>)>> {
+export interface AcceptPredictions extends Binding.Service<AcceptPredictions, "AWS.DataZone.AcceptPredictions", (domain: Domain) => Effect.Effect<(request: AcceptPredictionsRequest) => Effect.Effect<datazone.AcceptPredictionsOutput, datazone.AcceptPredictionsError>>> {
 }
 export declare const AcceptPredictions: AcceptPredictions;

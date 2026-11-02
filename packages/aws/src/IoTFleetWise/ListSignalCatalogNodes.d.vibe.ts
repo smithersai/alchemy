@@ -30,6 +30,6 @@ export interface ListSignalCatalogNodesRequest extends Omit<iotfleetwise.ListSig
  *
  * @binding
  */
-export interface ListSignalCatalogNodes extends Binding.Service<ListSignalCatalogNodes, "AWS.IoTFleetWise.ListSignalCatalogNodes", (catalog: SignalCatalog) => Effect.Effect<((request?: ListSignalCatalogNodesRequest) => Effect.Effect<iotfleetwise.ListSignalCatalogNodesResponse, iotfleetwise.ListSignalCatalogNodesError>)>> {
+export interface ListSignalCatalogNodes extends Binding.Service<ListSignalCatalogNodes, "AWS.IoTFleetWise.ListSignalCatalogNodes", (catalog: SignalCatalog) => Effect.Effect<(request?: ListSignalCatalogNodesRequest) => Effect.Effect<iotfleetwise.ListSignalCatalogNodesResponse, iotfleetwise.ListSignalCatalogNodesError>>> {
 }
 export declare const ListSignalCatalogNodes: ListSignalCatalogNodes;

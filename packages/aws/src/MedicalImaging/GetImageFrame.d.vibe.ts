@@ -32,6 +32,6 @@ export interface GetImageFrameRequest extends Omit<medicalimaging.GetImageFrameR
  *
  * @binding
  */
-export interface GetImageFrame extends Binding.Service<GetImageFrame, "AWS.MedicalImaging.GetImageFrame", (datastore: Datastore) => Effect.Effect<((request: GetImageFrameRequest) => Effect.Effect<medicalimaging.GetImageFrameResponse, medicalimaging.GetImageFrameError>)>> {
+export interface GetImageFrame extends Binding.Service<GetImageFrame, "AWS.MedicalImaging.GetImageFrame", (datastore: Datastore) => Effect.Effect<(request: GetImageFrameRequest) => Effect.Effect<medicalimaging.GetImageFrameResponse, medicalimaging.GetImageFrameError>>> {
 }
 export declare const GetImageFrame: GetImageFrame;

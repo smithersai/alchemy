@@ -26,6 +26,6 @@ export interface ListGeofencesRequest extends Omit<location.ListGeofencesRequest
  *
  * @binding
  */
-export interface ListGeofences extends Binding.Service<ListGeofences, "AWS.Location.ListGeofences", (collection: GeofenceCollection) => Effect.Effect<((request?: ListGeofencesRequest) => Effect.Effect<location.ListGeofencesResponse, location.ListGeofencesError>)>> {
+export interface ListGeofences extends Binding.Service<ListGeofences, "AWS.Location.ListGeofences", (collection: GeofenceCollection) => Effect.Effect<(request?: ListGeofencesRequest) => Effect.Effect<location.ListGeofencesResponse, location.ListGeofencesError>>> {
 }
 export declare const ListGeofences: ListGeofences;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ConvertRecoveryPointToSnapshot extends Binding.Service<ConvertRecoveryPointToSnapshot, "AWS.RedshiftServerless.ConvertRecoveryPointToSnapshot", () => Effect.Effect<((request: serverless.ConvertRecoveryPointToSnapshotRequest) => Effect.Effect<serverless.ConvertRecoveryPointToSnapshotResponse, serverless.ConvertRecoveryPointToSnapshotError>)>> {
+export interface ConvertRecoveryPointToSnapshot extends Binding.Service<ConvertRecoveryPointToSnapshot, "AWS.RedshiftServerless.ConvertRecoveryPointToSnapshot", () => Effect.Effect<(request: serverless.ConvertRecoveryPointToSnapshotRequest) => Effect.Effect<serverless.ConvertRecoveryPointToSnapshotResponse, serverless.ConvertRecoveryPointToSnapshotError>>> {
 }
 export declare const ConvertRecoveryPointToSnapshot: ConvertRecoveryPointToSnapshot;

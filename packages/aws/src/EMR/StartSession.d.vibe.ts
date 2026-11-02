@@ -17,6 +17,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface StartSession extends Binding.Service<StartSession, "AWS.EMR.StartSession", <C extends Cluster>(cluster: C) => Effect.Effect<((request?: Omit<SVC.StartSessionInput, "ClusterId">) => Effect.Effect<SVC.StartSessionOutput, SVC.StartSessionError>)>> {
+export interface StartSession extends Binding.Service<StartSession, "AWS.EMR.StartSession", <C extends Cluster>(cluster: C) => Effect.Effect<(request?: Omit<SVC.StartSessionInput, "ClusterId">) => Effect.Effect<SVC.StartSessionOutput, SVC.StartSessionError>>> {
 }
 export declare const StartSession: StartSession;

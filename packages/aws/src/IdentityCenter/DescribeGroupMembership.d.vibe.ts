@@ -24,6 +24,6 @@ import type { Instance } from "./Instance.vibe";
  *
  * @binding
  */
-export interface DescribeGroupMembership extends Binding.Service<DescribeGroupMembership, "AWS.IdentityCenter.DescribeGroupMembership", (instance: Instance) => Effect.Effect<((request: Omit<identitystore.DescribeGroupMembershipRequest, "IdentityStoreId">) => Effect.Effect<identitystore.DescribeGroupMembershipResponse, identitystore.DescribeGroupMembershipError>)>> {
+export interface DescribeGroupMembership extends Binding.Service<DescribeGroupMembership, "AWS.IdentityCenter.DescribeGroupMembership", (instance: Instance) => Effect.Effect<(request: Omit<identitystore.DescribeGroupMembershipRequest, "IdentityStoreId">) => Effect.Effect<identitystore.DescribeGroupMembershipResponse, identitystore.DescribeGroupMembershipError>>> {
 }
 export declare const DescribeGroupMembership: DescribeGroupMembership;

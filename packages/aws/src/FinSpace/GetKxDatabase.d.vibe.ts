@@ -18,6 +18,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface GetKxDatabase extends Binding.Service<GetKxDatabase, "AWS.FinSpace.GetKxDatabase", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request: Omit<SVC.GetKxDatabaseRequest, "environmentId">) => Effect.Effect<SVC.GetKxDatabaseResponse, SVC.GetKxDatabaseError>)>> {
+export interface GetKxDatabase extends Binding.Service<GetKxDatabase, "AWS.FinSpace.GetKxDatabase", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request: Omit<SVC.GetKxDatabaseRequest, "environmentId">) => Effect.Effect<SVC.GetKxDatabaseResponse, SVC.GetKxDatabaseError>>> {
 }
 export declare const GetKxDatabase: GetKxDatabase;

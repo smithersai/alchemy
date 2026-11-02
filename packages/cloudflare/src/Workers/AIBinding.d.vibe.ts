@@ -1,5 +1,5 @@
-import { AI, type AIClient } from "./AI.js";
-import * as Binding from "./Binding.js";
+import { AI, type AIClient } from "./AI.ts";
+import * as Binding from "./Binding.ts";
 /** The binding value produced by calling {@link AI} (declared on `env` or `yield*`-ed). */
 export type AIBinding = Binding.Binding<AI["key"], AIClient, AI>;
 /**
@@ -12,4 +12,4 @@ export type AIBinding = Binding.Binding<AI["key"], AIClient, AI>;
  * Effect-native {@link AIClient} (wrapping the raw `Ai` handle so `run` /
  * `models` return Effects and `model(...)` yields a `LanguageModel` layer).
  */
-export declare const AIBinding: import("effect/Layer").Layer<AI, never, import("./WorkerRuntime.js").WorkerEnvironment>;
+export declare const AIBinding: import("effect/Layer").Layer<AI, never, import("./WorkerRuntime.ts").WorkerEnvironment>;

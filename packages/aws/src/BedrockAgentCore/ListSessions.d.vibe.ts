@@ -30,6 +30,6 @@ export interface ListSessionsRequest extends Omit<agentcore.ListSessionsInput, "
  *
  * @binding
  */
-export interface ListSessions extends Binding.Service<ListSessions, "AWS.BedrockAgentCore.ListSessions", <R extends Memory>(memory: R) => Effect.Effect<((request: ListSessionsRequest) => Effect.Effect<agentcore.ListSessionsOutput, agentcore.ListSessionsError>)>> {
+export interface ListSessions extends Binding.Service<ListSessions, "AWS.BedrockAgentCore.ListSessions", <R extends Memory>(memory: R) => Effect.Effect<(request: ListSessionsRequest) => Effect.Effect<agentcore.ListSessionsOutput, agentcore.ListSessionsError>>> {
 }
 export declare const ListSessions: ListSessions;

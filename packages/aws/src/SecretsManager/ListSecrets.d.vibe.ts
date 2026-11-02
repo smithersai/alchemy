@@ -23,6 +23,6 @@ import * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListSecrets extends Binding.Service<ListSecrets, "AWS.SecretsManager.ListSecrets", () => Effect.Effect<((request?: secretsmanager.ListSecretsRequest) => Effect.Effect<secretsmanager.ListSecretsResponse, secretsmanager.ListSecretsError>)>> {
+export interface ListSecrets extends Binding.Service<ListSecrets, "AWS.SecretsManager.ListSecrets", () => Effect.Effect<(request?: secretsmanager.ListSecretsRequest) => Effect.Effect<secretsmanager.ListSecretsResponse, secretsmanager.ListSecretsError>>> {
 }
 export declare const ListSecrets: ListSecrets;

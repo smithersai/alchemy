@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { Worker, WorkerEnvironment } from "../Workers/Worker.js";
+import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
 import { Get } from "./Get.vibe";
 /**
  * Implementation of the {@link Get} binding that uses a native

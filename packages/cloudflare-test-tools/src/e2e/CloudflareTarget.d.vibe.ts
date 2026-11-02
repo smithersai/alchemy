@@ -1,5 +1,5 @@
 import { type DeployTarget } from "@alchemy.run/frontend-frameworks/core";
-import type * as Options from "./Options.js";
+import type * as Options from "./Options.ts";
 /**
  * The e2e harness's Cloudflare deploy target: a framework-core `DeployTarget`
  * value whose `serve` boots miniflare over a `BuildOutput` (the

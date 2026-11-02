@@ -59,6 +59,6 @@ export interface CreateParticipantTokenRequest extends Omit<ivsrealtime.CreatePa
  *
  * @binding
  */
-export interface CreateParticipantToken extends Binding.Service<CreateParticipantToken, "AWS.IVSRealtime.CreateParticipantToken", (stage: Stage) => Effect.Effect<((request?: CreateParticipantTokenRequest) => Effect.Effect<ivsrealtime.CreateParticipantTokenResponse, ivsrealtime.CreateParticipantTokenError>)>> {
+export interface CreateParticipantToken extends Binding.Service<CreateParticipantToken, "AWS.IVSRealtime.CreateParticipantToken", (stage: Stage) => Effect.Effect<(request?: CreateParticipantTokenRequest) => Effect.Effect<ivsrealtime.CreateParticipantTokenResponse, ivsrealtime.CreateParticipantTokenError>>> {
 }
 export declare const CreateParticipantToken: CreateParticipantToken;

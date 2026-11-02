@@ -1,7 +1,7 @@
 import * as iotfleetwise from "@distilled.cloud/aws/iotfleetwise";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 declare const SignalCatalogUnexpectedResponse_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "SignalCatalogUnexpectedResponse";
 } & Readonly<A>;

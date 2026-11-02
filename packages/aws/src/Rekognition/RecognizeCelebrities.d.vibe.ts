@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface RecognizeCelebrities extends Binding.Service<RecognizeCelebrities, "AWS.Rekognition.RecognizeCelebrities", () => Effect.Effect<((request: rekognition.RecognizeCelebritiesRequest) => Effect.Effect<rekognition.RecognizeCelebritiesResponse, rekognition.RecognizeCelebritiesError>)>> {
+export interface RecognizeCelebrities extends Binding.Service<RecognizeCelebrities, "AWS.Rekognition.RecognizeCelebrities", () => Effect.Effect<(request: rekognition.RecognizeCelebritiesRequest) => Effect.Effect<rekognition.RecognizeCelebritiesResponse, rekognition.RecognizeCelebritiesError>>> {
 }
 export declare const RecognizeCelebrities: RecognizeCelebrities;

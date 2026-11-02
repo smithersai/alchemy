@@ -23,6 +23,6 @@ import type { MatchingWorkflow } from "./MatchingWorkflow.vibe";
  *
  * @binding
  */
-export interface GetMatchId extends Binding.Service<GetMatchId, "AWS.EntityResolution.GetMatchId", (workflow: MatchingWorkflow) => Effect.Effect<((request: Omit<entityresolution.GetMatchIdInput, "workflowName">) => Effect.Effect<entityresolution.GetMatchIdOutput, entityresolution.GetMatchIdError>)>> {
+export interface GetMatchId extends Binding.Service<GetMatchId, "AWS.EntityResolution.GetMatchId", (workflow: MatchingWorkflow) => Effect.Effect<(request: Omit<entityresolution.GetMatchIdInput, "workflowName">) => Effect.Effect<entityresolution.GetMatchIdOutput, entityresolution.GetMatchIdError>>> {
 }
 export declare const GetMatchId: GetMatchId;

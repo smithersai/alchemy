@@ -22,6 +22,6 @@ import type { Channel } from "./Channel.vibe";
  *
  * @binding
  */
-export interface DeleteSchedule extends Binding.Service<DeleteSchedule, "AWS.MediaLive.DeleteSchedule", (channel: Channel) => Effect.Effect<(() => Effect.Effect<medialive.DeleteScheduleResponse, medialive.DeleteScheduleError>)>> {
+export interface DeleteSchedule extends Binding.Service<DeleteSchedule, "AWS.MediaLive.DeleteSchedule", (channel: Channel) => Effect.Effect<() => Effect.Effect<medialive.DeleteScheduleResponse, medialive.DeleteScheduleError>>> {
 }
 export declare const DeleteSchedule: DeleteSchedule;

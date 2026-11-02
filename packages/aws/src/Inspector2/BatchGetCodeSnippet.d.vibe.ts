@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetCodeSnippet extends Binding.Service<BatchGetCodeSnippet, "AWS.Inspector2.BatchGetCodeSnippet", () => Effect.Effect<((request: inspector2.BatchGetCodeSnippetRequest) => Effect.Effect<inspector2.BatchGetCodeSnippetResponse, inspector2.BatchGetCodeSnippetError>)>> {
+export interface BatchGetCodeSnippet extends Binding.Service<BatchGetCodeSnippet, "AWS.Inspector2.BatchGetCodeSnippet", () => Effect.Effect<(request: inspector2.BatchGetCodeSnippetRequest) => Effect.Effect<inspector2.BatchGetCodeSnippetResponse, inspector2.BatchGetCodeSnippetError>>> {
 }
 export declare const BatchGetCodeSnippet: BatchGetCodeSnippet;

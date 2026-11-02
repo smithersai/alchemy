@@ -42,6 +42,6 @@ export interface UpdateDomainNameserversRequest extends route53domains.UpdateDom
  *
  * @binding
  */
-export interface UpdateDomainNameservers extends Binding.Service<UpdateDomainNameservers, "AWS.Route53Domains.UpdateDomainNameservers", () => Effect.Effect<((request: UpdateDomainNameserversRequest) => Effect.Effect<route53domains.UpdateDomainNameserversResponse, route53domains.UpdateDomainNameserversError>)>> {
+export interface UpdateDomainNameservers extends Binding.Service<UpdateDomainNameservers, "AWS.Route53Domains.UpdateDomainNameservers", () => Effect.Effect<(request: UpdateDomainNameserversRequest) => Effect.Effect<route53domains.UpdateDomainNameserversResponse, route53domains.UpdateDomainNameserversError>>> {
 }
 export declare const UpdateDomainNameservers: UpdateDomainNameservers;

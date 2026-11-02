@@ -26,6 +26,6 @@ import type { Namespace } from "./Namespace.vibe";
  *
  * @binding
  */
-export interface CreateSnapshot extends Binding.Service<CreateSnapshot, "AWS.RedshiftServerless.CreateSnapshot", (namespace: Namespace) => Effect.Effect<((request: Omit<serverless.CreateSnapshotRequest, "namespaceName">) => Effect.Effect<serverless.CreateSnapshotResponse, serverless.CreateSnapshotError>)>> {
+export interface CreateSnapshot extends Binding.Service<CreateSnapshot, "AWS.RedshiftServerless.CreateSnapshot", (namespace: Namespace) => Effect.Effect<(request: Omit<serverless.CreateSnapshotRequest, "namespaceName">) => Effect.Effect<serverless.CreateSnapshotResponse, serverless.CreateSnapshotError>>> {
 }
 export declare const CreateSnapshot: CreateSnapshot;

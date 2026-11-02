@@ -20,6 +20,6 @@ export interface ListControlDomainInsightsByAssessmentRequest extends Omit<audit
  *
  * @binding
  */
-export interface ListControlDomainInsightsByAssessment extends Binding.Service<ListControlDomainInsightsByAssessment, "AWS.AuditManager.ListControlDomainInsightsByAssessment", (assessment: Assessment) => Effect.Effect<((request?: ListControlDomainInsightsByAssessmentRequest) => Effect.Effect<auditmanager.ListControlDomainInsightsByAssessmentResponse, auditmanager.ListControlDomainInsightsByAssessmentError>)>> {
+export interface ListControlDomainInsightsByAssessment extends Binding.Service<ListControlDomainInsightsByAssessment, "AWS.AuditManager.ListControlDomainInsightsByAssessment", (assessment: Assessment) => Effect.Effect<(request?: ListControlDomainInsightsByAssessmentRequest) => Effect.Effect<auditmanager.ListControlDomainInsightsByAssessmentResponse, auditmanager.ListControlDomainInsightsByAssessmentError>>> {
 }
 export declare const ListControlDomainInsightsByAssessment: ListControlDomainInsightsByAssessment;

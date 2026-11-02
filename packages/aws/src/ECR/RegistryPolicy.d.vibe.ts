@@ -1,8 +1,8 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
+import { AWSEnvironment } from "../Environment.ts";
 import type { PolicyDocument } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface RegistryPolicyProps {
     /**
      * The registry permissions policy — grants other AWS accounts registry

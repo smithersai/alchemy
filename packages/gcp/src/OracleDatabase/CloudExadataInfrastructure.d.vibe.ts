@@ -1,8 +1,8 @@
 import * as oracle from "@distilled.cloud/gcp/oracledatabase_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 import { type CustomerContact } from "./internal.vibe";
 export type MaintenanceWindow = {
     /** Scheduling preference (`CUSTOM_PREFERENCE`, `NO_PREFERENCE`). */

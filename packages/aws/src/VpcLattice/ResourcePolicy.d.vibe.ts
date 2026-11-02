@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type { PolicyDocument } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface ResourcePolicyProps {
     /**
      * The ARN of the service network or service the resource policy is attached

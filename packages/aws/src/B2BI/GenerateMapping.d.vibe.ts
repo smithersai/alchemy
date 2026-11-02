@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GenerateMapping extends Binding.Service<GenerateMapping, "AWS.B2BI.GenerateMapping", () => Effect.Effect<((request: b2bi.GenerateMappingRequest) => Effect.Effect<b2bi.GenerateMappingResponse, b2bi.GenerateMappingError>)>> {
+export interface GenerateMapping extends Binding.Service<GenerateMapping, "AWS.B2BI.GenerateMapping", () => Effect.Effect<(request: b2bi.GenerateMappingRequest) => Effect.Effect<b2bi.GenerateMappingResponse, b2bi.GenerateMappingError>>> {
 }
 export declare const GenerateMapping: GenerateMapping;

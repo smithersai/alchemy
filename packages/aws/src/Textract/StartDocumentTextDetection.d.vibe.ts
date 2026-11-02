@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartDocumentTextDetection extends Binding.Service<StartDocumentTextDetection, "AWS.Textract.StartDocumentTextDetection", () => Effect.Effect<((request: textract.StartDocumentTextDetectionRequest) => Effect.Effect<textract.StartDocumentTextDetectionResponse, textract.StartDocumentTextDetectionError>)>> {
+export interface StartDocumentTextDetection extends Binding.Service<StartDocumentTextDetection, "AWS.Textract.StartDocumentTextDetection", () => Effect.Effect<(request: textract.StartDocumentTextDetectionRequest) => Effect.Effect<textract.StartDocumentTextDetectionResponse, textract.StartDocumentTextDetectionError>>> {
 }
 export declare const StartDocumentTextDetection: StartDocumentTextDetection;

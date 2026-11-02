@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CompareFaces extends Binding.Service<CompareFaces, "AWS.Rekognition.CompareFaces", () => Effect.Effect<((request: rekognition.CompareFacesRequest) => Effect.Effect<rekognition.CompareFacesResponse, rekognition.CompareFacesError>)>> {
+export interface CompareFaces extends Binding.Service<CompareFaces, "AWS.Rekognition.CompareFaces", () => Effect.Effect<(request: rekognition.CompareFacesRequest) => Effect.Effect<rekognition.CompareFacesResponse, rekognition.CompareFacesError>>> {
 }
 export declare const CompareFaces: CompareFaces;

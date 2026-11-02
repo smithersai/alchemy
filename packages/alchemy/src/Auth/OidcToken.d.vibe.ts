@@ -34,4 +34,4 @@ export declare const SUPPORTED_OIDC_PLATFORMS = "Vercel, GitHub Actions (needs `
  * order and the first token wins. A probe that fails or hangs counts as
  * "not this platform". `undefined` means nothing was detected.
  */
-export declare const detectOidcToken: (env: OidcTokenEnv) => Effect.Effect<OidcToken | undefined, import("./AuthProvider.js").AuthError, HttpClient.HttpClient>;
+export declare const detectOidcToken: (env: OidcTokenEnv) => Effect.Effect<OidcToken | undefined, import("./AuthProvider.ts").AuthError, HttpClient.HttpClient>;

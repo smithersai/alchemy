@@ -29,6 +29,6 @@ export interface GetMapGlyphsRequest extends Omit<location.GetMapGlyphsRequest, 
  *
  * @binding
  */
-export interface GetMapGlyphs extends Binding.Service<GetMapGlyphs, "AWS.Location.GetMapGlyphs", (map: LocationMap) => Effect.Effect<((request: GetMapGlyphsRequest) => Effect.Effect<location.GetMapGlyphsResponse, location.GetMapGlyphsError>)>> {
+export interface GetMapGlyphs extends Binding.Service<GetMapGlyphs, "AWS.Location.GetMapGlyphs", (map: LocationMap) => Effect.Effect<(request: GetMapGlyphsRequest) => Effect.Effect<location.GetMapGlyphsResponse, location.GetMapGlyphsError>>> {
 }
 export declare const GetMapGlyphs: GetMapGlyphs;

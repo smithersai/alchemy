@@ -24,11 +24,11 @@ import type { Schema } from "./Schema.vibe";
  *
  * @binding
  */
-export interface GetCodeBindingSource extends Binding.Service<GetCodeBindingSource, "AWS.Schemas.GetCodeBindingSource", (schema: Schema) => Effect.Effect<((request: {
+export interface GetCodeBindingSource extends Binding.Service<GetCodeBindingSource, "AWS.Schemas.GetCodeBindingSource", (schema: Schema) => Effect.Effect<(request: {
     /** The target language: `Java8`, `Python36`, `TypeScript3`, or `Go1`. */
     Language: string;
     /** The version of the schema. Defaults to the latest. */
     SchemaVersion?: string;
-}) => Effect.Effect<schemas.GetCodeBindingSourceResponse, schemas.GetCodeBindingSourceError>)>> {
+}) => Effect.Effect<schemas.GetCodeBindingSourceResponse, schemas.GetCodeBindingSourceError>>> {
 }
 export declare const GetCodeBindingSource: GetCodeBindingSource;

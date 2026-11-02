@@ -25,6 +25,6 @@ export interface BatchDeleteAttributesRequest extends Omit<sdb.BatchDeleteAttrib
  *
  * @binding
  */
-export interface BatchDeleteAttributes extends Binding.Service<BatchDeleteAttributes, "AWS.SimpleDB.BatchDeleteAttributes", (domain: Domain) => Effect.Effect<((request: BatchDeleteAttributesRequest) => Effect.Effect<sdb.BatchDeleteAttributesResponse, sdb.BatchDeleteAttributesError, RuntimeContext>)>> {
+export interface BatchDeleteAttributes extends Binding.Service<BatchDeleteAttributes, "AWS.SimpleDB.BatchDeleteAttributes", (domain: Domain) => Effect.Effect<(request: BatchDeleteAttributesRequest) => Effect.Effect<sdb.BatchDeleteAttributesResponse, sdb.BatchDeleteAttributesError, RuntimeContext>>> {
 }
 export declare const BatchDeleteAttributes: BatchDeleteAttributes;

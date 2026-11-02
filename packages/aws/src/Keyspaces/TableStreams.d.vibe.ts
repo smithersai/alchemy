@@ -1,7 +1,7 @@
 import type * as keyspacesstreams from "@distilled.cloud/aws/keyspacesstreams";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface ListTableStreamsRequest extends Omit<keyspacesstreams.ListStreamsInput, "keyspaceName" | "tableName"> {
 }
 /**

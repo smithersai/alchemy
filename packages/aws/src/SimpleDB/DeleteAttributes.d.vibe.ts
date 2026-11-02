@@ -29,6 +29,6 @@ export interface DeleteAttributesRequest extends Omit<sdb.DeleteAttributesReques
  *
  * @binding
  */
-export interface DeleteAttributes extends Binding.Service<DeleteAttributes, "AWS.SimpleDB.DeleteAttributes", (domain: Domain) => Effect.Effect<((request: DeleteAttributesRequest) => Effect.Effect<sdb.DeleteAttributesResponse, sdb.DeleteAttributesError, RuntimeContext>)>> {
+export interface DeleteAttributes extends Binding.Service<DeleteAttributes, "AWS.SimpleDB.DeleteAttributes", (domain: Domain) => Effect.Effect<(request: DeleteAttributesRequest) => Effect.Effect<sdb.DeleteAttributesResponse, sdb.DeleteAttributesError, RuntimeContext>>> {
 }
 export declare const DeleteAttributes: DeleteAttributes;

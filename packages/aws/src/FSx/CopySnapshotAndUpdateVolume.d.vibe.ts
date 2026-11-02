@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CopySnapshotAndUpdateVolume extends Binding.Service<CopySnapshotAndUpdateVolume, "AWS.FSx.CopySnapshotAndUpdateVolume", () => Effect.Effect<((request: fsx.CopySnapshotAndUpdateVolumeRequest) => Effect.Effect<fsx.CopySnapshotAndUpdateVolumeResponse, fsx.CopySnapshotAndUpdateVolumeError>)>> {
+export interface CopySnapshotAndUpdateVolume extends Binding.Service<CopySnapshotAndUpdateVolume, "AWS.FSx.CopySnapshotAndUpdateVolume", () => Effect.Effect<(request: fsx.CopySnapshotAndUpdateVolumeRequest) => Effect.Effect<fsx.CopySnapshotAndUpdateVolumeResponse, fsx.CopySnapshotAndUpdateVolumeError>>> {
 }
 export declare const CopySnapshotAndUpdateVolume: CopySnapshotAndUpdateVolume;

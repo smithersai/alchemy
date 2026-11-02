@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteMicrosoftTeamsConfiguredTeam extends Binding.Service<DeleteMicrosoftTeamsConfiguredTeam, "AWS.Chatbot.DeleteMicrosoftTeamsConfiguredTeam", () => Effect.Effect<((request: chatbot.DeleteTeamsConfiguredTeamRequest) => Effect.Effect<chatbot.DeleteTeamsConfiguredTeamResult, chatbot.DeleteMicrosoftTeamsConfiguredTeamError>)>> {
+export interface DeleteMicrosoftTeamsConfiguredTeam extends Binding.Service<DeleteMicrosoftTeamsConfiguredTeam, "AWS.Chatbot.DeleteMicrosoftTeamsConfiguredTeam", () => Effect.Effect<(request: chatbot.DeleteTeamsConfiguredTeamRequest) => Effect.Effect<chatbot.DeleteTeamsConfiguredTeamResult, chatbot.DeleteMicrosoftTeamsConfiguredTeamError>>> {
 }
 export declare const DeleteMicrosoftTeamsConfiguredTeam: DeleteMicrosoftTeamsConfiguredTeam;

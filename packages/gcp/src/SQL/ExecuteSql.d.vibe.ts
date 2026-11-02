@@ -2,7 +2,7 @@ import type * as sqladmin from "@distilled.cloud/gcp/sqladmin_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 export interface ExecuteSqlRequest extends Omit<sqladmin.ExecuteSqlInstancesRequest, "instance" | "project"> {
 }
 /**
@@ -32,6 +32,6 @@ export interface ExecuteSqlRequest extends Omit<sqladmin.ExecuteSqlInstancesRequ
  * @binding
  * @category SQL
  */
-export interface ExecuteSql extends Binding.Service<ExecuteSql, "GCP.SQL.ExecuteSql", (instance: Instance) => Effect.Effect<((request: ExecuteSqlRequest) => Effect.Effect<sqladmin.SqlInstancesExecuteSqlResponse, sqladmin.ExecuteSqlInstancesError, RuntimeContext>)>> {
+export interface ExecuteSql extends Binding.Service<ExecuteSql, "GCP.SQL.ExecuteSql", (instance: Instance) => Effect.Effect<(request: ExecuteSqlRequest) => Effect.Effect<sqladmin.SqlInstancesExecuteSqlResponse, sqladmin.ExecuteSqlInstancesError, RuntimeContext>>> {
 }
 export declare const ExecuteSql: ExecuteSql;

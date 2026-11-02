@@ -20,6 +20,6 @@ import type { Rotation } from "./Rotation.vibe";
  *
  * @binding
  */
-export interface DeleteRotationOverride extends Binding.Service<DeleteRotationOverride, "AWS.SSMContacts.DeleteRotationOverride", (rotation: Rotation) => Effect.Effect<((request: Omit<ssm.DeleteRotationOverrideRequest, "RotationId">) => Effect.Effect<ssm.DeleteRotationOverrideResult, ssm.DeleteRotationOverrideError>)>> {
+export interface DeleteRotationOverride extends Binding.Service<DeleteRotationOverride, "AWS.SSMContacts.DeleteRotationOverride", (rotation: Rotation) => Effect.Effect<(request: Omit<ssm.DeleteRotationOverrideRequest, "RotationId">) => Effect.Effect<ssm.DeleteRotationOverrideResult, ssm.DeleteRotationOverrideError>>> {
 }
 export declare const DeleteRotationOverride: DeleteRotationOverride;

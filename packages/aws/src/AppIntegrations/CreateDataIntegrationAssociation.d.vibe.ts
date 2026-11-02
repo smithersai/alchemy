@@ -30,6 +30,6 @@ export interface CreateDataIntegrationAssociationRequest extends Omit<appintegra
  *
  * @binding
  */
-export interface CreateDataIntegrationAssociation extends Binding.Service<CreateDataIntegrationAssociation, "AWS.AppIntegrations.CreateDataIntegrationAssociation", <R extends DataIntegration>(integration: R) => Effect.Effect<((request?: CreateDataIntegrationAssociationRequest) => Effect.Effect<appintegrations.CreateDataIntegrationAssociationResponse, appintegrations.CreateDataIntegrationAssociationError>)>> {
+export interface CreateDataIntegrationAssociation extends Binding.Service<CreateDataIntegrationAssociation, "AWS.AppIntegrations.CreateDataIntegrationAssociation", <R extends DataIntegration>(integration: R) => Effect.Effect<(request?: CreateDataIntegrationAssociationRequest) => Effect.Effect<appintegrations.CreateDataIntegrationAssociationResponse, appintegrations.CreateDataIntegrationAssociationError>>> {
 }
 export declare const CreateDataIntegrationAssociation: CreateDataIntegrationAssociation;

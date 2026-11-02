@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface PutRestoreValidationResult extends Binding.Service<PutRestoreValidationResult, "AWS.Backup.PutRestoreValidationResult", () => Effect.Effect<((request: backup.PutRestoreValidationResultInput) => Effect.Effect<backup.PutRestoreValidationResultResponse, backup.PutRestoreValidationResultError>)>> {
+export interface PutRestoreValidationResult extends Binding.Service<PutRestoreValidationResult, "AWS.Backup.PutRestoreValidationResult", () => Effect.Effect<(request: backup.PutRestoreValidationResultInput) => Effect.Effect<backup.PutRestoreValidationResultResponse, backup.PutRestoreValidationResultError>>> {
 }
 export declare const PutRestoreValidationResult: PutRestoreValidationResult;

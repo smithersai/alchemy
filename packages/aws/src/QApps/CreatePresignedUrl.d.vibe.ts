@@ -31,6 +31,6 @@ export interface CreatePresignedUrlRequest extends Omit<qapps.CreatePresignedUrl
  *
  * @binding
  */
-export interface CreatePresignedUrl extends Binding.Service<CreatePresignedUrl, "AWS.QApps.CreatePresignedUrl", (app: QApp) => Effect.Effect<((request: CreatePresignedUrlRequest) => Effect.Effect<qapps.CreatePresignedUrlOutput, qapps.CreatePresignedUrlError>)>> {
+export interface CreatePresignedUrl extends Binding.Service<CreatePresignedUrl, "AWS.QApps.CreatePresignedUrl", (app: QApp) => Effect.Effect<(request: CreatePresignedUrlRequest) => Effect.Effect<qapps.CreatePresignedUrlOutput, qapps.CreatePresignedUrlError>>> {
 }
 export declare const CreatePresignedUrl: CreatePresignedUrl;

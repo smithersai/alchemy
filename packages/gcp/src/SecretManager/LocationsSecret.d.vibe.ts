@@ -1,9 +1,9 @@
 import * as secretmanager from "@distilled.cloud/gcp/secretmanager_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { CustomerManagedEncryption, Rotation, SecretTopic } from "./Secret.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { CustomerManagedEncryption, Rotation, SecretTopic } from "./Secret.ts";
 export type LocationsSecretProps = {
     /**
      * Secret id (the `{secret}` segment of

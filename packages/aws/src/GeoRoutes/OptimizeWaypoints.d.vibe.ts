@@ -35,6 +35,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface OptimizeWaypoints extends Binding.Service<OptimizeWaypoints, "AWS.GeoRoutes.OptimizeWaypoints", () => Effect.Effect<((request: geoRoutes.OptimizeWaypointsRequest) => Effect.Effect<geoRoutes.OptimizeWaypointsResponse, geoRoutes.OptimizeWaypointsError>)>> {
+export interface OptimizeWaypoints extends Binding.Service<OptimizeWaypoints, "AWS.GeoRoutes.OptimizeWaypoints", () => Effect.Effect<(request: geoRoutes.OptimizeWaypointsRequest) => Effect.Effect<geoRoutes.OptimizeWaypointsResponse, geoRoutes.OptimizeWaypointsError>>> {
 }
 export declare const OptimizeWaypoints: OptimizeWaypoints;

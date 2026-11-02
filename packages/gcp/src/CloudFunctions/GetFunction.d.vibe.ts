@@ -2,7 +2,7 @@ import type * as cloudfunctions from "@distilled.cloud/gcp/cloudfunctions_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Function as CloudFunction } from "./Function.js";
+import type { Function as CloudFunction } from "./Function.ts";
 export interface GetFunctionRequest extends Omit<cloudfunctions.GetProjectsLocationsFunctionsRequest, "name"> {
 }
 /**
@@ -23,6 +23,6 @@ export interface GetFunctionRequest extends Omit<cloudfunctions.GetProjectsLocat
  * @binding
  * @category CloudFunctions
  */
-export interface GetFunction extends Binding.Service<GetFunction, "GCP.CloudFunctions.GetFunction", (fn: CloudFunction) => Effect.Effect<((request?: GetFunctionRequest) => Effect.Effect<cloudfunctions.Cloudfunctions_Function, cloudfunctions.GetProjectsLocationsFunctionsError, RuntimeContext>)>> {
+export interface GetFunction extends Binding.Service<GetFunction, "GCP.CloudFunctions.GetFunction", (fn: CloudFunction) => Effect.Effect<(request?: GetFunctionRequest) => Effect.Effect<cloudfunctions.Cloudfunctions_Function, cloudfunctions.GetProjectsLocationsFunctionsError, RuntimeContext>>> {
 }
 export declare const GetFunction: GetFunction;

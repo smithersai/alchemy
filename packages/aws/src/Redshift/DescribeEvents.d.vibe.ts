@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeEvents extends Binding.Service<DescribeEvents, "AWS.Redshift.DescribeEvents", () => Effect.Effect<((request?: redshift.DescribeEventsMessage) => Effect.Effect<redshift.EventsMessage, redshift.DescribeEventsError>)>> {
+export interface DescribeEvents extends Binding.Service<DescribeEvents, "AWS.Redshift.DescribeEvents", () => Effect.Effect<(request?: redshift.DescribeEventsMessage) => Effect.Effect<redshift.EventsMessage, redshift.DescribeEventsError>>> {
 }
 export declare const DescribeEvents: DescribeEvents;

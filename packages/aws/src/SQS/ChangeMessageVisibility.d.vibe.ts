@@ -37,6 +37,6 @@ export interface ChangeMessageVisibilityRequest extends Omit<sqs.ChangeMessageVi
  *
  * @binding
  */
-export interface ChangeMessageVisibility extends Binding.Service<ChangeMessageVisibility, "AWS.SQS.ChangeMessageVisibility", (queue: Queue) => Effect.Effect<((request: ChangeMessageVisibilityRequest) => Effect.Effect<sqs.ChangeMessageVisibilityResponse, sqs.ChangeMessageVisibilityError>)>> {
+export interface ChangeMessageVisibility extends Binding.Service<ChangeMessageVisibility, "AWS.SQS.ChangeMessageVisibility", (queue: Queue) => Effect.Effect<(request: ChangeMessageVisibilityRequest) => Effect.Effect<sqs.ChangeMessageVisibilityResponse, sqs.ChangeMessageVisibilityError>>> {
 }
 export declare const ChangeMessageVisibility: ChangeMessageVisibility;

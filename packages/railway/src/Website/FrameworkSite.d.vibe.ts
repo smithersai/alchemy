@@ -10,10 +10,10 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import { CustomDomain } from "../CustomDomain.vibe";
-import { Project, type Project as ProjectResource } from "../Project.js";
+import { Project, type Project as ProjectResource } from "../Project.ts";
 import type { Environment as EnvironmentResource } from "../ProjectEnvironment.vibe";
-import type { Providers } from "../Providers.js";
-import { Service, type Service as ServiceResource } from "../Service.js";
+import type { Providers } from "../Providers.ts";
+import { Service, type Service as ServiceResource } from "../Service.ts";
 /** Port the generated Node serve entry and Railway Service listen on. */
 export declare const WEBSITE_PORT = 3000;
 /**

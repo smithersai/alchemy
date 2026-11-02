@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListVehicles extends Binding.Service<ListVehicles, "AWS.IoTFleetWise.ListVehicles", () => Effect.Effect<((request?: iotfleetwise.ListVehiclesRequest) => Effect.Effect<iotfleetwise.ListVehiclesResponse, iotfleetwise.ListVehiclesError>)>> {
+export interface ListVehicles extends Binding.Service<ListVehicles, "AWS.IoTFleetWise.ListVehicles", () => Effect.Effect<(request?: iotfleetwise.ListVehiclesRequest) => Effect.Effect<iotfleetwise.ListVehiclesResponse, iotfleetwise.ListVehiclesError>>> {
 }
 export declare const ListVehicles: ListVehicles;

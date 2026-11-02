@@ -26,6 +26,6 @@ export interface GetMapTileRequest extends Omit<location.GetMapTileRequest, "Map
  *
  * @binding
  */
-export interface GetMapTile extends Binding.Service<GetMapTile, "AWS.Location.GetMapTile", (map: LocationMap) => Effect.Effect<((request: GetMapTileRequest) => Effect.Effect<location.GetMapTileResponse, location.GetMapTileError>)>> {
+export interface GetMapTile extends Binding.Service<GetMapTile, "AWS.Location.GetMapTile", (map: LocationMap) => Effect.Effect<(request: GetMapTileRequest) => Effect.Effect<location.GetMapTileResponse, location.GetMapTileError>>> {
 }
 export declare const GetMapTile: GetMapTile;

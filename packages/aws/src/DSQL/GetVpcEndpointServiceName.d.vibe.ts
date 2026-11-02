@@ -30,6 +30,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface GetVpcEndpointServiceName extends Binding.Service<GetVpcEndpointServiceName, "AWS.DSQL.GetVpcEndpointServiceName", <R extends Cluster>(cluster: R) => Effect.Effect<(() => Effect.Effect<dsql.GetVpcEndpointServiceNameOutput, dsql.GetVpcEndpointServiceNameError>)>> {
+export interface GetVpcEndpointServiceName extends Binding.Service<GetVpcEndpointServiceName, "AWS.DSQL.GetVpcEndpointServiceName", <R extends Cluster>(cluster: R) => Effect.Effect<() => Effect.Effect<dsql.GetVpcEndpointServiceNameOutput, dsql.GetVpcEndpointServiceNameError>>> {
 }
 export declare const GetVpcEndpointServiceName: GetVpcEndpointServiceName;

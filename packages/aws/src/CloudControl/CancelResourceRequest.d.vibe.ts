@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelResourceRequest extends Binding.Service<CancelResourceRequest, "AWS.CloudControl.CancelResourceRequest", () => Effect.Effect<((request: cloudcontrol.CancelResourceRequestInput) => Effect.Effect<cloudcontrol.CancelResourceRequestOutput, cloudcontrol.CancelResourceRequestError>)>> {
+export interface CancelResourceRequest extends Binding.Service<CancelResourceRequest, "AWS.CloudControl.CancelResourceRequest", () => Effect.Effect<(request: cloudcontrol.CancelResourceRequestInput) => Effect.Effect<cloudcontrol.CancelResourceRequestOutput, cloudcontrol.CancelResourceRequestError>>> {
 }
 export declare const CancelResourceRequest: CancelResourceRequest;

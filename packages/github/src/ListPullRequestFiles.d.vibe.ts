@@ -2,7 +2,7 @@ import type * as Pulls from "@distilled.cloud/github/pulls";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.ts";
 export interface ListPullRequestFilesRequest extends Omit<Pulls.ListFilesRequest, "owner" | "repo"> {
 }
 export type ListPullRequestFilesResponse = Pulls.ListFilesResponse;
@@ -25,6 +25,6 @@ export type ListPullRequestFilesResponse = Pulls.ListFilesResponse;
  * @binding
  * @product Pull Request
  */
-export interface ListPullRequestFiles extends Binding.Service<ListPullRequestFiles, "GitHub.ListPullRequestFiles", (repo: Repository) => Effect.Effect<((request: ListPullRequestFilesRequest) => Effect.Effect<ListPullRequestFilesResponse, Pulls.ListFilesError, RuntimeContext>)>> {
+export interface ListPullRequestFiles extends Binding.Service<ListPullRequestFiles, "GitHub.ListPullRequestFiles", (repo: Repository) => Effect.Effect<(request: ListPullRequestFilesRequest) => Effect.Effect<ListPullRequestFilesResponse, Pulls.ListFilesError, RuntimeContext>>> {
 }
 export declare const ListPullRequestFiles: ListPullRequestFiles;

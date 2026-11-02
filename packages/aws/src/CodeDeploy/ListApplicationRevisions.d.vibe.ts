@@ -22,6 +22,6 @@ export interface ListApplicationRevisionsRequest extends Omit<SVC.ListApplicatio
  *
  * @binding
  */
-export interface ListApplicationRevisions extends Binding.Service<ListApplicationRevisions, "AWS.CodeDeploy.ListApplicationRevisions", <P extends Application>(application: P) => Effect.Effect<((request?: ListApplicationRevisionsRequest) => Effect.Effect<SVC.ListApplicationRevisionsOutput, SVC.ListApplicationRevisionsError>)>> {
+export interface ListApplicationRevisions extends Binding.Service<ListApplicationRevisions, "AWS.CodeDeploy.ListApplicationRevisions", <P extends Application>(application: P) => Effect.Effect<(request?: ListApplicationRevisionsRequest) => Effect.Effect<SVC.ListApplicationRevisionsOutput, SVC.ListApplicationRevisionsError>>> {
 }
 export declare const ListApplicationRevisions: ListApplicationRevisions;

@@ -1,7 +1,7 @@
 import type * as imagebuilder from "@distilled.cloud/aws/imagebuilder";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ImagePipeline } from "./ImagePipeline.js";
+import type { ImagePipeline } from "./ImagePipeline.ts";
 /**
  * Runtime binding for `imagebuilder:StartImagePipelineExecution`.
  *
@@ -26,6 +26,6 @@ import type { ImagePipeline } from "./ImagePipeline.js";
  *
  * @binding
  */
-export interface StartImagePipelineExecution extends Binding.Service<StartImagePipelineExecution, "AWS.ImageBuilder.StartImagePipelineExecution", (pipeline: ImagePipeline) => Effect.Effect<((request?: Omit<imagebuilder.StartImagePipelineExecutionRequest, "imagePipelineArn" | "clientToken">) => Effect.Effect<imagebuilder.StartImagePipelineExecutionResponse, imagebuilder.StartImagePipelineExecutionError>)>> {
+export interface StartImagePipelineExecution extends Binding.Service<StartImagePipelineExecution, "AWS.ImageBuilder.StartImagePipelineExecution", (pipeline: ImagePipeline) => Effect.Effect<(request?: Omit<imagebuilder.StartImagePipelineExecutionRequest, "imagePipelineArn" | "clientToken">) => Effect.Effect<imagebuilder.StartImagePipelineExecutionResponse, imagebuilder.StartImagePipelineExecutionError>>> {
 }
 export declare const StartImagePipelineExecution: StartImagePipelineExecution;

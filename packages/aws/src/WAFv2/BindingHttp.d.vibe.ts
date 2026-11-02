@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
-import { type WafScope } from "./internal.js";
-import type { IPSet } from "./IPSet.js";
-import type { RuleGroup } from "./RuleGroup.js";
-import type { WebACL } from "./WebACL.js";
+import { type WafScope } from "./internal.ts";
+import type { IPSet } from "./IPSet.ts";
+import type { RuleGroup } from "./RuleGroup.ts";
+import type { WebACL } from "./WebACL.ts";
 /**
  * Shared scaffolding for AWS WAFv2 HTTP bindings.
  *
@@ -41,7 +41,7 @@ export declare const makeWafv2WebAclHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.WAFv2.GetSampledRequests`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the web ACL ARN. */
     actions: readonly string[];
     /** Request fields injected from the bound web ACL. */
@@ -61,7 +61,7 @@ export declare const makeWafv2IPSetHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.WAFv2.GetIPSet`. */
     tag: string;
     /** The distilled operation; `Name`/`Scope`/`Id` are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the IP set ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(ipSet: IPSet) => Effect.Effect<(request?: Omit<I, "Name" | "Scope" | "Id"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -78,7 +78,7 @@ export declare const makeWafv2RuleGroupHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.WAFv2.GetPermissionPolicy`. */
     tag: string;
     /** The distilled operation; `ResourceArn` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the rule group ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(ruleGroup: RuleGroup) => Effect.Effect<(request?: Omit<I, "ResourceArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -93,7 +93,7 @@ export declare const makeWafv2AccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.WAFv2.CheckCapacity`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

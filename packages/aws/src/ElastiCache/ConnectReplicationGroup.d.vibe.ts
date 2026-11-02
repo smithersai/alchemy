@@ -3,8 +3,8 @@ import type { Input } from "alchemy/Input";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
-import type { SubnetId } from "../EC2/Subnet.js";
-import type { ReplicationGroup } from "./ReplicationGroup.js";
+import type { SubnetId } from "../EC2/Subnet.ts";
+import type { ReplicationGroup } from "./ReplicationGroup.ts";
 export interface ReplicationGroupConnectionInfo {
     host: string;
     port: number;

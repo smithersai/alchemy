@@ -31,6 +31,6 @@ export interface ListWhatsAppMessageTemplatesRequest extends Omit<socialmessagin
  *
  * @binding
  */
-export interface ListWhatsAppMessageTemplates extends Binding.Service<ListWhatsAppMessageTemplates, "AWS.SocialMessaging.ListWhatsAppMessageTemplates", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request?: ListWhatsAppMessageTemplatesRequest) => Effect.Effect<socialmessaging.ListWhatsAppMessageTemplatesOutput, socialmessaging.ListWhatsAppMessageTemplatesError>)>> {
+export interface ListWhatsAppMessageTemplates extends Binding.Service<ListWhatsAppMessageTemplates, "AWS.SocialMessaging.ListWhatsAppMessageTemplates", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request?: ListWhatsAppMessageTemplatesRequest) => Effect.Effect<socialmessaging.ListWhatsAppMessageTemplatesOutput, socialmessaging.ListWhatsAppMessageTemplatesError>>> {
 }
 export declare const ListWhatsAppMessageTemplates: ListWhatsAppMessageTemplates;

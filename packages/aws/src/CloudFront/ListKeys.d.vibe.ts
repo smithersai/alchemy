@@ -23,6 +23,6 @@ export interface ListKeysRequest extends Omit<kvs.ListKeysRequest, "KvsARN"> {
  *
  * @binding
  */
-export interface ListKeys extends Binding.Service<ListKeys, "AWS.CloudFront.ListKeys", (store: KeyValueStore) => Effect.Effect<((request: ListKeysRequest) => Effect.Effect<kvs.ListKeysResponse, kvs.ListKeysError>)>> {
+export interface ListKeys extends Binding.Service<ListKeys, "AWS.CloudFront.ListKeys", (store: KeyValueStore) => Effect.Effect<(request: ListKeysRequest) => Effect.Effect<kvs.ListKeysResponse, kvs.ListKeysError>>> {
 }
 export declare const ListKeys: ListKeys;

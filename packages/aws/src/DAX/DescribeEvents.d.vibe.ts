@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeEvents extends Binding.Service<DescribeEvents, "AWS.DAX.DescribeEvents", () => Effect.Effect<((request?: dax.DescribeEventsRequest) => Effect.Effect<dax.DescribeEventsResponse, dax.DescribeEventsError>)>> {
+export interface DescribeEvents extends Binding.Service<DescribeEvents, "AWS.DAX.DescribeEvents", () => Effect.Effect<(request?: dax.DescribeEventsRequest) => Effect.Effect<dax.DescribeEventsResponse, dax.DescribeEventsError>>> {
 }
 export declare const DescribeEvents: DescribeEvents;

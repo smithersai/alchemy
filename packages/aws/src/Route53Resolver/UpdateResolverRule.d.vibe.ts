@@ -1,7 +1,7 @@
 import type * as r53r from "@distilled.cloud/aws/route53resolver";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ResolverRule } from "./ResolverRule.js";
+import type { ResolverRule } from "./ResolverRule.ts";
 export interface UpdateResolverRuleRequest extends Omit<r53r.UpdateResolverRuleRequest, "ResolverRuleId"> {
 }
 /**
@@ -29,6 +29,6 @@ export interface UpdateResolverRuleRequest extends Omit<r53r.UpdateResolverRuleR
  *
  * @binding
  */
-export interface UpdateResolverRule extends Binding.Service<UpdateResolverRule, "AWS.Route53Resolver.UpdateResolverRule", (rule: ResolverRule) => Effect.Effect<((request: UpdateResolverRuleRequest) => Effect.Effect<r53r.UpdateResolverRuleResponse, r53r.UpdateResolverRuleError>)>> {
+export interface UpdateResolverRule extends Binding.Service<UpdateResolverRule, "AWS.Route53Resolver.UpdateResolverRule", (rule: ResolverRule) => Effect.Effect<(request: UpdateResolverRuleRequest) => Effect.Effect<r53r.UpdateResolverRuleResponse, r53r.UpdateResolverRuleError>>> {
 }
 export declare const UpdateResolverRule: UpdateResolverRule;

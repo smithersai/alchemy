@@ -23,7 +23,7 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeManagedRuleGroup extends Binding.Service<DescribeManagedRuleGroup, "AWS.WAFv2.DescribeManagedRuleGroup", () => Effect.Effect<((request: WAFV2.DescribeManagedRuleGroupRequest) => Effect.Effect<WAFV2.DescribeManagedRuleGroupResponse, WAFV2.DescribeManagedRuleGroupError>)>> {
+export interface DescribeManagedRuleGroup extends Binding.Service<DescribeManagedRuleGroup, "AWS.WAFv2.DescribeManagedRuleGroup", () => Effect.Effect<(request: WAFV2.DescribeManagedRuleGroupRequest) => Effect.Effect<WAFV2.DescribeManagedRuleGroupResponse, WAFV2.DescribeManagedRuleGroupError>>> {
 }
 export declare const DescribeManagedRuleGroup: DescribeManagedRuleGroup;
 /**
@@ -47,7 +47,7 @@ export declare const DescribeManagedRuleGroup: DescribeManagedRuleGroup;
  *
  * @binding
  */
-export interface ListAvailableManagedRuleGroups extends Binding.Service<ListAvailableManagedRuleGroups, "AWS.WAFv2.ListAvailableManagedRuleGroups", () => Effect.Effect<((request: WAFV2.ListAvailableManagedRuleGroupsRequest) => Effect.Effect<WAFV2.ListAvailableManagedRuleGroupsResponse, WAFV2.ListAvailableManagedRuleGroupsError>)>> {
+export interface ListAvailableManagedRuleGroups extends Binding.Service<ListAvailableManagedRuleGroups, "AWS.WAFv2.ListAvailableManagedRuleGroups", () => Effect.Effect<(request: WAFV2.ListAvailableManagedRuleGroupsRequest) => Effect.Effect<WAFV2.ListAvailableManagedRuleGroupsResponse, WAFV2.ListAvailableManagedRuleGroupsError>>> {
 }
 export declare const ListAvailableManagedRuleGroups: ListAvailableManagedRuleGroups;
 /**
@@ -72,7 +72,7 @@ export declare const ListAvailableManagedRuleGroups: ListAvailableManagedRuleGro
  *
  * @binding
  */
-export interface ListAvailableManagedRuleGroupVersions extends Binding.Service<ListAvailableManagedRuleGroupVersions, "AWS.WAFv2.ListAvailableManagedRuleGroupVersions", () => Effect.Effect<((request: WAFV2.ListAvailableManagedRuleGroupVersionsRequest) => Effect.Effect<WAFV2.ListAvailableManagedRuleGroupVersionsResponse, WAFV2.ListAvailableManagedRuleGroupVersionsError>)>> {
+export interface ListAvailableManagedRuleGroupVersions extends Binding.Service<ListAvailableManagedRuleGroupVersions, "AWS.WAFv2.ListAvailableManagedRuleGroupVersions", () => Effect.Effect<(request: WAFV2.ListAvailableManagedRuleGroupVersionsRequest) => Effect.Effect<WAFV2.ListAvailableManagedRuleGroupVersionsResponse, WAFV2.ListAvailableManagedRuleGroupVersionsError>>> {
 }
 export declare const ListAvailableManagedRuleGroupVersions: ListAvailableManagedRuleGroupVersions;
 /**
@@ -95,7 +95,7 @@ export declare const ListAvailableManagedRuleGroupVersions: ListAvailableManaged
  *
  * @binding
  */
-export interface DescribeAllManagedProducts extends Binding.Service<DescribeAllManagedProducts, "AWS.WAFv2.DescribeAllManagedProducts", () => Effect.Effect<((request: WAFV2.DescribeAllManagedProductsRequest) => Effect.Effect<WAFV2.DescribeAllManagedProductsResponse, WAFV2.DescribeAllManagedProductsError>)>> {
+export interface DescribeAllManagedProducts extends Binding.Service<DescribeAllManagedProducts, "AWS.WAFv2.DescribeAllManagedProducts", () => Effect.Effect<(request: WAFV2.DescribeAllManagedProductsRequest) => Effect.Effect<WAFV2.DescribeAllManagedProductsResponse, WAFV2.DescribeAllManagedProductsError>>> {
 }
 export declare const DescribeAllManagedProducts: DescribeAllManagedProducts;
 /**
@@ -119,6 +119,6 @@ export declare const DescribeAllManagedProducts: DescribeAllManagedProducts;
  *
  * @binding
  */
-export interface DescribeManagedProductsByVendor extends Binding.Service<DescribeManagedProductsByVendor, "AWS.WAFv2.DescribeManagedProductsByVendor", () => Effect.Effect<((request: WAFV2.DescribeManagedProductsByVendorRequest) => Effect.Effect<WAFV2.DescribeManagedProductsByVendorResponse, WAFV2.DescribeManagedProductsByVendorError>)>> {
+export interface DescribeManagedProductsByVendor extends Binding.Service<DescribeManagedProductsByVendor, "AWS.WAFv2.DescribeManagedProductsByVendor", () => Effect.Effect<(request: WAFV2.DescribeManagedProductsByVendorRequest) => Effect.Effect<WAFV2.DescribeManagedProductsByVendorResponse, WAFV2.DescribeManagedProductsByVendorError>>> {
 }
 export declare const DescribeManagedProductsByVendor: DescribeManagedProductsByVendor;

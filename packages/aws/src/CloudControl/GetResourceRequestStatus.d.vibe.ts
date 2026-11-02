@@ -29,6 +29,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetResourceRequestStatus extends Binding.Service<GetResourceRequestStatus, "AWS.CloudControl.GetResourceRequestStatus", () => Effect.Effect<((request: cloudcontrol.GetResourceRequestStatusInput) => Effect.Effect<cloudcontrol.GetResourceRequestStatusOutput, cloudcontrol.GetResourceRequestStatusError>)>> {
+export interface GetResourceRequestStatus extends Binding.Service<GetResourceRequestStatus, "AWS.CloudControl.GetResourceRequestStatus", () => Effect.Effect<(request: cloudcontrol.GetResourceRequestStatusInput) => Effect.Effect<cloudcontrol.GetResourceRequestStatusOutput, cloudcontrol.GetResourceRequestStatusError>>> {
 }
 export declare const GetResourceRequestStatus: GetResourceRequestStatus;

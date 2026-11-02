@@ -25,6 +25,6 @@ import type { Flow } from "./Flow.vibe";
  *
  * @binding
  */
-export interface DescribeFlowSourceMetadata extends Binding.Service<DescribeFlowSourceMetadata, "AWS.MediaConnect.DescribeFlowSourceMetadata", (flow: Flow) => Effect.Effect<(() => Effect.Effect<mediaconnect.DescribeFlowSourceMetadataResponse, mediaconnect.DescribeFlowSourceMetadataError>)>> {
+export interface DescribeFlowSourceMetadata extends Binding.Service<DescribeFlowSourceMetadata, "AWS.MediaConnect.DescribeFlowSourceMetadata", (flow: Flow) => Effect.Effect<() => Effect.Effect<mediaconnect.DescribeFlowSourceMetadataResponse, mediaconnect.DescribeFlowSourceMetadataError>>> {
 }
 export declare const DescribeFlowSourceMetadata: DescribeFlowSourceMetadata;

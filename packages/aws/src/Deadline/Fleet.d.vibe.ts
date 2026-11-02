@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
 import type * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 declare const DeadlineFleetInvalidProps_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "DeadlineFleetInvalidProps";
 } & Readonly<A>;
@@ -254,5 +254,5 @@ export declare class FleetProvisioningFailed extends FleetProvisioningFailed_bas
     readonly message: string | undefined;
 }> {
 }
-export declare const FleetProvider: () => import("effect/Layer").Layer<Provider.Provider<Fleet>, never, import("../Environment.js").AWSEnvironment | import("@distilled.cloud/aws/Credentials").Credentials | import("effect/http/HttpClient").HttpClient | import("alchemy").Stack | import("alchemy").Stage>;
+export declare const FleetProvider: () => import("effect/Layer").Layer<Provider.Provider<Fleet>, never, import("../Environment.ts").AWSEnvironment | import("@distilled.cloud/aws/Credentials").Credentials | import("effect/http/HttpClient").HttpClient | import("alchemy").Stack | import("alchemy").Stage>;
 export {};

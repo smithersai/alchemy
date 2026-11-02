@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListPublicKeys extends Binding.Service<ListPublicKeys, "AWS.CloudTrail.ListPublicKeys", () => Effect.Effect<((request?: cloudtrail.ListPublicKeysRequest) => Effect.Effect<cloudtrail.ListPublicKeysResponse, cloudtrail.ListPublicKeysError>)>> {
+export interface ListPublicKeys extends Binding.Service<ListPublicKeys, "AWS.CloudTrail.ListPublicKeys", () => Effect.Effect<(request?: cloudtrail.ListPublicKeysRequest) => Effect.Effect<cloudtrail.ListPublicKeysResponse, cloudtrail.ListPublicKeysError>>> {
 }
 export declare const ListPublicKeys: ListPublicKeys;

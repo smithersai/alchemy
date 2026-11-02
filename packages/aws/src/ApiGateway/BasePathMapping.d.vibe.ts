@@ -1,7 +1,7 @@
 import type { Input } from "alchemy/Input";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface BasePathMappingProps {
     /** The custom domain name to map (e.g. `api.example.com`). */
     domainName: string;

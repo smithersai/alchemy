@@ -19,6 +19,6 @@ export interface ListEndpointsByPlatformApplicationRequest extends Omit<sns.List
  *
  * @binding
  */
-export interface ListEndpointsByPlatformApplication extends Binding.Service<ListEndpointsByPlatformApplication, "AWS.SNS.ListEndpointsByPlatformApplication", (application: PlatformApplication) => Effect.Effect<((request?: ListEndpointsByPlatformApplicationRequest) => Effect.Effect<sns.ListEndpointsByPlatformApplicationResponse, sns.ListEndpointsByPlatformApplicationError>)>> {
+export interface ListEndpointsByPlatformApplication extends Binding.Service<ListEndpointsByPlatformApplication, "AWS.SNS.ListEndpointsByPlatformApplication", (application: PlatformApplication) => Effect.Effect<(request?: ListEndpointsByPlatformApplicationRequest) => Effect.Effect<sns.ListEndpointsByPlatformApplicationResponse, sns.ListEndpointsByPlatformApplicationError>>> {
 }
 export declare const ListEndpointsByPlatformApplication: ListEndpointsByPlatformApplication;

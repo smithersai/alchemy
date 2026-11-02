@@ -21,6 +21,6 @@ import type { Broker } from "./Broker.vibe";
  *
  * @binding
  */
-export interface RebootBroker extends Binding.Service<RebootBroker, "AWS.MQ.RebootBroker", (broker: Broker) => Effect.Effect<(() => Effect.Effect<mq.RebootBrokerResponse, mq.RebootBrokerError>)>> {
+export interface RebootBroker extends Binding.Service<RebootBroker, "AWS.MQ.RebootBroker", (broker: Broker) => Effect.Effect<() => Effect.Effect<mq.RebootBrokerResponse, mq.RebootBrokerError>>> {
 }
 export declare const RebootBroker: RebootBroker;

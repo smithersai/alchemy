@@ -1,7 +1,7 @@
 import type * as ECS from "@distilled.cloud/aws/ecs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Service } from "./Service.js";
+import type { Service } from "./Service.ts";
 export interface StopServiceDeploymentRequest extends ECS.StopServiceDeploymentRequest {
 }
 /**
@@ -25,6 +25,6 @@ export interface StopServiceDeploymentRequest extends ECS.StopServiceDeploymentR
  *
  * @binding
  */
-export interface StopServiceDeployment extends Binding.Service<StopServiceDeployment, "AWS.ECS.StopServiceDeployment", (service: Service) => Effect.Effect<((request: StopServiceDeploymentRequest) => Effect.Effect<ECS.StopServiceDeploymentResponse, ECS.StopServiceDeploymentError>)>> {
+export interface StopServiceDeployment extends Binding.Service<StopServiceDeployment, "AWS.ECS.StopServiceDeployment", (service: Service) => Effect.Effect<(request: StopServiceDeploymentRequest) => Effect.Effect<ECS.StopServiceDeploymentResponse, ECS.StopServiceDeploymentError>>> {
 }
 export declare const StopServiceDeployment: StopServiceDeployment;

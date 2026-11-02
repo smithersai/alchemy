@@ -1,8 +1,8 @@
 import * as vmwareengine from "@distilled.cloud/gcp/vmwareengine_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 import type { NodeTypeConfig, StretchedClusterConfig } from "./PrivateCloud.vibe";
 export type Thresholds = {
     /** Utilization percent that triggers scale-out. */

@@ -32,6 +32,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SendBounce extends Binding.Service<SendBounce, "AWS.SES.SendBounce", () => Effect.Effect<((request: ses.SendBounceRequest) => Effect.Effect<ses.SendBounceResponse, ses.SendBounceError>)>> {
+export interface SendBounce extends Binding.Service<SendBounce, "AWS.SES.SendBounce", () => Effect.Effect<(request: ses.SendBounceRequest) => Effect.Effect<ses.SendBounceResponse, ses.SendBounceError>>> {
 }
 export declare const SendBounce: SendBounce;

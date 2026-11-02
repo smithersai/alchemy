@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetConfiguration extends Binding.Service<GetConfiguration, "AWS.Inspector2.GetConfiguration", () => Effect.Effect<((request: inspector2.GetConfigurationRequest) => Effect.Effect<inspector2.GetConfigurationResponse, inspector2.GetConfigurationError>)>> {
+export interface GetConfiguration extends Binding.Service<GetConfiguration, "AWS.Inspector2.GetConfiguration", () => Effect.Effect<(request: inspector2.GetConfigurationRequest) => Effect.Effect<inspector2.GetConfigurationResponse, inspector2.GetConfigurationError>>> {
 }
 export declare const GetConfiguration: GetConfiguration;

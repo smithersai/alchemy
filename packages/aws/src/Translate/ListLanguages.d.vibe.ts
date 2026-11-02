@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListLanguages extends Binding.Service<ListLanguages, "AWS.Translate.ListLanguages", () => Effect.Effect<((request?: translate.ListLanguagesRequest) => Effect.Effect<translate.ListLanguagesResponse, translate.ListLanguagesError>)>> {
+export interface ListLanguages extends Binding.Service<ListLanguages, "AWS.Translate.ListLanguages", () => Effect.Effect<(request?: translate.ListLanguagesRequest) => Effect.Effect<translate.ListLanguagesResponse, translate.ListLanguagesError>>> {
 }
 export declare const ListLanguages: ListLanguages;

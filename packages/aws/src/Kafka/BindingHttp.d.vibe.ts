@@ -32,7 +32,7 @@ export declare const makeKafkaClusterHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Kafka.ListTopics`. */
     tag: string;
     /** The distilled operation; `ClusterArn` is injected from the cluster. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the cluster ARN (and topic glob, if scoped). */
     actions: readonly string[];
     /** Also grant `actions` on the cluster's `topic/…/*` ARN namespace. */

@@ -22,6 +22,6 @@ import type { Application } from "./Application.vibe";
  *
  * @binding
  */
-export interface GetApplication extends Binding.Service<GetApplication, "AWS.AppRegistry.GetApplication", (application: Application) => Effect.Effect<(() => Effect.Effect<appregistry.GetApplicationResponse, appregistry.GetApplicationError>)>> {
+export interface GetApplication extends Binding.Service<GetApplication, "AWS.AppRegistry.GetApplication", (application: Application) => Effect.Effect<() => Effect.Effect<appregistry.GetApplicationResponse, appregistry.GetApplicationError>>> {
 }
 export declare const GetApplication: GetApplication;

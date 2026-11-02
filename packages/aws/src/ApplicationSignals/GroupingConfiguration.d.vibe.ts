@@ -1,7 +1,7 @@
 import * as appsignals from "@distilled.cloud/aws/application-signals";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface GroupingConfigurationProps {
     /**
      * The custom grouping attribute definitions for this account. Each

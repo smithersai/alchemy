@@ -1,7 +1,7 @@
 import type * as aa from "@distilled.cloud/aws/accessanalyzer";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Analyzer } from "./Analyzer.js";
+import type { Analyzer } from "./Analyzer.ts";
 /** `GetFindingsStatistics` request with `analyzerArn` injected from the bound {@link Analyzer}. */
 export interface GetFindingsStatisticsRequest extends Omit<aa.GetFindingsStatisticsRequest, "analyzerArn"> {
 }
@@ -21,6 +21,6 @@ export interface GetFindingsStatisticsRequest extends Omit<aa.GetFindingsStatist
  *
  * @binding
  */
-export interface GetFindingsStatistics extends Binding.Service<GetFindingsStatistics, "AWS.AccessAnalyzer.GetFindingsStatistics", (analyzer: Analyzer) => Effect.Effect<((request?: GetFindingsStatisticsRequest) => Effect.Effect<aa.GetFindingsStatisticsResponse, aa.GetFindingsStatisticsError>)>> {
+export interface GetFindingsStatistics extends Binding.Service<GetFindingsStatistics, "AWS.AccessAnalyzer.GetFindingsStatistics", (analyzer: Analyzer) => Effect.Effect<(request?: GetFindingsStatisticsRequest) => Effect.Effect<aa.GetFindingsStatisticsResponse, aa.GetFindingsStatisticsError>>> {
 }
 export declare const GetFindingsStatistics: GetFindingsStatistics;

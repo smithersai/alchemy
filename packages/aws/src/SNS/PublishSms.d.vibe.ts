@@ -22,6 +22,6 @@ export interface PublishSmsRequest extends Omit<sns.PublishInput, "TopicArn" | "
  *
  * @binding
  */
-export interface PublishSms extends Binding.Service<PublishSms, "AWS.SNS.PublishSms", () => Effect.Effect<((request: PublishSmsRequest) => Effect.Effect<sns.PublishResponse, sns.PublishError>)>> {
+export interface PublishSms extends Binding.Service<PublishSms, "AWS.SNS.PublishSms", () => Effect.Effect<(request: PublishSmsRequest) => Effect.Effect<sns.PublishResponse, sns.PublishError>>> {
 }
 export declare const PublishSms: PublishSms;

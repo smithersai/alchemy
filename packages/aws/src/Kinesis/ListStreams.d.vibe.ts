@@ -22,6 +22,6 @@ export interface ListStreamsRequest extends Kinesis.ListStreamsInput {
  *
  * @binding
  */
-export interface ListStreams extends Binding.Service<ListStreams, "AWS.Kinesis.ListStreams", () => Effect.Effect<((request?: ListStreamsRequest) => Effect.Effect<Kinesis.ListStreamsOutput, Kinesis.ListStreamsError>)>> {
+export interface ListStreams extends Binding.Service<ListStreams, "AWS.Kinesis.ListStreams", () => Effect.Effect<(request?: ListStreamsRequest) => Effect.Effect<Kinesis.ListStreamsOutput, Kinesis.ListStreamsError>>> {
 }
 export declare const ListStreams: ListStreams;

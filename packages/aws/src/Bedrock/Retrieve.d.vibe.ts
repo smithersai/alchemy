@@ -37,6 +37,6 @@ export interface RetrieveRequest extends Omit<bedrock.RetrieveRequest, "knowledg
  *
  * @binding
  */
-export interface Retrieve extends Binding.Service<Retrieve, "AWS.Bedrock.Retrieve", <K extends KnowledgeBase>(knowledgeBase: K) => Effect.Effect<((request: RetrieveRequest) => Effect.Effect<bedrock.RetrieveResponse, bedrock.RetrieveError>)>> {
+export interface Retrieve extends Binding.Service<Retrieve, "AWS.Bedrock.Retrieve", <K extends KnowledgeBase>(knowledgeBase: K) => Effect.Effect<(request: RetrieveRequest) => Effect.Effect<bedrock.RetrieveResponse, bedrock.RetrieveError>>> {
 }
 export declare const Retrieve: Retrieve;

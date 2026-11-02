@@ -32,7 +32,7 @@ export declare const makeNetworkFirewallFirewallHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.NetworkFirewall.StartFlowCapture`. */
     tag: string;
     /** The distilled operation; `FirewallArn` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the firewall ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(firewall: Firewall) => Effect.Effect<(request?: Omit<I, "FirewallArn" | "FirewallName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -48,7 +48,7 @@ export declare const makeNetworkFirewallFirewallPolicyHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.NetworkFirewall.DescribeFirewallPolicy`. */
     tag: string;
     /** The distilled operation; `FirewallPolicyArn` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the firewall policy ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(policy: FirewallPolicy) => Effect.Effect<(request?: Omit<I, "FirewallPolicyArn" | "FirewallPolicyName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -64,7 +64,7 @@ export declare const makeNetworkFirewallRuleGroupHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.NetworkFirewall.DescribeRuleGroup`. */
     tag: string;
     /** The distilled operation; `RuleGroupArn` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the rule group ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(ruleGroup: RuleGroup) => Effect.Effect<(request?: Omit<I, "RuleGroupArn" | "RuleGroupName" | "Type"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

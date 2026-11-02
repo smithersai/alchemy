@@ -1,7 +1,7 @@
 import type * as sfn from "@distilled.cloud/aws/sfn";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { StateMachine } from "./StateMachine.js";
+import type { StateMachine } from "./StateMachine.ts";
 export interface GetExecutionHistoryRequest extends sfn.GetExecutionHistoryInput {
 }
 /**
@@ -27,6 +27,6 @@ export interface GetExecutionHistoryRequest extends sfn.GetExecutionHistoryInput
  *
  * @binding
  */
-export interface GetExecutionHistory extends Binding.Service<GetExecutionHistory, "AWS.StepFunctions.GetExecutionHistory", (stateMachine: StateMachine) => Effect.Effect<((request: GetExecutionHistoryRequest) => Effect.Effect<sfn.GetExecutionHistoryOutput, sfn.GetExecutionHistoryError>)>> {
+export interface GetExecutionHistory extends Binding.Service<GetExecutionHistory, "AWS.StepFunctions.GetExecutionHistory", (stateMachine: StateMachine) => Effect.Effect<(request: GetExecutionHistoryRequest) => Effect.Effect<sfn.GetExecutionHistoryOutput, sfn.GetExecutionHistoryError>>> {
 }
 export declare const GetExecutionHistory: GetExecutionHistory;

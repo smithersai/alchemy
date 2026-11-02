@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { type Instance } from "./Instance.js";
+import { type Instance } from "./Instance.ts";
 import type { SecurityGroup } from "./SecurityGroup.vibe";
 import type { Volume } from "./Volume.vibe";
 /**
@@ -23,7 +23,7 @@ export declare const makeInstanceHttpBinding: <I extends object, A, E, R>(option
     /** Fully-qualified binding tag, e.g. `AWS.EC2.StartInstance`. */
     tag: string;
     /** The distilled operation; the instance id is injected from the instance. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted by the binding. */
     actions: readonly string[];
     /** How the operation names the instance in its request. */
@@ -45,7 +45,7 @@ export declare const makeSecurityGroupHttpBinding: <I extends object, A, E, R>(o
     /** Fully-qualified binding tag, e.g. `AWS.EC2.AuthorizeSecurityGroupIngress`. */
     tag: string;
     /** The distilled operation; `GroupId` is injected from the group. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the security group ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(group: SecurityGroup) => Effect.Effect<(request: Omit<I, "GroupId" | "GroupName">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -60,7 +60,7 @@ export declare const makeVolumeHttpBinding: <I extends object, A, E, R>(options:
     /** Fully-qualified binding tag, e.g. `AWS.EC2.CreateSnapshot`. */
     tag: string;
     /** The distilled operation; `VolumeId` is injected from the volume. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the volume ARN (+ `extraResources`). */
     actions: readonly string[];
     /** Additional IAM resource ARNs (e.g. `arn:aws:ec2:*::snapshot/*`). */

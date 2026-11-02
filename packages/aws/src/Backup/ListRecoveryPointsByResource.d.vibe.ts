@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListRecoveryPointsByResource extends Binding.Service<ListRecoveryPointsByResource, "AWS.Backup.ListRecoveryPointsByResource", () => Effect.Effect<((request: backup.ListRecoveryPointsByResourceInput) => Effect.Effect<backup.ListRecoveryPointsByResourceOutput, backup.ListRecoveryPointsByResourceError>)>> {
+export interface ListRecoveryPointsByResource extends Binding.Service<ListRecoveryPointsByResource, "AWS.Backup.ListRecoveryPointsByResource", () => Effect.Effect<(request: backup.ListRecoveryPointsByResourceInput) => Effect.Effect<backup.ListRecoveryPointsByResourceOutput, backup.ListRecoveryPointsByResourceError>>> {
 }
 export declare const ListRecoveryPointsByResource: ListRecoveryPointsByResource;

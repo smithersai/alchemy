@@ -22,6 +22,6 @@ export interface ListChannelsRequest extends Omit<repostspace.ListChannelsInput,
  *
  * @binding
  */
-export interface ListChannels extends Binding.Service<ListChannels, "AWS.RePostSpace.ListChannels", (space: Space) => Effect.Effect<((request?: ListChannelsRequest) => Effect.Effect<repostspace.ListChannelsOutput, repostspace.ListChannelsError>)>> {
+export interface ListChannels extends Binding.Service<ListChannels, "AWS.RePostSpace.ListChannels", (space: Space) => Effect.Effect<(request?: ListChannelsRequest) => Effect.Effect<repostspace.ListChannelsOutput, repostspace.ListChannelsError>>> {
 }
 export declare const ListChannels: ListChannels;

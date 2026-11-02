@@ -21,6 +21,6 @@ export interface ListDockerImagesRequest extends Omit<artifactregistry.ListProje
  * @binding
  * @category ArtifactRegistry
  */
-export interface ListDockerImages extends Binding.Service<ListDockerImages, "GCP.ArtifactRegistry.ListDockerImages", (repository: Repository) => Effect.Effect<((request?: ListDockerImagesRequest) => Effect.Effect<artifactregistry.ListDockerImagesResponse, artifactregistry.ListProjectsLocationsRepositoriesDockerImagesError, RuntimeContext>)>> {
+export interface ListDockerImages extends Binding.Service<ListDockerImages, "GCP.ArtifactRegistry.ListDockerImages", (repository: Repository) => Effect.Effect<(request?: ListDockerImagesRequest) => Effect.Effect<artifactregistry.ListDockerImagesResponse, artifactregistry.ListProjectsLocationsRepositoriesDockerImagesError, RuntimeContext>>> {
 }
 export declare const ListDockerImages: ListDockerImages;

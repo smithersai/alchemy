@@ -28,6 +28,6 @@ export interface GetAssociatedResourceRequest extends Omit<appregistry.GetAssoci
  *
  * @binding
  */
-export interface GetAssociatedResource extends Binding.Service<GetAssociatedResource, "AWS.AppRegistry.GetAssociatedResource", (application: Application) => Effect.Effect<((request: GetAssociatedResourceRequest) => Effect.Effect<appregistry.GetAssociatedResourceResponse, appregistry.GetAssociatedResourceError>)>> {
+export interface GetAssociatedResource extends Binding.Service<GetAssociatedResource, "AWS.AppRegistry.GetAssociatedResource", (application: Application) => Effect.Effect<(request: GetAssociatedResourceRequest) => Effect.Effect<appregistry.GetAssociatedResourceResponse, appregistry.GetAssociatedResourceError>>> {
 }
 export declare const GetAssociatedResource: GetAssociatedResource;

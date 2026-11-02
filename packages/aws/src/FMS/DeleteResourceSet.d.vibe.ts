@@ -23,6 +23,6 @@ export interface DeleteResourceSetRequest extends fms.DeleteResourceSetRequest {
  *
  * @binding
  */
-export interface DeleteResourceSet extends Binding.Service<DeleteResourceSet, "AWS.FMS.DeleteResourceSet", () => Effect.Effect<((request: DeleteResourceSetRequest) => Effect.Effect<fms.DeleteResourceSetResponse, fms.DeleteResourceSetError>)>> {
+export interface DeleteResourceSet extends Binding.Service<DeleteResourceSet, "AWS.FMS.DeleteResourceSet", () => Effect.Effect<(request: DeleteResourceSetRequest) => Effect.Effect<fms.DeleteResourceSetResponse, fms.DeleteResourceSetError>>> {
 }
 export declare const DeleteResourceSet: DeleteResourceSet;

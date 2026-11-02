@@ -19,6 +19,6 @@ export interface ListRunsRequest extends omics.ListRunsRequest {
  *
  * @binding
  */
-export interface ListRuns extends Binding.Service<ListRuns, "AWS.Omics.ListRuns", () => Effect.Effect<((request?: ListRunsRequest) => Effect.Effect<omics.ListRunsResponse, omics.ListRunsError>)>> {
+export interface ListRuns extends Binding.Service<ListRuns, "AWS.Omics.ListRuns", () => Effect.Effect<(request?: ListRunsRequest) => Effect.Effect<omics.ListRunsResponse, omics.ListRunsError>>> {
 }
 export declare const ListRuns: ListRuns;

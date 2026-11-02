@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetContextKeysForPrincipalPolicy extends Binding.Service<GetContextKeysForPrincipalPolicy, "AWS.IAM.GetContextKeysForPrincipalPolicy", () => Effect.Effect<((request: iam.GetContextKeysForPrincipalPolicyRequest) => Effect.Effect<iam.GetContextKeysForPolicyResponse, iam.GetContextKeysForPrincipalPolicyError>)>> {
+export interface GetContextKeysForPrincipalPolicy extends Binding.Service<GetContextKeysForPrincipalPolicy, "AWS.IAM.GetContextKeysForPrincipalPolicy", () => Effect.Effect<(request: iam.GetContextKeysForPrincipalPolicyRequest) => Effect.Effect<iam.GetContextKeysForPolicyResponse, iam.GetContextKeysForPrincipalPolicyError>>> {
 }
 export declare const GetContextKeysForPrincipalPolicy: GetContextKeysForPrincipalPolicy;

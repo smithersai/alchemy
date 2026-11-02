@@ -35,6 +35,6 @@ export interface SendConnectorEventRequest extends mi.SendConnectorEventRequest 
  *
  * @binding
  */
-export interface SendConnectorEvent extends Binding.Service<SendConnectorEvent, "AWS.IoTManagedIntegrations.SendConnectorEvent", () => Effect.Effect<((request: SendConnectorEventRequest) => Effect.Effect<mi.SendConnectorEventResponse, mi.SendConnectorEventError>)>> {
+export interface SendConnectorEvent extends Binding.Service<SendConnectorEvent, "AWS.IoTManagedIntegrations.SendConnectorEvent", () => Effect.Effect<(request: SendConnectorEventRequest) => Effect.Effect<mi.SendConnectorEventResponse, mi.SendConnectorEventError>>> {
 }
 export declare const SendConnectorEvent: SendConnectorEvent;

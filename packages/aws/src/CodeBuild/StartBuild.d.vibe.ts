@@ -25,6 +25,6 @@ export interface StartBuildRequest extends Omit<SVC.StartBuildInput, "projectNam
  *
  * @binding
  */
-export interface StartBuild extends Binding.Service<StartBuild, "AWS.CodeBuild.StartBuild", <P extends Project>(project: P) => Effect.Effect<((request?: StartBuildRequest) => Effect.Effect<SVC.StartBuildOutput, SVC.StartBuildError>)>> {
+export interface StartBuild extends Binding.Service<StartBuild, "AWS.CodeBuild.StartBuild", <P extends Project>(project: P) => Effect.Effect<(request?: StartBuildRequest) => Effect.Effect<SVC.StartBuildOutput, SVC.StartBuildError>>> {
 }
 export declare const StartBuild: StartBuild;

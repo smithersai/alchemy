@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteFaces extends Binding.Service<DeleteFaces, "AWS.Rekognition.DeleteFaces", () => Effect.Effect<((request: rekognition.DeleteFacesRequest) => Effect.Effect<rekognition.DeleteFacesResponse, rekognition.DeleteFacesError>)>> {
+export interface DeleteFaces extends Binding.Service<DeleteFaces, "AWS.Rekognition.DeleteFaces", () => Effect.Effect<(request: rekognition.DeleteFacesRequest) => Effect.Effect<rekognition.DeleteFacesResponse, rekognition.DeleteFacesError>>> {
 }
 export declare const DeleteFaces: DeleteFaces;

@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetCallAnalyticsCategory extends Binding.Service<GetCallAnalyticsCategory, "AWS.Transcribe.GetCallAnalyticsCategory", () => Effect.Effect<((request: transcribe.GetCallAnalyticsCategoryRequest) => Effect.Effect<transcribe.GetCallAnalyticsCategoryResponse, transcribe.GetCallAnalyticsCategoryError>)>> {
+export interface GetCallAnalyticsCategory extends Binding.Service<GetCallAnalyticsCategory, "AWS.Transcribe.GetCallAnalyticsCategory", () => Effect.Effect<(request: transcribe.GetCallAnalyticsCategoryRequest) => Effect.Effect<transcribe.GetCallAnalyticsCategoryResponse, transcribe.GetCallAnalyticsCategoryError>>> {
 }
 export declare const GetCallAnalyticsCategory: GetCallAnalyticsCategory;

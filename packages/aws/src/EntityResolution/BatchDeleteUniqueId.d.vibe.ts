@@ -22,6 +22,6 @@ import type { MatchingWorkflow } from "./MatchingWorkflow.vibe";
  *
  * @binding
  */
-export interface BatchDeleteUniqueId extends Binding.Service<BatchDeleteUniqueId, "AWS.EntityResolution.BatchDeleteUniqueId", (workflow: MatchingWorkflow) => Effect.Effect<((request: Omit<entityresolution.BatchDeleteUniqueIdInput, "workflowName">) => Effect.Effect<entityresolution.BatchDeleteUniqueIdOutput, entityresolution.BatchDeleteUniqueIdError>)>> {
+export interface BatchDeleteUniqueId extends Binding.Service<BatchDeleteUniqueId, "AWS.EntityResolution.BatchDeleteUniqueId", (workflow: MatchingWorkflow) => Effect.Effect<(request: Omit<entityresolution.BatchDeleteUniqueIdInput, "workflowName">) => Effect.Effect<entityresolution.BatchDeleteUniqueIdOutput, entityresolution.BatchDeleteUniqueIdError>>> {
 }
 export declare const BatchDeleteUniqueId: BatchDeleteUniqueId;

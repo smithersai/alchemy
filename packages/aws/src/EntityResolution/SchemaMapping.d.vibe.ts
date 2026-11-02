@@ -1,7 +1,7 @@
 import * as entityresolution from "@distilled.cloud/aws/entityresolution";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface SchemaMappingProps {
     /**
      * Name of the schema mapping. Must be unique per account/region and match

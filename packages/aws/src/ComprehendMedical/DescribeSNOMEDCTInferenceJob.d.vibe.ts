@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeSNOMEDCTInferenceJob extends Binding.Service<DescribeSNOMEDCTInferenceJob, "AWS.ComprehendMedical.DescribeSNOMEDCTInferenceJob", () => Effect.Effect<((request: comprehendmedical.DescribeSNOMEDCTInferenceJobRequest) => Effect.Effect<comprehendmedical.DescribeSNOMEDCTInferenceJobResponse, comprehendmedical.DescribeSNOMEDCTInferenceJobError>)>> {
+export interface DescribeSNOMEDCTInferenceJob extends Binding.Service<DescribeSNOMEDCTInferenceJob, "AWS.ComprehendMedical.DescribeSNOMEDCTInferenceJob", () => Effect.Effect<(request: comprehendmedical.DescribeSNOMEDCTInferenceJobRequest) => Effect.Effect<comprehendmedical.DescribeSNOMEDCTInferenceJobResponse, comprehendmedical.DescribeSNOMEDCTInferenceJobError>>> {
 }
 export declare const DescribeSNOMEDCTInferenceJob: DescribeSNOMEDCTInferenceJob;

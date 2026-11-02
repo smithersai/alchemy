@@ -25,6 +25,6 @@ export interface GetUserRequest extends Omit<qbusiness.GetUserRequest, "applicat
  *
  * @binding
  */
-export interface GetUser extends Binding.Service<GetUser, "AWS.QBusiness.GetUser", (application: Application) => Effect.Effect<((request: GetUserRequest) => Effect.Effect<qbusiness.GetUserResponse, qbusiness.GetUserError>)>> {
+export interface GetUser extends Binding.Service<GetUser, "AWS.QBusiness.GetUser", (application: Application) => Effect.Effect<(request: GetUserRequest) => Effect.Effect<qbusiness.GetUserResponse, qbusiness.GetUserError>>> {
 }
 export declare const GetUser: GetUser;

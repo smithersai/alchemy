@@ -30,6 +30,6 @@ export interface ListApplicationsRequest extends SVC.ListApplicationsRequest {
  *
  * @binding
  */
-export interface ListApplications extends Binding.Service<ListApplications, "AWS.KinesisAnalyticsV2.ListApplications", () => Effect.Effect<((request?: ListApplicationsRequest) => Effect.Effect<SVC.ListApplicationsResponse, SVC.ListApplicationsError>)>> {
+export interface ListApplications extends Binding.Service<ListApplications, "AWS.KinesisAnalyticsV2.ListApplications", () => Effect.Effect<(request?: ListApplicationsRequest) => Effect.Effect<SVC.ListApplicationsResponse, SVC.ListApplicationsError>>> {
 }
 export declare const ListApplications: ListApplications;

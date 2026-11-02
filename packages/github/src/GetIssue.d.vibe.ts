@@ -4,7 +4,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type { IssueNotFound } from "./Errors.vibe";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.ts";
 export interface GetIssueRequest extends Omit<Issues.GetRequest, "owner" | "repo"> {
 }
 export type GetIssueResponse = Issues.Issue;
@@ -27,6 +27,6 @@ export type GetIssueResponse = Issues.Issue;
  * @binding
  * @product Issue
  */
-export interface GetIssue extends Binding.Service<GetIssue, "GitHub.GetIssue", (repo: Repository) => Effect.Effect<((request: GetIssueRequest) => Effect.Effect<GetIssueResponse, Exclude<Issues.GetError, NotFound> | IssueNotFound, RuntimeContext>)>> {
+export interface GetIssue extends Binding.Service<GetIssue, "GitHub.GetIssue", (repo: Repository) => Effect.Effect<(request: GetIssueRequest) => Effect.Effect<GetIssueResponse, Exclude<Issues.GetError, NotFound> | IssueNotFound, RuntimeContext>>> {
 }
 export declare const GetIssue: GetIssue;

@@ -26,6 +26,6 @@ export interface PutAttributesRequest extends Omit<sdb.PutAttributesRequest, "Do
  *
  * @binding
  */
-export interface PutAttributes extends Binding.Service<PutAttributes, "AWS.SimpleDB.PutAttributes", (domain: Domain) => Effect.Effect<((request: PutAttributesRequest) => Effect.Effect<sdb.PutAttributesResponse, sdb.PutAttributesError, RuntimeContext>)>> {
+export interface PutAttributes extends Binding.Service<PutAttributes, "AWS.SimpleDB.PutAttributes", (domain: Domain) => Effect.Effect<(request: PutAttributesRequest) => Effect.Effect<sdb.PutAttributesResponse, sdb.PutAttributesError, RuntimeContext>>> {
 }
 export declare const PutAttributes: PutAttributes;

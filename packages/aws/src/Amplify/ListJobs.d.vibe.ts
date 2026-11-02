@@ -26,6 +26,6 @@ export interface ListJobsRequest extends Omit<amplify.ListJobsRequest, "appId"> 
  *
  * @binding
  */
-export interface ListJobs extends Binding.Service<ListJobs, "AWS.Amplify.ListJobs", (app: App) => Effect.Effect<((request: ListJobsRequest) => Effect.Effect<amplify.ListJobsResult, amplify.ListJobsError>)>> {
+export interface ListJobs extends Binding.Service<ListJobs, "AWS.Amplify.ListJobs", (app: App) => Effect.Effect<(request: ListJobsRequest) => Effect.Effect<amplify.ListJobsResult, amplify.ListJobsError>>> {
 }
 export declare const ListJobs: ListJobs;

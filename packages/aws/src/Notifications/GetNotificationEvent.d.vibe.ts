@@ -25,6 +25,6 @@ export interface GetNotificationEventRequest extends notifications.GetNotificati
  *
  * @binding
  */
-export interface GetNotificationEvent extends Binding.Service<GetNotificationEvent, "AWS.Notifications.GetNotificationEvent", () => Effect.Effect<((request: GetNotificationEventRequest) => Effect.Effect<notifications.GetNotificationEventResponse, notifications.GetNotificationEventError>)>> {
+export interface GetNotificationEvent extends Binding.Service<GetNotificationEvent, "AWS.Notifications.GetNotificationEvent", () => Effect.Effect<(request: GetNotificationEventRequest) => Effect.Effect<notifications.GetNotificationEventResponse, notifications.GetNotificationEventError>>> {
 }
 export declare const GetNotificationEvent: GetNotificationEvent;

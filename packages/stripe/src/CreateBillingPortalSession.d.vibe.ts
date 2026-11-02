@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  * @binding
  * @product Billing
  */
-export interface CreateBillingPortalSession extends Binding.Service<CreateBillingPortalSession, "Stripe.CreateBillingPortalSession", () => Effect.Effect<((request: CreateBillingPortalSessionRequest) => Effect.Effect<BillingPortalSession, CreateBillingPortalSessionError, RuntimeContext>)>> {
+export interface CreateBillingPortalSession extends Binding.Service<CreateBillingPortalSession, "Stripe.CreateBillingPortalSession", () => Effect.Effect<(request: CreateBillingPortalSessionRequest) => Effect.Effect<BillingPortalSession, CreateBillingPortalSessionError, RuntimeContext>>> {
 }
 export declare const CreateBillingPortalSession: CreateBillingPortalSession;

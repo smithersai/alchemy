@@ -2,7 +2,7 @@ import type * as cloudrun from "@distilled.cloud/gcp/run_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Job } from "./Job.js";
+import type { Job } from "./Job.ts";
 export interface RunJobRequest extends Omit<cloudrun.RunProjectsLocationsJobsRequest, "name"> {
 }
 /**
@@ -29,6 +29,6 @@ export interface RunJobRequest extends Omit<cloudrun.RunProjectsLocationsJobsReq
  * @binding
  * @category Run
  */
-export interface RunJob extends Binding.Service<RunJob, "GCP.Run.RunJob", (job: Job) => Effect.Effect<((request?: RunJobRequest) => Effect.Effect<cloudrun.GoogleLongrunningOperation, cloudrun.RunProjectsLocationsJobsError, RuntimeContext>)>> {
+export interface RunJob extends Binding.Service<RunJob, "GCP.Run.RunJob", (job: Job) => Effect.Effect<(request?: RunJobRequest) => Effect.Effect<cloudrun.GoogleLongrunningOperation, cloudrun.RunProjectsLocationsJobsError, RuntimeContext>>> {
 }
 export declare const RunJob: RunJob;

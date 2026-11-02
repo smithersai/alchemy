@@ -1,7 +1,7 @@
 import type * as Logs from "@distilled.cloud/aws/cloudwatch-logs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LogGroup } from "./LogGroup.js";
+import type { LogGroup } from "./LogGroup.ts";
 export type InputLogEvent = Logs.InputLogEvent;
 export interface PutLogEventsRequest extends Omit<Logs.PutLogEventsRequest, "logGroupName" | "sequenceToken"> {
 }
@@ -56,6 +56,6 @@ export interface PutLogEventsRequest extends Omit<Logs.PutLogEventsRequest, "log
  *
  * @binding
  */
-export interface PutLogEvents extends Binding.Service<PutLogEvents, "AWS.Logs.PutLogEvents", <G extends LogGroup>(logGroup: G) => Effect.Effect<((request: PutLogEventsRequest) => Effect.Effect<Logs.PutLogEventsResponse, Logs.PutLogEventsError>)>> {
+export interface PutLogEvents extends Binding.Service<PutLogEvents, "AWS.Logs.PutLogEvents", <G extends LogGroup>(logGroup: G) => Effect.Effect<(request: PutLogEventsRequest) => Effect.Effect<Logs.PutLogEventsResponse, Logs.PutLogEventsError>>> {
 }
 export declare const PutLogEvents: PutLogEvents;

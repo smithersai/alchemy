@@ -25,6 +25,6 @@ import type { Task } from "./Task.vibe";
  *
  * @binding
  */
-export interface ListTaskExecutions extends Binding.Service<ListTaskExecutions, "AWS.DataSync.ListTaskExecutions", (task: Task) => Effect.Effect<((request?: Omit<datasync.ListTaskExecutionsRequest, "TaskArn">) => Effect.Effect<datasync.ListTaskExecutionsResponse, datasync.ListTaskExecutionsError>)>> {
+export interface ListTaskExecutions extends Binding.Service<ListTaskExecutions, "AWS.DataSync.ListTaskExecutions", (task: Task) => Effect.Effect<(request?: Omit<datasync.ListTaskExecutionsRequest, "TaskArn">) => Effect.Effect<datasync.ListTaskExecutionsResponse, datasync.ListTaskExecutionsError>>> {
 }
 export declare const ListTaskExecutions: ListTaskExecutions;

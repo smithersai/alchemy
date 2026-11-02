@@ -1,7 +1,7 @@
 import * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface ListTagsOfResourceRequest extends Omit<DynamoDB.ListTagsOfResourceInput, "ResourceArn"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface ListTagsOfResourceRequest extends Omit<DynamoDB.ListTagsOfResou
  *
  * @binding
  */
-export interface ListTagsOfResource extends Binding.Service<ListTagsOfResource, "AWS.DynamoDB.ListTagsOfResource", <T extends Table>(table: T) => Effect.Effect<((request?: ListTagsOfResourceRequest) => Effect.Effect<DynamoDB.ListTagsOfResourceOutput, DynamoDB.ListTagsOfResourceError>)>> {
+export interface ListTagsOfResource extends Binding.Service<ListTagsOfResource, "AWS.DynamoDB.ListTagsOfResource", <T extends Table>(table: T) => Effect.Effect<(request?: ListTagsOfResourceRequest) => Effect.Effect<DynamoDB.ListTagsOfResourceOutput, DynamoDB.ListTagsOfResourceError>>> {
 }
 export declare const ListTagsOfResource: ListTagsOfResource;

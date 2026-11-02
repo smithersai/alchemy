@@ -16,6 +16,6 @@ export interface TerminateJobRequest extends batch.TerminateJobRequest {
  *
  * @binding
  */
-export interface TerminateJob extends Binding.Service<TerminateJob, "AWS.Batch.TerminateJob", (queue: JobQueue) => Effect.Effect<((request: TerminateJobRequest) => Effect.Effect<batch.TerminateJobResponse, batch.TerminateJobError>)>> {
+export interface TerminateJob extends Binding.Service<TerminateJob, "AWS.Batch.TerminateJob", (queue: JobQueue) => Effect.Effect<(request: TerminateJobRequest) => Effect.Effect<batch.TerminateJobResponse, batch.TerminateJobError>>> {
 }
 export declare const TerminateJob: TerminateJob;

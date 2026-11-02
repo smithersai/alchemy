@@ -19,6 +19,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface StartGraph extends Binding.Service<StartGraph, "AWS.NeptuneGraph.StartGraph", (graph: Graph) => Effect.Effect<(() => Effect.Effect<neptunegraph.StartGraphOutput, neptunegraph.StartGraphError>)>> {
+export interface StartGraph extends Binding.Service<StartGraph, "AWS.NeptuneGraph.StartGraph", (graph: Graph) => Effect.Effect<() => Effect.Effect<neptunegraph.StartGraphOutput, neptunegraph.StartGraphError>>> {
 }
 export declare const StartGraph: StartGraph;

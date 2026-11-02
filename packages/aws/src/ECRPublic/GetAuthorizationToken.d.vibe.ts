@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetAuthorizationToken extends Binding.Service<GetAuthorizationToken, "AWS.ECRPublic.GetAuthorizationToken", () => Effect.Effect<(() => Effect.Effect<ecrpublic.GetAuthorizationTokenResponse, ecrpublic.GetAuthorizationTokenError>)>> {
+export interface GetAuthorizationToken extends Binding.Service<GetAuthorizationToken, "AWS.ECRPublic.GetAuthorizationToken", () => Effect.Effect<() => Effect.Effect<ecrpublic.GetAuthorizationTokenResponse, ecrpublic.GetAuthorizationTokenError>>> {
 }
 export declare const GetAuthorizationToken: GetAuthorizationToken;

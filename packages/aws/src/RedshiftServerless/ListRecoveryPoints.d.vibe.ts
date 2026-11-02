@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListRecoveryPoints extends Binding.Service<ListRecoveryPoints, "AWS.RedshiftServerless.ListRecoveryPoints", () => Effect.Effect<((request?: serverless.ListRecoveryPointsRequest) => Effect.Effect<serverless.ListRecoveryPointsResponse, serverless.ListRecoveryPointsError>)>> {
+export interface ListRecoveryPoints extends Binding.Service<ListRecoveryPoints, "AWS.RedshiftServerless.ListRecoveryPoints", () => Effect.Effect<(request?: serverless.ListRecoveryPointsRequest) => Effect.Effect<serverless.ListRecoveryPointsResponse, serverless.ListRecoveryPointsError>>> {
 }
 export declare const ListRecoveryPoints: ListRecoveryPoints;

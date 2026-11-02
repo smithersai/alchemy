@@ -2,7 +2,7 @@ import type * as bigtable from "@distilled.cloud/gcp/bigtableadmin_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface GetTableRequest extends Omit<bigtable.GetProjectsInstancesTablesRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetTableRequest extends Omit<bigtable.GetProjectsInstancesTable
  * @binding
  * @category Bigtable
  */
-export interface GetTable extends Binding.Service<GetTable, "GCP.Bigtable.GetTable", (table: Table) => Effect.Effect<((request?: GetTableRequest) => Effect.Effect<bigtable.Table, bigtable.GetProjectsInstancesTablesError, RuntimeContext>)>> {
+export interface GetTable extends Binding.Service<GetTable, "GCP.Bigtable.GetTable", (table: Table) => Effect.Effect<(request?: GetTableRequest) => Effect.Effect<bigtable.Table, bigtable.GetProjectsInstancesTablesError, RuntimeContext>>> {
 }
 export declare const GetTable: GetTable;

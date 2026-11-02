@@ -2,7 +2,7 @@ import type * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { TrainingPipeline } from "./TrainingPipeline.js";
+import type { TrainingPipeline } from "./TrainingPipeline.ts";
 export interface GetTrainingPipelineRequest extends Omit<aiplatform.GetProjectsLocationsTrainingPipelinesRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetTrainingPipelineRequest extends Omit<aiplatform.GetProjectsL
  * @binding
  * @category AIPlatform
  */
-export interface GetTrainingPipeline extends Binding.Service<GetTrainingPipeline, "GCP.AIPlatform.GetTrainingPipeline", (pipeline: TrainingPipeline) => Effect.Effect<((request?: GetTrainingPipelineRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1TrainingPipeline, aiplatform.GetProjectsLocationsTrainingPipelinesError, RuntimeContext>)>> {
+export interface GetTrainingPipeline extends Binding.Service<GetTrainingPipeline, "GCP.AIPlatform.GetTrainingPipeline", (pipeline: TrainingPipeline) => Effect.Effect<(request?: GetTrainingPipelineRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1TrainingPipeline, aiplatform.GetProjectsLocationsTrainingPipelinesError, RuntimeContext>>> {
 }
 export declare const GetTrainingPipeline: GetTrainingPipeline;

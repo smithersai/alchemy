@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetComplianceSummaryByResourceType extends Binding.Service<GetComplianceSummaryByResourceType, "AWS.Config.GetComplianceSummaryByResourceType", () => Effect.Effect<((request?: config.GetComplianceSummaryByResourceTypeRequest) => Effect.Effect<config.GetComplianceSummaryByResourceTypeResponse, config.GetComplianceSummaryByResourceTypeError>)>> {
+export interface GetComplianceSummaryByResourceType extends Binding.Service<GetComplianceSummaryByResourceType, "AWS.Config.GetComplianceSummaryByResourceType", () => Effect.Effect<(request?: config.GetComplianceSummaryByResourceTypeRequest) => Effect.Effect<config.GetComplianceSummaryByResourceTypeResponse, config.GetComplianceSummaryByResourceTypeError>>> {
 }
 export declare const GetComplianceSummaryByResourceType: GetComplianceSummaryByResourceType;

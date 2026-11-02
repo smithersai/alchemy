@@ -42,6 +42,6 @@ export interface UpdateEventLabelRequest extends Omit<frauddetector.UpdateEventL
  *
  * @binding
  */
-export interface UpdateEventLabel extends Binding.Service<UpdateEventLabel, "AWS.FraudDetector.UpdateEventLabel", (eventType: EventType) => Effect.Effect<((request: UpdateEventLabelRequest) => Effect.Effect<frauddetector.UpdateEventLabelResult, frauddetector.UpdateEventLabelError>)>> {
+export interface UpdateEventLabel extends Binding.Service<UpdateEventLabel, "AWS.FraudDetector.UpdateEventLabel", (eventType: EventType) => Effect.Effect<(request: UpdateEventLabelRequest) => Effect.Effect<frauddetector.UpdateEventLabelResult, frauddetector.UpdateEventLabelError>>> {
 }
 export declare const UpdateEventLabel: UpdateEventLabel;

@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribePage extends Binding.Service<DescribePage, "AWS.SSMContacts.DescribePage", () => Effect.Effect<((request: ssm.DescribePageRequest) => Effect.Effect<ssm.DescribePageResult, ssm.DescribePageError>)>> {
+export interface DescribePage extends Binding.Service<DescribePage, "AWS.SSMContacts.DescribePage", () => Effect.Effect<(request: ssm.DescribePageRequest) => Effect.Effect<ssm.DescribePageResult, ssm.DescribePageError>>> {
 }
 export declare const DescribePage: DescribePage;

@@ -3,7 +3,7 @@ import type { RegionName } from "@distilled.cloud/aws/Region";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 import { TigrisCredentialsMissing } from "./Errors.vibe";
 /**
  * Shared scaffolding for Tigris S3 bindings.

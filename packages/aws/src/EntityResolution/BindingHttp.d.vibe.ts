@@ -17,7 +17,7 @@ export declare const makeWorkflowHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.EntityResolution.GetMatchId`. */
     tag: string;
     /** The distilled operation; `workflowName` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the workflow ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(workflow: MatchingWorkflow | IdMappingWorkflow) => Effect.Effect<(request: Omit<I, "workflowName">) => Effect.Effect<A, E, never>, never, never>, never, never>;

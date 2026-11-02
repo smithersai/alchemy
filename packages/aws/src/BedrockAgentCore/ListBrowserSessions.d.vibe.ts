@@ -28,6 +28,6 @@ export interface ListBrowserSessionsRequest extends Omit<agentcore.ListBrowserSe
  *
  * @binding
  */
-export interface ListBrowserSessions extends Binding.Service<ListBrowserSessions, "AWS.BedrockAgentCore.ListBrowserSessions", <R extends BrowserCustom>(browser: R) => Effect.Effect<((request: ListBrowserSessionsRequest) => Effect.Effect<agentcore.ListBrowserSessionsResponse, agentcore.ListBrowserSessionsError>)>> {
+export interface ListBrowserSessions extends Binding.Service<ListBrowserSessions, "AWS.BedrockAgentCore.ListBrowserSessions", <R extends BrowserCustom>(browser: R) => Effect.Effect<(request: ListBrowserSessionsRequest) => Effect.Effect<agentcore.ListBrowserSessionsResponse, agentcore.ListBrowserSessionsError>>> {
 }
 export declare const ListBrowserSessions: ListBrowserSessions;

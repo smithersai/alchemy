@@ -30,6 +30,6 @@ export interface GetTemporaryGluePartitionCredentialsRequest extends lf.GetTempo
  *
  * @binding
  */
-export interface GetTemporaryGluePartitionCredentials extends Binding.Service<GetTemporaryGluePartitionCredentials, "AWS.LakeFormation.GetTemporaryGluePartitionCredentials", () => Effect.Effect<((request: GetTemporaryGluePartitionCredentialsRequest) => Effect.Effect<lf.GetTemporaryGluePartitionCredentialsResponse, lf.GetTemporaryGluePartitionCredentialsError>)>> {
+export interface GetTemporaryGluePartitionCredentials extends Binding.Service<GetTemporaryGluePartitionCredentials, "AWS.LakeFormation.GetTemporaryGluePartitionCredentials", () => Effect.Effect<(request: GetTemporaryGluePartitionCredentialsRequest) => Effect.Effect<lf.GetTemporaryGluePartitionCredentialsResponse, lf.GetTemporaryGluePartitionCredentialsError>>> {
 }
 export declare const GetTemporaryGluePartitionCredentials: GetTemporaryGluePartitionCredentials;

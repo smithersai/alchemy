@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /** An OAuth scope defined by a resource server. */
 export interface ResourceServerScope {
     /** Scope name; clients request it as `<identifier>/<scopeName>`. */

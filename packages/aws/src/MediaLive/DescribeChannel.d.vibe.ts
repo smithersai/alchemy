@@ -24,6 +24,6 @@ import type { Channel } from "./Channel.vibe";
  *
  * @binding
  */
-export interface DescribeChannel extends Binding.Service<DescribeChannel, "AWS.MediaLive.DescribeChannel", (channel: Channel) => Effect.Effect<(() => Effect.Effect<medialive.DescribeChannelResponse, medialive.DescribeChannelError>)>> {
+export interface DescribeChannel extends Binding.Service<DescribeChannel, "AWS.MediaLive.DescribeChannel", (channel: Channel) => Effect.Effect<() => Effect.Effect<medialive.DescribeChannelResponse, medialive.DescribeChannelError>>> {
 }
 export declare const DescribeChannel: DescribeChannel;

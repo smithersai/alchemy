@@ -32,6 +32,6 @@ export interface BatchDeleteMemoryRecordsRequest extends Omit<agentcore.BatchDel
  *
  * @binding
  */
-export interface BatchDeleteMemoryRecords extends Binding.Service<BatchDeleteMemoryRecords, "AWS.BedrockAgentCore.BatchDeleteMemoryRecords", <R extends Memory>(memory: R) => Effect.Effect<((request: BatchDeleteMemoryRecordsRequest) => Effect.Effect<agentcore.BatchDeleteMemoryRecordsOutput, agentcore.BatchDeleteMemoryRecordsError>)>> {
+export interface BatchDeleteMemoryRecords extends Binding.Service<BatchDeleteMemoryRecords, "AWS.BedrockAgentCore.BatchDeleteMemoryRecords", <R extends Memory>(memory: R) => Effect.Effect<(request: BatchDeleteMemoryRecordsRequest) => Effect.Effect<agentcore.BatchDeleteMemoryRecordsOutput, agentcore.BatchDeleteMemoryRecordsError>>> {
 }
 export declare const BatchDeleteMemoryRecords: BatchDeleteMemoryRecords;

@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.ts";
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces
  * it (so `yield* Service(...)` and `Service(...)` both type-check).
@@ -167,5 +167,5 @@ export declare class TcpProxyTargetMissing extends TcpProxyTargetMissing_base<{
     message: string;
 }> {
 }
-export declare const TcpProxyProvider: () => import("effect/Layer").Layer<Provider.Provider<TcpProxy>, never, import("@distilled.cloud/railway").GqlTransport | import("./Environment.js").RailwayEnvironment>;
+export declare const TcpProxyProvider: () => import("effect/Layer").Layer<Provider.Provider<TcpProxy>, never, import("@distilled.cloud/railway").GqlTransport | import("./Environment.ts").RailwayEnvironment>;
 export {};

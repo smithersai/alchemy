@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDBClusterEndpoints extends Binding.Service<DescribeDBClusterEndpoints, "AWS.RDS.DescribeDBClusterEndpoints", () => Effect.Effect<((request?: rds.DescribeDBClusterEndpointsMessage) => Effect.Effect<rds.DBClusterEndpointMessage, rds.DescribeDBClusterEndpointsError>)>> {
+export interface DescribeDBClusterEndpoints extends Binding.Service<DescribeDBClusterEndpoints, "AWS.RDS.DescribeDBClusterEndpoints", () => Effect.Effect<(request?: rds.DescribeDBClusterEndpointsMessage) => Effect.Effect<rds.DBClusterEndpointMessage, rds.DescribeDBClusterEndpointsError>>> {
 }
 export declare const DescribeDBClusterEndpoints: DescribeDBClusterEndpoints;

@@ -21,6 +21,6 @@ import type { Revision } from "./Revision.vibe";
  *
  * @binding
  */
-export interface UpdateAsset extends Binding.Service<UpdateAsset, "AWS.DataExchange.UpdateAsset", (revision: Revision) => Effect.Effect<((request: Omit<dataexchange.UpdateAssetRequest, "DataSetId" | "RevisionId">) => Effect.Effect<dataexchange.UpdateAssetResponse, dataexchange.UpdateAssetError>)>> {
+export interface UpdateAsset extends Binding.Service<UpdateAsset, "AWS.DataExchange.UpdateAsset", (revision: Revision) => Effect.Effect<(request: Omit<dataexchange.UpdateAssetRequest, "DataSetId" | "RevisionId">) => Effect.Effect<dataexchange.UpdateAssetResponse, dataexchange.UpdateAssetError>>> {
 }
 export declare const UpdateAsset: UpdateAsset;

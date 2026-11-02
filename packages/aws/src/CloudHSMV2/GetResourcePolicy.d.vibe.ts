@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetResourcePolicy extends Binding.Service<GetResourcePolicy, "AWS.CloudHSMV2.GetResourcePolicy", () => Effect.Effect<((request?: cloudhsm.GetResourcePolicyRequest) => Effect.Effect<cloudhsm.GetResourcePolicyResponse, cloudhsm.GetResourcePolicyError>)>> {
+export interface GetResourcePolicy extends Binding.Service<GetResourcePolicy, "AWS.CloudHSMV2.GetResourcePolicy", () => Effect.Effect<(request?: cloudhsm.GetResourcePolicyRequest) => Effect.Effect<cloudhsm.GetResourcePolicyResponse, cloudhsm.GetResourcePolicyError>>> {
 }
 export declare const GetResourcePolicy: GetResourcePolicy;

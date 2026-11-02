@@ -44,6 +44,6 @@ export interface ListEventPredictionsRequest extends Omit<frauddetector.ListEven
  *
  * @binding
  */
-export interface ListEventPredictions extends Binding.Service<ListEventPredictions, "AWS.FraudDetector.ListEventPredictions", (detector: Detector) => Effect.Effect<((request: ListEventPredictionsRequest) => Effect.Effect<frauddetector.ListEventPredictionsResult, frauddetector.ListEventPredictionsError>)>> {
+export interface ListEventPredictions extends Binding.Service<ListEventPredictions, "AWS.FraudDetector.ListEventPredictions", (detector: Detector) => Effect.Effect<(request: ListEventPredictionsRequest) => Effect.Effect<frauddetector.ListEventPredictionsResult, frauddetector.ListEventPredictionsError>>> {
 }
 export declare const ListEventPredictions: ListEventPredictions;

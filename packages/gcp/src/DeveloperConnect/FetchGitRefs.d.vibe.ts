@@ -26,6 +26,6 @@ export interface FetchGitRefsRequest extends Omit<developerconnect.FetchGitRefsP
  * @binding
  * @category DeveloperConnect
  */
-export interface FetchGitRefs extends Binding.Service<FetchGitRefs, "GCP.DeveloperConnect.FetchGitRefs", (link: ConnectionsGitRepositoryLink) => Effect.Effect<((request?: FetchGitRefsRequest) => Effect.Effect<developerconnect.FetchGitRefsResponse, developerconnect.FetchGitRefsProjectsLocationsConnectionsGitRepositoryLinksError, RuntimeContext>)>> {
+export interface FetchGitRefs extends Binding.Service<FetchGitRefs, "GCP.DeveloperConnect.FetchGitRefs", (link: ConnectionsGitRepositoryLink) => Effect.Effect<(request?: FetchGitRefsRequest) => Effect.Effect<developerconnect.FetchGitRefsResponse, developerconnect.FetchGitRefsProjectsLocationsConnectionsGitRepositoryLinksError, RuntimeContext>>> {
 }
 export declare const FetchGitRefs: FetchGitRefs;

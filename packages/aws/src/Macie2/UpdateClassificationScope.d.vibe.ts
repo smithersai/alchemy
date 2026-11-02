@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateClassificationScope extends Binding.Service<UpdateClassificationScope, "AWS.Macie2.UpdateClassificationScope", () => Effect.Effect<((request: macie2.UpdateClassificationScopeRequest) => Effect.Effect<macie2.UpdateClassificationScopeResponse, macie2.UpdateClassificationScopeError>)>> {
+export interface UpdateClassificationScope extends Binding.Service<UpdateClassificationScope, "AWS.Macie2.UpdateClassificationScope", () => Effect.Effect<(request: macie2.UpdateClassificationScopeRequest) => Effect.Effect<macie2.UpdateClassificationScopeResponse, macie2.UpdateClassificationScopeError>>> {
 }
 export declare const UpdateClassificationScope: UpdateClassificationScope;

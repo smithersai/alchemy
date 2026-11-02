@@ -22,6 +22,6 @@ import type { Instance } from "./Instance.vibe";
  *
  * @binding
  */
-export interface ListUsers extends Binding.Service<ListUsers, "AWS.IdentityCenter.ListUsers", (instance: Instance) => Effect.Effect<((request?: Omit<identitystore.ListUsersRequest, "IdentityStoreId">) => Effect.Effect<identitystore.ListUsersResponse, identitystore.ListUsersError>)>> {
+export interface ListUsers extends Binding.Service<ListUsers, "AWS.IdentityCenter.ListUsers", (instance: Instance) => Effect.Effect<(request?: Omit<identitystore.ListUsersRequest, "IdentityStoreId">) => Effect.Effect<identitystore.ListUsersResponse, identitystore.ListUsersError>>> {
 }
 export declare const ListUsers: ListUsers;

@@ -28,6 +28,6 @@ export interface CreateLibraryItemRequest extends Omit<qapps.CreateLibraryItemIn
  *
  * @binding
  */
-export interface CreateLibraryItem extends Binding.Service<CreateLibraryItem, "AWS.QApps.CreateLibraryItem", (app: QApp) => Effect.Effect<((request: CreateLibraryItemRequest) => Effect.Effect<qapps.CreateLibraryItemOutput, qapps.CreateLibraryItemError>)>> {
+export interface CreateLibraryItem extends Binding.Service<CreateLibraryItem, "AWS.QApps.CreateLibraryItem", (app: QApp) => Effect.Effect<(request: CreateLibraryItemRequest) => Effect.Effect<qapps.CreateLibraryItemOutput, qapps.CreateLibraryItemError>>> {
 }
 export declare const CreateLibraryItem: CreateLibraryItem;

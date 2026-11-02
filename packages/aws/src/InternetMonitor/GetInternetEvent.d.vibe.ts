@@ -24,6 +24,6 @@ export interface GetInternetEventRequest extends im.GetInternetEventInput {
  *
  * @binding
  */
-export interface GetInternetEvent extends Binding.Service<GetInternetEvent, "AWS.InternetMonitor.GetInternetEvent", () => Effect.Effect<((request: GetInternetEventRequest) => Effect.Effect<im.GetInternetEventOutput, im.GetInternetEventError>)>> {
+export interface GetInternetEvent extends Binding.Service<GetInternetEvent, "AWS.InternetMonitor.GetInternetEvent", () => Effect.Effect<(request: GetInternetEventRequest) => Effect.Effect<im.GetInternetEventOutput, im.GetInternetEventError>>> {
 }
 export declare const GetInternetEvent: GetInternetEvent;

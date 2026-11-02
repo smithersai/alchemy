@@ -1,6 +1,6 @@
 import * as Issues from "@distilled.cloud/github/issues";
 import * as Layer from "effect/Layer";
-import * as BindingHttp from "./BindingHttp.js";
+import * as BindingHttp from "./BindingHttp.ts";
 import { CreateIssue, type CreateIssueRequest } from "./CreateIssue.vibe";
 export declare const createIssueOperation: BindingHttp.Operation<[request: CreateIssueRequest], Issues.Issue, Issues.CreateError>;
 /**

@@ -1,7 +1,7 @@
 import type * as Logs from "@distilled.cloud/aws/cloudwatch-logs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LogGroup } from "./LogGroup.js";
+import type { LogGroup } from "./LogGroup.ts";
 export interface GetLogGroupFieldsRequest extends Omit<Logs.GetLogGroupFieldsRequest, "logGroupName" | "logGroupIdentifier"> {
 }
 /**
@@ -22,6 +22,6 @@ export interface GetLogGroupFieldsRequest extends Omit<Logs.GetLogGroupFieldsReq
  *
  * @binding
  */
-export interface GetLogGroupFields extends Binding.Service<GetLogGroupFields, "AWS.Logs.GetLogGroupFields", <G extends LogGroup>(logGroup: G) => Effect.Effect<((request?: GetLogGroupFieldsRequest) => Effect.Effect<Logs.GetLogGroupFieldsResponse, Logs.GetLogGroupFieldsError>)>> {
+export interface GetLogGroupFields extends Binding.Service<GetLogGroupFields, "AWS.Logs.GetLogGroupFields", <G extends LogGroup>(logGroup: G) => Effect.Effect<(request?: GetLogGroupFieldsRequest) => Effect.Effect<Logs.GetLogGroupFieldsResponse, Logs.GetLogGroupFieldsError>>> {
 }
 export declare const GetLogGroupFields: GetLogGroupFields;

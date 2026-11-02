@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListImageScanFindingAggregations extends Binding.Service<ListImageScanFindingAggregations, "AWS.ImageBuilder.ListImageScanFindingAggregations", () => Effect.Effect<((request?: imagebuilder.ListImageScanFindingAggregationsRequest) => Effect.Effect<imagebuilder.ListImageScanFindingAggregationsResponse, imagebuilder.ListImageScanFindingAggregationsError>)>> {
+export interface ListImageScanFindingAggregations extends Binding.Service<ListImageScanFindingAggregations, "AWS.ImageBuilder.ListImageScanFindingAggregations", () => Effect.Effect<(request?: imagebuilder.ListImageScanFindingAggregationsRequest) => Effect.Effect<imagebuilder.ListImageScanFindingAggregationsResponse, imagebuilder.ListImageScanFindingAggregationsError>>> {
 }
 export declare const ListImageScanFindingAggregations: ListImageScanFindingAggregations;

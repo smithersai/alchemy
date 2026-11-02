@@ -25,6 +25,6 @@ export interface CancelTraceRetrievalRequest extends xray.CancelTraceRetrievalRe
  *
  * @binding
  */
-export interface CancelTraceRetrieval extends Binding.Service<CancelTraceRetrieval, "AWS.XRay.CancelTraceRetrieval", () => Effect.Effect<((request: CancelTraceRetrievalRequest) => Effect.Effect<xray.CancelTraceRetrievalResult, xray.CancelTraceRetrievalError>)>> {
+export interface CancelTraceRetrieval extends Binding.Service<CancelTraceRetrieval, "AWS.XRay.CancelTraceRetrieval", () => Effect.Effect<(request: CancelTraceRetrievalRequest) => Effect.Effect<xray.CancelTraceRetrievalResult, xray.CancelTraceRetrievalError>>> {
 }
 export declare const CancelTraceRetrieval: CancelTraceRetrieval;

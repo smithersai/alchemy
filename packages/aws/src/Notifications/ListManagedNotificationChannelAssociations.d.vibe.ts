@@ -29,6 +29,6 @@ export interface ListManagedNotificationChannelAssociationsRequest extends notif
  *
  * @binding
  */
-export interface ListManagedNotificationChannelAssociations extends Binding.Service<ListManagedNotificationChannelAssociations, "AWS.Notifications.ListManagedNotificationChannelAssociations", () => Effect.Effect<((request: ListManagedNotificationChannelAssociationsRequest) => Effect.Effect<notifications.ListManagedNotificationChannelAssociationsResponse, notifications.ListManagedNotificationChannelAssociationsError>)>> {
+export interface ListManagedNotificationChannelAssociations extends Binding.Service<ListManagedNotificationChannelAssociations, "AWS.Notifications.ListManagedNotificationChannelAssociations", () => Effect.Effect<(request: ListManagedNotificationChannelAssociationsRequest) => Effect.Effect<notifications.ListManagedNotificationChannelAssociationsResponse, notifications.ListManagedNotificationChannelAssociationsError>>> {
 }
 export declare const ListManagedNotificationChannelAssociations: ListManagedNotificationChannelAssociations;

@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface RequestServiceQuotaIncrease extends Binding.Service<RequestServiceQuotaIncrease, "AWS.ServiceQuotas.RequestServiceQuotaIncrease", () => Effect.Effect<((request: servicequotas.RequestServiceQuotaIncreaseRequest) => Effect.Effect<servicequotas.RequestServiceQuotaIncreaseResponse, servicequotas.RequestServiceQuotaIncreaseError>)>> {
+export interface RequestServiceQuotaIncrease extends Binding.Service<RequestServiceQuotaIncrease, "AWS.ServiceQuotas.RequestServiceQuotaIncrease", () => Effect.Effect<(request: servicequotas.RequestServiceQuotaIncreaseRequest) => Effect.Effect<servicequotas.RequestServiceQuotaIncreaseResponse, servicequotas.RequestServiceQuotaIncreaseError>>> {
 }
 export declare const RequestServiceQuotaIncrease: RequestServiceQuotaIncrease;

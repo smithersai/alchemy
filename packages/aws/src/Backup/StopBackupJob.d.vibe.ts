@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopBackupJob extends Binding.Service<StopBackupJob, "AWS.Backup.StopBackupJob", () => Effect.Effect<((request: backup.StopBackupJobInput) => Effect.Effect<backup.StopBackupJobResponse, backup.StopBackupJobError>)>> {
+export interface StopBackupJob extends Binding.Service<StopBackupJob, "AWS.Backup.StopBackupJob", () => Effect.Effect<(request: backup.StopBackupJobInput) => Effect.Effect<backup.StopBackupJobResponse, backup.StopBackupJobError>>> {
 }
 export declare const StopBackupJob: StopBackupJob;

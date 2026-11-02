@@ -18,7 +18,7 @@ export declare const makeMwaaServerlessHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MWAAServerless.StartWorkflowRun`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the workflow ARN (+ `{arn}/*`). */
     actions: readonly string[];
 }) => Effect.Effect<(workflow: Workflow) => Effect.Effect<(request?: Omit<I, "WorkflowArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

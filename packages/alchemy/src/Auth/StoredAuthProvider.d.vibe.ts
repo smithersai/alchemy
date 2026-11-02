@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
-import * as Interaction from "../Interaction.js";
-import { AuthError, type ConfigureField, type EnvironmentVariable } from "./AuthProvider.js";
+import * as Interaction from "../Interaction.ts";
+import { AuthError, type ConfigureField, type EnvironmentVariable } from "./AuthProvider.ts";
 /**
  * Collected field values: one string per non-omitted field, keyed by
  * {@link ConfigureField.name}.
@@ -78,6 +78,6 @@ export declare const collectFieldValues: (fields: ReadonlyArray<ConfigureField>)
  * ```
  */
 export declare const makeStoredAuthProvider: <Resolved>(config: StoredAuthProviderConfig<Resolved>) => {
-    layer: import("effect/Layer").Layer<never, never, import("./Registry.js").AuthProviders | import("effect/FileSystem").FileSystem | import("effect/Path").Path>;
+    layer: import("effect/Layer").Layer<never, never, import("./Registry.ts").AuthProviders | import("effect/FileSystem").FileSystem | import("effect/Path").Path>;
     storedSchema: Schema.Codec<StoredValues, StoredValues, never, never>;
 };

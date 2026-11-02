@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListJobTemplates extends Binding.Service<ListJobTemplates, "AWS.EMRContainers.ListJobTemplates", () => Effect.Effect<((request?: emrc.ListJobTemplatesRequest) => Effect.Effect<emrc.ListJobTemplatesResponse, emrc.ListJobTemplatesError>)>> {
+export interface ListJobTemplates extends Binding.Service<ListJobTemplates, "AWS.EMRContainers.ListJobTemplates", () => Effect.Effect<(request?: emrc.ListJobTemplatesRequest) => Effect.Effect<emrc.ListJobTemplatesResponse, emrc.ListJobTemplatesError>>> {
 }
 export declare const ListJobTemplates: ListJobTemplates;

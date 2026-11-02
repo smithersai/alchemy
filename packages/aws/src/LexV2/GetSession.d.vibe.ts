@@ -1,7 +1,7 @@
 import type * as lexr from "@distilled.cloud/aws/lex-runtime-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { BotAlias } from "./BotAlias.js";
+import type { BotAlias } from "./BotAlias.ts";
 /**
  * The `GetSession` request with the binding-injected `botId` and
  * `botAliasId` removed. `localeId` selects the conversation language and
@@ -30,6 +30,6 @@ export interface GetSessionRequest extends Omit<lexr.GetSessionRequest, "botId" 
  *
  * @binding
  */
-export interface GetSession extends Binding.Service<GetSession, "AWS.LexV2.GetSession", (alias: BotAlias) => Effect.Effect<((request: GetSessionRequest) => Effect.Effect<lexr.GetSessionResponse, lexr.GetSessionError>)>> {
+export interface GetSession extends Binding.Service<GetSession, "AWS.LexV2.GetSession", (alias: BotAlias) => Effect.Effect<(request: GetSessionRequest) => Effect.Effect<lexr.GetSessionResponse, lexr.GetSessionError>>> {
 }
 export declare const GetSession: GetSession;

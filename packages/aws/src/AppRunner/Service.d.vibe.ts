@@ -8,10 +8,10 @@ import { Resource } from "alchemy/Resource";
 import { type HostRuntimeContext, type ServerHost } from "alchemy/Runtime/Process";
 import { Stack } from "alchemy/Stack";
 import type * as Duration from "effect/Duration";
-import type { Credentials } from "../Credentials.js";
-import { AWSEnvironment } from "../Environment.js";
+import type { Credentials } from "../Credentials.ts";
+import { AWSEnvironment } from "../Environment.ts";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 declare const ServiceOperationFailed_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "ServiceOperationFailed";
 } & Readonly<A>;

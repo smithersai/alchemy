@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeVolumes extends Binding.Service<DescribeVolumes, "AWS.FSx.DescribeVolumes", () => Effect.Effect<((request?: fsx.DescribeVolumesRequest) => Effect.Effect<fsx.DescribeVolumesResponse, fsx.DescribeVolumesError>)>> {
+export interface DescribeVolumes extends Binding.Service<DescribeVolumes, "AWS.FSx.DescribeVolumes", () => Effect.Effect<(request?: fsx.DescribeVolumesRequest) => Effect.Effect<fsx.DescribeVolumesResponse, fsx.DescribeVolumesError>>> {
 }
 export declare const DescribeVolumes: DescribeVolumes;

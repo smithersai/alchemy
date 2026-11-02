@@ -1,7 +1,7 @@
 import type * as Logs from "@distilled.cloud/aws/cloudwatch-logs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LogGroup } from "./LogGroup.js";
+import type { LogGroup } from "./LogGroup.ts";
 export interface DescribeLogStreamsRequest extends Omit<Logs.DescribeLogStreamsRequest, "logGroupName" | "logGroupIdentifier"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface DescribeLogStreamsRequest extends Omit<Logs.DescribeLogStreamsR
  *
  * @binding
  */
-export interface DescribeLogStreams extends Binding.Service<DescribeLogStreams, "AWS.Logs.DescribeLogStreams", <G extends LogGroup>(logGroup: G) => Effect.Effect<((request?: DescribeLogStreamsRequest) => Effect.Effect<Logs.DescribeLogStreamsResponse, Logs.DescribeLogStreamsError>)>> {
+export interface DescribeLogStreams extends Binding.Service<DescribeLogStreams, "AWS.Logs.DescribeLogStreams", <G extends LogGroup>(logGroup: G) => Effect.Effect<(request?: DescribeLogStreamsRequest) => Effect.Effect<Logs.DescribeLogStreamsResponse, Logs.DescribeLogStreamsError>>> {
 }
 export declare const DescribeLogStreams: DescribeLogStreams;

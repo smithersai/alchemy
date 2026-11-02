@@ -33,6 +33,6 @@ export interface ExecuteBudgetActionRequest extends Omit<budgets.ExecuteBudgetAc
  *
  * @binding
  */
-export interface ExecuteBudgetAction extends Binding.Service<ExecuteBudgetAction, "AWS.Budgets.ExecuteBudgetAction", (action: BudgetAction) => Effect.Effect<((request: ExecuteBudgetActionRequest) => Effect.Effect<budgets.ExecuteBudgetActionResponse, budgets.ExecuteBudgetActionError>)>> {
+export interface ExecuteBudgetAction extends Binding.Service<ExecuteBudgetAction, "AWS.Budgets.ExecuteBudgetAction", (action: BudgetAction) => Effect.Effect<(request: ExecuteBudgetActionRequest) => Effect.Effect<budgets.ExecuteBudgetActionResponse, budgets.ExecuteBudgetActionError>>> {
 }
 export declare const ExecuteBudgetAction: ExecuteBudgetAction;

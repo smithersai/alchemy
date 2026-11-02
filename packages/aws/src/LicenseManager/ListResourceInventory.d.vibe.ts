@@ -25,6 +25,6 @@ export interface ListResourceInventoryRequest extends licensemanager.ListResourc
  *
  * @binding
  */
-export interface ListResourceInventory extends Binding.Service<ListResourceInventory, "AWS.LicenseManager.ListResourceInventory", () => Effect.Effect<((request?: ListResourceInventoryRequest) => Effect.Effect<licensemanager.ListResourceInventoryResponse, licensemanager.ListResourceInventoryError>)>> {
+export interface ListResourceInventory extends Binding.Service<ListResourceInventory, "AWS.LicenseManager.ListResourceInventory", () => Effect.Effect<(request?: ListResourceInventoryRequest) => Effect.Effect<licensemanager.ListResourceInventoryResponse, licensemanager.ListResourceInventoryError>>> {
 }
 export declare const ListResourceInventory: ListResourceInventory;

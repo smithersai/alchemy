@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeProtectedResource extends Binding.Service<DescribeProtectedResource, "AWS.Backup.DescribeProtectedResource", () => Effect.Effect<((request: backup.DescribeProtectedResourceInput) => Effect.Effect<backup.DescribeProtectedResourceOutput, backup.DescribeProtectedResourceError>)>> {
+export interface DescribeProtectedResource extends Binding.Service<DescribeProtectedResource, "AWS.Backup.DescribeProtectedResource", () => Effect.Effect<(request: backup.DescribeProtectedResourceInput) => Effect.Effect<backup.DescribeProtectedResourceOutput, backup.DescribeProtectedResourceError>>> {
 }
 export declare const DescribeProtectedResource: DescribeProtectedResource;

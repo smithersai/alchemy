@@ -2,7 +2,7 @@ import type * as runtime from "@cloudflare/workers-types";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { SearchInstance } from "./SearchInstance.js";
+import type { SearchInstance } from "./SearchInstance.ts";
 /**
  * Bind a {@link SearchInstance} to a Worker and obtain the Effect-native
  * AI Search client (`search`, `chatCompletions`, `info`, `stats`). The

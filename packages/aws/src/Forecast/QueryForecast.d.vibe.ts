@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface QueryForecast extends Binding.Service<QueryForecast, "AWS.Forecast.QueryForecast", () => Effect.Effect<((request: forecastquery.QueryForecastRequest) => Effect.Effect<forecastquery.QueryForecastResponse, forecastquery.QueryForecastError>)>> {
+export interface QueryForecast extends Binding.Service<QueryForecast, "AWS.Forecast.QueryForecast", () => Effect.Effect<(request: forecastquery.QueryForecastRequest) => Effect.Effect<forecastquery.QueryForecastResponse, forecastquery.QueryForecastError>>> {
 }
 export declare const QueryForecast: QueryForecast;

@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartServiceSoftwareUpdate extends Binding.Service<StartServiceSoftwareUpdate, "AWS.OpenSearch.StartServiceSoftwareUpdate", () => Effect.Effect<((request: opensearch.StartServiceSoftwareUpdateRequest) => Effect.Effect<opensearch.StartServiceSoftwareUpdateResponse, opensearch.StartServiceSoftwareUpdateError>)>> {
+export interface StartServiceSoftwareUpdate extends Binding.Service<StartServiceSoftwareUpdate, "AWS.OpenSearch.StartServiceSoftwareUpdate", () => Effect.Effect<(request: opensearch.StartServiceSoftwareUpdateRequest) => Effect.Effect<opensearch.StartServiceSoftwareUpdateResponse, opensearch.StartServiceSoftwareUpdateError>>> {
 }
 export declare const StartServiceSoftwareUpdate: StartServiceSoftwareUpdate;

@@ -25,6 +25,6 @@ export interface CheckInLicenseRequest extends licensemanager.CheckInLicenseRequ
  *
  * @binding
  */
-export interface CheckInLicense extends Binding.Service<CheckInLicense, "AWS.LicenseManager.CheckInLicense", () => Effect.Effect<((request: CheckInLicenseRequest) => Effect.Effect<licensemanager.CheckInLicenseResponse, licensemanager.CheckInLicenseError>)>> {
+export interface CheckInLicense extends Binding.Service<CheckInLicense, "AWS.LicenseManager.CheckInLicense", () => Effect.Effect<(request: CheckInLicenseRequest) => Effect.Effect<licensemanager.CheckInLicenseResponse, licensemanager.CheckInLicenseError>>> {
 }
 export declare const CheckInLicense: CheckInLicense;

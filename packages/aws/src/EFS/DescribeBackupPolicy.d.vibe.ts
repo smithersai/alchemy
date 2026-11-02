@@ -23,6 +23,6 @@ import type { FileSystem } from "./FileSystem.vibe";
  *
  * @binding
  */
-export interface DescribeBackupPolicy extends Binding.Service<DescribeBackupPolicy, "AWS.EFS.DescribeBackupPolicy", (fileSystem: FileSystem) => Effect.Effect<(() => Effect.Effect<efs.BackupPolicyDescription, efs.DescribeBackupPolicyError>)>> {
+export interface DescribeBackupPolicy extends Binding.Service<DescribeBackupPolicy, "AWS.EFS.DescribeBackupPolicy", (fileSystem: FileSystem) => Effect.Effect<() => Effect.Effect<efs.BackupPolicyDescription, efs.DescribeBackupPolicyError>>> {
 }
 export declare const DescribeBackupPolicy: DescribeBackupPolicy;

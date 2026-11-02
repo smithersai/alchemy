@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetDocumentTextDetection extends Binding.Service<GetDocumentTextDetection, "AWS.Textract.GetDocumentTextDetection", () => Effect.Effect<((request: textract.GetDocumentTextDetectionRequest) => Effect.Effect<textract.GetDocumentTextDetectionResponse, textract.GetDocumentTextDetectionError>)>> {
+export interface GetDocumentTextDetection extends Binding.Service<GetDocumentTextDetection, "AWS.Textract.GetDocumentTextDetection", () => Effect.Effect<(request: textract.GetDocumentTextDetectionRequest) => Effect.Effect<textract.GetDocumentTextDetectionResponse, textract.GetDocumentTextDetectionError>>> {
 }
 export declare const GetDocumentTextDetection: GetDocumentTextDetection;

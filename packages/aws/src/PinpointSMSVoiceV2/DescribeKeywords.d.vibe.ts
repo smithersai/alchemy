@@ -30,6 +30,6 @@ export interface DescribeKeywordsRequest extends Omit<smsvoice.DescribeKeywordsR
  *
  * @binding
  */
-export interface DescribeKeywords extends Binding.Service<DescribeKeywords, "AWS.PinpointSMSVoiceV2.DescribeKeywords", (phoneNumber: PhoneNumber) => Effect.Effect<((request: DescribeKeywordsRequest) => Effect.Effect<smsvoice.DescribeKeywordsResult, smsvoice.DescribeKeywordsError>)>> {
+export interface DescribeKeywords extends Binding.Service<DescribeKeywords, "AWS.PinpointSMSVoiceV2.DescribeKeywords", (phoneNumber: PhoneNumber) => Effect.Effect<(request: DescribeKeywordsRequest) => Effect.Effect<smsvoice.DescribeKeywordsResult, smsvoice.DescribeKeywordsError>>> {
 }
 export declare const DescribeKeywords: DescribeKeywords;

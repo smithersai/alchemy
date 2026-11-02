@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchDetectTargetedSentiment extends Binding.Service<BatchDetectTargetedSentiment, "AWS.Comprehend.BatchDetectTargetedSentiment", () => Effect.Effect<((request: comprehend.BatchDetectTargetedSentimentRequest) => Effect.Effect<comprehend.BatchDetectTargetedSentimentResponse, comprehend.BatchDetectTargetedSentimentError>)>> {
+export interface BatchDetectTargetedSentiment extends Binding.Service<BatchDetectTargetedSentiment, "AWS.Comprehend.BatchDetectTargetedSentiment", () => Effect.Effect<(request: comprehend.BatchDetectTargetedSentimentRequest) => Effect.Effect<comprehend.BatchDetectTargetedSentimentResponse, comprehend.BatchDetectTargetedSentimentError>>> {
 }
 export declare const BatchDetectTargetedSentiment: BatchDetectTargetedSentiment;

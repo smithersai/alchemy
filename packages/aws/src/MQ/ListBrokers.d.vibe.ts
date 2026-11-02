@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListBrokers extends Binding.Service<ListBrokers, "AWS.MQ.ListBrokers", () => Effect.Effect<((request?: mq.ListBrokersRequest) => Effect.Effect<mq.ListBrokersResponse, mq.ListBrokersError>)>> {
+export interface ListBrokers extends Binding.Service<ListBrokers, "AWS.MQ.ListBrokers", () => Effect.Effect<(request?: mq.ListBrokersRequest) => Effect.Effect<mq.ListBrokersResponse, mq.ListBrokersError>>> {
 }
 export declare const ListBrokers: ListBrokers;

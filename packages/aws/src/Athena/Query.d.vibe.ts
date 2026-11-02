@@ -1,7 +1,7 @@
 import type * as athena from "@distilled.cloud/aws/athena";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "../S3/Bucket.js";
+import type { Bucket } from "../S3/Bucket.ts";
 import type { WorkGroup } from "./WorkGroup.vibe";
 /**
  * The query request — the workgroup is injected by the binding (which also
@@ -88,7 +88,7 @@ export declare class AthenaQueryFailed extends AthenaQueryFailed_base<{
  *
  * @binding
  */
-export interface Query extends Binding.Service<Query, "AWS.Athena.Query", (workGroup: WorkGroup, resultsBucket: Bucket) => Effect.Effect<((request: RunQueryRequest) => Effect.Effect<QueryResult, athena.StartQueryExecutionError | athena.GetQueryExecutionError | athena.GetQueryResultsError | AthenaQueryFailed>)>> {
+export interface Query extends Binding.Service<Query, "AWS.Athena.Query", (workGroup: WorkGroup, resultsBucket: Bucket) => Effect.Effect<(request: RunQueryRequest) => Effect.Effect<QueryResult, athena.StartQueryExecutionError | athena.GetQueryExecutionError | athena.GetQueryResultsError | AthenaQueryFailed>>> {
 }
 export declare const Query: Query;
 export {};

@@ -29,9 +29,9 @@ export interface MqBrokerHttpBindingConfig<Req extends object, Out, Err> {
     /**
      * The distilled MQ operation implementing the capability.
      */
-    operation: Effect.Effect<((input: Req & {
+    operation: Effect.Effect<(input: Req & {
         BrokerId: string;
-    }) => Effect.Effect<Out, Err>), never, MqRequirements>;
+    }) => Effect.Effect<Out, Err>, never, MqRequirements>;
 }
 /**
  * Build the implementation effect for a broker-scoped MQ capability:
@@ -55,7 +55,7 @@ export interface MqAccountHttpBindingConfig<Req extends object, Out, Err> {
     /**
      * The distilled MQ operation implementing the capability.
      */
-    operation: Effect.Effect<((input: Req) => Effect.Effect<Out, Err>), never, MqRequirements>;
+    operation: Effect.Effect<(input: Req) => Effect.Effect<Out, Err>, never, MqRequirements>;
 }
 /**
  * Build the implementation effect for an account-level MQ capability (no

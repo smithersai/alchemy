@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetAutoManagementConfiguration extends Binding.Service<GetAutoManagementConfiguration, "AWS.ServiceQuotas.GetAutoManagementConfiguration", () => Effect.Effect<((request?: servicequotas.GetAutoManagementConfigurationRequest) => Effect.Effect<servicequotas.GetAutoManagementConfigurationResponse, servicequotas.GetAutoManagementConfigurationError>)>> {
+export interface GetAutoManagementConfiguration extends Binding.Service<GetAutoManagementConfiguration, "AWS.ServiceQuotas.GetAutoManagementConfiguration", () => Effect.Effect<(request?: servicequotas.GetAutoManagementConfigurationRequest) => Effect.Effect<servicequotas.GetAutoManagementConfigurationResponse, servicequotas.GetAutoManagementConfigurationError>>> {
 }
 export declare const GetAutoManagementConfiguration: GetAutoManagementConfiguration;

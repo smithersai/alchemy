@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface TagResource extends Binding.Service<TagResource, "AWS.Transcribe.TagResource", () => Effect.Effect<((request: transcribe.TagResourceRequest) => Effect.Effect<transcribe.TagResourceResponse, transcribe.TagResourceError>)>> {
+export interface TagResource extends Binding.Service<TagResource, "AWS.Transcribe.TagResource", () => Effect.Effect<(request: transcribe.TagResourceRequest) => Effect.Effect<transcribe.TagResourceResponse, transcribe.TagResourceError>>> {
 }
 export declare const TagResource: TagResource;

@@ -24,6 +24,6 @@ export interface GetNodeRequest extends Omit<tpu.GetProjectsLocationsNodesReques
  * @binding
  * @category TPU
  */
-export interface GetNode extends Binding.Service<GetNode, "GCP.TPU.GetNode", (node: Node) => Effect.Effect<((request?: GetNodeRequest) => Effect.Effect<tpu.Node, tpu.GetProjectsLocationsNodesError, RuntimeContext>)>> {
+export interface GetNode extends Binding.Service<GetNode, "GCP.TPU.GetNode", (node: Node) => Effect.Effect<(request?: GetNodeRequest) => Effect.Effect<tpu.Node, tpu.GetProjectsLocationsNodesError, RuntimeContext>>> {
 }
 export declare const GetNode: GetNode;

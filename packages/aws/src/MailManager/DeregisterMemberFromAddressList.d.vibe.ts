@@ -19,6 +19,6 @@ import type { AddressList } from "./AddressList.vibe";
  *
  * @binding
  */
-export interface DeregisterMemberFromAddressList extends Binding.Service<DeregisterMemberFromAddressList, "AWS.MailManager.DeregisterMemberFromAddressList", (list: AddressList) => Effect.Effect<((request: Omit<mm.DeregisterMemberFromAddressListRequest, "AddressListId">) => Effect.Effect<mm.DeregisterMemberFromAddressListResponse, mm.DeregisterMemberFromAddressListError>)>> {
+export interface DeregisterMemberFromAddressList extends Binding.Service<DeregisterMemberFromAddressList, "AWS.MailManager.DeregisterMemberFromAddressList", (list: AddressList) => Effect.Effect<(request: Omit<mm.DeregisterMemberFromAddressListRequest, "AddressListId">) => Effect.Effect<mm.DeregisterMemberFromAddressListResponse, mm.DeregisterMemberFromAddressListError>>> {
 }
 export declare const DeregisterMemberFromAddressList: DeregisterMemberFromAddressList;

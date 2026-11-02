@@ -16,6 +16,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListNotifications extends Binding.Service<ListNotifications, "AWS.AuditManager.ListNotifications", () => Effect.Effect<((request?: auditmanager.ListNotificationsRequest) => Effect.Effect<auditmanager.ListNotificationsResponse, auditmanager.ListNotificationsError>)>> {
+export interface ListNotifications extends Binding.Service<ListNotifications, "AWS.AuditManager.ListNotifications", () => Effect.Effect<(request?: auditmanager.ListNotificationsRequest) => Effect.Effect<auditmanager.ListNotificationsResponse, auditmanager.ListNotificationsError>>> {
 }
 export declare const ListNotifications: ListNotifications;

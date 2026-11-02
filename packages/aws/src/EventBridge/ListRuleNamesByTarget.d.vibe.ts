@@ -25,6 +25,6 @@ export interface ListRuleNamesByTargetRequest extends eventbridge.ListRuleNamesB
  *
  * @binding
  */
-export interface ListRuleNamesByTarget extends Binding.Service<ListRuleNamesByTarget, "AWS.EventBridge.ListRuleNamesByTarget", () => Effect.Effect<((request: ListRuleNamesByTargetRequest) => Effect.Effect<eventbridge.ListRuleNamesByTargetResponse, eventbridge.ListRuleNamesByTargetError>)>> {
+export interface ListRuleNamesByTarget extends Binding.Service<ListRuleNamesByTarget, "AWS.EventBridge.ListRuleNamesByTarget", () => Effect.Effect<(request: ListRuleNamesByTargetRequest) => Effect.Effect<eventbridge.ListRuleNamesByTargetResponse, eventbridge.ListRuleNamesByTargetError>>> {
 }
 export declare const ListRuleNamesByTarget: ListRuleNamesByTarget;

@@ -25,6 +25,6 @@ export interface ListTokensRequest extends licensemanager.ListTokensRequest {
  *
  * @binding
  */
-export interface ListTokens extends Binding.Service<ListTokens, "AWS.LicenseManager.ListTokens", () => Effect.Effect<((request?: ListTokensRequest) => Effect.Effect<licensemanager.ListTokensResponse, licensemanager.ListTokensError>)>> {
+export interface ListTokens extends Binding.Service<ListTokens, "AWS.LicenseManager.ListTokens", () => Effect.Effect<(request?: ListTokensRequest) => Effect.Effect<licensemanager.ListTokensResponse, licensemanager.ListTokensError>>> {
 }
 export declare const ListTokens: ListTokens;

@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeVoices extends Binding.Service<DescribeVoices, "AWS.Polly.DescribeVoices", () => Effect.Effect<((request?: polly.DescribeVoicesInput) => Effect.Effect<polly.DescribeVoicesOutput, polly.DescribeVoicesError>)>> {
+export interface DescribeVoices extends Binding.Service<DescribeVoices, "AWS.Polly.DescribeVoices", () => Effect.Effect<(request?: polly.DescribeVoicesInput) => Effect.Effect<polly.DescribeVoicesOutput, polly.DescribeVoicesError>>> {
 }
 export declare const DescribeVoices: DescribeVoices;

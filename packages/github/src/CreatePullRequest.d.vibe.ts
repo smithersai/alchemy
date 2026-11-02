@@ -2,7 +2,7 @@ import type * as Pulls from "@distilled.cloud/github/pulls";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.ts";
 export interface CreatePullRequestRequest extends Omit<Pulls.CreateRequest, "owner" | "repo"> {
 }
 export type CreatePullRequestResponse = Pulls.PullRequest;
@@ -28,6 +28,6 @@ export type CreatePullRequestResponse = Pulls.PullRequest;
  * @binding
  * @product Pull Request
  */
-export interface CreatePullRequest extends Binding.Service<CreatePullRequest, "GitHub.CreatePullRequest", (repo: Repository) => Effect.Effect<((request: CreatePullRequestRequest) => Effect.Effect<CreatePullRequestResponse, Pulls.CreateError, RuntimeContext>)>> {
+export interface CreatePullRequest extends Binding.Service<CreatePullRequest, "GitHub.CreatePullRequest", (repo: Repository) => Effect.Effect<(request: CreatePullRequestRequest) => Effect.Effect<CreatePullRequestResponse, Pulls.CreateError, RuntimeContext>>> {
 }
 export declare const CreatePullRequest: CreatePullRequest;

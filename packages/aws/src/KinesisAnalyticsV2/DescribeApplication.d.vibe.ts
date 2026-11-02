@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/kinesis-analytics-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 export interface DescribeApplicationRequest extends Omit<SVC.DescribeApplicationRequest, "ApplicationName"> {
 }
 /**
@@ -20,6 +20,6 @@ export interface DescribeApplicationRequest extends Omit<SVC.DescribeApplication
  *
  * @binding
  */
-export interface DescribeApplication extends Binding.Service<DescribeApplication, "AWS.KinesisAnalyticsV2.DescribeApplication", <A extends Application>(application: A) => Effect.Effect<((request?: DescribeApplicationRequest) => Effect.Effect<SVC.DescribeApplicationResponse, SVC.DescribeApplicationError>)>> {
+export interface DescribeApplication extends Binding.Service<DescribeApplication, "AWS.KinesisAnalyticsV2.DescribeApplication", <A extends Application>(application: A) => Effect.Effect<(request?: DescribeApplicationRequest) => Effect.Effect<SVC.DescribeApplicationResponse, SVC.DescribeApplicationError>>> {
 }
 export declare const DescribeApplication: DescribeApplication;

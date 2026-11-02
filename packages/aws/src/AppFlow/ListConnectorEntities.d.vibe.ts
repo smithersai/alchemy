@@ -28,6 +28,6 @@ export interface ListConnectorEntitiesRequest extends Omit<appflow.ListConnector
  *
  * @binding
  */
-export interface ListConnectorEntities extends Binding.Service<ListConnectorEntities, "AWS.AppFlow.ListConnectorEntities", (profile: ConnectorProfile) => Effect.Effect<((request?: ListConnectorEntitiesRequest) => Effect.Effect<appflow.ListConnectorEntitiesResponse, appflow.ListConnectorEntitiesError>)>> {
+export interface ListConnectorEntities extends Binding.Service<ListConnectorEntities, "AWS.AppFlow.ListConnectorEntities", (profile: ConnectorProfile) => Effect.Effect<(request?: ListConnectorEntitiesRequest) => Effect.Effect<appflow.ListConnectorEntitiesResponse, appflow.ListConnectorEntitiesError>>> {
 }
 export declare const ListConnectorEntities: ListConnectorEntities;

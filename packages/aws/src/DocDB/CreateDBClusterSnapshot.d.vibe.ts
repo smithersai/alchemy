@@ -27,6 +27,6 @@ import type { DBCluster } from "./DBCluster.vibe";
  *
  * @binding
  */
-export interface CreateDBClusterSnapshot extends Binding.Service<CreateDBClusterSnapshot, "AWS.DocDB.CreateDBClusterSnapshot", (cluster: DBCluster) => Effect.Effect<((request: Omit<docdb.CreateDBClusterSnapshotMessage, "DBClusterIdentifier">) => Effect.Effect<docdb.CreateDBClusterSnapshotResult, docdb.CreateDBClusterSnapshotError>)>> {
+export interface CreateDBClusterSnapshot extends Binding.Service<CreateDBClusterSnapshot, "AWS.DocDB.CreateDBClusterSnapshot", (cluster: DBCluster) => Effect.Effect<(request: Omit<docdb.CreateDBClusterSnapshotMessage, "DBClusterIdentifier">) => Effect.Effect<docdb.CreateDBClusterSnapshotResult, docdb.CreateDBClusterSnapshotError>>> {
 }
 export declare const CreateDBClusterSnapshot: CreateDBClusterSnapshot;

@@ -24,6 +24,6 @@ export interface ListApplicationAssociationsRequest extends Omit<appintegrations
  *
  * @binding
  */
-export interface ListApplicationAssociations extends Binding.Service<ListApplicationAssociations, "AWS.AppIntegrations.ListApplicationAssociations", <R extends Application>(application: R) => Effect.Effect<((request?: ListApplicationAssociationsRequest) => Effect.Effect<appintegrations.ListApplicationAssociationsResponse, appintegrations.ListApplicationAssociationsError>)>> {
+export interface ListApplicationAssociations extends Binding.Service<ListApplicationAssociations, "AWS.AppIntegrations.ListApplicationAssociations", <R extends Application>(application: R) => Effect.Effect<(request?: ListApplicationAssociationsRequest) => Effect.Effect<appintegrations.ListApplicationAssociationsResponse, appintegrations.ListApplicationAssociationsError>>> {
 }
 export declare const ListApplicationAssociations: ListApplicationAssociations;

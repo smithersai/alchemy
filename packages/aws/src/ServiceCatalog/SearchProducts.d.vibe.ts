@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SearchProducts extends Binding.Service<SearchProducts, "AWS.ServiceCatalog.SearchProducts", () => Effect.Effect<((request?: servicecatalog.SearchProductsInput) => Effect.Effect<servicecatalog.SearchProductsOutput, servicecatalog.SearchProductsError>)>> {
+export interface SearchProducts extends Binding.Service<SearchProducts, "AWS.ServiceCatalog.SearchProducts", () => Effect.Effect<(request?: servicecatalog.SearchProductsInput) => Effect.Effect<servicecatalog.SearchProductsOutput, servicecatalog.SearchProductsError>>> {
 }
 export declare const SearchProducts: SearchProducts;

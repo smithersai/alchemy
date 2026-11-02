@@ -1,8 +1,8 @@
 import * as beyondcorp from "@distilled.cloud/gcp/beyondcorp_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type AppConnectionApplicationEndpoint = {
     /** Hostname or IP of the remote application. */
     host?: string;

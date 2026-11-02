@@ -25,6 +25,6 @@ import type { Server } from "./Server.vibe";
  *
  * @binding
  */
-export interface StopServer extends Binding.Service<StopServer, "AWS.Transfer.StopServer", (server: Server) => Effect.Effect<((request?: Omit<transfer.StopServerRequest, "ServerId">) => Effect.Effect<transfer.StopServerResponse, transfer.StopServerError>)>> {
+export interface StopServer extends Binding.Service<StopServer, "AWS.Transfer.StopServer", (server: Server) => Effect.Effect<(request?: Omit<transfer.StopServerRequest, "ServerId">) => Effect.Effect<transfer.StopServerResponse, transfer.StopServerError>>> {
 }
 export declare const StopServer: StopServer;

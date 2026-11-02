@@ -21,6 +21,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface DeleteMembers extends Binding.Service<DeleteMembers, "AWS.GuardDuty.DeleteMembers", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.DeleteMembersRequest, "DetectorId">) => Effect.Effect<guardduty.DeleteMembersResponse, guardduty.DeleteMembersError>)>> {
+export interface DeleteMembers extends Binding.Service<DeleteMembers, "AWS.GuardDuty.DeleteMembers", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.DeleteMembersRequest, "DetectorId">) => Effect.Effect<guardduty.DeleteMembersResponse, guardduty.DeleteMembersError>>> {
 }
 export declare const DeleteMembers: DeleteMembers;

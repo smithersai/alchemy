@@ -3,10 +3,10 @@ import type * as SigV4 from "@distilled.cloud/aws/SigV4";
 import * as Binding from "alchemy/Binding";
 import type { SourceError } from "effect/ConfigProvider";
 import type * as Effect from "effect/Effect";
-import type { IngestRequest, PipelineIngestError } from "./BindingHttp.js";
+import type { IngestRequest, PipelineIngestError } from "./BindingHttp.ts";
 import type { Pipeline } from "./Pipeline.vibe";
-export type { IngestRequest } from "./BindingHttp.js";
-export { PipelineIngestError } from "./BindingHttp.js";
+export type { IngestRequest } from "./BindingHttp.ts";
+export { PipelineIngestError } from "./BindingHttp.ts";
 /**
  * Runtime binding for the `osis:Ingest` data plane.
  *
@@ -33,6 +33,6 @@ export { PipelineIngestError } from "./BindingHttp.js";
  *
  * @binding
  */
-export interface Ingest extends Binding.Service<Ingest, "AWS.OSIS.Ingest", (pipeline: Pipeline) => Effect.Effect<((request: IngestRequest) => Effect.Effect<void, PipelineIngestError | Credentials.CredentialsError | SourceError | SigV4.SigningError>)>> {
+export interface Ingest extends Binding.Service<Ingest, "AWS.OSIS.Ingest", (pipeline: Pipeline) => Effect.Effect<(request: IngestRequest) => Effect.Effect<void, PipelineIngestError | Credentials.CredentialsError | SourceError | SigV4.SigningError>>> {
 }
 export declare const Ingest: Ingest;

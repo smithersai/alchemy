@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeCopyJob extends Binding.Service<DescribeCopyJob, "AWS.Backup.DescribeCopyJob", () => Effect.Effect<((request: backup.DescribeCopyJobInput) => Effect.Effect<backup.DescribeCopyJobOutput, backup.DescribeCopyJobError>)>> {
+export interface DescribeCopyJob extends Binding.Service<DescribeCopyJob, "AWS.Backup.DescribeCopyJob", () => Effect.Effect<(request: backup.DescribeCopyJobInput) => Effect.Effect<backup.DescribeCopyJobOutput, backup.DescribeCopyJobError>>> {
 }
 export declare const DescribeCopyJob: DescribeCopyJob;

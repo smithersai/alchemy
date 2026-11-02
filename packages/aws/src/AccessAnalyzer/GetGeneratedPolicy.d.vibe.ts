@@ -16,6 +16,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetGeneratedPolicy extends Binding.Service<GetGeneratedPolicy, "AWS.AccessAnalyzer.GetGeneratedPolicy", () => Effect.Effect<((request: aa.GetGeneratedPolicyRequest) => Effect.Effect<aa.GetGeneratedPolicyResponse, aa.GetGeneratedPolicyError>)>> {
+export interface GetGeneratedPolicy extends Binding.Service<GetGeneratedPolicy, "AWS.AccessAnalyzer.GetGeneratedPolicy", () => Effect.Effect<(request: aa.GetGeneratedPolicyRequest) => Effect.Effect<aa.GetGeneratedPolicyResponse, aa.GetGeneratedPolicyError>>> {
 }
 export declare const GetGeneratedPolicy: GetGeneratedPolicy;

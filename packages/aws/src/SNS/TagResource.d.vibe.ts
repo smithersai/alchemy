@@ -26,6 +26,6 @@ export interface TagResourceRequest extends Omit<sns.TagResourceRequest, "Resour
  *
  * @binding
  */
-export interface TagResource extends Binding.Service<TagResource, "AWS.SNS.TagResource", (topic: Topic) => Effect.Effect<((request: TagResourceRequest) => Effect.Effect<sns.TagResourceResponse, sns.TagResourceError>)>> {
+export interface TagResource extends Binding.Service<TagResource, "AWS.SNS.TagResource", (topic: Topic) => Effect.Effect<(request: TagResourceRequest) => Effect.Effect<sns.TagResourceResponse, sns.TagResourceError>>> {
 }
 export declare const TagResource: TagResource;

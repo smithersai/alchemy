@@ -28,6 +28,6 @@ export interface GetTraceGraphRequest extends xray.GetTraceGraphRequest {
  *
  * @binding
  */
-export interface GetTraceGraph extends Binding.Service<GetTraceGraph, "AWS.XRay.GetTraceGraph", () => Effect.Effect<((request: GetTraceGraphRequest) => Effect.Effect<xray.GetTraceGraphResult, xray.GetTraceGraphError>)>> {
+export interface GetTraceGraph extends Binding.Service<GetTraceGraph, "AWS.XRay.GetTraceGraph", () => Effect.Effect<(request: GetTraceGraphRequest) => Effect.Effect<xray.GetTraceGraphResult, xray.GetTraceGraphError>>> {
 }
 export declare const GetTraceGraph: GetTraceGraph;

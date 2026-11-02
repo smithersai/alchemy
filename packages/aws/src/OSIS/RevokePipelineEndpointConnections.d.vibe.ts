@@ -23,6 +23,6 @@ import type { Pipeline } from "./Pipeline.vibe";
  *
  * @binding
  */
-export interface RevokePipelineEndpointConnections extends Binding.Service<RevokePipelineEndpointConnections, "AWS.OSIS.RevokePipelineEndpointConnections", (pipeline: Pipeline) => Effect.Effect<((request: Omit<osis.RevokePipelineEndpointConnectionsRequest, "PipelineArn">) => Effect.Effect<osis.RevokePipelineEndpointConnectionsResponse, osis.RevokePipelineEndpointConnectionsError>)>> {
+export interface RevokePipelineEndpointConnections extends Binding.Service<RevokePipelineEndpointConnections, "AWS.OSIS.RevokePipelineEndpointConnections", (pipeline: Pipeline) => Effect.Effect<(request: Omit<osis.RevokePipelineEndpointConnectionsRequest, "PipelineArn">) => Effect.Effect<osis.RevokePipelineEndpointConnectionsResponse, osis.RevokePipelineEndpointConnectionsError>>> {
 }
 export declare const RevokePipelineEndpointConnections: RevokePipelineEndpointConnections;

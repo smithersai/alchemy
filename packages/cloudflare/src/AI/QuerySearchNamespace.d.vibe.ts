@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import type { QuerySearchClient, SearchError } from "./QuerySearch.vibe";
-import type { SearchNamespace } from "./SearchNamespace.js";
+import type { SearchNamespace } from "./SearchNamespace.ts";
 /**
  * Bind a {@link SearchNamespace} to a Worker and obtain the Effect-native
  * namespace client whose `.get(name)` selects an instance at runtime. The

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListJobs extends Binding.Service<ListJobs, "AWS.Location.ListJobs", () => Effect.Effect<((request?: location.ListJobsRequest) => Effect.Effect<location.ListJobsResponse, location.ListJobsError>)>> {
+export interface ListJobs extends Binding.Service<ListJobs, "AWS.Location.ListJobs", () => Effect.Effect<(request?: location.ListJobsRequest) => Effect.Effect<location.ListJobsResponse, location.ListJobsError>>> {
 }
 export declare const ListJobs: ListJobs;

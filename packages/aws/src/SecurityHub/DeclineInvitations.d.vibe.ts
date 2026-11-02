@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeclineInvitations extends Binding.Service<DeclineInvitations, "AWS.SecurityHub.DeclineInvitations", () => Effect.Effect<((request?: securityhub.DeclineInvitationsRequest) => Effect.Effect<securityhub.DeclineInvitationsResponse, securityhub.DeclineInvitationsError>)>> {
+export interface DeclineInvitations extends Binding.Service<DeclineInvitations, "AWS.SecurityHub.DeclineInvitations", () => Effect.Effect<(request?: securityhub.DeclineInvitationsRequest) => Effect.Effect<securityhub.DeclineInvitationsResponse, securityhub.DeclineInvitationsError>>> {
 }
 export declare const DeclineInvitations: DeclineInvitations;

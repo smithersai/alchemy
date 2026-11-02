@@ -31,6 +31,6 @@ export interface UpdateSyncBlockerRequest extends Omit<codeconnections.UpdateSyn
  *
  * @binding
  */
-export interface UpdateSyncBlocker extends Binding.Service<UpdateSyncBlocker, "AWS.CodeConnections.UpdateSyncBlocker", (syncConfiguration: SyncConfiguration) => Effect.Effect<((request: UpdateSyncBlockerRequest) => Effect.Effect<codeconnections.UpdateSyncBlockerOutput, codeconnections.UpdateSyncBlockerError>)>> {
+export interface UpdateSyncBlocker extends Binding.Service<UpdateSyncBlocker, "AWS.CodeConnections.UpdateSyncBlocker", (syncConfiguration: SyncConfiguration) => Effect.Effect<(request: UpdateSyncBlockerRequest) => Effect.Effect<codeconnections.UpdateSyncBlockerOutput, codeconnections.UpdateSyncBlockerError>>> {
 }
 export declare const UpdateSyncBlocker: UpdateSyncBlocker;

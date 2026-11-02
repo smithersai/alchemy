@@ -19,5 +19,5 @@ export declare class Providers extends Providers_base {
  * });
  * ```
  */
-export declare const providers: () => Layer.Layer<import("./ClusterAdapter.js").ClusterAdapterService | Providers, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/process/ChildProcessSpawner").ChildProcessSpawner | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
+export declare const providers: () => Layer.Layer<import("./ClusterAdapter.ts").ClusterAdapterService | Providers, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/process/ChildProcessSpawner").ChildProcessSpawner | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
 export {};

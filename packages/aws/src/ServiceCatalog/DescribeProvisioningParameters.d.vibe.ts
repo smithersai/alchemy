@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeProvisioningParameters extends Binding.Service<DescribeProvisioningParameters, "AWS.ServiceCatalog.DescribeProvisioningParameters", () => Effect.Effect<((request?: servicecatalog.DescribeProvisioningParametersInput) => Effect.Effect<servicecatalog.DescribeProvisioningParametersOutput, servicecatalog.DescribeProvisioningParametersError>)>> {
+export interface DescribeProvisioningParameters extends Binding.Service<DescribeProvisioningParameters, "AWS.ServiceCatalog.DescribeProvisioningParameters", () => Effect.Effect<(request?: servicecatalog.DescribeProvisioningParametersInput) => Effect.Effect<servicecatalog.DescribeProvisioningParametersOutput, servicecatalog.DescribeProvisioningParametersError>>> {
 }
 export declare const DescribeProvisioningParameters: DescribeProvisioningParameters;

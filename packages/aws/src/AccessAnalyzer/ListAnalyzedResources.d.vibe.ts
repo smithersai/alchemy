@@ -1,7 +1,7 @@
 import type * as aa from "@distilled.cloud/aws/accessanalyzer";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Analyzer } from "./Analyzer.js";
+import type { Analyzer } from "./Analyzer.ts";
 /** `ListAnalyzedResources` request with `analyzerArn` injected from the bound {@link Analyzer}. */
 export interface ListAnalyzedResourcesRequest extends Omit<aa.ListAnalyzedResourcesRequest, "analyzerArn"> {
 }
@@ -23,6 +23,6 @@ export interface ListAnalyzedResourcesRequest extends Omit<aa.ListAnalyzedResour
  *
  * @binding
  */
-export interface ListAnalyzedResources extends Binding.Service<ListAnalyzedResources, "AWS.AccessAnalyzer.ListAnalyzedResources", (analyzer: Analyzer) => Effect.Effect<((request?: ListAnalyzedResourcesRequest) => Effect.Effect<aa.ListAnalyzedResourcesResponse, aa.ListAnalyzedResourcesError>)>> {
+export interface ListAnalyzedResources extends Binding.Service<ListAnalyzedResources, "AWS.AccessAnalyzer.ListAnalyzedResources", (analyzer: Analyzer) => Effect.Effect<(request?: ListAnalyzedResourcesRequest) => Effect.Effect<aa.ListAnalyzedResourcesResponse, aa.ListAnalyzedResourcesError>>> {
 }
 export declare const ListAnalyzedResources: ListAnalyzedResources;

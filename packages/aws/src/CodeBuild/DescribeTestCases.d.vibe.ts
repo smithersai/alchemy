@@ -18,6 +18,6 @@ import type { ReportGroup } from "./ReportGroup.vibe";
  *
  * @binding
  */
-export interface DescribeTestCases extends Binding.Service<DescribeTestCases, "AWS.CodeBuild.DescribeTestCases", <G extends ReportGroup>(reportGroup: G) => Effect.Effect<((request: SVC.DescribeTestCasesInput) => Effect.Effect<SVC.DescribeTestCasesOutput, SVC.DescribeTestCasesError>)>> {
+export interface DescribeTestCases extends Binding.Service<DescribeTestCases, "AWS.CodeBuild.DescribeTestCases", <G extends ReportGroup>(reportGroup: G) => Effect.Effect<(request: SVC.DescribeTestCasesInput) => Effect.Effect<SVC.DescribeTestCasesOutput, SVC.DescribeTestCasesError>>> {
 }
 export declare const DescribeTestCases: DescribeTestCases;

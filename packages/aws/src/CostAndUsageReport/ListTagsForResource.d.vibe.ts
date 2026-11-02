@@ -25,6 +25,6 @@ import type { ReportDefinition } from "./ReportDefinition.vibe";
  *
  * @binding
  */
-export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.CostAndUsageReport.ListTagsForResource", (report: ReportDefinition) => Effect.Effect<(() => Effect.Effect<cur.ListTagsForResourceResponse, cur.ListTagsForResourceError>)>> {
+export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.CostAndUsageReport.ListTagsForResource", (report: ReportDefinition) => Effect.Effect<() => Effect.Effect<cur.ListTagsForResourceResponse, cur.ListTagsForResourceError>>> {
 }
 export declare const ListTagsForResource: ListTagsForResource;

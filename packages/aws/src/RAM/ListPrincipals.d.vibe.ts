@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListPrincipals extends Binding.Service<ListPrincipals, "AWS.RAM.ListPrincipals", () => Effect.Effect<((request: ram.ListPrincipalsRequest) => Effect.Effect<ram.ListPrincipalsResponse, ram.ListPrincipalsError>)>> {
+export interface ListPrincipals extends Binding.Service<ListPrincipals, "AWS.RAM.ListPrincipals", () => Effect.Effect<(request: ram.ListPrincipalsRequest) => Effect.Effect<ram.ListPrincipalsResponse, ram.ListPrincipalsError>>> {
 }
 export declare const ListPrincipals: ListPrincipals;

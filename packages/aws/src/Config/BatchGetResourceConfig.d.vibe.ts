@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetResourceConfig extends Binding.Service<BatchGetResourceConfig, "AWS.Config.BatchGetResourceConfig", () => Effect.Effect<((request: config.BatchGetResourceConfigRequest) => Effect.Effect<config.BatchGetResourceConfigResponse, config.BatchGetResourceConfigError>)>> {
+export interface BatchGetResourceConfig extends Binding.Service<BatchGetResourceConfig, "AWS.Config.BatchGetResourceConfig", () => Effect.Effect<(request: config.BatchGetResourceConfigRequest) => Effect.Effect<config.BatchGetResourceConfigResponse, config.BatchGetResourceConfigError>>> {
 }
 export declare const BatchGetResourceConfig: BatchGetResourceConfig;

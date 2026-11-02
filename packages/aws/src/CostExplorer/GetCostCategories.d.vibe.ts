@@ -27,6 +27,6 @@ export interface GetCostCategoriesRequest extends ce.GetCostCategoriesRequest {
  *
  * @binding
  */
-export interface GetCostCategories extends Binding.Service<GetCostCategories, "AWS.CostExplorer.GetCostCategories", () => Effect.Effect<((request: GetCostCategoriesRequest) => Effect.Effect<ce.GetCostCategoriesResponse, ce.GetCostCategoriesError>)>> {
+export interface GetCostCategories extends Binding.Service<GetCostCategories, "AWS.CostExplorer.GetCostCategories", () => Effect.Effect<(request: GetCostCategoriesRequest) => Effect.Effect<ce.GetCostCategoriesResponse, ce.GetCostCategoriesError>>> {
 }
 export declare const GetCostCategories: GetCostCategories;

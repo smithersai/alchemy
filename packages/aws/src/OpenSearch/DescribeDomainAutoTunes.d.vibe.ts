@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDomainAutoTunes extends Binding.Service<DescribeDomainAutoTunes, "AWS.OpenSearch.DescribeDomainAutoTunes", () => Effect.Effect<((request: opensearch.DescribeDomainAutoTunesRequest) => Effect.Effect<opensearch.DescribeDomainAutoTunesResponse, opensearch.DescribeDomainAutoTunesError>)>> {
+export interface DescribeDomainAutoTunes extends Binding.Service<DescribeDomainAutoTunes, "AWS.OpenSearch.DescribeDomainAutoTunes", () => Effect.Effect<(request: opensearch.DescribeDomainAutoTunesRequest) => Effect.Effect<opensearch.DescribeDomainAutoTunesResponse, opensearch.DescribeDomainAutoTunesError>>> {
 }
 export declare const DescribeDomainAutoTunes: DescribeDomainAutoTunes;

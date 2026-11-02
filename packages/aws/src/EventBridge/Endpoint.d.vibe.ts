@@ -1,8 +1,8 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import type { AccountID } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 export type { EndpointState } from "@distilled.cloud/aws/eventbridge";
 export type EndpointName = string;
 export type EndpointArn = `arn:aws:events:${RegionID}:${AccountID}:endpoint/${EndpointName}`;

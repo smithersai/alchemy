@@ -31,6 +31,6 @@ export interface PatchDocumentRequest extends Omit<firestore.PatchProjectsDataba
  * @binding
  * @category Firestore
  */
-export interface PatchDocument extends Binding.Service<PatchDocument, "GCP.Firestore.PatchDocument", (database: Database) => Effect.Effect<((request: PatchDocumentRequest) => Effect.Effect<firestore.Document, firestore.PatchProjectsDatabasesDocumentsError, RuntimeContext>)>> {
+export interface PatchDocument extends Binding.Service<PatchDocument, "GCP.Firestore.PatchDocument", (database: Database) => Effect.Effect<(request: PatchDocumentRequest) => Effect.Effect<firestore.Document, firestore.PatchProjectsDatabasesDocumentsError, RuntimeContext>>> {
 }
 export declare const PatchDocument: PatchDocument;

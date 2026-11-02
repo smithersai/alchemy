@@ -1,7 +1,7 @@
 import type * as autoscaling from "@distilled.cloud/aws/auto-scaling";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AutoScalingGroup } from "./AutoScalingGroup.js";
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts";
 /**
  * `TerminateInstanceInAutoScalingGroup` request. The operation is
  * instance-scoped — EC2 Auto Scaling resolves the instance's owning group for
@@ -36,6 +36,6 @@ export interface TerminateInstanceRequest extends autoscaling.TerminateInstanceI
  *
  * @binding
  */
-export interface TerminateInstanceInAutoScalingGroup extends Binding.Service<TerminateInstanceInAutoScalingGroup, "AWS.AutoScaling.TerminateInstanceInAutoScalingGroup", (group: AutoScalingGroup) => Effect.Effect<((request: TerminateInstanceRequest) => Effect.Effect<autoscaling.ActivityType, autoscaling.TerminateInstanceInAutoScalingGroupError>)>> {
+export interface TerminateInstanceInAutoScalingGroup extends Binding.Service<TerminateInstanceInAutoScalingGroup, "AWS.AutoScaling.TerminateInstanceInAutoScalingGroup", (group: AutoScalingGroup) => Effect.Effect<(request: TerminateInstanceRequest) => Effect.Effect<autoscaling.ActivityType, autoscaling.TerminateInstanceInAutoScalingGroupError>>> {
 }
 export declare const TerminateInstanceInAutoScalingGroup: TerminateInstanceInAutoScalingGroup;

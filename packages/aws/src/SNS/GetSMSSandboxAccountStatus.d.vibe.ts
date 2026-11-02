@@ -18,6 +18,6 @@ export interface GetSMSSandboxAccountStatusRequest extends sns.GetSMSSandboxAcco
  *
  * @binding
  */
-export interface GetSMSSandboxAccountStatus extends Binding.Service<GetSMSSandboxAccountStatus, "AWS.SNS.GetSMSSandboxAccountStatus", () => Effect.Effect<((request?: GetSMSSandboxAccountStatusRequest) => Effect.Effect<sns.GetSMSSandboxAccountStatusResult, sns.GetSMSSandboxAccountStatusError>)>> {
+export interface GetSMSSandboxAccountStatus extends Binding.Service<GetSMSSandboxAccountStatus, "AWS.SNS.GetSMSSandboxAccountStatus", () => Effect.Effect<(request?: GetSMSSandboxAccountStatusRequest) => Effect.Effect<sns.GetSMSSandboxAccountStatusResult, sns.GetSMSSandboxAccountStatusError>>> {
 }
 export declare const GetSMSSandboxAccountStatus: GetSMSSandboxAccountStatus;

@@ -2,9 +2,9 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import type * as Fiber from "effect/Fiber";
 import type * as Result from "effect/Result";
-import type { ObjectType } from "./Protocol/ObjectCodec.js";
+import type { ObjectType } from "./Protocol/ObjectCodec.ts";
 import { StoreError } from "./Protocol/Store.vibe";
-import type { CommitPushResult, RefCommand, RepoMetaData } from "./RepoObject.js";
+import type { CommitPushResult, RefCommand, RepoMetaData } from "./RepoObject.ts";
 import type { StreamingFeeder } from "./Store/StreamingSource.vibe";
 /** Transport-independent input and scoped, opaque push transactions. */
 /** A proposed ref change. Zero old/new OIDs mean creation/deletion. */

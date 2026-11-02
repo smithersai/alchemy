@@ -19,6 +19,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface StartCommandExecution extends Binding.Service<StartCommandExecution, "AWS.CodeBuild.StartCommandExecution", <P extends Project>(project: P) => Effect.Effect<((request: SVC.StartCommandExecutionInput) => Effect.Effect<SVC.StartCommandExecutionOutput, SVC.StartCommandExecutionError>)>> {
+export interface StartCommandExecution extends Binding.Service<StartCommandExecution, "AWS.CodeBuild.StartCommandExecution", <P extends Project>(project: P) => Effect.Effect<(request: SVC.StartCommandExecutionInput) => Effect.Effect<SVC.StartCommandExecutionOutput, SVC.StartCommandExecutionError>>> {
 }
 export declare const StartCommandExecution: StartCommandExecution;

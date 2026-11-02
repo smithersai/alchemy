@@ -5,7 +5,7 @@ import type * as Redacted from "effect/Redacted";
 import type { Account } from "./Account.vibe";
 import type { PropagationOptions } from "./Dns.vibe";
 import { type DnsSolverDescriptor } from "./DnsSolver.vibe";
-import type { KeyAlgorithm } from "./Pki.js";
+import type { KeyAlgorithm } from "./Pki.ts";
 import type { Providers } from "./Providers.vibe";
 export interface CertificateProps {
     /** The {@link Account} that orders the certificate. Changing it replaces. */

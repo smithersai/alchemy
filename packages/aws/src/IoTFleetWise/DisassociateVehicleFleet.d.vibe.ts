@@ -27,6 +27,6 @@ export interface DisassociateVehicleFleetRequest extends Omit<iotfleetwise.Disas
  *
  * @binding
  */
-export interface DisassociateVehicleFleet extends Binding.Service<DisassociateVehicleFleet, "AWS.IoTFleetWise.DisassociateVehicleFleet", (fleet: Fleet) => Effect.Effect<((request: DisassociateVehicleFleetRequest) => Effect.Effect<iotfleetwise.DisassociateVehicleFleetResponse, iotfleetwise.DisassociateVehicleFleetError>)>> {
+export interface DisassociateVehicleFleet extends Binding.Service<DisassociateVehicleFleet, "AWS.IoTFleetWise.DisassociateVehicleFleet", (fleet: Fleet) => Effect.Effect<(request: DisassociateVehicleFleetRequest) => Effect.Effect<iotfleetwise.DisassociateVehicleFleetResponse, iotfleetwise.DisassociateVehicleFleetError>>> {
 }
 export declare const DisassociateVehicleFleet: DisassociateVehicleFleet;

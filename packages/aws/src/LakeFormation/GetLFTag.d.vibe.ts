@@ -23,6 +23,6 @@ export interface GetLFTagRequest extends lf.GetLFTagRequest {
  *
  * @binding
  */
-export interface GetLFTag extends Binding.Service<GetLFTag, "AWS.LakeFormation.GetLFTag", () => Effect.Effect<((request: GetLFTagRequest) => Effect.Effect<lf.GetLFTagResponse, lf.GetLFTagError>)>> {
+export interface GetLFTag extends Binding.Service<GetLFTag, "AWS.LakeFormation.GetLFTag", () => Effect.Effect<(request: GetLFTagRequest) => Effect.Effect<lf.GetLFTagResponse, lf.GetLFTagError>>> {
 }
 export declare const GetLFTag: GetLFTag;

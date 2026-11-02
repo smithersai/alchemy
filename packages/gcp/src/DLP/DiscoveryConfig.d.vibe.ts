@@ -1,8 +1,8 @@
 import * as dlp from "@distilled.cloud/gcp/dlp_v2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 type DiscoveryTarget = dlp.GooglePrivacyDlpV2DiscoveryTarget;
 type DiscoveryConfigStatus = dlp.GooglePrivacyDlpV2DiscoveryConfigStatusEnum;
 type DataProfileAction = dlp.GooglePrivacyDlpV2DataProfileAction;

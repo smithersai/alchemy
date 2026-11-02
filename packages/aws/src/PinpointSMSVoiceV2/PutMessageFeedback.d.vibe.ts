@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface PutMessageFeedback extends Binding.Service<PutMessageFeedback, "AWS.PinpointSMSVoiceV2.PutMessageFeedback", () => Effect.Effect<((request: smsvoice.PutMessageFeedbackRequest) => Effect.Effect<smsvoice.PutMessageFeedbackResult, smsvoice.PutMessageFeedbackError>)>> {
+export interface PutMessageFeedback extends Binding.Service<PutMessageFeedback, "AWS.PinpointSMSVoiceV2.PutMessageFeedback", () => Effect.Effect<(request: smsvoice.PutMessageFeedbackRequest) => Effect.Effect<smsvoice.PutMessageFeedbackResult, smsvoice.PutMessageFeedbackError>>> {
 }
 export declare const PutMessageFeedback: PutMessageFeedback;

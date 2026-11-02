@@ -27,6 +27,6 @@ export interface GetAppMonitorDataRequest extends Omit<rum.GetAppMonitorDataRequ
  *
  * @binding
  */
-export interface GetAppMonitorData extends Binding.Service<GetAppMonitorData, "AWS.RUM.GetAppMonitorData", (monitor: AppMonitor) => Effect.Effect<((request: GetAppMonitorDataRequest) => Effect.Effect<rum.GetAppMonitorDataResponse, rum.GetAppMonitorDataError>)>> {
+export interface GetAppMonitorData extends Binding.Service<GetAppMonitorData, "AWS.RUM.GetAppMonitorData", (monitor: AppMonitor) => Effect.Effect<(request: GetAppMonitorDataRequest) => Effect.Effect<rum.GetAppMonitorDataResponse, rum.GetAppMonitorDataError>>> {
 }
 export declare const GetAppMonitorData: GetAppMonitorData;

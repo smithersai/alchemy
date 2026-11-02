@@ -25,4 +25,4 @@ import { WriteTunnel } from "./WriteTunnel.vibe";
  * );
  * ```
  */
-export declare const WriteTunnelLocal: Layer.Layer<WriteTunnel, never, import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const WriteTunnelLocal: Layer.Layer<WriteTunnel, never, import("../CloudflareEnvironmentService.ts").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;

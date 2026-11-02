@@ -27,6 +27,6 @@ export interface GetSamplingStatisticSummariesRequest extends xray.GetSamplingSt
  *
  * @binding
  */
-export interface GetSamplingStatisticSummaries extends Binding.Service<GetSamplingStatisticSummaries, "AWS.XRay.GetSamplingStatisticSummaries", () => Effect.Effect<((request?: GetSamplingStatisticSummariesRequest) => Effect.Effect<xray.GetSamplingStatisticSummariesResult, xray.GetSamplingStatisticSummariesError>)>> {
+export interface GetSamplingStatisticSummaries extends Binding.Service<GetSamplingStatisticSummaries, "AWS.XRay.GetSamplingStatisticSummaries", () => Effect.Effect<(request?: GetSamplingStatisticSummariesRequest) => Effect.Effect<xray.GetSamplingStatisticSummariesResult, xray.GetSamplingStatisticSummariesError>>> {
 }
 export declare const GetSamplingStatisticSummaries: GetSamplingStatisticSummaries;

@@ -21,6 +21,6 @@ import type { Workspace } from "./Workspace.vibe";
  *
  * @binding
  */
-export interface DescribeWorkspace extends Binding.Service<DescribeWorkspace, "AWS.AMP.DescribeWorkspace", (workspace: Workspace) => Effect.Effect<(() => Effect.Effect<amp.DescribeWorkspaceResponse, amp.DescribeWorkspaceError>)>> {
+export interface DescribeWorkspace extends Binding.Service<DescribeWorkspace, "AWS.AMP.DescribeWorkspace", (workspace: Workspace) => Effect.Effect<() => Effect.Effect<amp.DescribeWorkspaceResponse, amp.DescribeWorkspaceError>>> {
 }
 export declare const DescribeWorkspace: DescribeWorkspace;

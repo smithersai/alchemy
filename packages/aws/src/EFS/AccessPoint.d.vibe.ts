@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface AccessPointPosixUser {
     /** POSIX user ID applied to all file-system requests through this access point. */
     uid: number;

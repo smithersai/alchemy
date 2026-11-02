@@ -25,6 +25,6 @@ export interface StartSavingsPlansPurchaseRecommendationGenerationRequest extend
  *
  * @binding
  */
-export interface StartSavingsPlansPurchaseRecommendationGeneration extends Binding.Service<StartSavingsPlansPurchaseRecommendationGeneration, "AWS.CostExplorer.StartSavingsPlansPurchaseRecommendationGeneration", () => Effect.Effect<((request?: StartSavingsPlansPurchaseRecommendationGenerationRequest) => Effect.Effect<ce.StartSavingsPlansPurchaseRecommendationGenerationResponse, ce.StartSavingsPlansPurchaseRecommendationGenerationError>)>> {
+export interface StartSavingsPlansPurchaseRecommendationGeneration extends Binding.Service<StartSavingsPlansPurchaseRecommendationGeneration, "AWS.CostExplorer.StartSavingsPlansPurchaseRecommendationGeneration", () => Effect.Effect<(request?: StartSavingsPlansPurchaseRecommendationGenerationRequest) => Effect.Effect<ce.StartSavingsPlansPurchaseRecommendationGenerationResponse, ce.StartSavingsPlansPurchaseRecommendationGenerationError>>> {
 }
 export declare const StartSavingsPlansPurchaseRecommendationGeneration: StartSavingsPlansPurchaseRecommendationGeneration;

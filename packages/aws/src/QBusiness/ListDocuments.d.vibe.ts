@@ -25,6 +25,6 @@ export interface ListDocumentsRequest extends Omit<qbusiness.ListDocumentsReques
  *
  * @binding
  */
-export interface ListDocuments extends Binding.Service<ListDocuments, "AWS.QBusiness.ListDocuments", (index: Index) => Effect.Effect<((request?: ListDocumentsRequest) => Effect.Effect<qbusiness.ListDocumentsResponse, qbusiness.ListDocumentsError>)>> {
+export interface ListDocuments extends Binding.Service<ListDocuments, "AWS.QBusiness.ListDocuments", (index: Index) => Effect.Effect<(request?: ListDocumentsRequest) => Effect.Effect<qbusiness.ListDocumentsResponse, qbusiness.ListDocumentsError>>> {
 }
 export declare const ListDocuments: ListDocuments;

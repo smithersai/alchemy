@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateProgram extends Binding.Service<UpdateProgram, "AWS.MediaTailor.UpdateProgram", () => Effect.Effect<((request: mediatailor.UpdateProgramRequest) => Effect.Effect<mediatailor.UpdateProgramResponse, mediatailor.UpdateProgramError>)>> {
+export interface UpdateProgram extends Binding.Service<UpdateProgram, "AWS.MediaTailor.UpdateProgram", () => Effect.Effect<(request: mediatailor.UpdateProgramRequest) => Effect.Effect<mediatailor.UpdateProgramResponse, mediatailor.UpdateProgramError>>> {
 }
 export declare const UpdateProgram: UpdateProgram;

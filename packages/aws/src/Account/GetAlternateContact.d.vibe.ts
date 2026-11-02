@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetAlternateContact extends Binding.Service<GetAlternateContact, "AWS.Account.GetAlternateContact", () => Effect.Effect<((request: account.GetAlternateContactRequest) => Effect.Effect<account.GetAlternateContactResponse, account.GetAlternateContactError>)>> {
+export interface GetAlternateContact extends Binding.Service<GetAlternateContact, "AWS.Account.GetAlternateContact", () => Effect.Effect<(request: account.GetAlternateContactRequest) => Effect.Effect<account.GetAlternateContactResponse, account.GetAlternateContactError>>> {
 }
 export declare const GetAlternateContact: GetAlternateContact;

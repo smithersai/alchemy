@@ -23,6 +23,6 @@ export interface ListTasksRequest extends Omit<ECS.ListTasksRequest, "cluster"> 
  *
  * @binding
  */
-export interface ListTasks extends Binding.Service<ListTasks, "AWS.ECS.ListTasks", (cluster: Cluster) => Effect.Effect<((request: ListTasksRequest) => Effect.Effect<ECS.ListTasksResponse, ECS.ListTasksError>)>> {
+export interface ListTasks extends Binding.Service<ListTasks, "AWS.ECS.ListTasks", (cluster: Cluster) => Effect.Effect<(request: ListTasksRequest) => Effect.Effect<ECS.ListTasksResponse, ECS.ListTasksError>>> {
 }
 export declare const ListTasks: ListTasks;

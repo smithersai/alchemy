@@ -25,6 +25,6 @@ export interface StopJobRequest extends Omit<amplify.StopJobRequest, "appId"> {
  *
  * @binding
  */
-export interface StopJob extends Binding.Service<StopJob, "AWS.Amplify.StopJob", (app: App) => Effect.Effect<((request: StopJobRequest) => Effect.Effect<amplify.StopJobResult, amplify.StopJobError>)>> {
+export interface StopJob extends Binding.Service<StopJob, "AWS.Amplify.StopJob", (app: App) => Effect.Effect<(request: StopJobRequest) => Effect.Effect<amplify.StopJobResult, amplify.StopJobError>>> {
 }
 export declare const StopJob: StopJob;

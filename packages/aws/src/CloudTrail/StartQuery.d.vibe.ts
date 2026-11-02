@@ -37,6 +37,6 @@ export interface StartQueryRequest extends Omit<cloudtrail.StartQueryRequest, "Q
  *
  * @binding
  */
-export interface StartQuery extends Binding.Service<StartQuery, "AWS.CloudTrail.StartQuery", (store: EventDataStore) => Effect.Effect<((request: StartQueryRequest) => Effect.Effect<cloudtrail.StartQueryResponse, cloudtrail.StartQueryError>)>> {
+export interface StartQuery extends Binding.Service<StartQuery, "AWS.CloudTrail.StartQuery", (store: EventDataStore) => Effect.Effect<(request: StartQueryRequest) => Effect.Effect<cloudtrail.StartQueryResponse, cloudtrail.StartQueryError>>> {
 }
 export declare const StartQuery: StartQuery;

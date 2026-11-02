@@ -26,6 +26,6 @@ export interface StartVariantImportJobRequest extends Omit<omics.StartVariantImp
  *
  * @binding
  */
-export interface StartVariantImportJob extends Binding.Service<StartVariantImportJob, "AWS.Omics.StartVariantImportJob", (store: VariantStore) => Effect.Effect<((request: StartVariantImportJobRequest) => Effect.Effect<omics.StartVariantImportResponse, omics.StartVariantImportJobError>)>> {
+export interface StartVariantImportJob extends Binding.Service<StartVariantImportJob, "AWS.Omics.StartVariantImportJob", (store: VariantStore) => Effect.Effect<(request: StartVariantImportJobRequest) => Effect.Effect<omics.StartVariantImportResponse, omics.StartVariantImportJobError>>> {
 }
 export declare const StartVariantImportJob: StartVariantImportJob;

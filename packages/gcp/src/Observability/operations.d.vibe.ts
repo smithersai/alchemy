@@ -4,4 +4,4 @@ import * as Effect from "effect/Effect";
 export declare const waitForOperation: (operation: observability.Operation, options?: {
     notFoundOk?: boolean;
     alreadyExistsOk?: boolean;
-}) => Effect.Effect<observability.Operation, observability.Forbidden | observability.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | observability.GcpOpError, observability.GcpOpContext>;
+}) => Effect.Effect<observability.Operation, observability.Forbidden | observability.NotFound | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | observability.GcpOpError, observability.GcpOpContext>;

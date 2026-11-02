@@ -25,6 +25,6 @@ export interface DeleteUserRequest extends Omit<qbusiness.DeleteUserRequest, "ap
  *
  * @binding
  */
-export interface DeleteUser extends Binding.Service<DeleteUser, "AWS.QBusiness.DeleteUser", (application: Application) => Effect.Effect<((request: DeleteUserRequest) => Effect.Effect<qbusiness.DeleteUserResponse, qbusiness.DeleteUserError>)>> {
+export interface DeleteUser extends Binding.Service<DeleteUser, "AWS.QBusiness.DeleteUser", (application: Application) => Effect.Effect<(request: DeleteUserRequest) => Effect.Effect<qbusiness.DeleteUserResponse, qbusiness.DeleteUserError>>> {
 }
 export declare const DeleteUser: DeleteUser;

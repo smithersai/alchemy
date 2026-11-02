@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSupportedResourceTypes extends Binding.Service<GetSupportedResourceTypes, "AWS.Backup.GetSupportedResourceTypes", () => Effect.Effect<((request?: backup.GetSupportedResourceTypesRequest) => Effect.Effect<backup.GetSupportedResourceTypesOutput, backup.GetSupportedResourceTypesError>)>> {
+export interface GetSupportedResourceTypes extends Binding.Service<GetSupportedResourceTypes, "AWS.Backup.GetSupportedResourceTypes", () => Effect.Effect<(request?: backup.GetSupportedResourceTypesRequest) => Effect.Effect<backup.GetSupportedResourceTypesOutput, backup.GetSupportedResourceTypesError>>> {
 }
 export declare const GetSupportedResourceTypes: GetSupportedResourceTypes;

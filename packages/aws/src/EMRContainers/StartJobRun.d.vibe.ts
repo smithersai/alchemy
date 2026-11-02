@@ -28,12 +28,12 @@ import type { VirtualCluster } from "./VirtualCluster.vibe";
  *
  * @binding
  */
-export interface StartJobRun extends Binding.Service<StartJobRun, "AWS.EMRContainers.StartJobRun", (virtualCluster: VirtualCluster) => Effect.Effect<((request: Omit<emrc.StartJobRunRequest, "virtualClusterId" | "clientToken"> & {
+export interface StartJobRun extends Binding.Service<StartJobRun, "AWS.EMRContainers.StartJobRun", (virtualCluster: VirtualCluster) => Effect.Effect<(request: Omit<emrc.StartJobRunRequest, "virtualClusterId" | "clientToken"> & {
     /**
      * Idempotency token for the job run submission.
      * @default auto-generated per call
      */
     clientToken?: string;
-}) => Effect.Effect<emrc.StartJobRunResponse, emrc.StartJobRunError>)>> {
+}) => Effect.Effect<emrc.StartJobRunResponse, emrc.StartJobRunError>>> {
 }
 export declare const StartJobRun: StartJobRun;

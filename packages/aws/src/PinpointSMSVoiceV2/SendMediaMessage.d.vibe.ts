@@ -34,6 +34,6 @@ export interface SendMediaMessageRequest extends Omit<smsvoice.SendMediaMessageR
  *
  * @binding
  */
-export interface SendMediaMessage extends Binding.Service<SendMediaMessage, "AWS.PinpointSMSVoiceV2.SendMediaMessage", (phoneNumber: PhoneNumber) => Effect.Effect<((request: SendMediaMessageRequest) => Effect.Effect<smsvoice.SendMediaMessageResult, smsvoice.SendMediaMessageError>)>> {
+export interface SendMediaMessage extends Binding.Service<SendMediaMessage, "AWS.PinpointSMSVoiceV2.SendMediaMessage", (phoneNumber: PhoneNumber) => Effect.Effect<(request: SendMediaMessageRequest) => Effect.Effect<smsvoice.SendMediaMessageResult, smsvoice.SendMediaMessageError>>> {
 }
 export declare const SendMediaMessage: SendMediaMessage;

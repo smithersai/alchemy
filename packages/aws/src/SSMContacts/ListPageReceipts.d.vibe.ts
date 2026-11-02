@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListPageReceipts extends Binding.Service<ListPageReceipts, "AWS.SSMContacts.ListPageReceipts", () => Effect.Effect<((request: ssm.ListPageReceiptsRequest) => Effect.Effect<ssm.ListPageReceiptsResult, ssm.ListPageReceiptsError>)>> {
+export interface ListPageReceipts extends Binding.Service<ListPageReceipts, "AWS.SSMContacts.ListPageReceipts", () => Effect.Effect<(request: ssm.ListPageReceiptsRequest) => Effect.Effect<ssm.ListPageReceiptsResult, ssm.ListPageReceiptsError>>> {
 }
 export declare const ListPageReceipts: ListPageReceipts;

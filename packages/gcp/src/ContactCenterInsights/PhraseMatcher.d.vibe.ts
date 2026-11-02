@@ -1,8 +1,8 @@
 import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type PhraseMatcherType = "PHRASE_MATCHER_TYPE_UNSPECIFIED" | "ALL_OF" | "ANY_OF";
 export type PhraseMatcherRole = "ROLE_UNSPECIFIED" | "HUMAN_AGENT" | "AUTOMATED_AGENT" | "END_USER" | "ANY_AGENT";
 export type PhraseMatchRuleGroupType = "PHRASE_MATCH_RULE_GROUP_TYPE_UNSPECIFIED" | "ALL_OF" | "ANY_OF";

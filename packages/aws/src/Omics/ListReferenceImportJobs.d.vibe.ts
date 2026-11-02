@@ -22,6 +22,6 @@ export interface ListReferenceImportJobsRequest extends Omit<omics.ListReference
  *
  * @binding
  */
-export interface ListReferenceImportJobs extends Binding.Service<ListReferenceImportJobs, "AWS.Omics.ListReferenceImportJobs", (store: ReferenceStore) => Effect.Effect<((request?: ListReferenceImportJobsRequest) => Effect.Effect<omics.ListReferenceImportJobsResponse, omics.ListReferenceImportJobsError>)>> {
+export interface ListReferenceImportJobs extends Binding.Service<ListReferenceImportJobs, "AWS.Omics.ListReferenceImportJobs", (store: ReferenceStore) => Effect.Effect<(request?: ListReferenceImportJobsRequest) => Effect.Effect<omics.ListReferenceImportJobsResponse, omics.ListReferenceImportJobsError>>> {
 }
 export declare const ListReferenceImportJobs: ListReferenceImportJobs;

@@ -1,7 +1,7 @@
 import type { Input } from "alchemy/Input";
 import * as Effect from "effect/Effect";
-import type { Environment } from "./Environment.js";
-import { Variable } from "./Variable.js";
+import type { Environment } from "./Environment.ts";
+import { Variable } from "./Variable.ts";
 export interface VariablesProps {
     /**
      * Repository owner (user or organization).

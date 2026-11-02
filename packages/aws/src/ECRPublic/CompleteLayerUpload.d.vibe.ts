@@ -28,6 +28,6 @@ export interface CompleteLayerUploadRequest extends Omit<ecrpublic.CompleteLayer
  *
  * @binding
  */
-export interface CompleteLayerUpload extends Binding.Service<CompleteLayerUpload, "AWS.ECRPublic.CompleteLayerUpload", <R extends PublicRepository>(repository: R) => Effect.Effect<((request: CompleteLayerUploadRequest) => Effect.Effect<ecrpublic.CompleteLayerUploadResponse, ecrpublic.CompleteLayerUploadError>)>> {
+export interface CompleteLayerUpload extends Binding.Service<CompleteLayerUpload, "AWS.ECRPublic.CompleteLayerUpload", <R extends PublicRepository>(repository: R) => Effect.Effect<(request: CompleteLayerUploadRequest) => Effect.Effect<ecrpublic.CompleteLayerUploadResponse, ecrpublic.CompleteLayerUploadError>>> {
 }
 export declare const CompleteLayerUpload: CompleteLayerUpload;

@@ -2,7 +2,7 @@ import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Duration from "effect/Duration";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `UpdateQuerySuggestionsConfig` request with `IndexId` injected from the bound index.
  */
@@ -39,6 +39,6 @@ export interface UpdateQuerySuggestionsConfigRequest extends Omit<kendra.UpdateQ
  *
  * @binding
  */
-export interface UpdateQuerySuggestionsConfig extends Binding.Service<UpdateQuerySuggestionsConfig, "AWS.Kendra.UpdateQuerySuggestionsConfig", (index: Index) => Effect.Effect<((request?: UpdateQuerySuggestionsConfigRequest) => Effect.Effect<kendra.UpdateQuerySuggestionsConfigResponse, kendra.UpdateQuerySuggestionsConfigError>)>> {
+export interface UpdateQuerySuggestionsConfig extends Binding.Service<UpdateQuerySuggestionsConfig, "AWS.Kendra.UpdateQuerySuggestionsConfig", (index: Index) => Effect.Effect<(request?: UpdateQuerySuggestionsConfigRequest) => Effect.Effect<kendra.UpdateQuerySuggestionsConfigResponse, kendra.UpdateQuerySuggestionsConfigError>>> {
 }
 export declare const UpdateQuerySuggestionsConfig: UpdateQuerySuggestionsConfig;

@@ -26,6 +26,6 @@ export interface PutNotificationChannelRequest extends fms.PutNotificationChanne
  *
  * @binding
  */
-export interface PutNotificationChannel extends Binding.Service<PutNotificationChannel, "AWS.FMS.PutNotificationChannel", () => Effect.Effect<((request: PutNotificationChannelRequest) => Effect.Effect<fms.PutNotificationChannelResponse, fms.PutNotificationChannelError>)>> {
+export interface PutNotificationChannel extends Binding.Service<PutNotificationChannel, "AWS.FMS.PutNotificationChannel", () => Effect.Effect<(request: PutNotificationChannelRequest) => Effect.Effect<fms.PutNotificationChannelResponse, fms.PutNotificationChannelError>>> {
 }
 export declare const PutNotificationChannel: PutNotificationChannel;

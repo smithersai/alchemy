@@ -2,7 +2,7 @@ import { type CloudAgentStatus } from "@distilled.cloud/railway";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import type { Providers } from "./Providers.js";
+import type { Providers } from "./Providers.ts";
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces
  * it (so `yield* Project(...)` and `Project(...)` both type-check).
@@ -202,5 +202,5 @@ export declare const wakeCloudAgent: (agent: {
     readonly consoleTargetId: string | null;
     readonly createdAt: string;
 }, import("@distilled.cloud/railway").QueryError<import("@distilled.cloud/railway").RailwayGlobalError>, import("@distilled.cloud/railway").GqlTransport>;
-export declare const CloudAgentProvider: () => import("effect/Layer").Layer<Provider.Provider<CloudAgent>, never, import("@distilled.cloud/railway").GqlTransport | import("./Environment.js").RailwayEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
+export declare const CloudAgentProvider: () => import("effect/Layer").Layer<Provider.Provider<CloudAgent>, never, import("@distilled.cloud/railway").GqlTransport | import("./Environment.ts").RailwayEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
 export {};

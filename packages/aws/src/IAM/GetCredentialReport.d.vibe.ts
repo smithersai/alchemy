@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetCredentialReport extends Binding.Service<GetCredentialReport, "AWS.IAM.GetCredentialReport", () => Effect.Effect<((request?: iam.GetCredentialReportRequest) => Effect.Effect<iam.GetCredentialReportResponse, iam.GetCredentialReportError>)>> {
+export interface GetCredentialReport extends Binding.Service<GetCredentialReport, "AWS.IAM.GetCredentialReport", () => Effect.Effect<(request?: iam.GetCredentialReportRequest) => Effect.Effect<iam.GetCredentialReportResponse, iam.GetCredentialReportError>>> {
 }
 export declare const GetCredentialReport: GetCredentialReport;

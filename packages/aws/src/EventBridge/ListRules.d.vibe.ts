@@ -23,6 +23,6 @@ export interface ListRulesRequest extends Omit<eventbridge.ListRulesRequest, "Ev
  *
  * @binding
  */
-export interface ListRules extends Binding.Service<ListRules, "AWS.EventBridge.ListRules", (bus?: EventBus) => Effect.Effect<((request?: ListRulesRequest) => Effect.Effect<eventbridge.ListRulesResponse, eventbridge.ListRulesError>)>> {
+export interface ListRules extends Binding.Service<ListRules, "AWS.EventBridge.ListRules", (bus?: EventBus) => Effect.Effect<(request?: ListRulesRequest) => Effect.Effect<eventbridge.ListRulesResponse, eventbridge.ListRulesError>>> {
 }
 export declare const ListRules: ListRules;

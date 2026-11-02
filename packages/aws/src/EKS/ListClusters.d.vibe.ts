@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListClusters extends Binding.Service<ListClusters, "AWS.EKS.ListClusters", () => Effect.Effect<((request?: eks.ListClustersRequest) => Effect.Effect<eks.ListClustersResponse, eks.ListClustersError>)>> {
+export interface ListClusters extends Binding.Service<ListClusters, "AWS.EKS.ListClusters", () => Effect.Effect<(request?: eks.ListClustersRequest) => Effect.Effect<eks.ListClustersResponse, eks.ListClustersError>>> {
 }
 export declare const ListClusters: ListClusters;

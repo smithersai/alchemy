@@ -31,6 +31,6 @@ export interface ListCertificatesRequest extends acm.ListCertificatesRequest {
  *
  * @binding
  */
-export interface ListCertificates extends Binding.Service<ListCertificates, "AWS.ACM.ListCertificates", () => Effect.Effect<((request?: ListCertificatesRequest) => Effect.Effect<acm.ListCertificatesResponse, acm.ListCertificatesError>)>> {
+export interface ListCertificates extends Binding.Service<ListCertificates, "AWS.ACM.ListCertificates", () => Effect.Effect<(request?: ListCertificatesRequest) => Effect.Effect<acm.ListCertificatesResponse, acm.ListCertificatesError>>> {
 }
 export declare const ListCertificates: ListCertificates;

@@ -25,6 +25,6 @@ export interface DescribeQAppPermissionsRequest extends Omit<qapps.DescribeQAppP
  *
  * @binding
  */
-export interface DescribeQAppPermissions extends Binding.Service<DescribeQAppPermissions, "AWS.QApps.DescribeQAppPermissions", (app: QApp) => Effect.Effect<((request?: DescribeQAppPermissionsRequest) => Effect.Effect<qapps.DescribeQAppPermissionsOutput, qapps.DescribeQAppPermissionsError>)>> {
+export interface DescribeQAppPermissions extends Binding.Service<DescribeQAppPermissions, "AWS.QApps.DescribeQAppPermissions", (app: QApp) => Effect.Effect<(request?: DescribeQAppPermissionsRequest) => Effect.Effect<qapps.DescribeQAppPermissionsOutput, qapps.DescribeQAppPermissionsError>>> {
 }
 export declare const DescribeQAppPermissions: DescribeQAppPermissions;

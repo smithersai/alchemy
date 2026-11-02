@@ -23,7 +23,7 @@ export declare const makeDeadlineQueueHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Deadline.CreateJob`. */
     tag: string;
     /** The distilled operation; `farmId`/`queueId` are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the queue ARN and its jobs. */
     actions: readonly string[];
 }) => Effect.Effect<(queue: Queue) => Effect.Effect<(request?: Omit<I, "farmId" | "queueId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -41,7 +41,7 @@ export declare const makeDeadlineQueueSearchHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Deadline.SearchJobs`. */
     tag: string;
     /** The distilled operation; `farmId`/`queueIds` are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the queue ARN and its jobs. */
     actions: readonly string[];
 }) => Effect.Effect<(queue: Queue) => Effect.Effect<(request?: Omit<I, "farmId" | "queueIds"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -57,7 +57,7 @@ export declare const makeDeadlineFarmHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Deadline.GetSessionsStatisticsAggregation`. */
     tag: string;
     /** The distilled operation; `farmId` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the farm ARN and its sub-resources. */
     actions: readonly string[];
 }) => Effect.Effect<(farm: Farm) => Effect.Effect<(request?: Omit<I, "farmId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

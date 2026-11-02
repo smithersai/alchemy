@@ -37,6 +37,6 @@ export interface PutTraceSegmentsRequest extends xray.PutTraceSegmentsRequest {
  *
  * @binding
  */
-export interface PutTraceSegments extends Binding.Service<PutTraceSegments, "AWS.XRay.PutTraceSegments", () => Effect.Effect<((request: PutTraceSegmentsRequest) => Effect.Effect<xray.PutTraceSegmentsResult, xray.PutTraceSegmentsError>)>> {
+export interface PutTraceSegments extends Binding.Service<PutTraceSegments, "AWS.XRay.PutTraceSegments", () => Effect.Effect<(request: PutTraceSegmentsRequest) => Effect.Effect<xray.PutTraceSegmentsResult, xray.PutTraceSegmentsError>>> {
 }
 export declare const PutTraceSegments: PutTraceSegments;

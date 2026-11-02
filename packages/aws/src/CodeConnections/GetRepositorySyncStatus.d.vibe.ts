@@ -33,6 +33,6 @@ export interface GetRepositorySyncStatusRequest extends Omit<codeconnections.Get
  *
  * @binding
  */
-export interface GetRepositorySyncStatus extends Binding.Service<GetRepositorySyncStatus, "AWS.CodeConnections.GetRepositorySyncStatus", (repositoryLink: RepositoryLink) => Effect.Effect<((request: GetRepositorySyncStatusRequest) => Effect.Effect<codeconnections.GetRepositorySyncStatusOutput, codeconnections.GetRepositorySyncStatusError>)>> {
+export interface GetRepositorySyncStatus extends Binding.Service<GetRepositorySyncStatus, "AWS.CodeConnections.GetRepositorySyncStatus", (repositoryLink: RepositoryLink) => Effect.Effect<(request: GetRepositorySyncStatusRequest) => Effect.Effect<codeconnections.GetRepositorySyncStatusOutput, codeconnections.GetRepositorySyncStatusError>>> {
 }
 export declare const GetRepositorySyncStatus: GetRepositorySyncStatus;

@@ -29,6 +29,6 @@ import type { Workspace } from "./Workspace.vibe";
  *
  * @binding
  */
-export interface UpdatePermissions extends Binding.Service<UpdatePermissions, "AWS.Grafana.UpdatePermissions", (workspace: Workspace) => Effect.Effect<((request: Omit<grafana.UpdatePermissionsRequest, "workspaceId">) => Effect.Effect<grafana.UpdatePermissionsResponse, grafana.UpdatePermissionsError>)>> {
+export interface UpdatePermissions extends Binding.Service<UpdatePermissions, "AWS.Grafana.UpdatePermissions", (workspace: Workspace) => Effect.Effect<(request: Omit<grafana.UpdatePermissionsRequest, "workspaceId">) => Effect.Effect<grafana.UpdatePermissionsResponse, grafana.UpdatePermissionsError>>> {
 }
 export declare const UpdatePermissions: UpdatePermissions;

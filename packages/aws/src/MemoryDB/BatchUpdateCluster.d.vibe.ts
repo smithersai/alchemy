@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchUpdateCluster extends Binding.Service<BatchUpdateCluster, "AWS.MemoryDB.BatchUpdateCluster", () => Effect.Effect<((request: memorydb.BatchUpdateClusterRequest) => Effect.Effect<memorydb.BatchUpdateClusterResponse, memorydb.BatchUpdateClusterError>)>> {
+export interface BatchUpdateCluster extends Binding.Service<BatchUpdateCluster, "AWS.MemoryDB.BatchUpdateCluster", () => Effect.Effect<(request: memorydb.BatchUpdateClusterRequest) => Effect.Effect<memorydb.BatchUpdateClusterResponse, memorydb.BatchUpdateClusterError>>> {
 }
 export declare const BatchUpdateCluster: BatchUpdateCluster;

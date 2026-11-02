@@ -39,6 +39,6 @@ export interface TranslateKeyMaterialRequest extends paymentcryptographydata.Tra
  *
  * @binding
  */
-export interface TranslateKeyMaterial extends Binding.Service<TranslateKeyMaterial, "AWS.PaymentCryptography.TranslateKeyMaterial", (...keys: readonly [Key, ...Key[]]) => Effect.Effect<((request: TranslateKeyMaterialRequest) => Effect.Effect<paymentcryptographydata.TranslateKeyMaterialOutput, paymentcryptographydata.TranslateKeyMaterialError>)>> {
+export interface TranslateKeyMaterial extends Binding.Service<TranslateKeyMaterial, "AWS.PaymentCryptography.TranslateKeyMaterial", (...keys: readonly [Key, ...Key[]]) => Effect.Effect<(request: TranslateKeyMaterialRequest) => Effect.Effect<paymentcryptographydata.TranslateKeyMaterialOutput, paymentcryptographydata.TranslateKeyMaterialError>>> {
 }
 export declare const TranslateKeyMaterial: TranslateKeyMaterial;

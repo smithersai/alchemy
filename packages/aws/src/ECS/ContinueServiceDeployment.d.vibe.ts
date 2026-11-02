@@ -1,7 +1,7 @@
 import type * as ECS from "@distilled.cloud/aws/ecs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Service } from "./Service.js";
+import type { Service } from "./Service.ts";
 export interface ContinueServiceDeploymentRequest extends ECS.ContinueServiceDeploymentRequest {
 }
 /**
@@ -27,6 +27,6 @@ export interface ContinueServiceDeploymentRequest extends ECS.ContinueServiceDep
  *
  * @binding
  */
-export interface ContinueServiceDeployment extends Binding.Service<ContinueServiceDeployment, "AWS.ECS.ContinueServiceDeployment", (service: Service) => Effect.Effect<((request: ContinueServiceDeploymentRequest) => Effect.Effect<ECS.ContinueServiceDeploymentResponse, ECS.ContinueServiceDeploymentError>)>> {
+export interface ContinueServiceDeployment extends Binding.Service<ContinueServiceDeployment, "AWS.ECS.ContinueServiceDeployment", (service: Service) => Effect.Effect<(request: ContinueServiceDeploymentRequest) => Effect.Effect<ECS.ContinueServiceDeploymentResponse, ECS.ContinueServiceDeploymentError>>> {
 }
 export declare const ContinueServiceDeployment: ContinueServiceDeployment;

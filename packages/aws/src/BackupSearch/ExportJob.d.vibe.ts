@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface S3ExportSpecification {
     /** Name of the destination S3 bucket that receives the results `.csv`. */
     destinationBucket: string;

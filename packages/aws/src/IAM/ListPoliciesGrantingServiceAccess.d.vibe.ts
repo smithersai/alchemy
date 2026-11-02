@@ -29,6 +29,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListPoliciesGrantingServiceAccess extends Binding.Service<ListPoliciesGrantingServiceAccess, "AWS.IAM.ListPoliciesGrantingServiceAccess", () => Effect.Effect<((request: iam.ListPoliciesGrantingServiceAccessRequest) => Effect.Effect<iam.ListPoliciesGrantingServiceAccessResponse, iam.ListPoliciesGrantingServiceAccessError>)>> {
+export interface ListPoliciesGrantingServiceAccess extends Binding.Service<ListPoliciesGrantingServiceAccess, "AWS.IAM.ListPoliciesGrantingServiceAccess", () => Effect.Effect<(request: iam.ListPoliciesGrantingServiceAccessRequest) => Effect.Effect<iam.ListPoliciesGrantingServiceAccessResponse, iam.ListPoliciesGrantingServiceAccessError>>> {
 }
 export declare const ListPoliciesGrantingServiceAccess: ListPoliciesGrantingServiceAccess;

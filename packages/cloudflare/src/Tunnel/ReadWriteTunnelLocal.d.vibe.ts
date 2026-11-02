@@ -31,4 +31,4 @@ import { ReadWriteTunnel } from "./ReadWriteTunnel.vibe";
  * );
  * ```
  */
-export declare const ReadWriteTunnelLocal: Layer.Layer<ReadWriteTunnel, never, import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const ReadWriteTunnelLocal: Layer.Layer<ReadWriteTunnel, never, import("../CloudflareEnvironmentService.ts").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;

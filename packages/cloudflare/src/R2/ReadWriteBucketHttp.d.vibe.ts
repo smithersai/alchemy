@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { type R2Auth } from "./BucketHttp.js";
+import { type R2Auth } from "./BucketHttp.ts";
 import { ReadWriteBucket, type ReadWriteBucketClient } from "./ReadWriteBucket.vibe";
 /**
  * HTTP-backed implementation of the {@link ReadWriteBucket} binding.

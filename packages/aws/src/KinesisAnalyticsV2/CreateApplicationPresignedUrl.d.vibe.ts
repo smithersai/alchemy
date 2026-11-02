@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/kinesis-analytics-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 export interface CreateApplicationPresignedUrlRequest extends Omit<SVC.CreateApplicationPresignedUrlRequest, "ApplicationName"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface CreateApplicationPresignedUrlRequest extends Omit<SVC.CreateApp
  *
  * @binding
  */
-export interface CreateApplicationPresignedUrl extends Binding.Service<CreateApplicationPresignedUrl, "AWS.KinesisAnalyticsV2.CreateApplicationPresignedUrl", <A extends Application>(application: A) => Effect.Effect<((request: CreateApplicationPresignedUrlRequest) => Effect.Effect<SVC.CreateApplicationPresignedUrlResponse, SVC.CreateApplicationPresignedUrlError>)>> {
+export interface CreateApplicationPresignedUrl extends Binding.Service<CreateApplicationPresignedUrl, "AWS.KinesisAnalyticsV2.CreateApplicationPresignedUrl", <A extends Application>(application: A) => Effect.Effect<(request: CreateApplicationPresignedUrlRequest) => Effect.Effect<SVC.CreateApplicationPresignedUrlResponse, SVC.CreateApplicationPresignedUrlError>>> {
 }
 export declare const CreateApplicationPresignedUrl: CreateApplicationPresignedUrl;

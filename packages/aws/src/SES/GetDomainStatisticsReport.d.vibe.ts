@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetDomainStatisticsReport extends Binding.Service<GetDomainStatisticsReport, "AWS.SES.GetDomainStatisticsReport", () => Effect.Effect<((request: sesv2.GetDomainStatisticsReportRequest) => Effect.Effect<sesv2.GetDomainStatisticsReportResponse, sesv2.GetDomainStatisticsReportError>)>> {
+export interface GetDomainStatisticsReport extends Binding.Service<GetDomainStatisticsReport, "AWS.SES.GetDomainStatisticsReport", () => Effect.Effect<(request: sesv2.GetDomainStatisticsReportRequest) => Effect.Effect<sesv2.GetDomainStatisticsReportResponse, sesv2.GetDomainStatisticsReportError>>> {
 }
 export declare const GetDomainStatisticsReport: GetDomainStatisticsReport;

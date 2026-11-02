@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartReplication extends Binding.Service<StartReplication, "AWS.DMS.StartReplication", () => Effect.Effect<((request: dms.StartReplicationMessage) => Effect.Effect<dms.StartReplicationResponse, dms.StartReplicationError>)>> {
+export interface StartReplication extends Binding.Service<StartReplication, "AWS.DMS.StartReplication", () => Effect.Effect<(request: dms.StartReplicationMessage) => Effect.Effect<dms.StartReplicationResponse, dms.StartReplicationError>>> {
 }
 export declare const StartReplication: StartReplication;

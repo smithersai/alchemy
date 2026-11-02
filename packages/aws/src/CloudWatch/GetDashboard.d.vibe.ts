@@ -24,6 +24,6 @@ export interface GetDashboardRequest extends Omit<cloudwatch.GetDashboardInput, 
  *
  * @binding
  */
-export interface GetDashboard extends Binding.Service<GetDashboard, "AWS.CloudWatch.GetDashboard", (dashboard: Dashboard) => Effect.Effect<((request?: GetDashboardRequest) => Effect.Effect<cloudwatch.GetDashboardOutput, cloudwatch.GetDashboardError>)>> {
+export interface GetDashboard extends Binding.Service<GetDashboard, "AWS.CloudWatch.GetDashboard", (dashboard: Dashboard) => Effect.Effect<(request?: GetDashboardRequest) => Effect.Effect<cloudwatch.GetDashboardOutput, cloudwatch.GetDashboardError>>> {
 }
 export declare const GetDashboard: GetDashboard;

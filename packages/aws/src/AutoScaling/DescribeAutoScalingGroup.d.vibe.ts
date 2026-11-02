@@ -1,7 +1,7 @@
 import type * as autoscaling from "@distilled.cloud/aws/auto-scaling";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AutoScalingGroup } from "./AutoScalingGroup.js";
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts";
 /**
  * Runtime binding for the `DescribeAutoScalingGroups` operation scoped to one
  * group (IAM action `autoscaling:DescribeAutoScalingGroups`; EC2 Auto Scaling
@@ -27,6 +27,6 @@ import type { AutoScalingGroup } from "./AutoScalingGroup.js";
  *
  * @binding
  */
-export interface DescribeAutoScalingGroup extends Binding.Service<DescribeAutoScalingGroup, "AWS.AutoScaling.DescribeAutoScalingGroup", (group: AutoScalingGroup) => Effect.Effect<(() => Effect.Effect<autoscaling.AutoScalingGroup | undefined, autoscaling.DescribeAutoScalingGroupsError>)>> {
+export interface DescribeAutoScalingGroup extends Binding.Service<DescribeAutoScalingGroup, "AWS.AutoScaling.DescribeAutoScalingGroup", (group: AutoScalingGroup) => Effect.Effect<() => Effect.Effect<autoscaling.AutoScalingGroup | undefined, autoscaling.DescribeAutoScalingGroupsError>>> {
 }
 export declare const DescribeAutoScalingGroup: DescribeAutoScalingGroup;

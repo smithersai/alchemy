@@ -23,6 +23,6 @@ export interface InitiateLayerUploadRequest extends Omit<ecr.InitiateLayerUpload
  *
  * @binding
  */
-export interface InitiateLayerUpload extends Binding.Service<InitiateLayerUpload, "AWS.ECR.InitiateLayerUpload", (repository: Repository) => Effect.Effect<((request?: InitiateLayerUploadRequest) => Effect.Effect<ecr.InitiateLayerUploadResponse, ecr.InitiateLayerUploadError>)>> {
+export interface InitiateLayerUpload extends Binding.Service<InitiateLayerUpload, "AWS.ECR.InitiateLayerUpload", (repository: Repository) => Effect.Effect<(request?: InitiateLayerUploadRequest) => Effect.Effect<ecr.InitiateLayerUploadResponse, ecr.InitiateLayerUploadError>>> {
 }
 export declare const InitiateLayerUpload: InitiateLayerUpload;

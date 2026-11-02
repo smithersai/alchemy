@@ -13,6 +13,6 @@ export interface UpdateMicrovmImageVersionRequest extends Omit<microvms.UpdateMi
  *
  * @binding
  */
-export interface UpdateMicrovmImageVersion extends Binding.Service<UpdateMicrovmImageVersion, "AWS.Lambda.UpdateMicrovmImageVersion", (image: MicrovmImage) => Effect.Effect<((request: UpdateMicrovmImageVersionRequest) => Effect.Effect<microvms.UpdateMicrovmImageVersionResponse, microvms.UpdateMicrovmImageVersionError>)>> {
+export interface UpdateMicrovmImageVersion extends Binding.Service<UpdateMicrovmImageVersion, "AWS.Lambda.UpdateMicrovmImageVersion", (image: MicrovmImage) => Effect.Effect<(request: UpdateMicrovmImageVersionRequest) => Effect.Effect<microvms.UpdateMicrovmImageVersionResponse, microvms.UpdateMicrovmImageVersionError>>> {
 }
 export declare const UpdateMicrovmImageVersion: UpdateMicrovmImageVersion;

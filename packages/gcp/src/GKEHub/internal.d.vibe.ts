@@ -50,7 +50,7 @@ export declare const replaceOnIdentity: (input: {
  * Wait for a GKE Hub long-running operation. Feature changes reconcile
  * fleet config across member clusters; a few minutes is typical.
  */
-export declare const waitForOperation: (operation: gkehub.Operation) => Effect.Effect<import("../Operation.js").LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | gkehub.GetProjectsLocationsOperationsError, gkehub.GcpOpContext>;
+export declare const waitForOperation: (operation: gkehub.Operation) => Effect.Effect<import("../Operation.ts").LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | gkehub.GetProjectsLocationsOperationsError, gkehub.GcpOpContext>;
 export declare const waitUntilExists: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved, R>;
 export declare const waitUntilGone: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<void, E | ResourceStillExists, R>;
 export declare const listLabeledPages: <Page, A, E, R>(pages: Stream.Stream<Page, E, R>, items: (page: Page) => readonly A[] | undefined, labelsOf: (item: A) => Record<string, string | undefined> | null | undefined) => Effect.Effect<A[], E, R>;

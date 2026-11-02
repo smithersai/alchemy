@@ -25,6 +25,6 @@ export interface BatchDeleteGeofenceRequest extends Omit<location.BatchDeleteGeo
  *
  * @binding
  */
-export interface BatchDeleteGeofence extends Binding.Service<BatchDeleteGeofence, "AWS.Location.BatchDeleteGeofence", (collection: GeofenceCollection) => Effect.Effect<((request: BatchDeleteGeofenceRequest) => Effect.Effect<location.BatchDeleteGeofenceResponse, location.BatchDeleteGeofenceError>)>> {
+export interface BatchDeleteGeofence extends Binding.Service<BatchDeleteGeofence, "AWS.Location.BatchDeleteGeofence", (collection: GeofenceCollection) => Effect.Effect<(request: BatchDeleteGeofenceRequest) => Effect.Effect<location.BatchDeleteGeofenceResponse, location.BatchDeleteGeofenceError>>> {
 }
 export declare const BatchDeleteGeofence: BatchDeleteGeofence;

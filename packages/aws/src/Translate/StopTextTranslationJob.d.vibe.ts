@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopTextTranslationJob extends Binding.Service<StopTextTranslationJob, "AWS.Translate.StopTextTranslationJob", () => Effect.Effect<((request: translate.StopTextTranslationJobRequest) => Effect.Effect<translate.StopTextTranslationJobResponse, translate.StopTextTranslationJobError>)>> {
+export interface StopTextTranslationJob extends Binding.Service<StopTextTranslationJob, "AWS.Translate.StopTextTranslationJob", () => Effect.Effect<(request: translate.StopTextTranslationJobRequest) => Effect.Effect<translate.StopTextTranslationJobResponse, translate.StopTextTranslationJobError>>> {
 }
 export declare const StopTextTranslationJob: StopTextTranslationJob;

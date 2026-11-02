@@ -1,6 +1,6 @@
 import { type KubernetesObjectDefinition, type KubernetesObjectMetadata } from "@alchemy.run/kubernetes/Objects";
 import * as Effect from "effect/Effect";
-import type { Cluster } from "../Cluster.js";
+import type { Cluster } from "../Cluster.ts";
 /**
  * Internal helpers for binding Kubernetes objects onto a
  * `GCP.Container.Cluster` through its `KubernetesObjectBinding` contract.

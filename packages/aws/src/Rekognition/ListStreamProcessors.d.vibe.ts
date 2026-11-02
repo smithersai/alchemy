@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListStreamProcessors extends Binding.Service<ListStreamProcessors, "AWS.Rekognition.ListStreamProcessors", () => Effect.Effect<((request?: rekognition.ListStreamProcessorsRequest) => Effect.Effect<rekognition.ListStreamProcessorsResponse, rekognition.ListStreamProcessorsError>)>> {
+export interface ListStreamProcessors extends Binding.Service<ListStreamProcessors, "AWS.Rekognition.ListStreamProcessors", () => Effect.Effect<(request?: rekognition.ListStreamProcessorsRequest) => Effect.Effect<rekognition.ListStreamProcessorsResponse, rekognition.ListStreamProcessorsError>>> {
 }
 export declare const ListStreamProcessors: ListStreamProcessors;

@@ -24,6 +24,6 @@ export interface AssociateLibraryItemReviewRequest extends Omit<qapps.AssociateL
  *
  * @binding
  */
-export interface AssociateLibraryItemReview extends Binding.Service<AssociateLibraryItemReview, "AWS.QApps.AssociateLibraryItemReview", (app: QApp) => Effect.Effect<((request: AssociateLibraryItemReviewRequest) => Effect.Effect<qapps.AssociateLibraryItemReviewResponse, qapps.AssociateLibraryItemReviewError>)>> {
+export interface AssociateLibraryItemReview extends Binding.Service<AssociateLibraryItemReview, "AWS.QApps.AssociateLibraryItemReview", (app: QApp) => Effect.Effect<(request: AssociateLibraryItemReviewRequest) => Effect.Effect<qapps.AssociateLibraryItemReviewResponse, qapps.AssociateLibraryItemReviewError>>> {
 }
 export declare const AssociateLibraryItemReview: AssociateLibraryItemReview;

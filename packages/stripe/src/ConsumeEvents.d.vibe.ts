@@ -1,7 +1,7 @@
 import { type RuntimeContext } from "alchemy/RuntimeContext";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
-import type { StripeEventClass } from "./Events.js";
+import type { StripeEventClass } from "./Events.ts";
 export interface ConsumeEventsProps<E extends readonly StripeEventClass[] = readonly StripeEventClass[]> {
     /**
      * Event classes to subscribe to. The handler `event` parameter is the

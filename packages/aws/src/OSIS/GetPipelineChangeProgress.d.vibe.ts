@@ -25,6 +25,6 @@ import type { Pipeline } from "./Pipeline.vibe";
  *
  * @binding
  */
-export interface GetPipelineChangeProgress extends Binding.Service<GetPipelineChangeProgress, "AWS.OSIS.GetPipelineChangeProgress", (pipeline: Pipeline) => Effect.Effect<(() => Effect.Effect<osis.GetPipelineChangeProgressResponse, osis.GetPipelineChangeProgressError>)>> {
+export interface GetPipelineChangeProgress extends Binding.Service<GetPipelineChangeProgress, "AWS.OSIS.GetPipelineChangeProgress", (pipeline: Pipeline) => Effect.Effect<() => Effect.Effect<osis.GetPipelineChangeProgressResponse, osis.GetPipelineChangeProgressError>>> {
 }
 export declare const GetPipelineChangeProgress: GetPipelineChangeProgress;

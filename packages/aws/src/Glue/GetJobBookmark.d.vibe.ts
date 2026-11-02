@@ -1,7 +1,7 @@
 import type * as glue from "@distilled.cloud/aws/glue";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Job } from "./Job.js";
+import type { Job } from "./Job.ts";
 export interface GetJobBookmarkRequest extends Omit<glue.GetJobBookmarkRequest, "JobName"> {
 }
 /**
@@ -30,6 +30,6 @@ export interface GetJobBookmarkRequest extends Omit<glue.GetJobBookmarkRequest, 
  *
  * @binding
  */
-export interface GetJobBookmark extends Binding.Service<GetJobBookmark, "AWS.Glue.GetJobBookmark", (job: Job) => Effect.Effect<((request?: GetJobBookmarkRequest) => Effect.Effect<glue.GetJobBookmarkResponse, glue.GetJobBookmarkError>)>> {
+export interface GetJobBookmark extends Binding.Service<GetJobBookmark, "AWS.Glue.GetJobBookmark", (job: Job) => Effect.Effect<(request?: GetJobBookmarkRequest) => Effect.Effect<glue.GetJobBookmarkResponse, glue.GetJobBookmarkError>>> {
 }
 export declare const GetJobBookmark: GetJobBookmark;

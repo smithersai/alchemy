@@ -1,7 +1,7 @@
 import * as cloudwatch from "@distilled.cloud/aws/cloudwatch";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { AlarmResource } from "./binding-common.js";
+import type { AlarmResource } from "./binding-common.ts";
 export interface SetAlarmStateRequest extends Omit<cloudwatch.SetAlarmStateInput, "AlarmName"> {
 }
 /**
@@ -27,6 +27,6 @@ export interface SetAlarmStateRequest extends Omit<cloudwatch.SetAlarmStateInput
  *
  * @binding
  */
-export interface SetAlarmState extends Binding.Service<SetAlarmState, "AWS.CloudWatch.SetAlarmState", (alarm: AlarmResource) => Effect.Effect<((request: SetAlarmStateRequest) => Effect.Effect<cloudwatch.SetAlarmStateResponse, cloudwatch.SetAlarmStateError>)>> {
+export interface SetAlarmState extends Binding.Service<SetAlarmState, "AWS.CloudWatch.SetAlarmState", (alarm: AlarmResource) => Effect.Effect<(request: SetAlarmStateRequest) => Effect.Effect<cloudwatch.SetAlarmStateResponse, cloudwatch.SetAlarmStateError>>> {
 }
 export declare const SetAlarmState: SetAlarmState;

@@ -22,6 +22,6 @@ export interface DescribeInsightRulesRequest extends cloudwatch.DescribeInsightR
  *
  * @binding
  */
-export interface DescribeInsightRules extends Binding.Service<DescribeInsightRules, "AWS.CloudWatch.DescribeInsightRules", () => Effect.Effect<((request?: DescribeInsightRulesRequest) => Effect.Effect<cloudwatch.DescribeInsightRulesOutput, cloudwatch.DescribeInsightRulesError>)>> {
+export interface DescribeInsightRules extends Binding.Service<DescribeInsightRules, "AWS.CloudWatch.DescribeInsightRules", () => Effect.Effect<(request?: DescribeInsightRulesRequest) => Effect.Effect<cloudwatch.DescribeInsightRulesOutput, cloudwatch.DescribeInsightRulesError>>> {
 }
 export declare const DescribeInsightRules: DescribeInsightRules;

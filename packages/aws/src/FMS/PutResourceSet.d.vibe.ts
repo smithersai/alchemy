@@ -29,6 +29,6 @@ export interface PutResourceSetRequest extends fms.PutResourceSetRequest {
  *
  * @binding
  */
-export interface PutResourceSet extends Binding.Service<PutResourceSet, "AWS.FMS.PutResourceSet", () => Effect.Effect<((request: PutResourceSetRequest) => Effect.Effect<fms.PutResourceSetResponse, fms.PutResourceSetError>)>> {
+export interface PutResourceSet extends Binding.Service<PutResourceSet, "AWS.FMS.PutResourceSet", () => Effect.Effect<(request: PutResourceSetRequest) => Effect.Effect<fms.PutResourceSetResponse, fms.PutResourceSetError>>> {
 }
 export declare const PutResourceSet: PutResourceSet;

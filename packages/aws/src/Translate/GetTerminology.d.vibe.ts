@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetTerminology extends Binding.Service<GetTerminology, "AWS.Translate.GetTerminology", () => Effect.Effect<((request: translate.GetTerminologyRequest) => Effect.Effect<translate.GetTerminologyResponse, translate.GetTerminologyError>)>> {
+export interface GetTerminology extends Binding.Service<GetTerminology, "AWS.Translate.GetTerminology", () => Effect.Effect<(request: translate.GetTerminologyRequest) => Effect.Effect<translate.GetTerminologyResponse, translate.GetTerminologyError>>> {
 }
 export declare const GetTerminology: GetTerminology;

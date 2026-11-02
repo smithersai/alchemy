@@ -1,7 +1,7 @@
 import * as resourcemanager from "@distilled.cloud/gcp/cloudresourcemanager_v3";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type ProjectProps = {
     /**
      * Globally unique project id. 6-30 lowercase letters, digits, or
@@ -116,5 +116,5 @@ export declare class ProjectStillExists extends ProjectStillExists_base<{
     resourceName: string;
 }> {
 }
-export declare const ProjectProvider: () => import("effect/Layer").Layer<Provider.Provider<Project>, never, import("../Environment.js").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | resourcemanager.GcpOpContext>;
+export declare const ProjectProvider: () => import("effect/Layer").Layer<Provider.Provider<Project>, never, import("../Environment.ts").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | resourcemanager.GcpOpContext>;
 export {};

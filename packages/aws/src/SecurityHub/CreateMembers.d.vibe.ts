@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateMembers extends Binding.Service<CreateMembers, "AWS.SecurityHub.CreateMembers", () => Effect.Effect<((request?: securityhub.CreateMembersRequest) => Effect.Effect<securityhub.CreateMembersResponse, securityhub.CreateMembersError>)>> {
+export interface CreateMembers extends Binding.Service<CreateMembers, "AWS.SecurityHub.CreateMembers", () => Effect.Effect<(request?: securityhub.CreateMembersRequest) => Effect.Effect<securityhub.CreateMembersResponse, securityhub.CreateMembersError>>> {
 }
 export declare const CreateMembers: CreateMembers;

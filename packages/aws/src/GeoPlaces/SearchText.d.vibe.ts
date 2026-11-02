@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SearchText extends Binding.Service<SearchText, "AWS.GeoPlaces.SearchText", () => Effect.Effect<((request: geoPlaces.SearchTextRequest) => Effect.Effect<geoPlaces.SearchTextResponse, geoPlaces.SearchTextError>)>> {
+export interface SearchText extends Binding.Service<SearchText, "AWS.GeoPlaces.SearchText", () => Effect.Effect<(request: geoPlaces.SearchTextRequest) => Effect.Effect<geoPlaces.SearchTextResponse, geoPlaces.SearchTextError>>> {
 }
 export declare const SearchText: SearchText;

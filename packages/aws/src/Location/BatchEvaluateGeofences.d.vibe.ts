@@ -33,6 +33,6 @@ export interface BatchEvaluateGeofencesRequest extends Omit<location.BatchEvalua
  *
  * @binding
  */
-export interface BatchEvaluateGeofences extends Binding.Service<BatchEvaluateGeofences, "AWS.Location.BatchEvaluateGeofences", (collection: GeofenceCollection) => Effect.Effect<((request: BatchEvaluateGeofencesRequest) => Effect.Effect<location.BatchEvaluateGeofencesResponse, location.BatchEvaluateGeofencesError>)>> {
+export interface BatchEvaluateGeofences extends Binding.Service<BatchEvaluateGeofences, "AWS.Location.BatchEvaluateGeofences", (collection: GeofenceCollection) => Effect.Effect<(request: BatchEvaluateGeofencesRequest) => Effect.Effect<location.BatchEvaluateGeofencesResponse, location.BatchEvaluateGeofencesError>>> {
 }
 export declare const BatchEvaluateGeofences: BatchEvaluateGeofences;

@@ -29,6 +29,6 @@ export interface ListMessageMoveTasksRequest extends Omit<sqs.ListMessageMoveTas
  *
  * @binding
  */
-export interface ListMessageMoveTasks extends Binding.Service<ListMessageMoveTasks, "AWS.SQS.ListMessageMoveTasks", (queue: Queue) => Effect.Effect<((request?: ListMessageMoveTasksRequest) => Effect.Effect<sqs.ListMessageMoveTasksResult, sqs.ListMessageMoveTasksError>)>> {
+export interface ListMessageMoveTasks extends Binding.Service<ListMessageMoveTasks, "AWS.SQS.ListMessageMoveTasks", (queue: Queue) => Effect.Effect<(request?: ListMessageMoveTasksRequest) => Effect.Effect<sqs.ListMessageMoveTasksResult, sqs.ListMessageMoveTasksError>>> {
 }
 export declare const ListMessageMoveTasks: ListMessageMoveTasks;

@@ -23,6 +23,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface GetFindingsStatistics extends Binding.Service<GetFindingsStatistics, "AWS.GuardDuty.GetFindingsStatistics", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.GetFindingsStatisticsRequest, "DetectorId">) => Effect.Effect<guardduty.GetFindingsStatisticsResponse, guardduty.GetFindingsStatisticsError>)>> {
+export interface GetFindingsStatistics extends Binding.Service<GetFindingsStatistics, "AWS.GuardDuty.GetFindingsStatistics", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.GetFindingsStatisticsRequest, "DetectorId">) => Effect.Effect<guardduty.GetFindingsStatisticsResponse, guardduty.GetFindingsStatisticsError>>> {
 }
 export declare const GetFindingsStatistics: GetFindingsStatistics;

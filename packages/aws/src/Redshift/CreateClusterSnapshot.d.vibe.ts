@@ -27,6 +27,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface CreateClusterSnapshot extends Binding.Service<CreateClusterSnapshot, "AWS.Redshift.CreateClusterSnapshot", (cluster: Cluster) => Effect.Effect<((request: Omit<redshift.CreateClusterSnapshotMessage, "ClusterIdentifier">) => Effect.Effect<redshift.CreateClusterSnapshotResult, redshift.CreateClusterSnapshotError>)>> {
+export interface CreateClusterSnapshot extends Binding.Service<CreateClusterSnapshot, "AWS.Redshift.CreateClusterSnapshot", (cluster: Cluster) => Effect.Effect<(request: Omit<redshift.CreateClusterSnapshotMessage, "ClusterIdentifier">) => Effect.Effect<redshift.CreateClusterSnapshotResult, redshift.CreateClusterSnapshotError>>> {
 }
 export declare const CreateClusterSnapshot: CreateClusterSnapshot;

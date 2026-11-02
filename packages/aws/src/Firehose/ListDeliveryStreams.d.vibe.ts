@@ -22,6 +22,6 @@ export interface ListDeliveryStreamsRequest extends Firehose.ListDeliveryStreams
  *
  * @binding
  */
-export interface ListDeliveryStreams extends Binding.Service<ListDeliveryStreams, "AWS.Firehose.ListDeliveryStreams", () => Effect.Effect<((request?: ListDeliveryStreamsRequest) => Effect.Effect<Firehose.ListDeliveryStreamsOutput, Firehose.ListDeliveryStreamsError>)>> {
+export interface ListDeliveryStreams extends Binding.Service<ListDeliveryStreams, "AWS.Firehose.ListDeliveryStreams", () => Effect.Effect<(request?: ListDeliveryStreamsRequest) => Effect.Effect<Firehose.ListDeliveryStreamsOutput, Firehose.ListDeliveryStreamsError>>> {
 }
 export declare const ListDeliveryStreams: ListDeliveryStreams;

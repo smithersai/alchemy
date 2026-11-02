@@ -27,6 +27,6 @@ export interface StartAnalysisReportRequest extends Omit<NFW.StartAnalysisReport
  *
  * @binding
  */
-export interface StartAnalysisReport extends Binding.Service<StartAnalysisReport, "AWS.NetworkFirewall.StartAnalysisReport", (firewall: Firewall) => Effect.Effect<((request: StartAnalysisReportRequest) => Effect.Effect<NFW.StartAnalysisReportResponse, NFW.StartAnalysisReportError>)>> {
+export interface StartAnalysisReport extends Binding.Service<StartAnalysisReport, "AWS.NetworkFirewall.StartAnalysisReport", (firewall: Firewall) => Effect.Effect<(request: StartAnalysisReportRequest) => Effect.Effect<NFW.StartAnalysisReportResponse, NFW.StartAnalysisReportError>>> {
 }
 export declare const StartAnalysisReport: StartAnalysisReport;

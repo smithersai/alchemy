@@ -25,6 +25,6 @@ export interface ListDataSourceSyncJobsRequest extends Omit<qbusiness.ListDataSo
  *
  * @binding
  */
-export interface ListDataSourceSyncJobs extends Binding.Service<ListDataSourceSyncJobs, "AWS.QBusiness.ListDataSourceSyncJobs", (dataSource: DataSource) => Effect.Effect<((request?: ListDataSourceSyncJobsRequest) => Effect.Effect<qbusiness.ListDataSourceSyncJobsResponse, qbusiness.ListDataSourceSyncJobsError>)>> {
+export interface ListDataSourceSyncJobs extends Binding.Service<ListDataSourceSyncJobs, "AWS.QBusiness.ListDataSourceSyncJobs", (dataSource: DataSource) => Effect.Effect<(request?: ListDataSourceSyncJobsRequest) => Effect.Effect<qbusiness.ListDataSourceSyncJobsResponse, qbusiness.ListDataSourceSyncJobsError>>> {
 }
 export declare const ListDataSourceSyncJobs: ListDataSourceSyncJobs;

@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
 import type { Bucket } from "./Bucket.vibe";
-import type { RuntimeStorageMethods, StorageBindingOptions } from "./StorageBinding.js";
+import type { RuntimeStorageMethods, StorageBindingOptions } from "./StorageBinding.ts";
 export interface ReadBucketClient extends RuntimeStorageMethods<"get" | "head" | "list"> {
     /** Presign an object download. This does not make the bucket public. */
     presignGet(key: string, options?: {

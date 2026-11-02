@@ -1,8 +1,8 @@
 import * as firebase from "@distilled.cloud/gcp/firebase_v1beta1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type AndroidAppProps = {
     /**
      * Canonical Android package name (`com.example.app`). Immutable —

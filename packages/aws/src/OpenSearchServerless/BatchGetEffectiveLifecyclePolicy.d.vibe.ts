@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetEffectiveLifecyclePolicy extends Binding.Service<BatchGetEffectiveLifecyclePolicy, "AWS.OpenSearchServerless.BatchGetEffectiveLifecyclePolicy", () => Effect.Effect<((request: aoss.BatchGetEffectiveLifecyclePolicyRequest) => Effect.Effect<aoss.BatchGetEffectiveLifecyclePolicyResponse, aoss.BatchGetEffectiveLifecyclePolicyError>)>> {
+export interface BatchGetEffectiveLifecyclePolicy extends Binding.Service<BatchGetEffectiveLifecyclePolicy, "AWS.OpenSearchServerless.BatchGetEffectiveLifecyclePolicy", () => Effect.Effect<(request: aoss.BatchGetEffectiveLifecyclePolicyRequest) => Effect.Effect<aoss.BatchGetEffectiveLifecyclePolicyResponse, aoss.BatchGetEffectiveLifecyclePolicyError>>> {
 }
 export declare const BatchGetEffectiveLifecyclePolicy: BatchGetEffectiveLifecyclePolicy;

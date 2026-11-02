@@ -34,6 +34,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SnapToRoads extends Binding.Service<SnapToRoads, "AWS.GeoRoutes.SnapToRoads", () => Effect.Effect<((request: geoRoutes.SnapToRoadsRequest) => Effect.Effect<geoRoutes.SnapToRoadsResponse, geoRoutes.SnapToRoadsError>)>> {
+export interface SnapToRoads extends Binding.Service<SnapToRoads, "AWS.GeoRoutes.SnapToRoads", () => Effect.Effect<(request: geoRoutes.SnapToRoadsRequest) => Effect.Effect<geoRoutes.SnapToRoadsResponse, geoRoutes.SnapToRoadsError>>> {
 }
 export declare const SnapToRoads: SnapToRoads;

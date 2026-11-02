@@ -36,6 +36,6 @@ export interface DeleteAgentMemoryRequest extends Omit<bedrock.DeleteAgentMemory
  *
  * @binding
  */
-export interface DeleteAgentMemory extends Binding.Service<DeleteAgentMemory, "AWS.Bedrock.DeleteAgentMemory", <A extends AgentAlias>(alias: A) => Effect.Effect<((request: DeleteAgentMemoryRequest) => Effect.Effect<bedrock.DeleteAgentMemoryResponse, bedrock.DeleteAgentMemoryError>)>> {
+export interface DeleteAgentMemory extends Binding.Service<DeleteAgentMemory, "AWS.Bedrock.DeleteAgentMemory", <A extends AgentAlias>(alias: A) => Effect.Effect<(request: DeleteAgentMemoryRequest) => Effect.Effect<bedrock.DeleteAgentMemoryResponse, bedrock.DeleteAgentMemoryError>>> {
 }
 export declare const DeleteAgentMemory: DeleteAgentMemory;

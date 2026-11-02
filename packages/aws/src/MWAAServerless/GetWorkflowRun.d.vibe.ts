@@ -26,6 +26,6 @@ export type GetWorkflowRunInput = Omit<mwaa.GetWorkflowRunRequest, "WorkflowArn"
  *
  * @binding
  */
-export interface GetWorkflowRun extends Binding.Service<GetWorkflowRun, "AWS.MWAAServerless.GetWorkflowRun", (workflow: Workflow) => Effect.Effect<((request: GetWorkflowRunInput) => Effect.Effect<mwaa.GetWorkflowRunResponse, mwaa.GetWorkflowRunError>)>> {
+export interface GetWorkflowRun extends Binding.Service<GetWorkflowRun, "AWS.MWAAServerless.GetWorkflowRun", (workflow: Workflow) => Effect.Effect<(request: GetWorkflowRunInput) => Effect.Effect<mwaa.GetWorkflowRunResponse, mwaa.GetWorkflowRunError>>> {
 }
 export declare const GetWorkflowRun: GetWorkflowRun;

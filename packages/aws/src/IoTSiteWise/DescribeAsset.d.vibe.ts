@@ -35,6 +35,6 @@ export interface DescribeAssetRequest extends Omit<sitewise.DescribeAssetRequest
  *
  * @binding
  */
-export interface DescribeAsset extends Binding.Service<DescribeAsset, "AWS.IoTSiteWise.DescribeAsset", (asset: Asset) => Effect.Effect<((request?: DescribeAssetRequest) => Effect.Effect<sitewise.DescribeAssetResponse, sitewise.DescribeAssetError>)>> {
+export interface DescribeAsset extends Binding.Service<DescribeAsset, "AWS.IoTSiteWise.DescribeAsset", (asset: Asset) => Effect.Effect<(request?: DescribeAssetRequest) => Effect.Effect<sitewise.DescribeAssetResponse, sitewise.DescribeAssetError>>> {
 }
 export declare const DescribeAsset: DescribeAsset;

@@ -18,6 +18,6 @@ export interface DeleteSMSSandboxPhoneNumberRequest extends sns.DeleteSMSSandbox
  *
  * @binding
  */
-export interface DeleteSMSSandboxPhoneNumber extends Binding.Service<DeleteSMSSandboxPhoneNumber, "AWS.SNS.DeleteSMSSandboxPhoneNumber", () => Effect.Effect<((request: DeleteSMSSandboxPhoneNumberRequest) => Effect.Effect<sns.DeleteSMSSandboxPhoneNumberResult, sns.DeleteSMSSandboxPhoneNumberError>)>> {
+export interface DeleteSMSSandboxPhoneNumber extends Binding.Service<DeleteSMSSandboxPhoneNumber, "AWS.SNS.DeleteSMSSandboxPhoneNumber", () => Effect.Effect<(request: DeleteSMSSandboxPhoneNumberRequest) => Effect.Effect<sns.DeleteSMSSandboxPhoneNumberResult, sns.DeleteSMSSandboxPhoneNumberError>>> {
 }
 export declare const DeleteSMSSandboxPhoneNumber: DeleteSMSSandboxPhoneNumber;

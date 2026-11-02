@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.Transcribe.ListTagsForResource", () => Effect.Effect<((request: transcribe.ListTagsForResourceRequest) => Effect.Effect<transcribe.ListTagsForResourceResponse, transcribe.ListTagsForResourceError>)>> {
+export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.Transcribe.ListTagsForResource", () => Effect.Effect<(request: transcribe.ListTagsForResourceRequest) => Effect.Effect<transcribe.ListTagsForResourceResponse, transcribe.ListTagsForResourceError>>> {
 }
 export declare const ListTagsForResource: ListTagsForResource;

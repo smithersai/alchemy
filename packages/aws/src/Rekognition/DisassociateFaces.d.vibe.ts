@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DisassociateFaces extends Binding.Service<DisassociateFaces, "AWS.Rekognition.DisassociateFaces", () => Effect.Effect<((request: rekognition.DisassociateFacesRequest) => Effect.Effect<rekognition.DisassociateFacesResponse, rekognition.DisassociateFacesError>)>> {
+export interface DisassociateFaces extends Binding.Service<DisassociateFaces, "AWS.Rekognition.DisassociateFaces", () => Effect.Effect<(request: rekognition.DisassociateFacesRequest) => Effect.Effect<rekognition.DisassociateFacesResponse, rekognition.DisassociateFacesError>>> {
 }
 export declare const DisassociateFaces: DisassociateFaces;

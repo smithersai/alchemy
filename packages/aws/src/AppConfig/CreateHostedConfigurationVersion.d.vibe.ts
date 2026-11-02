@@ -30,6 +30,6 @@ export interface CreateHostedConfigurationVersionRequest extends Omit<appconfig.
  *
  * @binding
  */
-export interface CreateHostedConfigurationVersion extends Binding.Service<CreateHostedConfigurationVersion, "AWS.AppConfig.CreateHostedConfigurationVersion", (application: Application, configurationProfile: ConfigurationProfile) => Effect.Effect<((request: CreateHostedConfigurationVersionRequest) => Effect.Effect<appconfig.HostedConfigurationVersion, appconfig.CreateHostedConfigurationVersionError>)>> {
+export interface CreateHostedConfigurationVersion extends Binding.Service<CreateHostedConfigurationVersion, "AWS.AppConfig.CreateHostedConfigurationVersion", (application: Application, configurationProfile: ConfigurationProfile) => Effect.Effect<(request: CreateHostedConfigurationVersionRequest) => Effect.Effect<appconfig.HostedConfigurationVersion, appconfig.CreateHostedConfigurationVersionError>>> {
 }
 export declare const CreateHostedConfigurationVersion: CreateHostedConfigurationVersion;

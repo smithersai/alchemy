@@ -21,6 +21,6 @@ import type { Queue } from "./Queue.vibe";
  *
  * @binding
  */
-export interface GetTask extends Binding.Service<GetTask, "AWS.Deadline.GetTask", (queue: Queue) => Effect.Effect<((request: Omit<deadline.GetTaskRequest, "farmId" | "queueId">) => Effect.Effect<deadline.GetTaskResponse, deadline.GetTaskError>)>> {
+export interface GetTask extends Binding.Service<GetTask, "AWS.Deadline.GetTask", (queue: Queue) => Effect.Effect<(request: Omit<deadline.GetTaskRequest, "farmId" | "queueId">) => Effect.Effect<deadline.GetTaskResponse, deadline.GetTaskError>>> {
 }
 export declare const GetTask: GetTask;

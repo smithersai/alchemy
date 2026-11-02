@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetUpgradeHistory extends Binding.Service<GetUpgradeHistory, "AWS.OpenSearch.GetUpgradeHistory", () => Effect.Effect<((request: opensearch.GetUpgradeHistoryRequest) => Effect.Effect<opensearch.GetUpgradeHistoryResponse, opensearch.GetUpgradeHistoryError>)>> {
+export interface GetUpgradeHistory extends Binding.Service<GetUpgradeHistory, "AWS.OpenSearch.GetUpgradeHistory", () => Effect.Effect<(request: opensearch.GetUpgradeHistoryRequest) => Effect.Effect<opensearch.GetUpgradeHistoryResponse, opensearch.GetUpgradeHistoryError>>> {
 }
 export declare const GetUpgradeHistory: GetUpgradeHistory;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListCisScanResultsAggregatedByTargetResource extends Binding.Service<ListCisScanResultsAggregatedByTargetResource, "AWS.Inspector2.ListCisScanResultsAggregatedByTargetResource", () => Effect.Effect<((request: inspector2.ListCisScanResultsAggregatedByTargetResourceRequest) => Effect.Effect<inspector2.ListCisScanResultsAggregatedByTargetResourceResponse, inspector2.ListCisScanResultsAggregatedByTargetResourceError>)>> {
+export interface ListCisScanResultsAggregatedByTargetResource extends Binding.Service<ListCisScanResultsAggregatedByTargetResource, "AWS.Inspector2.ListCisScanResultsAggregatedByTargetResource", () => Effect.Effect<(request: inspector2.ListCisScanResultsAggregatedByTargetResourceRequest) => Effect.Effect<inspector2.ListCisScanResultsAggregatedByTargetResourceResponse, inspector2.ListCisScanResultsAggregatedByTargetResourceError>>> {
 }
 export declare const ListCisScanResultsAggregatedByTargetResource: ListCisScanResultsAggregatedByTargetResource;

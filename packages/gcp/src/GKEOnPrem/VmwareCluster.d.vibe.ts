@@ -1,9 +1,9 @@
 import * as gkeonprem from "@distilled.cloud/gcp/gkeonprem_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { Authorization, BinaryAuthorization, Fleet, VmwareAAGConfig, VmwareAutoRepairConfig, VmwareClusterUpgradePolicy, VmwareControlPlaneNodeConfig, VmwareDataplaneV2Config, VmwareLoadBalancerConfig, VmwareNetworkConfig, VmwareStorageConfig, VmwareVCenterConfig } from "./types.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { Authorization, BinaryAuthorization, Fleet, VmwareAAGConfig, VmwareAutoRepairConfig, VmwareClusterUpgradePolicy, VmwareControlPlaneNodeConfig, VmwareDataplaneV2Config, VmwareLoadBalancerConfig, VmwareNetworkConfig, VmwareStorageConfig, VmwareVCenterConfig } from "./types.ts";
 export type VmwareClusterProps = {
     /**
      * Cluster id (the `{vmwareCluster}` segment). If omitted, a unique

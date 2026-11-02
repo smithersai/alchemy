@@ -2,7 +2,7 @@ import * as rbin from "@distilled.cloud/aws/rbin";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /**
  * A resource tag used to identify (or exclude) resources covered by a
  * retention rule.

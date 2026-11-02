@@ -23,6 +23,6 @@ import type { Stack } from "./Stack.vibe";
  *
  * @binding
  */
-export interface ListStackResources extends Binding.Service<ListStackResources, "AWS.CloudFormation.ListStackResources", (stack: Stack) => Effect.Effect<((request?: Omit<cloudformation.ListStackResourcesInput, "StackName">) => Effect.Effect<cloudformation.ListStackResourcesOutput, cloudformation.ListStackResourcesError>)>> {
+export interface ListStackResources extends Binding.Service<ListStackResources, "AWS.CloudFormation.ListStackResources", (stack: Stack) => Effect.Effect<(request?: Omit<cloudformation.ListStackResourcesInput, "StackName">) => Effect.Effect<cloudformation.ListStackResourcesOutput, cloudformation.ListStackResourcesError>>> {
 }
 export declare const ListStackResources: ListStackResources;

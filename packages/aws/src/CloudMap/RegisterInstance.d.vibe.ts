@@ -24,6 +24,6 @@ export interface RegisterInstanceRequest extends Omit<SD.RegisterInstanceRequest
  *
  * @binding
  */
-export interface RegisterInstance extends Binding.Service<RegisterInstance, "AWS.CloudMap.RegisterInstance", <S extends Service>(service: S) => Effect.Effect<((request: RegisterInstanceRequest) => Effect.Effect<SD.RegisterInstanceResponse, SD.RegisterInstanceError>)>> {
+export interface RegisterInstance extends Binding.Service<RegisterInstance, "AWS.CloudMap.RegisterInstance", <S extends Service>(service: S) => Effect.Effect<(request: RegisterInstanceRequest) => Effect.Effect<SD.RegisterInstanceResponse, SD.RegisterInstanceError>>> {
 }
 export declare const RegisterInstance: RegisterInstance;

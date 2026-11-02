@@ -16,6 +16,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListImportTasks extends Binding.Service<ListImportTasks, "AWS.NeptuneGraph.ListImportTasks", () => Effect.Effect<((request?: neptunegraph.ListImportTasksInput) => Effect.Effect<neptunegraph.ListImportTasksOutput, neptunegraph.ListImportTasksError>)>> {
+export interface ListImportTasks extends Binding.Service<ListImportTasks, "AWS.NeptuneGraph.ListImportTasks", () => Effect.Effect<(request?: neptunegraph.ListImportTasksInput) => Effect.Effect<neptunegraph.ListImportTasksOutput, neptunegraph.ListImportTasksError>>> {
 }
 export declare const ListImportTasks: ListImportTasks;

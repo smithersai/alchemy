@@ -2,7 +2,7 @@ import type * as cw from "@distilled.cloud/gcp/contentwarehouse_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { RuleSet } from "./RuleSet.js";
+import type { RuleSet } from "./RuleSet.ts";
 export interface GetRuleSetRequest extends Omit<cw.GetProjectsLocationsRuleSetsRequest, "name"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface GetRuleSetRequest extends Omit<cw.GetProjectsLocationsRuleSetsR
  * @binding
  * @category ContentWarehouse
  */
-export interface GetRuleSet extends Binding.Service<GetRuleSet, "GCP.ContentWarehouse.GetRuleSet", (ruleSet: RuleSet) => Effect.Effect<((request?: GetRuleSetRequest) => Effect.Effect<cw.GoogleCloudContentwarehouseV1RuleSet, cw.GetProjectsLocationsRuleSetsError, RuntimeContext>)>> {
+export interface GetRuleSet extends Binding.Service<GetRuleSet, "GCP.ContentWarehouse.GetRuleSet", (ruleSet: RuleSet) => Effect.Effect<(request?: GetRuleSetRequest) => Effect.Effect<cw.GoogleCloudContentwarehouseV1RuleSet, cw.GetProjectsLocationsRuleSetsError, RuntimeContext>>> {
 }
 export declare const GetRuleSet: GetRuleSet;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetAdministratorAccount extends Binding.Service<GetAdministratorAccount, "AWS.SecurityHub.GetAdministratorAccount", () => Effect.Effect<((request?: securityhub.GetAdministratorAccountRequest) => Effect.Effect<securityhub.GetAdministratorAccountResponse, securityhub.GetAdministratorAccountError>)>> {
+export interface GetAdministratorAccount extends Binding.Service<GetAdministratorAccount, "AWS.SecurityHub.GetAdministratorAccount", () => Effect.Effect<(request?: securityhub.GetAdministratorAccountRequest) => Effect.Effect<securityhub.GetAdministratorAccountResponse, securityhub.GetAdministratorAccountError>>> {
 }
 export declare const GetAdministratorAccount: GetAdministratorAccount;

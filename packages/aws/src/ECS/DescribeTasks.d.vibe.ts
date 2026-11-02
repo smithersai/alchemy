@@ -23,6 +23,6 @@ export interface DescribeTasksRequest extends Omit<ECS.DescribeTasksRequest, "cl
  *
  * @binding
  */
-export interface DescribeTasks extends Binding.Service<DescribeTasks, "AWS.ECS.DescribeTasks", (cluster: Cluster) => Effect.Effect<((request: DescribeTasksRequest) => Effect.Effect<ECS.DescribeTasksResponse, ECS.DescribeTasksError>)>> {
+export interface DescribeTasks extends Binding.Service<DescribeTasks, "AWS.ECS.DescribeTasks", (cluster: Cluster) => Effect.Effect<(request: DescribeTasksRequest) => Effect.Effect<ECS.DescribeTasksResponse, ECS.DescribeTasksError>>> {
 }
 export declare const DescribeTasks: DescribeTasks;

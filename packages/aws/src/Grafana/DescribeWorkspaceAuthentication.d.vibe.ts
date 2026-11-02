@@ -23,6 +23,6 @@ import type { Workspace } from "./Workspace.vibe";
  *
  * @binding
  */
-export interface DescribeWorkspaceAuthentication extends Binding.Service<DescribeWorkspaceAuthentication, "AWS.Grafana.DescribeWorkspaceAuthentication", (workspace: Workspace) => Effect.Effect<(() => Effect.Effect<grafana.DescribeWorkspaceAuthenticationResponse, grafana.DescribeWorkspaceAuthenticationError>)>> {
+export interface DescribeWorkspaceAuthentication extends Binding.Service<DescribeWorkspaceAuthentication, "AWS.Grafana.DescribeWorkspaceAuthentication", (workspace: Workspace) => Effect.Effect<() => Effect.Effect<grafana.DescribeWorkspaceAuthenticationResponse, grafana.DescribeWorkspaceAuthenticationError>>> {
 }
 export declare const DescribeWorkspaceAuthentication: DescribeWorkspaceAuthentication;

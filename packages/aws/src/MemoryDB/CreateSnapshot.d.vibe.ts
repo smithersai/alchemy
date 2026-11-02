@@ -21,6 +21,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface CreateSnapshot extends Binding.Service<CreateSnapshot, "AWS.MemoryDB.CreateSnapshot", (cluster: Cluster) => Effect.Effect<((request: Omit<memorydb.CreateSnapshotRequest, "ClusterName">) => Effect.Effect<memorydb.CreateSnapshotResponse, memorydb.CreateSnapshotError>)>> {
+export interface CreateSnapshot extends Binding.Service<CreateSnapshot, "AWS.MemoryDB.CreateSnapshot", (cluster: Cluster) => Effect.Effect<(request: Omit<memorydb.CreateSnapshotRequest, "ClusterName">) => Effect.Effect<memorydb.CreateSnapshotResponse, memorydb.CreateSnapshotError>>> {
 }
 export declare const CreateSnapshot: CreateSnapshot;

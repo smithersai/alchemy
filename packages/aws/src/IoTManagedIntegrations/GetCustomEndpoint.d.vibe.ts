@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetCustomEndpoint extends Binding.Service<GetCustomEndpoint, "AWS.IoTManagedIntegrations.GetCustomEndpoint", () => Effect.Effect<(() => Effect.Effect<mi.GetCustomEndpointResponse, mi.GetCustomEndpointError>)>> {
+export interface GetCustomEndpoint extends Binding.Service<GetCustomEndpoint, "AWS.IoTManagedIntegrations.GetCustomEndpoint", () => Effect.Effect<() => Effect.Effect<mi.GetCustomEndpointResponse, mi.GetCustomEndpointError>>> {
 }
 export declare const GetCustomEndpoint: GetCustomEndpoint;

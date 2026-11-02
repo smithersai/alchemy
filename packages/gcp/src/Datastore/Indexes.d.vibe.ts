@@ -1,8 +1,8 @@
 import * as datastore from "@distilled.cloud/gcp/datastore_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 import { type IndexedProperty } from "./internal.vibe";
 export type IndexAncestor = datastore.GoogleDatastoreAdminV1IndexAncestorEnum | (string & {});
 export type { IndexedProperty };

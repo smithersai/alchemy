@@ -30,6 +30,6 @@ export interface PutRecordRequest extends Omit<featurestore.PutRecordRequest, "F
  *
  * @binding
  */
-export interface PutRecord extends Binding.Service<PutRecord, "AWS.SageMaker.PutRecord", <F extends FeatureGroup>(featureGroup: F) => Effect.Effect<((request: PutRecordRequest) => Effect.Effect<featurestore.PutRecordResponse, featurestore.PutRecordError>)>> {
+export interface PutRecord extends Binding.Service<PutRecord, "AWS.SageMaker.PutRecord", <F extends FeatureGroup>(featureGroup: F) => Effect.Effect<(request: PutRecordRequest) => Effect.Effect<featurestore.PutRecordResponse, featurestore.PutRecordError>>> {
 }
 export declare const PutRecord: PutRecord;

@@ -23,7 +23,7 @@ type MetricStreams = [MetricStream, ...MetricStream[]];
  *
  * @binding
  */
-export interface StartMetricStreams extends Binding.Service<StartMetricStreams, "AWS.CloudWatch.StartMetricStreams", (...streams: MetricStreams) => Effect.Effect<(() => Effect.Effect<cloudwatch.StartMetricStreamsOutput, any>)>> {
+export interface StartMetricStreams extends Binding.Service<StartMetricStreams, "AWS.CloudWatch.StartMetricStreams", (...streams: MetricStreams) => Effect.Effect<() => Effect.Effect<cloudwatch.StartMetricStreamsOutput, any>>> {
 }
 export declare const StartMetricStreams: StartMetricStreams;
 export {};

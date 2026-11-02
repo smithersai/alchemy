@@ -64,7 +64,7 @@ export declare const replaceOnIdentity: (input: {
 /**
  * Wait for a Cloud Workstations long-running operation. Cluster creates and deletes take up to ~20 minutes.
  */
-export declare const waitForOperation: (operation: workstations.Operation) => Effect.Effect<import("../Operation.js").LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | workstations.GetProjectsLocationsOperationsError, workstations.GcpOpContext>;
+export declare const waitForOperation: (operation: workstations.Operation) => Effect.Effect<import("../Operation.ts").LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | workstations.GetProjectsLocationsOperationsError, workstations.GcpOpContext>;
 export declare const waitUntilExists: <A, E extends object, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved, R>;
 export declare const waitUntilGone: <A, E extends object, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<void, E | ResourceStillExists, R>;
 export declare const listAtLocation: <A, E extends {

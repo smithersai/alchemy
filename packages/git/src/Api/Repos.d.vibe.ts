@@ -7,7 +7,7 @@ import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 import * as HttpApiSchema from "effect/http-api/HttpApiSchema";
 import * as Schema from "effect/Schema";
-import { ImportFailed, RefNotFound, Repo, RepoAlreadyExists, RepoCreated, RepoNotFound, RepoNotReady, ValidationError } from "./Schema.js";
+import { ImportFailed, RefNotFound, Repo, RepoAlreadyExists, RepoCreated, RepoNotFound, RepoNotReady, ValidationError } from "./Schema.ts";
 /** Creates a repo owned by `owner`. */
 export declare const CreateRepo: HttpApiEndpoint.HttpApiEndpoint<"create", "POST", "/repos", never, never, Schema.toCodecJson<Schema.Struct<{
     readonly owner: Schema.String;

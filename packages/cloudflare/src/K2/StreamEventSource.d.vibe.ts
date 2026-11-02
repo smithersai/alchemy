@@ -3,7 +3,7 @@ import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import type { StartAt } from "./K2Types.vibe";
-import type { Stream as K2Stream, StreamConsumedRecord } from "./Stream.js";
+import type { Stream as K2Stream, StreamConsumedRecord } from "./Stream.ts";
 import type { Subscription } from "./Subscription.vibe";
 /** Settings for {@link consumeStreamRecords}. */
 export interface ConsumeStreamRecordsProps {

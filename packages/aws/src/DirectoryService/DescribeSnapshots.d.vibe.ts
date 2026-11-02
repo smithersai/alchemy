@@ -1,7 +1,7 @@
 import type * as ds from "@distilled.cloud/aws/directory-service";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Directory } from "./Directory.js";
+import type { Directory } from "./Directory.ts";
 /**
  * Runtime binding for the `DescribeSnapshots` operation (IAM action
  * `ds:DescribeSnapshots`), scoped to one {@link Directory}.
@@ -25,6 +25,6 @@ import type { Directory } from "./Directory.js";
  *
  * @binding
  */
-export interface DescribeSnapshots extends Binding.Service<DescribeSnapshots, "AWS.DirectoryService.DescribeSnapshots", (directory: Directory) => Effect.Effect<((request?: Omit<ds.DescribeSnapshotsRequest, "DirectoryId">) => Effect.Effect<ds.DescribeSnapshotsResult, ds.DescribeSnapshotsError>)>> {
+export interface DescribeSnapshots extends Binding.Service<DescribeSnapshots, "AWS.DirectoryService.DescribeSnapshots", (directory: Directory) => Effect.Effect<(request?: Omit<ds.DescribeSnapshotsRequest, "DirectoryId">) => Effect.Effect<ds.DescribeSnapshotsResult, ds.DescribeSnapshotsError>>> {
 }
 export declare const DescribeSnapshots: DescribeSnapshots;

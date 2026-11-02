@@ -23,4 +23,4 @@ import { WriteBucket } from "./WriteBucket.vibe";
  * );
  * ```
  */
-export declare const WriteBucketLocal: Layer.Layer<WriteBucket, never, import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const WriteBucketLocal: Layer.Layer<WriteBucket, never, import("../CloudflareEnvironmentService.ts").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;

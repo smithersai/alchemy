@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListPipes extends Binding.Service<ListPipes, "AWS.Pipes.ListPipes", () => Effect.Effect<((request?: pipes.ListPipesRequest) => Effect.Effect<pipes.ListPipesResponse, pipes.ListPipesError>)>> {
+export interface ListPipes extends Binding.Service<ListPipes, "AWS.Pipes.ListPipes", () => Effect.Effect<(request?: pipes.ListPipesRequest) => Effect.Effect<pipes.ListPipesResponse, pipes.ListPipesError>>> {
 }
 export declare const ListPipes: ListPipes;

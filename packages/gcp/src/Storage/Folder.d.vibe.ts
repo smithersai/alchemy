@@ -1,7 +1,7 @@
 import * as storage from "@distilled.cloud/gcp/storage_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type FolderProps = {
     /**
      * Name of the hierarchical-namespace bucket that contains this folder.
@@ -73,5 +73,5 @@ export declare class FolderNotResolved extends FolderNotResolved_base<{
     folderName: string;
 }> {
 }
-export declare const FolderProvider: () => import("effect/Layer").Layer<Provider.Provider<Folder>, never, import("../Environment.js").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | storage.GcpOpContext>;
+export declare const FolderProvider: () => import("effect/Layer").Layer<Provider.Provider<Folder>, never, import("../Environment.ts").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | storage.GcpOpContext>;
 export {};

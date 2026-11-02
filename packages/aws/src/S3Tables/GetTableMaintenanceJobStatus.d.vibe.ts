@@ -25,6 +25,6 @@ import type { Table } from "./Table.vibe";
  *
  * @binding
  */
-export interface GetTableMaintenanceJobStatus extends Binding.Service<GetTableMaintenanceJobStatus, "AWS.S3Tables.GetTableMaintenanceJobStatus", (table: Table) => Effect.Effect<(() => Effect.Effect<s3tables.GetTableMaintenanceJobStatusResponse, s3tables.GetTableMaintenanceJobStatusError>)>> {
+export interface GetTableMaintenanceJobStatus extends Binding.Service<GetTableMaintenanceJobStatus, "AWS.S3Tables.GetTableMaintenanceJobStatus", (table: Table) => Effect.Effect<() => Effect.Effect<s3tables.GetTableMaintenanceJobStatusResponse, s3tables.GetTableMaintenanceJobStatusError>>> {
 }
 export declare const GetTableMaintenanceJobStatus: GetTableMaintenanceJobStatus;

@@ -1,7 +1,7 @@
 import type * as NFW from "@distilled.cloud/aws/network-firewall";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface LoggingConfigurationProps {
     /**
      * ARN of the {@link Firewall} to attach the logging configuration to.

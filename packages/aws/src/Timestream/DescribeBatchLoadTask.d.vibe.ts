@@ -27,6 +27,6 @@ export interface DescribeBatchLoadTaskRequest extends TSW.DescribeBatchLoadTaskR
  *
  * @binding
  */
-export interface DescribeBatchLoadTask extends Binding.Service<DescribeBatchLoadTask, "AWS.Timestream.DescribeBatchLoadTask", () => Effect.Effect<((request: DescribeBatchLoadTaskRequest) => Effect.Effect<TSW.DescribeBatchLoadTaskResponse, TSW.DescribeBatchLoadTaskError | TSW.DescribeEndpointsError>)>> {
+export interface DescribeBatchLoadTask extends Binding.Service<DescribeBatchLoadTask, "AWS.Timestream.DescribeBatchLoadTask", () => Effect.Effect<(request: DescribeBatchLoadTaskRequest) => Effect.Effect<TSW.DescribeBatchLoadTaskResponse, TSW.DescribeBatchLoadTaskError | TSW.DescribeEndpointsError>>> {
 }
 export declare const DescribeBatchLoadTask: DescribeBatchLoadTask;

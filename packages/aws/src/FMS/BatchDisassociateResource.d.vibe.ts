@@ -27,6 +27,6 @@ export interface BatchDisassociateResourceRequest extends fms.BatchDisassociateR
  *
  * @binding
  */
-export interface BatchDisassociateResource extends Binding.Service<BatchDisassociateResource, "AWS.FMS.BatchDisassociateResource", () => Effect.Effect<((request: BatchDisassociateResourceRequest) => Effect.Effect<fms.BatchDisassociateResourceResponse, fms.BatchDisassociateResourceError>)>> {
+export interface BatchDisassociateResource extends Binding.Service<BatchDisassociateResource, "AWS.FMS.BatchDisassociateResource", () => Effect.Effect<(request: BatchDisassociateResourceRequest) => Effect.Effect<fms.BatchDisassociateResourceResponse, fms.BatchDisassociateResourceError>>> {
 }
 export declare const BatchDisassociateResource: BatchDisassociateResource;

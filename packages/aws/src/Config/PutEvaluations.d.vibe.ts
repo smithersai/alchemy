@@ -31,6 +31,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface PutEvaluations extends Binding.Service<PutEvaluations, "AWS.Config.PutEvaluations", () => Effect.Effect<((request: config.PutEvaluationsRequest) => Effect.Effect<config.PutEvaluationsResponse, config.PutEvaluationsError>)>> {
+export interface PutEvaluations extends Binding.Service<PutEvaluations, "AWS.Config.PutEvaluations", () => Effect.Effect<(request: config.PutEvaluationsRequest) => Effect.Effect<config.PutEvaluationsResponse, config.PutEvaluationsError>>> {
 }
 export declare const PutEvaluations: PutEvaluations;

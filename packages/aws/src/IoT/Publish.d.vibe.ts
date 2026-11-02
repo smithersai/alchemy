@@ -36,6 +36,6 @@ export interface PublishRequest extends iotdata.PublishRequest {
  *
  * @binding
  */
-export interface Publish extends Binding.Service<Publish, "AWS.IoT.Publish", (topicFilter?: string) => Effect.Effect<((request: PublishRequest) => Effect.Effect<iotdata.PublishResponse, iotdata.PublishError>)>> {
+export interface Publish extends Binding.Service<Publish, "AWS.IoT.Publish", (topicFilter?: string) => Effect.Effect<(request: PublishRequest) => Effect.Effect<iotdata.PublishResponse, iotdata.PublishError>>> {
 }
 export declare const Publish: Publish;

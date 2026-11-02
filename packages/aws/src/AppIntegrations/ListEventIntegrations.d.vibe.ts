@@ -21,6 +21,6 @@ export interface ListEventIntegrationsRequest extends appintegrations.ListEventI
  *
  * @binding
  */
-export interface ListEventIntegrations extends Binding.Service<ListEventIntegrations, "AWS.AppIntegrations.ListEventIntegrations", () => Effect.Effect<((request?: ListEventIntegrationsRequest) => Effect.Effect<appintegrations.ListEventIntegrationsResponse, appintegrations.ListEventIntegrationsError>)>> {
+export interface ListEventIntegrations extends Binding.Service<ListEventIntegrations, "AWS.AppIntegrations.ListEventIntegrations", () => Effect.Effect<(request?: ListEventIntegrationsRequest) => Effect.Effect<appintegrations.ListEventIntegrationsResponse, appintegrations.ListEventIntegrationsError>>> {
 }
 export declare const ListEventIntegrations: ListEventIntegrations;

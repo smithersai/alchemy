@@ -29,6 +29,6 @@ export interface GetExecutionRequest extends Omit<bcm.GetExecutionRequest, "Expo
  *
  * @binding
  */
-export interface GetExecution extends Binding.Service<GetExecution, "AWS.BCMDataExports.GetExecution", (dataExport: Export) => Effect.Effect<((request: GetExecutionRequest) => Effect.Effect<bcm.GetExecutionResponse, bcm.GetExecutionError>)>> {
+export interface GetExecution extends Binding.Service<GetExecution, "AWS.BCMDataExports.GetExecution", (dataExport: Export) => Effect.Effect<(request: GetExecutionRequest) => Effect.Effect<bcm.GetExecutionResponse, bcm.GetExecutionError>>> {
 }
 export declare const GetExecution: GetExecution;

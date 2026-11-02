@@ -29,6 +29,6 @@ export interface CancelFlowExecutionsRequest extends Omit<appflow.CancelFlowExec
  *
  * @binding
  */
-export interface CancelFlowExecutions extends Binding.Service<CancelFlowExecutions, "AWS.AppFlow.CancelFlowExecutions", (flow: Flow) => Effect.Effect<((request?: CancelFlowExecutionsRequest) => Effect.Effect<appflow.CancelFlowExecutionsResponse, appflow.CancelFlowExecutionsError>)>> {
+export interface CancelFlowExecutions extends Binding.Service<CancelFlowExecutions, "AWS.AppFlow.CancelFlowExecutions", (flow: Flow) => Effect.Effect<(request?: CancelFlowExecutionsRequest) => Effect.Effect<appflow.CancelFlowExecutionsResponse, appflow.CancelFlowExecutionsError>>> {
 }
 export declare const CancelFlowExecutions: CancelFlowExecutions;

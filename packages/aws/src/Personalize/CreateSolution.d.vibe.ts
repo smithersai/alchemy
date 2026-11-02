@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateSolution extends Binding.Service<CreateSolution, "AWS.Personalize.CreateSolution", () => Effect.Effect<((request: personalize.CreateSolutionRequest) => Effect.Effect<personalize.CreateSolutionResponse, personalize.CreateSolutionError>)>> {
+export interface CreateSolution extends Binding.Service<CreateSolution, "AWS.Personalize.CreateSolution", () => Effect.Effect<(request: personalize.CreateSolutionRequest) => Effect.Effect<personalize.CreateSolutionResponse, personalize.CreateSolutionError>>> {
 }
 export declare const CreateSolution: CreateSolution;

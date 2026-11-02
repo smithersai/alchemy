@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetPoliciesStats extends Binding.Service<GetPoliciesStats, "AWS.OpenSearchServerless.GetPoliciesStats", () => Effect.Effect<((request?: aoss.GetPoliciesStatsRequest) => Effect.Effect<aoss.GetPoliciesStatsResponse, aoss.GetPoliciesStatsError>)>> {
+export interface GetPoliciesStats extends Binding.Service<GetPoliciesStats, "AWS.OpenSearchServerless.GetPoliciesStats", () => Effect.Effect<(request?: aoss.GetPoliciesStatsRequest) => Effect.Effect<aoss.GetPoliciesStatsResponse, aoss.GetPoliciesStatsError>>> {
 }
 export declare const GetPoliciesStats: GetPoliciesStats;

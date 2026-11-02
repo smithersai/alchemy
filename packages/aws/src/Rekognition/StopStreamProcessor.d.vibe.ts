@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopStreamProcessor extends Binding.Service<StopStreamProcessor, "AWS.Rekognition.StopStreamProcessor", () => Effect.Effect<((request: rekognition.StopStreamProcessorRequest) => Effect.Effect<rekognition.StopStreamProcessorResponse, rekognition.StopStreamProcessorError>)>> {
+export interface StopStreamProcessor extends Binding.Service<StopStreamProcessor, "AWS.Rekognition.StopStreamProcessor", () => Effect.Effect<(request: rekognition.StopStreamProcessorRequest) => Effect.Effect<rekognition.StopStreamProcessorResponse, rekognition.StopStreamProcessorError>>> {
 }
 export declare const StopStreamProcessor: StopStreamProcessor;

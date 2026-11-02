@@ -23,6 +23,6 @@ export interface PublishToEndpointRequest extends Omit<sns.PublishInput, "TopicA
  *
  * @binding
  */
-export interface PublishToEndpoint extends Binding.Service<PublishToEndpoint, "AWS.SNS.PublishToEndpoint", (application: PlatformApplication) => Effect.Effect<((request: PublishToEndpointRequest) => Effect.Effect<sns.PublishResponse, sns.PublishError>)>> {
+export interface PublishToEndpoint extends Binding.Service<PublishToEndpoint, "AWS.SNS.PublishToEndpoint", (application: PlatformApplication) => Effect.Effect<(request: PublishToEndpointRequest) => Effect.Effect<sns.PublishResponse, sns.PublishError>>> {
 }
 export declare const PublishToEndpoint: PublishToEndpoint;

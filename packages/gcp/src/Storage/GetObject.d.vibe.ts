@@ -2,8 +2,8 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type { Bucket } from "./Bucket.vibe";
-import type { ObjectContent, ObjectNotFound, ObjectRequestFailed } from "./ObjectMedia.js";
-export type { ObjectContent } from "./ObjectMedia.js";
+import type { ObjectContent, ObjectNotFound, ObjectRequestFailed } from "./ObjectMedia.ts";
+export type { ObjectContent } from "./ObjectMedia.ts";
 export interface GetObjectRequest {
     /** Object name (key). */
     object: string;
@@ -29,6 +29,6 @@ export interface GetObjectRequest {
  * @binding
  * @category Storage
  */
-export interface GetObject extends Binding.Service<GetObject, "GCP.Storage.GetObject", (bucket: Bucket) => Effect.Effect<((request: GetObjectRequest) => Effect.Effect<ObjectContent, ObjectNotFound | ObjectRequestFailed, RuntimeContext>)>> {
+export interface GetObject extends Binding.Service<GetObject, "GCP.Storage.GetObject", (bucket: Bucket) => Effect.Effect<(request: GetObjectRequest) => Effect.Effect<ObjectContent, ObjectNotFound | ObjectRequestFailed, RuntimeContext>>> {
 }
 export declare const GetObject: GetObject;

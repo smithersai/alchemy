@@ -19,7 +19,7 @@ export declare const makeCloudTrailEventDataStoreHttpBinding: <I, A, E, R>(optio
     /** Fully-qualified binding tag, e.g. `AWS.CloudTrail.GetQueryResults`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the event data store ARN. */
     actions: readonly string[];
     /** Inject the bound store's ARN as the request's `EventDataStore` field. */
@@ -37,7 +37,7 @@ export declare const makeCloudTrailAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.CloudTrail.LookupEvents`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

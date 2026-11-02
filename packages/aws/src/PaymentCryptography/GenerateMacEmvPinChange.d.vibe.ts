@@ -32,6 +32,6 @@ export interface GenerateMacEmvPinChangeRequest extends Omit<paymentcryptography
  *
  * @binding
  */
-export interface GenerateMacEmvPinChange extends Binding.Service<GenerateMacEmvPinChange, "AWS.PaymentCryptography.GenerateMacEmvPinChange", <P extends Key, I extends Key, C extends Key>(newPinPek: P, secureMessagingIntegrityKey: I, secureMessagingConfidentialityKey: C) => Effect.Effect<((request: GenerateMacEmvPinChangeRequest) => Effect.Effect<paymentcryptographydata.GenerateMacEmvPinChangeOutput, paymentcryptographydata.GenerateMacEmvPinChangeError>)>> {
+export interface GenerateMacEmvPinChange extends Binding.Service<GenerateMacEmvPinChange, "AWS.PaymentCryptography.GenerateMacEmvPinChange", <P extends Key, I extends Key, C extends Key>(newPinPek: P, secureMessagingIntegrityKey: I, secureMessagingConfidentialityKey: C) => Effect.Effect<(request: GenerateMacEmvPinChangeRequest) => Effect.Effect<paymentcryptographydata.GenerateMacEmvPinChangeOutput, paymentcryptographydata.GenerateMacEmvPinChangeError>>> {
 }
 export declare const GenerateMacEmvPinChange: GenerateMacEmvPinChange;

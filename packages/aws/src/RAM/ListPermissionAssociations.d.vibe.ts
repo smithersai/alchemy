@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListPermissionAssociations extends Binding.Service<ListPermissionAssociations, "AWS.RAM.ListPermissionAssociations", () => Effect.Effect<((request?: ram.ListPermissionAssociationsRequest) => Effect.Effect<ram.ListPermissionAssociationsResponse, ram.ListPermissionAssociationsError>)>> {
+export interface ListPermissionAssociations extends Binding.Service<ListPermissionAssociations, "AWS.RAM.ListPermissionAssociations", () => Effect.Effect<(request?: ram.ListPermissionAssociationsRequest) => Effect.Effect<ram.ListPermissionAssociationsResponse, ram.ListPermissionAssociationsError>>> {
 }
 export declare const ListPermissionAssociations: ListPermissionAssociations;

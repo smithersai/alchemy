@@ -24,6 +24,6 @@ export interface GetProtectionStatusRequest extends fms.GetProtectionStatusReque
  *
  * @binding
  */
-export interface GetProtectionStatus extends Binding.Service<GetProtectionStatus, "AWS.FMS.GetProtectionStatus", () => Effect.Effect<((request: GetProtectionStatusRequest) => Effect.Effect<fms.GetProtectionStatusResponse, fms.GetProtectionStatusError>)>> {
+export interface GetProtectionStatus extends Binding.Service<GetProtectionStatus, "AWS.FMS.GetProtectionStatus", () => Effect.Effect<(request: GetProtectionStatusRequest) => Effect.Effect<fms.GetProtectionStatusResponse, fms.GetProtectionStatusError>>> {
 }
 export declare const GetProtectionStatus: GetProtectionStatus;

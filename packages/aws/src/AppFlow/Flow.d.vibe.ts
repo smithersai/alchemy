@@ -1,7 +1,7 @@
 import * as appflow from "@distilled.cloud/aws/appflow";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface FlowProps {
     /**
      * The name of the flow. Must be unique in the account/region, may contain

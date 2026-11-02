@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetStandardsControlAssociations extends Binding.Service<BatchGetStandardsControlAssociations, "AWS.SecurityHub.BatchGetStandardsControlAssociations", () => Effect.Effect<((request?: securityhub.BatchGetStandardsControlAssociationsRequest) => Effect.Effect<securityhub.BatchGetStandardsControlAssociationsResponse, securityhub.BatchGetStandardsControlAssociationsError>)>> {
+export interface BatchGetStandardsControlAssociations extends Binding.Service<BatchGetStandardsControlAssociations, "AWS.SecurityHub.BatchGetStandardsControlAssociations", () => Effect.Effect<(request?: securityhub.BatchGetStandardsControlAssociationsRequest) => Effect.Effect<securityhub.BatchGetStandardsControlAssociationsResponse, securityhub.BatchGetStandardsControlAssociationsError>>> {
 }
 export declare const BatchGetStandardsControlAssociations: BatchGetStandardsControlAssociations;

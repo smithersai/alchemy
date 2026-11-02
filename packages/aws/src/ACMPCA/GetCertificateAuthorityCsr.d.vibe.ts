@@ -25,6 +25,6 @@ import type { CertificateAuthority } from "./CertificateAuthority.vibe";
  *
  * @binding
  */
-export interface GetCertificateAuthorityCsr extends Binding.Service<GetCertificateAuthorityCsr, "AWS.ACMPCA.GetCertificateAuthorityCsr", (certificateAuthority: CertificateAuthority) => Effect.Effect<(() => Effect.Effect<acmpca.GetCertificateAuthorityCsrResponse, acmpca.GetCertificateAuthorityCsrError>)>> {
+export interface GetCertificateAuthorityCsr extends Binding.Service<GetCertificateAuthorityCsr, "AWS.ACMPCA.GetCertificateAuthorityCsr", (certificateAuthority: CertificateAuthority) => Effect.Effect<() => Effect.Effect<acmpca.GetCertificateAuthorityCsrResponse, acmpca.GetCertificateAuthorityCsrError>>> {
 }
 export declare const GetCertificateAuthorityCsr: GetCertificateAuthorityCsr;

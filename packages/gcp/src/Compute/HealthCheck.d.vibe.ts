@@ -1,8 +1,8 @@
 import * as compute from "@distilled.cloud/gcp/compute_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type HealthCheckType = "TCP" | "SSL" | "HTTP" | "HTTPS" | "HTTP2" | "GRPC" | "GRPC_WITH_TLS";
 export type HealthCheckPortSpecification = "USE_FIXED_PORT" | "USE_NAMED_PORT" | "USE_SERVING_PORT";
 export type HealthCheckProxyHeader = "NONE" | "PROXY_V1";

@@ -32,6 +32,6 @@ export interface UpdateLicenseSpecificationsForResourceRequest extends licensema
  *
  * @binding
  */
-export interface UpdateLicenseSpecificationsForResource extends Binding.Service<UpdateLicenseSpecificationsForResource, "AWS.LicenseManager.UpdateLicenseSpecificationsForResource", () => Effect.Effect<((request: UpdateLicenseSpecificationsForResourceRequest) => Effect.Effect<licensemanager.UpdateLicenseSpecificationsForResourceResponse, licensemanager.UpdateLicenseSpecificationsForResourceError>)>> {
+export interface UpdateLicenseSpecificationsForResource extends Binding.Service<UpdateLicenseSpecificationsForResource, "AWS.LicenseManager.UpdateLicenseSpecificationsForResource", () => Effect.Effect<(request: UpdateLicenseSpecificationsForResourceRequest) => Effect.Effect<licensemanager.UpdateLicenseSpecificationsForResourceResponse, licensemanager.UpdateLicenseSpecificationsForResourceError>>> {
 }
 export declare const UpdateLicenseSpecificationsForResource: UpdateLicenseSpecificationsForResource;

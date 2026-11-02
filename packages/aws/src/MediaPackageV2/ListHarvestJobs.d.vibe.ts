@@ -22,6 +22,6 @@ import type { ChannelGroup } from "./ChannelGroup.vibe";
  *
  * @binding
  */
-export interface ListHarvestJobs extends Binding.Service<ListHarvestJobs, "AWS.MediaPackageV2.ListHarvestJobs", (group: ChannelGroup) => Effect.Effect<((request?: Omit<mediapackagev2.ListHarvestJobsRequest, "ChannelGroupName">) => Effect.Effect<mediapackagev2.ListHarvestJobsResponse, mediapackagev2.ListHarvestJobsError>)>> {
+export interface ListHarvestJobs extends Binding.Service<ListHarvestJobs, "AWS.MediaPackageV2.ListHarvestJobs", (group: ChannelGroup) => Effect.Effect<(request?: Omit<mediapackagev2.ListHarvestJobsRequest, "ChannelGroupName">) => Effect.Effect<mediapackagev2.ListHarvestJobsResponse, mediapackagev2.ListHarvestJobsError>>> {
 }
 export declare const ListHarvestJobs: ListHarvestJobs;

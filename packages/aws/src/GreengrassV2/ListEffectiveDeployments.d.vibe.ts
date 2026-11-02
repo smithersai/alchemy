@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListEffectiveDeployments extends Binding.Service<ListEffectiveDeployments, "AWS.GreengrassV2.ListEffectiveDeployments", () => Effect.Effect<((request: greengrassv2.ListEffectiveDeploymentsRequest) => Effect.Effect<greengrassv2.ListEffectiveDeploymentsResponse, greengrassv2.ListEffectiveDeploymentsError>)>> {
+export interface ListEffectiveDeployments extends Binding.Service<ListEffectiveDeployments, "AWS.GreengrassV2.ListEffectiveDeployments", () => Effect.Effect<(request: greengrassv2.ListEffectiveDeploymentsRequest) => Effect.Effect<greengrassv2.ListEffectiveDeploymentsResponse, greengrassv2.ListEffectiveDeploymentsError>>> {
 }
 export declare const ListEffectiveDeployments: ListEffectiveDeployments;

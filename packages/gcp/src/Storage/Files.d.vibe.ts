@@ -2,7 +2,7 @@ import type { Input } from "alchemy/Input";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import { Object } from "./Object.js";
+import { Object } from "./Object.ts";
 export interface FilesProps {
     /** Bucket that receives the files. */
     bucketName: Input<string>;
@@ -41,4 +41,4 @@ export interface FilesProps {
  * @resource
  * @category Storage
  */
-export declare const Files: (id: string, props: FilesProps) => Effect.Effect<Object[], never, FileSystem.FileSystem | Path.Path | import("../Providers.js").Providers>;
+export declare const Files: (id: string, props: FilesProps) => Effect.Effect<Object[], never, FileSystem.FileSystem | Path.Path | import("../Providers.ts").Providers>;

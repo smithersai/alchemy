@@ -2,7 +2,7 @@ import type * as kms from "@distilled.cloud/aws/kms";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { AliasName } from "./Alias.vibe";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.ts";
 export interface GenerateMacRequest extends Omit<kms.GenerateMacRequest, "KeyId"> {
 }
 /**
@@ -27,6 +27,6 @@ export interface GenerateMacRequest extends Omit<kms.GenerateMacRequest, "KeyId"
  *
  * @binding
  */
-export interface GenerateMac extends Binding.Service<GenerateMac, "AWS.KMS.GenerateMac", (key: Key | AliasName) => Effect.Effect<((request: GenerateMacRequest) => Effect.Effect<kms.GenerateMacResponse, kms.GenerateMacError>)>> {
+export interface GenerateMac extends Binding.Service<GenerateMac, "AWS.KMS.GenerateMac", (key: Key | AliasName) => Effect.Effect<(request: GenerateMacRequest) => Effect.Effect<kms.GenerateMacResponse, kms.GenerateMacError>>> {
 }
 export declare const GenerateMac: GenerateMac;

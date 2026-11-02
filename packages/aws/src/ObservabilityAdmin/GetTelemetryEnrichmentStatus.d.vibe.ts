@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetTelemetryEnrichmentStatus extends Binding.Service<GetTelemetryEnrichmentStatus, "AWS.ObservabilityAdmin.GetTelemetryEnrichmentStatus", () => Effect.Effect<((request?: obs.GetTelemetryEnrichmentStatusRequest) => Effect.Effect<obs.GetTelemetryEnrichmentStatusOutput, obs.GetTelemetryEnrichmentStatusError>)>> {
+export interface GetTelemetryEnrichmentStatus extends Binding.Service<GetTelemetryEnrichmentStatus, "AWS.ObservabilityAdmin.GetTelemetryEnrichmentStatus", () => Effect.Effect<(request?: obs.GetTelemetryEnrichmentStatusRequest) => Effect.Effect<obs.GetTelemetryEnrichmentStatusOutput, obs.GetTelemetryEnrichmentStatusError>>> {
 }
 export declare const GetTelemetryEnrichmentStatus: GetTelemetryEnrichmentStatus;

@@ -22,6 +22,6 @@ import type { Discoverer } from "./Discoverer.vibe";
  *
  * @binding
  */
-export interface StartDiscoverer extends Binding.Service<StartDiscoverer, "AWS.Schemas.StartDiscoverer", (discoverer: Discoverer) => Effect.Effect<(() => Effect.Effect<schemas.StartDiscovererResponse, schemas.StartDiscovererError>)>> {
+export interface StartDiscoverer extends Binding.Service<StartDiscoverer, "AWS.Schemas.StartDiscoverer", (discoverer: Discoverer) => Effect.Effect<() => Effect.Effect<schemas.StartDiscovererResponse, schemas.StartDiscovererError>>> {
 }
 export declare const StartDiscoverer: StartDiscoverer;

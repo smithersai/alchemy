@@ -32,6 +32,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetPositionEstimate extends Binding.Service<GetPositionEstimate, "AWS.IoTWireless.GetPositionEstimate", () => Effect.Effect<((request: iotw.GetPositionEstimateRequest) => Effect.Effect<iotw.GetPositionEstimateResponse, iotw.GetPositionEstimateError>)>> {
+export interface GetPositionEstimate extends Binding.Service<GetPositionEstimate, "AWS.IoTWireless.GetPositionEstimate", () => Effect.Effect<(request: iotw.GetPositionEstimateRequest) => Effect.Effect<iotw.GetPositionEstimateResponse, iotw.GetPositionEstimateError>>> {
 }
 export declare const GetPositionEstimate: GetPositionEstimate;

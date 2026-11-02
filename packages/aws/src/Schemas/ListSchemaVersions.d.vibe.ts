@@ -23,11 +23,11 @@ import type { Schema } from "./Schema.vibe";
  *
  * @binding
  */
-export interface ListSchemaVersions extends Binding.Service<ListSchemaVersions, "AWS.Schemas.ListSchemaVersions", (schema: Schema) => Effect.Effect<((request?: {
+export interface ListSchemaVersions extends Binding.Service<ListSchemaVersions, "AWS.Schemas.ListSchemaVersions", (schema: Schema) => Effect.Effect<(request?: {
     /** The maximum number of versions to return per page. */
     Limit?: number;
     /** The pagination token from a previous response. */
     NextToken?: string;
-}) => Effect.Effect<schemas.ListSchemaVersionsResponse, schemas.ListSchemaVersionsError>)>> {
+}) => Effect.Effect<schemas.ListSchemaVersionsResponse, schemas.ListSchemaVersionsError>>> {
 }
 export declare const ListSchemaVersions: ListSchemaVersions;

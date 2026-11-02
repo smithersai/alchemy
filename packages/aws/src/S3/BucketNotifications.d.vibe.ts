@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Bucket } from "./Bucket.js";
-import type { S3EventType } from "./S3Event.js";
+import type { Bucket } from "./Bucket.ts";
+import type { S3EventType } from "./S3Event.ts";
 /**
  * A normalized S3 event notification record.
  */

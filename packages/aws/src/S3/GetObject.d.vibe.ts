@@ -1,7 +1,7 @@
 import * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface GetObjectRequest extends Omit<S3.GetObjectRequest, "Bucket"> {
 }
 /**
@@ -34,6 +34,6 @@ export interface GetObjectRequest extends Omit<S3.GetObjectRequest, "Bucket"> {
  *
  * @binding
  */
-export interface GetObject extends Binding.Service<GetObject, "AWS.S3.GetObject", (bucket: Bucket) => Effect.Effect<((request: GetObjectRequest) => Effect.Effect<S3.GetObjectOutput, S3.GetObjectError>)>> {
+export interface GetObject extends Binding.Service<GetObject, "AWS.S3.GetObject", (bucket: Bucket) => Effect.Effect<(request: GetObjectRequest) => Effect.Effect<S3.GetObjectOutput, S3.GetObjectError>>> {
 }
 export declare const GetObject: GetObject;

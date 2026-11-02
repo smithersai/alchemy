@@ -1,7 +1,7 @@
 import type { ReadClient } from "@alchemy.run/redis";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 /**
  * Bind a Memorystore {@link Instance} with read access.
  *

@@ -16,6 +16,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelImportTask extends Binding.Service<CancelImportTask, "AWS.NeptuneGraph.CancelImportTask", () => Effect.Effect<((request: neptunegraph.CancelImportTaskInput) => Effect.Effect<neptunegraph.CancelImportTaskOutput, neptunegraph.CancelImportTaskError>)>> {
+export interface CancelImportTask extends Binding.Service<CancelImportTask, "AWS.NeptuneGraph.CancelImportTask", () => Effect.Effect<(request: neptunegraph.CancelImportTaskInput) => Effect.Effect<neptunegraph.CancelImportTaskOutput, neptunegraph.CancelImportTaskError>>> {
 }
 export declare const CancelImportTask: CancelImportTask;

@@ -28,6 +28,6 @@ export type ListTaskInstancesInput = Omit<mwaa.ListTaskInstancesRequest, "Workfl
  *
  * @binding
  */
-export interface ListTaskInstances extends Binding.Service<ListTaskInstances, "AWS.MWAAServerless.ListTaskInstances", (workflow: Workflow) => Effect.Effect<((request: ListTaskInstancesInput) => Effect.Effect<mwaa.ListTaskInstancesResponse, mwaa.ListTaskInstancesError>)>> {
+export interface ListTaskInstances extends Binding.Service<ListTaskInstances, "AWS.MWAAServerless.ListTaskInstances", (workflow: Workflow) => Effect.Effect<(request: ListTaskInstancesInput) => Effect.Effect<mwaa.ListTaskInstancesResponse, mwaa.ListTaskInstancesError>>> {
 }
 export declare const ListTaskInstances: ListTaskInstances;

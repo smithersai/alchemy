@@ -28,6 +28,6 @@ export interface UpdateContainerInstancesStateRequest extends Omit<ECS.UpdateCon
  *
  * @binding
  */
-export interface UpdateContainerInstancesState extends Binding.Service<UpdateContainerInstancesState, "AWS.ECS.UpdateContainerInstancesState", (cluster: Cluster) => Effect.Effect<((request: UpdateContainerInstancesStateRequest) => Effect.Effect<ECS.UpdateContainerInstancesStateResponse, ECS.UpdateContainerInstancesStateError>)>> {
+export interface UpdateContainerInstancesState extends Binding.Service<UpdateContainerInstancesState, "AWS.ECS.UpdateContainerInstancesState", (cluster: Cluster) => Effect.Effect<(request: UpdateContainerInstancesStateRequest) => Effect.Effect<ECS.UpdateContainerInstancesStateResponse, ECS.UpdateContainerInstancesStateError>>> {
 }
 export declare const UpdateContainerInstancesState: UpdateContainerInstancesState;

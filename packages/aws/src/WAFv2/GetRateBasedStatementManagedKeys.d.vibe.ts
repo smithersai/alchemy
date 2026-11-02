@@ -1,7 +1,7 @@
 import type * as WAFV2 from "@distilled.cloud/aws/wafv2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { WebACL } from "./WebACL.js";
+import type { WebACL } from "./WebACL.ts";
 export interface GetRateBasedStatementManagedKeysRequest extends Omit<WAFV2.GetRateBasedStatementManagedKeysRequest, "Scope" | "WebACLName" | "WebACLId"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface GetRateBasedStatementManagedKeysRequest extends Omit<WAFV2.GetR
  *
  * @binding
  */
-export interface GetRateBasedStatementManagedKeys extends Binding.Service<GetRateBasedStatementManagedKeys, "AWS.WAFv2.GetRateBasedStatementManagedKeys", (webAcl: WebACL) => Effect.Effect<((request: GetRateBasedStatementManagedKeysRequest) => Effect.Effect<WAFV2.GetRateBasedStatementManagedKeysResponse, WAFV2.GetRateBasedStatementManagedKeysError>)>> {
+export interface GetRateBasedStatementManagedKeys extends Binding.Service<GetRateBasedStatementManagedKeys, "AWS.WAFv2.GetRateBasedStatementManagedKeys", (webAcl: WebACL) => Effect.Effect<(request: GetRateBasedStatementManagedKeysRequest) => Effect.Effect<WAFV2.GetRateBasedStatementManagedKeysResponse, WAFV2.GetRateBasedStatementManagedKeysError>>> {
 }
 export declare const GetRateBasedStatementManagedKeys: GetRateBasedStatementManagedKeys;

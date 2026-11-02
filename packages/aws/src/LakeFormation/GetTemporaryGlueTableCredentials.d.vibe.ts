@@ -32,6 +32,6 @@ export interface GetTemporaryGlueTableCredentialsRequest extends lf.GetTemporary
  *
  * @binding
  */
-export interface GetTemporaryGlueTableCredentials extends Binding.Service<GetTemporaryGlueTableCredentials, "AWS.LakeFormation.GetTemporaryGlueTableCredentials", () => Effect.Effect<((request: GetTemporaryGlueTableCredentialsRequest) => Effect.Effect<lf.GetTemporaryGlueTableCredentialsResponse, lf.GetTemporaryGlueTableCredentialsError>)>> {
+export interface GetTemporaryGlueTableCredentials extends Binding.Service<GetTemporaryGlueTableCredentials, "AWS.LakeFormation.GetTemporaryGlueTableCredentials", () => Effect.Effect<(request: GetTemporaryGlueTableCredentialsRequest) => Effect.Effect<lf.GetTemporaryGlueTableCredentialsResponse, lf.GetTemporaryGlueTableCredentialsError>>> {
 }
 export declare const GetTemporaryGlueTableCredentials: GetTemporaryGlueTableCredentials;

@@ -27,6 +27,6 @@ export interface ListDiscoveredResourcesRequest extends fms.ListDiscoveredResour
  *
  * @binding
  */
-export interface ListDiscoveredResources extends Binding.Service<ListDiscoveredResources, "AWS.FMS.ListDiscoveredResources", () => Effect.Effect<((request: ListDiscoveredResourcesRequest) => Effect.Effect<fms.ListDiscoveredResourcesResponse, fms.ListDiscoveredResourcesError>)>> {
+export interface ListDiscoveredResources extends Binding.Service<ListDiscoveredResources, "AWS.FMS.ListDiscoveredResources", () => Effect.Effect<(request: ListDiscoveredResourcesRequest) => Effect.Effect<fms.ListDiscoveredResourcesResponse, fms.ListDiscoveredResourcesError>>> {
 }
 export declare const ListDiscoveredResources: ListDiscoveredResources;

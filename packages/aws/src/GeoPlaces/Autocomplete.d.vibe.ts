@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface Autocomplete extends Binding.Service<Autocomplete, "AWS.GeoPlaces.Autocomplete", () => Effect.Effect<((request: geoPlaces.AutocompleteRequest) => Effect.Effect<geoPlaces.AutocompleteResponse, geoPlaces.AutocompleteError>)>> {
+export interface Autocomplete extends Binding.Service<Autocomplete, "AWS.GeoPlaces.Autocomplete", () => Effect.Effect<(request: geoPlaces.AutocompleteRequest) => Effect.Effect<geoPlaces.AutocompleteResponse, geoPlaces.AutocompleteError>>> {
 }
 export declare const Autocomplete: Autocomplete;

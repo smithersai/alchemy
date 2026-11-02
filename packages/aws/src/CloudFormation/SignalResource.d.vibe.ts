@@ -25,6 +25,6 @@ import type { Stack } from "./Stack.vibe";
  *
  * @binding
  */
-export interface SignalResource extends Binding.Service<SignalResource, "AWS.CloudFormation.SignalResource", (stack: Stack) => Effect.Effect<((request: Omit<cloudformation.SignalResourceInput, "StackName">) => Effect.Effect<cloudformation.SignalResourceResponse, cloudformation.SignalResourceError>)>> {
+export interface SignalResource extends Binding.Service<SignalResource, "AWS.CloudFormation.SignalResource", (stack: Stack) => Effect.Effect<(request: Omit<cloudformation.SignalResourceInput, "StackName">) => Effect.Effect<cloudformation.SignalResourceResponse, cloudformation.SignalResourceError>>> {
 }
 export declare const SignalResource: SignalResource;

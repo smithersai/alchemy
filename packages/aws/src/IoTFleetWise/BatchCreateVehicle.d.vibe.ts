@@ -29,6 +29,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchCreateVehicle extends Binding.Service<BatchCreateVehicle, "AWS.IoTFleetWise.BatchCreateVehicle", () => Effect.Effect<((request: iotfleetwise.BatchCreateVehicleRequest) => Effect.Effect<iotfleetwise.BatchCreateVehicleResponse, iotfleetwise.BatchCreateVehicleError>)>> {
+export interface BatchCreateVehicle extends Binding.Service<BatchCreateVehicle, "AWS.IoTFleetWise.BatchCreateVehicle", () => Effect.Effect<(request: iotfleetwise.BatchCreateVehicleRequest) => Effect.Effect<iotfleetwise.BatchCreateVehicleResponse, iotfleetwise.BatchCreateVehicleError>>> {
 }
 export declare const BatchCreateVehicle: BatchCreateVehicle;

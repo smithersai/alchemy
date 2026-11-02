@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface InvestigationGroupEncryptionConfiguration {
     /**
      * How investigation data is encrypted — `"AWS_OWNED_KEY"` (the default,

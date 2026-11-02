@@ -32,6 +32,6 @@ export interface ListDataAutomationLibraryEntitiesRequest extends Omit<bda.ListD
  *
  * @binding
  */
-export interface ListDataAutomationLibraryEntities extends Binding.Service<ListDataAutomationLibraryEntities, "AWS.BedrockDataAutomation.ListDataAutomationLibraryEntities", (library: DataAutomationLibrary) => Effect.Effect<((request: ListDataAutomationLibraryEntitiesRequest) => Effect.Effect<bda.ListDataAutomationLibraryEntitiesResponse, bda.ListDataAutomationLibraryEntitiesError>)>> {
+export interface ListDataAutomationLibraryEntities extends Binding.Service<ListDataAutomationLibraryEntities, "AWS.BedrockDataAutomation.ListDataAutomationLibraryEntities", (library: DataAutomationLibrary) => Effect.Effect<(request: ListDataAutomationLibraryEntitiesRequest) => Effect.Effect<bda.ListDataAutomationLibraryEntitiesResponse, bda.ListDataAutomationLibraryEntitiesError>>> {
 }
 export declare const ListDataAutomationLibraryEntities: ListDataAutomationLibraryEntities;

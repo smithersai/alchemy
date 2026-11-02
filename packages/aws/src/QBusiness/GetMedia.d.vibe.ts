@@ -26,6 +26,6 @@ export interface GetMediaRequest extends Omit<qbusiness.GetMediaRequest, "applic
  *
  * @binding
  */
-export interface GetMedia extends Binding.Service<GetMedia, "AWS.QBusiness.GetMedia", (application: Application) => Effect.Effect<((request: GetMediaRequest) => Effect.Effect<qbusiness.GetMediaResponse, qbusiness.GetMediaError>)>> {
+export interface GetMedia extends Binding.Service<GetMedia, "AWS.QBusiness.GetMedia", (application: Application) => Effect.Effect<(request: GetMediaRequest) => Effect.Effect<qbusiness.GetMediaResponse, qbusiness.GetMediaError>>> {
 }
 export declare const GetMedia: GetMedia;

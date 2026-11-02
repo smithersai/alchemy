@@ -20,6 +20,6 @@ export interface GetJobQueueSnapshotRequest extends Omit<batch.GetJobQueueSnapsh
  *
  * @binding
  */
-export interface GetJobQueueSnapshot extends Binding.Service<GetJobQueueSnapshot, "AWS.Batch.GetJobQueueSnapshot", (queue: JobQueue) => Effect.Effect<((request?: GetJobQueueSnapshotRequest) => Effect.Effect<batch.GetJobQueueSnapshotResponse, batch.GetJobQueueSnapshotError>)>> {
+export interface GetJobQueueSnapshot extends Binding.Service<GetJobQueueSnapshot, "AWS.Batch.GetJobQueueSnapshot", (queue: JobQueue) => Effect.Effect<(request?: GetJobQueueSnapshotRequest) => Effect.Effect<batch.GetJobQueueSnapshotResponse, batch.GetJobQueueSnapshotError>>> {
 }
 export declare const GetJobQueueSnapshot: GetJobQueueSnapshot;

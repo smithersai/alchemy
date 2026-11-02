@@ -33,6 +33,6 @@ export interface ExportApiRequest extends Partial<Omit<agw2.ExportApiRequest, "A
  *
  * @binding
  */
-export interface ExportApi extends Binding.Service<ExportApi, "AWS.ApiGatewayV2.ExportApi", <A extends Api>(api: A) => Effect.Effect<((request?: ExportApiRequest) => Effect.Effect<agw2.ExportApiResponse, agw2.ExportApiError>)>> {
+export interface ExportApi extends Binding.Service<ExportApi, "AWS.ApiGatewayV2.ExportApi", <A extends Api>(api: A) => Effect.Effect<(request?: ExportApiRequest) => Effect.Effect<agw2.ExportApiResponse, agw2.ExportApiError>>> {
 }
 export declare const ExportApi: ExportApi;

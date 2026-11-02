@@ -44,7 +44,7 @@ export declare const makeMWAAEnvironmentHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MWAA.CreateCliToken`. */
     tag: string;
     /** The distilled operation; `Name` is injected from the environment. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the environment ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(environment: Environment) => Effect.Effect<(request?: Omit<I, "Name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -63,7 +63,7 @@ export declare const makeMWAAAirflowRoleHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.MWAA.InvokeRestApi`. */
     tag: string;
     /** The distilled operation; `Name` is injected from the environment. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the Airflow role ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(environment: Environment, roleOptions?: AirflowRoleOptions | undefined) => Effect.Effect<(request?: Omit<I, "Name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

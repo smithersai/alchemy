@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetDataAutomationStatus extends Binding.Service<GetDataAutomationStatus, "AWS.BedrockDataAutomation.GetDataAutomationStatus", () => Effect.Effect<((request: bdar.GetDataAutomationStatusRequest) => Effect.Effect<bdar.GetDataAutomationStatusResponse, bdar.GetDataAutomationStatusError>)>> {
+export interface GetDataAutomationStatus extends Binding.Service<GetDataAutomationStatus, "AWS.BedrockDataAutomation.GetDataAutomationStatus", () => Effect.Effect<(request: bdar.GetDataAutomationStatusRequest) => Effect.Effect<bdar.GetDataAutomationStatusResponse, bdar.GetDataAutomationStatusError>>> {
 }
 export declare const GetDataAutomationStatus: GetDataAutomationStatus;

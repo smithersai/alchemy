@@ -25,6 +25,6 @@ export interface ListCostAllocationTagsRequest extends ce.ListCostAllocationTags
  *
  * @binding
  */
-export interface ListCostAllocationTags extends Binding.Service<ListCostAllocationTags, "AWS.CostExplorer.ListCostAllocationTags", () => Effect.Effect<((request?: ListCostAllocationTagsRequest) => Effect.Effect<ce.ListCostAllocationTagsResponse, ce.ListCostAllocationTagsError>)>> {
+export interface ListCostAllocationTags extends Binding.Service<ListCostAllocationTags, "AWS.CostExplorer.ListCostAllocationTags", () => Effect.Effect<(request?: ListCostAllocationTagsRequest) => Effect.Effect<ce.ListCostAllocationTagsResponse, ce.ListCostAllocationTagsError>>> {
 }
 export declare const ListCostAllocationTags: ListCostAllocationTags;

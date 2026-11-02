@@ -24,6 +24,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface DescribeOrganizationConfiguration extends Binding.Service<DescribeOrganizationConfiguration, "AWS.Detective.DescribeOrganizationConfiguration", (graph: Graph) => Effect.Effect<(() => Effect.Effect<detective.DescribeOrganizationConfigurationResponse, detective.DescribeOrganizationConfigurationError>)>> {
+export interface DescribeOrganizationConfiguration extends Binding.Service<DescribeOrganizationConfiguration, "AWS.Detective.DescribeOrganizationConfiguration", (graph: Graph) => Effect.Effect<() => Effect.Effect<detective.DescribeOrganizationConfigurationResponse, detective.DescribeOrganizationConfigurationError>>> {
 }
 export declare const DescribeOrganizationConfiguration: DescribeOrganizationConfiguration;

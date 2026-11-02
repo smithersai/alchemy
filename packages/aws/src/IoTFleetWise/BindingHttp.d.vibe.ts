@@ -23,7 +23,7 @@ export declare const makeFleetWiseResourceHttpBinding: <Res extends ResourceLike
     /** Fully-qualified binding tag, e.g. `AWS.IoTFleetWise.GetVehicleStatus`. */
     tag: string;
     /** The distilled operation; the identifier is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `resources`. */
     actions: readonly string[];
     /** The request field the bound resource's identifier is injected as. */
@@ -49,7 +49,7 @@ export declare const makeFleetWiseAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.IoTFleetWise.ListVehicles`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `resources`. */
     actions: readonly string[];
     /**

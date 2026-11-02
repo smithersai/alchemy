@@ -34,6 +34,6 @@ import type { Certificate } from "./Certificate.vibe";
  *
  * @binding
  */
-export interface GetCertificate extends Binding.Service<GetCertificate, "AWS.ACM.GetCertificate", (certificate: Certificate) => Effect.Effect<(() => Effect.Effect<acm.GetCertificateResponse, acm.GetCertificateError>)>> {
+export interface GetCertificate extends Binding.Service<GetCertificate, "AWS.ACM.GetCertificate", (certificate: Certificate) => Effect.Effect<() => Effect.Effect<acm.GetCertificateResponse, acm.GetCertificateError>>> {
 }
 export declare const GetCertificate: GetCertificate;

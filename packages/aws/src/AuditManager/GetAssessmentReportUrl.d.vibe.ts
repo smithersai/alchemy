@@ -20,6 +20,6 @@ export interface GetAssessmentReportUrlRequest extends Omit<auditmanager.GetAsse
  *
  * @binding
  */
-export interface GetAssessmentReportUrl extends Binding.Service<GetAssessmentReportUrl, "AWS.AuditManager.GetAssessmentReportUrl", (assessment: Assessment) => Effect.Effect<((request: GetAssessmentReportUrlRequest) => Effect.Effect<auditmanager.GetAssessmentReportUrlResponse, auditmanager.GetAssessmentReportUrlError>)>> {
+export interface GetAssessmentReportUrl extends Binding.Service<GetAssessmentReportUrl, "AWS.AuditManager.GetAssessmentReportUrl", (assessment: Assessment) => Effect.Effect<(request: GetAssessmentReportUrlRequest) => Effect.Effect<auditmanager.GetAssessmentReportUrlResponse, auditmanager.GetAssessmentReportUrlError>>> {
 }
 export declare const GetAssessmentReportUrl: GetAssessmentReportUrl;

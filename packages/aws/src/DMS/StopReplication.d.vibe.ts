@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopReplication extends Binding.Service<StopReplication, "AWS.DMS.StopReplication", () => Effect.Effect<((request: dms.StopReplicationMessage) => Effect.Effect<dms.StopReplicationResponse, dms.StopReplicationError>)>> {
+export interface StopReplication extends Binding.Service<StopReplication, "AWS.DMS.StopReplication", () => Effect.Effect<(request: dms.StopReplicationMessage) => Effect.Effect<dms.StopReplicationResponse, dms.StopReplicationError>>> {
 }
 export declare const StopReplication: StopReplication;

@@ -27,6 +27,6 @@ export interface GeneratePinDataRequest extends Omit<paymentcryptographydata.Gen
  *
  * @binding
  */
-export interface GeneratePinData extends Binding.Service<GeneratePinData, "AWS.PaymentCryptography.GeneratePinData", <G extends Key, E extends Key>(generationKey: G, encryptionKey: E) => Effect.Effect<((request: GeneratePinDataRequest) => Effect.Effect<paymentcryptographydata.GeneratePinDataOutput, paymentcryptographydata.GeneratePinDataError>)>> {
+export interface GeneratePinData extends Binding.Service<GeneratePinData, "AWS.PaymentCryptography.GeneratePinData", <G extends Key, E extends Key>(generationKey: G, encryptionKey: E) => Effect.Effect<(request: GeneratePinDataRequest) => Effect.Effect<paymentcryptographydata.GeneratePinDataOutput, paymentcryptographydata.GeneratePinDataError>>> {
 }
 export declare const GeneratePinData: GeneratePinData;

@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ValidatePolicy extends Binding.Service<ValidatePolicy, "AWS.AccessAnalyzer.ValidatePolicy", () => Effect.Effect<((request: aa.ValidatePolicyRequest) => Effect.Effect<aa.ValidatePolicyResponse, aa.ValidatePolicyError>)>> {
+export interface ValidatePolicy extends Binding.Service<ValidatePolicy, "AWS.AccessAnalyzer.ValidatePolicy", () => Effect.Effect<(request: aa.ValidatePolicyRequest) => Effect.Effect<aa.ValidatePolicyResponse, aa.ValidatePolicyError>>> {
 }
 export declare const ValidatePolicy: ValidatePolicy;

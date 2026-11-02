@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `BatchDeleteDocument` request with `IndexId` injected from the bound index.
  */
@@ -26,6 +26,6 @@ export interface BatchDeleteDocumentRequest extends Omit<kendra.BatchDeleteDocum
  *
  * @binding
  */
-export interface BatchDeleteDocument extends Binding.Service<BatchDeleteDocument, "AWS.Kendra.BatchDeleteDocument", (index: Index) => Effect.Effect<((request: BatchDeleteDocumentRequest) => Effect.Effect<kendra.BatchDeleteDocumentResponse, kendra.BatchDeleteDocumentError>)>> {
+export interface BatchDeleteDocument extends Binding.Service<BatchDeleteDocument, "AWS.Kendra.BatchDeleteDocument", (index: Index) => Effect.Effect<(request: BatchDeleteDocumentRequest) => Effect.Effect<kendra.BatchDeleteDocumentResponse, kendra.BatchDeleteDocumentError>>> {
 }
 export declare const BatchDeleteDocument: BatchDeleteDocument;

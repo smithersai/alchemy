@@ -1,7 +1,7 @@
 import * as baremetalsolution from "@distilled.cloud/gcp/baremetalsolution_v2";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { createInternalLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.js";
+import { createInternalLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.ts";
 export declare const MAX_NAME_LENGTH = 63;
 export declare const DEFAULT_SIZE_GIB = "100";
 export declare const DEFAULT_STORAGE_TYPE = "SSD";
@@ -88,7 +88,7 @@ export declare const isDeletingState: (state: string | undefined) => boolean;
  */
 export declare const waitForOperation: (operation: baremetalsolution.Operation, options?: {
     notFoundOk?: boolean;
-}) => Effect.Effect<void, baremetalsolution.Forbidden | baremetalsolution.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | baremetalsolution.ServiceDisabled | baremetalsolution.GcpOpError, baremetalsolution.GcpOpContext>;
+}) => Effect.Effect<void, baremetalsolution.Forbidden | baremetalsolution.NotFound | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | baremetalsolution.ServiceDisabled | baremetalsolution.GcpOpError, baremetalsolution.GcpOpContext>;
 export declare const waitUntilExists: <A, E, R>(get: Effect.Effect<A, E, R>, name: string) => Effect.Effect<Exclude<A, undefined>, E | ResourceNotResolved, R>;
 export declare const waitUntilGone: <A, E, R>(get: Effect.Effect<A, E, R>, name: string) => Effect.Effect<void, E | ResourceStillExists, R>;
 export declare const waitUntilReady: <A, E, R>(get: Effect.Effect<A, E, R>, name: string, stateOf: (value: Exclude<A, undefined>) => string | undefined, detailsOf?: (value: Exclude<A, undefined>) => string | undefined, options?: {

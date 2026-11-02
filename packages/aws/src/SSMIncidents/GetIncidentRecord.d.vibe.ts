@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetIncidentRecord extends Binding.Service<GetIncidentRecord, "AWS.SSMIncidents.GetIncidentRecord", () => Effect.Effect<((request: incidents.GetIncidentRecordInput) => Effect.Effect<incidents.GetIncidentRecordOutput, incidents.GetIncidentRecordError>)>> {
+export interface GetIncidentRecord extends Binding.Service<GetIncidentRecord, "AWS.SSMIncidents.GetIncidentRecord", () => Effect.Effect<(request: incidents.GetIncidentRecordInput) => Effect.Effect<incidents.GetIncidentRecordOutput, incidents.GetIncidentRecordError>>> {
 }
 export declare const GetIncidentRecord: GetIncidentRecord;

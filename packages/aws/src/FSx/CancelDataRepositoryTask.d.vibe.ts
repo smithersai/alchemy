@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelDataRepositoryTask extends Binding.Service<CancelDataRepositoryTask, "AWS.FSx.CancelDataRepositoryTask", () => Effect.Effect<((request: fsx.CancelDataRepositoryTaskRequest) => Effect.Effect<fsx.CancelDataRepositoryTaskResponse, fsx.CancelDataRepositoryTaskError>)>> {
+export interface CancelDataRepositoryTask extends Binding.Service<CancelDataRepositoryTask, "AWS.FSx.CancelDataRepositoryTask", () => Effect.Effect<(request: fsx.CancelDataRepositoryTaskRequest) => Effect.Effect<fsx.CancelDataRepositoryTaskResponse, fsx.CancelDataRepositoryTaskError>>> {
 }
 export declare const CancelDataRepositoryTask: CancelDataRepositoryTask;

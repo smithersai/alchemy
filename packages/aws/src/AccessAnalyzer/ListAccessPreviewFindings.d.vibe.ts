@@ -1,7 +1,7 @@
 import type * as aa from "@distilled.cloud/aws/accessanalyzer";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Analyzer } from "./Analyzer.js";
+import type { Analyzer } from "./Analyzer.ts";
 /** `ListAccessPreviewFindings` request with `analyzerArn` injected from the bound {@link Analyzer}. */
 export interface ListAccessPreviewFindingsRequest extends Omit<aa.ListAccessPreviewFindingsRequest, "analyzerArn"> {
 }
@@ -21,6 +21,6 @@ export interface ListAccessPreviewFindingsRequest extends Omit<aa.ListAccessPrev
  *
  * @binding
  */
-export interface ListAccessPreviewFindings extends Binding.Service<ListAccessPreviewFindings, "AWS.AccessAnalyzer.ListAccessPreviewFindings", (analyzer: Analyzer) => Effect.Effect<((request: ListAccessPreviewFindingsRequest) => Effect.Effect<aa.ListAccessPreviewFindingsResponse, aa.ListAccessPreviewFindingsError>)>> {
+export interface ListAccessPreviewFindings extends Binding.Service<ListAccessPreviewFindings, "AWS.AccessAnalyzer.ListAccessPreviewFindings", (analyzer: Analyzer) => Effect.Effect<(request: ListAccessPreviewFindingsRequest) => Effect.Effect<aa.ListAccessPreviewFindingsResponse, aa.ListAccessPreviewFindingsError>>> {
 }
 export declare const ListAccessPreviewFindings: ListAccessPreviewFindings;

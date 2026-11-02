@@ -16,6 +16,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface RetryBuild extends Binding.Service<RetryBuild, "AWS.CodeBuild.RetryBuild", <P extends Project>(project: P) => Effect.Effect<((request: SVC.RetryBuildInput) => Effect.Effect<SVC.RetryBuildOutput, SVC.RetryBuildError>)>> {
+export interface RetryBuild extends Binding.Service<RetryBuild, "AWS.CodeBuild.RetryBuild", <P extends Project>(project: P) => Effect.Effect<(request: SVC.RetryBuildInput) => Effect.Effect<SVC.RetryBuildOutput, SVC.RetryBuildError>>> {
 }
 export declare const RetryBuild: RetryBuild;

@@ -26,6 +26,6 @@ import type { User } from "./User.vibe";
  *
  * @binding
  */
-export interface DeleteSshPublicKey extends Binding.Service<DeleteSshPublicKey, "AWS.Transfer.DeleteSshPublicKey", (user: User) => Effect.Effect<((request: Omit<transfer.DeleteSshPublicKeyRequest, "ServerId" | "UserName">) => Effect.Effect<transfer.DeleteSshPublicKeyResponse, transfer.DeleteSshPublicKeyError>)>> {
+export interface DeleteSshPublicKey extends Binding.Service<DeleteSshPublicKey, "AWS.Transfer.DeleteSshPublicKey", (user: User) => Effect.Effect<(request: Omit<transfer.DeleteSshPublicKeyRequest, "ServerId" | "UserName">) => Effect.Effect<transfer.DeleteSshPublicKeyResponse, transfer.DeleteSshPublicKeyError>>> {
 }
 export declare const DeleteSshPublicKey: DeleteSshPublicKey;

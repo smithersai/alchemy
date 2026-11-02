@@ -39,6 +39,6 @@ export interface BatchUpdateMemoryRecordsRequest extends Omit<agentcore.BatchUpd
  *
  * @binding
  */
-export interface BatchUpdateMemoryRecords extends Binding.Service<BatchUpdateMemoryRecords, "AWS.BedrockAgentCore.BatchUpdateMemoryRecords", <R extends Memory>(memory: R) => Effect.Effect<((request: BatchUpdateMemoryRecordsRequest) => Effect.Effect<agentcore.BatchUpdateMemoryRecordsOutput, agentcore.BatchUpdateMemoryRecordsError>)>> {
+export interface BatchUpdateMemoryRecords extends Binding.Service<BatchUpdateMemoryRecords, "AWS.BedrockAgentCore.BatchUpdateMemoryRecords", <R extends Memory>(memory: R) => Effect.Effect<(request: BatchUpdateMemoryRecordsRequest) => Effect.Effect<agentcore.BatchUpdateMemoryRecordsOutput, agentcore.BatchUpdateMemoryRecordsError>>> {
 }
 export declare const BatchUpdateMemoryRecords: BatchUpdateMemoryRecords;

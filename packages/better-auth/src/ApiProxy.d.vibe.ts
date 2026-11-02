@@ -1,6 +1,6 @@
 import type { RuntimeContext } from "alchemy";
 import * as Effect from "effect/Effect";
-import { BetterAuthApiError } from "./Errors.js";
+import { BetterAuthApiError } from "./Errors.ts";
 /**
  * Every `auth.api.*` endpoint mirrored as an Effect: same arguments, same
  * success type, with the thrown `APIError` surfaced as a typed

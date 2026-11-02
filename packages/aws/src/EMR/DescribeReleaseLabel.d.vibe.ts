@@ -15,6 +15,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeReleaseLabel extends Binding.Service<DescribeReleaseLabel, "AWS.EMR.DescribeReleaseLabel", () => Effect.Effect<((request?: SVC.DescribeReleaseLabelInput) => Effect.Effect<SVC.DescribeReleaseLabelOutput, SVC.DescribeReleaseLabelError>)>> {
+export interface DescribeReleaseLabel extends Binding.Service<DescribeReleaseLabel, "AWS.EMR.DescribeReleaseLabel", () => Effect.Effect<(request?: SVC.DescribeReleaseLabelInput) => Effect.Effect<SVC.DescribeReleaseLabelOutput, SVC.DescribeReleaseLabelError>>> {
 }
 export declare const DescribeReleaseLabel: DescribeReleaseLabel;

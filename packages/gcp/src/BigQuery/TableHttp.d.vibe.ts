@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam } from "../HttpBinding.js";
+import { type BindingIam } from "../HttpBinding.ts";
 import { type ReadTableClient } from "./ReadTable.vibe";
 import type { Table } from "./Table.vibe";
 import { type WriteTableClient } from "./WriteTable.vibe";

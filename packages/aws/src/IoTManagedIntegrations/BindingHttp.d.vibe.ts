@@ -24,7 +24,7 @@ export declare const makeManagedThingHttpBinding: <I extends object, A, E, R, K 
     /** IAM actions granted on the bound managed thing's ARN. */
     iamActions: readonly string[];
     /** The distilled operation; the field named `key` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** Request field that carries the bound thing's id. */
     key: K;
 }) => Effect.Effect<(thing: ManagedThing) => Effect.Effect<(request?: Omit<I, K> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -44,5 +44,5 @@ export declare const makeManagedIntegrationsHttpBinding: <I extends object, A, E
     /** IAM actions granted on `Resource: ["*"]`. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

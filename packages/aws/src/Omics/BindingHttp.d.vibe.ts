@@ -24,7 +24,7 @@ export declare const makeOmicsResourceHttpBinding: <Res extends ResourceLike, K 
     /** Fully-qualified binding tag, e.g. `AWS.Omics.GetReadSet`. */
     tag: string;
     /** The distilled operation; the resource id is injected under `key`. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the resource ARN. */
     actions: readonly string[];
     /** The request field the resource id is injected under. */
@@ -52,7 +52,7 @@ export declare const makeOmicsAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Omics.GetRun`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

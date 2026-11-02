@@ -24,6 +24,6 @@ import type { Archive } from "./Archive.vibe";
  *
  * @binding
  */
-export interface StartArchiveSearch extends Binding.Service<StartArchiveSearch, "AWS.MailManager.StartArchiveSearch", (archive: Archive) => Effect.Effect<((request: Omit<mm.StartArchiveSearchRequest, "ArchiveId">) => Effect.Effect<mm.StartArchiveSearchResponse, mm.StartArchiveSearchError>)>> {
+export interface StartArchiveSearch extends Binding.Service<StartArchiveSearch, "AWS.MailManager.StartArchiveSearch", (archive: Archive) => Effect.Effect<(request: Omit<mm.StartArchiveSearchRequest, "ArchiveId">) => Effect.Effect<mm.StartArchiveSearchResponse, mm.StartArchiveSearchError>>> {
 }
 export declare const StartArchiveSearch: StartArchiveSearch;

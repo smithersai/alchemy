@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetResourceConfigHistory extends Binding.Service<GetResourceConfigHistory, "AWS.Config.GetResourceConfigHistory", () => Effect.Effect<((request: config.GetResourceConfigHistoryRequest) => Effect.Effect<config.GetResourceConfigHistoryResponse, config.GetResourceConfigHistoryError>)>> {
+export interface GetResourceConfigHistory extends Binding.Service<GetResourceConfigHistory, "AWS.Config.GetResourceConfigHistory", () => Effect.Effect<(request: config.GetResourceConfigHistoryRequest) => Effect.Effect<config.GetResourceConfigHistoryResponse, config.GetResourceConfigHistoryError>>> {
 }
 export declare const GetResourceConfigHistory: GetResourceConfigHistory;

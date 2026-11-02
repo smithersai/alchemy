@@ -20,6 +20,6 @@ export interface DisassociateAssessmentReportEvidenceFolderRequest extends Omit<
  *
  * @binding
  */
-export interface DisassociateAssessmentReportEvidenceFolder extends Binding.Service<DisassociateAssessmentReportEvidenceFolder, "AWS.AuditManager.DisassociateAssessmentReportEvidenceFolder", (assessment: Assessment) => Effect.Effect<((request: DisassociateAssessmentReportEvidenceFolderRequest) => Effect.Effect<auditmanager.DisassociateAssessmentReportEvidenceFolderResponse, auditmanager.DisassociateAssessmentReportEvidenceFolderError>)>> {
+export interface DisassociateAssessmentReportEvidenceFolder extends Binding.Service<DisassociateAssessmentReportEvidenceFolder, "AWS.AuditManager.DisassociateAssessmentReportEvidenceFolder", (assessment: Assessment) => Effect.Effect<(request: DisassociateAssessmentReportEvidenceFolderRequest) => Effect.Effect<auditmanager.DisassociateAssessmentReportEvidenceFolderResponse, auditmanager.DisassociateAssessmentReportEvidenceFolderError>>> {
 }
 export declare const DisassociateAssessmentReportEvidenceFolder: DisassociateAssessmentReportEvidenceFolder;

@@ -19,7 +19,7 @@ export declare const makeSecurityLakeDataLakeHttpBinding: <I, A, E, R>(options: 
     /** Fully-qualified binding tag, e.g. `AWS.SecurityLake.GetDataLakeSources`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the data lake ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(lake: DataLake) => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

@@ -29,6 +29,6 @@ export interface GetAnomaliesRequest extends Omit<ce.GetAnomaliesRequest, "Monit
  *
  * @binding
  */
-export interface GetAnomalies extends Binding.Service<GetAnomalies, "AWS.CostExplorer.GetAnomalies", (monitor: AnomalyMonitor) => Effect.Effect<((request: GetAnomaliesRequest) => Effect.Effect<ce.GetAnomaliesResponse, ce.GetAnomaliesError>)>> {
+export interface GetAnomalies extends Binding.Service<GetAnomalies, "AWS.CostExplorer.GetAnomalies", (monitor: AnomalyMonitor) => Effect.Effect<(request: GetAnomaliesRequest) => Effect.Effect<ce.GetAnomaliesResponse, ce.GetAnomaliesError>>> {
 }
 export declare const GetAnomalies: GetAnomalies;

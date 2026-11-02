@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface AcceptAdministratorInvitation extends Binding.Service<AcceptAdministratorInvitation, "AWS.SecurityHub.AcceptAdministratorInvitation", () => Effect.Effect<((request?: securityhub.AcceptAdministratorInvitationRequest) => Effect.Effect<securityhub.AcceptAdministratorInvitationResponse, securityhub.AcceptAdministratorInvitationError>)>> {
+export interface AcceptAdministratorInvitation extends Binding.Service<AcceptAdministratorInvitation, "AWS.SecurityHub.AcceptAdministratorInvitation", () => Effect.Effect<(request?: securityhub.AcceptAdministratorInvitationRequest) => Effect.Effect<securityhub.AcceptAdministratorInvitationResponse, securityhub.AcceptAdministratorInvitationError>>> {
 }
 export declare const AcceptAdministratorInvitation: AcceptAdministratorInvitation;

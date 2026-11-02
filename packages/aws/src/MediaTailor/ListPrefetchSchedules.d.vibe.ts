@@ -26,6 +26,6 @@ export interface ListPrefetchSchedulesRequest extends Omit<mediatailor.ListPrefe
  *
  * @binding
  */
-export interface ListPrefetchSchedules extends Binding.Service<ListPrefetchSchedules, "AWS.MediaTailor.ListPrefetchSchedules", (config: PlaybackConfiguration) => Effect.Effect<((request: ListPrefetchSchedulesRequest) => Effect.Effect<mediatailor.ListPrefetchSchedulesResponse, mediatailor.ListPrefetchSchedulesError>)>> {
+export interface ListPrefetchSchedules extends Binding.Service<ListPrefetchSchedules, "AWS.MediaTailor.ListPrefetchSchedules", (config: PlaybackConfiguration) => Effect.Effect<(request: ListPrefetchSchedulesRequest) => Effect.Effect<mediatailor.ListPrefetchSchedulesResponse, mediatailor.ListPrefetchSchedulesError>>> {
 }
 export declare const ListPrefetchSchedules: ListPrefetchSchedules;

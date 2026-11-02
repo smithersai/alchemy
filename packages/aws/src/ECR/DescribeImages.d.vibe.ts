@@ -24,6 +24,6 @@ export interface DescribeImagesRequest extends Omit<ecr.DescribeImagesRequest, "
  *
  * @binding
  */
-export interface DescribeImages extends Binding.Service<DescribeImages, "AWS.ECR.DescribeImages", (repository: Repository) => Effect.Effect<((request?: DescribeImagesRequest) => Effect.Effect<ecr.DescribeImagesResponse, ecr.DescribeImagesError>)>> {
+export interface DescribeImages extends Binding.Service<DescribeImages, "AWS.ECR.DescribeImages", (repository: Repository) => Effect.Effect<(request?: DescribeImagesRequest) => Effect.Effect<ecr.DescribeImagesResponse, ecr.DescribeImagesError>>> {
 }
 export declare const DescribeImages: DescribeImages;

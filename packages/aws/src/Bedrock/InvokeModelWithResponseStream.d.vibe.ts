@@ -58,6 +58,6 @@ export interface InvokeModelWithResponseStreamRequest extends Omit<bedrock.Invok
  *
  * @binding
  */
-export interface InvokeModelWithResponseStream extends Binding.Service<InvokeModelWithResponseStream, "AWS.Bedrock.InvokeModelWithResponseStream", (model: string, ...additionalModels: string[]) => Effect.Effect<((request: InvokeModelWithResponseStreamRequest) => Effect.Effect<bedrock.InvokeModelWithResponseStreamResponse, bedrock.InvokeModelWithResponseStreamError>)>> {
+export interface InvokeModelWithResponseStream extends Binding.Service<InvokeModelWithResponseStream, "AWS.Bedrock.InvokeModelWithResponseStream", (model: string, ...additionalModels: string[]) => Effect.Effect<(request: InvokeModelWithResponseStreamRequest) => Effect.Effect<bedrock.InvokeModelWithResponseStreamResponse, bedrock.InvokeModelWithResponseStreamError>>> {
 }
 export declare const InvokeModelWithResponseStream: InvokeModelWithResponseStream;

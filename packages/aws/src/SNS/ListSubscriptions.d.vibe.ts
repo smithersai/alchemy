@@ -26,6 +26,6 @@ export interface ListSubscriptionsRequest extends sns.ListSubscriptionsInput {
  *
  * @binding
  */
-export interface ListSubscriptions extends Binding.Service<ListSubscriptions, "AWS.SNS.ListSubscriptions", () => Effect.Effect<((request?: ListSubscriptionsRequest) => Effect.Effect<sns.ListSubscriptionsResponse, sns.ListSubscriptionsError>)>> {
+export interface ListSubscriptions extends Binding.Service<ListSubscriptions, "AWS.SNS.ListSubscriptions", () => Effect.Effect<(request?: ListSubscriptionsRequest) => Effect.Effect<sns.ListSubscriptionsResponse, sns.ListSubscriptionsError>>> {
 }
 export declare const ListSubscriptions: ListSubscriptions;

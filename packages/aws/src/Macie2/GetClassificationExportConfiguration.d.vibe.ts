@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetClassificationExportConfiguration extends Binding.Service<GetClassificationExportConfiguration, "AWS.Macie2.GetClassificationExportConfiguration", () => Effect.Effect<((request?: macie2.GetClassificationExportConfigurationRequest) => Effect.Effect<macie2.GetClassificationExportConfigurationResponse, macie2.GetClassificationExportConfigurationError>)>> {
+export interface GetClassificationExportConfiguration extends Binding.Service<GetClassificationExportConfiguration, "AWS.Macie2.GetClassificationExportConfiguration", () => Effect.Effect<(request?: macie2.GetClassificationExportConfigurationRequest) => Effect.Effect<macie2.GetClassificationExportConfigurationResponse, macie2.GetClassificationExportConfigurationError>>> {
 }
 export declare const GetClassificationExportConfiguration: GetClassificationExportConfiguration;

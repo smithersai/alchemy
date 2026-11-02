@@ -2,7 +2,7 @@ import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
 import type { Bucket } from "./Bucket.vibe";
 import type { ReadBucketClient } from "./ReadBucket.vibe";
-import type { StorageBindingOptions } from "./StorageBinding.js";
+import type { StorageBindingOptions } from "./StorageBinding.ts";
 import type { WriteBucketClient } from "./WriteBucket.vibe";
 export interface ReadWriteBucketClient extends ReadBucketClient, WriteBucketClient {
 }

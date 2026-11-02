@@ -26,6 +26,6 @@ export interface GetPolicyRequest extends Omit<qbusiness.GetPolicyRequest, "appl
  *
  * @binding
  */
-export interface GetPolicy extends Binding.Service<GetPolicy, "AWS.QBusiness.GetPolicy", (application: Application) => Effect.Effect<((request?: GetPolicyRequest) => Effect.Effect<qbusiness.GetPolicyResponse, qbusiness.GetPolicyError>)>> {
+export interface GetPolicy extends Binding.Service<GetPolicy, "AWS.QBusiness.GetPolicy", (application: Application) => Effect.Effect<(request?: GetPolicyRequest) => Effect.Effect<qbusiness.GetPolicyResponse, qbusiness.GetPolicyError>>> {
 }
 export declare const GetPolicy: GetPolicy;

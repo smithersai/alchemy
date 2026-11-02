@@ -40,6 +40,6 @@ export interface WriteRecordsRequest extends Omit<TSW.WriteRecordsRequest, "Data
  *
  * @binding
  */
-export interface WriteRecords extends Binding.Service<WriteRecords, "AWS.Timestream.WriteRecords", (table: Table) => Effect.Effect<((request: WriteRecordsRequest) => Effect.Effect<TSW.WriteRecordsResponse, TSW.WriteRecordsError | TSW.DescribeEndpointsError>)>> {
+export interface WriteRecords extends Binding.Service<WriteRecords, "AWS.Timestream.WriteRecords", (table: Table) => Effect.Effect<(request: WriteRecordsRequest) => Effect.Effect<TSW.WriteRecordsResponse, TSW.WriteRecordsError | TSW.DescribeEndpointsError>>> {
 }
 export declare const WriteRecords: WriteRecords;

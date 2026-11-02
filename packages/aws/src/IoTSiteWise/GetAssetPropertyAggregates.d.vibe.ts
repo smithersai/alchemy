@@ -39,6 +39,6 @@ export interface GetAssetPropertyAggregatesRequest extends Omit<sitewise.GetAsse
  *
  * @binding
  */
-export interface GetAssetPropertyAggregates extends Binding.Service<GetAssetPropertyAggregates, "AWS.IoTSiteWise.GetAssetPropertyAggregates", (asset: Asset) => Effect.Effect<((request: GetAssetPropertyAggregatesRequest) => Effect.Effect<sitewise.GetAssetPropertyAggregatesResponse, sitewise.GetAssetPropertyAggregatesError>)>> {
+export interface GetAssetPropertyAggregates extends Binding.Service<GetAssetPropertyAggregates, "AWS.IoTSiteWise.GetAssetPropertyAggregates", (asset: Asset) => Effect.Effect<(request: GetAssetPropertyAggregatesRequest) => Effect.Effect<sitewise.GetAssetPropertyAggregatesResponse, sitewise.GetAssetPropertyAggregatesError>>> {
 }
 export declare const GetAssetPropertyAggregates: GetAssetPropertyAggregates;

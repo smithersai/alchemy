@@ -22,6 +22,6 @@ import type { Certificate } from "./Certificate.vibe";
  *
  * @binding
  */
-export interface RenewCertificate extends Binding.Service<RenewCertificate, "AWS.ACM.RenewCertificate", (certificate: Certificate) => Effect.Effect<(() => Effect.Effect<acm.RenewCertificateResponse, acm.RenewCertificateError>)>> {
+export interface RenewCertificate extends Binding.Service<RenewCertificate, "AWS.ACM.RenewCertificate", (certificate: Certificate) => Effect.Effect<() => Effect.Effect<acm.RenewCertificateResponse, acm.RenewCertificateError>>> {
 }
 export declare const RenewCertificate: RenewCertificate;

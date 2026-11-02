@@ -1,7 +1,7 @@
 import type lambda from "aws-lambda";
 import * as Layer from "effect/Layer";
 import { WebSocketEventSource as AGW2WebSocketEventSource } from "../ApiGatewayV2/WebSocketEventSource.vibe";
-import * as Lambda from "./Function.js";
+import * as Lambda from "./Function.ts";
 export declare const isWebSocketEvent: (event: any) => event is lambda.APIGatewayProxyWebsocketEventV2;
 /**
  * Connects a WebSocket API route to the current Lambda function.

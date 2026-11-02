@@ -29,6 +29,6 @@ export interface DescribePackageVersionRequest extends Omit<codeartifact.Describ
  *
  * @binding
  */
-export interface DescribePackageVersion extends Binding.Service<DescribePackageVersion, "AWS.CodeArtifact.DescribePackageVersion", (repository: Repository) => Effect.Effect<((request: DescribePackageVersionRequest) => Effect.Effect<codeartifact.DescribePackageVersionResult, codeartifact.DescribePackageVersionError>)>> {
+export interface DescribePackageVersion extends Binding.Service<DescribePackageVersion, "AWS.CodeArtifact.DescribePackageVersion", (repository: Repository) => Effect.Effect<(request: DescribePackageVersionRequest) => Effect.Effect<codeartifact.DescribePackageVersionResult, codeartifact.DescribePackageVersionError>>> {
 }
 export declare const DescribePackageVersion: DescribePackageVersion;

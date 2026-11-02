@@ -26,6 +26,6 @@ import type { Workspace } from "./Workspace.vibe";
  *
  * @binding
  */
-export interface ListWorkspaceServiceAccountTokens extends Binding.Service<ListWorkspaceServiceAccountTokens, "AWS.Grafana.ListWorkspaceServiceAccountTokens", (workspace: Workspace) => Effect.Effect<((request: Omit<grafana.ListWorkspaceServiceAccountTokensRequest, "workspaceId">) => Effect.Effect<grafana.ListWorkspaceServiceAccountTokensResponse, grafana.ListWorkspaceServiceAccountTokensError>)>> {
+export interface ListWorkspaceServiceAccountTokens extends Binding.Service<ListWorkspaceServiceAccountTokens, "AWS.Grafana.ListWorkspaceServiceAccountTokens", (workspace: Workspace) => Effect.Effect<(request: Omit<grafana.ListWorkspaceServiceAccountTokensRequest, "workspaceId">) => Effect.Effect<grafana.ListWorkspaceServiceAccountTokensResponse, grafana.ListWorkspaceServiceAccountTokensError>>> {
 }
 export declare const ListWorkspaceServiceAccountTokens: ListWorkspaceServiceAccountTokens;

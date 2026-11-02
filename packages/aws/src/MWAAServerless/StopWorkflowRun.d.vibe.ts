@@ -25,6 +25,6 @@ export type StopWorkflowRunInput = Omit<mwaa.StopWorkflowRunRequest, "WorkflowAr
  *
  * @binding
  */
-export interface StopWorkflowRun extends Binding.Service<StopWorkflowRun, "AWS.MWAAServerless.StopWorkflowRun", (workflow: Workflow) => Effect.Effect<((request: StopWorkflowRunInput) => Effect.Effect<mwaa.StopWorkflowRunResponse, mwaa.StopWorkflowRunError>)>> {
+export interface StopWorkflowRun extends Binding.Service<StopWorkflowRun, "AWS.MWAAServerless.StopWorkflowRun", (workflow: Workflow) => Effect.Effect<(request: StopWorkflowRunInput) => Effect.Effect<mwaa.StopWorkflowRunResponse, mwaa.StopWorkflowRunError>>> {
 }
 export declare const StopWorkflowRun: StopWorkflowRun;

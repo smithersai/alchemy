@@ -1,7 +1,7 @@
 import type lambda from "aws-lambda";
 import * as Layer from "effect/Layer";
 import { RestApiEventSource as AGRestApiEventSource } from "../ApiGateway/RestApiEventSource.vibe";
-import * as Lambda from "./Function.js";
+import * as Lambda from "./Function.ts";
 export declare const isRestApiEvent: (event: any) => event is lambda.APIGatewayProxyEvent;
 /**
  * Connects a REST API (v1) route to the current Lambda function.

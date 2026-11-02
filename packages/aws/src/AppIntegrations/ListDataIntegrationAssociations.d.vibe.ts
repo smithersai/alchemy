@@ -25,6 +25,6 @@ export interface ListDataIntegrationAssociationsRequest extends Omit<appintegrat
  *
  * @binding
  */
-export interface ListDataIntegrationAssociations extends Binding.Service<ListDataIntegrationAssociations, "AWS.AppIntegrations.ListDataIntegrationAssociations", <R extends DataIntegration>(integration: R) => Effect.Effect<((request?: ListDataIntegrationAssociationsRequest) => Effect.Effect<appintegrations.ListDataIntegrationAssociationsResponse, appintegrations.ListDataIntegrationAssociationsError>)>> {
+export interface ListDataIntegrationAssociations extends Binding.Service<ListDataIntegrationAssociations, "AWS.AppIntegrations.ListDataIntegrationAssociations", <R extends DataIntegration>(integration: R) => Effect.Effect<(request?: ListDataIntegrationAssociationsRequest) => Effect.Effect<appintegrations.ListDataIntegrationAssociationsResponse, appintegrations.ListDataIntegrationAssociationsError>>> {
 }
 export declare const ListDataIntegrationAssociations: ListDataIntegrationAssociations;

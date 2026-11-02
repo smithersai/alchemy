@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetExperiment extends Binding.Service<GetExperiment, "AWS.FIS.GetExperiment", () => Effect.Effect<((request: fis.GetExperimentRequest) => Effect.Effect<fis.GetExperimentResponse, fis.GetExperimentError>)>> {
+export interface GetExperiment extends Binding.Service<GetExperiment, "AWS.FIS.GetExperiment", () => Effect.Effect<(request: fis.GetExperimentRequest) => Effect.Effect<fis.GetExperimentResponse, fis.GetExperimentError>>> {
 }
 export declare const GetExperiment: GetExperiment;

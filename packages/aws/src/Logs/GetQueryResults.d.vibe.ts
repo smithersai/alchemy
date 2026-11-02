@@ -1,7 +1,7 @@
 import type * as Logs from "@distilled.cloud/aws/cloudwatch-logs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LogGroup } from "./LogGroup.js";
+import type { LogGroup } from "./LogGroup.ts";
 export interface GetQueryResultsRequest extends Logs.GetQueryResultsRequest {
 }
 /**
@@ -54,6 +54,6 @@ export interface GetQueryResultsRequest extends Logs.GetQueryResultsRequest {
  *
  * @binding
  */
-export interface GetQueryResults extends Binding.Service<GetQueryResults, "AWS.Logs.GetQueryResults", <G extends LogGroup>(logGroup: G) => Effect.Effect<((request: GetQueryResultsRequest) => Effect.Effect<Logs.GetQueryResultsResponse, Logs.GetQueryResultsError>)>> {
+export interface GetQueryResults extends Binding.Service<GetQueryResults, "AWS.Logs.GetQueryResults", <G extends LogGroup>(logGroup: G) => Effect.Effect<(request: GetQueryResultsRequest) => Effect.Effect<Logs.GetQueryResultsResponse, Logs.GetQueryResultsError>>> {
 }
 export declare const GetQueryResults: GetQueryResults;

@@ -25,6 +25,6 @@ import type { Connection } from "./Connection.vibe";
  *
  * @binding
  */
-export interface GetConnection extends Binding.Service<GetConnection, "AWS.CodeConnections.GetConnection", (connection: Connection) => Effect.Effect<(() => Effect.Effect<codeconnections.GetConnectionOutput, codeconnections.GetConnectionError>)>> {
+export interface GetConnection extends Binding.Service<GetConnection, "AWS.CodeConnections.GetConnection", (connection: Connection) => Effect.Effect<() => Effect.Effect<codeconnections.GetConnectionOutput, codeconnections.GetConnectionError>>> {
 }
 export declare const GetConnection: GetConnection;

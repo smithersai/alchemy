@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchStartViewerSessionRevocation extends Binding.Service<BatchStartViewerSessionRevocation, "AWS.IVS.BatchStartViewerSessionRevocation", () => Effect.Effect<((request: ivs.BatchStartViewerSessionRevocationRequest) => Effect.Effect<ivs.BatchStartViewerSessionRevocationResponse, ivs.BatchStartViewerSessionRevocationError>)>> {
+export interface BatchStartViewerSessionRevocation extends Binding.Service<BatchStartViewerSessionRevocation, "AWS.IVS.BatchStartViewerSessionRevocation", () => Effect.Effect<(request: ivs.BatchStartViewerSessionRevocationRequest) => Effect.Effect<ivs.BatchStartViewerSessionRevocationResponse, ivs.BatchStartViewerSessionRevocationError>>> {
 }
 export declare const BatchStartViewerSessionRevocation: BatchStartViewerSessionRevocation;

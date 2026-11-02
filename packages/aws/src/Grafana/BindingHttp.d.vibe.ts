@@ -16,7 +16,7 @@ export declare const makeGrafanaAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Grafana.ListVersions`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -31,7 +31,7 @@ export declare const makeGrafanaWorkspaceHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Grafana.ListPermissions`. */
     tag: string;
     /** The distilled operation; `workspaceId` is injected from the workspace. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the workspace ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(workspace: Workspace) => Effect.Effect<(request?: Omit<I, "workspaceId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

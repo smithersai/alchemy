@@ -1,8 +1,8 @@
 import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type RedactionStrategy = "REDACTION_STRATEGY_UNSPECIFIED" | "REDACT_WITH_SERVICE";
 export type RedactionScope = "REDACTION_SCOPE_UNSPECIFIED" | "REDACT_DISK_STORAGE";
 export type RetentionStrategy = "RETENTION_STRATEGY_UNSPECIFIED" | "REMOVE_AFTER_CONVERSATION";

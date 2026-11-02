@@ -22,6 +22,6 @@ import type { Rule } from "./Rule.vibe";
  *
  * @binding
  */
-export interface EnableRule extends Binding.Service<EnableRule, "AWS.EventBridge.EnableRule", (rule: Rule) => Effect.Effect<(() => Effect.Effect<eventbridge.EnableRuleResponse, eventbridge.EnableRuleError>)>> {
+export interface EnableRule extends Binding.Service<EnableRule, "AWS.EventBridge.EnableRule", (rule: Rule) => Effect.Effect<() => Effect.Effect<eventbridge.EnableRuleResponse, eventbridge.EnableRuleError>>> {
 }
 export declare const EnableRule: EnableRule;

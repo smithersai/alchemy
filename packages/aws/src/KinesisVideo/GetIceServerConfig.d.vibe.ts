@@ -46,6 +46,6 @@ export interface GetIceServerConfigRequest extends Omit<kvs.GetIceServerConfigRe
  *
  * @binding
  */
-export interface GetIceServerConfig extends Binding.Service<GetIceServerConfig, "AWS.KinesisVideo.GetIceServerConfig", <C extends SignalingChannel>(channel: C) => Effect.Effect<((request?: GetIceServerConfigRequest) => Effect.Effect<kvs.GetIceServerConfigResponse, kvs.GetIceServerConfigError | kv.GetSignalingChannelEndpointError | SignalingEndpointUnavailable>)>> {
+export interface GetIceServerConfig extends Binding.Service<GetIceServerConfig, "AWS.KinesisVideo.GetIceServerConfig", <C extends SignalingChannel>(channel: C) => Effect.Effect<(request?: GetIceServerConfigRequest) => Effect.Effect<kvs.GetIceServerConfigResponse, kvs.GetIceServerConfigError | kv.GetSignalingChannelEndpointError | SignalingEndpointUnavailable>>> {
 }
 export declare const GetIceServerConfig: GetIceServerConfig;

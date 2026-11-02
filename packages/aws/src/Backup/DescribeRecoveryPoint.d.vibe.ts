@@ -29,6 +29,6 @@ export interface DescribeRecoveryPointRequest extends Omit<backup.DescribeRecove
  *
  * @binding
  */
-export interface DescribeRecoveryPoint extends Binding.Service<DescribeRecoveryPoint, "AWS.Backup.DescribeRecoveryPoint", (vault: BackupVault) => Effect.Effect<((request: DescribeRecoveryPointRequest) => Effect.Effect<backup.DescribeRecoveryPointOutput, backup.DescribeRecoveryPointError>)>> {
+export interface DescribeRecoveryPoint extends Binding.Service<DescribeRecoveryPoint, "AWS.Backup.DescribeRecoveryPoint", (vault: BackupVault) => Effect.Effect<(request: DescribeRecoveryPointRequest) => Effect.Effect<backup.DescribeRecoveryPointOutput, backup.DescribeRecoveryPointError>>> {
 }
 export declare const DescribeRecoveryPoint: DescribeRecoveryPoint;

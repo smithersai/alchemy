@@ -21,6 +21,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface ListCoverage extends Binding.Service<ListCoverage, "AWS.GuardDuty.ListCoverage", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.ListCoverageRequest, "DetectorId">) => Effect.Effect<guardduty.ListCoverageResponse, guardduty.ListCoverageError>)>> {
+export interface ListCoverage extends Binding.Service<ListCoverage, "AWS.GuardDuty.ListCoverage", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.ListCoverageRequest, "DetectorId">) => Effect.Effect<guardduty.ListCoverageResponse, guardduty.ListCoverageError>>> {
 }
 export declare const ListCoverage: ListCoverage;

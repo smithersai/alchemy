@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAttacks extends Binding.Service<ListAttacks, "AWS.Shield.ListAttacks", () => Effect.Effect<((request?: shield.ListAttacksRequest) => Effect.Effect<shield.ListAttacksResponse, shield.ListAttacksError>)>> {
+export interface ListAttacks extends Binding.Service<ListAttacks, "AWS.Shield.ListAttacks", () => Effect.Effect<(request?: shield.ListAttacksRequest) => Effect.Effect<shield.ListAttacksResponse, shield.ListAttacksError>>> {
 }
 export declare const ListAttacks: ListAttacks;

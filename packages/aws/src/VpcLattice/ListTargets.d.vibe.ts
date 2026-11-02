@@ -29,6 +29,6 @@ export interface ListTargetsRequest extends Omit<vpclattice.ListTargetsRequest, 
  *
  * @binding
  */
-export interface ListTargets extends Binding.Service<ListTargets, "AWS.VpcLattice.ListTargets", (targetGroup: TargetGroup) => Effect.Effect<((request: ListTargetsRequest) => Effect.Effect<vpclattice.ListTargetsResponse, vpclattice.ListTargetsError>)>> {
+export interface ListTargets extends Binding.Service<ListTargets, "AWS.VpcLattice.ListTargets", (targetGroup: TargetGroup) => Effect.Effect<(request: ListTargetsRequest) => Effect.Effect<vpclattice.ListTargetsResponse, vpclattice.ListTargetsError>>> {
 }
 export declare const ListTargets: ListTargets;

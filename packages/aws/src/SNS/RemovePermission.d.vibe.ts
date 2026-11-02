@@ -24,6 +24,6 @@ export interface RemovePermissionRequest extends Omit<sns.RemovePermissionInput,
  *
  * @binding
  */
-export interface RemovePermission extends Binding.Service<RemovePermission, "AWS.SNS.RemovePermission", (topic: Topic) => Effect.Effect<((request: RemovePermissionRequest) => Effect.Effect<sns.RemovePermissionResponse, sns.RemovePermissionError>)>> {
+export interface RemovePermission extends Binding.Service<RemovePermission, "AWS.SNS.RemovePermission", (topic: Topic) => Effect.Effect<(request: RemovePermissionRequest) => Effect.Effect<sns.RemovePermissionResponse, sns.RemovePermissionError>>> {
 }
 export declare const RemovePermission: RemovePermission;

@@ -27,6 +27,6 @@ export interface BatchAssociateResourceRequest extends fms.BatchAssociateResourc
  *
  * @binding
  */
-export interface BatchAssociateResource extends Binding.Service<BatchAssociateResource, "AWS.FMS.BatchAssociateResource", () => Effect.Effect<((request: BatchAssociateResourceRequest) => Effect.Effect<fms.BatchAssociateResourceResponse, fms.BatchAssociateResourceError>)>> {
+export interface BatchAssociateResource extends Binding.Service<BatchAssociateResource, "AWS.FMS.BatchAssociateResource", () => Effect.Effect<(request: BatchAssociateResourceRequest) => Effect.Effect<fms.BatchAssociateResourceResponse, fms.BatchAssociateResourceError>>> {
 }
 export declare const BatchAssociateResource: BatchAssociateResource;

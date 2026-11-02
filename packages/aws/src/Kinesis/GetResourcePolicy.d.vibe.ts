@@ -24,6 +24,6 @@ export interface GetResourcePolicyRequest extends Omit<Kinesis.GetResourcePolicy
  *
  * @binding
  */
-export interface GetResourcePolicy extends Binding.Service<GetResourcePolicy, "AWS.Kinesis.GetResourcePolicy", (stream: Stream) => Effect.Effect<((request?: GetResourcePolicyRequest) => Effect.Effect<Kinesis.GetResourcePolicyOutput, Kinesis.GetResourcePolicyError>)>> {
+export interface GetResourcePolicy extends Binding.Service<GetResourcePolicy, "AWS.Kinesis.GetResourcePolicy", (stream: Stream) => Effect.Effect<(request?: GetResourcePolicyRequest) => Effect.Effect<Kinesis.GetResourcePolicyOutput, Kinesis.GetResourcePolicyError>>> {
 }
 export declare const GetResourcePolicy: GetResourcePolicy;

@@ -1,7 +1,7 @@
 import * as turso from "@distilled.cloud/turso/turso";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { type SqlTokenAttributes, type SqlTokenProps } from "./DatabaseToken.js";
+import { type SqlTokenAttributes, type SqlTokenProps } from "./DatabaseToken.ts";
 import type { Providers } from "./Providers.vibe";
 declare const GroupTokenUnexpectedResponse_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "GroupTokenUnexpectedResponse";
@@ -52,5 +52,5 @@ export type GroupToken = Resource<"Turso.GroupToken", GroupTokenProps, GroupToke
  * @product Group
  */
 export declare const GroupToken: import("alchemy/Resource").ResourceClass<GroupToken>;
-export declare const GroupTokenProvider: () => import("effect/Layer").Layer<Provider.Provider<GroupToken>, never, import("./Credentials.js").Organization | turso.TursoOpContext>;
+export declare const GroupTokenProvider: () => import("effect/Layer").Layer<Provider.Provider<GroupToken>, never, import("./Credentials.ts").Organization | turso.TursoOpContext>;
 export {};

@@ -36,6 +36,6 @@ export interface GetOperationDetailRequest extends route53domains.GetOperationDe
  *
  * @binding
  */
-export interface GetOperationDetail extends Binding.Service<GetOperationDetail, "AWS.Route53Domains.GetOperationDetail", () => Effect.Effect<((request: GetOperationDetailRequest) => Effect.Effect<route53domains.GetOperationDetailResponse, route53domains.GetOperationDetailError>)>> {
+export interface GetOperationDetail extends Binding.Service<GetOperationDetail, "AWS.Route53Domains.GetOperationDetail", () => Effect.Effect<(request: GetOperationDetailRequest) => Effect.Effect<route53domains.GetOperationDetailResponse, route53domains.GetOperationDetailError>>> {
 }
 export declare const GetOperationDetail: GetOperationDetail;

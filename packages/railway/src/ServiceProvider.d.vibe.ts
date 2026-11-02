@@ -2,9 +2,9 @@ import { AlchemyContext } from "alchemy/AlchemyContext";
 import * as Provider from "alchemy/Provider";
 import { Stack } from "alchemy/Stack";
 import type * as Types from "effect/Types";
-import { Service } from "./Service.js";
-export { ServiceRegionNotApplied } from "./ServiceRegion.js";
-export { ServiceContextPathInvalid, ServiceContextPathUnsupported, ServiceContextSymlinkUnsupported, ServiceContextTooLarge, ServiceDockerfileOutsideContext, ServiceDockerfilePathInvalid, ServiceImageOrMainRequired, ServiceSourceInvalid, } from "./local-context.js";
+import { Service } from "./Service.ts";
+export { ServiceRegionNotApplied } from "./ServiceRegion.ts";
+export { ServiceContextPathInvalid, ServiceContextPathUnsupported, ServiceContextSymlinkUnsupported, ServiceContextTooLarge, ServiceDockerfileOutsideContext, ServiceDockerfilePathInvalid, ServiceImageOrMainRequired, ServiceSourceInvalid, } from "./local-context.ts";
 declare const ServiceNotCreated_base: new <A extends Record<string, any> = {}>(args: Types.VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "Railway.ServiceNotCreated";
 } & Readonly<A>;
@@ -31,4 +31,4 @@ export declare class ServiceDeployFailed extends ServiceDeployFailed_base<{
 }> {
     get message(): string;
 }
-export declare const ServiceProvider: () => import("effect/Layer").Layer<Provider.Provider<Service>, never, AlchemyContext | import("effect/process/ChildProcessSpawner").ChildProcessSpawner | import("effect/FileSystem").FileSystem | import("@distilled.cloud/railway").GqlTransport | import("effect/http/HttpClient").HttpClient | import("effect/Path").Path | import("./Environment.js").RailwayEnvironment | import("effect/Scope").Scope | Stack | import("alchemy/Stage").Stage>;
+export declare const ServiceProvider: () => import("effect/Layer").Layer<Provider.Provider<Service>, never, AlchemyContext | import("effect/process/ChildProcessSpawner").ChildProcessSpawner | import("effect/FileSystem").FileSystem | import("@distilled.cloud/railway").GqlTransport | import("effect/http/HttpClient").HttpClient | import("effect/Path").Path | import("./Environment.ts").RailwayEnvironment | import("effect/Scope").Scope | Stack | import("alchemy/Stage").Stage>;

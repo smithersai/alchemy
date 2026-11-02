@@ -1,7 +1,7 @@
 import type { DnsRecord, DnsRecordType } from "alchemy/DNS/Adapter";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface RecordListProps {
     /**
      * Hosted zone that owns every record. When omitted, each record's zone

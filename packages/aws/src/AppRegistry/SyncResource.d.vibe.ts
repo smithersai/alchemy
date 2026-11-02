@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SyncResource extends Binding.Service<SyncResource, "AWS.AppRegistry.SyncResource", () => Effect.Effect<((request: appregistry.SyncResourceRequest) => Effect.Effect<appregistry.SyncResourceResponse, appregistry.SyncResourceError>)>> {
+export interface SyncResource extends Binding.Service<SyncResource, "AWS.AppRegistry.SyncResource", () => Effect.Effect<(request: appregistry.SyncResourceRequest) => Effect.Effect<appregistry.SyncResourceResponse, appregistry.SyncResourceError>>> {
 }
 export declare const SyncResource: SyncResource;

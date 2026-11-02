@@ -22,6 +22,6 @@ export interface StartRunRequest extends Omit<omics.StartRunRequest, "workflowId
  *
  * @binding
  */
-export interface StartRun extends Binding.Service<StartRun, "AWS.Omics.StartRun", (workflow: Workflow) => Effect.Effect<((request?: StartRunRequest) => Effect.Effect<omics.StartRunResponse, omics.StartRunError>)>> {
+export interface StartRun extends Binding.Service<StartRun, "AWS.Omics.StartRun", (workflow: Workflow) => Effect.Effect<(request?: StartRunRequest) => Effect.Effect<omics.StartRunResponse, omics.StartRunError>>> {
 }
 export declare const StartRun: StartRun;

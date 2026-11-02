@@ -1,7 +1,7 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Effect from "effect/Effect";
 import { RegistryConfig } from "./Bindings.vibe";
-import * as GitHub from "./GitHub.js";
+import * as GitHub from "./GitHub.ts";
 /**
  * Expiry sweep. Tags tied to pull requests are extended while any of those
  * pull requests is open and pinned to the latest close time plus TTL once

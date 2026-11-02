@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteIncidentRecord extends Binding.Service<DeleteIncidentRecord, "AWS.SSMIncidents.DeleteIncidentRecord", () => Effect.Effect<((request: incidents.DeleteIncidentRecordInput) => Effect.Effect<incidents.DeleteIncidentRecordOutput, incidents.DeleteIncidentRecordError>)>> {
+export interface DeleteIncidentRecord extends Binding.Service<DeleteIncidentRecord, "AWS.SSMIncidents.DeleteIncidentRecord", () => Effect.Effect<(request: incidents.DeleteIncidentRecordInput) => Effect.Effect<incidents.DeleteIncidentRecordOutput, incidents.DeleteIncidentRecordError>>> {
 }
 export declare const DeleteIncidentRecord: DeleteIncidentRecord;

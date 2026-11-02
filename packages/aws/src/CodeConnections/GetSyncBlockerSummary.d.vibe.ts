@@ -24,6 +24,6 @@ import type { SyncConfiguration } from "./SyncConfiguration.vibe";
  *
  * @binding
  */
-export interface GetSyncBlockerSummary extends Binding.Service<GetSyncBlockerSummary, "AWS.CodeConnections.GetSyncBlockerSummary", (syncConfiguration: SyncConfiguration) => Effect.Effect<(() => Effect.Effect<codeconnections.GetSyncBlockerSummaryOutput, codeconnections.GetSyncBlockerSummaryError>)>> {
+export interface GetSyncBlockerSummary extends Binding.Service<GetSyncBlockerSummary, "AWS.CodeConnections.GetSyncBlockerSummary", (syncConfiguration: SyncConfiguration) => Effect.Effect<() => Effect.Effect<codeconnections.GetSyncBlockerSummaryOutput, codeconnections.GetSyncBlockerSummaryError>>> {
 }
 export declare const GetSyncBlockerSummary: GetSyncBlockerSummary;

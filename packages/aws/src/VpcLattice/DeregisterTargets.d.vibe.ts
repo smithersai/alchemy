@@ -25,6 +25,6 @@ export interface DeregisterTargetsRequest extends Omit<vpclattice.DeregisterTarg
  *
  * @binding
  */
-export interface DeregisterTargets extends Binding.Service<DeregisterTargets, "AWS.VpcLattice.DeregisterTargets", (targetGroup: TargetGroup) => Effect.Effect<((request: DeregisterTargetsRequest) => Effect.Effect<vpclattice.DeregisterTargetsResponse, vpclattice.DeregisterTargetsError>)>> {
+export interface DeregisterTargets extends Binding.Service<DeregisterTargets, "AWS.VpcLattice.DeregisterTargets", (targetGroup: TargetGroup) => Effect.Effect<(request: DeregisterTargetsRequest) => Effect.Effect<vpclattice.DeregisterTargetsResponse, vpclattice.DeregisterTargetsError>>> {
 }
 export declare const DeregisterTargets: DeregisterTargets;

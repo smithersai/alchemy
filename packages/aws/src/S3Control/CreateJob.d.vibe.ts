@@ -36,6 +36,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateJob extends Binding.Service<CreateJob, "AWS.S3Control.CreateJob", () => Effect.Effect<((request: Omit<s3control.CreateJobRequest, "AccountId">) => Effect.Effect<s3control.CreateJobResult, s3control.CreateJobError | sts.GetCallerIdentityError>)>> {
+export interface CreateJob extends Binding.Service<CreateJob, "AWS.S3Control.CreateJob", () => Effect.Effect<(request: Omit<s3control.CreateJobRequest, "AccountId">) => Effect.Effect<s3control.CreateJobResult, s3control.CreateJobError | sts.GetCallerIdentityError>>> {
 }
 export declare const CreateJob: CreateJob;

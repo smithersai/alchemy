@@ -32,6 +32,6 @@ export interface GetDataAutomationLibraryEntityRequest extends Omit<bda.GetDataA
  *
  * @binding
  */
-export interface GetDataAutomationLibraryEntity extends Binding.Service<GetDataAutomationLibraryEntity, "AWS.BedrockDataAutomation.GetDataAutomationLibraryEntity", (library: DataAutomationLibrary) => Effect.Effect<((request: GetDataAutomationLibraryEntityRequest) => Effect.Effect<bda.GetDataAutomationLibraryEntityResponse, bda.GetDataAutomationLibraryEntityError>)>> {
+export interface GetDataAutomationLibraryEntity extends Binding.Service<GetDataAutomationLibraryEntity, "AWS.BedrockDataAutomation.GetDataAutomationLibraryEntity", (library: DataAutomationLibrary) => Effect.Effect<(request: GetDataAutomationLibraryEntityRequest) => Effect.Effect<bda.GetDataAutomationLibraryEntityResponse, bda.GetDataAutomationLibraryEntityError>>> {
 }
 export declare const GetDataAutomationLibraryEntity: GetDataAutomationLibraryEntity;

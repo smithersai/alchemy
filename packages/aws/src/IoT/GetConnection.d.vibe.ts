@@ -21,6 +21,6 @@ export interface GetConnectionRequest extends iotdata.GetConnectionRequest {
  *
  * @binding
  */
-export interface GetConnection extends Binding.Service<GetConnection, "AWS.IoT.GetConnection", (clientIdFilter?: string) => Effect.Effect<((request: GetConnectionRequest) => Effect.Effect<iotdata.GetConnectionResponse, iotdata.GetConnectionError>)>> {
+export interface GetConnection extends Binding.Service<GetConnection, "AWS.IoT.GetConnection", (clientIdFilter?: string) => Effect.Effect<(request: GetConnectionRequest) => Effect.Effect<iotdata.GetConnectionResponse, iotdata.GetConnectionError>>> {
 }
 export declare const GetConnection: GetConnection;

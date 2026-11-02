@@ -25,6 +25,6 @@ export interface ExecuteQueryRequest extends Omit<firebasedataconnect.ExecuteQue
  * @binding
  * @category FirebaseDataConnect
  */
-export interface ExecuteQuery extends Binding.Service<ExecuteQuery, "GCP.FirebaseDataConnect.ExecuteQuery", (connector: ServicesConnector) => Effect.Effect<((request: ExecuteQueryRequest) => Effect.Effect<firebasedataconnect.ExecuteQueryResponse, firebasedataconnect.ExecuteQueryProjectsLocationsServicesConnectorsError, RuntimeContext>)>> {
+export interface ExecuteQuery extends Binding.Service<ExecuteQuery, "GCP.FirebaseDataConnect.ExecuteQuery", (connector: ServicesConnector) => Effect.Effect<(request: ExecuteQueryRequest) => Effect.Effect<firebasedataconnect.ExecuteQueryResponse, firebasedataconnect.ExecuteQueryProjectsLocationsServicesConnectorsError, RuntimeContext>>> {
 }
 export declare const ExecuteQuery: ExecuteQuery;

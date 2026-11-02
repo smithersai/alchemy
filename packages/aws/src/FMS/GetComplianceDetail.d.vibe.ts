@@ -27,6 +27,6 @@ export interface GetComplianceDetailRequest extends fms.GetComplianceDetailReque
  *
  * @binding
  */
-export interface GetComplianceDetail extends Binding.Service<GetComplianceDetail, "AWS.FMS.GetComplianceDetail", () => Effect.Effect<((request: GetComplianceDetailRequest) => Effect.Effect<fms.GetComplianceDetailResponse, fms.GetComplianceDetailError>)>> {
+export interface GetComplianceDetail extends Binding.Service<GetComplianceDetail, "AWS.FMS.GetComplianceDetail", () => Effect.Effect<(request: GetComplianceDetailRequest) => Effect.Effect<fms.GetComplianceDetailResponse, fms.GetComplianceDetailError>>> {
 }
 export declare const GetComplianceDetail: GetComplianceDetail;

@@ -25,7 +25,7 @@ export declare const makeElastiCacheAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.ElastiCache.DescribeEvents`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted. */
     actions: readonly string[];
     /**
@@ -46,7 +46,7 @@ export declare const makeElastiCacheCacheHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.ElastiCache.CreateServerlessCacheSnapshot`. */
     tag: string;
     /** The distilled operation; `ServerlessCacheName` is injected from the cache. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the cache ARN. */
     actions: readonly string[];
     /** Static IAM resources granted in addition to the cache ARN. */

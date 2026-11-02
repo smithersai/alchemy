@@ -16,6 +16,6 @@ import type { DeploymentGroup } from "./DeploymentGroup.vibe";
  *
  * @binding
  */
-export interface GetDeployment extends Binding.Service<GetDeployment, "AWS.CodeDeploy.GetDeployment", <G extends DeploymentGroup>(group: G) => Effect.Effect<((request: SVC.GetDeploymentInput) => Effect.Effect<SVC.GetDeploymentOutput, SVC.GetDeploymentError>)>> {
+export interface GetDeployment extends Binding.Service<GetDeployment, "AWS.CodeDeploy.GetDeployment", <G extends DeploymentGroup>(group: G) => Effect.Effect<(request: SVC.GetDeploymentInput) => Effect.Effect<SVC.GetDeploymentOutput, SVC.GetDeploymentError>>> {
 }
 export declare const GetDeployment: GetDeployment;

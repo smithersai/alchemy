@@ -20,6 +20,6 @@ export interface UpdateAssessmentStatusRequest extends Omit<auditmanager.UpdateA
  *
  * @binding
  */
-export interface UpdateAssessmentStatus extends Binding.Service<UpdateAssessmentStatus, "AWS.AuditManager.UpdateAssessmentStatus", (assessment: Assessment) => Effect.Effect<((request: UpdateAssessmentStatusRequest) => Effect.Effect<auditmanager.UpdateAssessmentStatusResponse, auditmanager.UpdateAssessmentStatusError>)>> {
+export interface UpdateAssessmentStatus extends Binding.Service<UpdateAssessmentStatus, "AWS.AuditManager.UpdateAssessmentStatus", (assessment: Assessment) => Effect.Effect<(request: UpdateAssessmentStatusRequest) => Effect.Effect<auditmanager.UpdateAssessmentStatusResponse, auditmanager.UpdateAssessmentStatusError>>> {
 }
 export declare const UpdateAssessmentStatus: UpdateAssessmentStatus;

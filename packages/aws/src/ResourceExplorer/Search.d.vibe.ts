@@ -25,6 +25,6 @@ export interface SearchRequest extends Omit<RE2.SearchInput, "ViewArn"> {
  *
  * @binding
  */
-export interface Search extends Binding.Service<Search, "AWS.ResourceExplorer.Search", <V extends View>(view: V) => Effect.Effect<((request: SearchRequest) => Effect.Effect<RE2.SearchOutput, RE2.SearchError>)>> {
+export interface Search extends Binding.Service<Search, "AWS.ResourceExplorer.Search", <V extends View>(view: V) => Effect.Effect<(request: SearchRequest) => Effect.Effect<RE2.SearchOutput, RE2.SearchError>>> {
 }
 export declare const Search: Search;

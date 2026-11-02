@@ -20,6 +20,6 @@ export interface GetEvidenceFoldersByAssessmentControlRequest extends Omit<audit
  *
  * @binding
  */
-export interface GetEvidenceFoldersByAssessmentControl extends Binding.Service<GetEvidenceFoldersByAssessmentControl, "AWS.AuditManager.GetEvidenceFoldersByAssessmentControl", (assessment: Assessment) => Effect.Effect<((request: GetEvidenceFoldersByAssessmentControlRequest) => Effect.Effect<auditmanager.GetEvidenceFoldersByAssessmentControlResponse, auditmanager.GetEvidenceFoldersByAssessmentControlError>)>> {
+export interface GetEvidenceFoldersByAssessmentControl extends Binding.Service<GetEvidenceFoldersByAssessmentControl, "AWS.AuditManager.GetEvidenceFoldersByAssessmentControl", (assessment: Assessment) => Effect.Effect<(request: GetEvidenceFoldersByAssessmentControlRequest) => Effect.Effect<auditmanager.GetEvidenceFoldersByAssessmentControlResponse, auditmanager.GetEvidenceFoldersByAssessmentControlError>>> {
 }
 export declare const GetEvidenceFoldersByAssessmentControl: GetEvidenceFoldersByAssessmentControl;

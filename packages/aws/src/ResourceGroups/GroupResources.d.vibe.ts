@@ -33,6 +33,6 @@ export type GroupResourcesRequest = Omit<resourcegroups.GroupResourcesInput, "Gr
  *
  * @binding
  */
-export interface GroupResources extends Binding.Service<GroupResources, "AWS.ResourceGroups.GroupResources", (group: Group) => Effect.Effect<((request: GroupResourcesRequest) => Effect.Effect<resourcegroups.GroupResourcesOutput, resourcegroups.GroupResourcesError>)>> {
+export interface GroupResources extends Binding.Service<GroupResources, "AWS.ResourceGroups.GroupResources", (group: Group) => Effect.Effect<(request: GroupResourcesRequest) => Effect.Effect<resourcegroups.GroupResourcesOutput, resourcegroups.GroupResourcesError>>> {
 }
 export declare const GroupResources: GroupResources;

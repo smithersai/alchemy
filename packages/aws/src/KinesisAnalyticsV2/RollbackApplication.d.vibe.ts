@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/kinesis-analytics-v2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 export interface RollbackApplicationRequest extends Omit<SVC.RollbackApplicationRequest, "ApplicationName"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface RollbackApplicationRequest extends Omit<SVC.RollbackApplication
  *
  * @binding
  */
-export interface RollbackApplication extends Binding.Service<RollbackApplication, "AWS.KinesisAnalyticsV2.RollbackApplication", <A extends Application>(application: A) => Effect.Effect<((request: RollbackApplicationRequest) => Effect.Effect<SVC.RollbackApplicationResponse, SVC.RollbackApplicationError>)>> {
+export interface RollbackApplication extends Binding.Service<RollbackApplication, "AWS.KinesisAnalyticsV2.RollbackApplication", <A extends Application>(application: A) => Effect.Effect<(request: RollbackApplicationRequest) => Effect.Effect<SVC.RollbackApplicationResponse, SVC.RollbackApplicationError>>> {
 }
 export declare const RollbackApplication: RollbackApplication;

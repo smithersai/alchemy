@@ -1,8 +1,8 @@
 import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 import { type DiskSpec, type EncryptionSpec, type MachineSpec } from "./shared.vibe";
 export type ResourcePoolAutoscalingSpec = {
     /** Minimum replicas (must be > 0 for Persistent Resource). */

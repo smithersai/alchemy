@@ -26,6 +26,6 @@ export interface DescribeFlowOperationRequest extends Omit<NFW.DescribeFlowOpera
  *
  * @binding
  */
-export interface DescribeFlowOperation extends Binding.Service<DescribeFlowOperation, "AWS.NetworkFirewall.DescribeFlowOperation", (firewall: Firewall) => Effect.Effect<((request: DescribeFlowOperationRequest) => Effect.Effect<NFW.DescribeFlowOperationResponse, NFW.DescribeFlowOperationError>)>> {
+export interface DescribeFlowOperation extends Binding.Service<DescribeFlowOperation, "AWS.NetworkFirewall.DescribeFlowOperation", (firewall: Firewall) => Effect.Effect<(request: DescribeFlowOperationRequest) => Effect.Effect<NFW.DescribeFlowOperationResponse, NFW.DescribeFlowOperationError>>> {
 }
 export declare const DescribeFlowOperation: DescribeFlowOperation;

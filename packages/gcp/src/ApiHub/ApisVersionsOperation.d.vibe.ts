@@ -1,9 +1,9 @@
 import * as apihub from "@distilled.cloud/gcp/apihub_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { type AttributeValuesMap, type Documentation } from "./internal.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { type AttributeValuesMap, type Documentation } from "./internal.ts";
 export type HttpOperation = {
     /** HTTP method. Required on create. */
     method?: "METHOD_UNSPECIFIED" | "GET" | "PUT" | "POST" | "DELETE" | "OPTIONS" | "HEAD" | "PATCH" | "TRACE" | (string & {});

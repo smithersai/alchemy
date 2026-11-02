@@ -1,6 +1,6 @@
 import type { InputProps } from "alchemy/Input";
 import * as Effect from "effect/Effect";
-import { type FrameworkSiteProps } from "./FrameworkSite.js";
+import { type FrameworkSiteProps } from "./FrameworkSite.ts";
 /** The framework-integration package that drives the Astro build. */
 export declare const ASTRO_FRAMEWORK_SPECIFIER = "@alchemy.run/frontend-frameworks/astro";
 /** The AWS Lambda deploy target for the Astro build. */
@@ -149,9 +149,9 @@ export declare const Astro: (id: string, props?: InputProps<AstroProps, "server"
     url: import("alchemy").Output<string | undefined, never>;
     urls: import("alchemy").Output<string | undefined, never>[];
 } | {
-    bucket: import("../S3/Bucket.js").Bucket;
-    files: import("./AssetDeployment.js").AssetDeployment;
-    distribution: import("../CloudFront/Distribution.js").Distribution | undefined;
+    bucket: import("../S3/Bucket.ts").Bucket;
+    files: import("./AssetDeployment.ts").AssetDeployment;
+    distribution: import("../CloudFront/Distribution.ts").Distribution | undefined;
     invalidation: import("../CloudFront/Invalidation.vibe").Invalidation | undefined;
     kvNamespace: string;
     url: import("alchemy").Input<string>;
@@ -160,25 +160,25 @@ export declare const Astro: (id: string, props?: InputProps<AstroProps, "server"
     server: undefined;
     serverUrl: undefined;
 } | {
-    bucket: import("../S3/Bucket.js").Bucket;
-    files: import("./AssetDeployment.js").AssetDeployment;
-    distribution: import("../CloudFront/Distribution.js").Distribution | undefined;
+    bucket: import("../S3/Bucket.ts").Bucket;
+    files: import("./AssetDeployment.ts").AssetDeployment;
+    distribution: import("../CloudFront/Distribution.ts").Distribution | undefined;
     invalidation: import("../CloudFront/Invalidation.vibe").Invalidation | undefined;
     kvNamespace: string;
     url: import("alchemy").Input<string>;
     urls: import("alchemy").Input<string>[];
     build: import("alchemy/Website/Server").Server;
-    server: import("../Lambda/WebFunction.js").WebFunction;
+    server: import("../Lambda/WebFunction.ts").WebFunction;
     serverUrl: import("alchemy").Output<string, never>;
 } | {
-    bucket: import("../S3/Bucket.js").Bucket;
-    files: import("./AssetDeployment.js").AssetDeployment;
-    distribution: import("../CloudFront/Distribution.js").Distribution | undefined;
+    bucket: import("../S3/Bucket.ts").Bucket;
+    files: import("./AssetDeployment.ts").AssetDeployment;
+    distribution: import("../CloudFront/Distribution.ts").Distribution | undefined;
     invalidation: import("../CloudFront/Invalidation.vibe").Invalidation | undefined;
     kvNamespace: string;
     url: import("alchemy").Input<string>;
     urls: import("alchemy").Input<string>[];
     build: import("alchemy/Website/Server").Server;
-    server: import("../Lambda/Function.js").Function;
+    server: import("../Lambda/Function.ts").Function;
     serverUrl: import("alchemy").Output<string | undefined, never>;
-}, never, import("alchemy").AlchemyContext | import("alchemy").Provider<import("alchemy/Command/Build").Build> | import("alchemy").Provider<import("alchemy/Website/Server").Server> | import("../Providers.js").Providers | import("alchemy").Stack | import("alchemy").Stage>;
+}, never, import("alchemy").AlchemyContext | import("alchemy").Provider<import("alchemy/Command/Build").Build> | import("alchemy").Provider<import("alchemy/Website/Server").Server> | import("../Providers.ts").Providers | import("alchemy").Stack | import("alchemy").Stage>;

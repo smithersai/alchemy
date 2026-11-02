@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDBInstances extends Binding.Service<DescribeDBInstances, "AWS.Neptune.DescribeDBInstances", () => Effect.Effect<((request?: neptune.DescribeDBInstancesMessage) => Effect.Effect<neptune.DBInstanceMessage, neptune.DescribeDBInstancesError>)>> {
+export interface DescribeDBInstances extends Binding.Service<DescribeDBInstances, "AWS.Neptune.DescribeDBInstances", () => Effect.Effect<(request?: neptune.DescribeDBInstancesMessage) => Effect.Effect<neptune.DBInstanceMessage, neptune.DescribeDBInstancesError>>> {
 }
 export declare const DescribeDBInstances: DescribeDBInstances;

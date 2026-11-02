@@ -1,7 +1,7 @@
 import * as cloudwatch from "@distilled.cloud/aws/cloudwatch";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface AnomalyDetectorProps extends cloudwatch.PutAnomalyDetectorInput {
 }
 export interface AnomalyDetector extends Resource<"AWS.CloudWatch.AnomalyDetector", AnomalyDetectorProps, {

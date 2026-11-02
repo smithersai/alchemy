@@ -32,7 +32,7 @@ export declare const makeRumAppMonitorHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.RUM.GetAppMonitorData`. */
     tag: string;
     /** The distilled operation; `Name` is injected from the monitor. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the monitor ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(monitor: AppMonitor) => Effect.Effect<(request: Omit<I, "Name">) => Effect.Effect<A, E, never>, never, never>, never, never>;

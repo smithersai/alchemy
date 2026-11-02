@@ -1,7 +1,7 @@
 import type * as eks from "@distilled.cloud/aws/eks";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 /**
  * Runtime binding for `eks:ListFargateProfiles`.
  *
@@ -21,6 +21,6 @@ import type { Cluster } from "./Cluster.js";
  *
  * @binding
  */
-export interface ListFargateProfiles extends Binding.Service<ListFargateProfiles, "AWS.EKS.ListFargateProfiles", (cluster: Cluster) => Effect.Effect<((request?: Omit<eks.ListFargateProfilesRequest, "clusterName">) => Effect.Effect<eks.ListFargateProfilesResponse, eks.ListFargateProfilesError>)>> {
+export interface ListFargateProfiles extends Binding.Service<ListFargateProfiles, "AWS.EKS.ListFargateProfiles", (cluster: Cluster) => Effect.Effect<(request?: Omit<eks.ListFargateProfilesRequest, "clusterName">) => Effect.Effect<eks.ListFargateProfilesResponse, eks.ListFargateProfilesError>>> {
 }
 export declare const ListFargateProfiles: ListFargateProfiles;

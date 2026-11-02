@@ -29,6 +29,6 @@ export interface PutBackupPolicyRequest extends Omit<efs.PutBackupPolicyRequest,
  *
  * @binding
  */
-export interface PutBackupPolicy extends Binding.Service<PutBackupPolicy, "AWS.EFS.PutBackupPolicy", (fileSystem: FileSystem) => Effect.Effect<((request: PutBackupPolicyRequest) => Effect.Effect<efs.BackupPolicyDescription, efs.PutBackupPolicyError>)>> {
+export interface PutBackupPolicy extends Binding.Service<PutBackupPolicy, "AWS.EFS.PutBackupPolicy", (fileSystem: FileSystem) => Effect.Effect<(request: PutBackupPolicyRequest) => Effect.Effect<efs.BackupPolicyDescription, efs.PutBackupPolicyError>>> {
 }
 export declare const PutBackupPolicy: PutBackupPolicy;

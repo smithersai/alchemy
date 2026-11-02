@@ -37,7 +37,7 @@ export declare const makeExportHttpBinding: <I extends {
     /**
      * The distilled operation; `ExportArn` is injected from the resource.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<(dataExport: Export) => Effect.Effect<(request?: Omit<I, "ExportArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
 /**
  * Build the implementation effect for an account-level capability (no
@@ -58,5 +58,5 @@ export declare const makeDataExportsAccountHttpBinding: <I extends object, A, E,
     /**
      * The distilled operation implementing the capability.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

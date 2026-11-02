@@ -27,6 +27,6 @@ export interface UpdateQAppSessionRequest extends Omit<qapps.UpdateQAppSessionIn
  *
  * @binding
  */
-export interface UpdateQAppSession extends Binding.Service<UpdateQAppSession, "AWS.QApps.UpdateQAppSession", (app: QApp) => Effect.Effect<((request: UpdateQAppSessionRequest) => Effect.Effect<qapps.UpdateQAppSessionOutput, qapps.UpdateQAppSessionError>)>> {
+export interface UpdateQAppSession extends Binding.Service<UpdateQAppSession, "AWS.QApps.UpdateQAppSession", (app: QApp) => Effect.Effect<(request: UpdateQAppSessionRequest) => Effect.Effect<qapps.UpdateQAppSessionOutput, qapps.UpdateQAppSessionError>>> {
 }
 export declare const UpdateQAppSession: UpdateQAppSession;

@@ -30,6 +30,6 @@ export interface ListMemoryExtractionJobsRequest extends Omit<agentcore.ListMemo
  *
  * @binding
  */
-export interface ListMemoryExtractionJobs extends Binding.Service<ListMemoryExtractionJobs, "AWS.BedrockAgentCore.ListMemoryExtractionJobs", <R extends Memory>(memory: R) => Effect.Effect<((request: ListMemoryExtractionJobsRequest) => Effect.Effect<agentcore.ListMemoryExtractionJobsOutput, agentcore.ListMemoryExtractionJobsError>)>> {
+export interface ListMemoryExtractionJobs extends Binding.Service<ListMemoryExtractionJobs, "AWS.BedrockAgentCore.ListMemoryExtractionJobs", <R extends Memory>(memory: R) => Effect.Effect<(request: ListMemoryExtractionJobsRequest) => Effect.Effect<agentcore.ListMemoryExtractionJobsOutput, agentcore.ListMemoryExtractionJobsError>>> {
 }
 export declare const ListMemoryExtractionJobs: ListMemoryExtractionJobs;

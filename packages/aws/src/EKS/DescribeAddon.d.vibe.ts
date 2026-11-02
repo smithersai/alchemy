@@ -1,7 +1,7 @@
 import type * as eks from "@distilled.cloud/aws/eks";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 /**
  * Runtime binding for `eks:DescribeAddon`.
  *
@@ -21,6 +21,6 @@ import type { Cluster } from "./Cluster.js";
  *
  * @binding
  */
-export interface DescribeAddon extends Binding.Service<DescribeAddon, "AWS.EKS.DescribeAddon", (cluster: Cluster) => Effect.Effect<((request: Omit<eks.DescribeAddonRequest, "clusterName">) => Effect.Effect<eks.DescribeAddonResponse, eks.DescribeAddonError>)>> {
+export interface DescribeAddon extends Binding.Service<DescribeAddon, "AWS.EKS.DescribeAddon", (cluster: Cluster) => Effect.Effect<(request: Omit<eks.DescribeAddonRequest, "clusterName">) => Effect.Effect<eks.DescribeAddonResponse, eks.DescribeAddonError>>> {
 }
 export declare const DescribeAddon: DescribeAddon;

@@ -28,6 +28,6 @@ export interface StopBrowserSessionRequest extends Omit<agentcore.StopBrowserSes
  *
  * @binding
  */
-export interface StopBrowserSession extends Binding.Service<StopBrowserSession, "AWS.BedrockAgentCore.StopBrowserSession", <R extends BrowserCustom>(browser: R) => Effect.Effect<((request: StopBrowserSessionRequest) => Effect.Effect<agentcore.StopBrowserSessionResponse, agentcore.StopBrowserSessionError>)>> {
+export interface StopBrowserSession extends Binding.Service<StopBrowserSession, "AWS.BedrockAgentCore.StopBrowserSession", <R extends BrowserCustom>(browser: R) => Effect.Effect<(request: StopBrowserSessionRequest) => Effect.Effect<agentcore.StopBrowserSessionResponse, agentcore.StopBrowserSessionError>>> {
 }
 export declare const StopBrowserSession: StopBrowserSession;

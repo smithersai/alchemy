@@ -23,6 +23,6 @@ import type { Instance } from "./Instance.vibe";
  *
  * @binding
  */
-export interface ListAccountsForProvisionedPermissionSet extends Binding.Service<ListAccountsForProvisionedPermissionSet, "AWS.IdentityCenter.ListAccountsForProvisionedPermissionSet", (instance: Instance) => Effect.Effect<((request: Omit<ssoAdmin.ListAccountsForProvisionedPermissionSetRequest, "InstanceArn">) => Effect.Effect<ssoAdmin.ListAccountsForProvisionedPermissionSetResponse, ssoAdmin.ListAccountsForProvisionedPermissionSetError>)>> {
+export interface ListAccountsForProvisionedPermissionSet extends Binding.Service<ListAccountsForProvisionedPermissionSet, "AWS.IdentityCenter.ListAccountsForProvisionedPermissionSet", (instance: Instance) => Effect.Effect<(request: Omit<ssoAdmin.ListAccountsForProvisionedPermissionSetRequest, "InstanceArn">) => Effect.Effect<ssoAdmin.ListAccountsForProvisionedPermissionSetResponse, ssoAdmin.ListAccountsForProvisionedPermissionSetError>>> {
 }
 export declare const ListAccountsForProvisionedPermissionSet: ListAccountsForProvisionedPermissionSet;

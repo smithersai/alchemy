@@ -36,6 +36,6 @@ export interface ListProfileResourceAssociationsRequest extends Omit<profiles.Li
  *
  * @binding
  */
-export interface ListProfileResourceAssociations extends Binding.Service<ListProfileResourceAssociations, "AWS.Route53Profiles.ListProfileResourceAssociations", (profile: Profile) => Effect.Effect<((request?: ListProfileResourceAssociationsRequest) => Effect.Effect<profiles.ListProfileResourceAssociationsResponse, profiles.ListProfileResourceAssociationsError>)>> {
+export interface ListProfileResourceAssociations extends Binding.Service<ListProfileResourceAssociations, "AWS.Route53Profiles.ListProfileResourceAssociations", (profile: Profile) => Effect.Effect<(request?: ListProfileResourceAssociationsRequest) => Effect.Effect<profiles.ListProfileResourceAssociationsResponse, profiles.ListProfileResourceAssociationsError>>> {
 }
 export declare const ListProfileResourceAssociations: ListProfileResourceAssociations;

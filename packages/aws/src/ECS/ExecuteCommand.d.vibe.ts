@@ -31,6 +31,6 @@ export interface ExecuteCommandRequest extends Omit<ECS.ExecuteCommandRequest, "
  *
  * @binding
  */
-export interface ExecuteCommand extends Binding.Service<ExecuteCommand, "AWS.ECS.ExecuteCommand", (cluster: Cluster) => Effect.Effect<((request: ExecuteCommandRequest) => Effect.Effect<ECS.ExecuteCommandResponse, ECS.ExecuteCommandError>)>> {
+export interface ExecuteCommand extends Binding.Service<ExecuteCommand, "AWS.ECS.ExecuteCommand", (cluster: Cluster) => Effect.Effect<(request: ExecuteCommandRequest) => Effect.Effect<ECS.ExecuteCommandResponse, ECS.ExecuteCommandError>>> {
 }
 export declare const ExecuteCommand: ExecuteCommand;

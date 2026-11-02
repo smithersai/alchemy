@@ -31,6 +31,6 @@ export interface PublishWhatsAppFlowRequest extends Omit<socialmessaging.Publish
  *
  * @binding
  */
-export interface PublishWhatsAppFlow extends Binding.Service<PublishWhatsAppFlow, "AWS.SocialMessaging.PublishWhatsAppFlow", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: PublishWhatsAppFlowRequest) => Effect.Effect<socialmessaging.PublishWhatsAppFlowOutput, socialmessaging.PublishWhatsAppFlowError>)>> {
+export interface PublishWhatsAppFlow extends Binding.Service<PublishWhatsAppFlow, "AWS.SocialMessaging.PublishWhatsAppFlow", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: PublishWhatsAppFlowRequest) => Effect.Effect<socialmessaging.PublishWhatsAppFlowOutput, socialmessaging.PublishWhatsAppFlowError>>> {
 }
 export declare const PublishWhatsAppFlow: PublishWhatsAppFlow;

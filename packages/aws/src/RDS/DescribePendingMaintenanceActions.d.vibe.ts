@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribePendingMaintenanceActions extends Binding.Service<DescribePendingMaintenanceActions, "AWS.RDS.DescribePendingMaintenanceActions", () => Effect.Effect<((request?: rds.DescribePendingMaintenanceActionsMessage) => Effect.Effect<rds.PendingMaintenanceActionsMessage, rds.DescribePendingMaintenanceActionsError>)>> {
+export interface DescribePendingMaintenanceActions extends Binding.Service<DescribePendingMaintenanceActions, "AWS.RDS.DescribePendingMaintenanceActions", () => Effect.Effect<(request?: rds.DescribePendingMaintenanceActionsMessage) => Effect.Effect<rds.PendingMaintenanceActionsMessage, rds.DescribePendingMaintenanceActionsError>>> {
 }
 export declare const DescribePendingMaintenanceActions: DescribePendingMaintenanceActions;

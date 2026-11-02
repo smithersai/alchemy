@@ -1,8 +1,8 @@
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { Binding } from "./Binding.js";
-import { WorkerEnvironment } from "./Worker.js";
+import type { Binding } from "./Binding.ts";
+import { WorkerEnvironment } from "./Worker.ts";
 /**
  * Native runtime layer for a Worker-only {@link Binding}. Registers the native
  * binding on the host Worker at deploy time (via `binding.toWorkerBinding()`)

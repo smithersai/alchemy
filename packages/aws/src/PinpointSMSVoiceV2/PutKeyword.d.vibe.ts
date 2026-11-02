@@ -32,6 +32,6 @@ export interface PutKeywordRequest extends Omit<smsvoice.PutKeywordRequest, "Ori
  *
  * @binding
  */
-export interface PutKeyword extends Binding.Service<PutKeyword, "AWS.PinpointSMSVoiceV2.PutKeyword", (phoneNumber: PhoneNumber) => Effect.Effect<((request: PutKeywordRequest) => Effect.Effect<smsvoice.PutKeywordResult, smsvoice.PutKeywordError>)>> {
+export interface PutKeyword extends Binding.Service<PutKeyword, "AWS.PinpointSMSVoiceV2.PutKeyword", (phoneNumber: PhoneNumber) => Effect.Effect<(request: PutKeywordRequest) => Effect.Effect<smsvoice.PutKeywordResult, smsvoice.PutKeywordError>>> {
 }
 export declare const PutKeyword: PutKeyword;

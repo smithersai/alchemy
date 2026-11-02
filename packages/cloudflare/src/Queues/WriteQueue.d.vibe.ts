@@ -2,8 +2,8 @@ import type * as runtime from "@cloudflare/workers-types";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { Queue } from "./Queue.js";
-import type { SendError, SendMessage, SendOptions } from "./QueueTypes.js";
+import type { Queue } from "./Queue.ts";
+import type { SendError, SendMessage, SendOptions } from "./QueueTypes.ts";
 /**
  * Binding service that turns a {@link Queue} resource into a typed
  * {@link WriteQueueClient} you can call from a Worker's runtime Effect.

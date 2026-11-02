@@ -28,6 +28,6 @@ export interface GetEffectivePermissionsForPathRequest extends lf.GetEffectivePe
  *
  * @binding
  */
-export interface GetEffectivePermissionsForPath extends Binding.Service<GetEffectivePermissionsForPath, "AWS.LakeFormation.GetEffectivePermissionsForPath", () => Effect.Effect<((request: GetEffectivePermissionsForPathRequest) => Effect.Effect<lf.GetEffectivePermissionsForPathResponse, lf.GetEffectivePermissionsForPathError>)>> {
+export interface GetEffectivePermissionsForPath extends Binding.Service<GetEffectivePermissionsForPath, "AWS.LakeFormation.GetEffectivePermissionsForPath", () => Effect.Effect<(request: GetEffectivePermissionsForPathRequest) => Effect.Effect<lf.GetEffectivePermissionsForPathResponse, lf.GetEffectivePermissionsForPathError>>> {
 }
 export declare const GetEffectivePermissionsForPath: GetEffectivePermissionsForPath;

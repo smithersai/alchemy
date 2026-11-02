@@ -27,6 +27,6 @@ import type { TransferJob } from "./TransferJob.vibe";
  * @binding
  * @category StorageTransfer
  */
-export interface GetGoogleServiceAccount extends Binding.Service<GetGoogleServiceAccount, "GCP.StorageTransfer.GetGoogleServiceAccount", (job: TransferJob) => Effect.Effect<(() => Effect.Effect<storagetransfer.GoogleServiceAccount, storagetransfer.GetGoogleServiceAccountsError, RuntimeContext>)>> {
+export interface GetGoogleServiceAccount extends Binding.Service<GetGoogleServiceAccount, "GCP.StorageTransfer.GetGoogleServiceAccount", (job: TransferJob) => Effect.Effect<() => Effect.Effect<storagetransfer.GoogleServiceAccount, storagetransfer.GetGoogleServiceAccountsError, RuntimeContext>>> {
 }
 export declare const GetGoogleServiceAccount: GetGoogleServiceAccount;

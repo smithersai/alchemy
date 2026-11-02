@@ -41,6 +41,6 @@ export interface DescribeScalingActivitiesRequest extends Omit<aas.DescribeScali
  *
  * @binding
  */
-export interface DescribeScalingActivities extends Binding.Service<DescribeScalingActivities, "AWS.ApplicationAutoScaling.DescribeScalingActivities", (target: ScalableTarget) => Effect.Effect<((request?: DescribeScalingActivitiesRequest) => Effect.Effect<aas.DescribeScalingActivitiesResponse, aas.DescribeScalingActivitiesError>)>> {
+export interface DescribeScalingActivities extends Binding.Service<DescribeScalingActivities, "AWS.ApplicationAutoScaling.DescribeScalingActivities", (target: ScalableTarget) => Effect.Effect<(request?: DescribeScalingActivitiesRequest) => Effect.Effect<aas.DescribeScalingActivitiesResponse, aas.DescribeScalingActivitiesError>>> {
 }
 export declare const DescribeScalingActivities: DescribeScalingActivities;

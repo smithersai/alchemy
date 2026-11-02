@@ -31,7 +31,7 @@ export declare const makeQBusinessApplicationHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.QBusiness.ChatSync`. */
     tag: string;
     /** The distilled operation; `applicationId` is injected from the application. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the application ARN. */
     actions: readonly string[];
     /**
@@ -57,7 +57,7 @@ export declare const makeQBusinessIndexHttpBinding: <I extends {
      * The distilled operation; `applicationId` and `indexId` are injected
      * from the index.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the index ARN + its parent application ARN. */
     actions: readonly string[];
     /**
@@ -85,7 +85,7 @@ export declare const makeQBusinessDataSourceHttpBinding: <I extends {
      * The distilled operation; `applicationId`, `indexId`, and
      * `dataSourceId` are injected from the data source.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /**
      * IAM actions granted on the data source ARN + its parent index and
      * application ARNs.
@@ -109,7 +109,7 @@ export declare const makeQBusinessWebExperienceHttpBinding: <I extends {
      * The distilled operation; `applicationId` and `webExperienceId` are
      * injected from the web experience.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /**
      * IAM actions granted on the web experience ARN + its parent application
      * ARN.

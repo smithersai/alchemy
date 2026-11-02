@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAccessPolicies extends Binding.Service<ListAccessPolicies, "AWS.EKS.ListAccessPolicies", () => Effect.Effect<((request?: eks.ListAccessPoliciesRequest) => Effect.Effect<eks.ListAccessPoliciesResponse, eks.ListAccessPoliciesError>)>> {
+export interface ListAccessPolicies extends Binding.Service<ListAccessPolicies, "AWS.EKS.ListAccessPolicies", () => Effect.Effect<(request?: eks.ListAccessPoliciesRequest) => Effect.Effect<eks.ListAccessPoliciesResponse, eks.ListAccessPoliciesError>>> {
 }
 export declare const ListAccessPolicies: ListAccessPolicies;

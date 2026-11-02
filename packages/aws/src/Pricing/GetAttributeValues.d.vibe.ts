@@ -32,6 +32,6 @@ export interface GetAttributeValuesRequest extends pricing.GetAttributeValuesReq
  *
  * @binding
  */
-export interface GetAttributeValues extends Binding.Service<GetAttributeValues, "AWS.Pricing.GetAttributeValues", () => Effect.Effect<((request: GetAttributeValuesRequest) => Effect.Effect<pricing.GetAttributeValuesResponse, pricing.GetAttributeValuesError>)>> {
+export interface GetAttributeValues extends Binding.Service<GetAttributeValues, "AWS.Pricing.GetAttributeValues", () => Effect.Effect<(request: GetAttributeValuesRequest) => Effect.Effect<pricing.GetAttributeValuesResponse, pricing.GetAttributeValuesError>>> {
 }
 export declare const GetAttributeValues: GetAttributeValues;

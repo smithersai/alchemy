@@ -24,11 +24,11 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetDiscoveredSchema extends Binding.Service<GetDiscoveredSchema, "AWS.Schemas.GetDiscoveredSchema", () => Effect.Effect<((request?: {
+export interface GetDiscoveredSchema extends Binding.Service<GetDiscoveredSchema, "AWS.Schemas.GetDiscoveredSchema", () => Effect.Effect<(request?: {
     /** Up to 10 sample events (full AWS event envelopes) as JSON strings. */
     Events?: string[];
     /** The type of schema to infer: `OpenApi3` or `JSONSchemaDraft4`. */
     Type?: string;
-}) => Effect.Effect<schemas.GetDiscoveredSchemaResponse, schemas.GetDiscoveredSchemaError>)>> {
+}) => Effect.Effect<schemas.GetDiscoveredSchemaResponse, schemas.GetDiscoveredSchemaError>>> {
 }
 export declare const GetDiscoveredSchema: GetDiscoveredSchema;

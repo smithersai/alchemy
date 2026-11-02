@@ -28,6 +28,6 @@ export interface AddPermissionRequest extends Omit<sns.AddPermissionInput, "Topi
  *
  * @binding
  */
-export interface AddPermission extends Binding.Service<AddPermission, "AWS.SNS.AddPermission", (topic: Topic) => Effect.Effect<((request: AddPermissionRequest) => Effect.Effect<sns.AddPermissionResponse, sns.AddPermissionError>)>> {
+export interface AddPermission extends Binding.Service<AddPermission, "AWS.SNS.AddPermission", (topic: Topic) => Effect.Effect<(request: AddPermissionRequest) => Effect.Effect<sns.AddPermissionResponse, sns.AddPermissionError>>> {
 }
 export declare const AddPermission: AddPermission;

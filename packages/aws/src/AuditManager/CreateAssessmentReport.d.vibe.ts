@@ -20,6 +20,6 @@ export interface CreateAssessmentReportRequest extends Omit<auditmanager.CreateA
  *
  * @binding
  */
-export interface CreateAssessmentReport extends Binding.Service<CreateAssessmentReport, "AWS.AuditManager.CreateAssessmentReport", (assessment: Assessment) => Effect.Effect<((request: CreateAssessmentReportRequest) => Effect.Effect<auditmanager.CreateAssessmentReportResponse, auditmanager.CreateAssessmentReportError>)>> {
+export interface CreateAssessmentReport extends Binding.Service<CreateAssessmentReport, "AWS.AuditManager.CreateAssessmentReport", (assessment: Assessment) => Effect.Effect<(request: CreateAssessmentReportRequest) => Effect.Effect<auditmanager.CreateAssessmentReportResponse, auditmanager.CreateAssessmentReportError>>> {
 }
 export declare const CreateAssessmentReport: CreateAssessmentReport;

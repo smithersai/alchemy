@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateRelatedItems extends Binding.Service<UpdateRelatedItems, "AWS.SSMIncidents.UpdateRelatedItems", () => Effect.Effect<((request: incidents.UpdateRelatedItemsInput) => Effect.Effect<incidents.UpdateRelatedItemsOutput, incidents.UpdateRelatedItemsError>)>> {
+export interface UpdateRelatedItems extends Binding.Service<UpdateRelatedItems, "AWS.SSMIncidents.UpdateRelatedItems", () => Effect.Effect<(request: incidents.UpdateRelatedItemsInput) => Effect.Effect<incidents.UpdateRelatedItemsOutput, incidents.UpdateRelatedItemsError>>> {
 }
 export declare const UpdateRelatedItems: UpdateRelatedItems;

@@ -21,6 +21,6 @@ import type { EventDataStore } from "./EventDataStore.vibe";
  *
  * @binding
  */
-export interface CancelQuery extends Binding.Service<CancelQuery, "AWS.CloudTrail.CancelQuery", (store: EventDataStore) => Effect.Effect<((request: Omit<cloudtrail.CancelQueryRequest, "EventDataStore">) => Effect.Effect<cloudtrail.CancelQueryResponse, cloudtrail.CancelQueryError>)>> {
+export interface CancelQuery extends Binding.Service<CancelQuery, "AWS.CloudTrail.CancelQuery", (store: EventDataStore) => Effect.Effect<(request: Omit<cloudtrail.CancelQueryRequest, "EventDataStore">) => Effect.Effect<cloudtrail.CancelQueryResponse, cloudtrail.CancelQueryError>>> {
 }
 export declare const CancelQuery: CancelQuery;

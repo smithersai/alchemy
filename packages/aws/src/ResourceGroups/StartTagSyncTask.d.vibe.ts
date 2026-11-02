@@ -1,7 +1,7 @@
 import type * as resourcegroups from "@distilled.cloud/aws/resource-groups";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 import type { Group } from "./Group.vibe";
 /**
  * Request for {@link StartTagSyncTask} — the group and (by default) the
@@ -37,6 +37,6 @@ export type StartTagSyncTaskRequest = Omit<resourcegroups.StartTagSyncTaskInput,
  *
  * @binding
  */
-export interface StartTagSyncTask extends Binding.Service<StartTagSyncTask, "AWS.ResourceGroups.StartTagSyncTask", <R extends Role>(group: Group, syncRole: R) => Effect.Effect<((request: StartTagSyncTaskRequest) => Effect.Effect<resourcegroups.StartTagSyncTaskOutput, resourcegroups.StartTagSyncTaskError>)>> {
+export interface StartTagSyncTask extends Binding.Service<StartTagSyncTask, "AWS.ResourceGroups.StartTagSyncTask", <R extends Role>(group: Group, syncRole: R) => Effect.Effect<(request: StartTagSyncTaskRequest) => Effect.Effect<resourcegroups.StartTagSyncTaskOutput, resourcegroups.StartTagSyncTaskError>>> {
 }
 export declare const StartTagSyncTask: StartTagSyncTask;

@@ -1,7 +1,7 @@
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
 import type { RotationRules } from "./RotationSchedule.vibe";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 /** A step of the Secrets Manager rotation protocol. */
 export type RotationStep = "createSecret" | "setSecret" | "testSecret" | "finishSecret";
 /**

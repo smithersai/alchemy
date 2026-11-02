@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeServerlessCaches extends Binding.Service<DescribeServerlessCaches, "AWS.ElastiCache.DescribeServerlessCaches", () => Effect.Effect<((request?: elasticache.DescribeServerlessCachesRequest) => Effect.Effect<elasticache.DescribeServerlessCachesResponse, elasticache.DescribeServerlessCachesError>)>> {
+export interface DescribeServerlessCaches extends Binding.Service<DescribeServerlessCaches, "AWS.ElastiCache.DescribeServerlessCaches", () => Effect.Effect<(request?: elasticache.DescribeServerlessCachesRequest) => Effect.Effect<elasticache.DescribeServerlessCachesResponse, elasticache.DescribeServerlessCachesError>>> {
 }
 export declare const DescribeServerlessCaches: DescribeServerlessCaches;

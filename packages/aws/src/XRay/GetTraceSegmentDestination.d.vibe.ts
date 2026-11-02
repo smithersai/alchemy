@@ -28,6 +28,6 @@ export interface GetTraceSegmentDestinationRequest extends xray.GetTraceSegmentD
  *
  * @binding
  */
-export interface GetTraceSegmentDestination extends Binding.Service<GetTraceSegmentDestination, "AWS.XRay.GetTraceSegmentDestination", () => Effect.Effect<((request?: GetTraceSegmentDestinationRequest) => Effect.Effect<xray.GetTraceSegmentDestinationResult, xray.GetTraceSegmentDestinationError>)>> {
+export interface GetTraceSegmentDestination extends Binding.Service<GetTraceSegmentDestination, "AWS.XRay.GetTraceSegmentDestination", () => Effect.Effect<(request?: GetTraceSegmentDestinationRequest) => Effect.Effect<xray.GetTraceSegmentDestinationResult, xray.GetTraceSegmentDestinationError>>> {
 }
 export declare const GetTraceSegmentDestination: GetTraceSegmentDestination;

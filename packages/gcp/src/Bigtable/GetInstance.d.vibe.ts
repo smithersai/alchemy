@@ -2,7 +2,7 @@ import type * as bigtable from "@distilled.cloud/gcp/bigtableadmin_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 export interface GetInstanceRequest extends Omit<bigtable.GetProjectsInstancesRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetInstanceRequest extends Omit<bigtable.GetProjectsInstancesRe
  * @binding
  * @category Bigtable
  */
-export interface GetInstance extends Binding.Service<GetInstance, "GCP.Bigtable.GetInstance", (instance: Instance) => Effect.Effect<((request?: GetInstanceRequest) => Effect.Effect<bigtable.Instance, bigtable.GetProjectsInstancesError, RuntimeContext>)>> {
+export interface GetInstance extends Binding.Service<GetInstance, "GCP.Bigtable.GetInstance", (instance: Instance) => Effect.Effect<(request?: GetInstanceRequest) => Effect.Effect<bigtable.Instance, bigtable.GetProjectsInstancesError, RuntimeContext>>> {
 }
 export declare const GetInstance: GetInstance;

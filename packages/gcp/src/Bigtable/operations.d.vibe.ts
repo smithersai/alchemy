@@ -61,7 +61,7 @@ export declare const hasAlchemyPrefix: (labels: Record<string, string | undefine
  */
 export declare const waitForOperation: (operation: bigtable.Operation, options?: {
     alreadyExistsOk?: boolean;
-}) => Effect.Effect<import("../Operation.js").LongRunningOperation | bigtable.Operation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | bigtable.GetOperationsError, bigtable.GcpOpContext>;
+}) => Effect.Effect<import("../Operation.ts").LongRunningOperation | bigtable.Operation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | bigtable.GetOperationsError, bigtable.GcpOpContext>;
 export declare const getInstanceByName: (name: string) => Effect.Effect<bigtable.Instance | undefined, bigtable.Forbidden | bigtable.GcpOpError, bigtable.GcpOpContext>;
 export declare const collectPages: <Page, A, E, R>(pages: Stream.Stream<Page, E, R>, items: (page: Page) => readonly A[] | undefined) => Effect.Effect<A[], E, R>;
 export declare const listAlchemyInstances: (project: string) => Effect.Effect<bigtable.Instance[], bigtable.ListProjectsInstancesError, bigtable.GcpOpContext>;

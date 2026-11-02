@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeStandardsControls extends Binding.Service<DescribeStandardsControls, "AWS.SecurityHub.DescribeStandardsControls", () => Effect.Effect<((request: securityhub.DescribeStandardsControlsRequest) => Effect.Effect<securityhub.DescribeStandardsControlsResponse, securityhub.DescribeStandardsControlsError>)>> {
+export interface DescribeStandardsControls extends Binding.Service<DescribeStandardsControls, "AWS.SecurityHub.DescribeStandardsControls", () => Effect.Effect<(request: securityhub.DescribeStandardsControlsRequest) => Effect.Effect<securityhub.DescribeStandardsControlsResponse, securityhub.DescribeStandardsControlsError>>> {
 }
 export declare const DescribeStandardsControls: DescribeStandardsControls;

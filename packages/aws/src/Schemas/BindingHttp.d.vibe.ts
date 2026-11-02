@@ -23,7 +23,7 @@ export declare const makeSchemasSchemaHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Schemas.DescribeSchema`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the schema ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(schema: Schema) => Effect.Effect<(request?: Omit<I, "RegistryName" | "SchemaName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -40,7 +40,7 @@ export declare const makeSchemasRegistryHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Schemas.SearchSchemas`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the registry ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(registry: Registry) => Effect.Effect<(request?: Omit<I, "RegistryName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -57,7 +57,7 @@ export declare const makeSchemasDiscovererHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Schemas.StartDiscoverer`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the discoverer ARN. */
     actions: readonly string[];
     /**
@@ -78,7 +78,7 @@ export declare const makeSchemasAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Schemas.GetDiscoveredSchema`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

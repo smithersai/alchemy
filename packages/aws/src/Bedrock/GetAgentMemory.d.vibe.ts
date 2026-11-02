@@ -38,6 +38,6 @@ export interface GetAgentMemoryRequest extends Omit<bedrock.GetAgentMemoryReques
  *
  * @binding
  */
-export interface GetAgentMemory extends Binding.Service<GetAgentMemory, "AWS.Bedrock.GetAgentMemory", <A extends AgentAlias>(alias: A) => Effect.Effect<((request: GetAgentMemoryRequest) => Effect.Effect<bedrock.GetAgentMemoryResponse, bedrock.GetAgentMemoryError>)>> {
+export interface GetAgentMemory extends Binding.Service<GetAgentMemory, "AWS.Bedrock.GetAgentMemory", <A extends AgentAlias>(alias: A) => Effect.Effect<(request: GetAgentMemoryRequest) => Effect.Effect<bedrock.GetAgentMemoryResponse, bedrock.GetAgentMemoryError>>> {
 }
 export declare const GetAgentMemory: GetAgentMemory;

@@ -1,7 +1,7 @@
 import type * as medicalimaging from "@distilled.cloud/aws/medical-imaging";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 import type { Datastore } from "./Datastore.vibe";
 /**
  * `StartDICOMImportJob` request with `datastoreId` injected from the bound
@@ -47,6 +47,6 @@ export interface StartDICOMImportJobRequest extends Omit<medicalimaging.StartDIC
  *
  * @binding
  */
-export interface StartDICOMImportJob extends Binding.Service<StartDICOMImportJob, "AWS.MedicalImaging.StartDICOMImportJob", (datastore: Datastore, dataAccessRole: Role) => Effect.Effect<((request: StartDICOMImportJobRequest) => Effect.Effect<medicalimaging.StartDICOMImportJobResponse, medicalimaging.StartDICOMImportJobError>)>> {
+export interface StartDICOMImportJob extends Binding.Service<StartDICOMImportJob, "AWS.MedicalImaging.StartDICOMImportJob", (datastore: Datastore, dataAccessRole: Role) => Effect.Effect<(request: StartDICOMImportJobRequest) => Effect.Effect<medicalimaging.StartDICOMImportJobResponse, medicalimaging.StartDICOMImportJobError>>> {
 }
 export declare const StartDICOMImportJob: StartDICOMImportJob;

@@ -24,6 +24,6 @@ export interface ListMemberAccountsRequest extends fms.ListMemberAccountsRequest
  *
  * @binding
  */
-export interface ListMemberAccounts extends Binding.Service<ListMemberAccounts, "AWS.FMS.ListMemberAccounts", () => Effect.Effect<((request?: ListMemberAccountsRequest) => Effect.Effect<fms.ListMemberAccountsResponse, fms.ListMemberAccountsError>)>> {
+export interface ListMemberAccounts extends Binding.Service<ListMemberAccounts, "AWS.FMS.ListMemberAccounts", () => Effect.Effect<(request?: ListMemberAccountsRequest) => Effect.Effect<fms.ListMemberAccountsResponse, fms.ListMemberAccountsError>>> {
 }
 export declare const ListMemberAccounts: ListMemberAccounts;

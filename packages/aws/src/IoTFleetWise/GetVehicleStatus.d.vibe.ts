@@ -30,6 +30,6 @@ export interface GetVehicleStatusRequest extends Omit<iotfleetwise.GetVehicleSta
  *
  * @binding
  */
-export interface GetVehicleStatus extends Binding.Service<GetVehicleStatus, "AWS.IoTFleetWise.GetVehicleStatus", (vehicle: Vehicle) => Effect.Effect<((request?: GetVehicleStatusRequest) => Effect.Effect<iotfleetwise.GetVehicleStatusResponse, iotfleetwise.GetVehicleStatusError>)>> {
+export interface GetVehicleStatus extends Binding.Service<GetVehicleStatus, "AWS.IoTFleetWise.GetVehicleStatus", (vehicle: Vehicle) => Effect.Effect<(request?: GetVehicleStatusRequest) => Effect.Effect<iotfleetwise.GetVehicleStatusResponse, iotfleetwise.GetVehicleStatusError>>> {
 }
 export declare const GetVehicleStatus: GetVehicleStatus;

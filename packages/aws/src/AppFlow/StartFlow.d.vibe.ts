@@ -36,6 +36,6 @@ export interface StartFlowRequest extends Omit<appflow.StartFlowRequest, "flowNa
  *
  * @binding
  */
-export interface StartFlow extends Binding.Service<StartFlow, "AWS.AppFlow.StartFlow", (flow: Flow) => Effect.Effect<((request?: StartFlowRequest) => Effect.Effect<appflow.StartFlowResponse, appflow.StartFlowError>)>> {
+export interface StartFlow extends Binding.Service<StartFlow, "AWS.AppFlow.StartFlow", (flow: Flow) => Effect.Effect<(request?: StartFlowRequest) => Effect.Effect<appflow.StartFlowResponse, appflow.StartFlowError>>> {
 }
 export declare const StartFlow: StartFlow;

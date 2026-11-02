@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopComposition extends Binding.Service<StopComposition, "AWS.IVSRealtime.StopComposition", () => Effect.Effect<((request: ivsrealtime.StopCompositionRequest) => Effect.Effect<ivsrealtime.StopCompositionResponse, ivsrealtime.StopCompositionError>)>> {
+export interface StopComposition extends Binding.Service<StopComposition, "AWS.IVSRealtime.StopComposition", () => Effect.Effect<(request: ivsrealtime.StopCompositionRequest) => Effect.Effect<ivsrealtime.StopCompositionResponse, ivsrealtime.StopCompositionError>>> {
 }
 export declare const StopComposition: StopComposition;

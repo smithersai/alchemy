@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { AutoScalingGroup } from "./AutoScalingGroup.js";
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts";
 /**
  * Shared scaffolding for EC2 Auto Scaling HTTP bindings.
  *
@@ -22,7 +22,7 @@ export declare const makeGroupHttpBinding: <I extends object, A, E, R>(options: 
     /** Fully-qualified binding tag, e.g. `AWS.AutoScaling.SetDesiredCapacity`. */
     tag: string;
     /** The distilled operation; `AutoScalingGroupName` is injected from the group. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted by the binding. */
     actions: readonly string[];
     /**

@@ -25,6 +25,6 @@ export interface StopParticipantReplicationRequest extends Omit<ivsrealtime.Stop
  *
  * @binding
  */
-export interface StopParticipantReplication extends Binding.Service<StopParticipantReplication, "AWS.IVSRealtime.StopParticipantReplication", (sourceStage: Stage, destinationStage: Stage) => Effect.Effect<((request: StopParticipantReplicationRequest) => Effect.Effect<ivsrealtime.StopParticipantReplicationResponse, ivsrealtime.StopParticipantReplicationError>)>> {
+export interface StopParticipantReplication extends Binding.Service<StopParticipantReplication, "AWS.IVSRealtime.StopParticipantReplication", (sourceStage: Stage, destinationStage: Stage) => Effect.Effect<(request: StopParticipantReplicationRequest) => Effect.Effect<ivsrealtime.StopParticipantReplicationResponse, ivsrealtime.StopParticipantReplicationError>>> {
 }
 export declare const StopParticipantReplication: StopParticipantReplication;

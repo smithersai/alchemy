@@ -48,6 +48,6 @@ export interface GetTraceSummariesRequest extends xray.GetTraceSummariesRequest 
  *
  * @binding
  */
-export interface GetTraceSummaries extends Binding.Service<GetTraceSummaries, "AWS.XRay.GetTraceSummaries", () => Effect.Effect<((request: GetTraceSummariesRequest) => Effect.Effect<xray.GetTraceSummariesResult, xray.GetTraceSummariesError>)>> {
+export interface GetTraceSummaries extends Binding.Service<GetTraceSummaries, "AWS.XRay.GetTraceSummaries", () => Effect.Effect<(request: GetTraceSummariesRequest) => Effect.Effect<xray.GetTraceSummariesResult, xray.GetTraceSummariesError>>> {
 }
 export declare const GetTraceSummaries: GetTraceSummaries;

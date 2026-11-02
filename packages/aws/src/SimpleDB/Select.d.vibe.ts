@@ -42,6 +42,6 @@ export interface SelectRequest extends Omit<sdb.SelectRequest, "SelectExpression
  *
  * @binding
  */
-export interface Select extends Binding.Service<Select, "AWS.SimpleDB.Select", (domain: Domain) => Effect.Effect<((request: SelectRequest) => Effect.Effect<sdb.SelectResponse, sdb.SelectError, RuntimeContext>)>> {
+export interface Select extends Binding.Service<Select, "AWS.SimpleDB.Select", (domain: Domain) => Effect.Effect<(request: SelectRequest) => Effect.Effect<sdb.SelectResponse, sdb.SelectError, RuntimeContext>>> {
 }
 export declare const Select: Select;

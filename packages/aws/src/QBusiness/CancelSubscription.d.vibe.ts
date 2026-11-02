@@ -26,6 +26,6 @@ export interface CancelSubscriptionRequest extends Omit<qbusiness.CancelSubscrip
  *
  * @binding
  */
-export interface CancelSubscription extends Binding.Service<CancelSubscription, "AWS.QBusiness.CancelSubscription", (application: Application) => Effect.Effect<((request: CancelSubscriptionRequest) => Effect.Effect<qbusiness.CancelSubscriptionResponse, qbusiness.CancelSubscriptionError>)>> {
+export interface CancelSubscription extends Binding.Service<CancelSubscription, "AWS.QBusiness.CancelSubscription", (application: Application) => Effect.Effect<(request: CancelSubscriptionRequest) => Effect.Effect<qbusiness.CancelSubscriptionResponse, qbusiness.CancelSubscriptionError>>> {
 }
 export declare const CancelSubscription: CancelSubscription;

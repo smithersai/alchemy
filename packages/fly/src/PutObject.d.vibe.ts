@@ -2,7 +2,7 @@ import type * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 import type { TigrisCredentialsMissing } from "./Errors.vibe";
 export interface PutObjectRequest extends Omit<S3.PutObjectRequest, "Bucket"> {
 }
@@ -28,6 +28,6 @@ export interface PutObjectRequest extends Omit<S3.PutObjectRequest, "Bucket"> {
  * @binding
  * @product Bucket
  */
-export interface PutObject extends Binding.Service<PutObject, "Fly.PutObject", (bucket: Bucket) => Effect.Effect<((request: PutObjectRequest) => Effect.Effect<S3.PutObjectOutput, S3.PutObjectError | TigrisCredentialsMissing, RuntimeContext>)>> {
+export interface PutObject extends Binding.Service<PutObject, "Fly.PutObject", (bucket: Bucket) => Effect.Effect<(request: PutObjectRequest) => Effect.Effect<S3.PutObjectOutput, S3.PutObjectError | TigrisCredentialsMissing, RuntimeContext>>> {
 }
 export declare const PutObject: PutObject;

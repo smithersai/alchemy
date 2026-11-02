@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeBatchInferenceJob extends Binding.Service<DescribeBatchInferenceJob, "AWS.Personalize.DescribeBatchInferenceJob", () => Effect.Effect<((request: personalize.DescribeBatchInferenceJobRequest) => Effect.Effect<personalize.DescribeBatchInferenceJobResponse, personalize.DescribeBatchInferenceJobError>)>> {
+export interface DescribeBatchInferenceJob extends Binding.Service<DescribeBatchInferenceJob, "AWS.Personalize.DescribeBatchInferenceJob", () => Effect.Effect<(request: personalize.DescribeBatchInferenceJobRequest) => Effect.Effect<personalize.DescribeBatchInferenceJobResponse, personalize.DescribeBatchInferenceJobError>>> {
 }
 export declare const DescribeBatchInferenceJob: DescribeBatchInferenceJob;

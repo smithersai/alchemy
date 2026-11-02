@@ -1,7 +1,7 @@
 import * as storage from "@distilled.cloud/gcp/storage_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type ManagedProps = {
     /**
      * Name of the uniform-access bucket that contains this managed folder.
@@ -71,5 +71,5 @@ export declare class ManagedNotResolved extends ManagedNotResolved_base<{
     managedFolderName: string;
 }> {
 }
-export declare const ManagedProvider: () => import("effect/Layer").Layer<Provider.Provider<Managed>, never, import("../Environment.js").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | storage.GcpOpContext>;
+export declare const ManagedProvider: () => import("effect/Layer").Layer<Provider.Provider<Managed>, never, import("../Environment.ts").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | storage.GcpOpContext>;
 export {};

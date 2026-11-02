@@ -1,7 +1,7 @@
 import type * as ec2 from "@distilled.cloud/aws/ec2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 /**
  * `RebootInstances` request with `InstanceIds` injected from the bound
  * {@link Instance}.
@@ -27,6 +27,6 @@ export interface RebootInstanceRequest extends Omit<ec2.RebootInstancesRequest, 
  *
  * @binding
  */
-export interface RebootInstance extends Binding.Service<RebootInstance, "AWS.EC2.RebootInstance", (instance: Instance) => Effect.Effect<((request?: RebootInstanceRequest) => Effect.Effect<ec2.RebootInstancesResponse, ec2.RebootInstancesError>)>> {
+export interface RebootInstance extends Binding.Service<RebootInstance, "AWS.EC2.RebootInstance", (instance: Instance) => Effect.Effect<(request?: RebootInstanceRequest) => Effect.Effect<ec2.RebootInstancesResponse, ec2.RebootInstancesError>>> {
 }
 export declare const RebootInstance: RebootInstance;

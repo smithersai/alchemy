@@ -78,7 +78,7 @@ export declare const resourceNameFromOperation: (operation: workloadmanager.Oper
 /**
  * Wait for a Workload Manager long-running operation (evaluations settle in minutes; deployment actuations run infrastructure changes).
  */
-export declare const waitForOperation: (operation: workloadmanager.Operation) => Effect.Effect<import("../Operation.js").LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | workloadmanager.GetProjectsLocationsOperationsError, workloadmanager.GcpOpContext>;
+export declare const waitForOperation: (operation: workloadmanager.Operation) => Effect.Effect<import("../Operation.ts").LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | workloadmanager.GetProjectsLocationsOperationsError, workloadmanager.GcpOpContext>;
 export declare const waitUntilExists: <A, E extends {
     readonly _tag: string;
 }, R>(get: Effect.Effect<A, E, R>, name: string) => Effect.Effect<Exclude<A, undefined>, E | ResourceNotResolved, R>;

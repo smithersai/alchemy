@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface AssociateMember extends Binding.Service<AssociateMember, "AWS.Inspector2.AssociateMember", () => Effect.Effect<((request: inspector2.AssociateMemberRequest) => Effect.Effect<inspector2.AssociateMemberResponse, inspector2.AssociateMemberError>)>> {
+export interface AssociateMember extends Binding.Service<AssociateMember, "AWS.Inspector2.AssociateMember", () => Effect.Effect<(request: inspector2.AssociateMemberRequest) => Effect.Effect<inspector2.AssociateMemberResponse, inspector2.AssociateMemberError>>> {
 }
 export declare const AssociateMember: AssociateMember;

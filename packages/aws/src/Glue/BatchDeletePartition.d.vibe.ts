@@ -26,6 +26,6 @@ export interface BatchDeletePartitionRequest extends Omit<glue.BatchDeletePartit
  *
  * @binding
  */
-export interface BatchDeletePartition extends Binding.Service<BatchDeletePartition, "AWS.Glue.BatchDeletePartition", (table: Table) => Effect.Effect<((request: BatchDeletePartitionRequest) => Effect.Effect<glue.BatchDeletePartitionResponse, glue.BatchDeletePartitionError>)>> {
+export interface BatchDeletePartition extends Binding.Service<BatchDeletePartition, "AWS.Glue.BatchDeletePartition", (table: Table) => Effect.Effect<(request: BatchDeletePartitionRequest) => Effect.Effect<glue.BatchDeletePartitionResponse, glue.BatchDeletePartitionError>>> {
 }
 export declare const BatchDeletePartition: BatchDeletePartition;

@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetPersonalizedRanking extends Binding.Service<GetPersonalizedRanking, "AWS.Personalize.GetPersonalizedRanking", () => Effect.Effect<((request: personalizeruntime.GetPersonalizedRankingRequest) => Effect.Effect<personalizeruntime.GetPersonalizedRankingResponse, personalizeruntime.GetPersonalizedRankingError>)>> {
+export interface GetPersonalizedRanking extends Binding.Service<GetPersonalizedRanking, "AWS.Personalize.GetPersonalizedRanking", () => Effect.Effect<(request: personalizeruntime.GetPersonalizedRankingRequest) => Effect.Effect<personalizeruntime.GetPersonalizedRankingResponse, personalizeruntime.GetPersonalizedRankingError>>> {
 }
 export declare const GetPersonalizedRanking: GetPersonalizedRanking;

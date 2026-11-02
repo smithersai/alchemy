@@ -26,6 +26,6 @@ export interface SearchCertificatesRequest extends acm.SearchCertificatesRequest
  *
  * @binding
  */
-export interface SearchCertificates extends Binding.Service<SearchCertificates, "AWS.ACM.SearchCertificates", () => Effect.Effect<((request?: SearchCertificatesRequest) => Effect.Effect<acm.SearchCertificatesResponse, acm.SearchCertificatesError>)>> {
+export interface SearchCertificates extends Binding.Service<SearchCertificates, "AWS.ACM.SearchCertificates", () => Effect.Effect<(request?: SearchCertificatesRequest) => Effect.Effect<acm.SearchCertificatesResponse, acm.SearchCertificatesError>>> {
 }
 export declare const SearchCertificates: SearchCertificates;

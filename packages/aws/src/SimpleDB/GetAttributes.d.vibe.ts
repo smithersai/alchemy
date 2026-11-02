@@ -24,6 +24,6 @@ export interface GetAttributesRequest extends Omit<sdb.GetAttributesRequest, "Do
  *
  * @binding
  */
-export interface GetAttributes extends Binding.Service<GetAttributes, "AWS.SimpleDB.GetAttributes", (domain: Domain) => Effect.Effect<((request: GetAttributesRequest) => Effect.Effect<sdb.GetAttributesResponse, sdb.GetAttributesError, RuntimeContext>)>> {
+export interface GetAttributes extends Binding.Service<GetAttributes, "AWS.SimpleDB.GetAttributes", (domain: Domain) => Effect.Effect<(request: GetAttributesRequest) => Effect.Effect<sdb.GetAttributesResponse, sdb.GetAttributesError, RuntimeContext>>> {
 }
 export declare const GetAttributes: GetAttributes;

@@ -19,6 +19,6 @@ export interface DeleteEndpointRequest extends sns.DeleteEndpointInput {
  *
  * @binding
  */
-export interface DeleteEndpoint extends Binding.Service<DeleteEndpoint, "AWS.SNS.DeleteEndpoint", (application: PlatformApplication) => Effect.Effect<((request: DeleteEndpointRequest) => Effect.Effect<sns.DeleteEndpointResponse, sns.DeleteEndpointError>)>> {
+export interface DeleteEndpoint extends Binding.Service<DeleteEndpoint, "AWS.SNS.DeleteEndpoint", (application: PlatformApplication) => Effect.Effect<(request: DeleteEndpointRequest) => Effect.Effect<sns.DeleteEndpointResponse, sns.DeleteEndpointError>>> {
 }
 export declare const DeleteEndpoint: DeleteEndpoint;

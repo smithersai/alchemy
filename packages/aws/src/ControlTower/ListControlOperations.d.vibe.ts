@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListControlOperations extends Binding.Service<ListControlOperations, "AWS.ControlTower.ListControlOperations", () => Effect.Effect<((request?: controltower.ListControlOperationsInput) => Effect.Effect<controltower.ListControlOperationsOutput, controltower.ListControlOperationsError>)>> {
+export interface ListControlOperations extends Binding.Service<ListControlOperations, "AWS.ControlTower.ListControlOperations", () => Effect.Effect<(request?: controltower.ListControlOperationsInput) => Effect.Effect<controltower.ListControlOperationsOutput, controltower.ListControlOperationsError>>> {
 }
 export declare const ListControlOperations: ListControlOperations;

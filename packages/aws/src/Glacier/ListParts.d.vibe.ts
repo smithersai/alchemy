@@ -27,6 +27,6 @@ export interface ListPartsRequest extends Omit<glacier.ListPartsInput, "accountI
  *
  * @binding
  */
-export interface ListParts extends Binding.Service<ListParts, "AWS.Glacier.ListParts", (vault: Vault) => Effect.Effect<((request: ListPartsRequest) => Effect.Effect<glacier.ListPartsOutput, glacier.ListPartsError>)>> {
+export interface ListParts extends Binding.Service<ListParts, "AWS.Glacier.ListParts", (vault: Vault) => Effect.Effect<(request: ListPartsRequest) => Effect.Effect<glacier.ListPartsOutput, glacier.ListPartsError>>> {
 }
 export declare const ListParts: ListParts;

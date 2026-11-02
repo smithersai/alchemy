@@ -1,7 +1,7 @@
 import * as securityhub from "@distilled.cloud/aws/securityhub";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /** Whether the automation rule is applied to new and updated findings. */
 export type RuleStatus = "ENABLED" | "DISABLED";
 export interface AutomationRuleProps {

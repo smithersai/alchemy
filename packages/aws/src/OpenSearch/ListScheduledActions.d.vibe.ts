@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListScheduledActions extends Binding.Service<ListScheduledActions, "AWS.OpenSearch.ListScheduledActions", () => Effect.Effect<((request: opensearch.ListScheduledActionsRequest) => Effect.Effect<opensearch.ListScheduledActionsResponse, opensearch.ListScheduledActionsError>)>> {
+export interface ListScheduledActions extends Binding.Service<ListScheduledActions, "AWS.OpenSearch.ListScheduledActions", () => Effect.Effect<(request: opensearch.ListScheduledActionsRequest) => Effect.Effect<opensearch.ListScheduledActionsResponse, opensearch.ListScheduledActionsError>>> {
 }
 export declare const ListScheduledActions: ListScheduledActions;

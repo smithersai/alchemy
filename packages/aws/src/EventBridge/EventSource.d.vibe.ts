@@ -3,22 +3,22 @@ import type * as lambda from "aws-lambda";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Cluster } from "../ECS/Cluster.vibe";
-import type { Function as LambdaFunction } from "../Lambda/Function.js";
+import type { Function as LambdaFunction } from "../Lambda/Function.ts";
 import type { Queue } from "../SQS/Queue.vibe";
 import type { EventBus } from "./EventBus.vibe";
 import type { RuleProps } from "./Rule.vibe";
-import { type EcsRouteTargetProps } from "./ToEcsTask.js";
-import { type LambdaRouteTargetProps } from "./ToLambda.js";
-import { type QueueRouteTargetProps } from "./ToQueue.js";
+import { type EcsRouteTargetProps } from "./ToEcsTask.ts";
+import { type LambdaRouteTargetProps } from "./ToLambda.ts";
+import { type QueueRouteTargetProps } from "./ToQueue.ts";
 export type EventPattern = Record<string, any>;
 export type EventRecord<Detail = unknown> = lambda.EventBridgeEvent<string, Detail>;
 export interface EventRouteProps extends Pick<RuleProps, "description" | "state"> {
 }
 export interface SubscribeProps extends EventRouteProps {
 }
-export type { EcsRouteTargetProps } from "./ToEcsTask.js";
-export type { LambdaRouteTargetProps } from "./ToLambda.js";
-export type { QueueRouteTargetProps } from "./ToQueue.js";
+export type { EcsRouteTargetProps } from "./ToEcsTask.ts";
+export type { LambdaRouteTargetProps } from "./ToLambda.ts";
+export type { QueueRouteTargetProps } from "./ToQueue.ts";
 interface EventDescriptor {
     id?: string;
     bus?: EventBus;
@@ -73,9 +73,9 @@ export type EventSourceService = <Detail = unknown, StreamReq = never, Req = nev
  * To consume events locally with a handler, use {@link consumeBusEvents}.
  */
 export declare const events: (...args: any[]) => {
-    toLambda: (fn: LambdaFunction, props?: LambdaRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.js").Providers>;
-    toQueue: (queue: Queue, props?: QueueRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.js").Providers>;
-    toEcsTask: (cluster: Cluster, props: EcsRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.js").Providers>;
+    toLambda: (fn: LambdaFunction, props?: LambdaRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.ts").Providers>;
+    toQueue: (queue: Queue, props?: QueueRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.ts").Providers>;
+    toEcsTask: (cluster: Cluster, props: EcsRouteTargetProps) => Effect.Effect<import("./Rule.vibe").Rule, never, import("../Providers.ts").Providers>;
 };
 /**
  * Consume events from an EventBridge event bus with a handler. The handler is

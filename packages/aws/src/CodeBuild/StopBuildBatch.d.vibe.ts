@@ -15,6 +15,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface StopBuildBatch extends Binding.Service<StopBuildBatch, "AWS.CodeBuild.StopBuildBatch", <P extends Project>(project: P) => Effect.Effect<((request: SVC.StopBuildBatchInput) => Effect.Effect<SVC.StopBuildBatchOutput, SVC.StopBuildBatchError>)>> {
+export interface StopBuildBatch extends Binding.Service<StopBuildBatch, "AWS.CodeBuild.StopBuildBatch", <P extends Project>(project: P) => Effect.Effect<(request: SVC.StopBuildBatchInput) => Effect.Effect<SVC.StopBuildBatchOutput, SVC.StopBuildBatchError>>> {
 }
 export declare const StopBuildBatch: StopBuildBatch;

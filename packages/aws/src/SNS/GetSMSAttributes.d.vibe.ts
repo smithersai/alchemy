@@ -18,6 +18,6 @@ export interface GetSMSAttributesRequest extends sns.GetSMSAttributesInput {
  *
  * @binding
  */
-export interface GetSMSAttributes extends Binding.Service<GetSMSAttributes, "AWS.SNS.GetSMSAttributes", () => Effect.Effect<((request?: GetSMSAttributesRequest) => Effect.Effect<sns.GetSMSAttributesResponse, sns.GetSMSAttributesError>)>> {
+export interface GetSMSAttributes extends Binding.Service<GetSMSAttributes, "AWS.SNS.GetSMSAttributes", () => Effect.Effect<(request?: GetSMSAttributesRequest) => Effect.Effect<sns.GetSMSAttributesResponse, sns.GetSMSAttributesError>>> {
 }
 export declare const GetSMSAttributes: GetSMSAttributes;

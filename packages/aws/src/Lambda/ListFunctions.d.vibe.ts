@@ -20,6 +20,6 @@ export interface ListFunctionsRequest extends Lambda.ListFunctionsRequest {
  *
  * @binding
  */
-export interface ListFunctions extends Binding.Service<ListFunctions, "AWS.Lambda.ListFunctions", () => Effect.Effect<((request?: ListFunctionsRequest) => Effect.Effect<Lambda.ListFunctionsResponse, Lambda.ListFunctionsError>)>> {
+export interface ListFunctions extends Binding.Service<ListFunctions, "AWS.Lambda.ListFunctions", () => Effect.Effect<(request?: ListFunctionsRequest) => Effect.Effect<Lambda.ListFunctionsResponse, Lambda.ListFunctionsError>>> {
 }
 export declare const ListFunctions: ListFunctions;

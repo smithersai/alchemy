@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetServiceLastAccessedDetails extends Binding.Service<GetServiceLastAccessedDetails, "AWS.IAM.GetServiceLastAccessedDetails", () => Effect.Effect<((request: iam.GetServiceLastAccessedDetailsRequest) => Effect.Effect<iam.GetServiceLastAccessedDetailsResponse, iam.GetServiceLastAccessedDetailsError>)>> {
+export interface GetServiceLastAccessedDetails extends Binding.Service<GetServiceLastAccessedDetails, "AWS.IAM.GetServiceLastAccessedDetails", () => Effect.Effect<(request: iam.GetServiceLastAccessedDetailsRequest) => Effect.Effect<iam.GetServiceLastAccessedDetailsResponse, iam.GetServiceLastAccessedDetailsError>>> {
 }
 export declare const GetServiceLastAccessedDetails: GetServiceLastAccessedDetails;

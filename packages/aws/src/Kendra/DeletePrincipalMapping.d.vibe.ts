@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `DeletePrincipalMapping` request with `IndexId` injected from the bound index.
  */
@@ -26,6 +26,6 @@ export interface DeletePrincipalMappingRequest extends Omit<kendra.DeletePrincip
  *
  * @binding
  */
-export interface DeletePrincipalMapping extends Binding.Service<DeletePrincipalMapping, "AWS.Kendra.DeletePrincipalMapping", (index: Index) => Effect.Effect<((request: DeletePrincipalMappingRequest) => Effect.Effect<kendra.DeletePrincipalMappingResponse, kendra.DeletePrincipalMappingError>)>> {
+export interface DeletePrincipalMapping extends Binding.Service<DeletePrincipalMapping, "AWS.Kendra.DeletePrincipalMapping", (index: Index) => Effect.Effect<(request: DeletePrincipalMappingRequest) => Effect.Effect<kendra.DeletePrincipalMappingResponse, kendra.DeletePrincipalMappingError>>> {
 }
 export declare const DeletePrincipalMapping: DeletePrincipalMapping;

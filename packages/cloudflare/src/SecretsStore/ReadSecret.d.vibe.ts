@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 /**
  * Bind a {@link Secret} to a Worker and obtain the Effect-native secret
  * client. The client is itself an `Effect` that resolves to the secret's

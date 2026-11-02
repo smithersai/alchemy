@@ -20,7 +20,7 @@ export declare const makeAossCollectionHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.OpenSearchServerless.CreateIndex`. */
     tag: string;
     /** The distilled operation; `id` is injected from the collection. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the collection ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(collection: Collection) => Effect.Effect<(request: Omit<I, "id">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -34,7 +34,7 @@ export declare const makeAossAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.OpenSearchServerless.GetAccountSettings`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

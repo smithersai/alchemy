@@ -18,6 +18,6 @@ export interface ResumeMicrovmRequest extends microvms.ResumeMicrovmRequest {
  *
  * @binding
  */
-export interface ResumeMicrovm extends Binding.Service<ResumeMicrovm, "AWS.Lambda.ResumeMicrovm", (image: MicrovmImage) => Effect.Effect<((request: ResumeMicrovmRequest) => Effect.Effect<microvms.ResumeMicrovmResponse, microvms.ResumeMicrovmError>)>> {
+export interface ResumeMicrovm extends Binding.Service<ResumeMicrovm, "AWS.Lambda.ResumeMicrovm", (image: MicrovmImage) => Effect.Effect<(request: ResumeMicrovmRequest) => Effect.Effect<microvms.ResumeMicrovmResponse, microvms.ResumeMicrovmError>>> {
 }
 export declare const ResumeMicrovm: ResumeMicrovm;

@@ -31,6 +31,6 @@ export interface ListWhatsAppFlowsRequest extends Omit<socialmessaging.ListWhats
  *
  * @binding
  */
-export interface ListWhatsAppFlows extends Binding.Service<ListWhatsAppFlows, "AWS.SocialMessaging.ListWhatsAppFlows", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request?: ListWhatsAppFlowsRequest) => Effect.Effect<socialmessaging.ListWhatsAppFlowsOutput, socialmessaging.ListWhatsAppFlowsError>)>> {
+export interface ListWhatsAppFlows extends Binding.Service<ListWhatsAppFlows, "AWS.SocialMessaging.ListWhatsAppFlows", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request?: ListWhatsAppFlowsRequest) => Effect.Effect<socialmessaging.ListWhatsAppFlowsOutput, socialmessaging.ListWhatsAppFlowsError>>> {
 }
 export declare const ListWhatsAppFlows: ListWhatsAppFlows;

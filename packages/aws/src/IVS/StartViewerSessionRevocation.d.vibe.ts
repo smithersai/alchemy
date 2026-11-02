@@ -1,7 +1,7 @@
 import type * as ivs from "@distilled.cloud/aws/ivs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Channel } from "./Channel.js";
+import type { Channel } from "./Channel.ts";
 export interface StartViewerSessionRevocationRequest extends Omit<ivs.StartViewerSessionRevocationRequest, "channelArn"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface StartViewerSessionRevocationRequest extends Omit<ivs.StartViewe
  *
  * @binding
  */
-export interface StartViewerSessionRevocation extends Binding.Service<StartViewerSessionRevocation, "AWS.IVS.StartViewerSessionRevocation", (channel: Channel) => Effect.Effect<((request: StartViewerSessionRevocationRequest) => Effect.Effect<ivs.StartViewerSessionRevocationResponse, ivs.StartViewerSessionRevocationError>)>> {
+export interface StartViewerSessionRevocation extends Binding.Service<StartViewerSessionRevocation, "AWS.IVS.StartViewerSessionRevocation", (channel: Channel) => Effect.Effect<(request: StartViewerSessionRevocationRequest) => Effect.Effect<ivs.StartViewerSessionRevocationResponse, ivs.StartViewerSessionRevocationError>>> {
 }
 export declare const StartViewerSessionRevocation: StartViewerSessionRevocation;

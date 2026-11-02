@@ -22,6 +22,6 @@ export interface GetReferenceRequest extends Omit<omics.GetReferenceRequest, "re
  *
  * @binding
  */
-export interface GetReference extends Binding.Service<GetReference, "AWS.Omics.GetReference", (store: ReferenceStore) => Effect.Effect<((request?: GetReferenceRequest) => Effect.Effect<omics.GetReferenceResponse, omics.GetReferenceError>)>> {
+export interface GetReference extends Binding.Service<GetReference, "AWS.Omics.GetReference", (store: ReferenceStore) => Effect.Effect<(request?: GetReferenceRequest) => Effect.Effect<omics.GetReferenceResponse, omics.GetReferenceError>>> {
 }
 export declare const GetReference: GetReference;

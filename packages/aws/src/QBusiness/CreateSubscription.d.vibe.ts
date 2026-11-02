@@ -29,6 +29,6 @@ export interface CreateSubscriptionRequest extends Omit<qbusiness.CreateSubscrip
  *
  * @binding
  */
-export interface CreateSubscription extends Binding.Service<CreateSubscription, "AWS.QBusiness.CreateSubscription", (application: Application) => Effect.Effect<((request: CreateSubscriptionRequest) => Effect.Effect<qbusiness.CreateSubscriptionResponse, qbusiness.CreateSubscriptionError>)>> {
+export interface CreateSubscription extends Binding.Service<CreateSubscription, "AWS.QBusiness.CreateSubscription", (application: Application) => Effect.Effect<(request: CreateSubscriptionRequest) => Effect.Effect<qbusiness.CreateSubscriptionResponse, qbusiness.CreateSubscriptionError>>> {
 }
 export declare const CreateSubscription: CreateSubscription;

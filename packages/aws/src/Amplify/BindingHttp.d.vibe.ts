@@ -16,7 +16,7 @@ export interface AmplifyHttpBindingOptions<I extends {
     /** Capability name, e.g. `"StartJob"` — used for the bind sid and span name. */
     name: string;
     /** The distilled Amplify operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted to the host, e.g. `["amplify:StartJob"]`. */
     actions: string[];
     /** IAM resource ARNs (derived from the bound app) the actions apply to. */

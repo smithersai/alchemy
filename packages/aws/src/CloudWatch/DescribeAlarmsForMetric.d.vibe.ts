@@ -27,6 +27,6 @@ export interface DescribeAlarmsForMetricRequest extends cloudwatch.DescribeAlarm
  *
  * @binding
  */
-export interface DescribeAlarmsForMetric extends Binding.Service<DescribeAlarmsForMetric, "AWS.CloudWatch.DescribeAlarmsForMetric", () => Effect.Effect<((request: DescribeAlarmsForMetricRequest) => Effect.Effect<cloudwatch.DescribeAlarmsForMetricOutput, cloudwatch.DescribeAlarmsForMetricError>)>> {
+export interface DescribeAlarmsForMetric extends Binding.Service<DescribeAlarmsForMetric, "AWS.CloudWatch.DescribeAlarmsForMetric", () => Effect.Effect<(request: DescribeAlarmsForMetricRequest) => Effect.Effect<cloudwatch.DescribeAlarmsForMetricOutput, cloudwatch.DescribeAlarmsForMetricError>>> {
 }
 export declare const DescribeAlarmsForMetric: DescribeAlarmsForMetric;

@@ -22,6 +22,6 @@ export interface ListDataSourceRunsRequest extends Omit<datazone.ListDataSourceR
  *
  * @binding
  */
-export interface ListDataSourceRuns extends Binding.Service<ListDataSourceRuns, "AWS.DataZone.ListDataSourceRuns", (domain: Domain) => Effect.Effect<((request: ListDataSourceRunsRequest) => Effect.Effect<datazone.ListDataSourceRunsOutput, datazone.ListDataSourceRunsError>)>> {
+export interface ListDataSourceRuns extends Binding.Service<ListDataSourceRuns, "AWS.DataZone.ListDataSourceRuns", (domain: Domain) => Effect.Effect<(request: ListDataSourceRunsRequest) => Effect.Effect<datazone.ListDataSourceRunsOutput, datazone.ListDataSourceRunsError>>> {
 }
 export declare const ListDataSourceRuns: ListDataSourceRuns;

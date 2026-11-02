@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetIncidentFindings extends Binding.Service<BatchGetIncidentFindings, "AWS.SSMIncidents.BatchGetIncidentFindings", () => Effect.Effect<((request: incidents.BatchGetIncidentFindingsInput) => Effect.Effect<incidents.BatchGetIncidentFindingsOutput, incidents.BatchGetIncidentFindingsError>)>> {
+export interface BatchGetIncidentFindings extends Binding.Service<BatchGetIncidentFindings, "AWS.SSMIncidents.BatchGetIncidentFindings", () => Effect.Effect<(request: incidents.BatchGetIncidentFindingsInput) => Effect.Effect<incidents.BatchGetIncidentFindingsOutput, incidents.BatchGetIncidentFindingsError>>> {
 }
 export declare const BatchGetIncidentFindings: BatchGetIncidentFindings;

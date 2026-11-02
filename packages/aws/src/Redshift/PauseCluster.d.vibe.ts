@@ -23,6 +23,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface PauseCluster extends Binding.Service<PauseCluster, "AWS.Redshift.PauseCluster", (cluster: Cluster) => Effect.Effect<(() => Effect.Effect<redshift.PauseClusterResult, redshift.PauseClusterError>)>> {
+export interface PauseCluster extends Binding.Service<PauseCluster, "AWS.Redshift.PauseCluster", (cluster: Cluster) => Effect.Effect<() => Effect.Effect<redshift.PauseClusterResult, redshift.PauseClusterError>>> {
 }
 export declare const PauseCluster: PauseCluster;

@@ -27,6 +27,6 @@ export interface ListParticipantReplicasRequest extends Omit<ivsrealtime.ListPar
  *
  * @binding
  */
-export interface ListParticipantReplicas extends Binding.Service<ListParticipantReplicas, "AWS.IVSRealtime.ListParticipantReplicas", (stage: Stage) => Effect.Effect<((request: ListParticipantReplicasRequest) => Effect.Effect<ivsrealtime.ListParticipantReplicasResponse, ivsrealtime.ListParticipantReplicasError>)>> {
+export interface ListParticipantReplicas extends Binding.Service<ListParticipantReplicas, "AWS.IVSRealtime.ListParticipantReplicas", (stage: Stage) => Effect.Effect<(request: ListParticipantReplicasRequest) => Effect.Effect<ivsrealtime.ListParticipantReplicasResponse, ivsrealtime.ListParticipantReplicasError>>> {
 }
 export declare const ListParticipantReplicas: ListParticipantReplicas;

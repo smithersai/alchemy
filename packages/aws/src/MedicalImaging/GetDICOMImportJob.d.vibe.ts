@@ -35,6 +35,6 @@ export interface GetDICOMImportJobRequest extends Omit<medicalimaging.GetDICOMIm
  *
  * @binding
  */
-export interface GetDICOMImportJob extends Binding.Service<GetDICOMImportJob, "AWS.MedicalImaging.GetDICOMImportJob", (datastore: Datastore) => Effect.Effect<((request: GetDICOMImportJobRequest) => Effect.Effect<medicalimaging.GetDICOMImportJobResponse, medicalimaging.GetDICOMImportJobError>)>> {
+export interface GetDICOMImportJob extends Binding.Service<GetDICOMImportJob, "AWS.MedicalImaging.GetDICOMImportJob", (datastore: Datastore) => Effect.Effect<(request: GetDICOMImportJobRequest) => Effect.Effect<medicalimaging.GetDICOMImportJobResponse, medicalimaging.GetDICOMImportJobError>>> {
 }
 export declare const GetDICOMImportJob: GetDICOMImportJob;

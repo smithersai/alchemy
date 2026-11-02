@@ -1,8 +1,8 @@
 import * as compute from "@distilled.cloud/gcp/compute_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type SslPolicyMinTlsVersion = "TLS_1_0" | "TLS_1_1" | "TLS_1_2" | "TLS_1_3";
 export type SslPolicyProfile = "COMPATIBLE" | "MODERN" | "RESTRICTED" | "FIPS_202205" | "CUSTOM";
 export type SslPolicyPostQuantumKeyExchange = "DEFAULT" | "ENABLED" | "DEFERRED";

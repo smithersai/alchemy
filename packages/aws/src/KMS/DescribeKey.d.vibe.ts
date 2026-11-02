@@ -2,7 +2,7 @@ import type * as kms from "@distilled.cloud/aws/kms";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { AliasName } from "./Alias.vibe";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.ts";
 export interface DescribeKeyRequest extends Omit<kms.DescribeKeyRequest, "KeyId"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface DescribeKeyRequest extends Omit<kms.DescribeKeyRequest, "KeyId"
  *
  * @binding
  */
-export interface DescribeKey extends Binding.Service<DescribeKey, "AWS.KMS.DescribeKey", (key: Key | AliasName) => Effect.Effect<((request?: DescribeKeyRequest) => Effect.Effect<kms.DescribeKeyResponse, kms.DescribeKeyError>)>> {
+export interface DescribeKey extends Binding.Service<DescribeKey, "AWS.KMS.DescribeKey", (key: Key | AliasName) => Effect.Effect<(request?: DescribeKeyRequest) => Effect.Effect<kms.DescribeKeyResponse, kms.DescribeKeyError>>> {
 }
 export declare const DescribeKey: DescribeKey;

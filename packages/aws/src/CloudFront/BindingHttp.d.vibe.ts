@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Distribution } from "./Distribution.js";
+import type { Distribution } from "./Distribution.ts";
 import type { KeyValueStore } from "./KeyValueStore.vibe";
 /**
  * Shared scaffolding for CloudFront HTTP bindings.
@@ -21,7 +21,7 @@ export declare const makeDistributionScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.CloudFront.GetInvalidation`. */
     tag: string;
     /** The distilled operation; `DistributionId` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the distribution ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(distribution: Distribution) => Effect.Effect<(request: Omit<I, "DistributionId">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -41,7 +41,7 @@ export declare const makeKeyValueStoreScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.CloudFront.GetKey`. */
     tag: string;
     /** The distilled operation; `KvsARN` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the KeyValueStore ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(store: KeyValueStore) => Effect.Effect<(request: Omit<I, "KvsARN">) => Effect.Effect<A, E, never>, never, never>, never, never>;

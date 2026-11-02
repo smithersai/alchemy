@@ -18,6 +18,6 @@ export interface PublishRecipeRequest extends Omit<SVC.PublishRecipeRequest, "Na
  *
  * @binding
  */
-export interface PublishRecipe extends Binding.Service<PublishRecipe, "AWS.DataBrew.PublishRecipe", <R extends Recipe>(recipe: R) => Effect.Effect<((request?: PublishRecipeRequest) => Effect.Effect<SVC.PublishRecipeResponse, SVC.PublishRecipeError>)>> {
+export interface PublishRecipe extends Binding.Service<PublishRecipe, "AWS.DataBrew.PublishRecipe", <R extends Recipe>(recipe: R) => Effect.Effect<(request?: PublishRecipeRequest) => Effect.Effect<SVC.PublishRecipeResponse, SVC.PublishRecipeError>>> {
 }
 export declare const PublishRecipe: PublishRecipe;

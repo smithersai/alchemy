@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface EnableImportFindingsForProduct extends Binding.Service<EnableImportFindingsForProduct, "AWS.SecurityHub.EnableImportFindingsForProduct", () => Effect.Effect<((request?: securityhub.EnableImportFindingsForProductRequest) => Effect.Effect<securityhub.EnableImportFindingsForProductResponse, securityhub.EnableImportFindingsForProductError>)>> {
+export interface EnableImportFindingsForProduct extends Binding.Service<EnableImportFindingsForProduct, "AWS.SecurityHub.EnableImportFindingsForProduct", () => Effect.Effect<(request?: securityhub.EnableImportFindingsForProductRequest) => Effect.Effect<securityhub.EnableImportFindingsForProductResponse, securityhub.EnableImportFindingsForProductError>>> {
 }
 export declare const EnableImportFindingsForProduct: EnableImportFindingsForProduct;

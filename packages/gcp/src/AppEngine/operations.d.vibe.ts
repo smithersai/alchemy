@@ -12,4 +12,4 @@ export declare const parseOperationName: (name: string) => {
 export declare const waitForOperation: (operation: appengine.Operation, options: {
     appsId: string;
     notFoundOk?: boolean;
-}) => Effect.Effect<void, appengine.Forbidden | appengine.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | appengine.ServiceDisabled | appengine.GcpOpError, appengine.GcpOpContext>;
+}) => Effect.Effect<void, appengine.Forbidden | appengine.NotFound | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | appengine.ServiceDisabled | appengine.GcpOpError, appengine.GcpOpContext>;

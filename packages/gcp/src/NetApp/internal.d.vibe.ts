@@ -1,7 +1,7 @@
 import * as netapp from "@distilled.cloud/gcp/netapp_v1";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { type LongRunningOperation } from "../Operation.js";
+import { type LongRunningOperation } from "../Operation.ts";
 export declare const MAX_NAME_LENGTH = 63;
 declare const ResourceNotResolved_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "GCP.NetApp.ResourceNotResolved";
@@ -95,10 +95,10 @@ export declare const listLabeledPages: <Page, A, E, R>(pages: Stream.Stream<Page
  * Wait for a long-running operation. ALREADY_EXISTS (code 6) means a
  * concurrent create won the race; reconcile observes the resource next.
  */
-export declare const waitForOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | netapp.GetProjectsLocationsOperationsError, netapp.GcpOpContext>;
+export declare const waitForOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | netapp.GetProjectsLocationsOperationsError, netapp.GcpOpContext>;
 /**
  * Wait for a delete operation. A vanished operation or NOT_FOUND (code 5)
  * means the resource is already gone.
  */
-export declare const waitForDeleteOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | netapp.GetProjectsLocationsOperationsError, netapp.GcpOpContext>;
+export declare const waitForDeleteOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | netapp.GetProjectsLocationsOperationsError, netapp.GcpOpContext>;
 export {};

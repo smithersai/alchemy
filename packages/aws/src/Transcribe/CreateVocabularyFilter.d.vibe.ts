@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateVocabularyFilter extends Binding.Service<CreateVocabularyFilter, "AWS.Transcribe.CreateVocabularyFilter", () => Effect.Effect<((request: transcribe.CreateVocabularyFilterRequest) => Effect.Effect<transcribe.CreateVocabularyFilterResponse, transcribe.CreateVocabularyFilterError>)>> {
+export interface CreateVocabularyFilter extends Binding.Service<CreateVocabularyFilter, "AWS.Transcribe.CreateVocabularyFilter", () => Effect.Effect<(request: transcribe.CreateVocabularyFilterRequest) => Effect.Effect<transcribe.CreateVocabularyFilterResponse, transcribe.CreateVocabularyFilterError>>> {
 }
 export declare const CreateVocabularyFilter: CreateVocabularyFilter;

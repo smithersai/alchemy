@@ -15,6 +15,6 @@ import type { ReportGroup } from "./ReportGroup.vibe";
  *
  * @binding
  */
-export interface DeleteReport extends Binding.Service<DeleteReport, "AWS.CodeBuild.DeleteReport", <G extends ReportGroup>(reportGroup: G) => Effect.Effect<((request: SVC.DeleteReportInput) => Effect.Effect<SVC.DeleteReportOutput, SVC.DeleteReportError>)>> {
+export interface DeleteReport extends Binding.Service<DeleteReport, "AWS.CodeBuild.DeleteReport", <G extends ReportGroup>(reportGroup: G) => Effect.Effect<(request: SVC.DeleteReportInput) => Effect.Effect<SVC.DeleteReportOutput, SVC.DeleteReportError>>> {
 }
 export declare const DeleteReport: DeleteReport;

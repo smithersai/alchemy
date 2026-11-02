@@ -30,6 +30,6 @@ export interface StartDeviceDiscoveryRequest extends mi.StartDeviceDiscoveryRequ
  *
  * @binding
  */
-export interface StartDeviceDiscovery extends Binding.Service<StartDeviceDiscovery, "AWS.IoTManagedIntegrations.StartDeviceDiscovery", () => Effect.Effect<((request: StartDeviceDiscoveryRequest) => Effect.Effect<mi.StartDeviceDiscoveryResponse, mi.StartDeviceDiscoveryError>)>> {
+export interface StartDeviceDiscovery extends Binding.Service<StartDeviceDiscovery, "AWS.IoTManagedIntegrations.StartDeviceDiscovery", () => Effect.Effect<(request: StartDeviceDiscoveryRequest) => Effect.Effect<mi.StartDeviceDiscoveryResponse, mi.StartDeviceDiscoveryError>>> {
 }
 export declare const StartDeviceDiscovery: StartDeviceDiscovery;

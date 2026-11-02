@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetDiscoveredResourceCounts extends Binding.Service<GetDiscoveredResourceCounts, "AWS.Config.GetDiscoveredResourceCounts", () => Effect.Effect<((request?: config.GetDiscoveredResourceCountsRequest) => Effect.Effect<config.GetDiscoveredResourceCountsResponse, config.GetDiscoveredResourceCountsError>)>> {
+export interface GetDiscoveredResourceCounts extends Binding.Service<GetDiscoveredResourceCounts, "AWS.Config.GetDiscoveredResourceCounts", () => Effect.Effect<(request?: config.GetDiscoveredResourceCountsRequest) => Effect.Effect<config.GetDiscoveredResourceCountsResponse, config.GetDiscoveredResourceCountsError>>> {
 }
 export declare const GetDiscoveredResourceCounts: GetDiscoveredResourceCounts;

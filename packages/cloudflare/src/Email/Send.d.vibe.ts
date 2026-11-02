@@ -2,7 +2,7 @@ import type * as runtime from "@cloudflare/workers-types";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { SendEmail } from "./SendEmail.js";
+import type { SendEmail } from "./SendEmail.ts";
 /**
  * Bind a {@link SendEmail} `send_email` descriptor to a Worker and obtain the
  * Effect-native client for sending email.

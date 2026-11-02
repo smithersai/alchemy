@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface Probe extends Binding.Service<Probe, "AWS.MediaConvert.Probe", () => Effect.Effect<((request: mediaconvert.ProbeRequest) => Effect.Effect<mediaconvert.ProbeResponse, mediaconvert.ProbeError>)>> {
+export interface Probe extends Binding.Service<Probe, "AWS.MediaConvert.Probe", () => Effect.Effect<(request: mediaconvert.ProbeRequest) => Effect.Effect<mediaconvert.ProbeResponse, mediaconvert.ProbeError>>> {
 }
 export declare const Probe: Probe;

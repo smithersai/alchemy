@@ -24,6 +24,6 @@ import type { Workspace } from "./Workspace.vibe";
  *
  * @binding
  */
-export interface AssociateLicense extends Binding.Service<AssociateLicense, "AWS.Grafana.AssociateLicense", (workspace: Workspace) => Effect.Effect<((request: Omit<grafana.AssociateLicenseRequest, "workspaceId">) => Effect.Effect<grafana.AssociateLicenseResponse, grafana.AssociateLicenseError>)>> {
+export interface AssociateLicense extends Binding.Service<AssociateLicense, "AWS.Grafana.AssociateLicense", (workspace: Workspace) => Effect.Effect<(request: Omit<grafana.AssociateLicenseRequest, "workspaceId">) => Effect.Effect<grafana.AssociateLicenseResponse, grafana.AssociateLicenseError>>> {
 }
 export declare const AssociateLicense: AssociateLicense;

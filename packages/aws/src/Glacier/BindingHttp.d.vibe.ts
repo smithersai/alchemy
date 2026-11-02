@@ -21,7 +21,7 @@ export declare const makeGlacierVaultHttpBinding: <I extends {
      * The distilled operation; `accountId` (always `-`) and `vaultName` are
      * injected from the bound vault.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the vault ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(vault: Vault) => Effect.Effect<(request?: Omit<I, "accountId" | "vaultName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

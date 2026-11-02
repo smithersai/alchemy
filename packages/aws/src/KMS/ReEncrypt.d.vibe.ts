@@ -2,7 +2,7 @@ import type * as kms from "@distilled.cloud/aws/kms";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { AliasName } from "./Alias.vibe";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.ts";
 export interface ReEncryptRequest extends Omit<kms.ReEncryptRequest, "DestinationKeyId" | "SourceKeyId"> {
 }
 /**
@@ -42,6 +42,6 @@ export interface ReEncryptRequest extends Omit<kms.ReEncryptRequest, "Destinatio
  *
  * @binding
  */
-export interface ReEncrypt extends Binding.Service<ReEncrypt, "AWS.KMS.ReEncrypt", (destination: Key | AliasName, source?: Key | AliasName) => Effect.Effect<((request: ReEncryptRequest) => Effect.Effect<kms.ReEncryptResponse, kms.ReEncryptError>)>> {
+export interface ReEncrypt extends Binding.Service<ReEncrypt, "AWS.KMS.ReEncrypt", (destination: Key | AliasName, source?: Key | AliasName) => Effect.Effect<(request: ReEncryptRequest) => Effect.Effect<kms.ReEncryptResponse, kms.ReEncryptError>>> {
 }
 export declare const ReEncrypt: ReEncrypt;

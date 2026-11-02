@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteCoreDevice extends Binding.Service<DeleteCoreDevice, "AWS.GreengrassV2.DeleteCoreDevice", () => Effect.Effect<((request: greengrassv2.DeleteCoreDeviceRequest) => Effect.Effect<greengrassv2.DeleteCoreDeviceResponse, greengrassv2.DeleteCoreDeviceError>)>> {
+export interface DeleteCoreDevice extends Binding.Service<DeleteCoreDevice, "AWS.GreengrassV2.DeleteCoreDevice", () => Effect.Effect<(request: greengrassv2.DeleteCoreDeviceRequest) => Effect.Effect<greengrassv2.DeleteCoreDeviceResponse, greengrassv2.DeleteCoreDeviceError>>> {
 }
 export declare const DeleteCoreDevice: DeleteCoreDevice;

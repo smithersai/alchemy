@@ -1,7 +1,7 @@
 import type * as Logs from "@distilled.cloud/aws/cloudwatch-logs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LogGroup } from "./LogGroup.js";
+import type { LogGroup } from "./LogGroup.ts";
 export interface DeleteLogStreamRequest extends Omit<Logs.DeleteLogStreamRequest, "logGroupName"> {
 }
 /**
@@ -23,6 +23,6 @@ export interface DeleteLogStreamRequest extends Omit<Logs.DeleteLogStreamRequest
  *
  * @binding
  */
-export interface DeleteLogStream extends Binding.Service<DeleteLogStream, "AWS.Logs.DeleteLogStream", <G extends LogGroup>(logGroup: G) => Effect.Effect<((request: DeleteLogStreamRequest) => Effect.Effect<Logs.DeleteLogStreamResponse, Logs.DeleteLogStreamError>)>> {
+export interface DeleteLogStream extends Binding.Service<DeleteLogStream, "AWS.Logs.DeleteLogStream", <G extends LogGroup>(logGroup: G) => Effect.Effect<(request: DeleteLogStreamRequest) => Effect.Effect<Logs.DeleteLogStreamResponse, Logs.DeleteLogStreamError>>> {
 }
 export declare const DeleteLogStream: DeleteLogStream;

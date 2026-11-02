@@ -1,10 +1,10 @@
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.js";
-import type { Credentials } from "../Credentials.js";
-import type { Bucket } from "./Bucket.js";
-import type { makeHelpers } from "./BucketBinding.js";
-import type { R2Auth } from "./BucketHttp.js";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import type { Credentials } from "../Credentials.ts";
+import type { Bucket } from "./Bucket.ts";
+import type { makeHelpers } from "./BucketBinding.ts";
+import type { R2Auth } from "./BucketHttp.ts";
 /**
  * Shared scaffolding for the R2 `*Local` binding layers.
  *

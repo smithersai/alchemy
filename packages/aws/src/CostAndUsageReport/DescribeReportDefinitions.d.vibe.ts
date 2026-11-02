@@ -31,6 +31,6 @@ export interface DescribeReportDefinitionsRequest extends cur.DescribeReportDefi
  *
  * @binding
  */
-export interface DescribeReportDefinitions extends Binding.Service<DescribeReportDefinitions, "AWS.CostAndUsageReport.DescribeReportDefinitions", () => Effect.Effect<((request?: DescribeReportDefinitionsRequest) => Effect.Effect<cur.DescribeReportDefinitionsResponse, cur.DescribeReportDefinitionsError>)>> {
+export interface DescribeReportDefinitions extends Binding.Service<DescribeReportDefinitions, "AWS.CostAndUsageReport.DescribeReportDefinitions", () => Effect.Effect<(request?: DescribeReportDefinitionsRequest) => Effect.Effect<cur.DescribeReportDefinitionsResponse, cur.DescribeReportDefinitionsError>>> {
 }
 export declare const DescribeReportDefinitions: DescribeReportDefinitions;

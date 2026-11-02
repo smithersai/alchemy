@@ -18,6 +18,6 @@ export interface ListPhoneNumbersOptedOutRequest extends sns.ListPhoneNumbersOpt
  *
  * @binding
  */
-export interface ListPhoneNumbersOptedOut extends Binding.Service<ListPhoneNumbersOptedOut, "AWS.SNS.ListPhoneNumbersOptedOut", () => Effect.Effect<((request?: ListPhoneNumbersOptedOutRequest) => Effect.Effect<sns.ListPhoneNumbersOptedOutResponse, sns.ListPhoneNumbersOptedOutError>)>> {
+export interface ListPhoneNumbersOptedOut extends Binding.Service<ListPhoneNumbersOptedOut, "AWS.SNS.ListPhoneNumbersOptedOut", () => Effect.Effect<(request?: ListPhoneNumbersOptedOutRequest) => Effect.Effect<sns.ListPhoneNumbersOptedOutResponse, sns.ListPhoneNumbersOptedOutError>>> {
 }
 export declare const ListPhoneNumbersOptedOut: ListPhoneNumbersOptedOut;

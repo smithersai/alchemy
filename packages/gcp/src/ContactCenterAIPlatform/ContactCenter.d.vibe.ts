@@ -1,8 +1,8 @@
 import * as ccaip from "@distilled.cloud/gcp/contactcenteraiplatform_v1alpha1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type ContactCenterProps = {
     /**
      * Contact Center id (the `{contactCenter}` segment of
@@ -192,4 +192,4 @@ export type ContactCenter = Resource<"GCP.ContactCenterAIPlatform.ContactCenter"
  */
 export declare const ContactCenter: import("alchemy/Resource").ResourceClass<ContactCenter>;
 export declare const ContactCenterProvider: () => import("effect/Layer").Layer<Provider.Provider<ContactCenter>, never, GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | ccaip.GcpOpContext>;
-export { ContactCenterFailed, ContactCenterNotResolved } from "./internal.js";
+export { ContactCenterFailed, ContactCenterNotResolved } from "./internal.ts";

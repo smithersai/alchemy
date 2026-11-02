@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetOperation extends Binding.Service<GetOperation, "AWS.CloudMap.GetOperation", () => Effect.Effect<((request: SD.GetOperationRequest) => Effect.Effect<SD.GetOperationResponse, SD.GetOperationError>)>> {
+export interface GetOperation extends Binding.Service<GetOperation, "AWS.CloudMap.GetOperation", () => Effect.Effect<(request: SD.GetOperationRequest) => Effect.Effect<SD.GetOperationResponse, SD.GetOperationError>>> {
 }
 export declare const GetOperation: GetOperation;

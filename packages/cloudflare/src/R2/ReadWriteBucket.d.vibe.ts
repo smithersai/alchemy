@@ -1,6 +1,6 @@
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 import type { ReadBucketClient } from "./ReadBucket.vibe";
 import type { WriteBucketClient } from "./WriteBucket.vibe";
 /**

@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * Runtime binding for the `DescribeQuerySuggestionsConfig` operation (IAM action
  * `kendra:DescribeQuerySuggestionsConfig`), scoped to one {@link Index}.
@@ -23,6 +23,6 @@ import type { Index } from "./SearchIndex.js";
  *
  * @binding
  */
-export interface DescribeQuerySuggestionsConfig extends Binding.Service<DescribeQuerySuggestionsConfig, "AWS.Kendra.DescribeQuerySuggestionsConfig", (index: Index) => Effect.Effect<(() => Effect.Effect<kendra.DescribeQuerySuggestionsConfigResponse, kendra.DescribeQuerySuggestionsConfigError>)>> {
+export interface DescribeQuerySuggestionsConfig extends Binding.Service<DescribeQuerySuggestionsConfig, "AWS.Kendra.DescribeQuerySuggestionsConfig", (index: Index) => Effect.Effect<() => Effect.Effect<kendra.DescribeQuerySuggestionsConfigResponse, kendra.DescribeQuerySuggestionsConfigError>>> {
 }
 export declare const DescribeQuerySuggestionsConfig: DescribeQuerySuggestionsConfig;

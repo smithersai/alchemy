@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchDisableStandards extends Binding.Service<BatchDisableStandards, "AWS.SecurityHub.BatchDisableStandards", () => Effect.Effect<((request?: securityhub.BatchDisableStandardsRequest) => Effect.Effect<securityhub.BatchDisableStandardsResponse, securityhub.BatchDisableStandardsError>)>> {
+export interface BatchDisableStandards extends Binding.Service<BatchDisableStandards, "AWS.SecurityHub.BatchDisableStandards", () => Effect.Effect<(request?: securityhub.BatchDisableStandardsRequest) => Effect.Effect<securityhub.BatchDisableStandardsResponse, securityhub.BatchDisableStandardsError>>> {
 }
 export declare const BatchDisableStandards: BatchDisableStandards;

@@ -23,6 +23,6 @@ export interface StartProjectSessionRequest extends Omit<SVC.StartProjectSession
  *
  * @binding
  */
-export interface StartProjectSession extends Binding.Service<StartProjectSession, "AWS.DataBrew.StartProjectSession", <P extends Project>(project: P) => Effect.Effect<((request?: StartProjectSessionRequest) => Effect.Effect<SVC.StartProjectSessionResponse, SVC.StartProjectSessionError>)>> {
+export interface StartProjectSession extends Binding.Service<StartProjectSession, "AWS.DataBrew.StartProjectSession", <P extends Project>(project: P) => Effect.Effect<(request?: StartProjectSessionRequest) => Effect.Effect<SVC.StartProjectSessionResponse, SVC.StartProjectSessionError>>> {
 }
 export declare const StartProjectSession: StartProjectSession;

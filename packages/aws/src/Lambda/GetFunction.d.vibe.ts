@@ -1,7 +1,7 @@
 import type * as Lambda from "@distilled.cloud/aws/lambda";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Function } from "./Function.js";
+import type { Function } from "./Function.ts";
 export interface GetFunctionRequest extends Omit<Lambda.GetFunctionRequest, "FunctionName"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetFunctionRequest extends Omit<Lambda.GetFunctionRequest, "Fun
  *
  * @binding
  */
-export interface GetFunction extends Binding.Service<GetFunction, "AWS.Lambda.GetFunction", (func: Function) => Effect.Effect<((request?: GetFunctionRequest) => Effect.Effect<Lambda.GetFunctionResponse, Lambda.GetFunctionError>)>> {
+export interface GetFunction extends Binding.Service<GetFunction, "AWS.Lambda.GetFunction", (func: Function) => Effect.Effect<(request?: GetFunctionRequest) => Effect.Effect<Lambda.GetFunctionResponse, Lambda.GetFunctionError>>> {
 }
 export declare const GetFunction: GetFunction;

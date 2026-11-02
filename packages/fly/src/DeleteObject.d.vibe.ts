@@ -2,7 +2,7 @@ import type * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 import type { TigrisCredentialsMissing } from "./Errors.vibe";
 export interface DeleteObjectRequest extends Omit<S3.DeleteObjectRequest, "Bucket"> {
 }
@@ -22,6 +22,6 @@ export interface DeleteObjectRequest extends Omit<S3.DeleteObjectRequest, "Bucke
  * @binding
  * @product Bucket
  */
-export interface DeleteObject extends Binding.Service<DeleteObject, "Fly.DeleteObject", (bucket: Bucket) => Effect.Effect<((request: DeleteObjectRequest) => Effect.Effect<S3.DeleteObjectOutput, S3.DeleteObjectError | TigrisCredentialsMissing, RuntimeContext>)>> {
+export interface DeleteObject extends Binding.Service<DeleteObject, "Fly.DeleteObject", (bucket: Bucket) => Effect.Effect<(request: DeleteObjectRequest) => Effect.Effect<S3.DeleteObjectOutput, S3.DeleteObjectError | TigrisCredentialsMissing, RuntimeContext>>> {
 }
 export declare const DeleteObject: DeleteObject;

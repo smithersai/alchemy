@@ -21,6 +21,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface FailoverShard extends Binding.Service<FailoverShard, "AWS.MemoryDB.FailoverShard", (cluster: Cluster) => Effect.Effect<((request: Omit<memorydb.FailoverShardRequest, "ClusterName">) => Effect.Effect<memorydb.FailoverShardResponse, memorydb.FailoverShardError>)>> {
+export interface FailoverShard extends Binding.Service<FailoverShard, "AWS.MemoryDB.FailoverShard", (cluster: Cluster) => Effect.Effect<(request: Omit<memorydb.FailoverShardRequest, "ClusterName">) => Effect.Effect<memorydb.FailoverShardResponse, memorydb.FailoverShardError>>> {
 }
 export declare const FailoverShard: FailoverShard;

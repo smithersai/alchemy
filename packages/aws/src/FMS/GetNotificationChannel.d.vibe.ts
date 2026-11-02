@@ -24,6 +24,6 @@ export interface GetNotificationChannelRequest extends fms.GetNotificationChanne
  *
  * @binding
  */
-export interface GetNotificationChannel extends Binding.Service<GetNotificationChannel, "AWS.FMS.GetNotificationChannel", () => Effect.Effect<((request?: GetNotificationChannelRequest) => Effect.Effect<fms.GetNotificationChannelResponse, fms.GetNotificationChannelError>)>> {
+export interface GetNotificationChannel extends Binding.Service<GetNotificationChannel, "AWS.FMS.GetNotificationChannel", () => Effect.Effect<(request?: GetNotificationChannelRequest) => Effect.Effect<fms.GetNotificationChannelResponse, fms.GetNotificationChannelError>>> {
 }
 export declare const GetNotificationChannel: GetNotificationChannel;

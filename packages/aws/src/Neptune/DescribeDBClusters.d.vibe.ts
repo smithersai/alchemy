@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDBClusters extends Binding.Service<DescribeDBClusters, "AWS.Neptune.DescribeDBClusters", () => Effect.Effect<((request?: neptune.DescribeDBClustersMessage) => Effect.Effect<neptune.DBClusterMessage, neptune.DescribeDBClustersError>)>> {
+export interface DescribeDBClusters extends Binding.Service<DescribeDBClusters, "AWS.Neptune.DescribeDBClusters", () => Effect.Effect<(request?: neptune.DescribeDBClustersMessage) => Effect.Effect<neptune.DBClusterMessage, neptune.DescribeDBClustersError>>> {
 }
 export declare const DescribeDBClusters: DescribeDBClusters;

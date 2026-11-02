@@ -52,6 +52,6 @@ export interface SendBulkEmailRequest extends Omit<sesv2.SendBulkEmailRequest, "
  *
  * @binding
  */
-export interface SendBulkEmail extends Binding.Service<SendBulkEmail, "AWS.SES.SendBulkEmail", <I extends EmailIdentity>(identity: I, configurationSet?: ConfigurationSet) => Effect.Effect<((request: SendBulkEmailRequest) => Effect.Effect<sesv2.SendBulkEmailResponse, sesv2.SendBulkEmailError>)>> {
+export interface SendBulkEmail extends Binding.Service<SendBulkEmail, "AWS.SES.SendBulkEmail", <I extends EmailIdentity>(identity: I, configurationSet?: ConfigurationSet) => Effect.Effect<(request: SendBulkEmailRequest) => Effect.Effect<sesv2.SendBulkEmailResponse, sesv2.SendBulkEmailError>>> {
 }
 export declare const SendBulkEmail: SendBulkEmail;

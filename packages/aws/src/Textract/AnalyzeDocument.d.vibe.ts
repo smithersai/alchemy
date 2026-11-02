@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface AnalyzeDocument extends Binding.Service<AnalyzeDocument, "AWS.Textract.AnalyzeDocument", () => Effect.Effect<((request: textract.AnalyzeDocumentRequest) => Effect.Effect<textract.AnalyzeDocumentResponse, textract.AnalyzeDocumentError>)>> {
+export interface AnalyzeDocument extends Binding.Service<AnalyzeDocument, "AWS.Textract.AnalyzeDocument", () => Effect.Effect<(request: textract.AnalyzeDocumentRequest) => Effect.Effect<textract.AnalyzeDocumentResponse, textract.AnalyzeDocumentError>>> {
 }
 export declare const AnalyzeDocument: AnalyzeDocument;

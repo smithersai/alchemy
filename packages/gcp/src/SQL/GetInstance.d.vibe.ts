@@ -2,7 +2,7 @@ import type * as sqladmin from "@distilled.cloud/gcp/sqladmin_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 export interface GetInstanceRequest extends Omit<sqladmin.GetInstancesRequest, "instance" | "project"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface GetInstanceRequest extends Omit<sqladmin.GetInstancesRequest, "
  * @binding
  * @category SQL
  */
-export interface GetInstance extends Binding.Service<GetInstance, "GCP.SQL.GetInstance", (instance: Instance) => Effect.Effect<((request?: GetInstanceRequest) => Effect.Effect<sqladmin.DatabaseInstance, sqladmin.GetInstancesError, RuntimeContext>)>> {
+export interface GetInstance extends Binding.Service<GetInstance, "GCP.SQL.GetInstance", (instance: Instance) => Effect.Effect<(request?: GetInstanceRequest) => Effect.Effect<sqladmin.DatabaseInstance, sqladmin.GetInstancesError, RuntimeContext>>> {
 }
 export declare const GetInstance: GetInstance;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteMembers extends Binding.Service<DeleteMembers, "AWS.SecurityHub.DeleteMembers", () => Effect.Effect<((request?: securityhub.DeleteMembersRequest) => Effect.Effect<securityhub.DeleteMembersResponse, securityhub.DeleteMembersError>)>> {
+export interface DeleteMembers extends Binding.Service<DeleteMembers, "AWS.SecurityHub.DeleteMembers", () => Effect.Effect<(request?: securityhub.DeleteMembersRequest) => Effect.Effect<securityhub.DeleteMembersResponse, securityhub.DeleteMembersError>>> {
 }
 export declare const DeleteMembers: DeleteMembers;

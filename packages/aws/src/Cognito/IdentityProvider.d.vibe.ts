@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 /** The kind of third-party identity provider. */
 export type IdentityProviderType = "SAML" | "OIDC" | "Facebook" | "Google" | "LoginWithAmazon" | "SignInWithApple";
 export interface IdentityProviderProps {

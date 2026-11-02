@@ -1,7 +1,7 @@
 import * as firebasedataconnect from "@distilled.cloud/gcp/firebasedataconnect_v1";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { OperationFailed, type LongRunningOperation } from "../Operation.js";
+import { OperationFailed, type LongRunningOperation } from "../Operation.ts";
 export declare const DEFAULT_SCHEMA_ID = "main";
 export declare const MAX_NAME_LENGTH = 63;
 export declare const MAX_CONNECTOR_ID_LENGTH = 48;
@@ -72,12 +72,12 @@ export declare const listLabeledPages: <Page, A, E, R>(pages: Stream.Stream<Page
  * Wait for a long-running operation. ALREADY_EXISTS (code 6) means a
  * concurrent create won the race; reconcile observes the resource next.
  */
-export declare const waitForOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, OperationFailed | import("../Operation.js").OperationTimedOut | firebasedataconnect.GetProjectsLocationsOperationsError, firebasedataconnect.GcpOpContext>;
+export declare const waitForOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, OperationFailed | import("../Operation.ts").OperationTimedOut | firebasedataconnect.GetProjectsLocationsOperationsError, firebasedataconnect.GcpOpContext>;
 /**
  * Wait for a delete operation. A vanished operation or NOT_FOUND (code 5)
  * means the resource is already gone.
  */
-export declare const waitForDeleteOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, OperationFailed | import("../Operation.js").OperationTimedOut | firebasedataconnect.GetProjectsLocationsOperationsError, firebasedataconnect.GcpOpContext>;
+export declare const waitForDeleteOperation: (operation: LongRunningOperation) => Effect.Effect<LongRunningOperation, OperationFailed | import("../Operation.ts").OperationTimedOut | firebasedataconnect.GetProjectsLocationsOperationsError, firebasedataconnect.GcpOpContext>;
 /**
  * Re-run a patch-and-wait whose operation failed with a stale etag
  * (ABORTED, code 10). Sibling updates (the parent service, another schema

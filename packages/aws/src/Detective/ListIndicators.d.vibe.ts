@@ -23,6 +23,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface ListIndicators extends Binding.Service<ListIndicators, "AWS.Detective.ListIndicators", (graph: Graph) => Effect.Effect<((request: Omit<detective.ListIndicatorsRequest, "GraphArn">) => Effect.Effect<detective.ListIndicatorsResponse, detective.ListIndicatorsError>)>> {
+export interface ListIndicators extends Binding.Service<ListIndicators, "AWS.Detective.ListIndicators", (graph: Graph) => Effect.Effect<(request: Omit<detective.ListIndicatorsRequest, "GraphArn">) => Effect.Effect<detective.ListIndicatorsResponse, detective.ListIndicatorsError>>> {
 }
 export declare const ListIndicators: ListIndicators;

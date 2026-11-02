@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DetectEntities extends Binding.Service<DetectEntities, "AWS.Comprehend.DetectEntities", () => Effect.Effect<((request: comprehend.DetectEntitiesRequest) => Effect.Effect<comprehend.DetectEntitiesResponse, comprehend.DetectEntitiesError>)>> {
+export interface DetectEntities extends Binding.Service<DetectEntities, "AWS.Comprehend.DetectEntities", () => Effect.Effect<(request: comprehend.DetectEntitiesRequest) => Effect.Effect<comprehend.DetectEntitiesResponse, comprehend.DetectEntitiesError>>> {
 }
 export declare const DetectEntities: DetectEntities;

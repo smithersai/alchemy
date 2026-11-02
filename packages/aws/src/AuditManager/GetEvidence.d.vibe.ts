@@ -19,6 +19,6 @@ export interface GetEvidenceRequest extends Omit<auditmanager.GetEvidenceRequest
  *
  * @binding
  */
-export interface GetEvidence extends Binding.Service<GetEvidence, "AWS.AuditManager.GetEvidence", (assessment: Assessment) => Effect.Effect<((request: GetEvidenceRequest) => Effect.Effect<auditmanager.GetEvidenceResponse, auditmanager.GetEvidenceError>)>> {
+export interface GetEvidence extends Binding.Service<GetEvidence, "AWS.AuditManager.GetEvidence", (assessment: Assessment) => Effect.Effect<(request: GetEvidenceRequest) => Effect.Effect<auditmanager.GetEvidenceResponse, auditmanager.GetEvidenceError>>> {
 }
 export declare const GetEvidence: GetEvidence;

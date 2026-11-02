@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 declare const FarmInvalidProps_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "FarmInvalidProps";
 } & Readonly<A>;
@@ -96,5 +96,5 @@ export interface Farm extends Resource<"AWS.Deadline.Farm", FarmProps, {
  * @resource
  */
 export declare const Farm: import("alchemy").ResourceClass<Farm>;
-export declare const FarmProvider: () => import("effect/Layer").Layer<Provider.Provider<Farm>, never, import("../Environment.js").AWSEnvironment | import("@distilled.cloud/aws/Credentials").Credentials | import("effect/http/HttpClient").HttpClient | import("alchemy").Stack | import("alchemy").Stage>;
+export declare const FarmProvider: () => import("effect/Layer").Layer<Provider.Provider<Farm>, never, import("../Environment.ts").AWSEnvironment | import("@distilled.cloud/aws/Credentials").Credentials | import("effect/http/HttpClient").HttpClient | import("alchemy").Stack | import("alchemy").Stage>;
 export {};

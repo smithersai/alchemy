@@ -22,6 +22,6 @@ import type { Broker } from "./Broker.vibe";
  *
  * @binding
  */
-export interface Promote extends Binding.Service<Promote, "AWS.MQ.Promote", (broker: Broker) => Effect.Effect<((request: Omit<mq.PromoteRequest, "BrokerId">) => Effect.Effect<mq.PromoteResponse, mq.PromoteError>)>> {
+export interface Promote extends Binding.Service<Promote, "AWS.MQ.Promote", (broker: Broker) => Effect.Effect<(request: Omit<mq.PromoteRequest, "BrokerId">) => Effect.Effect<mq.PromoteResponse, mq.PromoteError>>> {
 }
 export declare const Promote: Promote;

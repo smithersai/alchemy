@@ -23,6 +23,6 @@ import type { Export } from "./Export.vibe";
  *
  * @binding
  */
-export interface GetExport extends Binding.Service<GetExport, "AWS.BCMDataExports.GetExport", (dataExport: Export) => Effect.Effect<(() => Effect.Effect<bcm.GetExportResponse, bcm.GetExportError>)>> {
+export interface GetExport extends Binding.Service<GetExport, "AWS.BCMDataExports.GetExport", (dataExport: Export) => Effect.Effect<() => Effect.Effect<bcm.GetExportResponse, bcm.GetExportError>>> {
 }
 export declare const GetExport: GetExport;

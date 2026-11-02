@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CopyClusterSnapshot extends Binding.Service<CopyClusterSnapshot, "AWS.DocDBElastic.CopyClusterSnapshot", () => Effect.Effect<((request: docdbelastic.CopyClusterSnapshotInput) => Effect.Effect<docdbelastic.CopyClusterSnapshotOutput, docdbelastic.CopyClusterSnapshotError>)>> {
+export interface CopyClusterSnapshot extends Binding.Service<CopyClusterSnapshot, "AWS.DocDBElastic.CopyClusterSnapshot", () => Effect.Effect<(request: docdbelastic.CopyClusterSnapshotInput) => Effect.Effect<docdbelastic.CopyClusterSnapshotOutput, docdbelastic.CopyClusterSnapshotError>>> {
 }
 export declare const CopyClusterSnapshot: CopyClusterSnapshot;

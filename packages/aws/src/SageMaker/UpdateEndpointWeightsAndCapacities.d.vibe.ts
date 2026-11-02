@@ -31,6 +31,6 @@ export interface UpdateEndpointWeightsAndCapacitiesRequest extends Omit<sagemake
  *
  * @binding
  */
-export interface UpdateEndpointWeightsAndCapacities extends Binding.Service<UpdateEndpointWeightsAndCapacities, "AWS.SageMaker.UpdateEndpointWeightsAndCapacities", <E extends Endpoint>(endpoint: E) => Effect.Effect<((request: UpdateEndpointWeightsAndCapacitiesRequest) => Effect.Effect<sagemaker.UpdateEndpointWeightsAndCapacitiesOutput, sagemaker.UpdateEndpointWeightsAndCapacitiesError>)>> {
+export interface UpdateEndpointWeightsAndCapacities extends Binding.Service<UpdateEndpointWeightsAndCapacities, "AWS.SageMaker.UpdateEndpointWeightsAndCapacities", <E extends Endpoint>(endpoint: E) => Effect.Effect<(request: UpdateEndpointWeightsAndCapacitiesRequest) => Effect.Effect<sagemaker.UpdateEndpointWeightsAndCapacitiesOutput, sagemaker.UpdateEndpointWeightsAndCapacitiesError>>> {
 }
 export declare const UpdateEndpointWeightsAndCapacities: UpdateEndpointWeightsAndCapacities;

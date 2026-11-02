@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListResourceProfileArtifacts extends Binding.Service<ListResourceProfileArtifacts, "AWS.Macie2.ListResourceProfileArtifacts", () => Effect.Effect<((request?: macie2.ListResourceProfileArtifactsRequest) => Effect.Effect<macie2.ListResourceProfileArtifactsResponse, macie2.ListResourceProfileArtifactsError>)>> {
+export interface ListResourceProfileArtifacts extends Binding.Service<ListResourceProfileArtifacts, "AWS.Macie2.ListResourceProfileArtifacts", () => Effect.Effect<(request?: macie2.ListResourceProfileArtifactsRequest) => Effect.Effect<macie2.ListResourceProfileArtifactsResponse, macie2.ListResourceProfileArtifactsError>>> {
 }
 export declare const ListResourceProfileArtifacts: ListResourceProfileArtifacts;

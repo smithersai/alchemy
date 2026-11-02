@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/databrew";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Job } from "./Job.js";
+import type { Job } from "./Job.ts";
 /**
  * Runtime binding for `databrew:StartJobRun` — lets a workload kick off a
  * run of a DataBrew job (a `PROFILE` analysis or a `RECIPE` transformation).
@@ -18,6 +18,6 @@ import type { Job } from "./Job.js";
  *
  * @binding
  */
-export interface StartJobRun extends Binding.Service<StartJobRun, "AWS.DataBrew.StartJobRun", <J extends Job>(job: J) => Effect.Effect<(() => Effect.Effect<SVC.StartJobRunResponse, SVC.StartJobRunError>)>> {
+export interface StartJobRun extends Binding.Service<StartJobRun, "AWS.DataBrew.StartJobRun", <J extends Job>(job: J) => Effect.Effect<() => Effect.Effect<SVC.StartJobRunResponse, SVC.StartJobRunError>>> {
 }
 export declare const StartJobRun: StartJobRun;

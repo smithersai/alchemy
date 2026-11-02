@@ -26,6 +26,6 @@ export type ListGroupingStatusesRequest = Omit<resourcegroups.ListGroupingStatus
  *
  * @binding
  */
-export interface ListGroupingStatuses extends Binding.Service<ListGroupingStatuses, "AWS.ResourceGroups.ListGroupingStatuses", (group: Group) => Effect.Effect<((request?: ListGroupingStatusesRequest) => Effect.Effect<resourcegroups.ListGroupingStatusesOutput, resourcegroups.ListGroupingStatusesError>)>> {
+export interface ListGroupingStatuses extends Binding.Service<ListGroupingStatuses, "AWS.ResourceGroups.ListGroupingStatuses", (group: Group) => Effect.Effect<(request?: ListGroupingStatusesRequest) => Effect.Effect<resourcegroups.ListGroupingStatusesOutput, resourcegroups.ListGroupingStatusesError>>> {
 }
 export declare const ListGroupingStatuses: ListGroupingStatuses;

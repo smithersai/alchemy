@@ -21,6 +21,6 @@ import type { VirtualCluster } from "./VirtualCluster.vibe";
  *
  * @binding
  */
-export interface CancelJobRun extends Binding.Service<CancelJobRun, "AWS.EMRContainers.CancelJobRun", (virtualCluster: VirtualCluster) => Effect.Effect<((request: Omit<emrc.CancelJobRunRequest, "virtualClusterId">) => Effect.Effect<emrc.CancelJobRunResponse, emrc.CancelJobRunError>)>> {
+export interface CancelJobRun extends Binding.Service<CancelJobRun, "AWS.EMRContainers.CancelJobRun", (virtualCluster: VirtualCluster) => Effect.Effect<(request: Omit<emrc.CancelJobRunRequest, "virtualClusterId">) => Effect.Effect<emrc.CancelJobRunResponse, emrc.CancelJobRunError>>> {
 }
 export declare const CancelJobRun: CancelJobRun;

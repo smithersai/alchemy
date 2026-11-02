@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetInvitationsCount extends Binding.Service<GetInvitationsCount, "AWS.GuardDuty.GetInvitationsCount", () => Effect.Effect<((request?: guardduty.GetInvitationsCountRequest) => Effect.Effect<guardduty.GetInvitationsCountResponse, guardduty.GetInvitationsCountError>)>> {
+export interface GetInvitationsCount extends Binding.Service<GetInvitationsCount, "AWS.GuardDuty.GetInvitationsCount", () => Effect.Effect<(request?: guardduty.GetInvitationsCountRequest) => Effect.Effect<guardduty.GetInvitationsCountResponse, guardduty.GetInvitationsCountError>>> {
 }
 export declare const GetInvitationsCount: GetInvitationsCount;

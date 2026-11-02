@@ -1,5 +1,5 @@
-import type * as Binding from "./Binding.js";
-import { RateLimit, type RateLimitClient, type RateLimitPeriod } from "./RateLimit.js";
+import type * as Binding from "./Binding.ts";
+import { RateLimit, type RateLimitClient, type RateLimitPeriod } from "./RateLimit.ts";
 /** The binding value produced by calling {@link RateLimit} (declared on `env` or `yield*`-ed). */
 export type RateLimitBinding = Binding.Binding<RateLimit["key"], RateLimitClient, RateLimit> & {
     readonly namespaceId: string;
@@ -17,4 +17,4 @@ export type RateLimitBinding = Binding.Binding<RateLimit["key"], RateLimitClient
  * binding to the surrounding Worker at deploy time and, at runtime, resolves to
  * the Effect-native {@link RateLimitClient}.
  */
-export declare const RateLimitBinding: import("effect/Layer").Layer<RateLimit, never, import("./WorkerRuntime.js").WorkerEnvironment>;
+export declare const RateLimitBinding: import("effect/Layer").Layer<RateLimit, never, import("./WorkerRuntime.ts").WorkerEnvironment>;

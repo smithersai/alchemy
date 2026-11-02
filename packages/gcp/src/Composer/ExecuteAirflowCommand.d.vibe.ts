@@ -2,7 +2,7 @@ import type * as composer from "@distilled.cloud/gcp/composer_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Environment } from "./Environment.js";
+import type { Environment } from "./Environment.ts";
 export interface ExecuteAirflowCommandRequest extends Omit<composer.ExecuteAirflowCommandProjectsLocationsEnvironmentsRequest, "environment"> {
 }
 /**
@@ -30,6 +30,6 @@ export interface ExecuteAirflowCommandRequest extends Omit<composer.ExecuteAirfl
  * @binding
  * @category Composer
  */
-export interface ExecuteAirflowCommand extends Binding.Service<ExecuteAirflowCommand, "GCP.Composer.ExecuteAirflowCommand", (environment: Environment) => Effect.Effect<((request?: ExecuteAirflowCommandRequest) => Effect.Effect<composer.ExecuteAirflowCommandResponse, composer.ExecuteAirflowCommandProjectsLocationsEnvironmentsError, RuntimeContext>)>> {
+export interface ExecuteAirflowCommand extends Binding.Service<ExecuteAirflowCommand, "GCP.Composer.ExecuteAirflowCommand", (environment: Environment) => Effect.Effect<(request?: ExecuteAirflowCommandRequest) => Effect.Effect<composer.ExecuteAirflowCommandResponse, composer.ExecuteAirflowCommandProjectsLocationsEnvironmentsError, RuntimeContext>>> {
 }
 export declare const ExecuteAirflowCommand: ExecuteAirflowCommand;

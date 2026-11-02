@@ -1,16 +1,16 @@
 import type { GcpOpContext } from "@distilled.cloud/gcp/contentwarehouse_v1";
 import * as Effect from "effect/Effect";
-import { type BindingIam } from "../HttpBinding.js";
+import { type BindingIam } from "../HttpBinding.ts";
 import type { Document } from "./Document.vibe";
-import type { DocumentSchema } from "./DocumentSchema.js";
-import type { RuleSet } from "./RuleSet.js";
+import type { DocumentSchema } from "./DocumentSchema.ts";
+import type { RuleSet } from "./RuleSet.ts";
 import type { SynonymSet } from "./SynonymSet.vibe";
 /**
  * Distilled ops are OperationMethods: yield them once at Layer construction
  * (after providing Credentials + HttpClient) so the inner runtime Effect is
  * `Effect<A, E>` and does not leak `GcpOpContext`.
  */
-type GcpHttpOp<I, A, E> = Effect.Effect<((input: I) => Effect.Effect<A, E>), never, GcpOpContext> & ((input: I) => Effect.Effect<A, E, GcpOpContext>);
+type GcpHttpOp<I, A, E> = Effect.Effect<(input: I) => Effect.Effect<A, E>, never, GcpOpContext> & ((input: I) => Effect.Effect<A, E, GcpOpContext>);
 /**
  * Shared HTTP scaffolding for Content Warehouse bindings.
  * NOT exported from index.ts.

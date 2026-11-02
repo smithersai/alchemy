@@ -26,6 +26,6 @@ export interface ListDeadLetterSourceQueuesRequest extends Omit<sqs.ListDeadLett
  *
  * @binding
  */
-export interface ListDeadLetterSourceQueues extends Binding.Service<ListDeadLetterSourceQueues, "AWS.SQS.ListDeadLetterSourceQueues", (queue: Queue) => Effect.Effect<((request?: ListDeadLetterSourceQueuesRequest) => Effect.Effect<sqs.ListDeadLetterSourceQueuesResult, sqs.ListDeadLetterSourceQueuesError>)>> {
+export interface ListDeadLetterSourceQueues extends Binding.Service<ListDeadLetterSourceQueues, "AWS.SQS.ListDeadLetterSourceQueues", (queue: Queue) => Effect.Effect<(request?: ListDeadLetterSourceQueuesRequest) => Effect.Effect<sqs.ListDeadLetterSourceQueuesResult, sqs.ListDeadLetterSourceQueuesError>>> {
 }
 export declare const ListDeadLetterSourceQueues: ListDeadLetterSourceQueues;

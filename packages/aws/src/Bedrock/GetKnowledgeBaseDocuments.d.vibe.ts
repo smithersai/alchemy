@@ -33,6 +33,6 @@ export interface GetKnowledgeBaseDocumentsRequest extends Omit<bedrock.GetKnowle
  *
  * @binding
  */
-export interface GetKnowledgeBaseDocuments extends Binding.Service<GetKnowledgeBaseDocuments, "AWS.Bedrock.GetKnowledgeBaseDocuments", <D extends DataSource>(dataSource: D) => Effect.Effect<((request: GetKnowledgeBaseDocumentsRequest) => Effect.Effect<bedrock.GetKnowledgeBaseDocumentsResponse, bedrock.GetKnowledgeBaseDocumentsError>)>> {
+export interface GetKnowledgeBaseDocuments extends Binding.Service<GetKnowledgeBaseDocuments, "AWS.Bedrock.GetKnowledgeBaseDocuments", <D extends DataSource>(dataSource: D) => Effect.Effect<(request: GetKnowledgeBaseDocumentsRequest) => Effect.Effect<bedrock.GetKnowledgeBaseDocumentsResponse, bedrock.GetKnowledgeBaseDocumentsError>>> {
 }
 export declare const GetKnowledgeBaseDocuments: GetKnowledgeBaseDocuments;

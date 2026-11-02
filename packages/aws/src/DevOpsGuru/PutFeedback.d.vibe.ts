@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface PutFeedback extends Binding.Service<PutFeedback, "AWS.DevOpsGuru.PutFeedback", () => Effect.Effect<((request?: devopsguru.PutFeedbackRequest) => Effect.Effect<devopsguru.PutFeedbackResponse, devopsguru.PutFeedbackError>)>> {
+export interface PutFeedback extends Binding.Service<PutFeedback, "AWS.DevOpsGuru.PutFeedback", () => Effect.Effect<(request?: devopsguru.PutFeedbackRequest) => Effect.Effect<devopsguru.PutFeedbackResponse, devopsguru.PutFeedbackError>>> {
 }
 export declare const PutFeedback: PutFeedback;

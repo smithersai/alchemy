@@ -27,6 +27,6 @@ export interface GetShardIteratorRequest extends Omit<Kinesis.GetShardIteratorIn
  *
  * @binding
  */
-export interface GetShardIterator extends Binding.Service<GetShardIterator, "AWS.Kinesis.GetShardIterator", (stream: Stream) => Effect.Effect<((request: GetShardIteratorRequest) => Effect.Effect<Kinesis.GetShardIteratorOutput, Kinesis.GetShardIteratorError>)>> {
+export interface GetShardIterator extends Binding.Service<GetShardIterator, "AWS.Kinesis.GetShardIterator", (stream: Stream) => Effect.Effect<(request: GetShardIteratorRequest) => Effect.Effect<Kinesis.GetShardIteratorOutput, Kinesis.GetShardIteratorError>>> {
 }
 export declare const GetShardIterator: GetShardIterator;

@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface PutFindingsPublicationConfiguration extends Binding.Service<PutFindingsPublicationConfiguration, "AWS.Macie2.PutFindingsPublicationConfiguration", () => Effect.Effect<((request?: macie2.PutFindingsPublicationConfigurationRequest) => Effect.Effect<macie2.PutFindingsPublicationConfigurationResponse, macie2.PutFindingsPublicationConfigurationError>)>> {
+export interface PutFindingsPublicationConfiguration extends Binding.Service<PutFindingsPublicationConfiguration, "AWS.Macie2.PutFindingsPublicationConfiguration", () => Effect.Effect<(request?: macie2.PutFindingsPublicationConfigurationRequest) => Effect.Effect<macie2.PutFindingsPublicationConfigurationResponse, macie2.PutFindingsPublicationConfigurationError>>> {
 }
 export declare const PutFindingsPublicationConfiguration: PutFindingsPublicationConfiguration;

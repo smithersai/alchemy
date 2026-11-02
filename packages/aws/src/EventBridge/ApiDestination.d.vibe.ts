@@ -1,9 +1,9 @@
 import * as eventbridge from "@distilled.cloud/aws/eventbridge";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import type { AccountID } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 export type { ApiDestinationHttpMethod, ApiDestinationState } from "@distilled.cloud/aws/eventbridge";
 export type ApiDestinationName = string;
 export type ApiDestinationArn = `arn:aws:events:${RegionID}:${AccountID}:api-destination/${ApiDestinationName}/${string}`;

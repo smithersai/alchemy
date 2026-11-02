@@ -21,6 +21,6 @@ import type { EventDataStore } from "./EventDataStore.vibe";
  *
  * @binding
  */
-export interface GetQueryResults extends Binding.Service<GetQueryResults, "AWS.CloudTrail.GetQueryResults", (store: EventDataStore) => Effect.Effect<((request: Omit<cloudtrail.GetQueryResultsRequest, "EventDataStore">) => Effect.Effect<cloudtrail.GetQueryResultsResponse, cloudtrail.GetQueryResultsError>)>> {
+export interface GetQueryResults extends Binding.Service<GetQueryResults, "AWS.CloudTrail.GetQueryResults", (store: EventDataStore) => Effect.Effect<(request: Omit<cloudtrail.GetQueryResultsRequest, "EventDataStore">) => Effect.Effect<cloudtrail.GetQueryResultsResponse, cloudtrail.GetQueryResultsError>>> {
 }
 export declare const GetQueryResults: GetQueryResults;

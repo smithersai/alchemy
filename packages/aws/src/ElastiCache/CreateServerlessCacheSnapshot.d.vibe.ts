@@ -24,6 +24,6 @@ import type { ServerlessCache } from "./ServerlessCache.vibe";
  *
  * @binding
  */
-export interface CreateServerlessCacheSnapshot extends Binding.Service<CreateServerlessCacheSnapshot, "AWS.ElastiCache.CreateServerlessCacheSnapshot", (cache: ServerlessCache) => Effect.Effect<((request: Omit<elasticache.CreateServerlessCacheSnapshotRequest, "ServerlessCacheName">) => Effect.Effect<elasticache.CreateServerlessCacheSnapshotResponse, elasticache.CreateServerlessCacheSnapshotError>)>> {
+export interface CreateServerlessCacheSnapshot extends Binding.Service<CreateServerlessCacheSnapshot, "AWS.ElastiCache.CreateServerlessCacheSnapshot", (cache: ServerlessCache) => Effect.Effect<(request: Omit<elasticache.CreateServerlessCacheSnapshotRequest, "ServerlessCacheName">) => Effect.Effect<elasticache.CreateServerlessCacheSnapshotResponse, elasticache.CreateServerlessCacheSnapshotError>>> {
 }
 export declare const CreateServerlessCacheSnapshot: CreateServerlessCacheSnapshot;

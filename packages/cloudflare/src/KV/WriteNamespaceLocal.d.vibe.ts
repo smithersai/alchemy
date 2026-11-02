@@ -23,4 +23,4 @@ import { WriteNamespace } from "./WriteNamespace.vibe";
  * );
  * ```
  */
-export declare const WriteNamespaceLocal: Layer.Layer<WriteNamespace, never, import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const WriteNamespaceLocal: Layer.Layer<WriteNamespace, never, import("../CloudflareEnvironmentService.ts").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;

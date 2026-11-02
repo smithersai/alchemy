@@ -31,7 +31,7 @@ export declare const makeTargetScopedHttpBinding: <I extends TargetTriple, A, E,
     /** Fully-qualified binding tag, e.g. `AWS.ApplicationAutoScaling.DescribeScalingActivities`. */
     tag: string;
     /** The distilled operation; the identity triple is injected from the target. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*` (no resource-level permission support). */
     actions: readonly string[];
 }) => Effect.Effect<(target: ScalableTarget) => Effect.Effect<(request?: Omit<I, keyof TargetTriple> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -46,7 +46,7 @@ export declare const makePolicyScopedHttpBinding: <I extends TargetTriple & {
     /** Fully-qualified binding tag, e.g. `AWS.ApplicationAutoScaling.GetPredictiveScalingForecast`. */
     tag: string;
     /** The distilled operation; the triple and `PolicyName` are injected from the policy. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*` (no resource-level permission support). */
     actions: readonly string[];
 }) => Effect.Effect<(policy: ScalingPolicy) => Effect.Effect<(request: Omit<I, keyof TargetTriple | "PolicyName">) => Effect.Effect<A, E, never>, never, never>, never, never>;

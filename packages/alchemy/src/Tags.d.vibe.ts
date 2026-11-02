@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import { Stack } from "./Stack.js";
-import { Stage } from "./Stage.js";
+import { Stack } from "./Stack.ts";
+import { Stage } from "./Stage.ts";
 export type Tags = Record<string, string | undefined> | [string, string][] | {
     Key: string;
     Value: string;

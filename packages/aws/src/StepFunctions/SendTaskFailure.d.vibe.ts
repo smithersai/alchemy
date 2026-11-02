@@ -24,6 +24,6 @@ export interface SendTaskFailureRequest extends sfn.SendTaskFailureInput {
  *
  * @binding
  */
-export interface SendTaskFailure extends Binding.Service<SendTaskFailure, "AWS.StepFunctions.SendTaskFailure", (activity?: Activity) => Effect.Effect<((request: SendTaskFailureRequest) => Effect.Effect<sfn.SendTaskFailureOutput, sfn.SendTaskFailureError>)>> {
+export interface SendTaskFailure extends Binding.Service<SendTaskFailure, "AWS.StepFunctions.SendTaskFailure", (activity?: Activity) => Effect.Effect<(request: SendTaskFailureRequest) => Effect.Effect<sfn.SendTaskFailureOutput, sfn.SendTaskFailureError>>> {
 }
 export declare const SendTaskFailure: SendTaskFailure;

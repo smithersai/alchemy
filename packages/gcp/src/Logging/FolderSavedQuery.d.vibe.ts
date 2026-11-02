@@ -1,8 +1,8 @@
 import * as logging from "@distilled.cloud/gcp/logging_v2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type FolderSavedQueryLoggingQuery = {
     /**
      * Advanced Logging Query Language filter. Max 20,000 characters.

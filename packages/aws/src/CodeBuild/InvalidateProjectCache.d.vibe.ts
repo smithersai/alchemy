@@ -15,6 +15,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface InvalidateProjectCache extends Binding.Service<InvalidateProjectCache, "AWS.CodeBuild.InvalidateProjectCache", <P extends Project>(project: P) => Effect.Effect<(() => Effect.Effect<SVC.InvalidateProjectCacheOutput, SVC.InvalidateProjectCacheError>)>> {
+export interface InvalidateProjectCache extends Binding.Service<InvalidateProjectCache, "AWS.CodeBuild.InvalidateProjectCache", <P extends Project>(project: P) => Effect.Effect<() => Effect.Effect<SVC.InvalidateProjectCacheOutput, SVC.InvalidateProjectCacheError>>> {
 }
 export declare const InvalidateProjectCache: InvalidateProjectCache;

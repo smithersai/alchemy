@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelHandshake extends Binding.Service<CancelHandshake, "AWS.Organizations.CancelHandshake", () => Effect.Effect<((request: organizations.CancelHandshakeRequest) => Effect.Effect<organizations.CancelHandshakeResponse, organizations.CancelHandshakeError>)>> {
+export interface CancelHandshake extends Binding.Service<CancelHandshake, "AWS.Organizations.CancelHandshake", () => Effect.Effect<(request: organizations.CancelHandshakeRequest) => Effect.Effect<organizations.CancelHandshakeResponse, organizations.CancelHandshakeError>>> {
 }
 export declare const CancelHandshake: CancelHandshake;

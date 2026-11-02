@@ -31,6 +31,6 @@ export interface PutKeyRequest extends Omit<kvs.PutKeyRequest, "KvsARN"> {
  *
  * @binding
  */
-export interface PutKey extends Binding.Service<PutKey, "AWS.CloudFront.PutKey", (store: KeyValueStore) => Effect.Effect<((request: PutKeyRequest) => Effect.Effect<kvs.PutKeyResponse, kvs.PutKeyError>)>> {
+export interface PutKey extends Binding.Service<PutKey, "AWS.CloudFront.PutKey", (store: KeyValueStore) => Effect.Effect<(request: PutKeyRequest) => Effect.Effect<kvs.PutKeyResponse, kvs.PutKeyError>>> {
 }
 export declare const PutKey: PutKey;

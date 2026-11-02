@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListVersions extends Binding.Service<ListVersions, "AWS.Grafana.ListVersions", () => Effect.Effect<((request?: grafana.ListVersionsRequest) => Effect.Effect<grafana.ListVersionsResponse, grafana.ListVersionsError>)>> {
+export interface ListVersions extends Binding.Service<ListVersions, "AWS.Grafana.ListVersions", () => Effect.Effect<(request?: grafana.ListVersionsRequest) => Effect.Effect<grafana.ListVersionsResponse, grafana.ListVersionsError>>> {
 }
 export declare const ListVersions: ListVersions;

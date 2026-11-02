@@ -25,4 +25,4 @@ import { ReadTunnel } from "./ReadTunnel.vibe";
  * );
  * ```
  */
-export declare const ReadTunnelLocal: Layer.Layer<ReadTunnel, never, import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const ReadTunnelLocal: Layer.Layer<ReadTunnel, never, import("../CloudflareEnvironmentService.ts").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;

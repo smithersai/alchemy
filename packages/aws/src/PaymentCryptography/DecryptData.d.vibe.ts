@@ -25,6 +25,6 @@ export interface DecryptDataRequest extends Omit<paymentcryptographydata.Decrypt
  *
  * @binding
  */
-export interface DecryptData extends Binding.Service<DecryptData, "AWS.PaymentCryptography.DecryptData", <K extends Key>(key: K) => Effect.Effect<((request: DecryptDataRequest) => Effect.Effect<paymentcryptographydata.DecryptDataOutput, paymentcryptographydata.DecryptDataError>)>> {
+export interface DecryptData extends Binding.Service<DecryptData, "AWS.PaymentCryptography.DecryptData", <K extends Key>(key: K) => Effect.Effect<(request: DecryptDataRequest) => Effect.Effect<paymentcryptographydata.DecryptDataOutput, paymentcryptographydata.DecryptDataError>>> {
 }
 export declare const DecryptData: DecryptData;

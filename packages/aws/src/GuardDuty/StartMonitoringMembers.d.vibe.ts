@@ -21,6 +21,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface StartMonitoringMembers extends Binding.Service<StartMonitoringMembers, "AWS.GuardDuty.StartMonitoringMembers", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.StartMonitoringMembersRequest, "DetectorId">) => Effect.Effect<guardduty.StartMonitoringMembersResponse, guardduty.StartMonitoringMembersError>)>> {
+export interface StartMonitoringMembers extends Binding.Service<StartMonitoringMembers, "AWS.GuardDuty.StartMonitoringMembers", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.StartMonitoringMembersRequest, "DetectorId">) => Effect.Effect<guardduty.StartMonitoringMembersResponse, guardduty.StartMonitoringMembersError>>> {
 }
 export declare const StartMonitoringMembers: StartMonitoringMembers;

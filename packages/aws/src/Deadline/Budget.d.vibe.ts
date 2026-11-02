@@ -1,7 +1,7 @@
 import * as deadline from "@distilled.cloud/aws/deadline";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 declare const BudgetInvalidProps_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "BudgetInvalidProps";
 } & Readonly<A>;
@@ -176,5 +176,5 @@ export interface Budget extends Resource<"AWS.Deadline.Budget", BudgetProps, {
  * @resource
  */
 export declare const Budget: import("alchemy").ResourceClass<Budget>;
-export declare const BudgetProvider: () => import("effect/Layer").Layer<Provider.Provider<Budget>, never, import("../Environment.js").AWSEnvironment | import("@distilled.cloud/aws/Credentials").Credentials | import("effect/http/HttpClient").HttpClient | import("alchemy").Stack | import("alchemy").Stage>;
+export declare const BudgetProvider: () => import("effect/Layer").Layer<Provider.Provider<Budget>, never, import("../Environment.ts").AWSEnvironment | import("@distilled.cloud/aws/Credentials").Credentials | import("effect/http/HttpClient").HttpClient | import("alchemy").Stack | import("alchemy").Stage>;
 export {};

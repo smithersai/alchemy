@@ -23,6 +23,6 @@ import type { OriginEndpoint } from "./OriginEndpoint.vibe";
  *
  * @binding
  */
-export interface ResetOriginEndpointState extends Binding.Service<ResetOriginEndpointState, "AWS.MediaPackageV2.ResetOriginEndpointState", (endpoint: OriginEndpoint) => Effect.Effect<(() => Effect.Effect<mediapackagev2.ResetOriginEndpointStateResponse, mediapackagev2.ResetOriginEndpointStateError>)>> {
+export interface ResetOriginEndpointState extends Binding.Service<ResetOriginEndpointState, "AWS.MediaPackageV2.ResetOriginEndpointState", (endpoint: OriginEndpoint) => Effect.Effect<() => Effect.Effect<mediapackagev2.ResetOriginEndpointStateResponse, mediapackagev2.ResetOriginEndpointStateError>>> {
 }
 export declare const ResetOriginEndpointState: ResetOriginEndpointState;

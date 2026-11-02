@@ -32,6 +32,6 @@ export interface TestWirelessDeviceRequest extends Omit<iotw.TestWirelessDeviceR
  *
  * @binding
  */
-export interface TestWirelessDevice extends Binding.Service<TestWirelessDevice, "AWS.IoTWireless.TestWirelessDevice", (device: WirelessDevice) => Effect.Effect<((request?: TestWirelessDeviceRequest) => Effect.Effect<iotw.TestWirelessDeviceResponse, iotw.TestWirelessDeviceError>)>> {
+export interface TestWirelessDevice extends Binding.Service<TestWirelessDevice, "AWS.IoTWireless.TestWirelessDevice", (device: WirelessDevice) => Effect.Effect<(request?: TestWirelessDeviceRequest) => Effect.Effect<iotw.TestWirelessDeviceResponse, iotw.TestWirelessDeviceError>>> {
 }
 export declare const TestWirelessDevice: TestWirelessDevice;

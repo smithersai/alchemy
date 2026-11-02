@@ -22,6 +22,6 @@ import type { Table } from "./Table.vibe";
  *
  * @binding
  */
-export interface GetTable extends Binding.Service<GetTable, "AWS.S3Tables.GetTable", (table: Table) => Effect.Effect<(() => Effect.Effect<s3tables.GetTableResponse, s3tables.GetTableError>)>> {
+export interface GetTable extends Binding.Service<GetTable, "AWS.S3Tables.GetTable", (table: Table) => Effect.Effect<() => Effect.Effect<s3tables.GetTableResponse, s3tables.GetTableError>>> {
 }
 export declare const GetTable: GetTable;

@@ -4,8 +4,8 @@ import { type RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
-import type { Branch } from "./Branch.js";
-import type { Project } from "./Project.js";
+import type { Branch } from "./Branch.ts";
+import type { Project } from "./Project.ts";
 /** Postgres connection accessors. Resolving these Effects does not acquire a socket or pool. */
 export interface ConnectClient {
     /** Pooled URL for ordinary application queries. */

@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDomainConfig extends Binding.Service<DescribeDomainConfig, "AWS.OpenSearch.DescribeDomainConfig", () => Effect.Effect<((request: opensearch.DescribeDomainConfigRequest) => Effect.Effect<opensearch.DescribeDomainConfigResponse, opensearch.DescribeDomainConfigError>)>> {
+export interface DescribeDomainConfig extends Binding.Service<DescribeDomainConfig, "AWS.OpenSearch.DescribeDomainConfig", () => Effect.Effect<(request: opensearch.DescribeDomainConfigRequest) => Effect.Effect<opensearch.DescribeDomainConfigResponse, opensearch.DescribeDomainConfigError>>> {
 }
 export declare const DescribeDomainConfig: DescribeDomainConfig;

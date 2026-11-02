@@ -1,7 +1,7 @@
 import type * as autoscaling from "@distilled.cloud/aws/auto-scaling";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AutoScalingGroup } from "./AutoScalingGroup.js";
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts";
 /**
  * `SetInstanceHealth` request. The operation is instance-scoped — EC2 Auto
  * Scaling resolves the instance's owning group for authorization, which the
@@ -32,6 +32,6 @@ export interface SetInstanceHealthRequest extends autoscaling.SetInstanceHealthQ
  *
  * @binding
  */
-export interface SetInstanceHealth extends Binding.Service<SetInstanceHealth, "AWS.AutoScaling.SetInstanceHealth", (group: AutoScalingGroup) => Effect.Effect<((request: SetInstanceHealthRequest) => Effect.Effect<autoscaling.SetInstanceHealthResponse, autoscaling.SetInstanceHealthError>)>> {
+export interface SetInstanceHealth extends Binding.Service<SetInstanceHealth, "AWS.AutoScaling.SetInstanceHealth", (group: AutoScalingGroup) => Effect.Effect<(request: SetInstanceHealthRequest) => Effect.Effect<autoscaling.SetInstanceHealthResponse, autoscaling.SetInstanceHealthError>>> {
 }
 export declare const SetInstanceHealth: SetInstanceHealth;

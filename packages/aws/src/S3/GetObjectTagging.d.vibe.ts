@@ -1,7 +1,7 @@
 import * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface GetObjectTaggingRequest extends Omit<S3.GetObjectTaggingRequest, "Bucket"> {
 }
 /**
@@ -22,6 +22,6 @@ export interface GetObjectTaggingRequest extends Omit<S3.GetObjectTaggingRequest
  *
  * @binding
  */
-export interface GetObjectTagging extends Binding.Service<GetObjectTagging, "AWS.S3.GetObjectTagging", (bucket: Bucket) => Effect.Effect<((request: GetObjectTaggingRequest) => Effect.Effect<S3.GetObjectTaggingOutput, S3.GetObjectTaggingError>)>> {
+export interface GetObjectTagging extends Binding.Service<GetObjectTagging, "AWS.S3.GetObjectTagging", (bucket: Bucket) => Effect.Effect<(request: GetObjectTaggingRequest) => Effect.Effect<S3.GetObjectTaggingOutput, S3.GetObjectTaggingError>>> {
 }
 export declare const GetObjectTagging: GetObjectTagging;

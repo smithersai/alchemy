@@ -28,6 +28,6 @@ import type { LinkedWhatsAppBusinessAccount } from "./LinkedWhatsAppBusinessAcco
  *
  * @binding
  */
-export interface GetLinkedWhatsAppBusinessAccountPhoneNumber extends Binding.Service<GetLinkedWhatsAppBusinessAccountPhoneNumber, "AWS.SocialMessaging.GetLinkedWhatsAppBusinessAccountPhoneNumber", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: socialmessaging.GetLinkedWhatsAppBusinessAccountPhoneNumberInput) => Effect.Effect<socialmessaging.GetLinkedWhatsAppBusinessAccountPhoneNumberOutput, socialmessaging.GetLinkedWhatsAppBusinessAccountPhoneNumberError>)>> {
+export interface GetLinkedWhatsAppBusinessAccountPhoneNumber extends Binding.Service<GetLinkedWhatsAppBusinessAccountPhoneNumber, "AWS.SocialMessaging.GetLinkedWhatsAppBusinessAccountPhoneNumber", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: socialmessaging.GetLinkedWhatsAppBusinessAccountPhoneNumberInput) => Effect.Effect<socialmessaging.GetLinkedWhatsAppBusinessAccountPhoneNumberOutput, socialmessaging.GetLinkedWhatsAppBusinessAccountPhoneNumberError>>> {
 }
 export declare const GetLinkedWhatsAppBusinessAccountPhoneNumber: GetLinkedWhatsAppBusinessAccountPhoneNumber;

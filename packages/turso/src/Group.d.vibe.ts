@@ -97,5 +97,5 @@ export type Group = Resource<"Turso.Group", GroupProps, GroupAttributes, never, 
  * @product Group
  */
 export declare const Group: import("alchemy/Resource").ResourceClass<Group>;
-export declare const GroupProvider: () => import("effect/Layer").Layer<Provider.Provider<Group>, never, import("./Credentials.js").Organization | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | turso.TursoOpContext>;
+export declare const GroupProvider: () => import("effect/Layer").Layer<Provider.Provider<Group>, never, import("./Credentials.ts").Organization | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | turso.TursoOpContext>;
 export {};

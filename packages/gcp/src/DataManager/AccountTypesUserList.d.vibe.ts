@@ -1,8 +1,8 @@
 import * as datamanager from "@distilled.cloud/gcp/datamanager_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 import { type AccountAccessStatus, type AccountType, type IngestedUserListInfoProps, type MembershipStatus, type TargetNetworkInfoProps } from "./internal.vibe";
 export type AccountTypesUserListProps = {
     /**

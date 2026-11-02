@@ -22,6 +22,6 @@ export interface DeleteConnectionRequest extends iotdata.DeleteConnectionRequest
  *
  * @binding
  */
-export interface DeleteConnection extends Binding.Service<DeleteConnection, "AWS.IoT.DeleteConnection", (clientIdFilter?: string) => Effect.Effect<((request: DeleteConnectionRequest) => Effect.Effect<iotdata.DeleteConnectionResponse, iotdata.DeleteConnectionError>)>> {
+export interface DeleteConnection extends Binding.Service<DeleteConnection, "AWS.IoT.DeleteConnection", (clientIdFilter?: string) => Effect.Effect<(request: DeleteConnectionRequest) => Effect.Effect<iotdata.DeleteConnectionResponse, iotdata.DeleteConnectionError>>> {
 }
 export declare const DeleteConnection: DeleteConnection;

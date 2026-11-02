@@ -45,6 +45,6 @@ export interface SendEventRequest extends Omit<frauddetector.SendEventRequest, "
  *
  * @binding
  */
-export interface SendEvent extends Binding.Service<SendEvent, "AWS.FraudDetector.SendEvent", (eventType: EventType) => Effect.Effect<((request: SendEventRequest) => Effect.Effect<frauddetector.SendEventResult, frauddetector.SendEventError>)>> {
+export interface SendEvent extends Binding.Service<SendEvent, "AWS.FraudDetector.SendEvent", (eventType: EventType) => Effect.Effect<(request: SendEventRequest) => Effect.Effect<frauddetector.SendEventResult, frauddetector.SendEventError>>> {
 }
 export declare const SendEvent: SendEvent;

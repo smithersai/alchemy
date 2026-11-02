@@ -25,6 +25,6 @@ export interface ExportQAppSessionDataRequest extends Omit<qapps.ExportQAppSessi
  *
  * @binding
  */
-export interface ExportQAppSessionData extends Binding.Service<ExportQAppSessionData, "AWS.QApps.ExportQAppSessionData", (app: QApp) => Effect.Effect<((request: ExportQAppSessionDataRequest) => Effect.Effect<qapps.ExportQAppSessionDataOutput, qapps.ExportQAppSessionDataError>)>> {
+export interface ExportQAppSessionData extends Binding.Service<ExportQAppSessionData, "AWS.QApps.ExportQAppSessionData", (app: QApp) => Effect.Effect<(request: ExportQAppSessionDataRequest) => Effect.Effect<qapps.ExportQAppSessionDataOutput, qapps.ExportQAppSessionDataError>>> {
 }
 export declare const ExportQAppSessionData: ExportQAppSessionData;

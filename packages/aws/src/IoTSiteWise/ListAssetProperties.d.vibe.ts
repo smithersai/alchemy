@@ -32,6 +32,6 @@ export interface ListAssetPropertiesRequest extends Omit<sitewise.ListAssetPrope
  *
  * @binding
  */
-export interface ListAssetProperties extends Binding.Service<ListAssetProperties, "AWS.IoTSiteWise.ListAssetProperties", (asset: Asset) => Effect.Effect<((request?: ListAssetPropertiesRequest) => Effect.Effect<sitewise.ListAssetPropertiesResponse, sitewise.ListAssetPropertiesError>)>> {
+export interface ListAssetProperties extends Binding.Service<ListAssetProperties, "AWS.IoTSiteWise.ListAssetProperties", (asset: Asset) => Effect.Effect<(request?: ListAssetPropertiesRequest) => Effect.Effect<sitewise.ListAssetPropertiesResponse, sitewise.ListAssetPropertiesError>>> {
 }
 export declare const ListAssetProperties: ListAssetProperties;

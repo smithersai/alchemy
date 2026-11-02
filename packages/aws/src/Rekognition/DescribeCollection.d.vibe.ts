@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeCollection extends Binding.Service<DescribeCollection, "AWS.Rekognition.DescribeCollection", () => Effect.Effect<((request: rekognition.DescribeCollectionRequest) => Effect.Effect<rekognition.DescribeCollectionResponse, rekognition.DescribeCollectionError>)>> {
+export interface DescribeCollection extends Binding.Service<DescribeCollection, "AWS.Rekognition.DescribeCollection", () => Effect.Effect<(request: rekognition.DescribeCollectionRequest) => Effect.Effect<rekognition.DescribeCollectionResponse, rekognition.DescribeCollectionError>>> {
 }
 export declare const DescribeCollection: DescribeCollection;

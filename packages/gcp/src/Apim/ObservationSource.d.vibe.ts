@@ -1,10 +1,10 @@
 import * as apim from "@distilled.cloud/gcp/apim_v1alpha";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { type GclbObservationSource } from "./internal.js";
-export type { GclbObservationSource, PscNetworkConfig } from "./internal.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { type GclbObservationSource } from "./internal.ts";
+export type { GclbObservationSource, PscNetworkConfig } from "./internal.ts";
 export type ObservationSourceProps = {
     /**
      * Observation source id (the `{source}` segment of

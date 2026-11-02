@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetWebACLForResource extends Binding.Service<GetWebACLForResource, "AWS.WAFv2.GetWebACLForResource", () => Effect.Effect<((request: WAFV2.GetWebACLForResourceRequest) => Effect.Effect<WAFV2.GetWebACLForResourceResponse, WAFV2.GetWebACLForResourceError>)>> {
+export interface GetWebACLForResource extends Binding.Service<GetWebACLForResource, "AWS.WAFv2.GetWebACLForResource", () => Effect.Effect<(request: WAFV2.GetWebACLForResourceRequest) => Effect.Effect<WAFV2.GetWebACLForResourceResponse, WAFV2.GetWebACLForResourceError>>> {
 }
 export declare const GetWebACLForResource: GetWebACLForResource;

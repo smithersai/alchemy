@@ -32,6 +32,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetMetricData extends Binding.Service<BatchGetMetricData, "AWS.SES.BatchGetMetricData", () => Effect.Effect<((request: sesv2.BatchGetMetricDataRequest) => Effect.Effect<sesv2.BatchGetMetricDataResponse, sesv2.BatchGetMetricDataError>)>> {
+export interface BatchGetMetricData extends Binding.Service<BatchGetMetricData, "AWS.SES.BatchGetMetricData", () => Effect.Effect<(request: sesv2.BatchGetMetricDataRequest) => Effect.Effect<sesv2.BatchGetMetricDataResponse, sesv2.BatchGetMetricDataError>>> {
 }
 export declare const BatchGetMetricData: BatchGetMetricData;

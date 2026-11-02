@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelSbomExport extends Binding.Service<CancelSbomExport, "AWS.Inspector2.CancelSbomExport", () => Effect.Effect<((request: inspector2.CancelSbomExportRequest) => Effect.Effect<inspector2.CancelSbomExportResponse, inspector2.CancelSbomExportError>)>> {
+export interface CancelSbomExport extends Binding.Service<CancelSbomExport, "AWS.Inspector2.CancelSbomExport", () => Effect.Effect<(request: inspector2.CancelSbomExportRequest) => Effect.Effect<inspector2.CancelSbomExportResponse, inspector2.CancelSbomExportError>>> {
 }
 export declare const CancelSbomExport: CancelSbomExport;

@@ -33,6 +33,6 @@ export interface ReEncryptDataRequest extends Omit<paymentcryptographydata.ReEnc
  *
  * @binding
  */
-export interface ReEncryptData extends Binding.Service<ReEncryptData, "AWS.PaymentCryptography.ReEncryptData", <In extends Key, Out extends Key>(incomingKey: In, outgoingKey: Out) => Effect.Effect<((request: ReEncryptDataRequest) => Effect.Effect<paymentcryptographydata.ReEncryptDataOutput, paymentcryptographydata.ReEncryptDataError>)>> {
+export interface ReEncryptData extends Binding.Service<ReEncryptData, "AWS.PaymentCryptography.ReEncryptData", <In extends Key, Out extends Key>(incomingKey: In, outgoingKey: Out) => Effect.Effect<(request: ReEncryptDataRequest) => Effect.Effect<paymentcryptographydata.ReEncryptDataOutput, paymentcryptographydata.ReEncryptDataError>>> {
 }
 export declare const ReEncryptData: ReEncryptData;

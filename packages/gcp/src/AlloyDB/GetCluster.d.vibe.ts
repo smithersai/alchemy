@@ -2,7 +2,7 @@ import type * as alloydb from "@distilled.cloud/gcp/alloydb_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 export interface GetClusterRequest extends Omit<alloydb.GetProjectsLocationsClustersRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetClusterRequest extends Omit<alloydb.GetProjectsLocationsClus
  * @binding
  * @category AlloyDB
  */
-export interface GetCluster extends Binding.Service<GetCluster, "GCP.AlloyDB.GetCluster", (cluster: Cluster) => Effect.Effect<((request?: GetClusterRequest) => Effect.Effect<alloydb.Cluster, alloydb.GetProjectsLocationsClustersError, RuntimeContext>)>> {
+export interface GetCluster extends Binding.Service<GetCluster, "GCP.AlloyDB.GetCluster", (cluster: Cluster) => Effect.Effect<(request?: GetClusterRequest) => Effect.Effect<alloydb.Cluster, alloydb.GetProjectsLocationsClustersError, RuntimeContext>>> {
 }
 export declare const GetCluster: GetCluster;

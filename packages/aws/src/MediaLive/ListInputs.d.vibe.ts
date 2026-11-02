@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListInputs extends Binding.Service<ListInputs, "AWS.MediaLive.ListInputs", () => Effect.Effect<((request?: medialive.ListInputsRequest) => Effect.Effect<medialive.ListInputsResponse, medialive.ListInputsError>)>> {
+export interface ListInputs extends Binding.Service<ListInputs, "AWS.MediaLive.ListInputs", () => Effect.Effect<(request?: medialive.ListInputsRequest) => Effect.Effect<medialive.ListInputsResponse, medialive.ListInputsError>>> {
 }
 export declare const ListInputs: ListInputs;

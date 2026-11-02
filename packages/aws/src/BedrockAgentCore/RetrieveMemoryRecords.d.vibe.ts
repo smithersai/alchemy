@@ -37,6 +37,6 @@ export interface RetrieveMemoryRecordsRequest extends Omit<agentcore.RetrieveMem
  *
  * @binding
  */
-export interface RetrieveMemoryRecords extends Binding.Service<RetrieveMemoryRecords, "AWS.BedrockAgentCore.RetrieveMemoryRecords", <R extends Memory>(memory: R) => Effect.Effect<((request: RetrieveMemoryRecordsRequest) => Effect.Effect<agentcore.RetrieveMemoryRecordsOutput, agentcore.RetrieveMemoryRecordsError>)>> {
+export interface RetrieveMemoryRecords extends Binding.Service<RetrieveMemoryRecords, "AWS.BedrockAgentCore.RetrieveMemoryRecords", <R extends Memory>(memory: R) => Effect.Effect<(request: RetrieveMemoryRecordsRequest) => Effect.Effect<agentcore.RetrieveMemoryRecordsOutput, agentcore.RetrieveMemoryRecordsError>>> {
 }
 export declare const RetrieveMemoryRecords: RetrieveMemoryRecords;

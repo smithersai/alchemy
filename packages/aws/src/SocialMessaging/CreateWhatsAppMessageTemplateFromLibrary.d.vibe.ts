@@ -38,6 +38,6 @@ export interface CreateWhatsAppMessageTemplateFromLibraryRequest extends Omit<so
  *
  * @binding
  */
-export interface CreateWhatsAppMessageTemplateFromLibrary extends Binding.Service<CreateWhatsAppMessageTemplateFromLibrary, "AWS.SocialMessaging.CreateWhatsAppMessageTemplateFromLibrary", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: CreateWhatsAppMessageTemplateFromLibraryRequest) => Effect.Effect<socialmessaging.CreateWhatsAppMessageTemplateFromLibraryOutput, socialmessaging.CreateWhatsAppMessageTemplateFromLibraryError>)>> {
+export interface CreateWhatsAppMessageTemplateFromLibrary extends Binding.Service<CreateWhatsAppMessageTemplateFromLibrary, "AWS.SocialMessaging.CreateWhatsAppMessageTemplateFromLibrary", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: CreateWhatsAppMessageTemplateFromLibraryRequest) => Effect.Effect<socialmessaging.CreateWhatsAppMessageTemplateFromLibraryOutput, socialmessaging.CreateWhatsAppMessageTemplateFromLibraryError>>> {
 }
 export declare const CreateWhatsAppMessageTemplateFromLibrary: CreateWhatsAppMessageTemplateFromLibrary;

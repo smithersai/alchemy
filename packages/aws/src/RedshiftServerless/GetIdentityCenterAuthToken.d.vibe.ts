@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetIdentityCenterAuthToken extends Binding.Service<GetIdentityCenterAuthToken, "AWS.RedshiftServerless.GetIdentityCenterAuthToken", () => Effect.Effect<((request: serverless.GetIdentityCenterAuthTokenRequest) => Effect.Effect<serverless.GetIdentityCenterAuthTokenResponse, serverless.GetIdentityCenterAuthTokenError>)>> {
+export interface GetIdentityCenterAuthToken extends Binding.Service<GetIdentityCenterAuthToken, "AWS.RedshiftServerless.GetIdentityCenterAuthToken", () => Effect.Effect<(request: serverless.GetIdentityCenterAuthTokenRequest) => Effect.Effect<serverless.GetIdentityCenterAuthTokenResponse, serverless.GetIdentityCenterAuthTokenError>>> {
 }
 export declare const GetIdentityCenterAuthToken: GetIdentityCenterAuthToken;

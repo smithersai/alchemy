@@ -25,6 +25,6 @@ export interface GetLibraryItemRequest extends Omit<qapps.GetLibraryItemInput, "
  *
  * @binding
  */
-export interface GetLibraryItem extends Binding.Service<GetLibraryItem, "AWS.QApps.GetLibraryItem", (app: QApp) => Effect.Effect<((request: GetLibraryItemRequest) => Effect.Effect<qapps.GetLibraryItemOutput, qapps.GetLibraryItemError>)>> {
+export interface GetLibraryItem extends Binding.Service<GetLibraryItem, "AWS.QApps.GetLibraryItem", (app: QApp) => Effect.Effect<(request: GetLibraryItemRequest) => Effect.Effect<qapps.GetLibraryItemOutput, qapps.GetLibraryItemError>>> {
 }
 export declare const GetLibraryItem: GetLibraryItem;

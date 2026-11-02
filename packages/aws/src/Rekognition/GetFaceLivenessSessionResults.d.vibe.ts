@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetFaceLivenessSessionResults extends Binding.Service<GetFaceLivenessSessionResults, "AWS.Rekognition.GetFaceLivenessSessionResults", () => Effect.Effect<((request: rekognition.GetFaceLivenessSessionResultsRequest) => Effect.Effect<rekognition.GetFaceLivenessSessionResultsResponse, rekognition.GetFaceLivenessSessionResultsError>)>> {
+export interface GetFaceLivenessSessionResults extends Binding.Service<GetFaceLivenessSessionResults, "AWS.Rekognition.GetFaceLivenessSessionResults", () => Effect.Effect<(request: rekognition.GetFaceLivenessSessionResultsRequest) => Effect.Effect<rekognition.GetFaceLivenessSessionResultsResponse, rekognition.GetFaceLivenessSessionResultsError>>> {
 }
 export declare const GetFaceLivenessSessionResults: GetFaceLivenessSessionResults;

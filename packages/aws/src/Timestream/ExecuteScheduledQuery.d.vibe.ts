@@ -29,6 +29,6 @@ export interface ExecuteScheduledQueryRequest extends Omit<TSQ.ExecuteScheduledQ
  *
  * @binding
  */
-export interface ExecuteScheduledQuery extends Binding.Service<ExecuteScheduledQuery, "AWS.Timestream.ExecuteScheduledQuery", (scheduledQuery: ScheduledQuery) => Effect.Effect<((request: ExecuteScheduledQueryRequest) => Effect.Effect<TSQ.ExecuteScheduledQueryResponse, TSQ.ExecuteScheduledQueryError | TSQ.DescribeEndpointsError>)>> {
+export interface ExecuteScheduledQuery extends Binding.Service<ExecuteScheduledQuery, "AWS.Timestream.ExecuteScheduledQuery", (scheduledQuery: ScheduledQuery) => Effect.Effect<(request: ExecuteScheduledQueryRequest) => Effect.Effect<TSQ.ExecuteScheduledQueryResponse, TSQ.ExecuteScheduledQueryError | TSQ.DescribeEndpointsError>>> {
 }
 export declare const ExecuteScheduledQuery: ExecuteScheduledQuery;

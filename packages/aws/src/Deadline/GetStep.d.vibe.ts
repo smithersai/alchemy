@@ -21,6 +21,6 @@ import type { Queue } from "./Queue.vibe";
  *
  * @binding
  */
-export interface GetStep extends Binding.Service<GetStep, "AWS.Deadline.GetStep", (queue: Queue) => Effect.Effect<((request: Omit<deadline.GetStepRequest, "farmId" | "queueId">) => Effect.Effect<deadline.GetStepResponse, deadline.GetStepError>)>> {
+export interface GetStep extends Binding.Service<GetStep, "AWS.Deadline.GetStep", (queue: Queue) => Effect.Effect<(request: Omit<deadline.GetStepRequest, "farmId" | "queueId">) => Effect.Effect<deadline.GetStepResponse, deadline.GetStepError>>> {
 }
 export declare const GetStep: GetStep;

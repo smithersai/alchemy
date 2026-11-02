@@ -25,6 +25,6 @@ export interface UpdateSubscriptionRequest extends Omit<qbusiness.UpdateSubscrip
  *
  * @binding
  */
-export interface UpdateSubscription extends Binding.Service<UpdateSubscription, "AWS.QBusiness.UpdateSubscription", (application: Application) => Effect.Effect<((request: UpdateSubscriptionRequest) => Effect.Effect<qbusiness.UpdateSubscriptionResponse, qbusiness.UpdateSubscriptionError>)>> {
+export interface UpdateSubscription extends Binding.Service<UpdateSubscription, "AWS.QBusiness.UpdateSubscription", (application: Application) => Effect.Effect<(request: UpdateSubscriptionRequest) => Effect.Effect<qbusiness.UpdateSubscriptionResponse, qbusiness.UpdateSubscriptionError>>> {
 }
 export declare const UpdateSubscription: UpdateSubscription;

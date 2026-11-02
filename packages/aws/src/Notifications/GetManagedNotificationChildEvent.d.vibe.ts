@@ -26,6 +26,6 @@ export interface GetManagedNotificationChildEventRequest extends notifications.G
  *
  * @binding
  */
-export interface GetManagedNotificationChildEvent extends Binding.Service<GetManagedNotificationChildEvent, "AWS.Notifications.GetManagedNotificationChildEvent", () => Effect.Effect<((request: GetManagedNotificationChildEventRequest) => Effect.Effect<notifications.GetManagedNotificationChildEventResponse, notifications.GetManagedNotificationChildEventError>)>> {
+export interface GetManagedNotificationChildEvent extends Binding.Service<GetManagedNotificationChildEvent, "AWS.Notifications.GetManagedNotificationChildEvent", () => Effect.Effect<(request: GetManagedNotificationChildEventRequest) => Effect.Effect<notifications.GetManagedNotificationChildEventResponse, notifications.GetManagedNotificationChildEventError>>> {
 }
 export declare const GetManagedNotificationChildEvent: GetManagedNotificationChildEvent;

@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import type { Crawler } from "./Crawler.vibe";
 import type { Database } from "./Database.vibe";
-import type { Job } from "./Job.js";
+import type { Job } from "./Job.ts";
 import type { Table } from "./Table.vibe";
 /**
  * Shared scaffolding for AWS Glue HTTP bindings.
@@ -30,7 +30,7 @@ export declare const makeGlueJobHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Glue.GetJobRun`. */
     tag: string;
     /** The distilled operation; `JobName` is injected from the job. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the job ARN. */
     actions: readonly string[];
     /**
@@ -50,7 +50,7 @@ export declare const makeGlueCrawlerHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Glue.StartCrawler`. */
     tag: string;
     /** The distilled operation; `Name` is injected from the crawler. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the crawler ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(crawler: Crawler) => Effect.Effect<(request?: Omit<I, "Name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -68,7 +68,7 @@ export declare const makeGlueDatabaseHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Glue.GetTables`. */
     tag: string;
     /** The distilled operation; `DatabaseName`/`CatalogId` are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the catalog + database + tables ARNs. */
     actions: readonly string[];
 }) => Effect.Effect<(database: Database) => Effect.Effect<(request?: Omit<I, "DatabaseName" | "CatalogId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -87,7 +87,7 @@ export declare const makeGlueTableHttpBinding: <K extends "TableName" | "Name", 
     /** Fully-qualified binding tag, e.g. `AWS.Glue.GetPartitions`. */
     tag: string;
     /** The distilled operation; database/table identifiers are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the catalog + database + table ARNs. */
     actions: readonly string[];
     /** The request key carrying the table name. */

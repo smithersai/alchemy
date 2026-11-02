@@ -22,6 +22,6 @@ import type { EmailContact } from "./EmailContact.vibe";
  *
  * @binding
  */
-export interface GetEmailContact extends Binding.Service<GetEmailContact, "AWS.NotificationsContacts.GetEmailContact", (contact: EmailContact) => Effect.Effect<(() => Effect.Effect<contacts.GetEmailContactResponse, contacts.GetEmailContactError>)>> {
+export interface GetEmailContact extends Binding.Service<GetEmailContact, "AWS.NotificationsContacts.GetEmailContact", (contact: EmailContact) => Effect.Effect<() => Effect.Effect<contacts.GetEmailContactResponse, contacts.GetEmailContactError>>> {
 }
 export declare const GetEmailContact: GetEmailContact;

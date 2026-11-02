@@ -38,7 +38,7 @@ export declare const makeIvsRealtimeStageHttpBinding: <I extends { [P in K]: str
     /** Fully-qualified binding tag, e.g. `AWS.IVSRealtime.CreateParticipantToken`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the stage ARN. */
     actions: readonly string[];
     /** Request field carrying the bound stage's ARN. @default "stageArn" */
@@ -61,7 +61,7 @@ export declare const makeIvsRealtimeReplicationHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.IVSRealtime.StartParticipantReplication`. */
     tag: string;
     /** The distilled operation; both stage ARNs are injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on both stage ARNs. */
     actions: readonly string[];
 }) => Effect.Effect<(sourceStage: Stage, destinationStage: Stage) => Effect.Effect<(request: Omit<I, "sourceStageArn" | "destinationStageArn">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -75,7 +75,7 @@ export declare const makeIvsRealtimeAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.IVSRealtime.ListCompositions`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted. */
     actions: readonly string[];
     /**

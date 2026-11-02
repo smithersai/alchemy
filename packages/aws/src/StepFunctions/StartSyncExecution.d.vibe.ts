@@ -1,7 +1,7 @@
 import type * as sfn from "@distilled.cloud/aws/sfn";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { StateMachine } from "./StateMachine.js";
+import type { StateMachine } from "./StateMachine.ts";
 export interface StartSyncExecutionRequest extends Omit<sfn.StartSyncExecutionInput, "stateMachineArn"> {
 }
 /**
@@ -26,6 +26,6 @@ export interface StartSyncExecutionRequest extends Omit<sfn.StartSyncExecutionIn
  *
  * @binding
  */
-export interface StartSyncExecution extends Binding.Service<StartSyncExecution, "AWS.StepFunctions.StartSyncExecution", (stateMachine: StateMachine) => Effect.Effect<((request?: StartSyncExecutionRequest) => Effect.Effect<sfn.StartSyncExecutionOutput, sfn.StartSyncExecutionError>)>> {
+export interface StartSyncExecution extends Binding.Service<StartSyncExecution, "AWS.StepFunctions.StartSyncExecution", (stateMachine: StateMachine) => Effect.Effect<(request?: StartSyncExecutionRequest) => Effect.Effect<sfn.StartSyncExecutionOutput, sfn.StartSyncExecutionError>>> {
 }
 export declare const StartSyncExecution: StartSyncExecution;

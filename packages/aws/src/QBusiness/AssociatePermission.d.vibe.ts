@@ -31,6 +31,6 @@ export interface AssociatePermissionRequest extends Omit<qbusiness.AssociatePerm
  *
  * @binding
  */
-export interface AssociatePermission extends Binding.Service<AssociatePermission, "AWS.QBusiness.AssociatePermission", (application: Application) => Effect.Effect<((request: AssociatePermissionRequest) => Effect.Effect<qbusiness.AssociatePermissionResponse, qbusiness.AssociatePermissionError>)>> {
+export interface AssociatePermission extends Binding.Service<AssociatePermission, "AWS.QBusiness.AssociatePermission", (application: Application) => Effect.Effect<(request: AssociatePermissionRequest) => Effect.Effect<qbusiness.AssociatePermissionResponse, qbusiness.AssociatePermissionError>>> {
 }
 export declare const AssociatePermission: AssociatePermission;

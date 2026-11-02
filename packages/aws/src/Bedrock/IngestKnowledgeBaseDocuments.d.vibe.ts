@@ -47,6 +47,6 @@ export interface IngestKnowledgeBaseDocumentsRequest extends Omit<bedrock.Ingest
  *
  * @binding
  */
-export interface IngestKnowledgeBaseDocuments extends Binding.Service<IngestKnowledgeBaseDocuments, "AWS.Bedrock.IngestKnowledgeBaseDocuments", <D extends DataSource>(dataSource: D) => Effect.Effect<((request: IngestKnowledgeBaseDocumentsRequest) => Effect.Effect<bedrock.IngestKnowledgeBaseDocumentsResponse, bedrock.IngestKnowledgeBaseDocumentsError>)>> {
+export interface IngestKnowledgeBaseDocuments extends Binding.Service<IngestKnowledgeBaseDocuments, "AWS.Bedrock.IngestKnowledgeBaseDocuments", <D extends DataSource>(dataSource: D) => Effect.Effect<(request: IngestKnowledgeBaseDocumentsRequest) => Effect.Effect<bedrock.IngestKnowledgeBaseDocumentsResponse, bedrock.IngestKnowledgeBaseDocumentsError>>> {
 }
 export declare const IngestKnowledgeBaseDocuments: IngestKnowledgeBaseDocuments;

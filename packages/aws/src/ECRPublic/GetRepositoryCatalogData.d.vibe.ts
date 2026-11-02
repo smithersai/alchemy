@@ -29,6 +29,6 @@ export interface GetRepositoryCatalogDataRequest extends Omit<ecrpublic.GetRepos
  *
  * @binding
  */
-export interface GetRepositoryCatalogData extends Binding.Service<GetRepositoryCatalogData, "AWS.ECRPublic.GetRepositoryCatalogData", <R extends PublicRepository>(repository: R) => Effect.Effect<((request?: GetRepositoryCatalogDataRequest) => Effect.Effect<ecrpublic.GetRepositoryCatalogDataResponse, ecrpublic.GetRepositoryCatalogDataError>)>> {
+export interface GetRepositoryCatalogData extends Binding.Service<GetRepositoryCatalogData, "AWS.ECRPublic.GetRepositoryCatalogData", <R extends PublicRepository>(repository: R) => Effect.Effect<(request?: GetRepositoryCatalogDataRequest) => Effect.Effect<ecrpublic.GetRepositoryCatalogDataResponse, ecrpublic.GetRepositoryCatalogDataError>>> {
 }
 export declare const GetRepositoryCatalogData: GetRepositoryCatalogData;

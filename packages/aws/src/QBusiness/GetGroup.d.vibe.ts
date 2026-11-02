@@ -25,6 +25,6 @@ export interface GetGroupRequest extends Omit<qbusiness.GetGroupRequest, "applic
  *
  * @binding
  */
-export interface GetGroup extends Binding.Service<GetGroup, "AWS.QBusiness.GetGroup", (index: Index) => Effect.Effect<((request: GetGroupRequest) => Effect.Effect<qbusiness.GetGroupResponse, qbusiness.GetGroupError>)>> {
+export interface GetGroup extends Binding.Service<GetGroup, "AWS.QBusiness.GetGroup", (index: Index) => Effect.Effect<(request: GetGroupRequest) => Effect.Effect<qbusiness.GetGroupResponse, qbusiness.GetGroupError>>> {
 }
 export declare const GetGroup: GetGroup;

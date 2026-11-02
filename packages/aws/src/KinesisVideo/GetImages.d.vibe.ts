@@ -29,6 +29,6 @@ export interface GetImagesRequest extends Omit<kvam.GetImagesInput, "StreamName"
  *
  * @binding
  */
-export interface GetImages extends Binding.Service<GetImages, "AWS.KinesisVideo.GetImages", <S extends Stream>(stream: S) => Effect.Effect<((request: GetImagesRequest) => Effect.Effect<kvam.GetImagesOutput, kvam.GetImagesError | kv.GetDataEndpointError>)>> {
+export interface GetImages extends Binding.Service<GetImages, "AWS.KinesisVideo.GetImages", <S extends Stream>(stream: S) => Effect.Effect<(request: GetImagesRequest) => Effect.Effect<kvam.GetImagesOutput, kvam.GetImagesError | kv.GetDataEndpointError>>> {
 }
 export declare const GetImages: GetImages;

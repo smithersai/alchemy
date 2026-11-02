@@ -37,6 +37,6 @@ export interface DescribeSubscribersForNotificationRequest extends Omit<budgets.
  *
  * @binding
  */
-export interface DescribeSubscribersForNotification extends Binding.Service<DescribeSubscribersForNotification, "AWS.Budgets.DescribeSubscribersForNotification", (budget: Budget) => Effect.Effect<((request: DescribeSubscribersForNotificationRequest) => Effect.Effect<budgets.DescribeSubscribersForNotificationResponse, budgets.DescribeSubscribersForNotificationError>)>> {
+export interface DescribeSubscribersForNotification extends Binding.Service<DescribeSubscribersForNotification, "AWS.Budgets.DescribeSubscribersForNotification", (budget: Budget) => Effect.Effect<(request: DescribeSubscribersForNotificationRequest) => Effect.Effect<budgets.DescribeSubscribersForNotificationResponse, budgets.DescribeSubscribersForNotificationError>>> {
 }
 export declare const DescribeSubscribersForNotification: DescribeSubscribersForNotification;

@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListMicrosoftTeamsConfiguredTeams extends Binding.Service<ListMicrosoftTeamsConfiguredTeams, "AWS.Chatbot.ListMicrosoftTeamsConfiguredTeams", () => Effect.Effect<((request?: chatbot.ListMicrosoftTeamsConfiguredTeamsRequest) => Effect.Effect<chatbot.ListMicrosoftTeamsConfiguredTeamsResult, chatbot.ListMicrosoftTeamsConfiguredTeamsError>)>> {
+export interface ListMicrosoftTeamsConfiguredTeams extends Binding.Service<ListMicrosoftTeamsConfiguredTeams, "AWS.Chatbot.ListMicrosoftTeamsConfiguredTeams", () => Effect.Effect<(request?: chatbot.ListMicrosoftTeamsConfiguredTeamsRequest) => Effect.Effect<chatbot.ListMicrosoftTeamsConfiguredTeamsResult, chatbot.ListMicrosoftTeamsConfiguredTeamsError>>> {
 }
 export declare const ListMicrosoftTeamsConfiguredTeams: ListMicrosoftTeamsConfiguredTeams;

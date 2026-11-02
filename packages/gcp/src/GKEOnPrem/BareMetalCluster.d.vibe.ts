@@ -1,9 +1,9 @@
 import * as gkeonprem from "@distilled.cloud/gcp/gkeonprem_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { BareMetalClusterOperationsConfig, BareMetalClusterUpgradePolicy, BareMetalControlPlaneConfig, BareMetalLoadBalancerConfig, BareMetalMaintenanceConfig, BareMetalNetworkConfig, BareMetalNodeAccessConfig, BareMetalOsEnvironmentConfig, BareMetalProxyConfig, BareMetalSecurityConfig, BareMetalStorageConfig, BareMetalWorkloadNodeConfig, BinaryAuthorization } from "./types.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { BareMetalClusterOperationsConfig, BareMetalClusterUpgradePolicy, BareMetalControlPlaneConfig, BareMetalLoadBalancerConfig, BareMetalMaintenanceConfig, BareMetalNetworkConfig, BareMetalNodeAccessConfig, BareMetalOsEnvironmentConfig, BareMetalProxyConfig, BareMetalSecurityConfig, BareMetalStorageConfig, BareMetalWorkloadNodeConfig, BinaryAuthorization } from "./types.ts";
 export type BareMetalClusterProps = {
     /**
      * Cluster id (the `{bareMetalCluster}` segment). If omitted, a unique

@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import type { Redis } from "../Redis.vibe";
-import { type FrameworkSiteProps } from "./FrameworkSite.js";
+import { type FrameworkSiteProps } from "./FrameworkSite.ts";
 /**
  * The vinext-on-Node framework module (vinext's Vite build +
  * `startProdServer`). Not the Cloudflare Worker source.

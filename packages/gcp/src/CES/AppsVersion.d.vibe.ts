@@ -1,8 +1,8 @@
 import * as ces from "@distilled.cloud/gcp/ces_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type AppsVersionProps = {
     /**
      * Parent CES app. Full name

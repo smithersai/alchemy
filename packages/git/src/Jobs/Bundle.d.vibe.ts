@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { type BlobStoreShape } from "../BlobStore.js";
-import { type Oid } from "../Protocol/ObjectCodec.js";
+import { type BlobStoreShape } from "../BlobStore.ts";
+import { type Oid } from "../Protocol/ObjectCodec.ts";
 import { StoreError, type ManifestEntry } from "../Protocol/Store.vibe";
 /**
  * The clone-bundle alarm job (DESIGN.md §12.2) — the v2 serving plane.

@@ -31,7 +31,7 @@ export declare const makeInternetMonitorMonitorHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.InternetMonitor.ListHealthEvents`. */
     tag: string;
     /** The distilled operation; `MonitorName` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the monitor ARN (and its sub-resources). */
     actions: readonly string[];
 }) => Effect.Effect<(monitor: Monitor) => Effect.Effect<(request?: Omit<I, "MonitorName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -45,7 +45,7 @@ export declare const makeInternetMonitorAccountHttpBinding: <I, A, E, R>(options
     /** Fully-qualified binding tag, e.g. `AWS.InternetMonitor.ListInternetEvents`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

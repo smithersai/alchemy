@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeClusters extends Binding.Service<DescribeClusters, "AWS.Redshift.DescribeClusters", () => Effect.Effect<((request?: redshift.DescribeClustersMessage) => Effect.Effect<redshift.ClustersMessage, redshift.DescribeClustersError>)>> {
+export interface DescribeClusters extends Binding.Service<DescribeClusters, "AWS.Redshift.DescribeClusters", () => Effect.Effect<(request?: redshift.DescribeClustersMessage) => Effect.Effect<redshift.ClustersMessage, redshift.DescribeClustersError>>> {
 }
 export declare const DescribeClusters: DescribeClusters;

@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateCollection extends Binding.Service<CreateCollection, "AWS.Rekognition.CreateCollection", () => Effect.Effect<((request: rekognition.CreateCollectionRequest) => Effect.Effect<rekognition.CreateCollectionResponse, rekognition.CreateCollectionError>)>> {
+export interface CreateCollection extends Binding.Service<CreateCollection, "AWS.Rekognition.CreateCollection", () => Effect.Effect<(request: rekognition.CreateCollectionRequest) => Effect.Effect<rekognition.CreateCollectionResponse, rekognition.CreateCollectionError>>> {
 }
 export declare const CreateCollection: CreateCollection;

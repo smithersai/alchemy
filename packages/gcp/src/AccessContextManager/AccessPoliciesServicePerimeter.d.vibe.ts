@@ -1,7 +1,7 @@
 import * as acm from "@distilled.cloud/gcp/accesscontextmanager_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type ServicePerimeterConfig = acm.ServicePerimeterConfig;
 export type ServicePerimeterType = acm.ServicePerimeterPerimeterTypeEnum;
 export type AccessPoliciesServicePerimeterProps = {
@@ -131,5 +131,5 @@ export declare class AccessPoliciesServicePerimeterNotResolved extends AccessPol
     resourceName: string;
 }> {
 }
-export declare const AccessPoliciesServicePerimeterProvider: () => import("effect/Layer").Layer<Provider.Provider<AccessPoliciesServicePerimeter>, never, import("../Environment.js").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | acm.GcpOpContext>;
+export declare const AccessPoliciesServicePerimeterProvider: () => import("effect/Layer").Layer<Provider.Provider<AccessPoliciesServicePerimeter>, never, import("../Environment.ts").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | acm.GcpOpContext>;
 export {};

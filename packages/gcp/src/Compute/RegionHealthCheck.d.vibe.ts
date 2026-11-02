@@ -1,8 +1,8 @@
 import * as compute from "@distilled.cloud/gcp/compute_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 import type { GrpcHealthCheck, HealthCheckLogConfig, HealthCheckType, Http2HealthCheck, HttpHealthCheck, HttpsHealthCheck, SslHealthCheck, TcpHealthCheck } from "./HealthCheck.vibe";
 export type RegionHealthCheckProps = {
     /**

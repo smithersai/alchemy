@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteSuppressedDestination extends Binding.Service<DeleteSuppressedDestination, "AWS.SES.DeleteSuppressedDestination", () => Effect.Effect<((request: sesv2.DeleteSuppressedDestinationRequest) => Effect.Effect<sesv2.DeleteSuppressedDestinationResponse, sesv2.DeleteSuppressedDestinationError>)>> {
+export interface DeleteSuppressedDestination extends Binding.Service<DeleteSuppressedDestination, "AWS.SES.DeleteSuppressedDestination", () => Effect.Effect<(request: sesv2.DeleteSuppressedDestinationRequest) => Effect.Effect<sesv2.DeleteSuppressedDestinationResponse, sesv2.DeleteSuppressedDestinationError>>> {
 }
 export declare const DeleteSuppressedDestination: DeleteSuppressedDestination;

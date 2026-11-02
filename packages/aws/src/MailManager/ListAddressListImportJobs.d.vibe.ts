@@ -19,6 +19,6 @@ import type { AddressList } from "./AddressList.vibe";
  *
  * @binding
  */
-export interface ListAddressListImportJobs extends Binding.Service<ListAddressListImportJobs, "AWS.MailManager.ListAddressListImportJobs", (list: AddressList) => Effect.Effect<((request: Omit<mm.ListAddressListImportJobsRequest, "AddressListId">) => Effect.Effect<mm.ListAddressListImportJobsResponse, mm.ListAddressListImportJobsError>)>> {
+export interface ListAddressListImportJobs extends Binding.Service<ListAddressListImportJobs, "AWS.MailManager.ListAddressListImportJobs", (list: AddressList) => Effect.Effect<(request: Omit<mm.ListAddressListImportJobsRequest, "AddressListId">) => Effect.Effect<mm.ListAddressListImportJobsResponse, mm.ListAddressListImportJobsError>>> {
 }
 export declare const ListAddressListImportJobs: ListAddressListImportJobs;

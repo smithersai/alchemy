@@ -1,7 +1,7 @@
 import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface ListBackupsRequest extends Omit<DynamoDB.ListBackupsInput, "TableName"> {
 }
 /**
@@ -22,6 +22,6 @@ export interface ListBackupsRequest extends Omit<DynamoDB.ListBackupsInput, "Tab
  *
  * @binding
  */
-export interface ListBackups extends Binding.Service<ListBackups, "AWS.DynamoDB.ListBackups", <T extends Table>(table: T) => Effect.Effect<((request?: ListBackupsRequest) => Effect.Effect<DynamoDB.ListBackupsOutput, DynamoDB.ListBackupsError>)>> {
+export interface ListBackups extends Binding.Service<ListBackups, "AWS.DynamoDB.ListBackups", <T extends Table>(table: T) => Effect.Effect<(request?: ListBackupsRequest) => Effect.Effect<DynamoDB.ListBackupsOutput, DynamoDB.ListBackupsError>>> {
 }
 export declare const ListBackups: ListBackups;

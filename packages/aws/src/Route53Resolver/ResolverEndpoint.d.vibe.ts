@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface ResolverEndpointIpAddress {
     /**
      * ID of the subnet to place a resolver network interface in. Changing the

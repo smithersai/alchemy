@@ -53,6 +53,6 @@ export interface InvokeDataAutomationAsyncRequest extends Omit<bdar.InvokeDataAu
  *
  * @binding
  */
-export interface InvokeDataAutomationAsync extends Binding.Service<InvokeDataAutomationAsync, "AWS.BedrockDataAutomation.InvokeDataAutomationAsync", (project: DataAutomationProject) => Effect.Effect<((request: InvokeDataAutomationAsyncRequest) => Effect.Effect<bdar.InvokeDataAutomationAsyncResponse, bdar.InvokeDataAutomationAsyncError>)>> {
+export interface InvokeDataAutomationAsync extends Binding.Service<InvokeDataAutomationAsync, "AWS.BedrockDataAutomation.InvokeDataAutomationAsync", (project: DataAutomationProject) => Effect.Effect<(request: InvokeDataAutomationAsyncRequest) => Effect.Effect<bdar.InvokeDataAutomationAsyncResponse, bdar.InvokeDataAutomationAsyncError>>> {
 }
 export declare const InvokeDataAutomationAsync: InvokeDataAutomationAsync;

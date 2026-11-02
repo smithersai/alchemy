@@ -28,6 +28,6 @@ export interface UpdateUserRequest extends Omit<qbusiness.UpdateUserRequest, "ap
  *
  * @binding
  */
-export interface UpdateUser extends Binding.Service<UpdateUser, "AWS.QBusiness.UpdateUser", (application: Application) => Effect.Effect<((request: UpdateUserRequest) => Effect.Effect<qbusiness.UpdateUserResponse, qbusiness.UpdateUserError>)>> {
+export interface UpdateUser extends Binding.Service<UpdateUser, "AWS.QBusiness.UpdateUser", (application: Application) => Effect.Effect<(request: UpdateUserRequest) => Effect.Effect<qbusiness.UpdateUserResponse, qbusiness.UpdateUserError>>> {
 }
 export declare const UpdateUser: UpdateUser;

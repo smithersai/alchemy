@@ -31,6 +31,6 @@ export interface ImportDocumentRequest extends Omit<qapps.ImportDocumentInput, "
  *
  * @binding
  */
-export interface ImportDocument extends Binding.Service<ImportDocument, "AWS.QApps.ImportDocument", (app: QApp) => Effect.Effect<((request: ImportDocumentRequest) => Effect.Effect<qapps.ImportDocumentOutput, qapps.ImportDocumentError>)>> {
+export interface ImportDocument extends Binding.Service<ImportDocument, "AWS.QApps.ImportDocument", (app: QApp) => Effect.Effect<(request: ImportDocumentRequest) => Effect.Effect<qapps.ImportDocumentOutput, qapps.ImportDocumentError>>> {
 }
 export declare const ImportDocument: ImportDocument;

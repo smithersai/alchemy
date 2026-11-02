@@ -1,8 +1,8 @@
 import * as cnr from "@distilled.cloud/gcp/cloudnumberregistry_v1alpha";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type RegistryBookAggregatedData = {
     discoveredRangesCount: number | undefined;
     uniqueScopesCount: number | undefined;

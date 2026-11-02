@@ -1,11 +1,11 @@
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import { CloudflareEnvironment } from "../CloudflareEnvironment.js";
-import type { Credentials } from "../Credentials.js";
-import type { InstantNamespace } from "./InstantNamespace.js";
-import type { Namespace } from "./Namespace.js";
-import type { makeKVNamespaceHelpers } from "./NamespaceBinding.js";
-import type { KVAuth } from "./NamespaceHttp.js";
+import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import type { Credentials } from "../Credentials.ts";
+import type { InstantNamespace } from "./InstantNamespace.ts";
+import type { Namespace } from "./Namespace.ts";
+import type { makeKVNamespaceHelpers } from "./NamespaceBinding.ts";
+import type { KVAuth } from "./NamespaceHttp.ts";
 /**
  * Shared scaffolding for the `*Local` KV services.
  *

@@ -22,6 +22,6 @@ export interface DeregisterAdminRequest extends Omit<repostspace.DeregisterAdmin
  *
  * @binding
  */
-export interface DeregisterAdmin extends Binding.Service<DeregisterAdmin, "AWS.RePostSpace.DeregisterAdmin", (space: Space) => Effect.Effect<((request: DeregisterAdminRequest) => Effect.Effect<repostspace.DeregisterAdminResponse, repostspace.DeregisterAdminError>)>> {
+export interface DeregisterAdmin extends Binding.Service<DeregisterAdmin, "AWS.RePostSpace.DeregisterAdmin", (space: Space) => Effect.Effect<(request: DeregisterAdminRequest) => Effect.Effect<repostspace.DeregisterAdminResponse, repostspace.DeregisterAdminError>>> {
 }
 export declare const DeregisterAdmin: DeregisterAdmin;

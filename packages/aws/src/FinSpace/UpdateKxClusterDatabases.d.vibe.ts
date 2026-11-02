@@ -21,6 +21,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface UpdateKxClusterDatabases extends Binding.Service<UpdateKxClusterDatabases, "AWS.FinSpace.UpdateKxClusterDatabases", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request: Omit<SVC.UpdateKxClusterDatabasesRequest, "environmentId">) => Effect.Effect<SVC.UpdateKxClusterDatabasesResponse, SVC.UpdateKxClusterDatabasesError>)>> {
+export interface UpdateKxClusterDatabases extends Binding.Service<UpdateKxClusterDatabases, "AWS.FinSpace.UpdateKxClusterDatabases", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request: Omit<SVC.UpdateKxClusterDatabasesRequest, "environmentId">) => Effect.Effect<SVC.UpdateKxClusterDatabasesResponse, SVC.UpdateKxClusterDatabasesError>>> {
 }
 export declare const UpdateKxClusterDatabases: UpdateKxClusterDatabases;

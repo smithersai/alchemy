@@ -28,6 +28,6 @@ export interface PutGeofenceRequest extends Omit<location.PutGeofenceRequest, "C
  *
  * @binding
  */
-export interface PutGeofence extends Binding.Service<PutGeofence, "AWS.Location.PutGeofence", (collection: GeofenceCollection) => Effect.Effect<((request: PutGeofenceRequest) => Effect.Effect<location.PutGeofenceResponse, location.PutGeofenceError>)>> {
+export interface PutGeofence extends Binding.Service<PutGeofence, "AWS.Location.PutGeofence", (collection: GeofenceCollection) => Effect.Effect<(request: PutGeofenceRequest) => Effect.Effect<location.PutGeofenceResponse, location.PutGeofenceError>>> {
 }
 export declare const PutGeofence: PutGeofence;

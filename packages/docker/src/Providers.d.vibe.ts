@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import * as Layer from "effect/Layer";
-import { type DockerOptions } from "./Docker.js";
+import { type DockerOptions } from "./Docker.ts";
 declare const Providers_base: Provider.ProviderCollection<Providers, "Docker">;
 export declare class Providers extends Providers_base {
 }
@@ -16,5 +16,5 @@ export type ProviderRequirements = Layer.Services<ReturnType<typeof providers>>;
  * providers: Docker.providers({ bin: "podman" }),
  * ```
  */
-export declare const providers: (options?: DockerOptions) => Layer.Layer<import("./Docker.js").Docker | Providers, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/process/ChildProcessSpawner").ChildProcessSpawner | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
+export declare const providers: (options?: DockerOptions) => Layer.Layer<import("./Docker.ts").Docker | Providers, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/process/ChildProcessSpawner").ChildProcessSpawner | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
 export {};

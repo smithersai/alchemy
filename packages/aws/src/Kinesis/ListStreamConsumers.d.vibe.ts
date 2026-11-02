@@ -24,6 +24,6 @@ export interface ListStreamConsumersRequest extends Omit<Kinesis.ListStreamConsu
  *
  * @binding
  */
-export interface ListStreamConsumers extends Binding.Service<ListStreamConsumers, "AWS.Kinesis.ListStreamConsumers", (stream: Stream) => Effect.Effect<((request?: ListStreamConsumersRequest) => Effect.Effect<Kinesis.ListStreamConsumersOutput, Kinesis.ListStreamConsumersError>)>> {
+export interface ListStreamConsumers extends Binding.Service<ListStreamConsumers, "AWS.Kinesis.ListStreamConsumers", (stream: Stream) => Effect.Effect<(request?: ListStreamConsumersRequest) => Effect.Effect<Kinesis.ListStreamConsumersOutput, Kinesis.ListStreamConsumersError>>> {
 }
 export declare const ListStreamConsumers: ListStreamConsumers;

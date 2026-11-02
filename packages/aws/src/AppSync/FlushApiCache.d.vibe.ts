@@ -24,6 +24,6 @@ import type { GraphqlApi } from "./GraphqlApi.vibe";
  *
  * @binding
  */
-export interface FlushApiCache extends Binding.Service<FlushApiCache, "AWS.AppSync.FlushApiCache", (api: GraphqlApi) => Effect.Effect<(() => Effect.Effect<appsync.FlushApiCacheResponse, appsync.FlushApiCacheError>)>> {
+export interface FlushApiCache extends Binding.Service<FlushApiCache, "AWS.AppSync.FlushApiCache", (api: GraphqlApi) => Effect.Effect<() => Effect.Effect<appsync.FlushApiCacheResponse, appsync.FlushApiCacheError>>> {
 }
 export declare const FlushApiCache: FlushApiCache;

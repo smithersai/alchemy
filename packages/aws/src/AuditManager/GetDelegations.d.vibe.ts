@@ -15,6 +15,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetDelegations extends Binding.Service<GetDelegations, "AWS.AuditManager.GetDelegations", () => Effect.Effect<((request?: auditmanager.GetDelegationsRequest) => Effect.Effect<auditmanager.GetDelegationsResponse, auditmanager.GetDelegationsError>)>> {
+export interface GetDelegations extends Binding.Service<GetDelegations, "AWS.AuditManager.GetDelegations", () => Effect.Effect<(request?: auditmanager.GetDelegationsRequest) => Effect.Effect<auditmanager.GetDelegationsResponse, auditmanager.GetDelegationsError>>> {
 }
 export declare const GetDelegations: GetDelegations;

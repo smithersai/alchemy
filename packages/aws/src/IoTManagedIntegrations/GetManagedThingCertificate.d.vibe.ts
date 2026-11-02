@@ -23,6 +23,6 @@ import type { ManagedThing } from "./ManagedThing.vibe";
  *
  * @binding
  */
-export interface GetManagedThingCertificate extends Binding.Service<GetManagedThingCertificate, "AWS.IoTManagedIntegrations.GetManagedThingCertificate", (thing: ManagedThing) => Effect.Effect<(() => Effect.Effect<mi.GetManagedThingCertificateResponse, mi.GetManagedThingCertificateError>)>> {
+export interface GetManagedThingCertificate extends Binding.Service<GetManagedThingCertificate, "AWS.IoTManagedIntegrations.GetManagedThingCertificate", (thing: ManagedThing) => Effect.Effect<() => Effect.Effect<mi.GetManagedThingCertificateResponse, mi.GetManagedThingCertificateError>>> {
 }
 export declare const GetManagedThingCertificate: GetManagedThingCertificate;

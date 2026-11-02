@@ -26,6 +26,6 @@ export interface GetAnalysisReportResultsRequest extends Omit<NFW.GetAnalysisRep
  *
  * @binding
  */
-export interface GetAnalysisReportResults extends Binding.Service<GetAnalysisReportResults, "AWS.NetworkFirewall.GetAnalysisReportResults", (firewall: Firewall) => Effect.Effect<((request: GetAnalysisReportResultsRequest) => Effect.Effect<NFW.GetAnalysisReportResultsResponse, NFW.GetAnalysisReportResultsError>)>> {
+export interface GetAnalysisReportResults extends Binding.Service<GetAnalysisReportResults, "AWS.NetworkFirewall.GetAnalysisReportResults", (firewall: Firewall) => Effect.Effect<(request: GetAnalysisReportResultsRequest) => Effect.Effect<NFW.GetAnalysisReportResultsResponse, NFW.GetAnalysisReportResultsError>>> {
 }
 export declare const GetAnalysisReportResults: GetAnalysisReportResults;

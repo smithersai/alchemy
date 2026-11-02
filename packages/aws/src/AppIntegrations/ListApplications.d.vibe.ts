@@ -21,6 +21,6 @@ export interface ListApplicationsRequest extends appintegrations.ListApplication
  *
  * @binding
  */
-export interface ListApplications extends Binding.Service<ListApplications, "AWS.AppIntegrations.ListApplications", () => Effect.Effect<((request?: ListApplicationsRequest) => Effect.Effect<appintegrations.ListApplicationsResponse, appintegrations.ListApplicationsError>)>> {
+export interface ListApplications extends Binding.Service<ListApplications, "AWS.AppIntegrations.ListApplications", () => Effect.Effect<(request?: ListApplicationsRequest) => Effect.Effect<appintegrations.ListApplicationsResponse, appintegrations.ListApplicationsError>>> {
 }
 export declare const ListApplications: ListApplications;

@@ -30,6 +30,6 @@ export interface GetArtifactUrlRequest extends amplify.GetArtifactUrlRequest {
  *
  * @binding
  */
-export interface GetArtifactUrl extends Binding.Service<GetArtifactUrl, "AWS.Amplify.GetArtifactUrl", (app: App) => Effect.Effect<((request: GetArtifactUrlRequest) => Effect.Effect<amplify.GetArtifactUrlResult, amplify.GetArtifactUrlError>)>> {
+export interface GetArtifactUrl extends Binding.Service<GetArtifactUrl, "AWS.Amplify.GetArtifactUrl", (app: App) => Effect.Effect<(request: GetArtifactUrlRequest) => Effect.Effect<amplify.GetArtifactUrlResult, amplify.GetArtifactUrlError>>> {
 }
 export declare const GetArtifactUrl: GetArtifactUrl;

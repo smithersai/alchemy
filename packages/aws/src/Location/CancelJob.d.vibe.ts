@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CancelJob extends Binding.Service<CancelJob, "AWS.Location.CancelJob", () => Effect.Effect<((request: location.CancelJobRequest) => Effect.Effect<location.CancelJobResponse, location.CancelJobError>)>> {
+export interface CancelJob extends Binding.Service<CancelJob, "AWS.Location.CancelJob", () => Effect.Effect<(request: location.CancelJobRequest) => Effect.Effect<location.CancelJobResponse, location.CancelJobError>>> {
 }
 export declare const CancelJob: CancelJob;

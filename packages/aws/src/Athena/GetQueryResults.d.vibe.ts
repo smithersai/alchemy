@@ -23,6 +23,6 @@ import type { WorkGroup } from "./WorkGroup.vibe";
  *
  * @binding
  */
-export interface GetQueryResults extends Binding.Service<GetQueryResults, "AWS.Athena.GetQueryResults", (workGroup: WorkGroup) => Effect.Effect<((request: athena.GetQueryResultsInput) => Effect.Effect<athena.GetQueryResultsOutput, athena.GetQueryResultsError>)>> {
+export interface GetQueryResults extends Binding.Service<GetQueryResults, "AWS.Athena.GetQueryResults", (workGroup: WorkGroup) => Effect.Effect<(request: athena.GetQueryResultsInput) => Effect.Effect<athena.GetQueryResultsOutput, athena.GetQueryResultsError>>> {
 }
 export declare const GetQueryResults: GetQueryResults;

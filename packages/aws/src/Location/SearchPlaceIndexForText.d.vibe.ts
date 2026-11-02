@@ -29,6 +29,6 @@ export interface SearchPlaceIndexForTextRequest extends Omit<location.SearchPlac
  *
  * @binding
  */
-export interface SearchPlaceIndexForText extends Binding.Service<SearchPlaceIndexForText, "AWS.Location.SearchPlaceIndexForText", (index: PlaceIndex) => Effect.Effect<((request: SearchPlaceIndexForTextRequest) => Effect.Effect<location.SearchPlaceIndexForTextResponse, location.SearchPlaceIndexForTextError>)>> {
+export interface SearchPlaceIndexForText extends Binding.Service<SearchPlaceIndexForText, "AWS.Location.SearchPlaceIndexForText", (index: PlaceIndex) => Effect.Effect<(request: SearchPlaceIndexForTextRequest) => Effect.Effect<location.SearchPlaceIndexForTextResponse, location.SearchPlaceIndexForTextError>>> {
 }
 export declare const SearchPlaceIndexForText: SearchPlaceIndexForText;

@@ -32,6 +32,6 @@ export interface UpdateDataIntegrationAssociationRequest extends Omit<appintegra
  *
  * @binding
  */
-export interface UpdateDataIntegrationAssociation extends Binding.Service<UpdateDataIntegrationAssociation, "AWS.AppIntegrations.UpdateDataIntegrationAssociation", <R extends DataIntegration>(integration: R) => Effect.Effect<((request: UpdateDataIntegrationAssociationRequest) => Effect.Effect<appintegrations.UpdateDataIntegrationAssociationResponse, appintegrations.UpdateDataIntegrationAssociationError>)>> {
+export interface UpdateDataIntegrationAssociation extends Binding.Service<UpdateDataIntegrationAssociation, "AWS.AppIntegrations.UpdateDataIntegrationAssociation", <R extends DataIntegration>(integration: R) => Effect.Effect<(request: UpdateDataIntegrationAssociationRequest) => Effect.Effect<appintegrations.UpdateDataIntegrationAssociationResponse, appintegrations.UpdateDataIntegrationAssociationError>>> {
 }
 export declare const UpdateDataIntegrationAssociation: UpdateDataIntegrationAssociation;

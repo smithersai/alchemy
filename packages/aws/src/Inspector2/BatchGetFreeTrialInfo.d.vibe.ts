@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetFreeTrialInfo extends Binding.Service<BatchGetFreeTrialInfo, "AWS.Inspector2.BatchGetFreeTrialInfo", () => Effect.Effect<((request: inspector2.BatchGetFreeTrialInfoRequest) => Effect.Effect<inspector2.BatchGetFreeTrialInfoResponse, inspector2.BatchGetFreeTrialInfoError>)>> {
+export interface BatchGetFreeTrialInfo extends Binding.Service<BatchGetFreeTrialInfo, "AWS.Inspector2.BatchGetFreeTrialInfo", () => Effect.Effect<(request: inspector2.BatchGetFreeTrialInfoRequest) => Effect.Effect<inspector2.BatchGetFreeTrialInfoResponse, inspector2.BatchGetFreeTrialInfoError>>> {
 }
 export declare const BatchGetFreeTrialInfo: BatchGetFreeTrialInfo;

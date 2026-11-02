@@ -9,7 +9,7 @@
 import type * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import type * as Stream from "effect/Stream";
-import type { ObjectType, Oid } from "./ObjectCodec.js";
+import type { ObjectType, Oid } from "./ObjectCodec.ts";
 declare const StoreError_base: Schema.Class<StoreError, Schema.TaggedStruct<"StoreError", {
     readonly reason: Schema.String;
 }>, import("effect/Cause").YieldableError>;

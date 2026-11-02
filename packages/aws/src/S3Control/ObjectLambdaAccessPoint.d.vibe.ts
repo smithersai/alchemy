@@ -1,9 +1,9 @@
 import * as s3control from "@distilled.cloud/aws/s3-control";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment, type AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import { AWSEnvironment, type AccountID } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 export interface ObjectLambdaAccessPointProps {
     /**
      * Name of the Object Lambda Access Point (3-45 characters, lowercase

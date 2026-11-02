@@ -2,7 +2,7 @@ import type { Credentials } from "@distilled.cloud/aws/Credentials";
 import type { Region as AwsRegion } from "@distilled.cloud/aws/Region";
 import * as Effect from "effect/Effect";
 import type * as HttpClient from "effect/http/HttpClient";
-import type { BotAlias } from "./BotAlias.js";
+import type { BotAlias } from "./BotAlias.ts";
 /**
  * Shared HTTP scaffolding for the Lex V2 runtime bindings.
  *
@@ -29,10 +29,10 @@ export interface LexAliasHttpBindingConfig<Req extends object, Out, Err> {
     /**
      * The distilled `lex-runtime-v2` operation implementing the capability.
      */
-    operation: Effect.Effect<((input: Req & {
+    operation: Effect.Effect<(input: Req & {
         botId: string;
         botAliasId: string;
-    }) => Effect.Effect<Out, Err>), never, LexRequirements>;
+    }) => Effect.Effect<Out, Err>, never, LexRequirements>;
 }
 /**
  * Build the implementation effect for a bot-alias-scoped Lex V2 runtime

@@ -13,7 +13,7 @@ export declare const makeEndpointInvocationHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SageMakerRuntime.InvokeEndpoint`. */
     tag: string;
     /** The distilled operation; `EndpointName` defaults to the first bound endpoint. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the bound endpoint ARNs. */
     actions: readonly string[];
 }) => Effect.Effect<(endpoint: string, ...additionalEndpoints: string[]) => Effect.Effect<(request: Omit<I, "EndpointName"> & {

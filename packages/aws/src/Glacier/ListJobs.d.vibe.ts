@@ -26,6 +26,6 @@ export interface ListJobsRequest extends Omit<glacier.ListJobsInput, "accountId"
  *
  * @binding
  */
-export interface ListJobs extends Binding.Service<ListJobs, "AWS.Glacier.ListJobs", (vault: Vault) => Effect.Effect<((request?: ListJobsRequest) => Effect.Effect<glacier.ListJobsOutput, glacier.ListJobsError>)>> {
+export interface ListJobs extends Binding.Service<ListJobs, "AWS.Glacier.ListJobs", (vault: Vault) => Effect.Effect<(request?: ListJobsRequest) => Effect.Effect<glacier.ListJobsOutput, glacier.ListJobsError>>> {
 }
 export declare const ListJobs: ListJobs;

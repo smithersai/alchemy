@@ -19,6 +19,6 @@ export interface CancelRunRequest extends omics.CancelRunRequest {
  *
  * @binding
  */
-export interface CancelRun extends Binding.Service<CancelRun, "AWS.Omics.CancelRun", () => Effect.Effect<((request?: CancelRunRequest) => Effect.Effect<omics.CancelRunResponse, omics.CancelRunError>)>> {
+export interface CancelRun extends Binding.Service<CancelRun, "AWS.Omics.CancelRun", () => Effect.Effect<(request?: CancelRunRequest) => Effect.Effect<omics.CancelRunResponse, omics.CancelRunError>>> {
 }
 export declare const CancelRun: CancelRun;

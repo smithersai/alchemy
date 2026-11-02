@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import { type Redis } from "../Redis.js";
+import { type Redis } from "../Redis.ts";
 import { type FrameworkSiteProps } from "./FrameworkSite.vibe";
 /**
  * The vinext Node framework module (it is its own deploy target — not
@@ -67,10 +67,10 @@ export declare const Vinext: (id: string, propsIn?: VinextProps) => Effect.Effec
     project: undefined;
 } | {
     url: string;
-    service: import("../Service.js").Service;
-    project: import("../Project.js").Project;
+    service: import("../Service.ts").Service;
+    project: import("../Project.ts").Project;
 } | {
     url: import("alchemy/Output").Output<string | undefined, never>;
-    service: import("../Service.js").Service;
-    project: import("../Project.js").Project;
-}, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Provider").Provider<import("alchemy/Website/Server").Server> | import("../Providers.js").Providers>;
+    service: import("../Service.ts").Service;
+    project: import("../Project.ts").Project;
+}, never, import("alchemy/AlchemyContext").AlchemyContext | import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Provider").Provider<import("alchemy/Website/Server").Server> | import("../Providers.ts").Providers>;

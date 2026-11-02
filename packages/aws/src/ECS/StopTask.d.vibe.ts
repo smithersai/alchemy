@@ -24,6 +24,6 @@ export interface StopTaskRequest extends Omit<ECS.StopTaskRequest, "cluster"> {
  *
  * @binding
  */
-export interface StopTask extends Binding.Service<StopTask, "AWS.ECS.StopTask", (cluster: Cluster) => Effect.Effect<((request: StopTaskRequest) => Effect.Effect<ECS.StopTaskResponse, ECS.StopTaskError>)>> {
+export interface StopTask extends Binding.Service<StopTask, "AWS.ECS.StopTask", (cluster: Cluster) => Effect.Effect<(request: StopTaskRequest) => Effect.Effect<ECS.StopTaskResponse, ECS.StopTaskError>>> {
 }
 export declare const StopTask: StopTask;

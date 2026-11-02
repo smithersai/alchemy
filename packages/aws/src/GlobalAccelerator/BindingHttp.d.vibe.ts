@@ -26,7 +26,7 @@ export declare const makeGaAcceleratorHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.GlobalAccelerator.DescribeAccelerator`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the accelerator ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(accelerator: Accelerator) => Effect.Effect<(request?: Omit<I, "AcceleratorArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -42,7 +42,7 @@ export declare const makeGaEndpointGroupHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.GlobalAccelerator.AddEndpoints`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the endpoint group ARN. */
     actions: readonly string[];
     /**

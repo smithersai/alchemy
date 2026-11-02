@@ -1,7 +1,7 @@
 import * as acm from "@distilled.cloud/gcp/accesscontextmanager_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type GcpUserAccessBindingApplication = acm.Application;
 export type GcpUserAccessBindingSessionSettings = acm.SessionSettings;
 export type GcpUserAccessBindingScopedAccessSettings = acm.ScopedAccessSettings;
@@ -113,5 +113,5 @@ export declare class GcpUserAccessBindingNotResolved extends GcpUserAccessBindin
     resourceName: string;
 }> {
 }
-export declare const GcpUserAccessBindingProvider: () => import("effect/Layer").Layer<Provider.Provider<GcpUserAccessBinding>, never, import("../Environment.js").GcpEnvironment | acm.GcpOpContext>;
+export declare const GcpUserAccessBindingProvider: () => import("effect/Layer").Layer<Provider.Provider<GcpUserAccessBinding>, never, import("../Environment.ts").GcpEnvironment | acm.GcpOpContext>;
 export {};

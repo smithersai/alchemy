@@ -23,6 +23,6 @@ export interface GetDeploymentRequest extends Omit<appconfig.GetDeploymentReques
  *
  * @binding
  */
-export interface GetDeployment extends Binding.Service<GetDeployment, "AWS.AppConfig.GetDeployment", (application: Application, environment: Environment) => Effect.Effect<((request: GetDeploymentRequest) => Effect.Effect<appconfig.Deployment, appconfig.GetDeploymentError>)>> {
+export interface GetDeployment extends Binding.Service<GetDeployment, "AWS.AppConfig.GetDeployment", (application: Application, environment: Environment) => Effect.Effect<(request: GetDeploymentRequest) => Effect.Effect<appconfig.Deployment, appconfig.GetDeploymentError>>> {
 }
 export declare const GetDeployment: GetDeployment;

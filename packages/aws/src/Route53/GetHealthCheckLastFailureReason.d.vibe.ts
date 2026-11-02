@@ -1,7 +1,7 @@
 import type * as route53 from "@distilled.cloud/aws/route-53";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { HealthCheck } from "./HealthCheck.js";
+import type { HealthCheck } from "./HealthCheck.ts";
 /**
  * Runtime binding for the `GetHealthCheckLastFailureReason` operation (IAM
  * action `route53:GetHealthCheckLastFailureReason` on the health check ARN).
@@ -23,6 +23,6 @@ import type { HealthCheck } from "./HealthCheck.js";
  *
  * @binding
  */
-export interface GetHealthCheckLastFailureReason extends Binding.Service<GetHealthCheckLastFailureReason, "AWS.Route53.GetHealthCheckLastFailureReason", (healthCheck: HealthCheck) => Effect.Effect<(() => Effect.Effect<route53.GetHealthCheckLastFailureReasonResponse, route53.GetHealthCheckLastFailureReasonError>)>> {
+export interface GetHealthCheckLastFailureReason extends Binding.Service<GetHealthCheckLastFailureReason, "AWS.Route53.GetHealthCheckLastFailureReason", (healthCheck: HealthCheck) => Effect.Effect<() => Effect.Effect<route53.GetHealthCheckLastFailureReasonResponse, route53.GetHealthCheckLastFailureReasonError>>> {
 }
 export declare const GetHealthCheckLastFailureReason: GetHealthCheckLastFailureReason;

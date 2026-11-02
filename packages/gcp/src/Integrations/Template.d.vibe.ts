@@ -1,8 +1,8 @@
 import * as integrations from "@distilled.cloud/gcp/integrations_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type TemplateCategory = "CATEGORY_UNSPECIFIED" | "AI_MACHINE_LEARNING" | "BUSINESS_INTELLIGENCE" | "COLLABORATION" | "CUSTOMER_SERVICE" | "DATABASES" | "DEVOPS_IT" | "CONTENT_AND_FILES" | "FINANCE_AND_ACCOUNTING" | "HUMAN_RESOURCES" | "OPERATIONS" | "PRODUCT_PROJECT_MANAGEMENT" | "PRODUCTIVITY" | "SALES_AND_MARKETING" | "UNIVERSAL_CONNECTORS" | "UTILITY" | "OTHERS";
 export type TemplateVisibility = "VISIBILITY_UNSPECIFIED" | "PRIVATE" | "SHARED" | "PUBLIC";
 export type TemplateComponentType = "TYPE_UNSPECIFIED" | "TRIGGER" | "TASK" | "CONNECTOR";

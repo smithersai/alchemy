@@ -25,6 +25,6 @@ export interface DescribeCustomDomainsRequest extends Omit<apprunner.DescribeCus
  *
  * @binding
  */
-export interface DescribeCustomDomains extends Binding.Service<DescribeCustomDomains, "AWS.AppRunner.DescribeCustomDomains", (service: Service) => Effect.Effect<((request?: DescribeCustomDomainsRequest) => Effect.Effect<apprunner.DescribeCustomDomainsResponse, apprunner.DescribeCustomDomainsError>)>> {
+export interface DescribeCustomDomains extends Binding.Service<DescribeCustomDomains, "AWS.AppRunner.DescribeCustomDomains", (service: Service) => Effect.Effect<(request?: DescribeCustomDomainsRequest) => Effect.Effect<apprunner.DescribeCustomDomainsResponse, apprunner.DescribeCustomDomainsError>>> {
 }
 export declare const DescribeCustomDomains: DescribeCustomDomains;

@@ -1,7 +1,7 @@
 import type * as ECS from "@distilled.cloud/aws/ecs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Service } from "./Service.js";
+import type { Service } from "./Service.ts";
 export interface ListServiceDeploymentsRequest extends Omit<ECS.ListServiceDeploymentsRequest, "service" | "cluster"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface ListServiceDeploymentsRequest extends Omit<ECS.ListServiceDeplo
  *
  * @binding
  */
-export interface ListServiceDeployments extends Binding.Service<ListServiceDeployments, "AWS.ECS.ListServiceDeployments", (service: Service) => Effect.Effect<((request: ListServiceDeploymentsRequest) => Effect.Effect<ECS.ListServiceDeploymentsResponse, ECS.ListServiceDeploymentsError>)>> {
+export interface ListServiceDeployments extends Binding.Service<ListServiceDeployments, "AWS.ECS.ListServiceDeployments", (service: Service) => Effect.Effect<(request: ListServiceDeploymentsRequest) => Effect.Effect<ECS.ListServiceDeploymentsResponse, ECS.ListServiceDeploymentsError>>> {
 }
 export declare const ListServiceDeployments: ListServiceDeployments;

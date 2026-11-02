@@ -32,6 +32,6 @@ export interface DeregisterTargetsRequest extends Omit<elbv2.DeregisterTargetsIn
  *
  * @binding
  */
-export interface DeregisterTargets extends Binding.Service<DeregisterTargets, "AWS.ELBv2.DeregisterTargets", (targetGroup: TargetGroup) => Effect.Effect<((request: DeregisterTargetsRequest) => Effect.Effect<elbv2.DeregisterTargetsOutput, elbv2.DeregisterTargetsError>)>> {
+export interface DeregisterTargets extends Binding.Service<DeregisterTargets, "AWS.ELBv2.DeregisterTargets", (targetGroup: TargetGroup) => Effect.Effect<(request: DeregisterTargetsRequest) => Effect.Effect<elbv2.DeregisterTargetsOutput, elbv2.DeregisterTargetsError>>> {
 }
 export declare const DeregisterTargets: DeregisterTargets;

@@ -1,7 +1,7 @@
 import type * as sfn from "@distilled.cloud/aws/sfn";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { StateMachine } from "./StateMachine.js";
+import type { StateMachine } from "./StateMachine.ts";
 export interface UpdateMapRunRequest extends sfn.UpdateMapRunInput {
 }
 /**
@@ -20,6 +20,6 @@ export interface UpdateMapRunRequest extends sfn.UpdateMapRunInput {
  *
  * @binding
  */
-export interface UpdateMapRun extends Binding.Service<UpdateMapRun, "AWS.StepFunctions.UpdateMapRun", (stateMachine: StateMachine) => Effect.Effect<((request: UpdateMapRunRequest) => Effect.Effect<sfn.UpdateMapRunOutput, sfn.UpdateMapRunError>)>> {
+export interface UpdateMapRun extends Binding.Service<UpdateMapRun, "AWS.StepFunctions.UpdateMapRun", (stateMachine: StateMachine) => Effect.Effect<(request: UpdateMapRunRequest) => Effect.Effect<sfn.UpdateMapRunOutput, sfn.UpdateMapRunError>>> {
 }
 export declare const UpdateMapRun: UpdateMapRun;

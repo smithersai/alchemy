@@ -21,6 +21,6 @@ export interface SetSMSAttributesRequest extends sns.SetSMSAttributesInput {
  *
  * @binding
  */
-export interface SetSMSAttributes extends Binding.Service<SetSMSAttributes, "AWS.SNS.SetSMSAttributes", () => Effect.Effect<((request: SetSMSAttributesRequest) => Effect.Effect<sns.SetSMSAttributesResponse, sns.SetSMSAttributesError>)>> {
+export interface SetSMSAttributes extends Binding.Service<SetSMSAttributes, "AWS.SNS.SetSMSAttributes", () => Effect.Effect<(request: SetSMSAttributesRequest) => Effect.Effect<sns.SetSMSAttributesResponse, sns.SetSMSAttributesError>>> {
 }
 export declare const SetSMSAttributes: SetSMSAttributes;

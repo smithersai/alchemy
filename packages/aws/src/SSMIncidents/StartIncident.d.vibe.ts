@@ -31,6 +31,6 @@ import type { ResponsePlan } from "./ResponsePlan.vibe";
  *
  * @binding
  */
-export interface StartIncident extends Binding.Service<StartIncident, "AWS.SSMIncidents.StartIncident", (plan: ResponsePlan) => Effect.Effect<((request?: Omit<incidents.StartIncidentInput, "responsePlanArn">) => Effect.Effect<incidents.StartIncidentOutput, incidents.StartIncidentError>)>> {
+export interface StartIncident extends Binding.Service<StartIncident, "AWS.SSMIncidents.StartIncident", (plan: ResponsePlan) => Effect.Effect<(request?: Omit<incidents.StartIncidentInput, "responsePlanArn">) => Effect.Effect<incidents.StartIncidentOutput, incidents.StartIncidentError>>> {
 }
 export declare const StartIncident: StartIncident;

@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteResourcePolicy extends Binding.Service<DeleteResourcePolicy, "AWS.CloudHSMV2.DeleteResourcePolicy", () => Effect.Effect<((request: cloudhsm.DeleteResourcePolicyRequest) => Effect.Effect<cloudhsm.DeleteResourcePolicyResponse, cloudhsm.DeleteResourcePolicyError>)>> {
+export interface DeleteResourcePolicy extends Binding.Service<DeleteResourcePolicy, "AWS.CloudHSMV2.DeleteResourcePolicy", () => Effect.Effect<(request: cloudhsm.DeleteResourcePolicyRequest) => Effect.Effect<cloudhsm.DeleteResourcePolicyResponse, cloudhsm.DeleteResourcePolicyError>>> {
 }
 export declare const DeleteResourcePolicy: DeleteResourcePolicy;

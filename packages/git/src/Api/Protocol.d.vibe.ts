@@ -1,6 +1,6 @@
 import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
-import { RepoNotFound, PushDenied } from "./Schema.js";
+import { RepoNotFound, PushDenied } from "./Schema.ts";
 /**
  * The `protocol` group: git smart HTTP v0 at the repository's root path.
  * The routes are streaming binary (pkt-lines in, sideband packs out),

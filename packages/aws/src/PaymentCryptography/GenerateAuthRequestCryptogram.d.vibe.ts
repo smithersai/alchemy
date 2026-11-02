@@ -29,6 +29,6 @@ export interface GenerateAuthRequestCryptogramRequest extends Omit<paymentcrypto
  *
  * @binding
  */
-export interface GenerateAuthRequestCryptogram extends Binding.Service<GenerateAuthRequestCryptogram, "AWS.PaymentCryptography.GenerateAuthRequestCryptogram", <K extends Key>(key: K) => Effect.Effect<((request: GenerateAuthRequestCryptogramRequest) => Effect.Effect<paymentcryptographydata.GenerateAuthRequestCryptogramOutput, paymentcryptographydata.GenerateAuthRequestCryptogramError>)>> {
+export interface GenerateAuthRequestCryptogram extends Binding.Service<GenerateAuthRequestCryptogram, "AWS.PaymentCryptography.GenerateAuthRequestCryptogram", <K extends Key>(key: K) => Effect.Effect<(request: GenerateAuthRequestCryptogramRequest) => Effect.Effect<paymentcryptographydata.GenerateAuthRequestCryptogramOutput, paymentcryptographydata.GenerateAuthRequestCryptogramError>>> {
 }
 export declare const GenerateAuthRequestCryptogram: GenerateAuthRequestCryptogram;

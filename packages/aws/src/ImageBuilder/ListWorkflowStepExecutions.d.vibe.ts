@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListWorkflowStepExecutions extends Binding.Service<ListWorkflowStepExecutions, "AWS.ImageBuilder.ListWorkflowStepExecutions", () => Effect.Effect<((request: imagebuilder.ListWorkflowStepExecutionsRequest) => Effect.Effect<imagebuilder.ListWorkflowStepExecutionsResponse, imagebuilder.ListWorkflowStepExecutionsError>)>> {
+export interface ListWorkflowStepExecutions extends Binding.Service<ListWorkflowStepExecutions, "AWS.ImageBuilder.ListWorkflowStepExecutions", () => Effect.Effect<(request: imagebuilder.ListWorkflowStepExecutionsRequest) => Effect.Effect<imagebuilder.ListWorkflowStepExecutionsResponse, imagebuilder.ListWorkflowStepExecutionsError>>> {
 }
 export declare const ListWorkflowStepExecutions: ListWorkflowStepExecutions;

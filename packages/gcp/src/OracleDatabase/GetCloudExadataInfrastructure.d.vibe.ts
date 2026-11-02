@@ -18,6 +18,6 @@ export interface GetCloudExadataInfrastructureRequest extends Omit<oracle.GetPro
  * @binding
  * @category OracleDatabase
  */
-export interface GetCloudExadataInfrastructure extends Binding.Service<GetCloudExadataInfrastructure, "GCP.OracleDatabase.GetCloudExadataInfrastructure", (infrastructure: CloudExadataInfrastructure) => Effect.Effect<((request?: GetCloudExadataInfrastructureRequest) => Effect.Effect<oracle.CloudExadataInfrastructure, oracle.GetProjectsLocationsCloudExadataInfrastructuresError, RuntimeContext>)>> {
+export interface GetCloudExadataInfrastructure extends Binding.Service<GetCloudExadataInfrastructure, "GCP.OracleDatabase.GetCloudExadataInfrastructure", (infrastructure: CloudExadataInfrastructure) => Effect.Effect<(request?: GetCloudExadataInfrastructureRequest) => Effect.Effect<oracle.CloudExadataInfrastructure, oracle.GetProjectsLocationsCloudExadataInfrastructuresError, RuntimeContext>>> {
 }
 export declare const GetCloudExadataInfrastructure: GetCloudExadataInfrastructure;

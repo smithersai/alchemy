@@ -32,6 +32,6 @@ export interface SendMessageBatchRequest extends Omit<sqs.SendMessageBatchReques
  *
  * @binding
  */
-export interface SendMessageBatch extends Binding.Service<SendMessageBatch, "AWS.SQS.SendMessageBatch", (queue: Queue) => Effect.Effect<((request: SendMessageBatchRequest) => Effect.Effect<sqs.SendMessageBatchResult, sqs.SendMessageBatchError>)>> {
+export interface SendMessageBatch extends Binding.Service<SendMessageBatch, "AWS.SQS.SendMessageBatch", (queue: Queue) => Effect.Effect<(request: SendMessageBatchRequest) => Effect.Effect<sqs.SendMessageBatchResult, sqs.SendMessageBatchError>>> {
 }
 export declare const SendMessageBatch: SendMessageBatch;

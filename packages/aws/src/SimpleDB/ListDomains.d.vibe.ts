@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListDomains extends Binding.Service<ListDomains, "AWS.SimpleDB.ListDomains", () => Effect.Effect<((request?: sdb.ListDomainsRequest) => Effect.Effect<sdb.ListDomainsResponse, sdb.ListDomainsError, RuntimeContext>)>> {
+export interface ListDomains extends Binding.Service<ListDomains, "AWS.SimpleDB.ListDomains", () => Effect.Effect<(request?: sdb.ListDomainsRequest) => Effect.Effect<sdb.ListDomainsResponse, sdb.ListDomainsError, RuntimeContext>>> {
 }
 export declare const ListDomains: ListDomains;

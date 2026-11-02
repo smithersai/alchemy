@@ -35,6 +35,6 @@ export interface GetDomainSuggestionsRequest extends route53domains.GetDomainSug
  *
  * @binding
  */
-export interface GetDomainSuggestions extends Binding.Service<GetDomainSuggestions, "AWS.Route53Domains.GetDomainSuggestions", () => Effect.Effect<((request: GetDomainSuggestionsRequest) => Effect.Effect<route53domains.GetDomainSuggestionsResponse, route53domains.GetDomainSuggestionsError>)>> {
+export interface GetDomainSuggestions extends Binding.Service<GetDomainSuggestions, "AWS.Route53Domains.GetDomainSuggestions", () => Effect.Effect<(request: GetDomainSuggestionsRequest) => Effect.Effect<route53domains.GetDomainSuggestionsResponse, route53domains.GetDomainSuggestionsError>>> {
 }
 export declare const GetDomainSuggestions: GetDomainSuggestions;

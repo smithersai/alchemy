@@ -25,6 +25,6 @@ import type { Instance } from "./Instance.vibe";
  *
  * @binding
  */
-export interface IsMemberInGroups extends Binding.Service<IsMemberInGroups, "AWS.IdentityCenter.IsMemberInGroups", (instance: Instance) => Effect.Effect<((request: Omit<identitystore.IsMemberInGroupsRequest, "IdentityStoreId">) => Effect.Effect<identitystore.IsMemberInGroupsResponse, identitystore.IsMemberInGroupsError>)>> {
+export interface IsMemberInGroups extends Binding.Service<IsMemberInGroups, "AWS.IdentityCenter.IsMemberInGroups", (instance: Instance) => Effect.Effect<(request: Omit<identitystore.IsMemberInGroupsRequest, "IdentityStoreId">) => Effect.Effect<identitystore.IsMemberInGroupsResponse, identitystore.IsMemberInGroupsError>>> {
 }
 export declare const IsMemberInGroups: IsMemberInGroups;

@@ -29,6 +29,6 @@ export interface GetViolationDetailsRequest extends fms.GetViolationDetailsReque
  *
  * @binding
  */
-export interface GetViolationDetails extends Binding.Service<GetViolationDetails, "AWS.FMS.GetViolationDetails", () => Effect.Effect<((request: GetViolationDetailsRequest) => Effect.Effect<fms.GetViolationDetailsResponse, fms.GetViolationDetailsError>)>> {
+export interface GetViolationDetails extends Binding.Service<GetViolationDetails, "AWS.FMS.GetViolationDetails", () => Effect.Effect<(request: GetViolationDetailsRequest) => Effect.Effect<fms.GetViolationDetailsResponse, fms.GetViolationDetailsError>>> {
 }
 export declare const GetViolationDetails: GetViolationDetails;

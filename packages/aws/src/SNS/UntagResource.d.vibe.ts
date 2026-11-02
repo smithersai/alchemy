@@ -24,6 +24,6 @@ export interface UntagResourceRequest extends Omit<sns.UntagResourceRequest, "Re
  *
  * @binding
  */
-export interface UntagResource extends Binding.Service<UntagResource, "AWS.SNS.UntagResource", (topic: Topic) => Effect.Effect<((request: UntagResourceRequest) => Effect.Effect<sns.UntagResourceResponse, sns.UntagResourceError>)>> {
+export interface UntagResource extends Binding.Service<UntagResource, "AWS.SNS.UntagResource", (topic: Topic) => Effect.Effect<(request: UntagResourceRequest) => Effect.Effect<sns.UntagResourceResponse, sns.UntagResourceError>>> {
 }
 export declare const UntagResource: UntagResource;

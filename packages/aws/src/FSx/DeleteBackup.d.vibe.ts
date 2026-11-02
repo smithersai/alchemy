@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteBackup extends Binding.Service<DeleteBackup, "AWS.FSx.DeleteBackup", () => Effect.Effect<((request: fsx.DeleteBackupRequest) => Effect.Effect<fsx.DeleteBackupResponse, fsx.DeleteBackupError>)>> {
+export interface DeleteBackup extends Binding.Service<DeleteBackup, "AWS.FSx.DeleteBackup", () => Effect.Effect<(request: fsx.DeleteBackupRequest) => Effect.Effect<fsx.DeleteBackupResponse, fsx.DeleteBackupError>>> {
 }
 export declare const DeleteBackup: DeleteBackup;

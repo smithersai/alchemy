@@ -29,7 +29,7 @@ import { Repos } from "./Api/Repos.vibe";
  * {@link InternalApi}, mounted separately. Shared schemas and tagged
  * errors live in `Api/Schema.ts` and are re-exported flatly from here.
  */
-export * from "./Api/Schema.js";
+export * from "./Api/Schema.ts";
 export * from "./Api/GitHub.vibe";
 export * from "./Api/Internal.vibe";
 export * from "./Api/Objects.vibe";

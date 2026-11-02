@@ -19,6 +19,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface GetKxScalingGroup extends Binding.Service<GetKxScalingGroup, "AWS.FinSpace.GetKxScalingGroup", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request: Omit<SVC.GetKxScalingGroupRequest, "environmentId">) => Effect.Effect<SVC.GetKxScalingGroupResponse, SVC.GetKxScalingGroupError>)>> {
+export interface GetKxScalingGroup extends Binding.Service<GetKxScalingGroup, "AWS.FinSpace.GetKxScalingGroup", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request: Omit<SVC.GetKxScalingGroupRequest, "environmentId">) => Effect.Effect<SVC.GetKxScalingGroupResponse, SVC.GetKxScalingGroupError>>> {
 }
 export declare const GetKxScalingGroup: GetKxScalingGroup;

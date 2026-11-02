@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import type { WorkloadImageSource } from "../ClusterAdapter.js";
-import type { ContainerRegistry } from "../Connection.js";
+import type { WorkloadImageSource } from "../ClusterAdapter.ts";
+import type { ContainerRegistry } from "../Connection.ts";
 export declare const makeConnectionRegistry: Effect.Effect<{
     resolve: (options: {
         id: string;

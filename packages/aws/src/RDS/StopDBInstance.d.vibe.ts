@@ -1,7 +1,7 @@
 import type * as rds from "@distilled.cloud/aws/rds";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DBInstance } from "./DBInstance.js";
+import type { DBInstance } from "./DBInstance.ts";
 /**
  * Runtime binding for the `StopDBInstance` operation (IAM action
  * `rds:StopDBInstance`).
@@ -22,6 +22,6 @@ import type { DBInstance } from "./DBInstance.js";
  *
  * @binding
  */
-export interface StopDBInstance extends Binding.Service<StopDBInstance, "AWS.RDS.StopDBInstance", (instance: DBInstance) => Effect.Effect<((request?: Omit<rds.StopDBInstanceMessage, "DBInstanceIdentifier">) => Effect.Effect<rds.StopDBInstanceResult, rds.StopDBInstanceError>)>> {
+export interface StopDBInstance extends Binding.Service<StopDBInstance, "AWS.RDS.StopDBInstance", (instance: DBInstance) => Effect.Effect<(request?: Omit<rds.StopDBInstanceMessage, "DBInstanceIdentifier">) => Effect.Effect<rds.StopDBInstanceResult, rds.StopDBInstanceError>>> {
 }
 export declare const StopDBInstance: StopDBInstance;

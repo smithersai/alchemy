@@ -1,7 +1,7 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 import type { VpcId } from "./Vpc.vibe";
 export type VpcPeeringConnectionId<ID extends string = string> = `pcx-${ID}`;
 export declare const VpcPeeringConnectionId: <ID extends string>(id: ID) => ID & VpcPeeringConnectionId<ID>;

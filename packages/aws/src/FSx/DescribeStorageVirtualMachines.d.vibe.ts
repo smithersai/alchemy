@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeStorageVirtualMachines extends Binding.Service<DescribeStorageVirtualMachines, "AWS.FSx.DescribeStorageVirtualMachines", () => Effect.Effect<((request?: fsx.DescribeStorageVirtualMachinesRequest) => Effect.Effect<fsx.DescribeStorageVirtualMachinesResponse, fsx.DescribeStorageVirtualMachinesError>)>> {
+export interface DescribeStorageVirtualMachines extends Binding.Service<DescribeStorageVirtualMachines, "AWS.FSx.DescribeStorageVirtualMachines", () => Effect.Effect<(request?: fsx.DescribeStorageVirtualMachinesRequest) => Effect.Effect<fsx.DescribeStorageVirtualMachinesResponse, fsx.DescribeStorageVirtualMachinesError>>> {
 }
 export declare const DescribeStorageVirtualMachines: DescribeStorageVirtualMachines;

@@ -24,6 +24,6 @@ export interface ListAnalysisReportsRequest extends Omit<NFW.ListAnalysisReports
  *
  * @binding
  */
-export interface ListAnalysisReports extends Binding.Service<ListAnalysisReports, "AWS.NetworkFirewall.ListAnalysisReports", (firewall: Firewall) => Effect.Effect<((request?: ListAnalysisReportsRequest) => Effect.Effect<NFW.ListAnalysisReportsResponse, NFW.ListAnalysisReportsError>)>> {
+export interface ListAnalysisReports extends Binding.Service<ListAnalysisReports, "AWS.NetworkFirewall.ListAnalysisReports", (firewall: Firewall) => Effect.Effect<(request?: ListAnalysisReportsRequest) => Effect.Effect<NFW.ListAnalysisReportsResponse, NFW.ListAnalysisReportsError>>> {
 }
 export declare const ListAnalysisReports: ListAnalysisReports;

@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetResourceEvaluationSummary extends Binding.Service<GetResourceEvaluationSummary, "AWS.Config.GetResourceEvaluationSummary", () => Effect.Effect<((request: config.GetResourceEvaluationSummaryRequest) => Effect.Effect<config.GetResourceEvaluationSummaryResponse, config.GetResourceEvaluationSummaryError>)>> {
+export interface GetResourceEvaluationSummary extends Binding.Service<GetResourceEvaluationSummary, "AWS.Config.GetResourceEvaluationSummary", () => Effect.Effect<(request: config.GetResourceEvaluationSummaryRequest) => Effect.Effect<config.GetResourceEvaluationSummaryResponse, config.GetResourceEvaluationSummaryError>>> {
 }
 export declare const GetResourceEvaluationSummary: GetResourceEvaluationSummary;

@@ -24,6 +24,6 @@ export interface DescribeRuleGroupRequest extends Omit<NFW.DescribeRuleGroupRequ
  *
  * @binding
  */
-export interface DescribeRuleGroup extends Binding.Service<DescribeRuleGroup, "AWS.NetworkFirewall.DescribeRuleGroup", (ruleGroup: RuleGroup) => Effect.Effect<((request?: DescribeRuleGroupRequest) => Effect.Effect<NFW.DescribeRuleGroupResponse, NFW.DescribeRuleGroupError>)>> {
+export interface DescribeRuleGroup extends Binding.Service<DescribeRuleGroup, "AWS.NetworkFirewall.DescribeRuleGroup", (ruleGroup: RuleGroup) => Effect.Effect<(request?: DescribeRuleGroupRequest) => Effect.Effect<NFW.DescribeRuleGroupResponse, NFW.DescribeRuleGroupError>>> {
 }
 export declare const DescribeRuleGroup: DescribeRuleGroup;

@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetCompatibleVersions extends Binding.Service<GetCompatibleVersions, "AWS.OpenSearch.GetCompatibleVersions", () => Effect.Effect<((request?: opensearch.GetCompatibleVersionsRequest) => Effect.Effect<opensearch.GetCompatibleVersionsResponse, opensearch.GetCompatibleVersionsError>)>> {
+export interface GetCompatibleVersions extends Binding.Service<GetCompatibleVersions, "AWS.OpenSearch.GetCompatibleVersions", () => Effect.Effect<(request?: opensearch.GetCompatibleVersionsRequest) => Effect.Effect<opensearch.GetCompatibleVersionsResponse, opensearch.GetCompatibleVersionsError>>> {
 }
 export declare const GetCompatibleVersions: GetCompatibleVersions;

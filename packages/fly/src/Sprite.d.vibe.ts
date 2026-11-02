@@ -4,7 +4,7 @@ import * as Provider from "alchemy/Provider";
 import type { Resource } from "alchemy/Resource";
 import type { ServerHost } from "alchemy/Runtime/Process";
 import { Stack } from "alchemy/Stack";
-import { type FlyHostRuntimeContext } from "./hosted.js";
+import { type FlyHostRuntimeContext } from "./hosted.ts";
 import type { Providers } from "./Providers.vibe";
 export type UrlAuth = "public" | "sprite";
 export type SpriteStatus = "cold" | "warm" | "running";

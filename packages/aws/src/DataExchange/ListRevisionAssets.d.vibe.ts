@@ -21,6 +21,6 @@ import type { Revision } from "./Revision.vibe";
  *
  * @binding
  */
-export interface ListRevisionAssets extends Binding.Service<ListRevisionAssets, "AWS.DataExchange.ListRevisionAssets", (revision: Revision) => Effect.Effect<((request?: Omit<dataexchange.ListRevisionAssetsRequest, "DataSetId" | "RevisionId">) => Effect.Effect<dataexchange.ListRevisionAssetsResponse, dataexchange.ListRevisionAssetsError>)>> {
+export interface ListRevisionAssets extends Binding.Service<ListRevisionAssets, "AWS.DataExchange.ListRevisionAssets", (revision: Revision) => Effect.Effect<(request?: Omit<dataexchange.ListRevisionAssetsRequest, "DataSetId" | "RevisionId">) => Effect.Effect<dataexchange.ListRevisionAssetsResponse, dataexchange.ListRevisionAssetsError>>> {
 }
 export declare const ListRevisionAssets: ListRevisionAssets;

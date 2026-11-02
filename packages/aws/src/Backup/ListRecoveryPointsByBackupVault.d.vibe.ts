@@ -27,6 +27,6 @@ export interface ListRecoveryPointsByBackupVaultRequest extends Omit<backup.List
  *
  * @binding
  */
-export interface ListRecoveryPointsByBackupVault extends Binding.Service<ListRecoveryPointsByBackupVault, "AWS.Backup.ListRecoveryPointsByBackupVault", (vault: BackupVault) => Effect.Effect<((request?: ListRecoveryPointsByBackupVaultRequest) => Effect.Effect<backup.ListRecoveryPointsByBackupVaultOutput, backup.ListRecoveryPointsByBackupVaultError>)>> {
+export interface ListRecoveryPointsByBackupVault extends Binding.Service<ListRecoveryPointsByBackupVault, "AWS.Backup.ListRecoveryPointsByBackupVault", (vault: BackupVault) => Effect.Effect<(request?: ListRecoveryPointsByBackupVaultRequest) => Effect.Effect<backup.ListRecoveryPointsByBackupVaultOutput, backup.ListRecoveryPointsByBackupVaultError>>> {
 }
 export declare const ListRecoveryPointsByBackupVault: ListRecoveryPointsByBackupVault;

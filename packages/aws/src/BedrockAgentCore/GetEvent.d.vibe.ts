@@ -32,6 +32,6 @@ export interface GetEventRequest extends Omit<agentcore.GetEventInput, "memoryId
  *
  * @binding
  */
-export interface GetEvent extends Binding.Service<GetEvent, "AWS.BedrockAgentCore.GetEvent", <R extends Memory>(memory: R) => Effect.Effect<((request: GetEventRequest) => Effect.Effect<agentcore.GetEventOutput, agentcore.GetEventError>)>> {
+export interface GetEvent extends Binding.Service<GetEvent, "AWS.BedrockAgentCore.GetEvent", <R extends Memory>(memory: R) => Effect.Effect<(request: GetEventRequest) => Effect.Effect<agentcore.GetEventOutput, agentcore.GetEventError>>> {
 }
 export declare const GetEvent: GetEvent;

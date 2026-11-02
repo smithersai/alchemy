@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `PutPrincipalMapping` request with `IndexId` injected from the bound index.
  */
@@ -32,6 +32,6 @@ export interface PutPrincipalMappingRequest extends Omit<kendra.PutPrincipalMapp
  *
  * @binding
  */
-export interface PutPrincipalMapping extends Binding.Service<PutPrincipalMapping, "AWS.Kendra.PutPrincipalMapping", (index: Index) => Effect.Effect<((request: PutPrincipalMappingRequest) => Effect.Effect<kendra.PutPrincipalMappingResponse, kendra.PutPrincipalMappingError>)>> {
+export interface PutPrincipalMapping extends Binding.Service<PutPrincipalMapping, "AWS.Kendra.PutPrincipalMapping", (index: Index) => Effect.Effect<(request: PutPrincipalMappingRequest) => Effect.Effect<kendra.PutPrincipalMappingResponse, kendra.PutPrincipalMappingError>>> {
 }
 export declare const PutPrincipalMapping: PutPrincipalMapping;

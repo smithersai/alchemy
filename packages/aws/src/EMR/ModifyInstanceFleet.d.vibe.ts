@@ -19,6 +19,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface ModifyInstanceFleet extends Binding.Service<ModifyInstanceFleet, "AWS.EMR.ModifyInstanceFleet", <C extends Cluster>(cluster: C) => Effect.Effect<((request: Omit<SVC.ModifyInstanceFleetInput, "ClusterId">) => Effect.Effect<SVC.ModifyInstanceFleetResponse, SVC.ModifyInstanceFleetError>)>> {
+export interface ModifyInstanceFleet extends Binding.Service<ModifyInstanceFleet, "AWS.EMR.ModifyInstanceFleet", <C extends Cluster>(cluster: C) => Effect.Effect<(request: Omit<SVC.ModifyInstanceFleetInput, "ClusterId">) => Effect.Effect<SVC.ModifyInstanceFleetResponse, SVC.ModifyInstanceFleetError>>> {
 }
 export declare const ModifyInstanceFleet: ModifyInstanceFleet;

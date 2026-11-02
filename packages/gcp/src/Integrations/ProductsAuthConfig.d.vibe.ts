@@ -1,9 +1,9 @@
 import * as integrations from "@distilled.cloud/gcp/integrations_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { AuthConfigVisibility, CredentialType, DecryptedCredential } from "./shared.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { AuthConfigVisibility, CredentialType, DecryptedCredential } from "./shared.ts";
 export type ProductsAuthConfigProps = {
     /**
      * Auth config id (the `{authConfig}` segment). Server-assigned on

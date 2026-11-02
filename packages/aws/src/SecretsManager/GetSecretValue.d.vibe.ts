@@ -1,7 +1,7 @@
 import * as secretsmanager from "@distilled.cloud/aws/secrets-manager";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 export interface GetSecretValueRequest extends Omit<secretsmanager.GetSecretValueRequest, "SecretId"> {
 }
 /**
@@ -43,6 +43,6 @@ export interface GetSecretValueRequest extends Omit<secretsmanager.GetSecretValu
  *
  * @binding
  */
-export interface GetSecretValue extends Binding.Service<GetSecretValue, "AWS.SecretsManager.GetSecretValue", (secret: Secret) => Effect.Effect<((request?: GetSecretValueRequest) => Effect.Effect<secretsmanager.GetSecretValueResponse, secretsmanager.GetSecretValueError>)>> {
+export interface GetSecretValue extends Binding.Service<GetSecretValue, "AWS.SecretsManager.GetSecretValue", (secret: Secret) => Effect.Effect<(request?: GetSecretValueRequest) => Effect.Effect<secretsmanager.GetSecretValueResponse, secretsmanager.GetSecretValueError>>> {
 }
 export declare const GetSecretValue: GetSecretValue;

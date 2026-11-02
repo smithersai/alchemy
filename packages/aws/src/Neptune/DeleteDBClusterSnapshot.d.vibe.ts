@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteDBClusterSnapshot extends Binding.Service<DeleteDBClusterSnapshot, "AWS.Neptune.DeleteDBClusterSnapshot", () => Effect.Effect<((request?: neptune.DeleteDBClusterSnapshotMessage) => Effect.Effect<neptune.DeleteDBClusterSnapshotResult, neptune.DeleteDBClusterSnapshotError>)>> {
+export interface DeleteDBClusterSnapshot extends Binding.Service<DeleteDBClusterSnapshot, "AWS.Neptune.DeleteDBClusterSnapshot", () => Effect.Effect<(request?: neptune.DeleteDBClusterSnapshotMessage) => Effect.Effect<neptune.DeleteDBClusterSnapshotResult, neptune.DeleteDBClusterSnapshotError>>> {
 }
 export declare const DeleteDBClusterSnapshot: DeleteDBClusterSnapshot;

@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DetectCustomLabels extends Binding.Service<DetectCustomLabels, "AWS.Rekognition.DetectCustomLabels", () => Effect.Effect<((request: rekognition.DetectCustomLabelsRequest) => Effect.Effect<rekognition.DetectCustomLabelsResponse, rekognition.DetectCustomLabelsError>)>> {
+export interface DetectCustomLabels extends Binding.Service<DetectCustomLabels, "AWS.Rekognition.DetectCustomLabels", () => Effect.Effect<(request: rekognition.DetectCustomLabelsRequest) => Effect.Effect<rekognition.DetectCustomLabelsResponse, rekognition.DetectCustomLabelsError>>> {
 }
 export declare const DetectCustomLabels: DetectCustomLabels;

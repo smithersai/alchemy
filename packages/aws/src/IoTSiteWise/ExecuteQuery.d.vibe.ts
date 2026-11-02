@@ -35,6 +35,6 @@ export interface ExecuteQueryRequest extends sitewise.ExecuteQueryRequest {
  *
  * @binding
  */
-export interface ExecuteQuery extends Binding.Service<ExecuteQuery, "AWS.IoTSiteWise.ExecuteQuery", () => Effect.Effect<((request: ExecuteQueryRequest) => Effect.Effect<sitewise.ExecuteQueryResponse, sitewise.ExecuteQueryError>)>> {
+export interface ExecuteQuery extends Binding.Service<ExecuteQuery, "AWS.IoTSiteWise.ExecuteQuery", () => Effect.Effect<(request: ExecuteQueryRequest) => Effect.Effect<sitewise.ExecuteQueryResponse, sitewise.ExecuteQueryError>>> {
 }
 export declare const ExecuteQuery: ExecuteQuery;

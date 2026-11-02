@@ -2,7 +2,7 @@ import type * as file from "@distilled.cloud/gcp/file_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 export interface GetInstanceRequest extends Omit<file.GetProjectsLocationsInstancesRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetInstanceRequest extends Omit<file.GetProjectsLocationsInstan
  * @binding
  * @category Filestore
  */
-export interface GetInstance extends Binding.Service<GetInstance, "GCP.Filestore.GetInstance", (instance: Instance) => Effect.Effect<((request?: GetInstanceRequest) => Effect.Effect<file.Instance, file.GetProjectsLocationsInstancesError, RuntimeContext>)>> {
+export interface GetInstance extends Binding.Service<GetInstance, "GCP.Filestore.GetInstance", (instance: Instance) => Effect.Effect<(request?: GetInstanceRequest) => Effect.Effect<file.Instance, file.GetProjectsLocationsInstancesError, RuntimeContext>>> {
 }
 export declare const GetInstance: GetInstance;

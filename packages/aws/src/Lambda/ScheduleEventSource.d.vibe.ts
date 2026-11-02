@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
-import { ScheduleEventSource as SchedulerScheduleEventSource } from "../Scheduler/ScheduleEventSource.js";
-import * as Lambda from "./Function.js";
+import { ScheduleEventSource as SchedulerScheduleEventSource } from "../Scheduler/ScheduleEventSource.ts";
+import * as Lambda from "./Function.ts";
 /**
  * Lambda runtime implementation for `AWS.Scheduler.consumeSchedule(...)` —
  * the "cron handler" DX where a Lambda consumes its own EventBridge Scheduler

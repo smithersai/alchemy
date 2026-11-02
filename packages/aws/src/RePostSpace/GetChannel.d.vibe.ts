@@ -23,6 +23,6 @@ export interface GetChannelRequest extends Omit<repostspace.GetChannelInput, "sp
  *
  * @binding
  */
-export interface GetChannel extends Binding.Service<GetChannel, "AWS.RePostSpace.GetChannel", (space: Space) => Effect.Effect<((request: GetChannelRequest) => Effect.Effect<repostspace.GetChannelOutput, repostspace.GetChannelError>)>> {
+export interface GetChannel extends Binding.Service<GetChannel, "AWS.RePostSpace.GetChannel", (space: Space) => Effect.Effect<(request: GetChannelRequest) => Effect.Effect<repostspace.GetChannelOutput, repostspace.GetChannelError>>> {
 }
 export declare const GetChannel: GetChannel;

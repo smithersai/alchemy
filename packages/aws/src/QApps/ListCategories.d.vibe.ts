@@ -25,6 +25,6 @@ export interface ListCategoriesRequest extends Omit<qapps.ListCategoriesInput, "
  *
  * @binding
  */
-export interface ListCategories extends Binding.Service<ListCategories, "AWS.QApps.ListCategories", (app: QApp) => Effect.Effect<((request?: ListCategoriesRequest) => Effect.Effect<qapps.ListCategoriesOutput, qapps.ListCategoriesError>)>> {
+export interface ListCategories extends Binding.Service<ListCategories, "AWS.QApps.ListCategories", (app: QApp) => Effect.Effect<(request?: ListCategoriesRequest) => Effect.Effect<qapps.ListCategoriesOutput, qapps.ListCategoriesError>>> {
 }
 export declare const ListCategories: ListCategories;

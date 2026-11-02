@@ -15,6 +15,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface StopSandbox extends Binding.Service<StopSandbox, "AWS.CodeBuild.StopSandbox", <P extends Project>(project: P) => Effect.Effect<((request: SVC.StopSandboxInput) => Effect.Effect<SVC.StopSandboxOutput, SVC.StopSandboxError>)>> {
+export interface StopSandbox extends Binding.Service<StopSandbox, "AWS.CodeBuild.StopSandbox", <P extends Project>(project: P) => Effect.Effect<(request: SVC.StopSandboxInput) => Effect.Effect<SVC.StopSandboxOutput, SVC.StopSandboxError>>> {
 }
 export declare const StopSandbox: StopSandbox;

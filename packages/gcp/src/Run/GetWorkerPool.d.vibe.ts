@@ -2,7 +2,7 @@ import type * as cloudrun from "@distilled.cloud/gcp/run_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { WorkerPool } from "./WorkerPool.js";
+import type { WorkerPool } from "./WorkerPool.ts";
 export interface GetWorkerPoolRequest extends Omit<cloudrun.GetProjectsLocationsWorkerPoolsRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetWorkerPoolRequest extends Omit<cloudrun.GetProjectsLocations
  * @binding
  * @category Run
  */
-export interface GetWorkerPool extends Binding.Service<GetWorkerPool, "GCP.Run.GetWorkerPool", (pool: WorkerPool) => Effect.Effect<((request?: GetWorkerPoolRequest) => Effect.Effect<cloudrun.GoogleCloudRunV2WorkerPool, cloudrun.GetProjectsLocationsWorkerPoolsError, RuntimeContext>)>> {
+export interface GetWorkerPool extends Binding.Service<GetWorkerPool, "GCP.Run.GetWorkerPool", (pool: WorkerPool) => Effect.Effect<(request?: GetWorkerPoolRequest) => Effect.Effect<cloudrun.GoogleCloudRunV2WorkerPool, cloudrun.GetProjectsLocationsWorkerPoolsError, RuntimeContext>>> {
 }
 export declare const GetWorkerPool: GetWorkerPool;

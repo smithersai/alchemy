@@ -22,6 +22,6 @@ export interface GetReadSetRequest extends Omit<omics.GetReadSetRequest, "sequen
  *
  * @binding
  */
-export interface GetReadSet extends Binding.Service<GetReadSet, "AWS.Omics.GetReadSet", (store: SequenceStore) => Effect.Effect<((request?: GetReadSetRequest) => Effect.Effect<omics.GetReadSetResponse, omics.GetReadSetError>)>> {
+export interface GetReadSet extends Binding.Service<GetReadSet, "AWS.Omics.GetReadSet", (store: SequenceStore) => Effect.Effect<(request?: GetReadSetRequest) => Effect.Effect<omics.GetReadSetResponse, omics.GetReadSetError>>> {
 }
 export declare const GetReadSet: GetReadSet;

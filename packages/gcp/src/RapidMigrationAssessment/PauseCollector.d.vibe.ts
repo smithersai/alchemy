@@ -26,6 +26,6 @@ export interface PauseCollectorRequest extends Omit<rma.PauseProjectsLocationsCo
  * @binding
  * @category RapidMigrationAssessment
  */
-export interface PauseCollector extends Binding.Service<PauseCollector, "GCP.RapidMigrationAssessment.PauseCollector", (collector: Collector) => Effect.Effect<((request?: PauseCollectorRequest) => Effect.Effect<rma.Operation, rma.PauseProjectsLocationsCollectorsError, RuntimeContext>)>> {
+export interface PauseCollector extends Binding.Service<PauseCollector, "GCP.RapidMigrationAssessment.PauseCollector", (collector: Collector) => Effect.Effect<(request?: PauseCollectorRequest) => Effect.Effect<rma.Operation, rma.PauseProjectsLocationsCollectorsError, RuntimeContext>>> {
 }
 export declare const PauseCollector: PauseCollector;

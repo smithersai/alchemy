@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteClusterSnapshot extends Binding.Service<DeleteClusterSnapshot, "AWS.Redshift.DeleteClusterSnapshot", () => Effect.Effect<((request: redshift.DeleteClusterSnapshotMessage) => Effect.Effect<redshift.DeleteClusterSnapshotResult, redshift.DeleteClusterSnapshotError>)>> {
+export interface DeleteClusterSnapshot extends Binding.Service<DeleteClusterSnapshot, "AWS.Redshift.DeleteClusterSnapshot", () => Effect.Effect<(request: redshift.DeleteClusterSnapshotMessage) => Effect.Effect<redshift.DeleteClusterSnapshotResult, redshift.DeleteClusterSnapshotError>>> {
 }
 export declare const DeleteClusterSnapshot: DeleteClusterSnapshot;

@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface PutResourcePolicy extends Binding.Service<PutResourcePolicy, "AWS.CloudHSMV2.PutResourcePolicy", () => Effect.Effect<((request: cloudhsm.PutResourcePolicyRequest) => Effect.Effect<cloudhsm.PutResourcePolicyResponse, cloudhsm.PutResourcePolicyError>)>> {
+export interface PutResourcePolicy extends Binding.Service<PutResourcePolicy, "AWS.CloudHSMV2.PutResourcePolicy", () => Effect.Effect<(request: cloudhsm.PutResourcePolicyRequest) => Effect.Effect<cloudhsm.PutResourcePolicyResponse, cloudhsm.PutResourcePolicyError>>> {
 }
 export declare const PutResourcePolicy: PutResourcePolicy;

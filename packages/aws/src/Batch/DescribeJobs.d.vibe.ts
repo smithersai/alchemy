@@ -19,6 +19,6 @@ export interface DescribeJobsRequest extends batch.DescribeJobsRequest {
  *
  * @binding
  */
-export interface DescribeJobs extends Binding.Service<DescribeJobs, "AWS.Batch.DescribeJobs", (queue: JobQueue) => Effect.Effect<((request: DescribeJobsRequest) => Effect.Effect<batch.DescribeJobsResponse, batch.DescribeJobsError>)>> {
+export interface DescribeJobs extends Binding.Service<DescribeJobs, "AWS.Batch.DescribeJobs", (queue: JobQueue) => Effect.Effect<(request: DescribeJobsRequest) => Effect.Effect<batch.DescribeJobsResponse, batch.DescribeJobsError>>> {
 }
 export declare const DescribeJobs: DescribeJobs;

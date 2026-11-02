@@ -30,6 +30,6 @@ export interface GetCostAndUsageWithResourcesRequest extends ce.GetCostAndUsageW
  *
  * @binding
  */
-export interface GetCostAndUsageWithResources extends Binding.Service<GetCostAndUsageWithResources, "AWS.CostExplorer.GetCostAndUsageWithResources", () => Effect.Effect<((request: GetCostAndUsageWithResourcesRequest) => Effect.Effect<ce.GetCostAndUsageWithResourcesResponse, ce.GetCostAndUsageWithResourcesError>)>> {
+export interface GetCostAndUsageWithResources extends Binding.Service<GetCostAndUsageWithResources, "AWS.CostExplorer.GetCostAndUsageWithResources", () => Effect.Effect<(request: GetCostAndUsageWithResourcesRequest) => Effect.Effect<ce.GetCostAndUsageWithResourcesResponse, ce.GetCostAndUsageWithResourcesError>>> {
 }
 export declare const GetCostAndUsageWithResources: GetCostAndUsageWithResources;

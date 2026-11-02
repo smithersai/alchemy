@@ -1,5 +1,5 @@
-import * as Binding from "../Workers/Binding.js";
-import { Images, type ImagesClient } from "./Images.js";
+import * as Binding from "../Workers/Binding.ts";
+import { Images, type ImagesClient } from "./Images.ts";
 /** The binding value produced by calling {@link Images} (declared on `env` or `yield*`-ed). */
 export type ImagesBinding = Binding.Binding<Images["key"], ImagesClient, Images>;
 /**
@@ -12,4 +12,4 @@ export type ImagesBinding = Binding.Binding<Images["key"], ImagesClient, Images>
  * the Effect-native {@link ImagesClient} (wrapping the raw `cf.ImagesBinding` so every
  * `info` / `input(...).transform(...).output(...)` call returns an `Effect`).
  */
-export declare const ImagesBinding: import("effect/Layer").Layer<Images, never, import("../index.js").WorkerEnvironment>;
+export declare const ImagesBinding: import("effect/Layer").Layer<Images, never, import("../index.ts").WorkerEnvironment>;

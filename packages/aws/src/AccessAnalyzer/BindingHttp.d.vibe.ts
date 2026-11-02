@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Analyzer } from "./Analyzer.js";
+import type { Analyzer } from "./Analyzer.ts";
 /**
  * Shared scaffolding for AccessAnalyzer HTTP bindings.
  *
@@ -19,7 +19,7 @@ export declare const makeAnalyzerScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.AccessAnalyzer.ListFindingsV2`. */
     tag: string;
     /** The distilled operation; `analyzerArn` is injected from the analyzer. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the analyzer ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(analyzer: Analyzer) => Effect.Effect<(request?: Omit<I, "analyzerArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -33,7 +33,7 @@ export declare const makeAccessAnalyzerAccountHttpBinding: <I, A, E, R>(options:
     /** Fully-qualified binding tag, e.g. `AWS.AccessAnalyzer.ValidatePolicy`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

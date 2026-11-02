@@ -3,8 +3,8 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Config from "effect/Config";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
-import type { RailwayS3CredentialsMissing } from "./BucketBinding.js";
+import type { Bucket } from "./Bucket.ts";
+import type { RailwayS3CredentialsMissing } from "./BucketBinding.ts";
 export interface DeleteObjectRequest extends Omit<S3.DeleteObjectRequest, "Bucket"> {
 }
 /**
@@ -23,6 +23,6 @@ export interface DeleteObjectRequest extends Omit<S3.DeleteObjectRequest, "Bucke
  * @binding
  * @product Bucket
  */
-export interface DeleteObject extends Binding.Service<DeleteObject, "Railway.DeleteObject", (bucket: Bucket) => Effect.Effect<((request?: DeleteObjectRequest) => Effect.Effect<S3.DeleteObjectOutput, S3.DeleteObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>)>> {
+export interface DeleteObject extends Binding.Service<DeleteObject, "Railway.DeleteObject", (bucket: Bucket) => Effect.Effect<(request?: DeleteObjectRequest) => Effect.Effect<S3.DeleteObjectOutput, S3.DeleteObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>>> {
 }
 export declare const DeleteObject: DeleteObject;

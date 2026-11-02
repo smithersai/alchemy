@@ -26,6 +26,6 @@ export interface GetLicenseUsageRequest extends licensemanager.GetLicenseUsageRe
  *
  * @binding
  */
-export interface GetLicenseUsage extends Binding.Service<GetLicenseUsage, "AWS.LicenseManager.GetLicenseUsage", () => Effect.Effect<((request: GetLicenseUsageRequest) => Effect.Effect<licensemanager.GetLicenseUsageResponse, licensemanager.GetLicenseUsageError>)>> {
+export interface GetLicenseUsage extends Binding.Service<GetLicenseUsage, "AWS.LicenseManager.GetLicenseUsage", () => Effect.Effect<(request: GetLicenseUsageRequest) => Effect.Effect<licensemanager.GetLicenseUsageResponse, licensemanager.GetLicenseUsageError>>> {
 }
 export declare const GetLicenseUsage: GetLicenseUsage;

@@ -17,6 +17,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListKeywordsForDataSource extends Binding.Service<ListKeywordsForDataSource, "AWS.AuditManager.ListKeywordsForDataSource", () => Effect.Effect<((request: auditmanager.ListKeywordsForDataSourceRequest) => Effect.Effect<auditmanager.ListKeywordsForDataSourceResponse, auditmanager.ListKeywordsForDataSourceError>)>> {
+export interface ListKeywordsForDataSource extends Binding.Service<ListKeywordsForDataSource, "AWS.AuditManager.ListKeywordsForDataSource", () => Effect.Effect<(request: auditmanager.ListKeywordsForDataSourceRequest) => Effect.Effect<auditmanager.ListKeywordsForDataSourceResponse, auditmanager.ListKeywordsForDataSourceError>>> {
 }
 export declare const ListKeywordsForDataSource: ListKeywordsForDataSource;

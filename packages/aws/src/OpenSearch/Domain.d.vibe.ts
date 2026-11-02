@@ -2,7 +2,7 @@ import * as opensearch from "@distilled.cloud/aws/opensearch";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type { PolicyDocument } from "../IAM/Policy.vibe";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 declare const OpenSearchDomainUnexpectedResponse_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "OpenSearchDomainUnexpectedResponse";
 } & Readonly<A>;

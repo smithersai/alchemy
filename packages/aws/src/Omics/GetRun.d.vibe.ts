@@ -19,6 +19,6 @@ export interface GetRunRequest extends omics.GetRunRequest {
  *
  * @binding
  */
-export interface GetRun extends Binding.Service<GetRun, "AWS.Omics.GetRun", () => Effect.Effect<((request?: GetRunRequest) => Effect.Effect<omics.GetRunResponse, omics.GetRunError>)>> {
+export interface GetRun extends Binding.Service<GetRun, "AWS.Omics.GetRun", () => Effect.Effect<(request?: GetRunRequest) => Effect.Effect<omics.GetRunResponse, omics.GetRunError>>> {
 }
 export declare const GetRun: GetRun;

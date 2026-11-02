@@ -21,6 +21,6 @@ import type { Adapter } from "./Adapter.vibe";
  *
  * @binding
  */
-export interface GetAdapter extends Binding.Service<GetAdapter, "AWS.Textract.GetAdapter", <A extends Adapter>(adapter: A) => Effect.Effect<(() => Effect.Effect<textract.GetAdapterResponse, textract.GetAdapterError>)>> {
+export interface GetAdapter extends Binding.Service<GetAdapter, "AWS.Textract.GetAdapter", <A extends Adapter>(adapter: A) => Effect.Effect<() => Effect.Effect<textract.GetAdapterResponse, textract.GetAdapterError>>> {
 }
 export declare const GetAdapter: GetAdapter;

@@ -27,6 +27,6 @@ export interface UpdateCampaignRequest extends Omit<iotfleetwise.UpdateCampaignR
  *
  * @binding
  */
-export interface UpdateCampaign extends Binding.Service<UpdateCampaign, "AWS.IoTFleetWise.UpdateCampaign", (campaign: Campaign) => Effect.Effect<((request: UpdateCampaignRequest) => Effect.Effect<iotfleetwise.UpdateCampaignResponse, iotfleetwise.UpdateCampaignError>)>> {
+export interface UpdateCampaign extends Binding.Service<UpdateCampaign, "AWS.IoTFleetWise.UpdateCampaign", (campaign: Campaign) => Effect.Effect<(request: UpdateCampaignRequest) => Effect.Effect<iotfleetwise.UpdateCampaignResponse, iotfleetwise.UpdateCampaignError>>> {
 }
 export declare const UpdateCampaign: UpdateCampaign;

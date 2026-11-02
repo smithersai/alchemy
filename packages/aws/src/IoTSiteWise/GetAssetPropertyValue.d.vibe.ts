@@ -34,6 +34,6 @@ export interface GetAssetPropertyValueRequest extends Omit<sitewise.GetAssetProp
  *
  * @binding
  */
-export interface GetAssetPropertyValue extends Binding.Service<GetAssetPropertyValue, "AWS.IoTSiteWise.GetAssetPropertyValue", (asset: Asset) => Effect.Effect<((request: GetAssetPropertyValueRequest) => Effect.Effect<sitewise.GetAssetPropertyValueResponse, sitewise.GetAssetPropertyValueError>)>> {
+export interface GetAssetPropertyValue extends Binding.Service<GetAssetPropertyValue, "AWS.IoTSiteWise.GetAssetPropertyValue", (asset: Asset) => Effect.Effect<(request: GetAssetPropertyValueRequest) => Effect.Effect<sitewise.GetAssetPropertyValueResponse, sitewise.GetAssetPropertyValueError>>> {
 }
 export declare const GetAssetPropertyValue: GetAssetPropertyValue;

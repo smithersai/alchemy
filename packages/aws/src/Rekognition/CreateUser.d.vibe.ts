@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateUser extends Binding.Service<CreateUser, "AWS.Rekognition.CreateUser", () => Effect.Effect<((request: rekognition.CreateUserRequest) => Effect.Effect<rekognition.CreateUserResponse, rekognition.CreateUserError>)>> {
+export interface CreateUser extends Binding.Service<CreateUser, "AWS.Rekognition.CreateUser", () => Effect.Effect<(request: rekognition.CreateUserRequest) => Effect.Effect<rekognition.CreateUserResponse, rekognition.CreateUserError>>> {
 }
 export declare const CreateUser: CreateUser;

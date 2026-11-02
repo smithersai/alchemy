@@ -1,16 +1,16 @@
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import type { Credential } from "./Credential.js";
+import type { Credential } from "./Credential.ts";
 export type AIGatewayProps = ({
     /** Branch resource or explicit identity; output references are accepted. */
-    branch: import("./Branch.js").Branch | {
+    branch: import("./Branch.ts").Branch | {
         projectId: string | Output.Output<string>;
         branchId: string | Output.Output<string>;
     };
     project?: never;
 } | {
     /** Project resource or identity whose default branch supplies the gateway. */
-    project: import("./Project.js").Project | {
+    project: import("./Project.ts").Project | {
         projectId: string | Output.Output<string>;
     };
     branch?: never;

@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListInvestigationGroups extends Binding.Service<ListInvestigationGroups, "AWS.AIOps.ListInvestigationGroups", () => Effect.Effect<((request?: aiops.ListInvestigationGroupsInput) => Effect.Effect<aiops.ListInvestigationGroupsOutput, aiops.ListInvestigationGroupsError>)>> {
+export interface ListInvestigationGroups extends Binding.Service<ListInvestigationGroups, "AWS.AIOps.ListInvestigationGroups", () => Effect.Effect<(request?: aiops.ListInvestigationGroupsInput) => Effect.Effect<aiops.ListInvestigationGroupsOutput, aiops.ListInvestigationGroupsError>>> {
 }
 export declare const ListInvestigationGroups: ListInvestigationGroups;

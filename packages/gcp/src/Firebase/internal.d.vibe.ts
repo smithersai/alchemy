@@ -27,6 +27,6 @@ export declare const packageNameOf: (id: string, requested: string | undefined, 
  * finished with `ALREADY_EXISTS` (6) is a lost create race. A freshly
  * started operation can briefly read as NOT_FOUND; keep polling.
  */
-export declare const waitForOperation: (operation: firebase.Operation) => Effect.Effect<firebase.Operation, firebase.Forbidden | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | firebase.GcpOpError, firebase.GcpOpContext>;
+export declare const waitForOperation: (operation: firebase.Operation) => Effect.Effect<firebase.Operation, firebase.Forbidden | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | firebase.GcpOpError, firebase.GcpOpContext>;
 export declare const listAndroidApps: (project: string, showDeleted?: boolean) => Effect.Effect<firebase.AndroidApp[], firebase.Forbidden | firebase.GcpOpError, firebase.GcpOpContext>;
 export {};

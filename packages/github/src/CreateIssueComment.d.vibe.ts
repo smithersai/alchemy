@@ -2,7 +2,7 @@ import type * as Issues from "@distilled.cloud/github/issues";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.ts";
 export interface CreateIssueCommentRequest extends Omit<Issues.CreateCommentRequest, "owner" | "repo"> {
 }
 export type CreateIssueCommentResponse = Issues.IssueComment;
@@ -23,6 +23,6 @@ export type CreateIssueCommentResponse = Issues.IssueComment;
  * @binding
  * @product Issue
  */
-export interface CreateIssueComment extends Binding.Service<CreateIssueComment, "GitHub.CreateIssueComment", (repo: Repository) => Effect.Effect<((request: CreateIssueCommentRequest) => Effect.Effect<CreateIssueCommentResponse, Issues.CreateCommentError, RuntimeContext>)>> {
+export interface CreateIssueComment extends Binding.Service<CreateIssueComment, "GitHub.CreateIssueComment", (repo: Repository) => Effect.Effect<(request: CreateIssueCommentRequest) => Effect.Effect<CreateIssueCommentResponse, Issues.CreateCommentError, RuntimeContext>>> {
 }
 export declare const CreateIssueComment: CreateIssueComment;

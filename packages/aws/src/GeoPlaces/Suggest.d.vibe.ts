@@ -34,6 +34,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface Suggest extends Binding.Service<Suggest, "AWS.GeoPlaces.Suggest", () => Effect.Effect<((request: geoPlaces.SuggestRequest) => Effect.Effect<geoPlaces.SuggestResponse, geoPlaces.SuggestError>)>> {
+export interface Suggest extends Binding.Service<Suggest, "AWS.GeoPlaces.Suggest", () => Effect.Effect<(request: geoPlaces.SuggestRequest) => Effect.Effect<geoPlaces.SuggestResponse, geoPlaces.SuggestError>>> {
 }
 export declare const Suggest: Suggest;

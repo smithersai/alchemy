@@ -26,6 +26,6 @@ export interface SetTopicAttributesRequest extends Omit<sns.SetTopicAttributesIn
  *
  * @binding
  */
-export interface SetTopicAttributes extends Binding.Service<SetTopicAttributes, "AWS.SNS.SetTopicAttributes", (topic: Topic) => Effect.Effect<((request: SetTopicAttributesRequest) => Effect.Effect<sns.SetTopicAttributesResponse, sns.SetTopicAttributesError>)>> {
+export interface SetTopicAttributes extends Binding.Service<SetTopicAttributes, "AWS.SNS.SetTopicAttributes", (topic: Topic) => Effect.Effect<(request: SetTopicAttributesRequest) => Effect.Effect<sns.SetTopicAttributesResponse, sns.SetTopicAttributesError>>> {
 }
 export declare const SetTopicAttributes: SetTopicAttributes;

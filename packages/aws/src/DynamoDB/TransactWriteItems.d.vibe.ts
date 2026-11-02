@@ -1,7 +1,7 @@
 import * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export type TransactWriteItemsTables = [Table, ...Table[]];
 type NativeTransactWriteItem = NonNullable<DynamoDB.TransactWriteItemsInput["TransactItems"]>[number];
 type NativeConditionCheck = NonNullable<NativeTransactWriteItem["ConditionCheck"]>;
@@ -56,7 +56,7 @@ export interface TransactWriteItemsRequest extends Omit<DynamoDB.TransactWriteIt
  *
  * @binding
  */
-export interface TransactWriteItems extends Binding.Service<TransactWriteItems, "AWS.DynamoDB.TransactWriteItems", (...tables: TransactWriteItemsTables) => Effect.Effect<((request: TransactWriteItemsRequest) => Effect.Effect<DynamoDB.TransactWriteItemsOutput, DynamoDB.TransactWriteItemsError>)>> {
+export interface TransactWriteItems extends Binding.Service<TransactWriteItems, "AWS.DynamoDB.TransactWriteItems", (...tables: TransactWriteItemsTables) => Effect.Effect<(request: TransactWriteItemsRequest) => Effect.Effect<DynamoDB.TransactWriteItemsOutput, DynamoDB.TransactWriteItemsError>>> {
 }
 export declare const TransactWriteItems: TransactWriteItems;
 export {};

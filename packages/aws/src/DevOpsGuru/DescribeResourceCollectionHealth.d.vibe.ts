@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeResourceCollectionHealth extends Binding.Service<DescribeResourceCollectionHealth, "AWS.DevOpsGuru.DescribeResourceCollectionHealth", () => Effect.Effect<((request: devopsguru.DescribeResourceCollectionHealthRequest) => Effect.Effect<devopsguru.DescribeResourceCollectionHealthResponse, devopsguru.DescribeResourceCollectionHealthError>)>> {
+export interface DescribeResourceCollectionHealth extends Binding.Service<DescribeResourceCollectionHealth, "AWS.DevOpsGuru.DescribeResourceCollectionHealth", () => Effect.Effect<(request: devopsguru.DescribeResourceCollectionHealthRequest) => Effect.Effect<devopsguru.DescribeResourceCollectionHealthResponse, devopsguru.DescribeResourceCollectionHealthError>>> {
 }
 export declare const DescribeResourceCollectionHealth: DescribeResourceCollectionHealth;

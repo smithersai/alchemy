@@ -1,8 +1,8 @@
 import * as ag from "@distilled.cloud/aws/api-gateway";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export interface UsagePlanProps {
     /**
      * Friendly name for the usage plan.

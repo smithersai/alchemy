@@ -25,6 +25,6 @@ import type { Accelerator } from "./Accelerator.vibe";
  *
  * @binding
  */
-export interface DescribeAccelerator extends Binding.Service<DescribeAccelerator, "AWS.GlobalAccelerator.DescribeAccelerator", (accelerator: Accelerator) => Effect.Effect<(() => Effect.Effect<ga.DescribeAcceleratorResponse, ga.DescribeAcceleratorError>)>> {
+export interface DescribeAccelerator extends Binding.Service<DescribeAccelerator, "AWS.GlobalAccelerator.DescribeAccelerator", (accelerator: Accelerator) => Effect.Effect<() => Effect.Effect<ga.DescribeAcceleratorResponse, ga.DescribeAcceleratorError>>> {
 }
 export declare const DescribeAccelerator: DescribeAccelerator;

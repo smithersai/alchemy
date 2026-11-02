@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopResource extends Binding.Service<StopResource, "AWS.Forecast.StopResource", () => Effect.Effect<((request: forecast.StopResourceRequest) => Effect.Effect<forecast.StopResourceResponse, forecast.StopResourceError>)>> {
+export interface StopResource extends Binding.Service<StopResource, "AWS.Forecast.StopResource", () => Effect.Effect<(request: forecast.StopResourceRequest) => Effect.Effect<forecast.StopResourceResponse, forecast.StopResourceError>>> {
 }
 export declare const StopResource: StopResource;

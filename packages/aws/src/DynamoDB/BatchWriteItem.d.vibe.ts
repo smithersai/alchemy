@@ -1,7 +1,7 @@
 import * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export type BatchWriteItemTables = [Table, ...Table[]];
 type BatchWriteRequests = NonNullable<DynamoDB.BatchWriteItemInput["RequestItems"]>[string];
 export declare const sortBatchWriteItemTables: (tables: BatchWriteItemTables) => BatchWriteItemTables;
@@ -36,7 +36,7 @@ export interface BatchWriteItemRequest extends Omit<DynamoDB.BatchWriteItemInput
  *
  * @binding
  */
-export interface BatchWriteItem extends Binding.Service<BatchWriteItem, "AWS.DynamoDB.BatchWriteItem", (...tables: BatchWriteItemTables) => Effect.Effect<((request: BatchWriteItemRequest) => Effect.Effect<DynamoDB.BatchWriteItemOutput, DynamoDB.BatchWriteItemError>)>> {
+export interface BatchWriteItem extends Binding.Service<BatchWriteItem, "AWS.DynamoDB.BatchWriteItem", (...tables: BatchWriteItemTables) => Effect.Effect<(request: BatchWriteItemRequest) => Effect.Effect<DynamoDB.BatchWriteItemOutput, DynamoDB.BatchWriteItemError>>> {
 }
 export declare const BatchWriteItem: BatchWriteItem;
 export {};

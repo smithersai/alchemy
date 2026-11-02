@@ -21,6 +21,6 @@ export interface StartInstanceRequest extends Omit<compute.StartInstancesRequest
  * @binding
  * @category Compute
  */
-export interface StartInstance extends Binding.Service<StartInstance, "GCP.Compute.StartInstance", (instance: Instance) => Effect.Effect<((request?: StartInstanceRequest) => Effect.Effect<compute.Operation, compute.StartInstancesError, RuntimeContext>)>> {
+export interface StartInstance extends Binding.Service<StartInstance, "GCP.Compute.StartInstance", (instance: Instance) => Effect.Effect<(request?: StartInstanceRequest) => Effect.Effect<compute.Operation, compute.StartInstancesError, RuntimeContext>>> {
 }
 export declare const StartInstance: StartInstance;

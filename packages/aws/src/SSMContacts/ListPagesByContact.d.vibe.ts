@@ -19,6 +19,6 @@ import type { Contact } from "./Contact.vibe";
  *
  * @binding
  */
-export interface ListPagesByContact extends Binding.Service<ListPagesByContact, "AWS.SSMContacts.ListPagesByContact", (contact: Contact) => Effect.Effect<((request?: Omit<ssm.ListPagesByContactRequest, "ContactId">) => Effect.Effect<ssm.ListPagesByContactResult, ssm.ListPagesByContactError>)>> {
+export interface ListPagesByContact extends Binding.Service<ListPagesByContact, "AWS.SSMContacts.ListPagesByContact", (contact: Contact) => Effect.Effect<(request?: Omit<ssm.ListPagesByContactRequest, "ContactId">) => Effect.Effect<ssm.ListPagesByContactResult, ssm.ListPagesByContactError>>> {
 }
 export declare const ListPagesByContact: ListPagesByContact;

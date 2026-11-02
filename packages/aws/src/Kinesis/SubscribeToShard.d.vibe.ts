@@ -30,6 +30,6 @@ export interface SubscribeToShardRequest extends Omit<Kinesis.SubscribeToShardIn
  *
  * @binding
  */
-export interface SubscribeToShard extends Binding.Service<SubscribeToShard, "AWS.Kinesis.SubscribeToShard", (consumer: StreamConsumer) => Effect.Effect<((request: SubscribeToShardRequest) => Effect.Effect<Kinesis.SubscribeToShardOutput, Kinesis.SubscribeToShardError>)>> {
+export interface SubscribeToShard extends Binding.Service<SubscribeToShard, "AWS.Kinesis.SubscribeToShard", (consumer: StreamConsumer) => Effect.Effect<(request: SubscribeToShardRequest) => Effect.Effect<Kinesis.SubscribeToShardOutput, Kinesis.SubscribeToShardError>>> {
 }
 export declare const SubscribeToShard: SubscribeToShard;

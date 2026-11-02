@@ -16,6 +16,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteGraphSnapshot extends Binding.Service<DeleteGraphSnapshot, "AWS.NeptuneGraph.DeleteGraphSnapshot", () => Effect.Effect<((request: neptunegraph.DeleteGraphSnapshotInput) => Effect.Effect<neptunegraph.DeleteGraphSnapshotOutput, neptunegraph.DeleteGraphSnapshotError>)>> {
+export interface DeleteGraphSnapshot extends Binding.Service<DeleteGraphSnapshot, "AWS.NeptuneGraph.DeleteGraphSnapshot", () => Effect.Effect<(request: neptunegraph.DeleteGraphSnapshotInput) => Effect.Effect<neptunegraph.DeleteGraphSnapshotOutput, neptunegraph.DeleteGraphSnapshotError>>> {
 }
 export declare const DeleteGraphSnapshot: DeleteGraphSnapshot;

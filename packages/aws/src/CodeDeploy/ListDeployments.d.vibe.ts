@@ -20,6 +20,6 @@ export interface ListDeploymentsRequest extends Omit<SVC.ListDeploymentsInput, "
  *
  * @binding
  */
-export interface ListDeployments extends Binding.Service<ListDeployments, "AWS.CodeDeploy.ListDeployments", <G extends DeploymentGroup>(group: G) => Effect.Effect<((request?: ListDeploymentsRequest) => Effect.Effect<SVC.ListDeploymentsOutput, SVC.ListDeploymentsError>)>> {
+export interface ListDeployments extends Binding.Service<ListDeployments, "AWS.CodeDeploy.ListDeployments", <G extends DeploymentGroup>(group: G) => Effect.Effect<(request?: ListDeploymentsRequest) => Effect.Effect<SVC.ListDeploymentsOutput, SVC.ListDeploymentsError>>> {
 }
 export declare const ListDeployments: ListDeployments;

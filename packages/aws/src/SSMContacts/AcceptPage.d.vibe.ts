@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface AcceptPage extends Binding.Service<AcceptPage, "AWS.SSMContacts.AcceptPage", () => Effect.Effect<((request: ssm.AcceptPageRequest) => Effect.Effect<ssm.AcceptPageResult, ssm.AcceptPageError>)>> {
+export interface AcceptPage extends Binding.Service<AcceptPage, "AWS.SSMContacts.AcceptPage", () => Effect.Effect<(request: ssm.AcceptPageRequest) => Effect.Effect<ssm.AcceptPageResult, ssm.AcceptPageError>>> {
 }
 export declare const AcceptPage: AcceptPage;

@@ -24,6 +24,6 @@ import type { Certificate } from "./Certificate.vibe";
  *
  * @binding
  */
-export interface DescribeCertificate extends Binding.Service<DescribeCertificate, "AWS.ACM.DescribeCertificate", (certificate: Certificate) => Effect.Effect<(() => Effect.Effect<acm.DescribeCertificateResponse, acm.DescribeCertificateError>)>> {
+export interface DescribeCertificate extends Binding.Service<DescribeCertificate, "AWS.ACM.DescribeCertificate", (certificate: Certificate) => Effect.Effect<() => Effect.Effect<acm.DescribeCertificateResponse, acm.DescribeCertificateError>>> {
 }
 export declare const DescribeCertificate: DescribeCertificate;

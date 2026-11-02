@@ -1,7 +1,7 @@
 import type * as rds from "@distilled.cloud/aws/rds";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DBCluster } from "./DBCluster.js";
+import type { DBCluster } from "./DBCluster.ts";
 /**
  * Runtime binding for the `StartDBCluster` operation (IAM action
  * `rds:StartDBCluster`).
@@ -22,6 +22,6 @@ import type { DBCluster } from "./DBCluster.js";
  *
  * @binding
  */
-export interface StartDBCluster extends Binding.Service<StartDBCluster, "AWS.RDS.StartDBCluster", (cluster: DBCluster) => Effect.Effect<(() => Effect.Effect<rds.StartDBClusterResult, rds.StartDBClusterError>)>> {
+export interface StartDBCluster extends Binding.Service<StartDBCluster, "AWS.RDS.StartDBCluster", (cluster: DBCluster) => Effect.Effect<() => Effect.Effect<rds.StartDBClusterResult, rds.StartDBClusterError>>> {
 }
 export declare const StartDBCluster: StartDBCluster;

@@ -27,6 +27,6 @@ export interface ListConnectionsRequest extends codeconnections.ListConnectionsI
  *
  * @binding
  */
-export interface ListConnections extends Binding.Service<ListConnections, "AWS.CodeConnections.ListConnections", () => Effect.Effect<((request?: ListConnectionsRequest) => Effect.Effect<codeconnections.ListConnectionsOutput, codeconnections.ListConnectionsError>)>> {
+export interface ListConnections extends Binding.Service<ListConnections, "AWS.CodeConnections.ListConnections", () => Effect.Effect<(request?: ListConnectionsRequest) => Effect.Effect<codeconnections.ListConnectionsOutput, codeconnections.ListConnectionsError>>> {
 }
 export declare const ListConnections: ListConnections;

@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
 import type { Backup } from "./Backup.vibe";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 import type { InstancesSnapshot } from "./InstancesSnapshot.vibe";
 /**
  * Shared HTTP scaffolding for Filestore instance, backup, and snapshot

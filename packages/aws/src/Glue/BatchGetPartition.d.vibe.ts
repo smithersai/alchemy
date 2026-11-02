@@ -26,6 +26,6 @@ export interface BatchGetPartitionRequest extends Omit<glue.BatchGetPartitionReq
  *
  * @binding
  */
-export interface BatchGetPartition extends Binding.Service<BatchGetPartition, "AWS.Glue.BatchGetPartition", (table: Table) => Effect.Effect<((request: BatchGetPartitionRequest) => Effect.Effect<glue.BatchGetPartitionResponse, glue.BatchGetPartitionError>)>> {
+export interface BatchGetPartition extends Binding.Service<BatchGetPartition, "AWS.Glue.BatchGetPartition", (table: Table) => Effect.Effect<(request: BatchGetPartitionRequest) => Effect.Effect<glue.BatchGetPartitionResponse, glue.BatchGetPartitionError>>> {
 }
 export declare const BatchGetPartition: BatchGetPartition;

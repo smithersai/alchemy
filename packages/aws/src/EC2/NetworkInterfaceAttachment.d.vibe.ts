@@ -1,8 +1,8 @@
 import * as ec2 from "@distilled.cloud/aws/ec2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
-import type { InstanceId } from "./Instance.js";
+import type { Providers } from "../Providers.ts";
+import type { InstanceId } from "./Instance.ts";
 import type { NetworkInterfaceId } from "./NetworkInterface.vibe";
 export type NetworkInterfaceAttachmentId<ID extends string = string> = `eni-attach-${ID}`;
 export interface NetworkInterfaceAttachmentProps {

@@ -23,6 +23,6 @@ export interface ListJobsRequest extends Omit<batch.ListJobsRequest, "jobQueue">
  *
  * @binding
  */
-export interface ListJobs extends Binding.Service<ListJobs, "AWS.Batch.ListJobs", (queue: JobQueue) => Effect.Effect<((request?: ListJobsRequest) => Effect.Effect<batch.ListJobsResponse, batch.ListJobsError>)>> {
+export interface ListJobs extends Binding.Service<ListJobs, "AWS.Batch.ListJobs", (queue: JobQueue) => Effect.Effect<(request?: ListJobsRequest) => Effect.Effect<batch.ListJobsResponse, batch.ListJobsError>>> {
 }
 export declare const ListJobs: ListJobs;

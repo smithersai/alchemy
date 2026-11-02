@@ -34,6 +34,6 @@ export interface GetPackageVersionAssetRequest extends Omit<codeartifact.GetPack
  *
  * @binding
  */
-export interface GetPackageVersionAsset extends Binding.Service<GetPackageVersionAsset, "AWS.CodeArtifact.GetPackageVersionAsset", (repository: Repository) => Effect.Effect<((request: GetPackageVersionAssetRequest) => Effect.Effect<codeartifact.GetPackageVersionAssetResult, codeartifact.GetPackageVersionAssetError>)>> {
+export interface GetPackageVersionAsset extends Binding.Service<GetPackageVersionAsset, "AWS.CodeArtifact.GetPackageVersionAsset", (repository: Repository) => Effect.Effect<(request: GetPackageVersionAssetRequest) => Effect.Effect<codeartifact.GetPackageVersionAssetResult, codeartifact.GetPackageVersionAssetError>>> {
 }
 export declare const GetPackageVersionAsset: GetPackageVersionAsset;

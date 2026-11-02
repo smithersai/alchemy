@@ -2,8 +2,8 @@ import * as rdsdata from "@distilled.cloud/aws/rds-data";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { DBCluster } from "../RDS/DBCluster.js";
-import type { Secret } from "../SecretsManager/Secret.js";
+import type { DBCluster } from "../RDS/DBCluster.ts";
+import type { Secret } from "../SecretsManager/Secret.ts";
 export interface RollbackTransactionOptions {
     secret: Secret;
 }
@@ -35,6 +35,6 @@ export interface RollbackTransactionRequest extends Omit<rdsdata.RollbackTransac
  *
  * @binding
  */
-export interface RollbackTransaction extends Binding.Service<RollbackTransaction, "AWS.RDSData.RollbackTransaction", (cluster: DBCluster, options: RollbackTransactionOptions) => Effect.Effect<((request: RollbackTransactionRequest) => Effect.Effect<rdsdata.RollbackTransactionResponse, rdsdata.RollbackTransactionError, RuntimeContext>)>> {
+export interface RollbackTransaction extends Binding.Service<RollbackTransaction, "AWS.RDSData.RollbackTransaction", (cluster: DBCluster, options: RollbackTransactionOptions) => Effect.Effect<(request: RollbackTransactionRequest) => Effect.Effect<rdsdata.RollbackTransactionResponse, rdsdata.RollbackTransactionError, RuntimeContext>>> {
 }
 export declare const RollbackTransaction: RollbackTransaction;

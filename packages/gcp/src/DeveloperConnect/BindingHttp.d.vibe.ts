@@ -1,7 +1,7 @@
 import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
-import { type BindingIam } from "../HttpBinding.js";
+import { type BindingIam } from "../HttpBinding.ts";
 import type { ConnectionsGitRepositoryLink } from "./ConnectionsGitRepositoryLink.vibe";
 /**
  * Shared HTTP scaffolding for Developer Connect git repository link
@@ -16,5 +16,5 @@ export declare const makeGitRepositoryLinkHttpBinding: <I extends {
 }, A, E>(options: {
     tag: string;
     iam: BindingIam;
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, Credentials | HttpClient.HttpClient>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, Credentials | HttpClient.HttpClient>;
 }) => Effect.Effect<<T extends ConnectionsGitRepositoryLink>(link: T) => Effect.Effect<(request?: Omit<I, "gitRepositoryLink"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

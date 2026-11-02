@@ -29,6 +29,6 @@ export interface ListRetrievedTracesRequest extends xray.ListRetrievedTracesRequ
  *
  * @binding
  */
-export interface ListRetrievedTraces extends Binding.Service<ListRetrievedTraces, "AWS.XRay.ListRetrievedTraces", () => Effect.Effect<((request: ListRetrievedTracesRequest) => Effect.Effect<xray.ListRetrievedTracesResult, xray.ListRetrievedTracesError>)>> {
+export interface ListRetrievedTraces extends Binding.Service<ListRetrievedTraces, "AWS.XRay.ListRetrievedTraces", () => Effect.Effect<(request: ListRetrievedTracesRequest) => Effect.Effect<xray.ListRetrievedTracesResult, xray.ListRetrievedTracesError>>> {
 }
 export declare const ListRetrievedTraces: ListRetrievedTraces;

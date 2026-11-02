@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DisassociateMembers extends Binding.Service<DisassociateMembers, "AWS.SecurityHub.DisassociateMembers", () => Effect.Effect<((request?: securityhub.DisassociateMembersRequest) => Effect.Effect<securityhub.DisassociateMembersResponse, securityhub.DisassociateMembersError>)>> {
+export interface DisassociateMembers extends Binding.Service<DisassociateMembers, "AWS.SecurityHub.DisassociateMembers", () => Effect.Effect<(request?: securityhub.DisassociateMembersRequest) => Effect.Effect<securityhub.DisassociateMembersResponse, securityhub.DisassociateMembersError>>> {
 }
 export declare const DisassociateMembers: DisassociateMembers;

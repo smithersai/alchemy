@@ -1,7 +1,7 @@
 import type * as emr from "@distilled.cloud/aws/emr-serverless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 /**
  * Request accepted by the {@link ListJobRunAttempts} runtime callable. The
  * `applicationId` is injected from the bound {@link Application}.
@@ -26,6 +26,6 @@ export type ListJobRunAttemptsInput = Omit<emr.ListJobRunAttemptsRequest, "appli
  *
  * @binding
  */
-export interface ListJobRunAttempts extends Binding.Service<ListJobRunAttempts, "AWS.EMRServerless.ListJobRunAttempts", (application: Application) => Effect.Effect<((request: ListJobRunAttemptsInput) => Effect.Effect<emr.ListJobRunAttemptsResponse, emr.ListJobRunAttemptsError>)>> {
+export interface ListJobRunAttempts extends Binding.Service<ListJobRunAttempts, "AWS.EMRServerless.ListJobRunAttempts", (application: Application) => Effect.Effect<(request: ListJobRunAttemptsInput) => Effect.Effect<emr.ListJobRunAttemptsResponse, emr.ListJobRunAttemptsError>>> {
 }
 export declare const ListJobRunAttempts: ListJobRunAttempts;

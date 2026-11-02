@@ -2,7 +2,7 @@ import type * as ECS from "@distilled.cloud/aws/ecs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { Cluster } from "./Cluster.vibe";
-import type { Task } from "./Task.js";
+import type { Task } from "./Task.ts";
 export interface StartTaskRequest extends Omit<ECS.StartTaskRequest, "cluster" | "taskDefinition"> {
 }
 /**
@@ -42,6 +42,6 @@ export interface StartTaskRequest extends Omit<ECS.StartTaskRequest, "cluster" |
  *
  * @binding
  */
-export interface StartTask extends Binding.Service<StartTask, "AWS.ECS.StartTask", (cluster: Cluster, task: Task) => Effect.Effect<((request: StartTaskRequest) => Effect.Effect<ECS.StartTaskResponse, ECS.StartTaskError>)>> {
+export interface StartTask extends Binding.Service<StartTask, "AWS.ECS.StartTask", (cluster: Cluster, task: Task) => Effect.Effect<(request: StartTaskRequest) => Effect.Effect<ECS.StartTaskResponse, ECS.StartTaskError>>> {
 }
 export declare const StartTask: StartTask;

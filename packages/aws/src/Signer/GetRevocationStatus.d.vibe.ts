@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetRevocationStatus extends Binding.Service<GetRevocationStatus, "AWS.Signer.GetRevocationStatus", () => Effect.Effect<((request: signer.GetRevocationStatusRequest) => Effect.Effect<signer.GetRevocationStatusResponse, signer.GetRevocationStatusError>)>> {
+export interface GetRevocationStatus extends Binding.Service<GetRevocationStatus, "AWS.Signer.GetRevocationStatus", () => Effect.Effect<(request: signer.GetRevocationStatusRequest) => Effect.Effect<signer.GetRevocationStatusResponse, signer.GetRevocationStatusError>>> {
 }
 export declare const GetRevocationStatus: GetRevocationStatus;

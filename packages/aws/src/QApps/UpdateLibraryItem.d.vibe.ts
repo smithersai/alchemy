@@ -24,6 +24,6 @@ export interface UpdateLibraryItemRequest extends Omit<qapps.UpdateLibraryItemIn
  *
  * @binding
  */
-export interface UpdateLibraryItem extends Binding.Service<UpdateLibraryItem, "AWS.QApps.UpdateLibraryItem", (app: QApp) => Effect.Effect<((request: UpdateLibraryItemRequest) => Effect.Effect<qapps.UpdateLibraryItemOutput, qapps.UpdateLibraryItemError>)>> {
+export interface UpdateLibraryItem extends Binding.Service<UpdateLibraryItem, "AWS.QApps.UpdateLibraryItem", (app: QApp) => Effect.Effect<(request: UpdateLibraryItemRequest) => Effect.Effect<qapps.UpdateLibraryItemOutput, qapps.UpdateLibraryItemError>>> {
 }
 export declare const UpdateLibraryItem: UpdateLibraryItem;

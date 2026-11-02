@@ -26,6 +26,6 @@ export interface StartCompositionRequest extends Omit<ivsrealtime.StartCompositi
  *
  * @binding
  */
-export interface StartComposition extends Binding.Service<StartComposition, "AWS.IVSRealtime.StartComposition", (stage: Stage) => Effect.Effect<((request: StartCompositionRequest) => Effect.Effect<ivsrealtime.StartCompositionResponse, ivsrealtime.StartCompositionError>)>> {
+export interface StartComposition extends Binding.Service<StartComposition, "AWS.IVSRealtime.StartComposition", (stage: Stage) => Effect.Effect<(request: StartCompositionRequest) => Effect.Effect<ivsrealtime.StartCompositionResponse, ivsrealtime.StartCompositionError>>> {
 }
 export declare const StartComposition: StartComposition;

@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListOrganizationalUnitsForParent extends Binding.Service<ListOrganizationalUnitsForParent, "AWS.Organizations.ListOrganizationalUnitsForParent", () => Effect.Effect<((request: organizations.ListOrganizationalUnitsForParentRequest) => Effect.Effect<organizations.ListOrganizationalUnitsForParentResponse, organizations.ListOrganizationalUnitsForParentError>)>> {
+export interface ListOrganizationalUnitsForParent extends Binding.Service<ListOrganizationalUnitsForParent, "AWS.Organizations.ListOrganizationalUnitsForParent", () => Effect.Effect<(request: organizations.ListOrganizationalUnitsForParentRequest) => Effect.Effect<organizations.ListOrganizationalUnitsForParentResponse, organizations.ListOrganizationalUnitsForParentError>>> {
 }
 export declare const ListOrganizationalUnitsForParent: ListOrganizationalUnitsForParent;

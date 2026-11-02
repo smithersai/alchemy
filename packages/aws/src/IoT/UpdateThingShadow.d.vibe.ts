@@ -31,6 +31,6 @@ export interface UpdateThingShadowRequest extends Omit<iotdata.UpdateThingShadow
  *
  * @binding
  */
-export interface UpdateThingShadow extends Binding.Service<UpdateThingShadow, "AWS.IoT.UpdateThingShadow", (thing: Thing) => Effect.Effect<((request: UpdateThingShadowRequest) => Effect.Effect<iotdata.UpdateThingShadowResponse, iotdata.UpdateThingShadowError>)>> {
+export interface UpdateThingShadow extends Binding.Service<UpdateThingShadow, "AWS.IoT.UpdateThingShadow", (thing: Thing) => Effect.Effect<(request: UpdateThingShadowRequest) => Effect.Effect<iotdata.UpdateThingShadowResponse, iotdata.UpdateThingShadowError>>> {
 }
 export declare const UpdateThingShadow: UpdateThingShadow;

@@ -24,6 +24,6 @@ export interface GetAdminScopeRequest extends fms.GetAdminScopeRequest {
  *
  * @binding
  */
-export interface GetAdminScope extends Binding.Service<GetAdminScope, "AWS.FMS.GetAdminScope", () => Effect.Effect<((request: GetAdminScopeRequest) => Effect.Effect<fms.GetAdminScopeResponse, fms.GetAdminScopeError>)>> {
+export interface GetAdminScope extends Binding.Service<GetAdminScope, "AWS.FMS.GetAdminScope", () => Effect.Effect<(request: GetAdminScopeRequest) => Effect.Effect<fms.GetAdminScopeResponse, fms.GetAdminScopeError>>> {
 }
 export declare const GetAdminScope: GetAdminScope;

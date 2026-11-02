@@ -30,6 +30,6 @@ import type { Farm } from "./Farm.vibe";
  *
  * @binding
  */
-export interface GetSessionsStatisticsAggregation extends Binding.Service<GetSessionsStatisticsAggregation, "AWS.Deadline.GetSessionsStatisticsAggregation", (farm: Farm) => Effect.Effect<((request: Omit<deadline.GetSessionsStatisticsAggregationRequest, "farmId">) => Effect.Effect<deadline.GetSessionsStatisticsAggregationResponse, deadline.GetSessionsStatisticsAggregationError>)>> {
+export interface GetSessionsStatisticsAggregation extends Binding.Service<GetSessionsStatisticsAggregation, "AWS.Deadline.GetSessionsStatisticsAggregation", (farm: Farm) => Effect.Effect<(request: Omit<deadline.GetSessionsStatisticsAggregationRequest, "farmId">) => Effect.Effect<deadline.GetSessionsStatisticsAggregationResponse, deadline.GetSessionsStatisticsAggregationError>>> {
 }
 export declare const GetSessionsStatisticsAggregation: GetSessionsStatisticsAggregation;

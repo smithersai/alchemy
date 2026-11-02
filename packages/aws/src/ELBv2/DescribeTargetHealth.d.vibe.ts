@@ -33,6 +33,6 @@ export interface DescribeTargetHealthRequest extends Omit<elbv2.DescribeTargetHe
  *
  * @binding
  */
-export interface DescribeTargetHealth extends Binding.Service<DescribeTargetHealth, "AWS.ELBv2.DescribeTargetHealth", (targetGroup: TargetGroup) => Effect.Effect<((request: DescribeTargetHealthRequest) => Effect.Effect<elbv2.DescribeTargetHealthOutput, elbv2.DescribeTargetHealthError>)>> {
+export interface DescribeTargetHealth extends Binding.Service<DescribeTargetHealth, "AWS.ELBv2.DescribeTargetHealth", (targetGroup: TargetGroup) => Effect.Effect<(request: DescribeTargetHealthRequest) => Effect.Effect<elbv2.DescribeTargetHealthOutput, elbv2.DescribeTargetHealthError>>> {
 }
 export declare const DescribeTargetHealth: DescribeTargetHealth;

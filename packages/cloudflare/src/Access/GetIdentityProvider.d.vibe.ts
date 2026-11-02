@@ -2,8 +2,8 @@ import type * as zeroTrust from "@distilled.cloud/cloudflare/zero-trust";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { CloudflareEnvironment } from "../CloudflareEnvironment.js";
-import type { IdentityProviderAttributes, IdentityProviderType } from "./IdentityProvider.js";
+import type { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
+import type { IdentityProviderAttributes, IdentityProviderType } from "./IdentityProvider.ts";
 /**
  * Filters for looking up an existing Access identity provider. At least
  * one of `name` or `type` is required; when both are given the IdP must
@@ -72,7 +72,7 @@ export type FindIdentityProviderOptions = {
  *
  * @binding
  */
-export interface GetIdentityProvider extends Binding.Service<GetIdentityProvider, "Cloudflare.Access.GetIdentityProvider", (options: FindIdentityProviderOptions) => Effect.Effect<(() => Effect.Effect<IdentityProviderAttributes | undefined, zeroTrust.ListIdentityProvidersForAccountError | zeroTrust.ListIdentityProvidersForZoneError, RuntimeContext>), never, CloudflareEnvironment>> {
+export interface GetIdentityProvider extends Binding.Service<GetIdentityProvider, "Cloudflare.Access.GetIdentityProvider", (options: FindIdentityProviderOptions) => Effect.Effect<() => Effect.Effect<IdentityProviderAttributes | undefined, zeroTrust.ListIdentityProvidersForAccountError | zeroTrust.ListIdentityProvidersForZoneError, RuntimeContext>, never, CloudflareEnvironment>> {
 }
 export declare const GetIdentityProvider: GetIdentityProvider;
 /**

@@ -23,6 +23,6 @@ import type { ConfigRule } from "./ConfigRule.vibe";
  *
  * @binding
  */
-export interface StartConfigRulesEvaluation extends Binding.Service<StartConfigRulesEvaluation, "AWS.Config.StartConfigRulesEvaluation", (rule: ConfigRule) => Effect.Effect<(() => Effect.Effect<config.StartConfigRulesEvaluationResponse, config.StartConfigRulesEvaluationError>)>> {
+export interface StartConfigRulesEvaluation extends Binding.Service<StartConfigRulesEvaluation, "AWS.Config.StartConfigRulesEvaluation", (rule: ConfigRule) => Effect.Effect<() => Effect.Effect<config.StartConfigRulesEvaluationResponse, config.StartConfigRulesEvaluationError>>> {
 }
 export declare const StartConfigRulesEvaluation: StartConfigRulesEvaluation;

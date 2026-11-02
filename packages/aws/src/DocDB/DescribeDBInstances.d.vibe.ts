@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeDBInstances extends Binding.Service<DescribeDBInstances, "AWS.DocDB.DescribeDBInstances", () => Effect.Effect<((request?: docdb.DescribeDBInstancesMessage) => Effect.Effect<docdb.DBInstanceMessage, docdb.DescribeDBInstancesError>)>> {
+export interface DescribeDBInstances extends Binding.Service<DescribeDBInstances, "AWS.DocDB.DescribeDBInstances", () => Effect.Effect<(request?: docdb.DescribeDBInstancesMessage) => Effect.Effect<docdb.DBInstanceMessage, docdb.DescribeDBInstancesError>>> {
 }
 export declare const DescribeDBInstances: DescribeDBInstances;

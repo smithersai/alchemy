@@ -1,7 +1,7 @@
 import * as cloudchannel from "@distilled.cloud/gcp/cloudchannel_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type CustomerProps = {
     /**
      * Reseller Cloud Channel account. Full name `accounts/{account}` or

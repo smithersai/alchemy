@@ -1,6 +1,6 @@
 import type { Output } from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
 /**
  * Shared HTTP scaffolding for Oracle Database@Google Cloud bindings.
  * NOT exported from index.ts.

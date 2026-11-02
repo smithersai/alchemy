@@ -24,6 +24,6 @@ import type { Task } from "./Task.vibe";
  *
  * @binding
  */
-export interface DescribeTask extends Binding.Service<DescribeTask, "AWS.DataSync.DescribeTask", (task: Task) => Effect.Effect<(() => Effect.Effect<datasync.DescribeTaskResponse, datasync.DescribeTaskError>)>> {
+export interface DescribeTask extends Binding.Service<DescribeTask, "AWS.DataSync.DescribeTask", (task: Task) => Effect.Effect<() => Effect.Effect<datasync.DescribeTaskResponse, datasync.DescribeTaskError>>> {
 }
 export declare const DescribeTask: DescribeTask;

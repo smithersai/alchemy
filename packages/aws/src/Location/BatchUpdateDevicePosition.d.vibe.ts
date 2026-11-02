@@ -33,6 +33,6 @@ export interface BatchUpdateDevicePositionRequest extends Omit<location.BatchUpd
  *
  * @binding
  */
-export interface BatchUpdateDevicePosition extends Binding.Service<BatchUpdateDevicePosition, "AWS.Location.BatchUpdateDevicePosition", (tracker: Tracker) => Effect.Effect<((request: BatchUpdateDevicePositionRequest) => Effect.Effect<location.BatchUpdateDevicePositionResponse, location.BatchUpdateDevicePositionError>)>> {
+export interface BatchUpdateDevicePosition extends Binding.Service<BatchUpdateDevicePosition, "AWS.Location.BatchUpdateDevicePosition", (tracker: Tracker) => Effect.Effect<(request: BatchUpdateDevicePositionRequest) => Effect.Effect<location.BatchUpdateDevicePositionResponse, location.BatchUpdateDevicePositionError>>> {
 }
 export declare const BatchUpdateDevicePosition: BatchUpdateDevicePosition;

@@ -2,7 +2,7 @@ import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
 import { type ReadDnsClient } from "./ReadDns.vibe";
 import { type WriteDnsClient } from "./WriteDns.vibe";
-import type { Zone } from "./Zone.js";
+import type { Zone } from "./Zone.ts";
 /**
  * Binding that lets runtime code perform the full Hetzner Cloud DNS RRSet
  * surface (read + write).

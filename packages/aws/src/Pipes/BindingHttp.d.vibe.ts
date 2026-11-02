@@ -11,7 +11,7 @@ export declare const makePipesHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.Pipes.StartPipe`. */
     tag: string;
     /** The distilled operation; `Name` is injected from the pipe. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the pipe ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(pipe: Pipe) => Effect.Effect<(request?: Omit<I, "Name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -24,7 +24,7 @@ export declare const makePipesAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.Pipes.ListPipes`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

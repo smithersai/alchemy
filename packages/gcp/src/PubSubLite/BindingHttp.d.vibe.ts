@@ -2,11 +2,11 @@ import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import type { GcpOpContext } from "@distilled.cloud/gcp/pubsublite_v1";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
-import { type BindingIam } from "../HttpBinding.js";
+import { type BindingIam } from "../HttpBinding.ts";
 import type { AdminReservation } from "./AdminReservation.vibe";
 import type { AdminSubscription } from "./AdminSubscription.vibe";
 import type { AdminTopic } from "./AdminTopic.vibe";
-type Op<I, A, E> = Effect.Effect<((input: I) => Effect.Effect<A, E>), never, GcpOpContext>;
+type Op<I, A, E> = Effect.Effect<(input: I) => Effect.Effect<A, E>, never, GcpOpContext>;
 /**
  * Shared HTTP scaffolding for Pub/Sub Lite bindings.
  * NOT exported from index.ts.

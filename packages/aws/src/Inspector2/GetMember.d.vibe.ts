@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetMember extends Binding.Service<GetMember, "AWS.Inspector2.GetMember", () => Effect.Effect<((request: inspector2.GetMemberRequest) => Effect.Effect<inspector2.GetMemberResponse, inspector2.GetMemberError>)>> {
+export interface GetMember extends Binding.Service<GetMember, "AWS.Inspector2.GetMember", () => Effect.Effect<(request: inspector2.GetMemberRequest) => Effect.Effect<inspector2.GetMemberResponse, inspector2.GetMemberError>>> {
 }
 export declare const GetMember: GetMember;

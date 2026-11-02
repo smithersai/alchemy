@@ -3,8 +3,8 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Config from "effect/Config";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
-import type { RailwayS3CredentialsMissing } from "./BucketBinding.js";
+import type { Bucket } from "./Bucket.ts";
+import type { RailwayS3CredentialsMissing } from "./BucketBinding.ts";
 export interface GetObjectRequest extends Omit<S3.GetObjectRequest, "Bucket"> {
 }
 /**
@@ -28,6 +28,6 @@ export interface GetObjectRequest extends Omit<S3.GetObjectRequest, "Bucket"> {
  * @binding
  * @product Bucket
  */
-export interface GetObject extends Binding.Service<GetObject, "Railway.GetObject", (bucket: Bucket) => Effect.Effect<((request?: GetObjectRequest) => Effect.Effect<S3.GetObjectOutput, S3.GetObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>)>> {
+export interface GetObject extends Binding.Service<GetObject, "Railway.GetObject", (bucket: Bucket) => Effect.Effect<(request?: GetObjectRequest) => Effect.Effect<S3.GetObjectOutput, S3.GetObjectError | Config.ConfigError | RailwayS3CredentialsMissing, RuntimeContext>>> {
 }
 export declare const GetObject: GetObject;

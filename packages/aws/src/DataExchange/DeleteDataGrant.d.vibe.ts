@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteDataGrant extends Binding.Service<DeleteDataGrant, "AWS.DataExchange.DeleteDataGrant", () => Effect.Effect<((request: dataexchange.DeleteDataGrantRequest) => Effect.Effect<dataexchange.DeleteDataGrantResponse, dataexchange.DeleteDataGrantError>)>> {
+export interface DeleteDataGrant extends Binding.Service<DeleteDataGrant, "AWS.DataExchange.DeleteDataGrant", () => Effect.Effect<(request: dataexchange.DeleteDataGrantRequest) => Effect.Effect<dataexchange.DeleteDataGrantResponse, dataexchange.DeleteDataGrantError>>> {
 }
 export declare const DeleteDataGrant: DeleteDataGrant;

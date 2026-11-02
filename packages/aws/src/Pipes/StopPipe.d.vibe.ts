@@ -24,6 +24,6 @@ import type { Pipe } from "./Pipe.vibe";
  *
  * @binding
  */
-export interface StopPipe extends Binding.Service<StopPipe, "AWS.Pipes.StopPipe", (pipe: Pipe) => Effect.Effect<(() => Effect.Effect<pipes.StopPipeResponse, pipes.StopPipeError>)>> {
+export interface StopPipe extends Binding.Service<StopPipe, "AWS.Pipes.StopPipe", (pipe: Pipe) => Effect.Effect<() => Effect.Effect<pipes.StopPipeResponse, pipes.StopPipeError>>> {
 }
 export declare const StopPipe: StopPipe;

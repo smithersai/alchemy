@@ -1,7 +1,7 @@
 import type * as ec2 from "@distilled.cloud/aws/ec2";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 /**
  * `StartInstances` request with `InstanceIds` injected from the bound
  * {@link Instance}.
@@ -29,6 +29,6 @@ export interface StartInstanceRequest extends Omit<ec2.StartInstancesRequest, "I
  *
  * @binding
  */
-export interface StartInstance extends Binding.Service<StartInstance, "AWS.EC2.StartInstance", (instance: Instance) => Effect.Effect<((request?: StartInstanceRequest) => Effect.Effect<ec2.StartInstancesResult, ec2.StartInstancesError>)>> {
+export interface StartInstance extends Binding.Service<StartInstance, "AWS.EC2.StartInstance", (instance: Instance) => Effect.Effect<(request?: StartInstanceRequest) => Effect.Effect<ec2.StartInstancesResult, ec2.StartInstancesError>>> {
 }
 export declare const StartInstance: StartInstance;

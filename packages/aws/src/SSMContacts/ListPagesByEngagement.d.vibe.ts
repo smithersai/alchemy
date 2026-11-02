@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListPagesByEngagement extends Binding.Service<ListPagesByEngagement, "AWS.SSMContacts.ListPagesByEngagement", () => Effect.Effect<((request: ssm.ListPagesByEngagementRequest) => Effect.Effect<ssm.ListPagesByEngagementResult, ssm.ListPagesByEngagementError>)>> {
+export interface ListPagesByEngagement extends Binding.Service<ListPagesByEngagement, "AWS.SSMContacts.ListPagesByEngagement", () => Effect.Effect<(request: ssm.ListPagesByEngagementRequest) => Effect.Effect<ssm.ListPagesByEngagementResult, ssm.ListPagesByEngagementError>>> {
 }
 export declare const ListPagesByEngagement: ListPagesByEngagement;

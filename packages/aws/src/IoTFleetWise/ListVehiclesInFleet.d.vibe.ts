@@ -26,6 +26,6 @@ export interface ListVehiclesInFleetRequest extends Omit<iotfleetwise.ListVehicl
  *
  * @binding
  */
-export interface ListVehiclesInFleet extends Binding.Service<ListVehiclesInFleet, "AWS.IoTFleetWise.ListVehiclesInFleet", (fleet: Fleet) => Effect.Effect<((request?: ListVehiclesInFleetRequest) => Effect.Effect<iotfleetwise.ListVehiclesInFleetResponse, iotfleetwise.ListVehiclesInFleetError>)>> {
+export interface ListVehiclesInFleet extends Binding.Service<ListVehiclesInFleet, "AWS.IoTFleetWise.ListVehiclesInFleet", (fleet: Fleet) => Effect.Effect<(request?: ListVehiclesInFleetRequest) => Effect.Effect<iotfleetwise.ListVehiclesInFleetResponse, iotfleetwise.ListVehiclesInFleetError>>> {
 }
 export declare const ListVehiclesInFleet: ListVehiclesInFleet;

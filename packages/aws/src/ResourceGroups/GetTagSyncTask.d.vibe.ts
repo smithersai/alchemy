@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetTagSyncTask extends Binding.Service<GetTagSyncTask, "AWS.ResourceGroups.GetTagSyncTask", () => Effect.Effect<((request: resourcegroups.GetTagSyncTaskInput) => Effect.Effect<resourcegroups.GetTagSyncTaskOutput, resourcegroups.GetTagSyncTaskError>)>> {
+export interface GetTagSyncTask extends Binding.Service<GetTagSyncTask, "AWS.ResourceGroups.GetTagSyncTask", () => Effect.Effect<(request: resourcegroups.GetTagSyncTaskInput) => Effect.Effect<resourcegroups.GetTagSyncTaskOutput, resourcegroups.GetTagSyncTaskError>>> {
 }
 export declare const GetTagSyncTask: GetTagSyncTask;

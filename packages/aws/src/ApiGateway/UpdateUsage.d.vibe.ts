@@ -29,6 +29,6 @@ export interface UpdateUsageRequest extends Omit<ag.UpdateUsageRequest, "usagePl
  *
  * @binding
  */
-export interface UpdateUsage extends Binding.Service<UpdateUsage, "AWS.ApiGateway.UpdateUsage", <P extends UsagePlan>(usagePlan: P) => Effect.Effect<((request: UpdateUsageRequest) => Effect.Effect<ag.Usage, ag.UpdateUsageError>)>> {
+export interface UpdateUsage extends Binding.Service<UpdateUsage, "AWS.ApiGateway.UpdateUsage", <P extends UsagePlan>(usagePlan: P) => Effect.Effect<(request: UpdateUsageRequest) => Effect.Effect<ag.Usage, ag.UpdateUsageError>>> {
 }
 export declare const UpdateUsage: UpdateUsage;

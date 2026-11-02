@@ -2,7 +2,7 @@ import type * as scheduler from "@distilled.cloud/gcp/cloudscheduler_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Job } from "./Job.js";
+import type { Job } from "./Job.ts";
 export interface PauseJobRequest extends Omit<scheduler.PauseProjectsLocationsJobsRequest, "name"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface PauseJobRequest extends Omit<scheduler.PauseProjectsLocationsJo
  * @binding
  * @category CloudScheduler
  */
-export interface PauseJob extends Binding.Service<PauseJob, "GCP.CloudScheduler.PauseJob", (job: Job) => Effect.Effect<((request?: PauseJobRequest) => Effect.Effect<scheduler.Job, scheduler.PauseProjectsLocationsJobsError, RuntimeContext>)>> {
+export interface PauseJob extends Binding.Service<PauseJob, "GCP.CloudScheduler.PauseJob", (job: Job) => Effect.Effect<(request?: PauseJobRequest) => Effect.Effect<scheduler.Job, scheduler.PauseProjectsLocationsJobsError, RuntimeContext>>> {
 }
 export declare const PauseJob: PauseJob;

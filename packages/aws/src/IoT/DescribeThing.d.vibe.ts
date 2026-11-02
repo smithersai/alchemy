@@ -22,6 +22,6 @@ export interface DescribeThingRequest extends Omit<iot.DescribeThingRequest, "th
  *
  * @binding
  */
-export interface DescribeThing extends Binding.Service<DescribeThing, "AWS.IoT.DescribeThing", (thing: Thing) => Effect.Effect<((request?: DescribeThingRequest) => Effect.Effect<iot.DescribeThingResponse, iot.DescribeThingError>)>> {
+export interface DescribeThing extends Binding.Service<DescribeThing, "AWS.IoT.DescribeThing", (thing: Thing) => Effect.Effect<(request?: DescribeThingRequest) => Effect.Effect<iot.DescribeThingResponse, iot.DescribeThingError>>> {
 }
 export declare const DescribeThing: DescribeThing;

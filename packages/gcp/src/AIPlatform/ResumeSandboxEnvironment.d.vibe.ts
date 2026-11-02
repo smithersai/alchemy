@@ -21,6 +21,6 @@ export interface ResumeSandboxEnvironmentRequest extends Omit<aiplatform.ResumeR
  * @binding
  * @category AIPlatform
  */
-export interface ResumeSandboxEnvironment extends Binding.Service<ResumeSandboxEnvironment, "GCP.AIPlatform.ResumeSandboxEnvironment", (sandbox: ReasoningEnginesSandboxEnvironment) => Effect.Effect<((request?: ResumeSandboxEnvironmentRequest) => Effect.Effect<aiplatform.GoogleLongrunningOperation, aiplatform.ResumeReasoningEnginesSandboxEnvironmentsError, RuntimeContext>)>> {
+export interface ResumeSandboxEnvironment extends Binding.Service<ResumeSandboxEnvironment, "GCP.AIPlatform.ResumeSandboxEnvironment", (sandbox: ReasoningEnginesSandboxEnvironment) => Effect.Effect<(request?: ResumeSandboxEnvironmentRequest) => Effect.Effect<aiplatform.GoogleLongrunningOperation, aiplatform.ResumeReasoningEnginesSandboxEnvironmentsError, RuntimeContext>>> {
 }
 export declare const ResumeSandboxEnvironment: ResumeSandboxEnvironment;

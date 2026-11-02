@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import type { DBCluster } from "../RDS/DBCluster.js";
-import type { Secret } from "../SecretsManager/Secret.js";
+import type { DBCluster } from "../RDS/DBCluster.ts";
+import type { Secret } from "../SecretsManager/Secret.ts";
 /**
  * The common bind-time options every RDS Data API capability accepts: the
  * credentials secret, plus the optional default `database`/`schema` injected
@@ -24,7 +24,7 @@ export declare const makeRDSDataHttpBinding: <Req, I, A, E, R>(options: {
     /** IAM action granted on the cluster + secret ARNs, e.g. `rds-data:ExecuteStatement`. */
     action: string;
     /** The distilled operation invoked with the shaped wire request. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /**
      * Shape the wire request from the caller's request plus the resolved
      * cluster/secret ARNs and the bind-time `database`/`schema`.

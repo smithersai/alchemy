@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetPendingMaintenanceAction extends Binding.Service<GetPendingMaintenanceAction, "AWS.DocDBElastic.GetPendingMaintenanceAction", () => Effect.Effect<((request: docdbelastic.GetPendingMaintenanceActionInput) => Effect.Effect<docdbelastic.GetPendingMaintenanceActionOutput, docdbelastic.GetPendingMaintenanceActionError>)>> {
+export interface GetPendingMaintenanceAction extends Binding.Service<GetPendingMaintenanceAction, "AWS.DocDBElastic.GetPendingMaintenanceAction", () => Effect.Effect<(request: docdbelastic.GetPendingMaintenanceActionInput) => Effect.Effect<docdbelastic.GetPendingMaintenanceActionOutput, docdbelastic.GetPendingMaintenanceActionError>>> {
 }
 export declare const GetPendingMaintenanceAction: GetPendingMaintenanceAction;

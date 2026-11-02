@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribePendingMaintenanceActions extends Binding.Service<DescribePendingMaintenanceActions, "AWS.Neptune.DescribePendingMaintenanceActions", () => Effect.Effect<((request?: neptune.DescribePendingMaintenanceActionsMessage) => Effect.Effect<neptune.PendingMaintenanceActionsMessage, neptune.DescribePendingMaintenanceActionsError>)>> {
+export interface DescribePendingMaintenanceActions extends Binding.Service<DescribePendingMaintenanceActions, "AWS.Neptune.DescribePendingMaintenanceActions", () => Effect.Effect<(request?: neptune.DescribePendingMaintenanceActionsMessage) => Effect.Effect<neptune.PendingMaintenanceActionsMessage, neptune.DescribePendingMaintenanceActionsError>>> {
 }
 export declare const DescribePendingMaintenanceActions: DescribePendingMaintenanceActions;

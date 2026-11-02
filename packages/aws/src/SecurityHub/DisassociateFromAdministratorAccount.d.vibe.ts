@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DisassociateFromAdministratorAccount extends Binding.Service<DisassociateFromAdministratorAccount, "AWS.SecurityHub.DisassociateFromAdministratorAccount", () => Effect.Effect<((request?: securityhub.DisassociateFromAdministratorAccountRequest) => Effect.Effect<securityhub.DisassociateFromAdministratorAccountResponse, securityhub.DisassociateFromAdministratorAccountError>)>> {
+export interface DisassociateFromAdministratorAccount extends Binding.Service<DisassociateFromAdministratorAccount, "AWS.SecurityHub.DisassociateFromAdministratorAccount", () => Effect.Effect<(request?: securityhub.DisassociateFromAdministratorAccountRequest) => Effect.Effect<securityhub.DisassociateFromAdministratorAccountResponse, securityhub.DisassociateFromAdministratorAccountError>>> {
 }
 export declare const DisassociateFromAdministratorAccount: DisassociateFromAdministratorAccount;

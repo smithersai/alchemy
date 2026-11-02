@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { Cluster } from "./Cluster.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
+import type { Cluster } from "./Cluster.ts";
 /**
  * Shared HTTP scaffolding for Dataproc cluster bindings.
  * NOT exported from index.ts.

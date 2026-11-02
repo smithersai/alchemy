@@ -16,6 +16,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface StopBuild extends Binding.Service<StopBuild, "AWS.CodeBuild.StopBuild", <P extends Project>(project: P) => Effect.Effect<((request: SVC.StopBuildInput) => Effect.Effect<SVC.StopBuildOutput, SVC.StopBuildError>)>> {
+export interface StopBuild extends Binding.Service<StopBuild, "AWS.CodeBuild.StopBuild", <P extends Project>(project: P) => Effect.Effect<(request: SVC.StopBuildInput) => Effect.Effect<SVC.StopBuildOutput, SVC.StopBuildError>>> {
 }
 export declare const StopBuild: StopBuild;

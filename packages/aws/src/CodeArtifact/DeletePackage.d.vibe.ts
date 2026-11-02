@@ -27,6 +27,6 @@ export interface DeletePackageRequest extends Omit<codeartifact.DeletePackageReq
  *
  * @binding
  */
-export interface DeletePackage extends Binding.Service<DeletePackage, "AWS.CodeArtifact.DeletePackage", (repository: Repository) => Effect.Effect<((request: DeletePackageRequest) => Effect.Effect<codeartifact.DeletePackageResult, codeartifact.DeletePackageError>)>> {
+export interface DeletePackage extends Binding.Service<DeletePackage, "AWS.CodeArtifact.DeletePackage", (repository: Repository) => Effect.Effect<(request: DeletePackageRequest) => Effect.Effect<codeartifact.DeletePackageResult, codeartifact.DeletePackageError>>> {
 }
 export declare const DeletePackage: DeletePackage;

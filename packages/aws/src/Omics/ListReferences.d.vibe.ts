@@ -22,6 +22,6 @@ export interface ListReferencesRequest extends Omit<omics.ListReferencesRequest,
  *
  * @binding
  */
-export interface ListReferences extends Binding.Service<ListReferences, "AWS.Omics.ListReferences", (store: ReferenceStore) => Effect.Effect<((request?: ListReferencesRequest) => Effect.Effect<omics.ListReferencesResponse, omics.ListReferencesError>)>> {
+export interface ListReferences extends Binding.Service<ListReferences, "AWS.Omics.ListReferences", (store: ReferenceStore) => Effect.Effect<(request?: ListReferencesRequest) => Effect.Effect<omics.ListReferencesResponse, omics.ListReferencesError>>> {
 }
 export declare const ListReferences: ListReferences;

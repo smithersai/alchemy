@@ -1,7 +1,7 @@
 import type * as aa from "@distilled.cloud/aws/accessanalyzer";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Analyzer } from "./Analyzer.js";
+import type { Analyzer } from "./Analyzer.ts";
 /** `GenerateFindingRecommendation` request with `analyzerArn` injected from the bound {@link Analyzer}. */
 export interface GenerateFindingRecommendationRequest extends Omit<aa.GenerateFindingRecommendationRequest, "analyzerArn"> {
 }
@@ -21,6 +21,6 @@ export interface GenerateFindingRecommendationRequest extends Omit<aa.GenerateFi
  *
  * @binding
  */
-export interface GenerateFindingRecommendation extends Binding.Service<GenerateFindingRecommendation, "AWS.AccessAnalyzer.GenerateFindingRecommendation", (analyzer: Analyzer) => Effect.Effect<((request: GenerateFindingRecommendationRequest) => Effect.Effect<aa.GenerateFindingRecommendationResponse, aa.GenerateFindingRecommendationError>)>> {
+export interface GenerateFindingRecommendation extends Binding.Service<GenerateFindingRecommendation, "AWS.AccessAnalyzer.GenerateFindingRecommendation", (analyzer: Analyzer) => Effect.Effect<(request: GenerateFindingRecommendationRequest) => Effect.Effect<aa.GenerateFindingRecommendationResponse, aa.GenerateFindingRecommendationError>>> {
 }
 export declare const GenerateFindingRecommendation: GenerateFindingRecommendation;

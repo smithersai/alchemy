@@ -41,6 +41,6 @@ export interface InvokeRestApiRequest extends Omit<mwaa.InvokeRestApiRequest, "N
  *
  * @binding
  */
-export interface InvokeRestApi extends Binding.Service<InvokeRestApi, "AWS.MWAA.InvokeRestApi", (environment: Environment, options?: AirflowRoleOptions) => Effect.Effect<((request: InvokeRestApiRequest) => Effect.Effect<mwaa.InvokeRestApiResponse, mwaa.InvokeRestApiError>)>> {
+export interface InvokeRestApi extends Binding.Service<InvokeRestApi, "AWS.MWAA.InvokeRestApi", (environment: Environment, options?: AirflowRoleOptions) => Effect.Effect<(request: InvokeRestApiRequest) => Effect.Effect<mwaa.InvokeRestApiResponse, mwaa.InvokeRestApiError>>> {
 }
 export declare const InvokeRestApi: InvokeRestApi;

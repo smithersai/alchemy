@@ -1,7 +1,7 @@
 import type * as transcribe from "@distilled.cloud/aws/transcribe";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 /**
  * `StartCallAnalyticsJob` request with `DataAccessRoleArn` defaulting to the role the
  * binding was constructed with.
@@ -38,6 +38,6 @@ export interface StartCallAnalyticsJobRequest extends Omit<transcribe.StartCallA
  *
  * @binding
  */
-export interface StartCallAnalyticsJob extends Binding.Service<StartCallAnalyticsJob, "AWS.Transcribe.StartCallAnalyticsJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<((request: StartCallAnalyticsJobRequest) => Effect.Effect<transcribe.StartCallAnalyticsJobResponse, transcribe.StartCallAnalyticsJobError>)>> {
+export interface StartCallAnalyticsJob extends Binding.Service<StartCallAnalyticsJob, "AWS.Transcribe.StartCallAnalyticsJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<(request: StartCallAnalyticsJobRequest) => Effect.Effect<transcribe.StartCallAnalyticsJobResponse, transcribe.StartCallAnalyticsJobError>>> {
 }
 export declare const StartCallAnalyticsJob: StartCallAnalyticsJob;

@@ -22,6 +22,6 @@ import type { DBInstance } from "./DBInstance.vibe";
  *
  * @binding
  */
-export interface RebootDBInstance extends Binding.Service<RebootDBInstance, "AWS.DocDB.RebootDBInstance", (instance: DBInstance) => Effect.Effect<((request?: Omit<docdb.RebootDBInstanceMessage, "DBInstanceIdentifier">) => Effect.Effect<docdb.RebootDBInstanceResult, docdb.RebootDBInstanceError>)>> {
+export interface RebootDBInstance extends Binding.Service<RebootDBInstance, "AWS.DocDB.RebootDBInstance", (instance: DBInstance) => Effect.Effect<(request?: Omit<docdb.RebootDBInstanceMessage, "DBInstanceIdentifier">) => Effect.Effect<docdb.RebootDBInstanceResult, docdb.RebootDBInstanceError>>> {
 }
 export declare const RebootDBInstance: RebootDBInstance;

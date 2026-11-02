@@ -29,6 +29,6 @@ export interface PutPackageOriginConfigurationRequest extends Omit<codeartifact.
  *
  * @binding
  */
-export interface PutPackageOriginConfiguration extends Binding.Service<PutPackageOriginConfiguration, "AWS.CodeArtifact.PutPackageOriginConfiguration", (repository: Repository) => Effect.Effect<((request: PutPackageOriginConfigurationRequest) => Effect.Effect<codeartifact.PutPackageOriginConfigurationResult, codeartifact.PutPackageOriginConfigurationError>)>> {
+export interface PutPackageOriginConfiguration extends Binding.Service<PutPackageOriginConfiguration, "AWS.CodeArtifact.PutPackageOriginConfiguration", (repository: Repository) => Effect.Effect<(request: PutPackageOriginConfigurationRequest) => Effect.Effect<codeartifact.PutPackageOriginConfigurationResult, codeartifact.PutPackageOriginConfigurationError>>> {
 }
 export declare const PutPackageOriginConfiguration: PutPackageOriginConfiguration;

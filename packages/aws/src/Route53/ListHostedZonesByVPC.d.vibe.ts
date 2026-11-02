@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListHostedZonesByVPC extends Binding.Service<ListHostedZonesByVPC, "AWS.Route53.ListHostedZonesByVPC", () => Effect.Effect<((request: route53.ListHostedZonesByVPCRequest) => Effect.Effect<route53.ListHostedZonesByVPCResponse, route53.ListHostedZonesByVPCError>)>> {
+export interface ListHostedZonesByVPC extends Binding.Service<ListHostedZonesByVPC, "AWS.Route53.ListHostedZonesByVPC", () => Effect.Effect<(request: route53.ListHostedZonesByVPCRequest) => Effect.Effect<route53.ListHostedZonesByVPCResponse, route53.ListHostedZonesByVPCError>>> {
 }
 export declare const ListHostedZonesByVPC: ListHostedZonesByVPC;

@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StopExperiment extends Binding.Service<StopExperiment, "AWS.FIS.StopExperiment", () => Effect.Effect<((request: fis.StopExperimentRequest) => Effect.Effect<fis.StopExperimentResponse, fis.StopExperimentError>)>> {
+export interface StopExperiment extends Binding.Service<StopExperiment, "AWS.FIS.StopExperiment", () => Effect.Effect<(request: fis.StopExperimentRequest) => Effect.Effect<fis.StopExperimentResponse, fis.StopExperimentError>>> {
 }
 export declare const StopExperiment: StopExperiment;

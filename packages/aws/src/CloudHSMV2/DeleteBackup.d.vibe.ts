@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteBackup extends Binding.Service<DeleteBackup, "AWS.CloudHSMV2.DeleteBackup", () => Effect.Effect<((request: cloudhsm.DeleteBackupRequest) => Effect.Effect<cloudhsm.DeleteBackupResponse, cloudhsm.DeleteBackupError>)>> {
+export interface DeleteBackup extends Binding.Service<DeleteBackup, "AWS.CloudHSMV2.DeleteBackup", () => Effect.Effect<(request: cloudhsm.DeleteBackupRequest) => Effect.Effect<cloudhsm.DeleteBackupResponse, cloudhsm.DeleteBackupError>>> {
 }
 export declare const DeleteBackup: DeleteBackup;

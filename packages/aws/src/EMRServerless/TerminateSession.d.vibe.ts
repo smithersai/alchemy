@@ -1,7 +1,7 @@
 import type * as emr from "@distilled.cloud/aws/emr-serverless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 /**
  * Request accepted by the {@link TerminateSession} runtime callable. The
  * `applicationId` is injected from the bound {@link Application}.
@@ -26,6 +26,6 @@ export type TerminateSessionInput = Omit<emr.TerminateSessionRequest, "applicati
  *
  * @binding
  */
-export interface TerminateSession extends Binding.Service<TerminateSession, "AWS.EMRServerless.TerminateSession", (application: Application) => Effect.Effect<((request: TerminateSessionInput) => Effect.Effect<emr.TerminateSessionResponse, emr.TerminateSessionError>)>> {
+export interface TerminateSession extends Binding.Service<TerminateSession, "AWS.EMRServerless.TerminateSession", (application: Application) => Effect.Effect<(request: TerminateSessionInput) => Effect.Effect<emr.TerminateSessionResponse, emr.TerminateSessionError>>> {
 }
 export declare const TerminateSession: TerminateSession;

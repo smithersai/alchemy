@@ -43,6 +43,6 @@ export interface SendEventRequest extends Omit<ivschat.SendEventRequest, "roomId
  *
  * @binding
  */
-export interface SendEvent extends Binding.Service<SendEvent, "AWS.IVSChat.SendEvent", (room: Room) => Effect.Effect<((request: SendEventRequest) => Effect.Effect<ivschat.SendEventResponse, ivschat.SendEventError>)>> {
+export interface SendEvent extends Binding.Service<SendEvent, "AWS.IVSChat.SendEvent", (room: Room) => Effect.Effect<(request: SendEventRequest) => Effect.Effect<ivschat.SendEventResponse, ivschat.SendEventError>>> {
 }
 export declare const SendEvent: SendEvent;

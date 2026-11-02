@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetServiceLastAccessedDetailsWithEntities extends Binding.Service<GetServiceLastAccessedDetailsWithEntities, "AWS.IAM.GetServiceLastAccessedDetailsWithEntities", () => Effect.Effect<((request: iam.GetServiceLastAccessedDetailsWithEntitiesRequest) => Effect.Effect<iam.GetServiceLastAccessedDetailsWithEntitiesResponse, iam.GetServiceLastAccessedDetailsWithEntitiesError>)>> {
+export interface GetServiceLastAccessedDetailsWithEntities extends Binding.Service<GetServiceLastAccessedDetailsWithEntities, "AWS.IAM.GetServiceLastAccessedDetailsWithEntities", () => Effect.Effect<(request: iam.GetServiceLastAccessedDetailsWithEntitiesRequest) => Effect.Effect<iam.GetServiceLastAccessedDetailsWithEntitiesResponse, iam.GetServiceLastAccessedDetailsWithEntitiesError>>> {
 }
 export declare const GetServiceLastAccessedDetailsWithEntities: GetServiceLastAccessedDetailsWithEntities;

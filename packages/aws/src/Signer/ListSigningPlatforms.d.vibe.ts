@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListSigningPlatforms extends Binding.Service<ListSigningPlatforms, "AWS.Signer.ListSigningPlatforms", () => Effect.Effect<((request?: signer.ListSigningPlatformsRequest) => Effect.Effect<signer.ListSigningPlatformsResponse, signer.ListSigningPlatformsError>)>> {
+export interface ListSigningPlatforms extends Binding.Service<ListSigningPlatforms, "AWS.Signer.ListSigningPlatforms", () => Effect.Effect<(request?: signer.ListSigningPlatformsRequest) => Effect.Effect<signer.ListSigningPlatformsResponse, signer.ListSigningPlatformsError>>> {
 }
 export declare const ListSigningPlatforms: ListSigningPlatforms;

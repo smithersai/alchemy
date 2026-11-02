@@ -27,6 +27,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetBlueprintOptimizationStatus extends Binding.Service<GetBlueprintOptimizationStatus, "AWS.BedrockDataAutomation.GetBlueprintOptimizationStatus", () => Effect.Effect<((request: bda.GetBlueprintOptimizationStatusRequest) => Effect.Effect<bda.GetBlueprintOptimizationStatusResponse, bda.GetBlueprintOptimizationStatusError>)>> {
+export interface GetBlueprintOptimizationStatus extends Binding.Service<GetBlueprintOptimizationStatus, "AWS.BedrockDataAutomation.GetBlueprintOptimizationStatus", () => Effect.Effect<(request: bda.GetBlueprintOptimizationStatusRequest) => Effect.Effect<bda.GetBlueprintOptimizationStatusResponse, bda.GetBlueprintOptimizationStatusError>>> {
 }
 export declare const GetBlueprintOptimizationStatus: GetBlueprintOptimizationStatus;

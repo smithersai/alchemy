@@ -18,6 +18,6 @@ export interface ListPlatformApplicationsRequest extends sns.ListPlatformApplica
  *
  * @binding
  */
-export interface ListPlatformApplications extends Binding.Service<ListPlatformApplications, "AWS.SNS.ListPlatformApplications", () => Effect.Effect<((request?: ListPlatformApplicationsRequest) => Effect.Effect<sns.ListPlatformApplicationsResponse, sns.ListPlatformApplicationsError>)>> {
+export interface ListPlatformApplications extends Binding.Service<ListPlatformApplications, "AWS.SNS.ListPlatformApplications", () => Effect.Effect<(request?: ListPlatformApplicationsRequest) => Effect.Effect<sns.ListPlatformApplicationsResponse, sns.ListPlatformApplicationsError>>> {
 }
 export declare const ListPlatformApplications: ListPlatformApplications;

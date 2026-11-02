@@ -2,7 +2,7 @@ import type * as Search from "@distilled.cloud/github/search";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Repository } from "./Repository.js";
+import type { Repository } from "./Repository.ts";
 /**
  * GitHub search syntax without the repository qualifier; the binding adds
  * `repo:{owner}/{name}`.
@@ -28,6 +28,6 @@ export type SearchIssuesResponse = Search.IssuesAndPullRequestsResponse;
  * @binding
  * @product Issue
  */
-export interface SearchIssues extends Binding.Service<SearchIssues, "GitHub.SearchIssues", (repo: Repository) => Effect.Effect<((request: SearchIssuesRequest) => Effect.Effect<SearchIssuesResponse, Search.IssuesAndPullRequestsError, RuntimeContext>)>> {
+export interface SearchIssues extends Binding.Service<SearchIssues, "GitHub.SearchIssues", (repo: Repository) => Effect.Effect<(request: SearchIssuesRequest) => Effect.Effect<SearchIssuesResponse, Search.IssuesAndPullRequestsError, RuntimeContext>>> {
 }
 export declare const SearchIssues: SearchIssues;

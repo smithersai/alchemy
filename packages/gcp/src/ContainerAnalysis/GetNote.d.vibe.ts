@@ -21,6 +21,6 @@ export interface GetNoteRequest extends Omit<containeranalysis.GetProjectsNotesR
  * @binding
  * @category ContainerAnalysis
  */
-export interface GetNote extends Binding.Service<GetNote, "GCP.ContainerAnalysis.GetNote", (note: Note) => Effect.Effect<((request?: GetNoteRequest) => Effect.Effect<containeranalysis.Note, containeranalysis.GetProjectsNotesError, RuntimeContext>)>> {
+export interface GetNote extends Binding.Service<GetNote, "GCP.ContainerAnalysis.GetNote", (note: Note) => Effect.Effect<(request?: GetNoteRequest) => Effect.Effect<containeranalysis.Note, containeranalysis.GetProjectsNotesError, RuntimeContext>>> {
 }
 export declare const GetNote: GetNote;

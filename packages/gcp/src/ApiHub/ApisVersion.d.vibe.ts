@@ -1,9 +1,9 @@
 import * as apihub from "@distilled.cloud/gcp/apihub_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { type AttributeValues, type AttributeValuesMap, type Documentation } from "./internal.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { type AttributeValues, type AttributeValuesMap, type Documentation } from "./internal.ts";
 export type ApisVersionProps = {
     /**
      * Parent API. Full name

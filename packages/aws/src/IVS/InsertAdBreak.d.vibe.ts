@@ -1,7 +1,7 @@
 import type * as ivs from "@distilled.cloud/aws/ivs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Channel } from "./Channel.js";
+import type { Channel } from "./Channel.ts";
 export interface InsertAdBreakRequest extends Omit<ivs.InsertAdBreakRequest, "channelArn"> {
 }
 /**
@@ -25,6 +25,6 @@ export interface InsertAdBreakRequest extends Omit<ivs.InsertAdBreakRequest, "ch
  *
  * @binding
  */
-export interface InsertAdBreak extends Binding.Service<InsertAdBreak, "AWS.IVS.InsertAdBreak", (channel: Channel) => Effect.Effect<((request: InsertAdBreakRequest) => Effect.Effect<ivs.InsertAdBreakResponse, ivs.InsertAdBreakError>)>> {
+export interface InsertAdBreak extends Binding.Service<InsertAdBreak, "AWS.IVS.InsertAdBreak", (channel: Channel) => Effect.Effect<(request: InsertAdBreakRequest) => Effect.Effect<ivs.InsertAdBreakResponse, ivs.InsertAdBreakError>>> {
 }
 export declare const InsertAdBreak: InsertAdBreak;

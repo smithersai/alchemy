@@ -22,6 +22,6 @@ export interface GetReadSetMetadataRequest extends Omit<omics.GetReadSetMetadata
  *
  * @binding
  */
-export interface GetReadSetMetadata extends Binding.Service<GetReadSetMetadata, "AWS.Omics.GetReadSetMetadata", (store: SequenceStore) => Effect.Effect<((request?: GetReadSetMetadataRequest) => Effect.Effect<omics.GetReadSetMetadataResponse, omics.GetReadSetMetadataError>)>> {
+export interface GetReadSetMetadata extends Binding.Service<GetReadSetMetadata, "AWS.Omics.GetReadSetMetadata", (store: SequenceStore) => Effect.Effect<(request?: GetReadSetMetadataRequest) => Effect.Effect<omics.GetReadSetMetadataResponse, omics.GetReadSetMetadataError>>> {
 }
 export declare const GetReadSetMetadata: GetReadSetMetadata;

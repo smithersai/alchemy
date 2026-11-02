@@ -30,6 +30,6 @@ export interface DescribeServicesRequest extends pricing.DescribeServicesRequest
  *
  * @binding
  */
-export interface DescribeServices extends Binding.Service<DescribeServices, "AWS.Pricing.DescribeServices", () => Effect.Effect<((request?: DescribeServicesRequest) => Effect.Effect<pricing.DescribeServicesResponse, pricing.DescribeServicesError>)>> {
+export interface DescribeServices extends Binding.Service<DescribeServices, "AWS.Pricing.DescribeServices", () => Effect.Effect<(request?: DescribeServicesRequest) => Effect.Effect<pricing.DescribeServicesResponse, pricing.DescribeServicesError>>> {
 }
 export declare const DescribeServices: DescribeServices;

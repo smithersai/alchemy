@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteAccessPoint extends Binding.Service<DeleteAccessPoint, "AWS.EFS.DeleteAccessPoint", () => Effect.Effect<((request: efs.DeleteAccessPointRequest) => Effect.Effect<efs.DeleteAccessPointResponse, efs.DeleteAccessPointError>)>> {
+export interface DeleteAccessPoint extends Binding.Service<DeleteAccessPoint, "AWS.EFS.DeleteAccessPoint", () => Effect.Effect<(request: efs.DeleteAccessPointRequest) => Effect.Effect<efs.DeleteAccessPointResponse, efs.DeleteAccessPointError>>> {
 }
 export declare const DeleteAccessPoint: DeleteAccessPoint;

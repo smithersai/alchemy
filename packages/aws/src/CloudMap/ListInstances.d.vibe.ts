@@ -28,6 +28,6 @@ export interface ListInstancesRequest extends Omit<SD.ListInstancesRequest, "Ser
  *
  * @binding
  */
-export interface ListInstances extends Binding.Service<ListInstances, "AWS.CloudMap.ListInstances", <S extends Service>(service: S) => Effect.Effect<((request?: ListInstancesRequest) => Effect.Effect<SD.ListInstancesResponse, SD.ListInstancesError>)>> {
+export interface ListInstances extends Binding.Service<ListInstances, "AWS.CloudMap.ListInstances", <S extends Service>(service: S) => Effect.Effect<(request?: ListInstancesRequest) => Effect.Effect<SD.ListInstancesResponse, SD.ListInstancesError>>> {
 }
 export declare const ListInstances: ListInstances;

@@ -12,7 +12,7 @@ export declare const makeEmailContactHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.NotificationsContacts.SendActivationCode`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the email contact ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(contact: EmailContact) => Effect.Effect<(request?: Req | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

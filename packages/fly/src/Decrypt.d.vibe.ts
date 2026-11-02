@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { SecretKey } from "./SecretKey.js";
+import type { SecretKey } from "./SecretKey.ts";
 export interface DecryptRequest {
     /** Ciphertext produced by {@link Encrypt}. */
     ciphertext: Uint8Array | ArrayLike<number>;
@@ -45,6 +45,6 @@ export interface DecryptResult {
  * @binding
  * @product Secret Key
  */
-export interface Decrypt extends Binding.Service<Decrypt, "Fly.Decrypt", (key: SecretKey) => Effect.Effect<((request: DecryptRequest) => Effect.Effect<DecryptResult, DecryptSecretKeyError, RuntimeContext>)>> {
+export interface Decrypt extends Binding.Service<Decrypt, "Fly.Decrypt", (key: SecretKey) => Effect.Effect<(request: DecryptRequest) => Effect.Effect<DecryptResult, DecryptSecretKeyError, RuntimeContext>>> {
 }
 export declare const Decrypt: Decrypt;

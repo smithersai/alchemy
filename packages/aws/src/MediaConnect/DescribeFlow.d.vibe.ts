@@ -23,6 +23,6 @@ import type { Flow } from "./Flow.vibe";
  *
  * @binding
  */
-export interface DescribeFlow extends Binding.Service<DescribeFlow, "AWS.MediaConnect.DescribeFlow", (flow: Flow) => Effect.Effect<(() => Effect.Effect<mediaconnect.DescribeFlowResponse, mediaconnect.DescribeFlowError>)>> {
+export interface DescribeFlow extends Binding.Service<DescribeFlow, "AWS.MediaConnect.DescribeFlow", (flow: Flow) => Effect.Effect<() => Effect.Effect<mediaconnect.DescribeFlowResponse, mediaconnect.DescribeFlowError>>> {
 }
 export declare const DescribeFlow: DescribeFlow;

@@ -22,6 +22,6 @@ export interface AcknowledgeJobRequest extends SVC.AcknowledgeJobInput {
  *
  * @binding
  */
-export interface AcknowledgeJob extends Binding.Service<AcknowledgeJob, "AWS.CodePipeline.AcknowledgeJob", () => Effect.Effect<((request: AcknowledgeJobRequest) => Effect.Effect<SVC.AcknowledgeJobOutput, SVC.AcknowledgeJobError>)>> {
+export interface AcknowledgeJob extends Binding.Service<AcknowledgeJob, "AWS.CodePipeline.AcknowledgeJob", () => Effect.Effect<(request: AcknowledgeJobRequest) => Effect.Effect<SVC.AcknowledgeJobOutput, SVC.AcknowledgeJobError>>> {
 }
 export declare const AcknowledgeJob: AcknowledgeJob;

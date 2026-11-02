@@ -22,6 +22,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface ListAllowedNodeTypeUpdates extends Binding.Service<ListAllowedNodeTypeUpdates, "AWS.MemoryDB.ListAllowedNodeTypeUpdates", (cluster: Cluster) => Effect.Effect<(() => Effect.Effect<memorydb.ListAllowedNodeTypeUpdatesResponse, memorydb.ListAllowedNodeTypeUpdatesError>)>> {
+export interface ListAllowedNodeTypeUpdates extends Binding.Service<ListAllowedNodeTypeUpdates, "AWS.MemoryDB.ListAllowedNodeTypeUpdates", (cluster: Cluster) => Effect.Effect<() => Effect.Effect<memorydb.ListAllowedNodeTypeUpdatesResponse, memorydb.ListAllowedNodeTypeUpdatesError>>> {
 }
 export declare const ListAllowedNodeTypeUpdates: ListAllowedNodeTypeUpdates;

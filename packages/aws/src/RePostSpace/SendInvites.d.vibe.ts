@@ -27,6 +27,6 @@ export interface SendInvitesRequest extends Omit<repostspace.SendInvitesInput, "
  *
  * @binding
  */
-export interface SendInvites extends Binding.Service<SendInvites, "AWS.RePostSpace.SendInvites", (space: Space) => Effect.Effect<((request: SendInvitesRequest) => Effect.Effect<repostspace.SendInvitesResponse, repostspace.SendInvitesError>)>> {
+export interface SendInvites extends Binding.Service<SendInvites, "AWS.RePostSpace.SendInvites", (space: Space) => Effect.Effect<(request: SendInvitesRequest) => Effect.Effect<repostspace.SendInvitesResponse, repostspace.SendInvitesError>>> {
 }
 export declare const SendInvites: SendInvites;

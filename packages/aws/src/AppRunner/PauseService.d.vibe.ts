@@ -22,6 +22,6 @@ import type { Service } from "./Service.vibe";
  *
  * @binding
  */
-export interface PauseService extends Binding.Service<PauseService, "AWS.AppRunner.PauseService", (service: Service) => Effect.Effect<(() => Effect.Effect<apprunner.PauseServiceResponse, apprunner.PauseServiceError>)>> {
+export interface PauseService extends Binding.Service<PauseService, "AWS.AppRunner.PauseService", (service: Service) => Effect.Effect<() => Effect.Effect<apprunner.PauseServiceResponse, apprunner.PauseServiceError>>> {
 }
 export declare const PauseService: PauseService;

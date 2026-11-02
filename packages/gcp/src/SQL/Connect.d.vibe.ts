@@ -4,9 +4,9 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
 import type { SecretBindingTarget } from "../SecretManager/BindingHttp.vibe";
-import type { Database } from "./Database.js";
-import type { Instance } from "./Instance.js";
-import type { User } from "./User.js";
+import type { Database } from "./Database.ts";
+import type { Instance } from "./Instance.ts";
+import type { User } from "./User.ts";
 export interface ConnectOptions {
     /** Database to connect to. */
     database: Database;

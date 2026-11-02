@@ -25,6 +25,6 @@ export interface BatchImportEvidenceToAssessmentControlRequest extends Omit<audi
  *
  * @binding
  */
-export interface BatchImportEvidenceToAssessmentControl extends Binding.Service<BatchImportEvidenceToAssessmentControl, "AWS.AuditManager.BatchImportEvidenceToAssessmentControl", (assessment: Assessment) => Effect.Effect<((request: BatchImportEvidenceToAssessmentControlRequest) => Effect.Effect<auditmanager.BatchImportEvidenceToAssessmentControlResponse, auditmanager.BatchImportEvidenceToAssessmentControlError>)>> {
+export interface BatchImportEvidenceToAssessmentControl extends Binding.Service<BatchImportEvidenceToAssessmentControl, "AWS.AuditManager.BatchImportEvidenceToAssessmentControl", (assessment: Assessment) => Effect.Effect<(request: BatchImportEvidenceToAssessmentControlRequest) => Effect.Effect<auditmanager.BatchImportEvidenceToAssessmentControlResponse, auditmanager.BatchImportEvidenceToAssessmentControlError>>> {
 }
 export declare const BatchImportEvidenceToAssessmentControl: BatchImportEvidenceToAssessmentControl;

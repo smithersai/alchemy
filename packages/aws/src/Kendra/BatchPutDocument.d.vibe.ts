@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `BatchPutDocument` request with `IndexId` injected from the bound index.
  */
@@ -38,6 +38,6 @@ export interface BatchPutDocumentRequest extends Omit<kendra.BatchPutDocumentReq
  *
  * @binding
  */
-export interface BatchPutDocument extends Binding.Service<BatchPutDocument, "AWS.Kendra.BatchPutDocument", (index: Index) => Effect.Effect<((request: BatchPutDocumentRequest) => Effect.Effect<kendra.BatchPutDocumentResponse, kendra.BatchPutDocumentError>)>> {
+export interface BatchPutDocument extends Binding.Service<BatchPutDocument, "AWS.Kendra.BatchPutDocument", (index: Index) => Effect.Effect<(request: BatchPutDocumentRequest) => Effect.Effect<kendra.BatchPutDocumentResponse, kendra.BatchPutDocumentError>>> {
 }
 export declare const BatchPutDocument: BatchPutDocument;

@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartLabelDetection extends Binding.Service<StartLabelDetection, "AWS.Rekognition.StartLabelDetection", () => Effect.Effect<((request: rekognition.StartLabelDetectionRequest) => Effect.Effect<rekognition.StartLabelDetectionResponse, rekognition.StartLabelDetectionError>)>> {
+export interface StartLabelDetection extends Binding.Service<StartLabelDetection, "AWS.Rekognition.StartLabelDetection", () => Effect.Effect<(request: rekognition.StartLabelDetectionRequest) => Effect.Effect<rekognition.StartLabelDetectionResponse, rekognition.StartLabelDetectionError>>> {
 }
 export declare const StartLabelDetection: StartLabelDetection;

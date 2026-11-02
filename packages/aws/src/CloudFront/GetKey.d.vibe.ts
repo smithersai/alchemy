@@ -24,6 +24,6 @@ export interface GetKeyRequest extends Omit<kvs.GetKeyRequest, "KvsARN"> {
  *
  * @binding
  */
-export interface GetKey extends Binding.Service<GetKey, "AWS.CloudFront.GetKey", (store: KeyValueStore) => Effect.Effect<((request: GetKeyRequest) => Effect.Effect<kvs.GetKeyResponse, kvs.GetKeyError>)>> {
+export interface GetKey extends Binding.Service<GetKey, "AWS.CloudFront.GetKey", (store: KeyValueStore) => Effect.Effect<(request: GetKeyRequest) => Effect.Effect<kvs.GetKeyResponse, kvs.GetKeyError>>> {
 }
 export declare const GetKey: GetKey;

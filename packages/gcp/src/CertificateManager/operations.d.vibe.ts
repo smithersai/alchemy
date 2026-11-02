@@ -10,4 +10,4 @@ import * as Effect from "effect/Effect";
  */
 export declare const waitForOperation: (operation: certificatemanager.Operation, options?: {
     notFoundOk?: boolean;
-}) => Effect.Effect<void, certificatemanager.Forbidden | certificatemanager.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | certificatemanager.GcpOpError, certificatemanager.GcpOpContext>;
+}) => Effect.Effect<void, certificatemanager.Forbidden | certificatemanager.NotFound | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | certificatemanager.GcpOpError, certificatemanager.GcpOpContext>;

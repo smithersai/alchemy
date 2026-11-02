@@ -19,6 +19,6 @@ export interface CancelJobRequest extends batch.CancelJobRequest {
  *
  * @binding
  */
-export interface CancelJob extends Binding.Service<CancelJob, "AWS.Batch.CancelJob", (queue: JobQueue) => Effect.Effect<((request: CancelJobRequest) => Effect.Effect<batch.CancelJobResponse, batch.CancelJobError>)>> {
+export interface CancelJob extends Binding.Service<CancelJob, "AWS.Batch.CancelJob", (queue: JobQueue) => Effect.Effect<(request: CancelJobRequest) => Effect.Effect<batch.CancelJobResponse, batch.CancelJobError>>> {
 }
 export declare const CancelJob: CancelJob;

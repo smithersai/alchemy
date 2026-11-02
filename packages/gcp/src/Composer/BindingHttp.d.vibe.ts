@@ -1,11 +1,11 @@
 import type { GcpOpContext } from "@distilled.cloud/gcp/composer_v1";
 import type { Output } from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import { type BindingIam } from "../HttpBinding.js";
-import type { Environment } from "./Environment.js";
-import type { EnvironmentsUserWorkloadsConfigMap } from "./EnvironmentsUserWorkloadsConfigMap.js";
-import type { EnvironmentsUserWorkloadsSecret } from "./EnvironmentsUserWorkloadsSecret.js";
-type GcpHttpOp<I, A, E> = Effect.Effect<((input: I) => Effect.Effect<A, E>), never, GcpOpContext> & ((input: I) => Effect.Effect<A, E, GcpOpContext>);
+import { type BindingIam } from "../HttpBinding.ts";
+import type { Environment } from "./Environment.ts";
+import type { EnvironmentsUserWorkloadsConfigMap } from "./EnvironmentsUserWorkloadsConfigMap.ts";
+import type { EnvironmentsUserWorkloadsSecret } from "./EnvironmentsUserWorkloadsSecret.ts";
+type GcpHttpOp<I, A, E> = Effect.Effect<(input: I) => Effect.Effect<A, E>, never, GcpOpContext> & ((input: I) => Effect.Effect<A, E, GcpOpContext>);
 type NamedResource = {
     readonly name: Output<string, never>;
     readonly LogicalId: string;

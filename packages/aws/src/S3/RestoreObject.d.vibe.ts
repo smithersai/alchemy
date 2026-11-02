@@ -1,7 +1,7 @@
 import * as S3 from "@distilled.cloud/aws/s3";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 export interface RestoreObjectRequest extends Omit<S3.RestoreObjectRequest, "Bucket"> {
 }
 /**
@@ -28,6 +28,6 @@ export interface RestoreObjectRequest extends Omit<S3.RestoreObjectRequest, "Buc
  *
  * @binding
  */
-export interface RestoreObject extends Binding.Service<RestoreObject, "AWS.S3.RestoreObject", (bucket: Bucket) => Effect.Effect<((request: RestoreObjectRequest) => Effect.Effect<S3.RestoreObjectOutput, S3.RestoreObjectError>)>> {
+export interface RestoreObject extends Binding.Service<RestoreObject, "AWS.S3.RestoreObject", (bucket: Bucket) => Effect.Effect<(request: RestoreObjectRequest) => Effect.Effect<S3.RestoreObjectOutput, S3.RestoreObjectError>>> {
 }
 export declare const RestoreObject: RestoreObject;

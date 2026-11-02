@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetInsightResults extends Binding.Service<GetInsightResults, "AWS.SecurityHub.GetInsightResults", () => Effect.Effect<((request: securityhub.GetInsightResultsRequest) => Effect.Effect<securityhub.GetInsightResultsResponse, securityhub.GetInsightResultsError>)>> {
+export interface GetInsightResults extends Binding.Service<GetInsightResults, "AWS.SecurityHub.GetInsightResults", () => Effect.Effect<(request: securityhub.GetInsightResultsRequest) => Effect.Effect<securityhub.GetInsightResultsResponse, securityhub.GetInsightResultsError>>> {
 }
 export declare const GetInsightResults: GetInsightResults;

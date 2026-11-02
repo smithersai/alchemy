@@ -22,6 +22,6 @@ import type { ServiceLevelObjective } from "./ServiceLevelObjective.vibe";
  *
  * @binding
  */
-export interface GetServiceLevelObjective extends Binding.Service<GetServiceLevelObjective, "AWS.ApplicationSignals.GetServiceLevelObjective", (slo: ServiceLevelObjective) => Effect.Effect<(() => Effect.Effect<appsignals.GetServiceLevelObjectiveOutput, appsignals.GetServiceLevelObjectiveError>)>> {
+export interface GetServiceLevelObjective extends Binding.Service<GetServiceLevelObjective, "AWS.ApplicationSignals.GetServiceLevelObjective", (slo: ServiceLevelObjective) => Effect.Effect<() => Effect.Effect<appsignals.GetServiceLevelObjectiveOutput, appsignals.GetServiceLevelObjectiveError>>> {
 }
 export declare const GetServiceLevelObjective: GetServiceLevelObjective;

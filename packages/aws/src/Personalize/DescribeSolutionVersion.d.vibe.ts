@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeSolutionVersion extends Binding.Service<DescribeSolutionVersion, "AWS.Personalize.DescribeSolutionVersion", () => Effect.Effect<((request: personalize.DescribeSolutionVersionRequest) => Effect.Effect<personalize.DescribeSolutionVersionResponse, personalize.DescribeSolutionVersionError>)>> {
+export interface DescribeSolutionVersion extends Binding.Service<DescribeSolutionVersion, "AWS.Personalize.DescribeSolutionVersion", () => Effect.Effect<(request: personalize.DescribeSolutionVersionRequest) => Effect.Effect<personalize.DescribeSolutionVersionResponse, personalize.DescribeSolutionVersionError>>> {
 }
 export declare const DescribeSolutionVersion: DescribeSolutionVersion;

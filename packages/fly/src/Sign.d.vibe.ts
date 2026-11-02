@@ -2,7 +2,7 @@ import type { SignSecretKeyError } from "@distilled.cloud/fly-io/machines";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { SecretKey } from "./SecretKey.js";
+import type { SecretKey } from "./SecretKey.ts";
 export interface SignRequest {
     /** Bytes to sign. */
     plaintext: Uint8Array | ArrayLike<number>;
@@ -29,6 +29,6 @@ export interface SignResult {
  * @binding
  * @product Secret Key
  */
-export interface Sign extends Binding.Service<Sign, "Fly.Sign", (key: SecretKey) => Effect.Effect<((request: SignRequest) => Effect.Effect<SignResult, SignSecretKeyError, RuntimeContext>)>> {
+export interface Sign extends Binding.Service<Sign, "Fly.Sign", (key: SecretKey) => Effect.Effect<(request: SignRequest) => Effect.Effect<SignResult, SignSecretKeyError, RuntimeContext>>> {
 }
 export declare const Sign: Sign;

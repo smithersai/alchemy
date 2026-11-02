@@ -1,9 +1,9 @@
 import * as pubsub from "@distilled.cloud/gcp/pubsub_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import { type GcpIamResourceKind } from "../IamPolicy.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import { type GcpIamResourceKind } from "../IamPolicy.ts";
+import type { Providers } from "../Providers.ts";
 export type SubscriptionRetryPolicy = {
     /**
      * Minimum delay between consecutive deliveries of a given message

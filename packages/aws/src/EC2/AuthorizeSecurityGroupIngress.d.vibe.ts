@@ -35,6 +35,6 @@ export interface AuthorizeSecurityGroupIngressRequest extends Omit<ec2.Authorize
  *
  * @binding
  */
-export interface AuthorizeSecurityGroupIngress extends Binding.Service<AuthorizeSecurityGroupIngress, "AWS.EC2.AuthorizeSecurityGroupIngress", (group: SecurityGroup) => Effect.Effect<((request: AuthorizeSecurityGroupIngressRequest) => Effect.Effect<ec2.AuthorizeSecurityGroupIngressResult, ec2.AuthorizeSecurityGroupIngressError>)>> {
+export interface AuthorizeSecurityGroupIngress extends Binding.Service<AuthorizeSecurityGroupIngress, "AWS.EC2.AuthorizeSecurityGroupIngress", (group: SecurityGroup) => Effect.Effect<(request: AuthorizeSecurityGroupIngressRequest) => Effect.Effect<ec2.AuthorizeSecurityGroupIngressResult, ec2.AuthorizeSecurityGroupIngressError>>> {
 }
 export declare const AuthorizeSecurityGroupIngress: AuthorizeSecurityGroupIngress;

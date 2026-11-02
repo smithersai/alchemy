@@ -46,7 +46,7 @@ export declare const operationResourceName: (operation: cloudsearch.Operation) =
 export declare const waitForOperation: (operation: cloudsearch.Operation, options?: {
     notFoundOk?: boolean;
     alreadyExistsOk?: boolean;
-}) => Effect.Effect<cloudsearch.Operation, cloudsearch.Forbidden | cloudsearch.InsufficientScopes | cloudsearch.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | cloudsearch.GcpOpError, cloudsearch.GcpOpContext>;
+}) => Effect.Effect<cloudsearch.Operation, cloudsearch.Forbidden | cloudsearch.InsufficientScopes | cloudsearch.NotFound | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | cloudsearch.GcpOpError, cloudsearch.GcpOpContext>;
 export declare const waitUntilExists: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<NonNullable<A>, E | ResourceNotResolved, R>;
 export declare const getDatasource: (name: string) => Effect.Effect<cloudsearch.DataSource | undefined, cloudsearch.Forbidden | cloudsearch.InsufficientScopes | cloudsearch.GcpOpError, cloudsearch.GcpOpContext>;
 export declare const listDatasources: () => Effect.Effect<cloudsearch.DataSource[], cloudsearch.Forbidden | cloudsearch.InsufficientScopes | cloudsearch.GcpOpError, cloudsearch.GcpOpContext>;

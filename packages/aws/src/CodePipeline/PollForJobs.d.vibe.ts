@@ -31,6 +31,6 @@ export interface PollForJobsRequest extends SVC.PollForJobsInput {
  *
  * @binding
  */
-export interface PollForJobs extends Binding.Service<PollForJobs, "AWS.CodePipeline.PollForJobs", () => Effect.Effect<((request: PollForJobsRequest) => Effect.Effect<SVC.PollForJobsOutput, SVC.PollForJobsError>)>> {
+export interface PollForJobs extends Binding.Service<PollForJobs, "AWS.CodePipeline.PollForJobs", () => Effect.Effect<(request: PollForJobsRequest) => Effect.Effect<SVC.PollForJobsOutput, SVC.PollForJobsError>>> {
 }
 export declare const PollForJobs: PollForJobs;

@@ -1,7 +1,7 @@
 import * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface RestoreTableToPointInTimeRequest extends Omit<DynamoDB.RestoreTableToPointInTimeInput, "SourceTableArn" | "SourceTableName" | "TargetTableName"> {
 }
 /**
@@ -29,6 +29,6 @@ export interface RestoreTableToPointInTimeRequest extends Omit<DynamoDB.RestoreT
  *
  * @binding
  */
-export interface RestoreTableToPointInTime extends Binding.Service<RestoreTableToPointInTime, "AWS.DynamoDB.RestoreTableToPointInTime", <From extends Table, To extends Table>(from: From, to: To) => Effect.Effect<((request: RestoreTableToPointInTimeRequest) => Effect.Effect<DynamoDB.RestoreTableToPointInTimeOutput, DynamoDB.RestoreTableToPointInTimeError>)>> {
+export interface RestoreTableToPointInTime extends Binding.Service<RestoreTableToPointInTime, "AWS.DynamoDB.RestoreTableToPointInTime", <From extends Table, To extends Table>(from: From, to: To) => Effect.Effect<(request: RestoreTableToPointInTimeRequest) => Effect.Effect<DynamoDB.RestoreTableToPointInTimeOutput, DynamoDB.RestoreTableToPointInTimeError>>> {
 }
 export declare const RestoreTableToPointInTime: RestoreTableToPointInTime;

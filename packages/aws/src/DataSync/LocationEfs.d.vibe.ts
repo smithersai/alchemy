@@ -1,7 +1,7 @@
 import * as datasync from "@distilled.cloud/aws/datasync";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface LocationEfsProps {
     /**
      * ARN of the Amazon EFS file system this location points at. Cannot be

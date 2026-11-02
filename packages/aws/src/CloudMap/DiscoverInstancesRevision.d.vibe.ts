@@ -29,6 +29,6 @@ export interface DiscoverInstancesRevisionRequest extends Omit<SD.DiscoverInstan
  *
  * @binding
  */
-export interface DiscoverInstancesRevision extends Binding.Service<DiscoverInstancesRevision, "AWS.CloudMap.DiscoverInstancesRevision", <S extends Service>(service: S) => Effect.Effect<((request?: DiscoverInstancesRevisionRequest) => Effect.Effect<SD.DiscoverInstancesRevisionResponse, SD.DiscoverInstancesRevisionError>)>> {
+export interface DiscoverInstancesRevision extends Binding.Service<DiscoverInstancesRevision, "AWS.CloudMap.DiscoverInstancesRevision", <S extends Service>(service: S) => Effect.Effect<(request?: DiscoverInstancesRevisionRequest) => Effect.Effect<SD.DiscoverInstancesRevisionResponse, SD.DiscoverInstancesRevisionError>>> {
 }
 export declare const DiscoverInstancesRevision: DiscoverInstancesRevision;

@@ -24,6 +24,6 @@ export interface ListComplianceStatusRequest extends fms.ListComplianceStatusReq
  *
  * @binding
  */
-export interface ListComplianceStatus extends Binding.Service<ListComplianceStatus, "AWS.FMS.ListComplianceStatus", () => Effect.Effect<((request: ListComplianceStatusRequest) => Effect.Effect<fms.ListComplianceStatusResponse, fms.ListComplianceStatusError>)>> {
+export interface ListComplianceStatus extends Binding.Service<ListComplianceStatus, "AWS.FMS.ListComplianceStatus", () => Effect.Effect<(request: ListComplianceStatusRequest) => Effect.Effect<fms.ListComplianceStatusResponse, fms.ListComplianceStatusError>>> {
 }
 export declare const ListComplianceStatus: ListComplianceStatus;

@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetFindingHistory extends Binding.Service<GetFindingHistory, "AWS.SecurityHub.GetFindingHistory", () => Effect.Effect<((request?: securityhub.GetFindingHistoryRequest) => Effect.Effect<securityhub.GetFindingHistoryResponse, securityhub.GetFindingHistoryError>)>> {
+export interface GetFindingHistory extends Binding.Service<GetFindingHistory, "AWS.SecurityHub.GetFindingHistory", () => Effect.Effect<(request?: securityhub.GetFindingHistoryRequest) => Effect.Effect<securityhub.GetFindingHistoryResponse, securityhub.GetFindingHistoryError>>> {
 }
 export declare const GetFindingHistory: GetFindingHistory;

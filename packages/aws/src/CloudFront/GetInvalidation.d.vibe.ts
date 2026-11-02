@@ -1,7 +1,7 @@
 import type * as cloudfront from "@distilled.cloud/aws/cloudfront";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Distribution } from "./Distribution.js";
+import type { Distribution } from "./Distribution.ts";
 export interface GetInvalidationRequest extends Omit<cloudfront.GetInvalidationRequest, "DistributionId"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface GetInvalidationRequest extends Omit<cloudfront.GetInvalidationR
  *
  * @binding
  */
-export interface GetInvalidation extends Binding.Service<GetInvalidation, "AWS.CloudFront.GetInvalidation", (distribution: Distribution) => Effect.Effect<((request: GetInvalidationRequest) => Effect.Effect<cloudfront.GetInvalidationResult, cloudfront.GetInvalidationError>)>> {
+export interface GetInvalidation extends Binding.Service<GetInvalidation, "AWS.CloudFront.GetInvalidation", (distribution: Distribution) => Effect.Effect<(request: GetInvalidationRequest) => Effect.Effect<cloudfront.GetInvalidationResult, cloudfront.GetInvalidationError>>> {
 }
 export declare const GetInvalidation: GetInvalidation;

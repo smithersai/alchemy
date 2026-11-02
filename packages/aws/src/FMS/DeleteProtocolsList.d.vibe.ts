@@ -23,6 +23,6 @@ export interface DeleteProtocolsListRequest extends fms.DeleteProtocolsListReque
  *
  * @binding
  */
-export interface DeleteProtocolsList extends Binding.Service<DeleteProtocolsList, "AWS.FMS.DeleteProtocolsList", () => Effect.Effect<((request: DeleteProtocolsListRequest) => Effect.Effect<fms.DeleteProtocolsListResponse, fms.DeleteProtocolsListError>)>> {
+export interface DeleteProtocolsList extends Binding.Service<DeleteProtocolsList, "AWS.FMS.DeleteProtocolsList", () => Effect.Effect<(request: DeleteProtocolsListRequest) => Effect.Effect<fms.DeleteProtocolsListResponse, fms.DeleteProtocolsListError>>> {
 }
 export declare const DeleteProtocolsList: DeleteProtocolsList;

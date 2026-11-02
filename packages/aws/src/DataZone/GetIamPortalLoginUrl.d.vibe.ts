@@ -20,6 +20,6 @@ import type { Domain } from "./Domain.vibe";
  *
  * @binding
  */
-export interface GetIamPortalLoginUrl extends Binding.Service<GetIamPortalLoginUrl, "AWS.DataZone.GetIamPortalLoginUrl", (domain: Domain) => Effect.Effect<(() => Effect.Effect<datazone.GetIamPortalLoginUrlOutput, datazone.GetIamPortalLoginUrlError>)>> {
+export interface GetIamPortalLoginUrl extends Binding.Service<GetIamPortalLoginUrl, "AWS.DataZone.GetIamPortalLoginUrl", (domain: Domain) => Effect.Effect<() => Effect.Effect<datazone.GetIamPortalLoginUrlOutput, datazone.GetIamPortalLoginUrlError>>> {
 }
 export declare const GetIamPortalLoginUrl: GetIamPortalLoginUrl;

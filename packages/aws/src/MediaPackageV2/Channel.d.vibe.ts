@@ -1,7 +1,7 @@
 import * as mediapackagev2 from "@distilled.cloud/aws/mediapackagev2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface ChannelProps {
     /**
      * Name of the channel group the channel belongs to. Changing it replaces

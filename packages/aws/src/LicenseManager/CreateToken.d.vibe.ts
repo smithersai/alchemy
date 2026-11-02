@@ -30,6 +30,6 @@ export interface CreateTokenRequest extends licensemanager.CreateTokenRequest {
  *
  * @binding
  */
-export interface CreateToken extends Binding.Service<CreateToken, "AWS.LicenseManager.CreateToken", () => Effect.Effect<((request: CreateTokenRequest) => Effect.Effect<licensemanager.CreateTokenResponse, licensemanager.CreateTokenError>)>> {
+export interface CreateToken extends Binding.Service<CreateToken, "AWS.LicenseManager.CreateToken", () => Effect.Effect<(request: CreateTokenRequest) => Effect.Effect<licensemanager.CreateTokenResponse, licensemanager.CreateTokenError>>> {
 }
 export declare const CreateToken: CreateToken;

@@ -2,7 +2,7 @@ import type * as bigtable from "@distilled.cloud/gcp/bigtableadmin_v2";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Cluster } from "./Cluster.js";
+import type { Cluster } from "./Cluster.ts";
 export interface GetClusterRequest extends Omit<bigtable.GetProjectsInstancesClustersRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetClusterRequest extends Omit<bigtable.GetProjectsInstancesClu
  * @binding
  * @category Bigtable
  */
-export interface GetCluster extends Binding.Service<GetCluster, "GCP.Bigtable.GetCluster", (cluster: Cluster) => Effect.Effect<((request?: GetClusterRequest) => Effect.Effect<bigtable.Cluster, bigtable.GetProjectsInstancesClustersError, RuntimeContext>)>> {
+export interface GetCluster extends Binding.Service<GetCluster, "GCP.Bigtable.GetCluster", (cluster: Cluster) => Effect.Effect<(request?: GetClusterRequest) => Effect.Effect<bigtable.Cluster, bigtable.GetProjectsInstancesClustersError, RuntimeContext>>> {
 }
 export declare const GetCluster: GetCluster;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeBuckets extends Binding.Service<DescribeBuckets, "AWS.Macie2.DescribeBuckets", () => Effect.Effect<((request?: macie2.DescribeBucketsRequest) => Effect.Effect<macie2.DescribeBucketsResponse, macie2.DescribeBucketsError>)>> {
+export interface DescribeBuckets extends Binding.Service<DescribeBuckets, "AWS.Macie2.DescribeBuckets", () => Effect.Effect<(request?: macie2.DescribeBucketsRequest) => Effect.Effect<macie2.DescribeBucketsResponse, macie2.DescribeBucketsError>>> {
 }
 export declare const DescribeBuckets: DescribeBuckets;

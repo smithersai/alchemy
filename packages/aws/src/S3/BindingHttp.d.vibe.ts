@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 /**
  * Shared scaffolding for AWS S3 HTTP bindings.
  *
@@ -30,7 +30,7 @@ export declare const makeBucketHttpBinding: <I extends {
      * Resolved with the host's credentials (see `AWSBindings.withCredentials`),
      * signing in the bucket's region on a host with a created key.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the bound bucket. */
     actions: readonly string[];
     /**

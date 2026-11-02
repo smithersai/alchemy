@@ -21,5 +21,5 @@ export declare const makePricingHttpBinding: <I extends object, A, E, R>(options
     /** IAM actions granted on `Resource: ["*"]` (no resource-level IAM). */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

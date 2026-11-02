@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListLexicons extends Binding.Service<ListLexicons, "AWS.Polly.ListLexicons", () => Effect.Effect<((request?: polly.ListLexiconsInput) => Effect.Effect<polly.ListLexiconsOutput, polly.ListLexiconsError>)>> {
+export interface ListLexicons extends Binding.Service<ListLexicons, "AWS.Polly.ListLexicons", () => Effect.Effect<(request?: polly.ListLexiconsInput) => Effect.Effect<polly.ListLexiconsOutput, polly.ListLexiconsError>>> {
 }
 export declare const ListLexicons: ListLexicons;

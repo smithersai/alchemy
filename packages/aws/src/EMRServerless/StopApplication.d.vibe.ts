@@ -1,7 +1,7 @@
 import type * as emr from "@distilled.cloud/aws/emr-serverless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 /**
  * Runtime binding for `emr-serverless:StopApplication`.
  *
@@ -21,6 +21,6 @@ import type { Application } from "./Application.js";
  *
  * @binding
  */
-export interface StopApplication extends Binding.Service<StopApplication, "AWS.EMRServerless.StopApplication", (application: Application) => Effect.Effect<(() => Effect.Effect<emr.StopApplicationResponse, emr.StopApplicationError>)>> {
+export interface StopApplication extends Binding.Service<StopApplication, "AWS.EMRServerless.StopApplication", (application: Application) => Effect.Effect<() => Effect.Effect<emr.StopApplicationResponse, emr.StopApplicationError>>> {
 }
 export declare const StopApplication: StopApplication;

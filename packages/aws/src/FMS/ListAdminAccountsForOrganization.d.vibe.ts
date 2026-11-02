@@ -24,6 +24,6 @@ export interface ListAdminAccountsForOrganizationRequest extends fms.ListAdminAc
  *
  * @binding
  */
-export interface ListAdminAccountsForOrganization extends Binding.Service<ListAdminAccountsForOrganization, "AWS.FMS.ListAdminAccountsForOrganization", () => Effect.Effect<((request?: ListAdminAccountsForOrganizationRequest) => Effect.Effect<fms.ListAdminAccountsForOrganizationResponse, fms.ListAdminAccountsForOrganizationError>)>> {
+export interface ListAdminAccountsForOrganization extends Binding.Service<ListAdminAccountsForOrganization, "AWS.FMS.ListAdminAccountsForOrganization", () => Effect.Effect<(request?: ListAdminAccountsForOrganizationRequest) => Effect.Effect<fms.ListAdminAccountsForOrganizationResponse, fms.ListAdminAccountsForOrganizationError>>> {
 }
 export declare const ListAdminAccountsForOrganization: ListAdminAccountsForOrganization;

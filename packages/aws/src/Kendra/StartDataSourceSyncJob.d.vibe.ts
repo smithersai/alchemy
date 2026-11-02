@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { DataSource } from "./DataSource.js";
+import type { DataSource } from "./DataSource.ts";
 /**
  * Runtime binding for the `StartDataSourceSyncJob` operation (IAM action
  * `kendra:StartDataSourceSyncJob`), scoped to one {@link DataSource}.
@@ -22,6 +22,6 @@ import type { DataSource } from "./DataSource.js";
  *
  * @binding
  */
-export interface StartDataSourceSyncJob extends Binding.Service<StartDataSourceSyncJob, "AWS.Kendra.StartDataSourceSyncJob", (dataSource: DataSource) => Effect.Effect<(() => Effect.Effect<kendra.StartDataSourceSyncJobResponse, kendra.StartDataSourceSyncJobError>)>> {
+export interface StartDataSourceSyncJob extends Binding.Service<StartDataSourceSyncJob, "AWS.Kendra.StartDataSourceSyncJob", (dataSource: DataSource) => Effect.Effect<() => Effect.Effect<kendra.StartDataSourceSyncJobResponse, kendra.StartDataSourceSyncJobError>>> {
 }
 export declare const StartDataSourceSyncJob: StartDataSourceSyncJob;

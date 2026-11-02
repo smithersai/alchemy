@@ -2,8 +2,8 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Bucket } from "./Bucket.js";
-import type { Conditional, R2Error, MultipartOptions, MultipartUpload, R2Object, PutOptions } from "./BucketTypes.js";
+import type { Bucket } from "./Bucket.ts";
+import type { Conditional, R2Error, MultipartOptions, MultipartUpload, R2Object, PutOptions } from "./BucketTypes.ts";
 /**
  * @binding
  * @product R2

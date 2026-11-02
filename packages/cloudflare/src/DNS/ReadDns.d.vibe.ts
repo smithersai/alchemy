@@ -2,7 +2,7 @@ import type { GetRecordError, GetRecordResponse, ListRecordsError, ListRecordsRe
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
-import type { Zone } from "../Zone/Zone.js";
+import type { Zone } from "../Zone/Zone.ts";
 /**
  * Binding that lets a Worker read Cloudflare DNS records at runtime.
  *

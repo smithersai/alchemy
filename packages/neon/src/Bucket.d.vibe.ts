@@ -3,8 +3,8 @@ import * as Neon from "@distilled.cloud/neon";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
-import { type BranchScope, type ResolvedBranchScope } from "./BranchScope.js";
-import { type CredentialAttributes } from "./Credential.js";
+import { type BranchScope, type ResolvedBranchScope } from "./BranchScope.ts";
+import { type CredentialAttributes } from "./Credential.ts";
 import type { Providers } from "./Providers.vibe";
 export type BucketProps = BranchScope & {
     /** Bucket name, unique within this branch. Generated when omitted. */
@@ -91,12 +91,12 @@ export declare const bucketStorageClient: (bucket: BucketAttributes) => Effect.E
         cursor?: string;
         limit?: number;
     }) => Effect.Effect<import("@distilled.cloud/aws/s3").ListObjectsV2Output, import("@distilled.cloud/aws/s3").ListObjectsV2Error, never>;
-    put: (key: string, body: string | Uint8Array, options?: import("./Storage.js").StoragePutOptions) => Effect.Effect<import("@distilled.cloud/aws/s3").PutObjectOutput, import("@distilled.cloud/aws/s3").PutObjectError, never>;
+    put: (key: string, body: string | Uint8Array, options?: import("./Storage.ts").StoragePutOptions) => Effect.Effect<import("@distilled.cloud/aws/s3").PutObjectOutput, import("@distilled.cloud/aws/s3").PutObjectError, never>;
     delete: (key: string) => Effect.Effect<import("@distilled.cloud/aws/s3").DeleteObjectOutput, import("@distilled.cloud/aws/s3").DeleteObjectError, never>;
     deleteMany: (keys: string[]) => Effect.Effect<{
         Deleted: import("@distilled.cloud/aws/s3").DeletedObject[];
-    }, import("./Storage.js").StorageDeleteError | import("@distilled.cloud/aws/s3").DeleteObjectsError, never>;
-    createMultipartUpload: (key: string, options?: import("./Storage.js").StoragePutOptions) => Effect.Effect<import("@distilled.cloud/aws/s3").CreateMultipartUploadOutput, import("@distilled.cloud/aws/s3").CreateMultipartUploadError, never>;
+    }, import("./Storage.ts").StorageDeleteError | import("@distilled.cloud/aws/s3").DeleteObjectsError, never>;
+    createMultipartUpload: (key: string, options?: import("./Storage.ts").StoragePutOptions) => Effect.Effect<import("@distilled.cloud/aws/s3").CreateMultipartUploadOutput, import("@distilled.cloud/aws/s3").CreateMultipartUploadError, never>;
     uploadPart: (key: string, uploadId: string, partNumber: number, body: Uint8Array) => Effect.Effect<import("@distilled.cloud/aws/s3").UploadPartOutput, import("@distilled.cloud/aws/s3").UploadPartError, never>;
     completeMultipartUpload: (key: string, uploadId: string, parts: import("@distilled.cloud/aws/s3").CompletedPart[]) => Effect.Effect<import("@distilled.cloud/aws/s3").CompleteMultipartUploadOutput, import("@distilled.cloud/aws/s3").CompleteMultipartUploadError, never>;
     abortMultipartUpload: (key: string, uploadId: string) => Effect.Effect<void | import("@distilled.cloud/aws/s3").AbortMultipartUploadOutput, import("@distilled.cloud/aws/s3").NoSuchBucket | import("@distilled.cloud/aws/s3").NotFound | import("@distilled.cloud/aws/s3").RequestLimitExceeded | import("@distilled.cloud/aws/s3").SlowDown | import("@distilled.cloud/aws/Errors").CommonErrors, never>;

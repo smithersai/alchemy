@@ -9,7 +9,7 @@ import type * as HttpClient from "effect/http/HttpClient";
 import type * as HttpClientError from "effect/http/HttpClientError";
 import type { Rpc as EffectRpc, RpcClient, RpcGroup } from "effect/rpc";
 import type * as RpcClientError from "effect/rpc/RpcClientError";
-import type { Service } from "./Service.js";
+import type { Service } from "./Service.ts";
 /** Request options for {@link InvokeServiceClient.fetch}. */
 export interface InvokeServiceRequestInit {
     /** HTTP method. @default "GET" */

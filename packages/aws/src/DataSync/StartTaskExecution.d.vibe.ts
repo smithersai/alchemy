@@ -24,6 +24,6 @@ import type { Task } from "./Task.vibe";
  *
  * @binding
  */
-export interface StartTaskExecution extends Binding.Service<StartTaskExecution, "AWS.DataSync.StartTaskExecution", (task: Task) => Effect.Effect<((request?: Omit<datasync.StartTaskExecutionRequest, "TaskArn">) => Effect.Effect<datasync.StartTaskExecutionResponse, datasync.StartTaskExecutionError>)>> {
+export interface StartTaskExecution extends Binding.Service<StartTaskExecution, "AWS.DataSync.StartTaskExecution", (task: Task) => Effect.Effect<(request?: Omit<datasync.StartTaskExecutionRequest, "TaskArn">) => Effect.Effect<datasync.StartTaskExecutionResponse, datasync.StartTaskExecutionError>>> {
 }
 export declare const StartTaskExecution: StartTaskExecution;

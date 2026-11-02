@@ -16,6 +16,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ValidateAssessmentReportIntegrity extends Binding.Service<ValidateAssessmentReportIntegrity, "AWS.AuditManager.ValidateAssessmentReportIntegrity", () => Effect.Effect<((request: auditmanager.ValidateAssessmentReportIntegrityRequest) => Effect.Effect<auditmanager.ValidateAssessmentReportIntegrityResponse, auditmanager.ValidateAssessmentReportIntegrityError>)>> {
+export interface ValidateAssessmentReportIntegrity extends Binding.Service<ValidateAssessmentReportIntegrity, "AWS.AuditManager.ValidateAssessmentReportIntegrity", () => Effect.Effect<(request: auditmanager.ValidateAssessmentReportIntegrityRequest) => Effect.Effect<auditmanager.ValidateAssessmentReportIntegrityResponse, auditmanager.ValidateAssessmentReportIntegrityError>>> {
 }
 export declare const ValidateAssessmentReportIntegrity: ValidateAssessmentReportIntegrity;

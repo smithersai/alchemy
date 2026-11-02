@@ -21,6 +21,6 @@ import type { DataCatalog } from "./DataCatalog.vibe";
  *
  * @binding
  */
-export interface GetDatabase extends Binding.Service<GetDatabase, "AWS.Athena.GetDatabase", (catalog: DataCatalog) => Effect.Effect<((request: Omit<athena.GetDatabaseInput, "CatalogName">) => Effect.Effect<athena.GetDatabaseOutput, athena.GetDatabaseError>)>> {
+export interface GetDatabase extends Binding.Service<GetDatabase, "AWS.Athena.GetDatabase", (catalog: DataCatalog) => Effect.Effect<(request: Omit<athena.GetDatabaseInput, "CatalogName">) => Effect.Effect<athena.GetDatabaseOutput, athena.GetDatabaseError>>> {
 }
 export declare const GetDatabase: GetDatabase;

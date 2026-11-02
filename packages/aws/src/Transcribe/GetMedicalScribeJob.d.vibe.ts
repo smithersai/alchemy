@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetMedicalScribeJob extends Binding.Service<GetMedicalScribeJob, "AWS.Transcribe.GetMedicalScribeJob", () => Effect.Effect<((request: transcribe.GetMedicalScribeJobRequest) => Effect.Effect<transcribe.GetMedicalScribeJobResponse, transcribe.GetMedicalScribeJobError>)>> {
+export interface GetMedicalScribeJob extends Binding.Service<GetMedicalScribeJob, "AWS.Transcribe.GetMedicalScribeJob", () => Effect.Effect<(request: transcribe.GetMedicalScribeJobRequest) => Effect.Effect<transcribe.GetMedicalScribeJobResponse, transcribe.GetMedicalScribeJobError>>> {
 }
 export declare const GetMedicalScribeJob: GetMedicalScribeJob;

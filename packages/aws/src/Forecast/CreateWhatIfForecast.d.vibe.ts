@@ -37,6 +37,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateWhatIfForecast extends Binding.Service<CreateWhatIfForecast, "AWS.Forecast.CreateWhatIfForecast", () => Effect.Effect<((request: forecast.CreateWhatIfForecastRequest) => Effect.Effect<forecast.CreateWhatIfForecastResponse, forecast.CreateWhatIfForecastError>)>> {
+export interface CreateWhatIfForecast extends Binding.Service<CreateWhatIfForecast, "AWS.Forecast.CreateWhatIfForecast", () => Effect.Effect<(request: forecast.CreateWhatIfForecastRequest) => Effect.Effect<forecast.CreateWhatIfForecastResponse, forecast.CreateWhatIfForecastError>>> {
 }
 export declare const CreateWhatIfForecast: CreateWhatIfForecast;

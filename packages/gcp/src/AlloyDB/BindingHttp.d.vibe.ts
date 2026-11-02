@@ -1,9 +1,9 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { Backup } from "./Backup.js";
-import type { Cluster } from "./Cluster.js";
-import type { ClustersUser } from "./ClustersUser.js";
-import type { Instance } from "./Instance.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
+import type { Backup } from "./Backup.ts";
+import type { Cluster } from "./Cluster.ts";
+import type { ClustersUser } from "./ClustersUser.ts";
+import type { Instance } from "./Instance.ts";
 /**
  * Shared HTTP scaffolding for AlloyDB cluster, instance, backup, and
  * user bindings. NOT exported from index.ts.

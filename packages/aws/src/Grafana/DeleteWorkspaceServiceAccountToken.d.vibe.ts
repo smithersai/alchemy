@@ -24,6 +24,6 @@ import type { Workspace } from "./Workspace.vibe";
  *
  * @binding
  */
-export interface DeleteWorkspaceServiceAccountToken extends Binding.Service<DeleteWorkspaceServiceAccountToken, "AWS.Grafana.DeleteWorkspaceServiceAccountToken", (workspace: Workspace) => Effect.Effect<((request: Omit<grafana.DeleteWorkspaceServiceAccountTokenRequest, "workspaceId">) => Effect.Effect<grafana.DeleteWorkspaceServiceAccountTokenResponse, grafana.DeleteWorkspaceServiceAccountTokenError>)>> {
+export interface DeleteWorkspaceServiceAccountToken extends Binding.Service<DeleteWorkspaceServiceAccountToken, "AWS.Grafana.DeleteWorkspaceServiceAccountToken", (workspace: Workspace) => Effect.Effect<(request: Omit<grafana.DeleteWorkspaceServiceAccountTokenRequest, "workspaceId">) => Effect.Effect<grafana.DeleteWorkspaceServiceAccountTokenResponse, grafana.DeleteWorkspaceServiceAccountTokenError>>> {
 }
 export declare const DeleteWorkspaceServiceAccountToken: DeleteWorkspaceServiceAccountToken;

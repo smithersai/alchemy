@@ -1,8 +1,8 @@
 import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 import type { EncryptionSpec } from "./shared.vibe";
 export type CustomJobSpec = aiplatform.GoogleCloudAiplatformV1CustomJobSpec;
 export type CustomJobProps = {

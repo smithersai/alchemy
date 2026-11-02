@@ -30,6 +30,6 @@ export interface GetQueryStatusRequest extends Omit<im.GetQueryStatusInput, "Mon
  *
  * @binding
  */
-export interface GetQueryStatus extends Binding.Service<GetQueryStatus, "AWS.InternetMonitor.GetQueryStatus", (monitor: Monitor) => Effect.Effect<((request: GetQueryStatusRequest) => Effect.Effect<im.GetQueryStatusOutput, im.GetQueryStatusError>)>> {
+export interface GetQueryStatus extends Binding.Service<GetQueryStatus, "AWS.InternetMonitor.GetQueryStatus", (monitor: Monitor) => Effect.Effect<(request: GetQueryStatusRequest) => Effect.Effect<im.GetQueryStatusOutput, im.GetQueryStatusError>>> {
 }
 export declare const GetQueryStatus: GetQueryStatus;

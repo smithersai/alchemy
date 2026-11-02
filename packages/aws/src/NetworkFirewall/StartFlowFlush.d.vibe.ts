@@ -26,6 +26,6 @@ export interface StartFlowFlushRequest extends Omit<NFW.StartFlowFlushRequest, "
  *
  * @binding
  */
-export interface StartFlowFlush extends Binding.Service<StartFlowFlush, "AWS.NetworkFirewall.StartFlowFlush", (firewall: Firewall) => Effect.Effect<((request: StartFlowFlushRequest) => Effect.Effect<NFW.StartFlowFlushResponse, NFW.StartFlowFlushError>)>> {
+export interface StartFlowFlush extends Binding.Service<StartFlowFlush, "AWS.NetworkFirewall.StartFlowFlush", (firewall: Firewall) => Effect.Effect<(request: StartFlowFlushRequest) => Effect.Effect<NFW.StartFlowFlushResponse, NFW.StartFlowFlushError>>> {
 }
 export declare const StartFlowFlush: StartFlowFlush;

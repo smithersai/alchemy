@@ -1,7 +1,7 @@
 import type { Input } from "alchemy/Input";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 import type { Listener, ListenerArn } from "./Listener.vibe";
 export interface ListenerCertificateProps {
     /** The HTTPS/TLS listener to attach the certificate to. Changing it replaces the attachment. */

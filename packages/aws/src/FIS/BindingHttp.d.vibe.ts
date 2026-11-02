@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { ExperimentTemplate } from "./ExperimentTemplate.js";
+import type { ExperimentTemplate } from "./ExperimentTemplate.ts";
 /**
  * Shared scaffolding for the AWS Fault Injection Service (FIS) HTTP bindings.
  *
@@ -23,7 +23,7 @@ export declare const makeFisTemplateHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.FIS.StartExperiment`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the experiment template ARN. */
     actions: readonly string[];
     /** The request field the bound template's id is injected as. */
@@ -53,7 +53,7 @@ export declare const makeFisAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.FIS.GetExperiment`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

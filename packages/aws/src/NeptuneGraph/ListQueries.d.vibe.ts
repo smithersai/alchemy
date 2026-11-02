@@ -18,6 +18,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface ListQueries extends Binding.Service<ListQueries, "AWS.NeptuneGraph.ListQueries", (graph: Graph) => Effect.Effect<((request: Omit<neptunegraph.ListQueriesInput, "graphIdentifier">) => Effect.Effect<neptunegraph.ListQueriesOutput, neptunegraph.ListQueriesError>)>> {
+export interface ListQueries extends Binding.Service<ListQueries, "AWS.NeptuneGraph.ListQueries", (graph: Graph) => Effect.Effect<(request: Omit<neptunegraph.ListQueriesInput, "graphIdentifier">) => Effect.Effect<neptunegraph.ListQueriesOutput, neptunegraph.ListQueriesError>>> {
 }
 export declare const ListQueries: ListQueries;

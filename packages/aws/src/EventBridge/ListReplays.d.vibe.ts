@@ -21,6 +21,6 @@ export interface ListReplaysRequest extends eventbridge.ListReplaysRequest {
  *
  * @binding
  */
-export interface ListReplays extends Binding.Service<ListReplays, "AWS.EventBridge.ListReplays", () => Effect.Effect<((request?: ListReplaysRequest) => Effect.Effect<eventbridge.ListReplaysResponse, eventbridge.ListReplaysError>)>> {
+export interface ListReplays extends Binding.Service<ListReplays, "AWS.EventBridge.ListReplays", () => Effect.Effect<(request?: ListReplaysRequest) => Effect.Effect<eventbridge.ListReplaysResponse, eventbridge.ListReplaysError>>> {
 }
 export declare const ListReplays: ListReplays;

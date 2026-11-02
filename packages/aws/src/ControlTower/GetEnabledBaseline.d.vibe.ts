@@ -22,6 +22,6 @@ import type { EnabledBaseline } from "./EnabledBaseline.vibe";
  *
  * @binding
  */
-export interface GetEnabledBaseline extends Binding.Service<GetEnabledBaseline, "AWS.ControlTower.GetEnabledBaseline", (enabledBaseline: EnabledBaseline) => Effect.Effect<(() => Effect.Effect<controltower.GetEnabledBaselineOutput, controltower.GetEnabledBaselineError>)>> {
+export interface GetEnabledBaseline extends Binding.Service<GetEnabledBaseline, "AWS.ControlTower.GetEnabledBaseline", (enabledBaseline: EnabledBaseline) => Effect.Effect<() => Effect.Effect<controltower.GetEnabledBaselineOutput, controltower.GetEnabledBaselineError>>> {
 }
 export declare const GetEnabledBaseline: GetEnabledBaseline;

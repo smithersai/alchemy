@@ -26,6 +26,6 @@ import type { Flow } from "./Flow.vibe";
  *
  * @binding
  */
-export interface RevokeFlowEntitlement extends Binding.Service<RevokeFlowEntitlement, "AWS.MediaConnect.RevokeFlowEntitlement", (flow: Flow) => Effect.Effect<((request: Omit<mediaconnect.RevokeFlowEntitlementRequest, "FlowArn">) => Effect.Effect<mediaconnect.RevokeFlowEntitlementResponse, mediaconnect.RevokeFlowEntitlementError>)>> {
+export interface RevokeFlowEntitlement extends Binding.Service<RevokeFlowEntitlement, "AWS.MediaConnect.RevokeFlowEntitlement", (flow: Flow) => Effect.Effect<(request: Omit<mediaconnect.RevokeFlowEntitlementRequest, "FlowArn">) => Effect.Effect<mediaconnect.RevokeFlowEntitlementResponse, mediaconnect.RevokeFlowEntitlementError>>> {
 }
 export declare const RevokeFlowEntitlement: RevokeFlowEntitlement;

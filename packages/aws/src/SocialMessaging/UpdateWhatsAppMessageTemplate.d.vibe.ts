@@ -36,6 +36,6 @@ export interface UpdateWhatsAppMessageTemplateRequest extends Omit<socialmessagi
  *
  * @binding
  */
-export interface UpdateWhatsAppMessageTemplate extends Binding.Service<UpdateWhatsAppMessageTemplate, "AWS.SocialMessaging.UpdateWhatsAppMessageTemplate", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: UpdateWhatsAppMessageTemplateRequest) => Effect.Effect<socialmessaging.UpdateWhatsAppMessageTemplateOutput, socialmessaging.UpdateWhatsAppMessageTemplateError>)>> {
+export interface UpdateWhatsAppMessageTemplate extends Binding.Service<UpdateWhatsAppMessageTemplate, "AWS.SocialMessaging.UpdateWhatsAppMessageTemplate", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: UpdateWhatsAppMessageTemplateRequest) => Effect.Effect<socialmessaging.UpdateWhatsAppMessageTemplateOutput, socialmessaging.UpdateWhatsAppMessageTemplateError>>> {
 }
 export declare const UpdateWhatsAppMessageTemplate: UpdateWhatsAppMessageTemplate;

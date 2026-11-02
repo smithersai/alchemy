@@ -1,8 +1,8 @@
 import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "../S3/Bucket.js";
-import type { Table } from "./Table.js";
+import type { Bucket } from "../S3/Bucket.ts";
+import type { Table } from "./Table.ts";
 export interface ExportTableToPointInTimeRequest extends Omit<DynamoDB.ExportTableToPointInTimeInput, "TableArn" | "S3Bucket"> {
 }
 /**
@@ -29,6 +29,6 @@ export interface ExportTableToPointInTimeRequest extends Omit<DynamoDB.ExportTab
  *
  * @binding
  */
-export interface ExportTableToPointInTime extends Binding.Service<ExportTableToPointInTime, "AWS.DynamoDB.ExportTableToPointInTime", <T extends Table, B extends Bucket>(table: T, bucket: B) => Effect.Effect<((request?: ExportTableToPointInTimeRequest) => Effect.Effect<DynamoDB.ExportTableToPointInTimeOutput, DynamoDB.ExportTableToPointInTimeError>)>> {
+export interface ExportTableToPointInTime extends Binding.Service<ExportTableToPointInTime, "AWS.DynamoDB.ExportTableToPointInTime", <T extends Table, B extends Bucket>(table: T, bucket: B) => Effect.Effect<(request?: ExportTableToPointInTimeRequest) => Effect.Effect<DynamoDB.ExportTableToPointInTimeOutput, DynamoDB.ExportTableToPointInTimeError>>> {
 }
 export declare const ExportTableToPointInTime: ExportTableToPointInTime;

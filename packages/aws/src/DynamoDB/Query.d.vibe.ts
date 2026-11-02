@@ -1,7 +1,7 @@
 import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface QueryRequest extends Omit<DynamoDB.QueryInput, "TableName"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface QueryRequest extends Omit<DynamoDB.QueryInput, "TableName"> {
  *
  * @binding
  */
-export interface Query extends Binding.Service<Query, "AWS.DynamoDB.Query", <T extends Table>(table: T) => Effect.Effect<((request: QueryRequest) => Effect.Effect<DynamoDB.QueryOutput, DynamoDB.QueryError>)>> {
+export interface Query extends Binding.Service<Query, "AWS.DynamoDB.Query", <T extends Table>(table: T) => Effect.Effect<(request: QueryRequest) => Effect.Effect<DynamoDB.QueryOutput, DynamoDB.QueryError>>> {
 }
 export declare const Query: Query;

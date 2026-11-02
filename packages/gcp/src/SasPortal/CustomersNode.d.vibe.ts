@@ -1,8 +1,8 @@
 import * as sasportal from "@distilled.cloud/gcp/sasportal_v1alpha1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type CustomersNodeProps = {
     /**
      * Parent SAS customer, as `customers/{customer}` or the customer id.

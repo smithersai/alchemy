@@ -2,7 +2,7 @@ import type { EncryptSecretKeyError } from "@distilled.cloud/fly-io/machines";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { SecretKey } from "./SecretKey.js";
+import type { SecretKey } from "./SecretKey.ts";
 export interface EncryptRequest {
     /** Bytes to encrypt. */
     plaintext: Uint8Array | ArrayLike<number>;
@@ -43,6 +43,6 @@ export interface EncryptResult {
  * @binding
  * @product Secret Key
  */
-export interface Encrypt extends Binding.Service<Encrypt, "Fly.Encrypt", (key: SecretKey) => Effect.Effect<((request: EncryptRequest) => Effect.Effect<EncryptResult, EncryptSecretKeyError, RuntimeContext>)>> {
+export interface Encrypt extends Binding.Service<Encrypt, "Fly.Encrypt", (key: SecretKey) => Effect.Effect<(request: EncryptRequest) => Effect.Effect<EncryptResult, EncryptSecretKeyError, RuntimeContext>>> {
 }
 export declare const Encrypt: Encrypt;

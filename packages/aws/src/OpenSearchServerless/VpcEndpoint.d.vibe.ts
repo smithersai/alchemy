@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface VpcEndpointProps {
     /**
      * Name of the VPC endpoint (3-32 characters, lowercase). Changing the name

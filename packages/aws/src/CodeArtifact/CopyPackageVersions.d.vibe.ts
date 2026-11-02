@@ -33,6 +33,6 @@ export interface CopyPackageVersionsRequest extends Omit<codeartifact.CopyPackag
  *
  * @binding
  */
-export interface CopyPackageVersions extends Binding.Service<CopyPackageVersions, "AWS.CodeArtifact.CopyPackageVersions", (repository: Repository) => Effect.Effect<((request: CopyPackageVersionsRequest) => Effect.Effect<codeartifact.CopyPackageVersionsResult, codeartifact.CopyPackageVersionsError>)>> {
+export interface CopyPackageVersions extends Binding.Service<CopyPackageVersions, "AWS.CodeArtifact.CopyPackageVersions", (repository: Repository) => Effect.Effect<(request: CopyPackageVersionsRequest) => Effect.Effect<codeartifact.CopyPackageVersionsResult, codeartifact.CopyPackageVersionsError>>> {
 }
 export declare const CopyPackageVersions: CopyPackageVersions;

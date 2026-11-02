@@ -29,6 +29,6 @@ export interface ListResolverEndpointIpAddressesRequest extends Omit<r53r.ListRe
  *
  * @binding
  */
-export interface ListResolverEndpointIpAddresses extends Binding.Service<ListResolverEndpointIpAddresses, "AWS.Route53Resolver.ListResolverEndpointIpAddresses", (endpoint: ResolverEndpoint) => Effect.Effect<((request?: ListResolverEndpointIpAddressesRequest) => Effect.Effect<r53r.ListResolverEndpointIpAddressesResponse, r53r.ListResolverEndpointIpAddressesError>)>> {
+export interface ListResolverEndpointIpAddresses extends Binding.Service<ListResolverEndpointIpAddresses, "AWS.Route53Resolver.ListResolverEndpointIpAddresses", (endpoint: ResolverEndpoint) => Effect.Effect<(request?: ListResolverEndpointIpAddressesRequest) => Effect.Effect<r53r.ListResolverEndpointIpAddressesResponse, r53r.ListResolverEndpointIpAddressesError>>> {
 }
 export declare const ListResolverEndpointIpAddresses: ListResolverEndpointIpAddresses;

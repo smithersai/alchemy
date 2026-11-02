@@ -31,6 +31,6 @@ export interface ListAssociationsForLicenseConfigurationRequest extends Omit<lic
  *
  * @binding
  */
-export interface ListAssociationsForLicenseConfiguration extends Binding.Service<ListAssociationsForLicenseConfiguration, "AWS.LicenseManager.ListAssociationsForLicenseConfiguration", (configuration: LicenseConfiguration) => Effect.Effect<((request?: ListAssociationsForLicenseConfigurationRequest) => Effect.Effect<licensemanager.ListAssociationsForLicenseConfigurationResponse, licensemanager.ListAssociationsForLicenseConfigurationError>)>> {
+export interface ListAssociationsForLicenseConfiguration extends Binding.Service<ListAssociationsForLicenseConfiguration, "AWS.LicenseManager.ListAssociationsForLicenseConfiguration", (configuration: LicenseConfiguration) => Effect.Effect<(request?: ListAssociationsForLicenseConfigurationRequest) => Effect.Effect<licensemanager.ListAssociationsForLicenseConfigurationResponse, licensemanager.ListAssociationsForLicenseConfigurationError>>> {
 }
 export declare const ListAssociationsForLicenseConfiguration: ListAssociationsForLicenseConfiguration;

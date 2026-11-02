@@ -26,6 +26,6 @@ export interface GetJobRequest extends Omit<amplify.GetJobRequest, "appId"> {
  *
  * @binding
  */
-export interface GetJob extends Binding.Service<GetJob, "AWS.Amplify.GetJob", (app: App) => Effect.Effect<((request: GetJobRequest) => Effect.Effect<amplify.GetJobResult, amplify.GetJobError>)>> {
+export interface GetJob extends Binding.Service<GetJob, "AWS.Amplify.GetJob", (app: App) => Effect.Effect<(request: GetJobRequest) => Effect.Effect<amplify.GetJobResult, amplify.GetJobError>>> {
 }
 export declare const GetJob: GetJob;

@@ -19,7 +19,7 @@
  * store contracts so it stays unit-testable with in-memory fakes.
  */
 import * as Effect from "effect/Effect";
-import { type Oid } from "./ObjectCodec.js";
+import { type Oid } from "./ObjectCodec.ts";
 import { StoreError } from "./Store.vibe";
 /** Max files emitted by a tree diff before `truncated: true`. */
 export declare const MAX_DIFF_FILES = 1000;

@@ -23,6 +23,6 @@ import type { EnabledBaseline } from "./EnabledBaseline.vibe";
  *
  * @binding
  */
-export interface ResetEnabledBaseline extends Binding.Service<ResetEnabledBaseline, "AWS.ControlTower.ResetEnabledBaseline", (enabledBaseline: EnabledBaseline) => Effect.Effect<(() => Effect.Effect<controltower.ResetEnabledBaselineOutput, controltower.ResetEnabledBaselineError>)>> {
+export interface ResetEnabledBaseline extends Binding.Service<ResetEnabledBaseline, "AWS.ControlTower.ResetEnabledBaseline", (enabledBaseline: EnabledBaseline) => Effect.Effect<() => Effect.Effect<controltower.ResetEnabledBaselineOutput, controltower.ResetEnabledBaselineError>>> {
 }
 export declare const ResetEnabledBaseline: ResetEnabledBaseline;

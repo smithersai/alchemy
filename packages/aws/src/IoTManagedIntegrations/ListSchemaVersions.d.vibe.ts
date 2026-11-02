@@ -28,6 +28,6 @@ export interface ListSchemaVersionsRequest extends mi.ListSchemaVersionsRequest 
  *
  * @binding
  */
-export interface ListSchemaVersions extends Binding.Service<ListSchemaVersions, "AWS.IoTManagedIntegrations.ListSchemaVersions", () => Effect.Effect<((request: ListSchemaVersionsRequest) => Effect.Effect<mi.ListSchemaVersionsResponse, mi.ListSchemaVersionsError>)>> {
+export interface ListSchemaVersions extends Binding.Service<ListSchemaVersions, "AWS.IoTManagedIntegrations.ListSchemaVersions", () => Effect.Effect<(request: ListSchemaVersionsRequest) => Effect.Effect<mi.ListSchemaVersionsResponse, mi.ListSchemaVersionsError>>> {
 }
 export declare const ListSchemaVersions: ListSchemaVersions;

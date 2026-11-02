@@ -1,7 +1,7 @@
 import type * as backup from "@distilled.cloud/aws/backup";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 import type { BackupVault } from "./BackupVault.vibe";
 /**
  * `StartCopyJob` request with `SourceBackupVaultName` injected from the
@@ -39,6 +39,6 @@ export interface StartCopyJobRequest extends Omit<backup.StartCopyJobInput, "Sou
  *
  * @binding
  */
-export interface StartCopyJob extends Binding.Service<StartCopyJob, "AWS.Backup.StartCopyJob", <R extends Role>(sourceVault: BackupVault, copyRole: R) => Effect.Effect<((request: StartCopyJobRequest) => Effect.Effect<backup.StartCopyJobOutput, backup.StartCopyJobError>)>> {
+export interface StartCopyJob extends Binding.Service<StartCopyJob, "AWS.Backup.StartCopyJob", <R extends Role>(sourceVault: BackupVault, copyRole: R) => Effect.Effect<(request: StartCopyJobRequest) => Effect.Effect<backup.StartCopyJobOutput, backup.StartCopyJobError>>> {
 }
 export declare const StartCopyJob: StartCopyJob;

@@ -23,6 +23,6 @@ import type { DeploymentGroup } from "./DeploymentGroup.vibe";
  *
  * @binding
  */
-export interface PutLifecycleEventHookExecutionStatus extends Binding.Service<PutLifecycleEventHookExecutionStatus, "AWS.CodeDeploy.PutLifecycleEventHookExecutionStatus", <G extends DeploymentGroup>(group: G) => Effect.Effect<((request: SVC.PutLifecycleEventHookExecutionStatusInput) => Effect.Effect<SVC.PutLifecycleEventHookExecutionStatusOutput, SVC.PutLifecycleEventHookExecutionStatusError>)>> {
+export interface PutLifecycleEventHookExecutionStatus extends Binding.Service<PutLifecycleEventHookExecutionStatus, "AWS.CodeDeploy.PutLifecycleEventHookExecutionStatus", <G extends DeploymentGroup>(group: G) => Effect.Effect<(request: SVC.PutLifecycleEventHookExecutionStatusInput) => Effect.Effect<SVC.PutLifecycleEventHookExecutionStatusOutput, SVC.PutLifecycleEventHookExecutionStatusError>>> {
 }
 export declare const PutLifecycleEventHookExecutionStatus: PutLifecycleEventHookExecutionStatus;

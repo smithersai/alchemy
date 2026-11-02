@@ -24,6 +24,6 @@ export interface DisassociateLibraryItemReviewRequest extends Omit<qapps.Disasso
  *
  * @binding
  */
-export interface DisassociateLibraryItemReview extends Binding.Service<DisassociateLibraryItemReview, "AWS.QApps.DisassociateLibraryItemReview", (app: QApp) => Effect.Effect<((request: DisassociateLibraryItemReviewRequest) => Effect.Effect<qapps.DisassociateLibraryItemReviewResponse, qapps.DisassociateLibraryItemReviewError>)>> {
+export interface DisassociateLibraryItemReview extends Binding.Service<DisassociateLibraryItemReview, "AWS.QApps.DisassociateLibraryItemReview", (app: QApp) => Effect.Effect<(request: DisassociateLibraryItemReviewRequest) => Effect.Effect<qapps.DisassociateLibraryItemReviewResponse, qapps.DisassociateLibraryItemReviewError>>> {
 }
 export declare const DisassociateLibraryItemReview: DisassociateLibraryItemReview;

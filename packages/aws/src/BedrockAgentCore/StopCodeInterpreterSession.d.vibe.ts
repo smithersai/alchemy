@@ -24,6 +24,6 @@ export interface StopCodeInterpreterSessionRequest extends Omit<agentcore.StopCo
  *
  * @binding
  */
-export interface StopCodeInterpreterSession extends Binding.Service<StopCodeInterpreterSession, "AWS.BedrockAgentCore.StopCodeInterpreterSession", <R extends CodeInterpreter>(codeInterpreter: R) => Effect.Effect<((request: StopCodeInterpreterSessionRequest) => Effect.Effect<agentcore.StopCodeInterpreterSessionResponse, agentcore.StopCodeInterpreterSessionError>)>> {
+export interface StopCodeInterpreterSession extends Binding.Service<StopCodeInterpreterSession, "AWS.BedrockAgentCore.StopCodeInterpreterSession", <R extends CodeInterpreter>(codeInterpreter: R) => Effect.Effect<(request: StopCodeInterpreterSessionRequest) => Effect.Effect<agentcore.StopCodeInterpreterSessionResponse, agentcore.StopCodeInterpreterSessionError>>> {
 }
 export declare const StopCodeInterpreterSession: StopCodeInterpreterSession;

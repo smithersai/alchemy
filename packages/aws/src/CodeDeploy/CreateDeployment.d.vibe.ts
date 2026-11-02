@@ -26,6 +26,6 @@ export interface CreateDeploymentRequest extends Omit<SVC.CreateDeploymentInput,
  *
  * @binding
  */
-export interface CreateDeployment extends Binding.Service<CreateDeployment, "AWS.CodeDeploy.CreateDeployment", <G extends DeploymentGroup>(group: G) => Effect.Effect<((request?: CreateDeploymentRequest) => Effect.Effect<SVC.CreateDeploymentOutput, SVC.CreateDeploymentError>)>> {
+export interface CreateDeployment extends Binding.Service<CreateDeployment, "AWS.CodeDeploy.CreateDeployment", <G extends DeploymentGroup>(group: G) => Effect.Effect<(request?: CreateDeploymentRequest) => Effect.Effect<SVC.CreateDeploymentOutput, SVC.CreateDeploymentError>>> {
 }
 export declare const CreateDeployment: CreateDeployment;

@@ -1,7 +1,7 @@
 import type * as ivs from "@distilled.cloud/aws/ivs";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Channel } from "./Channel.js";
+import type { Channel } from "./Channel.ts";
 export interface ListStreamSessionsRequest extends Omit<ivs.ListStreamSessionsRequest, "channelArn"> {
 }
 /**
@@ -24,6 +24,6 @@ export interface ListStreamSessionsRequest extends Omit<ivs.ListStreamSessionsRe
  *
  * @binding
  */
-export interface ListStreamSessions extends Binding.Service<ListStreamSessions, "AWS.IVS.ListStreamSessions", (channel: Channel) => Effect.Effect<((request?: ListStreamSessionsRequest) => Effect.Effect<ivs.ListStreamSessionsResponse, ivs.ListStreamSessionsError>)>> {
+export interface ListStreamSessions extends Binding.Service<ListStreamSessions, "AWS.IVS.ListStreamSessions", (channel: Channel) => Effect.Effect<(request?: ListStreamSessionsRequest) => Effect.Effect<ivs.ListStreamSessionsResponse, ivs.ListStreamSessionsError>>> {
 }
 export declare const ListStreamSessions: ListStreamSessions;

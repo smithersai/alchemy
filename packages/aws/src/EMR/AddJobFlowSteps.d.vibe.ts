@@ -23,6 +23,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface AddJobFlowSteps extends Binding.Service<AddJobFlowSteps, "AWS.EMR.AddJobFlowSteps", <C extends Cluster>(cluster: C) => Effect.Effect<((request: Omit<SVC.AddJobFlowStepsInput, "JobFlowId">) => Effect.Effect<SVC.AddJobFlowStepsOutput, SVC.AddJobFlowStepsError>)>> {
+export interface AddJobFlowSteps extends Binding.Service<AddJobFlowSteps, "AWS.EMR.AddJobFlowSteps", <C extends Cluster>(cluster: C) => Effect.Effect<(request: Omit<SVC.AddJobFlowStepsInput, "JobFlowId">) => Effect.Effect<SVC.AddJobFlowStepsOutput, SVC.AddJobFlowStepsError>>> {
 }
 export declare const AddJobFlowSteps: AddJobFlowSteps;

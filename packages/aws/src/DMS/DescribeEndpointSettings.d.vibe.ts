@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeEndpointSettings extends Binding.Service<DescribeEndpointSettings, "AWS.DMS.DescribeEndpointSettings", () => Effect.Effect<((request: dms.DescribeEndpointSettingsMessage) => Effect.Effect<dms.DescribeEndpointSettingsResponse, dms.DescribeEndpointSettingsError>)>> {
+export interface DescribeEndpointSettings extends Binding.Service<DescribeEndpointSettings, "AWS.DMS.DescribeEndpointSettings", () => Effect.Effect<(request: dms.DescribeEndpointSettingsMessage) => Effect.Effect<dms.DescribeEndpointSettingsResponse, dms.DescribeEndpointSettingsError>>> {
 }
 export declare const DescribeEndpointSettings: DescribeEndpointSettings;

@@ -1,7 +1,7 @@
 import type * as comprehend from "@distilled.cloud/aws/comprehend";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 /**
  * `StartEntitiesDetectionJob` request with `DataAccessRoleArn` defaulting to the role the
  * binding was constructed with.
@@ -44,6 +44,6 @@ export interface StartEntitiesDetectionJobRequest extends Omit<comprehend.StartE
  *
  * @binding
  */
-export interface StartEntitiesDetectionJob extends Binding.Service<StartEntitiesDetectionJob, "AWS.Comprehend.StartEntitiesDetectionJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<((request: StartEntitiesDetectionJobRequest) => Effect.Effect<comprehend.StartEntitiesDetectionJobResponse, comprehend.StartEntitiesDetectionJobError>)>> {
+export interface StartEntitiesDetectionJob extends Binding.Service<StartEntitiesDetectionJob, "AWS.Comprehend.StartEntitiesDetectionJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<(request: StartEntitiesDetectionJobRequest) => Effect.Effect<comprehend.StartEntitiesDetectionJobResponse, comprehend.StartEntitiesDetectionJobError>>> {
 }
 export declare const StartEntitiesDetectionJob: StartEntitiesDetectionJob;

@@ -22,6 +22,6 @@ export interface StartDataSourceRunRequest extends Omit<datazone.StartDataSource
  *
  * @binding
  */
-export interface StartDataSourceRun extends Binding.Service<StartDataSourceRun, "AWS.DataZone.StartDataSourceRun", (domain: Domain) => Effect.Effect<((request: StartDataSourceRunRequest) => Effect.Effect<datazone.StartDataSourceRunOutput, datazone.StartDataSourceRunError>)>> {
+export interface StartDataSourceRun extends Binding.Service<StartDataSourceRun, "AWS.DataZone.StartDataSourceRun", (domain: Domain) => Effect.Effect<(request: StartDataSourceRunRequest) => Effect.Effect<datazone.StartDataSourceRunOutput, datazone.StartDataSourceRunError>>> {
 }
 export declare const StartDataSourceRun: StartDataSourceRun;

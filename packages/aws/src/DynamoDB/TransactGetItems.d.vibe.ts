@@ -1,7 +1,7 @@
 import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export type TransactGetItemsTables = [Table, ...Table[]];
 type NativeTransactGet = NonNullable<NonNullable<DynamoDB.TransactGetItemsInput["TransactItems"]>[number]["Get"]>;
 export interface TransactGet extends Omit<NativeTransactGet, "TableName"> {
@@ -39,7 +39,7 @@ export interface TransactGetItemsRequest extends Omit<DynamoDB.TransactGetItemsI
  *
  * @binding
  */
-export interface TransactGetItems extends Binding.Service<TransactGetItems, "AWS.DynamoDB.TransactGetItems", (...tables: TransactGetItemsTables) => Effect.Effect<((request: TransactGetItemsRequest) => Effect.Effect<DynamoDB.TransactGetItemsOutput, DynamoDB.TransactGetItemsError>)>> {
+export interface TransactGetItems extends Binding.Service<TransactGetItems, "AWS.DynamoDB.TransactGetItems", (...tables: TransactGetItemsTables) => Effect.Effect<(request: TransactGetItemsRequest) => Effect.Effect<DynamoDB.TransactGetItemsOutput, DynamoDB.TransactGetItemsError>>> {
 }
 export declare const TransactGetItems: TransactGetItems;
 export {};

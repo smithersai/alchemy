@@ -60,6 +60,6 @@ export interface InvokeModelRequest extends Omit<bedrock.InvokeModelRequest, "mo
  *
  * @binding
  */
-export interface InvokeModel extends Binding.Service<InvokeModel, "AWS.Bedrock.InvokeModel", (model: string, ...additionalModels: string[]) => Effect.Effect<((request: InvokeModelRequest) => Effect.Effect<bedrock.InvokeModelResponse, bedrock.InvokeModelError>)>> {
+export interface InvokeModel extends Binding.Service<InvokeModel, "AWS.Bedrock.InvokeModel", (model: string, ...additionalModels: string[]) => Effect.Effect<(request: InvokeModelRequest) => Effect.Effect<bedrock.InvokeModelResponse, bedrock.InvokeModelError>>> {
 }
 export declare const InvokeModel: InvokeModel;

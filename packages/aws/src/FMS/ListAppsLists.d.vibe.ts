@@ -24,6 +24,6 @@ export interface ListAppsListsRequest extends fms.ListAppsListsRequest {
  *
  * @binding
  */
-export interface ListAppsLists extends Binding.Service<ListAppsLists, "AWS.FMS.ListAppsLists", () => Effect.Effect<((request: ListAppsListsRequest) => Effect.Effect<fms.ListAppsListsResponse, fms.ListAppsListsError>)>> {
+export interface ListAppsLists extends Binding.Service<ListAppsLists, "AWS.FMS.ListAppsLists", () => Effect.Effect<(request: ListAppsListsRequest) => Effect.Effect<fms.ListAppsListsResponse, fms.ListAppsListsError>>> {
 }
 export declare const ListAppsLists: ListAppsLists;

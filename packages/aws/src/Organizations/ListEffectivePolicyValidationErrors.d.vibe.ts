@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListEffectivePolicyValidationErrors extends Binding.Service<ListEffectivePolicyValidationErrors, "AWS.Organizations.ListEffectivePolicyValidationErrors", () => Effect.Effect<((request: organizations.ListEffectivePolicyValidationErrorsRequest) => Effect.Effect<organizations.ListEffectivePolicyValidationErrorsResponse, organizations.ListEffectivePolicyValidationErrorsError>)>> {
+export interface ListEffectivePolicyValidationErrors extends Binding.Service<ListEffectivePolicyValidationErrors, "AWS.Organizations.ListEffectivePolicyValidationErrors", () => Effect.Effect<(request: organizations.ListEffectivePolicyValidationErrorsRequest) => Effect.Effect<organizations.ListEffectivePolicyValidationErrorsResponse, organizations.ListEffectivePolicyValidationErrorsError>>> {
 }
 export declare const ListEffectivePolicyValidationErrors: ListEffectivePolicyValidationErrors;

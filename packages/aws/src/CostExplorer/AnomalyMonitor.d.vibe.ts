@@ -1,7 +1,7 @@
 import * as ce from "@distilled.cloud/aws/cost-explorer";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface AnomalyMonitorProps {
     /**
      * Name of the anomaly monitor. If omitted, a unique name is generated from

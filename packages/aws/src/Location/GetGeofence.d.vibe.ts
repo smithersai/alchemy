@@ -26,6 +26,6 @@ export interface GetGeofenceRequest extends Omit<location.GetGeofenceRequest, "C
  *
  * @binding
  */
-export interface GetGeofence extends Binding.Service<GetGeofence, "AWS.Location.GetGeofence", (collection: GeofenceCollection) => Effect.Effect<((request: GetGeofenceRequest) => Effect.Effect<location.GetGeofenceResponse, location.GetGeofenceError>)>> {
+export interface GetGeofence extends Binding.Service<GetGeofence, "AWS.Location.GetGeofence", (collection: GeofenceCollection) => Effect.Effect<(request: GetGeofenceRequest) => Effect.Effect<location.GetGeofenceResponse, location.GetGeofenceError>>> {
 }
 export declare const GetGeofence: GetGeofence;

@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListTagSyncTasks extends Binding.Service<ListTagSyncTasks, "AWS.ResourceGroups.ListTagSyncTasks", () => Effect.Effect<((request?: resourcegroups.ListTagSyncTasksInput) => Effect.Effect<resourcegroups.ListTagSyncTasksOutput, resourcegroups.ListTagSyncTasksError>)>> {
+export interface ListTagSyncTasks extends Binding.Service<ListTagSyncTasks, "AWS.ResourceGroups.ListTagSyncTasks", () => Effect.Effect<(request?: resourcegroups.ListTagSyncTasksInput) => Effect.Effect<resourcegroups.ListTagSyncTasksOutput, resourcegroups.ListTagSyncTasksError>>> {
 }
 export declare const ListTagSyncTasks: ListTagSyncTasks;

@@ -6,11 +6,11 @@ import * as Provider from "alchemy/Provider";
 import { Resource, type ResourceBinding } from "alchemy/Resource";
 import { type ServerHost } from "alchemy/Runtime/Process";
 import type { ExtraFile } from "alchemy/Util/extraFiles";
-import { GcpEnvironment } from "../Environment.js";
-import type { GcpHostBinding, GcpIamGrant } from "../Host.js";
-import { type GcpHostRuntimeContext } from "../HostContext.js";
-import type { Providers } from "../Providers.js";
-import type { ContainerSpec } from "./Service.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { GcpHostBinding, GcpIamGrant } from "../Host.ts";
+import { type GcpHostRuntimeContext } from "../HostContext.ts";
+import type { Providers } from "../Providers.ts";
+import type { ContainerSpec } from "./Service.ts";
 /** Env var a sidecar's program listens on (Cloud Run sets `PORT` only on the ingress container). */
 export declare const CONTAINER_PORT_ENV = "ALCHEMY_HTTP_PORT";
 /**

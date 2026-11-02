@@ -26,6 +26,6 @@ import type { Instance } from "./Instance.vibe";
  *
  * @binding
  */
-export interface CreateUser extends Binding.Service<CreateUser, "AWS.IdentityCenter.CreateUser", (instance: Instance) => Effect.Effect<((request: Omit<identitystore.CreateUserRequest, "IdentityStoreId">) => Effect.Effect<identitystore.CreateUserResponse, identitystore.CreateUserError>)>> {
+export interface CreateUser extends Binding.Service<CreateUser, "AWS.IdentityCenter.CreateUser", (instance: Instance) => Effect.Effect<(request: Omit<identitystore.CreateUserRequest, "IdentityStoreId">) => Effect.Effect<identitystore.CreateUserResponse, identitystore.CreateUserError>>> {
 }
 export declare const CreateUser: CreateUser;

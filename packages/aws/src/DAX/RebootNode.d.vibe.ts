@@ -21,6 +21,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface RebootNode extends Binding.Service<RebootNode, "AWS.DAX.RebootNode", (cluster: Cluster) => Effect.Effect<((request: Omit<dax.RebootNodeRequest, "ClusterName">) => Effect.Effect<dax.RebootNodeResponse, dax.RebootNodeError>)>> {
+export interface RebootNode extends Binding.Service<RebootNode, "AWS.DAX.RebootNode", (cluster: Cluster) => Effect.Effect<(request: Omit<dax.RebootNodeRequest, "ClusterName">) => Effect.Effect<dax.RebootNodeResponse, dax.RebootNodeError>>> {
 }
 export declare const RebootNode: RebootNode;

@@ -22,6 +22,6 @@ export interface SearchTypesRequest extends Omit<datazone.SearchTypesInput, "dom
  *
  * @binding
  */
-export interface SearchTypes extends Binding.Service<SearchTypes, "AWS.DataZone.SearchTypes", (domain: Domain) => Effect.Effect<((request: SearchTypesRequest) => Effect.Effect<datazone.SearchTypesOutput, datazone.SearchTypesError>)>> {
+export interface SearchTypes extends Binding.Service<SearchTypes, "AWS.DataZone.SearchTypes", (domain: Domain) => Effect.Effect<(request: SearchTypesRequest) => Effect.Effect<datazone.SearchTypesOutput, datazone.SearchTypesError>>> {
 }
 export declare const SearchTypes: SearchTypes;

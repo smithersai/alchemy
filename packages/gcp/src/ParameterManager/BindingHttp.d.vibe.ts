@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { ParametersVersion } from "./ParametersVersion.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
+import type { ParametersVersion } from "./ParametersVersion.ts";
 /**
  * Shared HTTP scaffolding for Parameter Manager version bindings.
  * NOT exported from index.ts.

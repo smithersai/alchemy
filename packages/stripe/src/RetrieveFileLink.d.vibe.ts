@@ -18,6 +18,6 @@ export interface RetrieveFileLinkRequest extends Omit<GetFileLinkRequest, "link"
  * @binding
  * @product Files
  */
-export interface RetrieveFileLink extends Binding.Service<RetrieveFileLink, "Stripe.RetrieveFileLink", (fileLink: FileLink) => Effect.Effect<((request?: RetrieveFileLinkRequest) => Effect.Effect<StripeFileLink, GetFileLinkError, RuntimeContext>)>> {
+export interface RetrieveFileLink extends Binding.Service<RetrieveFileLink, "Stripe.RetrieveFileLink", (fileLink: FileLink) => Effect.Effect<(request?: RetrieveFileLinkRequest) => Effect.Effect<StripeFileLink, GetFileLinkError, RuntimeContext>>> {
 }
 export declare const RetrieveFileLink: RetrieveFileLink;

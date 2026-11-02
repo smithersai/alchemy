@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetGlyphs extends Binding.Service<GetGlyphs, "AWS.GeoMaps.GetGlyphs", () => Effect.Effect<((request: geoMaps.GetGlyphsRequest) => Effect.Effect<geoMaps.GetGlyphsResponse, geoMaps.GetGlyphsError>)>> {
+export interface GetGlyphs extends Binding.Service<GetGlyphs, "AWS.GeoMaps.GetGlyphs", () => Effect.Effect<(request: geoMaps.GetGlyphsRequest) => Effect.Effect<geoMaps.GetGlyphsResponse, geoMaps.GetGlyphsError>>> {
 }
 export declare const GetGlyphs: GetGlyphs;

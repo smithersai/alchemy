@@ -18,6 +18,6 @@ export interface ListOriginationNumbersRequest extends sns.ListOriginationNumber
  *
  * @binding
  */
-export interface ListOriginationNumbers extends Binding.Service<ListOriginationNumbers, "AWS.SNS.ListOriginationNumbers", () => Effect.Effect<((request?: ListOriginationNumbersRequest) => Effect.Effect<sns.ListOriginationNumbersResult, sns.ListOriginationNumbersError>)>> {
+export interface ListOriginationNumbers extends Binding.Service<ListOriginationNumbers, "AWS.SNS.ListOriginationNumbers", () => Effect.Effect<(request?: ListOriginationNumbersRequest) => Effect.Effect<sns.ListOriginationNumbersResult, sns.ListOriginationNumbersError>>> {
 }
 export declare const ListOriginationNumbers: ListOriginationNumbers;

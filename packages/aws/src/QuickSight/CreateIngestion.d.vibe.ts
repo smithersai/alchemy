@@ -26,6 +26,6 @@ import type { DataSet } from "./DataSet.vibe";
  *
  * @binding
  */
-export interface CreateIngestion extends Binding.Service<CreateIngestion, "AWS.QuickSight.CreateIngestion", (dataSet: DataSet) => Effect.Effect<((request: Omit<quicksight.CreateIngestionRequest, "AwsAccountId" | "DataSetId">) => Effect.Effect<quicksight.CreateIngestionResponse, quicksight.CreateIngestionError>)>> {
+export interface CreateIngestion extends Binding.Service<CreateIngestion, "AWS.QuickSight.CreateIngestion", (dataSet: DataSet) => Effect.Effect<(request: Omit<quicksight.CreateIngestionRequest, "AwsAccountId" | "DataSetId">) => Effect.Effect<quicksight.CreateIngestionResponse, quicksight.CreateIngestionError>>> {
 }
 export declare const CreateIngestion: CreateIngestion;

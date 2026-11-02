@@ -1,7 +1,7 @@
 import * as secretsmanager from "@distilled.cloud/aws/secrets-manager";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 export interface BatchGetSecretValueRequest extends Omit<secretsmanager.BatchGetSecretValueRequest, "SecretIdList" | "Filters"> {
 }
 /**
@@ -32,6 +32,6 @@ export interface BatchGetSecretValueRequest extends Omit<secretsmanager.BatchGet
  *
  * @binding
  */
-export interface BatchGetSecretValue extends Binding.Service<BatchGetSecretValue, "AWS.SecretsManager.BatchGetSecretValue", (secrets: readonly Secret[]) => Effect.Effect<((request?: BatchGetSecretValueRequest) => Effect.Effect<secretsmanager.BatchGetSecretValueResponse, secretsmanager.BatchGetSecretValueError>)>> {
+export interface BatchGetSecretValue extends Binding.Service<BatchGetSecretValue, "AWS.SecretsManager.BatchGetSecretValue", (secrets: readonly Secret[]) => Effect.Effect<(request?: BatchGetSecretValueRequest) => Effect.Effect<secretsmanager.BatchGetSecretValueResponse, secretsmanager.BatchGetSecretValueError>>> {
 }
 export declare const BatchGetSecretValue: BatchGetSecretValue;

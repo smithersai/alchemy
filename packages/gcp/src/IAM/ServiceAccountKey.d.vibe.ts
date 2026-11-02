@@ -2,7 +2,7 @@ import * as iam from "@distilled.cloud/gcp/unstable/iam_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type ServiceAccountKeyProps = {
     /**
      * Email of the service account the key belongs to. Changing it replaces

@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSafetyLever extends Binding.Service<GetSafetyLever, "AWS.FIS.GetSafetyLever", () => Effect.Effect<((request: fis.GetSafetyLeverRequest) => Effect.Effect<fis.GetSafetyLeverResponse, fis.GetSafetyLeverError>)>> {
+export interface GetSafetyLever extends Binding.Service<GetSafetyLever, "AWS.FIS.GetSafetyLever", () => Effect.Effect<(request: fis.GetSafetyLeverRequest) => Effect.Effect<fis.GetSafetyLeverResponse, fis.GetSafetyLeverError>>> {
 }
 export declare const GetSafetyLever: GetSafetyLever;

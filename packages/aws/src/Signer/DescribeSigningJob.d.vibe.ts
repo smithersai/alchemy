@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeSigningJob extends Binding.Service<DescribeSigningJob, "AWS.Signer.DescribeSigningJob", () => Effect.Effect<((request: signer.DescribeSigningJobRequest) => Effect.Effect<signer.DescribeSigningJobResponse, signer.DescribeSigningJobError>)>> {
+export interface DescribeSigningJob extends Binding.Service<DescribeSigningJob, "AWS.Signer.DescribeSigningJob", () => Effect.Effect<(request: signer.DescribeSigningJobRequest) => Effect.Effect<signer.DescribeSigningJobResponse, signer.DescribeSigningJobError>>> {
 }
 export declare const DescribeSigningJob: DescribeSigningJob;

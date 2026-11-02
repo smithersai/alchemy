@@ -33,6 +33,6 @@ export interface PrepareQueryRequest extends TSQ.PrepareQueryRequest {
  *
  * @binding
  */
-export interface PrepareQuery extends Binding.Service<PrepareQuery, "AWS.Timestream.PrepareQuery", (table: Table) => Effect.Effect<((request: PrepareQueryRequest) => Effect.Effect<TSQ.PrepareQueryResponse, TSQ.PrepareQueryError | TSQ.DescribeEndpointsError>)>> {
+export interface PrepareQuery extends Binding.Service<PrepareQuery, "AWS.Timestream.PrepareQuery", (table: Table) => Effect.Effect<(request: PrepareQueryRequest) => Effect.Effect<TSQ.PrepareQueryResponse, TSQ.PrepareQueryError | TSQ.DescribeEndpointsError>>> {
 }
 export declare const PrepareQuery: PrepareQuery;

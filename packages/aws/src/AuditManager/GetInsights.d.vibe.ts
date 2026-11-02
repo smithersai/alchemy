@@ -16,6 +16,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetInsights extends Binding.Service<GetInsights, "AWS.AuditManager.GetInsights", () => Effect.Effect<((request?: auditmanager.GetInsightsRequest) => Effect.Effect<auditmanager.GetInsightsResponse, auditmanager.GetInsightsError>)>> {
+export interface GetInsights extends Binding.Service<GetInsights, "AWS.AuditManager.GetInsights", () => Effect.Effect<(request?: auditmanager.GetInsightsRequest) => Effect.Effect<auditmanager.GetInsightsResponse, auditmanager.GetInsightsError>>> {
 }
 export declare const GetInsights: GetInsights;

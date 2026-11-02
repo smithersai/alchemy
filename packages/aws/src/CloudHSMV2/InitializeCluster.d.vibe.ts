@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface InitializeCluster extends Binding.Service<InitializeCluster, "AWS.CloudHSMV2.InitializeCluster", () => Effect.Effect<((request: cloudhsm.InitializeClusterRequest) => Effect.Effect<cloudhsm.InitializeClusterResponse, cloudhsm.InitializeClusterError>)>> {
+export interface InitializeCluster extends Binding.Service<InitializeCluster, "AWS.CloudHSMV2.InitializeCluster", () => Effect.Effect<(request: cloudhsm.InitializeClusterRequest) => Effect.Effect<cloudhsm.InitializeClusterResponse, cloudhsm.InitializeClusterError>>> {
 }
 export declare const InitializeCluster: InitializeCluster;

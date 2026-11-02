@@ -19,6 +19,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface DeleteKxScalingGroup extends Binding.Service<DeleteKxScalingGroup, "AWS.FinSpace.DeleteKxScalingGroup", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request: Omit<SVC.DeleteKxScalingGroupRequest, "environmentId">) => Effect.Effect<SVC.DeleteKxScalingGroupResponse, SVC.DeleteKxScalingGroupError>)>> {
+export interface DeleteKxScalingGroup extends Binding.Service<DeleteKxScalingGroup, "AWS.FinSpace.DeleteKxScalingGroup", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request: Omit<SVC.DeleteKxScalingGroupRequest, "environmentId">) => Effect.Effect<SVC.DeleteKxScalingGroupResponse, SVC.DeleteKxScalingGroupError>>> {
 }
 export declare const DeleteKxScalingGroup: DeleteKxScalingGroup;

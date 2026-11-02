@@ -31,6 +31,6 @@ export interface PutEventsRequest extends Omit<personalizeevents.PutEventsReques
  *
  * @binding
  */
-export interface PutEvents extends Binding.Service<PutEvents, "AWS.Personalize.PutEvents", (tracker: EventTracker) => Effect.Effect<((request: PutEventsRequest) => Effect.Effect<personalizeevents.PutEventsResponse, personalizeevents.PutEventsError>)>> {
+export interface PutEvents extends Binding.Service<PutEvents, "AWS.Personalize.PutEvents", (tracker: EventTracker) => Effect.Effect<(request: PutEventsRequest) => Effect.Effect<personalizeevents.PutEventsResponse, personalizeevents.PutEventsError>>> {
 }
 export declare const PutEvents: PutEvents;

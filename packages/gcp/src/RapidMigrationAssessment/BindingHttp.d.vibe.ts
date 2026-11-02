@@ -1,7 +1,7 @@
 import { Credentials } from "@distilled.cloud/gcp/Credentials";
 import * as Effect from "effect/Effect";
 import * as HttpClient from "effect/http/HttpClient";
-import { type BindingIam } from "../HttpBinding.js";
+import { type BindingIam } from "../HttpBinding.ts";
 import type { Collector } from "./Collector.vibe";
 /**
  * Shared HTTP scaffolding for Rapid Migration Assessment collector
@@ -16,5 +16,5 @@ export declare const makeCollectorHttpBinding: <I extends {
 }, A, E>(options: {
     tag: string;
     iam: BindingIam;
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, Credentials | HttpClient.HttpClient> & ((input: I) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>);
 }) => Effect.Effect<(collector: Collector) => Effect.Effect<(request?: Omit<I, "name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

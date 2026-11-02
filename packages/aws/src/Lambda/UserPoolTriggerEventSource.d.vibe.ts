@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { UserPoolTriggerEventSource as CognitoUserPoolTriggerEventSource } from "../Cognito/UserPoolTriggerEventSource.vibe";
-import * as Lambda from "./Function.js";
+import * as Lambda from "./Function.ts";
 /**
  * The `version`/`triggerSource`/`userPoolId`/`request`/`response` envelope
  * shared by every user pool Lambda trigger. Declared structurally —

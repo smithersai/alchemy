@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAccountPermissions extends Binding.Service<ListAccountPermissions, "AWS.Inspector2.ListAccountPermissions", () => Effect.Effect<((request?: inspector2.ListAccountPermissionsRequest) => Effect.Effect<inspector2.ListAccountPermissionsResponse, inspector2.ListAccountPermissionsError>)>> {
+export interface ListAccountPermissions extends Binding.Service<ListAccountPermissions, "AWS.Inspector2.ListAccountPermissions", () => Effect.Effect<(request?: inspector2.ListAccountPermissionsRequest) => Effect.Effect<inspector2.ListAccountPermissionsResponse, inspector2.ListAccountPermissionsError>>> {
 }
 export declare const ListAccountPermissions: ListAccountPermissions;

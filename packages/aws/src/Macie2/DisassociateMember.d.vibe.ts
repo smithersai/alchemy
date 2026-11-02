@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DisassociateMember extends Binding.Service<DisassociateMember, "AWS.Macie2.DisassociateMember", () => Effect.Effect<((request: macie2.DisassociateMemberRequest) => Effect.Effect<macie2.DisassociateMemberResponse, macie2.DisassociateMemberError>)>> {
+export interface DisassociateMember extends Binding.Service<DisassociateMember, "AWS.Macie2.DisassociateMember", () => Effect.Effect<(request: macie2.DisassociateMemberRequest) => Effect.Effect<macie2.DisassociateMemberResponse, macie2.DisassociateMemberError>>> {
 }
 export declare const DisassociateMember: DisassociateMember;

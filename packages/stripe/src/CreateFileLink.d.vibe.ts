@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  * @binding
  * @product Files
  */
-export interface CreateFileLink extends Binding.Service<CreateFileLink, "Stripe.CreateFileLink", () => Effect.Effect<((request: CreateFileLinkRequest) => Effect.Effect<StripeFileLink, CreateFileLinkError, RuntimeContext>)>> {
+export interface CreateFileLink extends Binding.Service<CreateFileLink, "Stripe.CreateFileLink", () => Effect.Effect<(request: CreateFileLinkRequest) => Effect.Effect<StripeFileLink, CreateFileLinkError, RuntimeContext>>> {
 }
 export declare const CreateFileLink: CreateFileLink;

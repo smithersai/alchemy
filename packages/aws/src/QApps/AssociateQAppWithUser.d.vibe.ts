@@ -24,6 +24,6 @@ export interface AssociateQAppWithUserRequest extends Omit<qapps.AssociateQAppWi
  *
  * @binding
  */
-export interface AssociateQAppWithUser extends Binding.Service<AssociateQAppWithUser, "AWS.QApps.AssociateQAppWithUser", (app: QApp) => Effect.Effect<((request?: AssociateQAppWithUserRequest) => Effect.Effect<qapps.AssociateQAppWithUserResponse, qapps.AssociateQAppWithUserError>)>> {
+export interface AssociateQAppWithUser extends Binding.Service<AssociateQAppWithUser, "AWS.QApps.AssociateQAppWithUser", (app: QApp) => Effect.Effect<(request?: AssociateQAppWithUserRequest) => Effect.Effect<qapps.AssociateQAppWithUserResponse, qapps.AssociateQAppWithUserError>>> {
 }
 export declare const AssociateQAppWithUser: AssociateQAppWithUser;

@@ -52,6 +52,6 @@ export interface GetConfigurationResult {
  *
  * @binding
  */
-export interface GetConfiguration extends Binding.Service<GetConfiguration, "AWS.AppConfig.GetConfiguration", (application: Application, environment: Environment, configurationProfile: ConfigurationProfile, options?: GetConfigurationOptions) => Effect.Effect<(() => Effect.Effect<GetConfigurationResult, appconfigdata.StartConfigurationSessionError | appconfigdata.GetLatestConfigurationError>)>> {
+export interface GetConfiguration extends Binding.Service<GetConfiguration, "AWS.AppConfig.GetConfiguration", (application: Application, environment: Environment, configurationProfile: ConfigurationProfile, options?: GetConfigurationOptions) => Effect.Effect<() => Effect.Effect<GetConfigurationResult, appconfigdata.StartConfigurationSessionError | appconfigdata.GetLatestConfigurationError>>> {
 }
 export declare const GetConfiguration: GetConfiguration;

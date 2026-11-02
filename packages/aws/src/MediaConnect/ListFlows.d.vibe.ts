@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListFlows extends Binding.Service<ListFlows, "AWS.MediaConnect.ListFlows", () => Effect.Effect<((request?: mediaconnect.ListFlowsRequest) => Effect.Effect<mediaconnect.ListFlowsResponse, mediaconnect.ListFlowsError>)>> {
+export interface ListFlows extends Binding.Service<ListFlows, "AWS.MediaConnect.ListFlows", () => Effect.Effect<(request?: mediaconnect.ListFlowsRequest) => Effect.Effect<mediaconnect.ListFlowsResponse, mediaconnect.ListFlowsError>>> {
 }
 export declare const ListFlows: ListFlows;

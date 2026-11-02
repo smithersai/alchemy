@@ -24,6 +24,6 @@ import type { Collection } from "./Collection.vibe";
  *
  * @binding
  */
-export interface DeleteIndex extends Binding.Service<DeleteIndex, "AWS.OpenSearchServerless.DeleteIndex", (collection: Collection) => Effect.Effect<((request: Omit<aoss.DeleteIndexRequest, "id">) => Effect.Effect<aoss.DeleteIndexResponse, aoss.DeleteIndexError>)>> {
+export interface DeleteIndex extends Binding.Service<DeleteIndex, "AWS.OpenSearchServerless.DeleteIndex", (collection: Collection) => Effect.Effect<(request: Omit<aoss.DeleteIndexRequest, "id">) => Effect.Effect<aoss.DeleteIndexResponse, aoss.DeleteIndexError>>> {
 }
 export declare const DeleteIndex: DeleteIndex;

@@ -22,6 +22,6 @@ export interface GetUserProfileRequest extends Omit<datazone.GetUserProfileInput
  *
  * @binding
  */
-export interface GetUserProfile extends Binding.Service<GetUserProfile, "AWS.DataZone.GetUserProfile", (domain: Domain) => Effect.Effect<((request: GetUserProfileRequest) => Effect.Effect<datazone.GetUserProfileOutput, datazone.GetUserProfileError>)>> {
+export interface GetUserProfile extends Binding.Service<GetUserProfile, "AWS.DataZone.GetUserProfile", (domain: Domain) => Effect.Effect<(request: GetUserProfileRequest) => Effect.Effect<datazone.GetUserProfileOutput, datazone.GetUserProfileError>>> {
 }
 export declare const GetUserProfile: GetUserProfile;

@@ -45,6 +45,6 @@ export interface RegisterDomainRequest extends route53domains.RegisterDomainRequ
  *
  * @binding
  */
-export interface RegisterDomain extends Binding.Service<RegisterDomain, "AWS.Route53Domains.RegisterDomain", () => Effect.Effect<((request: RegisterDomainRequest) => Effect.Effect<route53domains.RegisterDomainResponse, route53domains.RegisterDomainError>)>> {
+export interface RegisterDomain extends Binding.Service<RegisterDomain, "AWS.Route53Domains.RegisterDomain", () => Effect.Effect<(request: RegisterDomainRequest) => Effect.Effect<route53domains.RegisterDomainResponse, route53domains.RegisterDomainError>>> {
 }
 export declare const RegisterDomain: RegisterDomain;

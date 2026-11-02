@@ -2,7 +2,7 @@ import type * as privateca from "@distilled.cloud/gcp/privateca_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { CaPool } from "./CaPool.js";
+import type { CaPool } from "./CaPool.ts";
 export interface FetchCaCertsRequest {
     /**
      * Optional UUID used to make the fetch idempotent for at least 60
@@ -27,6 +27,6 @@ export interface FetchCaCertsRequest {
  * @binding
  * @category PrivateCA
  */
-export interface FetchCaCerts extends Binding.Service<FetchCaCerts, "GCP.PrivateCA.FetchCaCerts", (pool: CaPool) => Effect.Effect<((request?: FetchCaCertsRequest) => Effect.Effect<privateca.FetchCaCertsResponse, privateca.FetchCaCertsProjectsLocationsCaPoolsError, RuntimeContext>)>> {
+export interface FetchCaCerts extends Binding.Service<FetchCaCerts, "GCP.PrivateCA.FetchCaCerts", (pool: CaPool) => Effect.Effect<(request?: FetchCaCertsRequest) => Effect.Effect<privateca.FetchCaCertsResponse, privateca.FetchCaCertsProjectsLocationsCaPoolsError, RuntimeContext>>> {
 }
 export declare const FetchCaCerts: FetchCaCerts;

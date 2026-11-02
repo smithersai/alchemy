@@ -27,6 +27,6 @@ export interface StartCommitmentPurchaseAnalysisRequest extends ce.StartCommitme
  *
  * @binding
  */
-export interface StartCommitmentPurchaseAnalysis extends Binding.Service<StartCommitmentPurchaseAnalysis, "AWS.CostExplorer.StartCommitmentPurchaseAnalysis", () => Effect.Effect<((request: StartCommitmentPurchaseAnalysisRequest) => Effect.Effect<ce.StartCommitmentPurchaseAnalysisResponse, ce.StartCommitmentPurchaseAnalysisError>)>> {
+export interface StartCommitmentPurchaseAnalysis extends Binding.Service<StartCommitmentPurchaseAnalysis, "AWS.CostExplorer.StartCommitmentPurchaseAnalysis", () => Effect.Effect<(request: StartCommitmentPurchaseAnalysisRequest) => Effect.Effect<ce.StartCommitmentPurchaseAnalysisResponse, ce.StartCommitmentPurchaseAnalysisError>>> {
 }
 export declare const StartCommitmentPurchaseAnalysis: StartCommitmentPurchaseAnalysis;

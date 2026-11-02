@@ -26,6 +26,6 @@ export interface DisassociateThirdPartyFirewallRequest extends fms.DisassociateT
  *
  * @binding
  */
-export interface DisassociateThirdPartyFirewall extends Binding.Service<DisassociateThirdPartyFirewall, "AWS.FMS.DisassociateThirdPartyFirewall", () => Effect.Effect<((request: DisassociateThirdPartyFirewallRequest) => Effect.Effect<fms.DisassociateThirdPartyFirewallResponse, fms.DisassociateThirdPartyFirewallError>)>> {
+export interface DisassociateThirdPartyFirewall extends Binding.Service<DisassociateThirdPartyFirewall, "AWS.FMS.DisassociateThirdPartyFirewall", () => Effect.Effect<(request: DisassociateThirdPartyFirewallRequest) => Effect.Effect<fms.DisassociateThirdPartyFirewallResponse, fms.DisassociateThirdPartyFirewallError>>> {
 }
 export declare const DisassociateThirdPartyFirewall: DisassociateThirdPartyFirewall;

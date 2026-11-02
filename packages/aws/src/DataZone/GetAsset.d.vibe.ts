@@ -22,6 +22,6 @@ export interface GetAssetRequest extends Omit<datazone.GetAssetInput, "domainIde
  *
  * @binding
  */
-export interface GetAsset extends Binding.Service<GetAsset, "AWS.DataZone.GetAsset", (domain: Domain) => Effect.Effect<((request: GetAssetRequest) => Effect.Effect<datazone.GetAssetOutput, datazone.GetAssetError>)>> {
+export interface GetAsset extends Binding.Service<GetAsset, "AWS.DataZone.GetAsset", (domain: Domain) => Effect.Effect<(request: GetAssetRequest) => Effect.Effect<datazone.GetAssetOutput, datazone.GetAssetError>>> {
 }
 export declare const GetAsset: GetAsset;

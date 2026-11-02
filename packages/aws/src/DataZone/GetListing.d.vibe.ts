@@ -22,6 +22,6 @@ export interface GetListingRequest extends Omit<datazone.GetListingInput, "domai
  *
  * @binding
  */
-export interface GetListing extends Binding.Service<GetListing, "AWS.DataZone.GetListing", (domain: Domain) => Effect.Effect<((request: GetListingRequest) => Effect.Effect<datazone.GetListingOutput, datazone.GetListingError>)>> {
+export interface GetListing extends Binding.Service<GetListing, "AWS.DataZone.GetListing", (domain: Domain) => Effect.Effect<(request: GetListingRequest) => Effect.Effect<datazone.GetListingOutput, datazone.GetListingError>>> {
 }
 export declare const GetListing: GetListing;

@@ -27,6 +27,6 @@ export interface GetResourceLFTagsRequest extends lf.GetResourceLFTagsRequest {
  *
  * @binding
  */
-export interface GetResourceLFTags extends Binding.Service<GetResourceLFTags, "AWS.LakeFormation.GetResourceLFTags", () => Effect.Effect<((request: GetResourceLFTagsRequest) => Effect.Effect<lf.GetResourceLFTagsResponse, lf.GetResourceLFTagsError>)>> {
+export interface GetResourceLFTags extends Binding.Service<GetResourceLFTags, "AWS.LakeFormation.GetResourceLFTags", () => Effect.Effect<(request: GetResourceLFTagsRequest) => Effect.Effect<lf.GetResourceLFTagsResponse, lf.GetResourceLFTagsError>>> {
 }
 export declare const GetResourceLFTags: GetResourceLFTags;

@@ -1,9 +1,9 @@
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import type { Bucket } from "./Bucket.js";
+import type { Bucket } from "./Bucket.ts";
 import type { BucketNotification, NotificationsProps } from "./BucketNotifications.vibe";
-import type { S3EventType } from "./S3Event.js";
+import type { S3EventType } from "./S3Event.ts";
 /**
  * Event source that streams a bucket's notifications (object created, object
  * removed, ...) into the host Lambda Function. Usually consumed through the

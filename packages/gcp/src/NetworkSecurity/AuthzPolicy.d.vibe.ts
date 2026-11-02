@@ -1,8 +1,8 @@
 import * as networksecurity from "@distilled.cloud/gcp/networksecurity_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type AuthzPolicyAction = networksecurity.AuthzPolicyActionEnum | (string & {});
 export type AuthzPolicyProfile = networksecurity.AuthzPolicyPolicyProfileEnum | (string & {});
 export type AuthzPolicyLoadBalancingScheme = networksecurity.AuthzPolicyTargetLoadBalancingSchemeEnum | (string & {});

@@ -18,6 +18,6 @@ export interface RetrieveRadarValueListItemRequest extends Omit<GetRadarValueLis
  * @binding
  * @product Radar
  */
-export interface RetrieveRadarValueListItem extends Binding.Service<RetrieveRadarValueListItem, "Stripe.RetrieveRadarValueListItem", (item: RadarValueListItem) => Effect.Effect<((request?: RetrieveRadarValueListItemRequest) => Effect.Effect<StripeRadarValueListItem, GetRadarValueListItemError, RuntimeContext>)>> {
+export interface RetrieveRadarValueListItem extends Binding.Service<RetrieveRadarValueListItem, "Stripe.RetrieveRadarValueListItem", (item: RadarValueListItem) => Effect.Effect<(request?: RetrieveRadarValueListItemRequest) => Effect.Effect<StripeRadarValueListItem, GetRadarValueListItemError, RuntimeContext>>> {
 }
 export declare const RetrieveRadarValueListItem: RetrieveRadarValueListItem;

@@ -29,6 +29,6 @@ export interface CreateDeploymentRequest extends Omit<amplify.CreateDeploymentRe
  *
  * @binding
  */
-export interface CreateDeployment extends Binding.Service<CreateDeployment, "AWS.Amplify.CreateDeployment", (app: App) => Effect.Effect<((request: CreateDeploymentRequest) => Effect.Effect<amplify.CreateDeploymentResult, amplify.CreateDeploymentError>)>> {
+export interface CreateDeployment extends Binding.Service<CreateDeployment, "AWS.Amplify.CreateDeployment", (app: App) => Effect.Effect<(request: CreateDeploymentRequest) => Effect.Effect<amplify.CreateDeploymentResult, amplify.CreateDeploymentError>>> {
 }
 export declare const CreateDeployment: CreateDeployment;

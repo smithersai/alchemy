@@ -30,6 +30,6 @@ export interface SearchRelevantContentRequest extends Omit<qbusiness.SearchRelev
  *
  * @binding
  */
-export interface SearchRelevantContent extends Binding.Service<SearchRelevantContent, "AWS.QBusiness.SearchRelevantContent", (application: Application) => Effect.Effect<((request: SearchRelevantContentRequest) => Effect.Effect<qbusiness.SearchRelevantContentResponse, qbusiness.SearchRelevantContentError>)>> {
+export interface SearchRelevantContent extends Binding.Service<SearchRelevantContent, "AWS.QBusiness.SearchRelevantContent", (application: Application) => Effect.Effect<(request: SearchRelevantContentRequest) => Effect.Effect<qbusiness.SearchRelevantContentResponse, qbusiness.SearchRelevantContentError>>> {
 }
 export declare const SearchRelevantContent: SearchRelevantContent;

@@ -19,6 +19,6 @@ import type { AddressList } from "./AddressList.vibe";
  *
  * @binding
  */
-export interface StopAddressListImportJob extends Binding.Service<StopAddressListImportJob, "AWS.MailManager.StopAddressListImportJob", (list: AddressList) => Effect.Effect<((request: mm.StopAddressListImportJobRequest) => Effect.Effect<mm.StopAddressListImportJobResponse, mm.StopAddressListImportJobError>)>> {
+export interface StopAddressListImportJob extends Binding.Service<StopAddressListImportJob, "AWS.MailManager.StopAddressListImportJob", (list: AddressList) => Effect.Effect<(request: mm.StopAddressListImportJobRequest) => Effect.Effect<mm.StopAddressListImportJobResponse, mm.StopAddressListImportJobError>>> {
 }
 export declare const StopAddressListImportJob: StopAddressListImportJob;

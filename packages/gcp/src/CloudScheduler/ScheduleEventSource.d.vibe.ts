@@ -1,6 +1,6 @@
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { RetryConfig } from "./Job.js";
+import type { RetryConfig } from "./Job.ts";
 /** One Cloud Scheduler invocation. */
 export interface ScheduledEvent {
     /** RFC3339 time the run was scheduled for (`X-CloudScheduler-ScheduleTime`). */

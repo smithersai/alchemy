@@ -29,6 +29,6 @@ export interface CopyBlueprintStageRequest extends Omit<bda.CopyBlueprintStageRe
  *
  * @binding
  */
-export interface CopyBlueprintStage extends Binding.Service<CopyBlueprintStage, "AWS.BedrockDataAutomation.CopyBlueprintStage", (blueprint: Blueprint) => Effect.Effect<((request: CopyBlueprintStageRequest) => Effect.Effect<bda.CopyBlueprintStageResponse, bda.CopyBlueprintStageError>)>> {
+export interface CopyBlueprintStage extends Binding.Service<CopyBlueprintStage, "AWS.BedrockDataAutomation.CopyBlueprintStage", (blueprint: Blueprint) => Effect.Effect<(request: CopyBlueprintStageRequest) => Effect.Effect<bda.CopyBlueprintStageResponse, bda.CopyBlueprintStageError>>> {
 }
 export declare const CopyBlueprintStage: CopyBlueprintStage;

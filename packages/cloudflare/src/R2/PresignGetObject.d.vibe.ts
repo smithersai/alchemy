@@ -1,8 +1,8 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
-import type { PresignError } from "./BucketTypes.js";
+import type { Bucket } from "./Bucket.ts";
+import type { PresignError } from "./BucketTypes.ts";
 export interface PresignGetObjectRequest {
     /**
      * Key of the object to mint a presigned download URL for.
@@ -77,6 +77,6 @@ export interface PresignGetObjectRequest {
  * @product R2
  * @category Storage & Databases
  */
-export interface PresignGetObject extends Binding.Service<PresignGetObject, "Cloudflare.R2.PresignGetObject", (bucket: Bucket) => Effect.Effect<((request: PresignGetObjectRequest) => Effect.Effect<string, PresignError, RuntimeContext>)>> {
+export interface PresignGetObject extends Binding.Service<PresignGetObject, "Cloudflare.R2.PresignGetObject", (bucket: Bucket) => Effect.Effect<(request: PresignGetObjectRequest) => Effect.Effect<string, PresignError, RuntimeContext>>> {
 }
 export declare const PresignGetObject: PresignGetObject;

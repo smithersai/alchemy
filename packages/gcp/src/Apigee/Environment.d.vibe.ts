@@ -1,8 +1,8 @@
 import * as apigee from "@distilled.cloud/gcp/apigee_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type EnvironmentType = apigee.GoogleCloudApigeeV1EnvironmentTypeEnum | (string & {});
 export type EnvironmentApiProxyType = apigee.GoogleCloudApigeeV1EnvironmentApiProxyTypeEnum | (string & {});
 export type EnvironmentDeploymentType = apigee.GoogleCloudApigeeV1EnvironmentDeploymentTypeEnum | (string & {});

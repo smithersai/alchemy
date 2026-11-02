@@ -40,6 +40,6 @@ export interface ExportCertificateRequest extends Omit<acm.ExportCertificateRequ
  *
  * @binding
  */
-export interface ExportCertificate extends Binding.Service<ExportCertificate, "AWS.ACM.ExportCertificate", (certificate: Certificate) => Effect.Effect<((request: ExportCertificateRequest) => Effect.Effect<acm.ExportCertificateResponse, acm.ExportCertificateError>)>> {
+export interface ExportCertificate extends Binding.Service<ExportCertificate, "AWS.ACM.ExportCertificate", (certificate: Certificate) => Effect.Effect<(request: ExportCertificateRequest) => Effect.Effect<acm.ExportCertificateResponse, acm.ExportCertificateError>>> {
 }
 export declare const ExportCertificate: ExportCertificate;

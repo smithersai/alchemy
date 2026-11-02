@@ -48,6 +48,6 @@ export interface InvokeEndpointWithResponseStreamRequest extends Omit<sagemaker.
  *
  * @binding
  */
-export interface InvokeEndpointWithResponseStream extends Binding.Service<InvokeEndpointWithResponseStream, "AWS.SageMakerRuntime.InvokeEndpointWithResponseStream", (endpoint: string, ...additionalEndpoints: string[]) => Effect.Effect<((request: InvokeEndpointWithResponseStreamRequest) => Effect.Effect<sagemaker.InvokeEndpointWithResponseStreamOutput, sagemaker.InvokeEndpointWithResponseStreamError>)>> {
+export interface InvokeEndpointWithResponseStream extends Binding.Service<InvokeEndpointWithResponseStream, "AWS.SageMakerRuntime.InvokeEndpointWithResponseStream", (endpoint: string, ...additionalEndpoints: string[]) => Effect.Effect<(request: InvokeEndpointWithResponseStreamRequest) => Effect.Effect<sagemaker.InvokeEndpointWithResponseStreamOutput, sagemaker.InvokeEndpointWithResponseStreamError>>> {
 }
 export declare const InvokeEndpointWithResponseStream: InvokeEndpointWithResponseStream;

@@ -1,6 +1,6 @@
 import type { Output as OutputType } from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import type { Parameter } from "./Parameter.js";
+import type { Parameter } from "./Parameter.ts";
 /**
  * Shared scaffolding for AWS SSM Parameter Store HTTP bindings.
  *
@@ -26,7 +26,7 @@ export declare const makeParameterHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.SSM.GetParameterHistory`. */
     tag: string;
     /** The distilled operation the runtime callable invokes. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the bound parameter. */
     actions: readonly string[];
     /**

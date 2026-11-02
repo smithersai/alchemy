@@ -36,6 +36,6 @@ export interface ImportCertificateRequest extends acm.ImportCertificateRequest {
  *
  * @binding
  */
-export interface ImportCertificate extends Binding.Service<ImportCertificate, "AWS.ACM.ImportCertificate", () => Effect.Effect<((request: ImportCertificateRequest) => Effect.Effect<acm.ImportCertificateResponse, acm.ImportCertificateError>)>> {
+export interface ImportCertificate extends Binding.Service<ImportCertificate, "AWS.ACM.ImportCertificate", () => Effect.Effect<(request: ImportCertificateRequest) => Effect.Effect<acm.ImportCertificateResponse, acm.ImportCertificateError>>> {
 }
 export declare const ImportCertificate: ImportCertificate;

@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteSnapshot extends Binding.Service<DeleteSnapshot, "AWS.RedshiftServerless.DeleteSnapshot", () => Effect.Effect<((request: serverless.DeleteSnapshotRequest) => Effect.Effect<serverless.DeleteSnapshotResponse, serverless.DeleteSnapshotError>)>> {
+export interface DeleteSnapshot extends Binding.Service<DeleteSnapshot, "AWS.RedshiftServerless.DeleteSnapshot", () => Effect.Effect<(request: serverless.DeleteSnapshotRequest) => Effect.Effect<serverless.DeleteSnapshotResponse, serverless.DeleteSnapshotError>>> {
 }
 export declare const DeleteSnapshot: DeleteSnapshot;

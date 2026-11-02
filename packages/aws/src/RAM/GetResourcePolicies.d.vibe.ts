@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetResourcePolicies extends Binding.Service<GetResourcePolicies, "AWS.RAM.GetResourcePolicies", () => Effect.Effect<((request: ram.GetResourcePoliciesRequest) => Effect.Effect<ram.GetResourcePoliciesResponse, ram.GetResourcePoliciesError>)>> {
+export interface GetResourcePolicies extends Binding.Service<GetResourcePolicies, "AWS.RAM.GetResourcePolicies", () => Effect.Effect<(request: ram.GetResourcePoliciesRequest) => Effect.Effect<ram.GetResourcePoliciesResponse, ram.GetResourcePoliciesError>>> {
 }
 export declare const GetResourcePolicies: GetResourcePolicies;

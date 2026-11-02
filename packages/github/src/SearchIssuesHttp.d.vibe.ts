@@ -1,6 +1,6 @@
 import * as Search from "@distilled.cloud/github/search";
 import * as Layer from "effect/Layer";
-import * as BindingHttp from "./BindingHttp.js";
+import * as BindingHttp from "./BindingHttp.ts";
 import { SearchIssues, type SearchIssuesRequest } from "./SearchIssues.vibe";
 export declare const searchIssuesOperation: BindingHttp.Operation<[request: SearchIssuesRequest], Search.IssuesAndPullRequestsResponse, Search.IssuesAndPullRequestsError>;
 /**

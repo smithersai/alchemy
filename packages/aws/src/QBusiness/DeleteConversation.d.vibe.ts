@@ -25,6 +25,6 @@ export interface DeleteConversationRequest extends Omit<qbusiness.DeleteConversa
  *
  * @binding
  */
-export interface DeleteConversation extends Binding.Service<DeleteConversation, "AWS.QBusiness.DeleteConversation", (application: Application) => Effect.Effect<((request: DeleteConversationRequest) => Effect.Effect<qbusiness.DeleteConversationResponse, qbusiness.DeleteConversationError>)>> {
+export interface DeleteConversation extends Binding.Service<DeleteConversation, "AWS.QBusiness.DeleteConversation", (application: Application) => Effect.Effect<(request: DeleteConversationRequest) => Effect.Effect<qbusiness.DeleteConversationResponse, qbusiness.DeleteConversationError>>> {
 }
 export declare const DeleteConversation: DeleteConversation;

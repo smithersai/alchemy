@@ -1,7 +1,7 @@
 import type * as translate from "@distilled.cloud/aws/translate";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Role } from "../IAM/Role.js";
+import type { Role } from "../IAM/Role.ts";
 /**
  * `StartTextTranslationJob` request with `DataAccessRoleArn` defaulting to
  * the role the binding was constructed with.
@@ -50,6 +50,6 @@ export interface StartTextTranslationJobRequest extends Omit<translate.StartText
  *
  * @binding
  */
-export interface StartTextTranslationJob extends Binding.Service<StartTextTranslationJob, "AWS.Translate.StartTextTranslationJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<((request: StartTextTranslationJobRequest) => Effect.Effect<translate.StartTextTranslationJobResponse, translate.StartTextTranslationJobError>)>> {
+export interface StartTextTranslationJob extends Binding.Service<StartTextTranslationJob, "AWS.Translate.StartTextTranslationJob", <R extends Role>(dataAccessRole: R) => Effect.Effect<(request: StartTextTranslationJobRequest) => Effect.Effect<translate.StartTextTranslationJobResponse, translate.StartTextTranslationJobError>>> {
 }
 export declare const StartTextTranslationJob: StartTextTranslationJob;

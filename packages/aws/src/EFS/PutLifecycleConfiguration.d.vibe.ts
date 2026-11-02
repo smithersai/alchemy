@@ -31,6 +31,6 @@ export interface PutLifecycleConfigurationRequest extends Omit<efs.PutLifecycleC
  *
  * @binding
  */
-export interface PutLifecycleConfiguration extends Binding.Service<PutLifecycleConfiguration, "AWS.EFS.PutLifecycleConfiguration", (fileSystem: FileSystem) => Effect.Effect<((request: PutLifecycleConfigurationRequest) => Effect.Effect<efs.LifecycleConfigurationDescription, efs.PutLifecycleConfigurationError>)>> {
+export interface PutLifecycleConfiguration extends Binding.Service<PutLifecycleConfiguration, "AWS.EFS.PutLifecycleConfiguration", (fileSystem: FileSystem) => Effect.Effect<(request: PutLifecycleConfigurationRequest) => Effect.Effect<efs.LifecycleConfigurationDescription, efs.PutLifecycleConfigurationError>>> {
 }
 export declare const PutLifecycleConfiguration: PutLifecycleConfiguration;

@@ -25,6 +25,6 @@ import type { Workspace } from "./Workspace.vibe";
  *
  * @binding
  */
-export interface UpdateWorkspaceConfiguration extends Binding.Service<UpdateWorkspaceConfiguration, "AWS.Grafana.UpdateWorkspaceConfiguration", (workspace: Workspace) => Effect.Effect<((request: Omit<grafana.UpdateWorkspaceConfigurationRequest, "workspaceId">) => Effect.Effect<grafana.UpdateWorkspaceConfigurationResponse, grafana.UpdateWorkspaceConfigurationError>)>> {
+export interface UpdateWorkspaceConfiguration extends Binding.Service<UpdateWorkspaceConfiguration, "AWS.Grafana.UpdateWorkspaceConfiguration", (workspace: Workspace) => Effect.Effect<(request: Omit<grafana.UpdateWorkspaceConfigurationRequest, "workspaceId">) => Effect.Effect<grafana.UpdateWorkspaceConfigurationResponse, grafana.UpdateWorkspaceConfigurationError>>> {
 }
 export declare const UpdateWorkspaceConfiguration: UpdateWorkspaceConfiguration;

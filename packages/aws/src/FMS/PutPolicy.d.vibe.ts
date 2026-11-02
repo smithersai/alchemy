@@ -32,6 +32,6 @@ export interface PutPolicyRequest extends fms.PutPolicyRequest {
  *
  * @binding
  */
-export interface PutPolicy extends Binding.Service<PutPolicy, "AWS.FMS.PutPolicy", () => Effect.Effect<((request: PutPolicyRequest) => Effect.Effect<fms.PutPolicyResponse, fms.PutPolicyError>)>> {
+export interface PutPolicy extends Binding.Service<PutPolicy, "AWS.FMS.PutPolicy", () => Effect.Effect<(request: PutPolicyRequest) => Effect.Effect<fms.PutPolicyResponse, fms.PutPolicyError>>> {
 }
 export declare const PutPolicy: PutPolicy;

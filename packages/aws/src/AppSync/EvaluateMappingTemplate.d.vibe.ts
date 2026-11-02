@@ -29,6 +29,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface EvaluateMappingTemplate extends Binding.Service<EvaluateMappingTemplate, "AWS.AppSync.EvaluateMappingTemplate", () => Effect.Effect<((request: appsync.EvaluateMappingTemplateRequest) => Effect.Effect<appsync.EvaluateMappingTemplateResponse, appsync.EvaluateMappingTemplateError>)>> {
+export interface EvaluateMappingTemplate extends Binding.Service<EvaluateMappingTemplate, "AWS.AppSync.EvaluateMappingTemplate", () => Effect.Effect<(request: appsync.EvaluateMappingTemplateRequest) => Effect.Effect<appsync.EvaluateMappingTemplateResponse, appsync.EvaluateMappingTemplateError>>> {
 }
 export declare const EvaluateMappingTemplate: EvaluateMappingTemplate;

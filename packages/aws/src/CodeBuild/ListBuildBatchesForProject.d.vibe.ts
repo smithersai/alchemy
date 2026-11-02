@@ -15,6 +15,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface ListBuildBatchesForProject extends Binding.Service<ListBuildBatchesForProject, "AWS.CodeBuild.ListBuildBatchesForProject", <P extends Project>(project: P) => Effect.Effect<((request?: Omit<SVC.ListBuildBatchesForProjectInput, "projectName">) => Effect.Effect<SVC.ListBuildBatchesForProjectOutput, SVC.ListBuildBatchesForProjectError>)>> {
+export interface ListBuildBatchesForProject extends Binding.Service<ListBuildBatchesForProject, "AWS.CodeBuild.ListBuildBatchesForProject", <P extends Project>(project: P) => Effect.Effect<(request?: Omit<SVC.ListBuildBatchesForProjectInput, "projectName">) => Effect.Effect<SVC.ListBuildBatchesForProjectOutput, SVC.ListBuildBatchesForProjectError>>> {
 }
 export declare const ListBuildBatchesForProject: ListBuildBatchesForProject;

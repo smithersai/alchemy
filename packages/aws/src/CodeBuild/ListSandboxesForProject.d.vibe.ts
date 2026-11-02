@@ -15,6 +15,6 @@ import type { Project } from "./Project.vibe";
  *
  * @binding
  */
-export interface ListSandboxesForProject extends Binding.Service<ListSandboxesForProject, "AWS.CodeBuild.ListSandboxesForProject", <P extends Project>(project: P) => Effect.Effect<((request?: Omit<SVC.ListSandboxesForProjectInput, "projectName">) => Effect.Effect<SVC.ListSandboxesForProjectOutput, SVC.ListSandboxesForProjectError>)>> {
+export interface ListSandboxesForProject extends Binding.Service<ListSandboxesForProject, "AWS.CodeBuild.ListSandboxesForProject", <P extends Project>(project: P) => Effect.Effect<(request?: Omit<SVC.ListSandboxesForProjectInput, "projectName">) => Effect.Effect<SVC.ListSandboxesForProjectOutput, SVC.ListSandboxesForProjectError>>> {
 }
 export declare const ListSandboxesForProject: ListSandboxesForProject;

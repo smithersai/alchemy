@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAttributeGroups extends Binding.Service<ListAttributeGroups, "AWS.AppRegistry.ListAttributeGroups", () => Effect.Effect<((request?: appregistry.ListAttributeGroupsRequest) => Effect.Effect<appregistry.ListAttributeGroupsResponse, appregistry.ListAttributeGroupsError>)>> {
+export interface ListAttributeGroups extends Binding.Service<ListAttributeGroups, "AWS.AppRegistry.ListAttributeGroups", () => Effect.Effect<(request?: appregistry.ListAttributeGroupsRequest) => Effect.Effect<appregistry.ListAttributeGroupsResponse, appregistry.ListAttributeGroupsError>>> {
 }
 export declare const ListAttributeGroups: ListAttributeGroups;

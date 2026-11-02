@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteSnapshot extends Binding.Service<DeleteSnapshot, "AWS.FSx.DeleteSnapshot", () => Effect.Effect<((request: fsx.DeleteSnapshotRequest) => Effect.Effect<fsx.DeleteSnapshotResponse, fsx.DeleteSnapshotError>)>> {
+export interface DeleteSnapshot extends Binding.Service<DeleteSnapshot, "AWS.FSx.DeleteSnapshot", () => Effect.Effect<(request: fsx.DeleteSnapshotRequest) => Effect.Effect<fsx.DeleteSnapshotResponse, fsx.DeleteSnapshotError>>> {
 }
 export declare const DeleteSnapshot: DeleteSnapshot;

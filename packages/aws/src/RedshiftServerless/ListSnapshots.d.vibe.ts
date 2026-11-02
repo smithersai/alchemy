@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListSnapshots extends Binding.Service<ListSnapshots, "AWS.RedshiftServerless.ListSnapshots", () => Effect.Effect<((request?: serverless.ListSnapshotsRequest) => Effect.Effect<serverless.ListSnapshotsResponse, serverless.ListSnapshotsError>)>> {
+export interface ListSnapshots extends Binding.Service<ListSnapshots, "AWS.RedshiftServerless.ListSnapshots", () => Effect.Effect<(request?: serverless.ListSnapshotsRequest) => Effect.Effect<serverless.ListSnapshotsResponse, serverless.ListSnapshotsError>>> {
 }
 export declare const ListSnapshots: ListSnapshots;

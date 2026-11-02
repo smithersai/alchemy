@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetAction extends Binding.Service<GetAction, "AWS.FIS.GetAction", () => Effect.Effect<((request: fis.GetActionRequest) => Effect.Effect<fis.GetActionResponse, fis.GetActionError>)>> {
+export interface GetAction extends Binding.Service<GetAction, "AWS.FIS.GetAction", () => Effect.Effect<(request: fis.GetActionRequest) => Effect.Effect<fis.GetActionResponse, fis.GetActionError>>> {
 }
 export declare const GetAction: GetAction;

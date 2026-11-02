@@ -1,7 +1,7 @@
 import * as billingbudgets from "@distilled.cloud/gcp/billingbudgets_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type Money = {
     /**
      * Whole units of the amount. For USD, `1` is one dollar.
@@ -258,5 +258,5 @@ export declare class BillingBudgetNotResolved extends BillingBudgetNotResolved_b
     resourceName: string;
 }> {
 }
-export declare const BillingBudgetProvider: () => import("effect/Layer").Layer<Provider.Provider<BillingBudget>, never, import("../Environment.js").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | billingbudgets.GcpOpContext>;
+export declare const BillingBudgetProvider: () => import("effect/Layer").Layer<Provider.Provider<BillingBudget>, never, import("../Environment.ts").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | billingbudgets.GcpOpContext>;
 export {};

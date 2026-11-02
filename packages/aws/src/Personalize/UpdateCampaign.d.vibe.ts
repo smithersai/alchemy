@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateCampaign extends Binding.Service<UpdateCampaign, "AWS.Personalize.UpdateCampaign", () => Effect.Effect<((request: personalize.UpdateCampaignRequest) => Effect.Effect<personalize.UpdateCampaignResponse, personalize.UpdateCampaignError>)>> {
+export interface UpdateCampaign extends Binding.Service<UpdateCampaign, "AWS.Personalize.UpdateCampaign", () => Effect.Effect<(request: personalize.UpdateCampaignRequest) => Effect.Effect<personalize.UpdateCampaignResponse, personalize.UpdateCampaignError>>> {
 }
 export declare const UpdateCampaign: UpdateCampaign;

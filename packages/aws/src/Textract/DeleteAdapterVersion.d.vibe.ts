@@ -19,6 +19,6 @@ import type { Adapter } from "./Adapter.vibe";
  *
  * @binding
  */
-export interface DeleteAdapterVersion extends Binding.Service<DeleteAdapterVersion, "AWS.Textract.DeleteAdapterVersion", <A extends Adapter>(adapter: A) => Effect.Effect<((request: Omit<textract.DeleteAdapterVersionRequest, "AdapterId">) => Effect.Effect<textract.DeleteAdapterVersionResponse, textract.DeleteAdapterVersionError>)>> {
+export interface DeleteAdapterVersion extends Binding.Service<DeleteAdapterVersion, "AWS.Textract.DeleteAdapterVersion", <A extends Adapter>(adapter: A) => Effect.Effect<(request: Omit<textract.DeleteAdapterVersionRequest, "AdapterId">) => Effect.Effect<textract.DeleteAdapterVersionResponse, textract.DeleteAdapterVersionError>>> {
 }
 export declare const DeleteAdapterVersion: DeleteAdapterVersion;

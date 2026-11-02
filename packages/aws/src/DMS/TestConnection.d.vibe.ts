@@ -24,6 +24,6 @@ import type { ReplicationInstance } from "./ReplicationInstance.vibe";
  *
  * @binding
  */
-export interface TestConnection extends Binding.Service<TestConnection, "AWS.DMS.TestConnection", (instance: ReplicationInstance, endpoint: Endpoint) => Effect.Effect<(() => Effect.Effect<dms.TestConnectionResponse, dms.TestConnectionError>)>> {
+export interface TestConnection extends Binding.Service<TestConnection, "AWS.DMS.TestConnection", (instance: ReplicationInstance, endpoint: Endpoint) => Effect.Effect<() => Effect.Effect<dms.TestConnectionResponse, dms.TestConnectionError>>> {
 }
 export declare const TestConnection: TestConnection;

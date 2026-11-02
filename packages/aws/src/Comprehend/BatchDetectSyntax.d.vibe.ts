@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchDetectSyntax extends Binding.Service<BatchDetectSyntax, "AWS.Comprehend.BatchDetectSyntax", () => Effect.Effect<((request: comprehend.BatchDetectSyntaxRequest) => Effect.Effect<comprehend.BatchDetectSyntaxResponse, comprehend.BatchDetectSyntaxError>)>> {
+export interface BatchDetectSyntax extends Binding.Service<BatchDetectSyntax, "AWS.Comprehend.BatchDetectSyntax", () => Effect.Effect<(request: comprehend.BatchDetectSyntaxRequest) => Effect.Effect<comprehend.BatchDetectSyntaxResponse, comprehend.BatchDetectSyntaxError>>> {
 }
 export declare const BatchDetectSyntax: BatchDetectSyntax;

@@ -1,7 +1,7 @@
 import type * as autoscaling from "@distilled.cloud/aws/auto-scaling";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AutoScalingGroup } from "./AutoScalingGroup.js";
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts";
 /**
  * `DescribeScalingActivities` request with `AutoScalingGroupName` injected
  * from the bound {@link AutoScalingGroup}.
@@ -32,6 +32,6 @@ export interface DescribeScalingActivitiesRequest extends Omit<autoscaling.Descr
  *
  * @binding
  */
-export interface DescribeScalingActivities extends Binding.Service<DescribeScalingActivities, "AWS.AutoScaling.DescribeScalingActivities", (group: AutoScalingGroup) => Effect.Effect<((request?: DescribeScalingActivitiesRequest) => Effect.Effect<autoscaling.ActivitiesType, autoscaling.DescribeScalingActivitiesError>)>> {
+export interface DescribeScalingActivities extends Binding.Service<DescribeScalingActivities, "AWS.AutoScaling.DescribeScalingActivities", (group: AutoScalingGroup) => Effect.Effect<(request?: DescribeScalingActivitiesRequest) => Effect.Effect<autoscaling.ActivitiesType, autoscaling.DescribeScalingActivitiesError>>> {
 }
 export declare const DescribeScalingActivities: DescribeScalingActivities;

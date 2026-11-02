@@ -23,6 +23,6 @@ import type { Instance } from "./Instance.vibe";
  *
  * @binding
  */
-export interface ListGroupMemberships extends Binding.Service<ListGroupMemberships, "AWS.IdentityCenter.ListGroupMemberships", (instance: Instance) => Effect.Effect<((request: Omit<identitystore.ListGroupMembershipsRequest, "IdentityStoreId">) => Effect.Effect<identitystore.ListGroupMembershipsResponse, identitystore.ListGroupMembershipsError>)>> {
+export interface ListGroupMemberships extends Binding.Service<ListGroupMemberships, "AWS.IdentityCenter.ListGroupMemberships", (instance: Instance) => Effect.Effect<(request: Omit<identitystore.ListGroupMembershipsRequest, "IdentityStoreId">) => Effect.Effect<identitystore.ListGroupMembershipsResponse, identitystore.ListGroupMembershipsError>>> {
 }
 export declare const ListGroupMemberships: ListGroupMemberships;

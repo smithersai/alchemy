@@ -27,7 +27,7 @@ export declare const makeSmsVoicePhoneNumberHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.PinpointSMSVoiceV2.SendTextMessage`. */
     tag: string;
     /** The distilled operation; `OriginationIdentity` is injected from the number. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the phone number ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(phoneNumber: PhoneNumber) => Effect.Effect<(request?: Omit<I, "OriginationIdentity"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -44,7 +44,7 @@ export declare const makeSmsVoiceOptOutListHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.PinpointSMSVoiceV2.PutOptedOutNumber`. */
     tag: string;
     /** The distilled operation; `OptOutListName` is injected from the list. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the opt-out list ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(optOutList: OptOutList) => Effect.Effect<(request?: Omit<I, "OptOutListName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -58,7 +58,7 @@ export declare const makeSmsVoiceAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.PinpointSMSVoiceV2.CarrierLookup`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

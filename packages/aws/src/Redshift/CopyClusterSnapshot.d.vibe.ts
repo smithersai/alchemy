@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CopyClusterSnapshot extends Binding.Service<CopyClusterSnapshot, "AWS.Redshift.CopyClusterSnapshot", () => Effect.Effect<((request: redshift.CopyClusterSnapshotMessage) => Effect.Effect<redshift.CopyClusterSnapshotResult, redshift.CopyClusterSnapshotError>)>> {
+export interface CopyClusterSnapshot extends Binding.Service<CopyClusterSnapshot, "AWS.Redshift.CopyClusterSnapshot", () => Effect.Effect<(request: redshift.CopyClusterSnapshotMessage) => Effect.Effect<redshift.CopyClusterSnapshotResult, redshift.CopyClusterSnapshotError>>> {
 }
 export declare const CopyClusterSnapshot: CopyClusterSnapshot;

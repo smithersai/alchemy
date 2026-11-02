@@ -30,7 +30,7 @@ export declare const makeDmsEndpointScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DMS.DescribeSchemas`. */
     tag: string;
     /** The distilled operation; `EndpointArn` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*` (DMS describes are not resource-scoped). */
     actions: readonly string[];
 }) => Effect.Effect<(endpoint: Endpoint) => Effect.Effect<(request?: Omit<I, "EndpointArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -47,7 +47,7 @@ export declare const makeDmsInstanceScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DMS.RebootReplicationInstance`. */
     tag: string;
     /** The distilled operation; `ReplicationInstanceArn` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted. */
     actions: readonly string[];
     /**
@@ -70,7 +70,7 @@ export declare const makeDmsConnectionScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.DMS.TestConnection`. */
     tag: string;
     /** The distilled operation; both ARNs are injected from the resources. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the instance + endpoint ARNs. */
     actions: readonly string[];
 }) => Effect.Effect<(instance: ReplicationInstance, endpoint: Endpoint) => Effect.Effect<(request?: Omit<I, "ReplicationInstanceArn" | "EndpointArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -82,7 +82,7 @@ export declare const makeDmsAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.DMS.DescribeConnections`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

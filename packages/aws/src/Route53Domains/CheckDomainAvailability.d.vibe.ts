@@ -36,6 +36,6 @@ export interface CheckDomainAvailabilityRequest extends route53domains.CheckDoma
  *
  * @binding
  */
-export interface CheckDomainAvailability extends Binding.Service<CheckDomainAvailability, "AWS.Route53Domains.CheckDomainAvailability", () => Effect.Effect<((request: CheckDomainAvailabilityRequest) => Effect.Effect<route53domains.CheckDomainAvailabilityResponse, route53domains.CheckDomainAvailabilityError>)>> {
+export interface CheckDomainAvailability extends Binding.Service<CheckDomainAvailability, "AWS.Route53Domains.CheckDomainAvailability", () => Effect.Effect<(request: CheckDomainAvailabilityRequest) => Effect.Effect<route53domains.CheckDomainAvailabilityResponse, route53domains.CheckDomainAvailabilityError>>> {
 }
 export declare const CheckDomainAvailability: CheckDomainAvailability;

@@ -35,6 +35,6 @@ export interface GetCertificateRequest extends Omit<acmpca.GetCertificateRequest
  *
  * @binding
  */
-export interface GetCertificate extends Binding.Service<GetCertificate, "AWS.ACMPCA.GetCertificate", (certificateAuthority: CertificateAuthority) => Effect.Effect<((request: GetCertificateRequest) => Effect.Effect<acmpca.GetCertificateResponse, acmpca.GetCertificateError>)>> {
+export interface GetCertificate extends Binding.Service<GetCertificate, "AWS.ACMPCA.GetCertificate", (certificateAuthority: CertificateAuthority) => Effect.Effect<(request: GetCertificateRequest) => Effect.Effect<acmpca.GetCertificateResponse, acmpca.GetCertificateError>>> {
 }
 export declare const GetCertificate: GetCertificate;

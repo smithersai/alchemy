@@ -45,6 +45,6 @@ export interface StartCodeInterpreterSessionRequest extends Omit<agentcore.Start
  *
  * @binding
  */
-export interface StartCodeInterpreterSession extends Binding.Service<StartCodeInterpreterSession, "AWS.BedrockAgentCore.StartCodeInterpreterSession", <R extends CodeInterpreter>(codeInterpreter: R) => Effect.Effect<((request: StartCodeInterpreterSessionRequest) => Effect.Effect<agentcore.StartCodeInterpreterSessionResponse, agentcore.StartCodeInterpreterSessionError>)>> {
+export interface StartCodeInterpreterSession extends Binding.Service<StartCodeInterpreterSession, "AWS.BedrockAgentCore.StartCodeInterpreterSession", <R extends CodeInterpreter>(codeInterpreter: R) => Effect.Effect<(request: StartCodeInterpreterSessionRequest) => Effect.Effect<agentcore.StartCodeInterpreterSessionResponse, agentcore.StartCodeInterpreterSessionError>>> {
 }
 export declare const StartCodeInterpreterSession: StartCodeInterpreterSession;

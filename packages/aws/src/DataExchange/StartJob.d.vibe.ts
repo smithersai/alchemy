@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartJob extends Binding.Service<StartJob, "AWS.DataExchange.StartJob", () => Effect.Effect<((request: dataexchange.StartJobRequest) => Effect.Effect<dataexchange.StartJobResponse, dataexchange.StartJobError>)>> {
+export interface StartJob extends Binding.Service<StartJob, "AWS.DataExchange.StartJob", () => Effect.Effect<(request: dataexchange.StartJobRequest) => Effect.Effect<dataexchange.StartJobResponse, dataexchange.StartJobError>>> {
 }
 export declare const StartJob: StartJob;

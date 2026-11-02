@@ -24,6 +24,6 @@ export interface GetSubscriptionRequest extends Omit<pubsublite.GetAdminProjects
  * @binding
  * @category PubSubLite
  */
-export interface GetSubscription extends Binding.Service<GetSubscription, "GCP.PubSubLite.GetSubscription", (subscription: AdminSubscription) => Effect.Effect<((request?: GetSubscriptionRequest) => Effect.Effect<pubsublite.Subscription, pubsublite.GetAdminProjectsLocationsSubscriptionsError, RuntimeContext>)>> {
+export interface GetSubscription extends Binding.Service<GetSubscription, "GCP.PubSubLite.GetSubscription", (subscription: AdminSubscription) => Effect.Effect<(request?: GetSubscriptionRequest) => Effect.Effect<pubsublite.Subscription, pubsublite.GetAdminProjectsLocationsSubscriptionsError, RuntimeContext>>> {
 }
 export declare const GetSubscription: GetSubscription;

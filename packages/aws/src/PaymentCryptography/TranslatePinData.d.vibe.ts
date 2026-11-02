@@ -30,6 +30,6 @@ export interface TranslatePinDataRequest extends Omit<paymentcryptographydata.Tr
  *
  * @binding
  */
-export interface TranslatePinData extends Binding.Service<TranslatePinData, "AWS.PaymentCryptography.TranslatePinData", <In extends Key, Out extends Key>(incomingKey: In, outgoingKey: Out) => Effect.Effect<((request: TranslatePinDataRequest) => Effect.Effect<paymentcryptographydata.TranslatePinDataOutput, paymentcryptographydata.TranslatePinDataError>)>> {
+export interface TranslatePinData extends Binding.Service<TranslatePinData, "AWS.PaymentCryptography.TranslatePinData", <In extends Key, Out extends Key>(incomingKey: In, outgoingKey: Out) => Effect.Effect<(request: TranslatePinDataRequest) => Effect.Effect<paymentcryptographydata.TranslatePinDataOutput, paymentcryptographydata.TranslatePinDataError>>> {
 }
 export declare const TranslatePinData: TranslatePinData;

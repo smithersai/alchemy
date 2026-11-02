@@ -22,7 +22,7 @@ export declare const makeFraudDetectorDetectorHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.FraudDetector.GetEventPrediction`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the detector ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(detector: Detector) => Effect.Effect<(request: Omit<I, "detectorId">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -45,7 +45,7 @@ export declare const makeFraudDetectorListHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.FraudDetector.GetListElements`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the list ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(list: List) => Effect.Effect<(request: Omit<I, "name">) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -55,7 +55,7 @@ export declare const makeFraudDetectorEventTypeHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.FraudDetector.SendEvent`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the event type ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(eventType: EventType) => Effect.Effect<(request: Omit<I, "eventTypeName">) => Effect.Effect<A, E, never>, never, never>, never, never>;

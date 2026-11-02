@@ -38,6 +38,6 @@ export interface GetIngestionJobRequest extends Omit<bedrock.GetIngestionJobRequ
  *
  * @binding
  */
-export interface GetIngestionJob extends Binding.Service<GetIngestionJob, "AWS.Bedrock.GetIngestionJob", <D extends DataSource>(dataSource: D) => Effect.Effect<((request: GetIngestionJobRequest) => Effect.Effect<bedrock.GetIngestionJobResponse, bedrock.GetIngestionJobError>)>> {
+export interface GetIngestionJob extends Binding.Service<GetIngestionJob, "AWS.Bedrock.GetIngestionJob", <D extends DataSource>(dataSource: D) => Effect.Effect<(request: GetIngestionJobRequest) => Effect.Effect<bedrock.GetIngestionJobResponse, bedrock.GetIngestionJobError>>> {
 }
 export declare const GetIngestionJob: GetIngestionJob;

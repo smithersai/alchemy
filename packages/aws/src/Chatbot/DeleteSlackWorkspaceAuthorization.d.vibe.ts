@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteSlackWorkspaceAuthorization extends Binding.Service<DeleteSlackWorkspaceAuthorization, "AWS.Chatbot.DeleteSlackWorkspaceAuthorization", () => Effect.Effect<((request: chatbot.DeleteSlackWorkspaceAuthorizationRequest) => Effect.Effect<chatbot.DeleteSlackWorkspaceAuthorizationResult, chatbot.DeleteSlackWorkspaceAuthorizationError>)>> {
+export interface DeleteSlackWorkspaceAuthorization extends Binding.Service<DeleteSlackWorkspaceAuthorization, "AWS.Chatbot.DeleteSlackWorkspaceAuthorization", () => Effect.Effect<(request: chatbot.DeleteSlackWorkspaceAuthorizationRequest) => Effect.Effect<chatbot.DeleteSlackWorkspaceAuthorizationResult, chatbot.DeleteSlackWorkspaceAuthorizationError>>> {
 }
 export declare const DeleteSlackWorkspaceAuthorization: DeleteSlackWorkspaceAuthorization;

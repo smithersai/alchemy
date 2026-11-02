@@ -2,7 +2,7 @@ import type * as container from "@distilled.cloud/gcp/container_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { NodePool } from "./NodePool.js";
+import type { NodePool } from "./NodePool.ts";
 export interface GetNodePoolRequest extends Omit<container.GetProjectsLocationsClustersNodePoolsRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetNodePoolRequest extends Omit<container.GetProjectsLocationsC
  * @binding
  * @category Container
  */
-export interface GetNodePool extends Binding.Service<GetNodePool, "GCP.Container.GetNodePool", (nodePool: NodePool) => Effect.Effect<((request?: GetNodePoolRequest) => Effect.Effect<container.NodePool, container.GetProjectsLocationsClustersNodePoolsError, RuntimeContext>)>> {
+export interface GetNodePool extends Binding.Service<GetNodePool, "GCP.Container.GetNodePool", (nodePool: NodePool) => Effect.Effect<(request?: GetNodePoolRequest) => Effect.Effect<container.NodePool, container.GetProjectsLocationsClustersNodePoolsError, RuntimeContext>>> {
 }
 export declare const GetNodePool: GetNodePool;

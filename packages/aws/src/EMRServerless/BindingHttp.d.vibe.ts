@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 /**
  * Shared scaffolding for the Amazon EMR Serverless HTTP bindings.
  *
@@ -20,7 +20,7 @@ export declare const makeEmrServerlessHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.EMRServerless.StartJobRun`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the application ARN (+ `subresources`). */
     actions: readonly string[];
     /**

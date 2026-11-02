@@ -20,7 +20,7 @@ export declare const makeCloudFormationStackHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.CloudFormation.DescribeStacks`. */
     tag: string;
     /** The distilled operation; `StackName` is injected from the stack. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the stack ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(stack: Stack) => Effect.Effect<(request?: Omit<I, "StackName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -34,7 +34,7 @@ export declare const makeCloudFormationAccountHttpBinding: <I, A, E, R>(options:
     /** Fully-qualified binding tag, e.g. `AWS.CloudFormation.ListExports`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

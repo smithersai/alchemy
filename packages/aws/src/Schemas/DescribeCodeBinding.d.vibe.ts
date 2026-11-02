@@ -25,11 +25,11 @@ import type { Schema } from "./Schema.vibe";
  *
  * @binding
  */
-export interface DescribeCodeBinding extends Binding.Service<DescribeCodeBinding, "AWS.Schemas.DescribeCodeBinding", (schema: Schema) => Effect.Effect<((request: {
+export interface DescribeCodeBinding extends Binding.Service<DescribeCodeBinding, "AWS.Schemas.DescribeCodeBinding", (schema: Schema) => Effect.Effect<(request: {
     /** The target language: `Java8`, `Python36`, `TypeScript3`, or `Go1`. */
     Language: string;
     /** The version of the schema. Defaults to the latest. */
     SchemaVersion?: string;
-}) => Effect.Effect<schemas.DescribeCodeBindingResponse, schemas.DescribeCodeBindingError>)>> {
+}) => Effect.Effect<schemas.DescribeCodeBindingResponse, schemas.DescribeCodeBindingError>>> {
 }
 export declare const DescribeCodeBinding: DescribeCodeBinding;

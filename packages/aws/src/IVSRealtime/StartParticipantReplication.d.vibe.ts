@@ -38,6 +38,6 @@ export interface StartParticipantReplicationRequest extends Omit<ivsrealtime.Sta
  *
  * @binding
  */
-export interface StartParticipantReplication extends Binding.Service<StartParticipantReplication, "AWS.IVSRealtime.StartParticipantReplication", (sourceStage: Stage, destinationStage: Stage) => Effect.Effect<((request: StartParticipantReplicationRequest) => Effect.Effect<ivsrealtime.StartParticipantReplicationResponse, ivsrealtime.StartParticipantReplicationError>)>> {
+export interface StartParticipantReplication extends Binding.Service<StartParticipantReplication, "AWS.IVSRealtime.StartParticipantReplication", (sourceStage: Stage, destinationStage: Stage) => Effect.Effect<(request: StartParticipantReplicationRequest) => Effect.Effect<ivsrealtime.StartParticipantReplicationResponse, ivsrealtime.StartParticipantReplicationError>>> {
 }
 export declare const StartParticipantReplication: StartParticipantReplication;

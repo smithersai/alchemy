@@ -15,7 +15,7 @@ export declare const makeTargetGroupHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.ELBv2.RegisterTargets`. */
     tag: string;
     /** The distilled operation; `TargetGroupArn` is injected from the group. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted by the binding. */
     actions: readonly string[];
     /**
@@ -38,7 +38,7 @@ export declare const makeLoadBalancerHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.ELBv2.ModifyCapacityReservation`. */
     tag: string;
     /** The distilled operation; `LoadBalancerArn` is injected from the LB. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted by the binding. */
     actions: readonly string[];
     /**
@@ -60,7 +60,7 @@ export declare const makeTrustStoreHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.ELBv2.GetTrustStoreCaCertificatesBundle`. */
     tag: string;
     /** The distilled operation; `TrustStoreArn` is injected from the store. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the trust-store ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(trustStore: TrustStore) => Effect.Effect<(request?: Omit<I, "TrustStoreArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

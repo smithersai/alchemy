@@ -14,7 +14,7 @@ export declare class CatalogNotFound extends CatalogNotFound_base<{
  * Current token organization slug (`getCurrentToken` → `tokens[0].org_slug`).
  * Feeds `listApps({ org_slug })`. Not a resource.
  */
-export declare const currentOrgSlug: () => Effect.Effect<string, import("./Environment.js").FlyOrgNotFound | machines.GetCurrentTokenError, machines.FlyIoOpContext>;
+export declare const currentOrgSlug: () => Effect.Effect<string, import("./Environment.ts").FlyOrgNotFound | machines.GetCurrentTokenError, machines.FlyIoOpContext>;
 /**
  * List Fly platform regions via `getRegions`.
  */

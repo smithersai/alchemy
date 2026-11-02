@@ -35,6 +35,6 @@ export interface ListPriceListsRequest extends pricing.ListPriceListsRequest {
  *
  * @binding
  */
-export interface ListPriceLists extends Binding.Service<ListPriceLists, "AWS.Pricing.ListPriceLists", () => Effect.Effect<((request: ListPriceListsRequest) => Effect.Effect<pricing.ListPriceListsResponse, pricing.ListPriceListsError>)>> {
+export interface ListPriceLists extends Binding.Service<ListPriceLists, "AWS.Pricing.ListPriceLists", () => Effect.Effect<(request: ListPriceListsRequest) => Effect.Effect<pricing.ListPriceListsResponse, pricing.ListPriceListsError>>> {
 }
 export declare const ListPriceLists: ListPriceLists;

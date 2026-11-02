@@ -24,6 +24,6 @@ export interface GetInstanceRequest extends Omit<SD.GetInstanceRequest, "Service
  *
  * @binding
  */
-export interface GetInstance extends Binding.Service<GetInstance, "AWS.CloudMap.GetInstance", <S extends Service>(service: S) => Effect.Effect<((request: GetInstanceRequest) => Effect.Effect<SD.GetInstanceResponse, SD.GetInstanceError>)>> {
+export interface GetInstance extends Binding.Service<GetInstance, "AWS.CloudMap.GetInstance", <S extends Service>(service: S) => Effect.Effect<(request: GetInstanceRequest) => Effect.Effect<SD.GetInstanceResponse, SD.GetInstanceError>>> {
 }
 export declare const GetInstance: GetInstance;

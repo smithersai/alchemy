@@ -1,6 +1,6 @@
 import * as Issues from "@distilled.cloud/github/issues";
 import * as Layer from "effect/Layer";
-import * as BindingHttp from "./BindingHttp.js";
+import * as BindingHttp from "./BindingHttp.ts";
 import { ListIssueComments, type ListIssueCommentsRequest } from "./ListIssueComments.vibe";
 export declare const listIssueCommentsOperation: BindingHttp.Operation<[request: ListIssueCommentsRequest], Issues.ListCommentsResponseBodyList, Issues.ListCommentsError>;
 /**

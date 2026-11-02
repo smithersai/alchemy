@@ -28,6 +28,6 @@ export interface GetScheduleRequest extends Omit<scheduler.GetScheduleInput, "Gr
  *
  * @binding
  */
-export interface GetSchedule extends Binding.Service<GetSchedule, "AWS.Scheduler.GetSchedule", (group?: ScheduleGroup) => Effect.Effect<((request: GetScheduleRequest) => Effect.Effect<scheduler.GetScheduleOutput, scheduler.GetScheduleError>)>> {
+export interface GetSchedule extends Binding.Service<GetSchedule, "AWS.Scheduler.GetSchedule", (group?: ScheduleGroup) => Effect.Effect<(request: GetScheduleRequest) => Effect.Effect<scheduler.GetScheduleOutput, scheduler.GetScheduleError>>> {
 }
 export declare const GetSchedule: GetSchedule;

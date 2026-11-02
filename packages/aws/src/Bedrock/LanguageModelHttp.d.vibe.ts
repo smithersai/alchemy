@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { LanguageModel } from "./LanguageModel.js";
+import { LanguageModel } from "./LanguageModel.ts";
 /**
  * HTTP implementation of {@link LanguageModel}. Composes the {@link Converse}
  * and {@link ConverseStream} bindings, so binding a model registers both

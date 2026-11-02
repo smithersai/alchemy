@@ -46,6 +46,6 @@ import type { App } from "./App.vibe";
  * @binding
  * @product Secret
  */
-export interface ListSecrets extends Binding.Service<ListSecrets, "Fly.ListSecrets", (app: App) => Effect.Effect<(() => Effect.Effect<AppSecrets, ListSecretsError, RuntimeContext>)>> {
+export interface ListSecrets extends Binding.Service<ListSecrets, "Fly.ListSecrets", (app: App) => Effect.Effect<() => Effect.Effect<AppSecrets, ListSecretsError, RuntimeContext>>> {
 }
 export declare const ListSecrets: ListSecrets;

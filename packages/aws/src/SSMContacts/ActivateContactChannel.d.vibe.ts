@@ -20,6 +20,6 @@ import type { ContactChannel } from "./ContactChannel.vibe";
  *
  * @binding
  */
-export interface ActivateContactChannel extends Binding.Service<ActivateContactChannel, "AWS.SSMContacts.ActivateContactChannel", (channel: ContactChannel) => Effect.Effect<((request: Omit<ssm.ActivateContactChannelRequest, "ContactChannelId">) => Effect.Effect<ssm.ActivateContactChannelResult, ssm.ActivateContactChannelError>)>> {
+export interface ActivateContactChannel extends Binding.Service<ActivateContactChannel, "AWS.SSMContacts.ActivateContactChannel", (channel: ContactChannel) => Effect.Effect<(request: Omit<ssm.ActivateContactChannelRequest, "ContactChannelId">) => Effect.Effect<ssm.ActivateContactChannelResult, ssm.ActivateContactChannelError>>> {
 }
 export declare const ActivateContactChannel: ActivateContactChannel;

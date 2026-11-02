@@ -1,7 +1,7 @@
 import type * as SSM from "@distilled.cloud/aws/ssm";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Parameter } from "./Parameter.js";
+import type { Parameter } from "./Parameter.ts";
 export interface GetParametersByPathRequest extends Omit<SSM.GetParametersByPathRequest, "Path"> {
 }
 /**
@@ -29,6 +29,6 @@ export interface GetParametersByPathRequest extends Omit<SSM.GetParametersByPath
  *
  * @binding
  */
-export interface GetParametersByPath extends Binding.Service<GetParametersByPath, "AWS.SSM.GetParametersByPath", <P extends Parameter>(parameter: P) => Effect.Effect<((request?: GetParametersByPathRequest) => Effect.Effect<SSM.GetParametersByPathResult, SSM.GetParametersByPathError>)>> {
+export interface GetParametersByPath extends Binding.Service<GetParametersByPath, "AWS.SSM.GetParametersByPath", <P extends Parameter>(parameter: P) => Effect.Effect<(request?: GetParametersByPathRequest) => Effect.Effect<SSM.GetParametersByPathResult, SSM.GetParametersByPathError>>> {
 }
 export declare const GetParametersByPath: GetParametersByPath;

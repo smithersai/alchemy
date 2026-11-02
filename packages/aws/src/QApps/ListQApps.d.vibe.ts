@@ -25,6 +25,6 @@ export interface ListQAppsRequest extends Omit<qapps.ListQAppsInput, "instanceId
  *
  * @binding
  */
-export interface ListQApps extends Binding.Service<ListQApps, "AWS.QApps.ListQApps", (app: QApp) => Effect.Effect<((request?: ListQAppsRequest) => Effect.Effect<qapps.ListQAppsOutput, qapps.ListQAppsError>)>> {
+export interface ListQApps extends Binding.Service<ListQApps, "AWS.QApps.ListQApps", (app: QApp) => Effect.Effect<(request?: ListQAppsRequest) => Effect.Effect<qapps.ListQAppsOutput, qapps.ListQAppsError>>> {
 }
 export declare const ListQApps: ListQApps;

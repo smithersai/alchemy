@@ -28,6 +28,6 @@ export interface ListSearchJobResultsRequest extends Omit<backupsearch.ListSearc
  *
  * @binding
  */
-export interface ListSearchJobResults extends Binding.Service<ListSearchJobResults, "AWS.BackupSearch.ListSearchJobResults", (searchJob: SearchJob) => Effect.Effect<((request?: ListSearchJobResultsRequest) => Effect.Effect<backupsearch.ListSearchJobResultsOutput, backupsearch.ListSearchJobResultsError>)>> {
+export interface ListSearchJobResults extends Binding.Service<ListSearchJobResults, "AWS.BackupSearch.ListSearchJobResults", (searchJob: SearchJob) => Effect.Effect<(request?: ListSearchJobResultsRequest) => Effect.Effect<backupsearch.ListSearchJobResultsOutput, backupsearch.ListSearchJobResultsError>>> {
 }
 export declare const ListSearchJobResults: ListSearchJobResults;

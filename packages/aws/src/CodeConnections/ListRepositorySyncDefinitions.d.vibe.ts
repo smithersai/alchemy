@@ -29,6 +29,6 @@ export interface ListRepositorySyncDefinitionsRequest extends Omit<codeconnectio
  *
  * @binding
  */
-export interface ListRepositorySyncDefinitions extends Binding.Service<ListRepositorySyncDefinitions, "AWS.CodeConnections.ListRepositorySyncDefinitions", (repositoryLink: RepositoryLink) => Effect.Effect<((request: ListRepositorySyncDefinitionsRequest) => Effect.Effect<codeconnections.ListRepositorySyncDefinitionsOutput, codeconnections.ListRepositorySyncDefinitionsError>)>> {
+export interface ListRepositorySyncDefinitions extends Binding.Service<ListRepositorySyncDefinitions, "AWS.CodeConnections.ListRepositorySyncDefinitions", (repositoryLink: RepositoryLink) => Effect.Effect<(request: ListRepositorySyncDefinitionsRequest) => Effect.Effect<codeconnections.ListRepositorySyncDefinitionsOutput, codeconnections.ListRepositorySyncDefinitionsError>>> {
 }
 export declare const ListRepositorySyncDefinitions: ListRepositorySyncDefinitions;

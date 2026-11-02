@@ -1,7 +1,7 @@
 import * as acm from "@distilled.cloud/gcp/accesscontextmanager_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export type AuthorizedOrgsDescDirection = acm.AuthorizedOrgsDescAuthorizationDirectionEnum;
 export type AuthorizedOrgsDescAssetType = acm.AuthorizedOrgsDescAssetTypeEnum;
 export type AuthorizedOrgsDescAuthorizationType = acm.AuthorizedOrgsDescAuthorizationTypeEnum;
@@ -115,5 +115,5 @@ export declare class AccessPoliciesAuthorizedOrgsDescNotResolved extends AccessP
     resourceName: string;
 }> {
 }
-export declare const AccessPoliciesAuthorizedOrgsDescProvider: () => import("effect/Layer").Layer<Provider.Provider<AccessPoliciesAuthorizedOrgsDesc>, never, import("../Environment.js").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | acm.GcpOpContext>;
+export declare const AccessPoliciesAuthorizedOrgsDescProvider: () => import("effect/Layer").Layer<Provider.Provider<AccessPoliciesAuthorizedOrgsDesc>, never, import("../Environment.ts").GcpEnvironment | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage | acm.GcpOpContext>;
 export {};

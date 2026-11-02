@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetClustersForImage extends Binding.Service<GetClustersForImage, "AWS.Inspector2.GetClustersForImage", () => Effect.Effect<((request: inspector2.GetClustersForImageRequest) => Effect.Effect<inspector2.GetClustersForImageResponse, inspector2.GetClustersForImageError>)>> {
+export interface GetClustersForImage extends Binding.Service<GetClustersForImage, "AWS.Inspector2.GetClustersForImage", () => Effect.Effect<(request: inspector2.GetClustersForImageRequest) => Effect.Effect<inspector2.GetClustersForImageResponse, inspector2.GetClustersForImageError>>> {
 }
 export declare const GetClustersForImage: GetClustersForImage;

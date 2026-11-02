@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateResourceProfile extends Binding.Service<UpdateResourceProfile, "AWS.Macie2.UpdateResourceProfile", () => Effect.Effect<((request?: macie2.UpdateResourceProfileRequest) => Effect.Effect<macie2.UpdateResourceProfileResponse, macie2.UpdateResourceProfileError>)>> {
+export interface UpdateResourceProfile extends Binding.Service<UpdateResourceProfile, "AWS.Macie2.UpdateResourceProfile", () => Effect.Effect<(request?: macie2.UpdateResourceProfileRequest) => Effect.Effect<macie2.UpdateResourceProfileResponse, macie2.UpdateResourceProfileError>>> {
 }
 export declare const UpdateResourceProfile: UpdateResourceProfile;

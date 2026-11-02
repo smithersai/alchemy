@@ -33,6 +33,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface EvaluateCode extends Binding.Service<EvaluateCode, "AWS.AppSync.EvaluateCode", () => Effect.Effect<((request: appsync.EvaluateCodeRequest) => Effect.Effect<appsync.EvaluateCodeResponse, appsync.EvaluateCodeError>)>> {
+export interface EvaluateCode extends Binding.Service<EvaluateCode, "AWS.AppSync.EvaluateCode", () => Effect.Effect<(request: appsync.EvaluateCodeRequest) => Effect.Effect<appsync.EvaluateCodeResponse, appsync.EvaluateCodeError>>> {
 }
 export declare const EvaluateCode: EvaluateCode;

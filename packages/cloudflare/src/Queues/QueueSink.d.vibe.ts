@@ -2,8 +2,8 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type * as Sink from "effect/Sink";
-import type { Queue } from "./Queue.js";
-import type { SendError } from "./QueueTypes.js";
+import type { Queue } from "./Queue.ts";
+import type { SendError } from "./QueueTypes.ts";
 /**
  * Binding service that exposes a {@link Queue} as an Effect `Sink`: run a
  * `Stream` of message bodies into it and every element is enqueued.

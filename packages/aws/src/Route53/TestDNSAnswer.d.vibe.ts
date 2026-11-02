@@ -33,6 +33,6 @@ export interface TestDNSAnswerRequest extends Omit<route53.TestDNSAnswerRequest,
  *
  * @binding
  */
-export interface TestDNSAnswer extends Binding.Service<TestDNSAnswer, "AWS.Route53.TestDNSAnswer", (zone: HostedZone) => Effect.Effect<((request: TestDNSAnswerRequest) => Effect.Effect<route53.TestDNSAnswerResponse, route53.TestDNSAnswerError>)>> {
+export interface TestDNSAnswer extends Binding.Service<TestDNSAnswer, "AWS.Route53.TestDNSAnswer", (zone: HostedZone) => Effect.Effect<(request: TestDNSAnswerRequest) => Effect.Effect<route53.TestDNSAnswerResponse, route53.TestDNSAnswerError>>> {
 }
 export declare const TestDNSAnswer: TestDNSAnswer;

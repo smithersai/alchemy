@@ -31,6 +31,6 @@ export interface RegisterTargetsRequest extends Omit<elbv2.RegisterTargetsInput,
  *
  * @binding
  */
-export interface RegisterTargets extends Binding.Service<RegisterTargets, "AWS.ELBv2.RegisterTargets", (targetGroup: TargetGroup) => Effect.Effect<((request: RegisterTargetsRequest) => Effect.Effect<elbv2.RegisterTargetsOutput, elbv2.RegisterTargetsError>)>> {
+export interface RegisterTargets extends Binding.Service<RegisterTargets, "AWS.ELBv2.RegisterTargets", (targetGroup: TargetGroup) => Effect.Effect<(request: RegisterTargetsRequest) => Effect.Effect<elbv2.RegisterTargetsOutput, elbv2.RegisterTargetsError>>> {
 }
 export declare const RegisterTargets: RegisterTargets;

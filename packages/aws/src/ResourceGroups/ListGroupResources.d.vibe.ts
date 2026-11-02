@@ -27,6 +27,6 @@ export type ListGroupResourcesRequest = Omit<resourcegroups.ListGroupResourcesIn
  *
  * @binding
  */
-export interface ListGroupResources extends Binding.Service<ListGroupResources, "AWS.ResourceGroups.ListGroupResources", (group: Group) => Effect.Effect<((request?: ListGroupResourcesRequest) => Effect.Effect<resourcegroups.ListGroupResourcesOutput, resourcegroups.ListGroupResourcesError>)>> {
+export interface ListGroupResources extends Binding.Service<ListGroupResources, "AWS.ResourceGroups.ListGroupResources", (group: Group) => Effect.Effect<(request?: ListGroupResourcesRequest) => Effect.Effect<resourcegroups.ListGroupResourcesOutput, resourcegroups.ListGroupResourcesError>>> {
 }
 export declare const ListGroupResources: ListGroupResources;

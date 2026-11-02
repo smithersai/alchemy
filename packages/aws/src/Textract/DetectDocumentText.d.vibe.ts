@@ -28,6 +28,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DetectDocumentText extends Binding.Service<DetectDocumentText, "AWS.Textract.DetectDocumentText", () => Effect.Effect<((request: textract.DetectDocumentTextRequest) => Effect.Effect<textract.DetectDocumentTextResponse, textract.DetectDocumentTextError>)>> {
+export interface DetectDocumentText extends Binding.Service<DetectDocumentText, "AWS.Textract.DetectDocumentText", () => Effect.Effect<(request: textract.DetectDocumentTextRequest) => Effect.Effect<textract.DetectDocumentTextResponse, textract.DetectDocumentTextError>>> {
 }
 export declare const DetectDocumentText: DetectDocumentText;

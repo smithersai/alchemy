@@ -15,6 +15,6 @@ import type { ReportGroup } from "./ReportGroup.vibe";
  *
  * @binding
  */
-export interface BatchGetReports extends Binding.Service<BatchGetReports, "AWS.CodeBuild.BatchGetReports", <G extends ReportGroup>(reportGroup: G) => Effect.Effect<((request: SVC.BatchGetReportsInput) => Effect.Effect<SVC.BatchGetReportsOutput, SVC.BatchGetReportsError>)>> {
+export interface BatchGetReports extends Binding.Service<BatchGetReports, "AWS.CodeBuild.BatchGetReports", <G extends ReportGroup>(reportGroup: G) => Effect.Effect<(request: SVC.BatchGetReportsInput) => Effect.Effect<SVC.BatchGetReportsOutput, SVC.BatchGetReportsError>>> {
 }
 export declare const BatchGetReports: BatchGetReports;

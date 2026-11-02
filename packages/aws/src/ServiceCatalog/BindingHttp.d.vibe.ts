@@ -34,5 +34,5 @@ export declare const makeServiceCatalogHttpBinding: <I, A, E, R>(options: {
     /**
      * The distilled operation implementing the capability.
      */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

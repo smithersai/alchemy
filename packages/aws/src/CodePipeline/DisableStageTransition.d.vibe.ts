@@ -23,6 +23,6 @@ export interface DisableStageTransitionRequest extends Omit<SVC.DisableStageTran
  *
  * @binding
  */
-export interface DisableStageTransition extends Binding.Service<DisableStageTransition, "AWS.CodePipeline.DisableStageTransition", <P extends Pipeline>(pipeline: P) => Effect.Effect<((request: DisableStageTransitionRequest) => Effect.Effect<SVC.DisableStageTransitionResponse, SVC.DisableStageTransitionError>)>> {
+export interface DisableStageTransition extends Binding.Service<DisableStageTransition, "AWS.CodePipeline.DisableStageTransition", <P extends Pipeline>(pipeline: P) => Effect.Effect<(request: DisableStageTransitionRequest) => Effect.Effect<SVC.DisableStageTransitionResponse, SVC.DisableStageTransitionError>>> {
 }
 export declare const DisableStageTransition: DisableStageTransition;

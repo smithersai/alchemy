@@ -22,6 +22,6 @@ import type { DBInstance } from "./DBInstance.vibe";
  *
  * @binding
  */
-export interface RebootDBInstance extends Binding.Service<RebootDBInstance, "AWS.Neptune.RebootDBInstance", (instance: DBInstance) => Effect.Effect<((request?: Omit<neptune.RebootDBInstanceMessage, "DBInstanceIdentifier">) => Effect.Effect<neptune.RebootDBInstanceResult, neptune.RebootDBInstanceError>)>> {
+export interface RebootDBInstance extends Binding.Service<RebootDBInstance, "AWS.Neptune.RebootDBInstance", (instance: DBInstance) => Effect.Effect<(request?: Omit<neptune.RebootDBInstanceMessage, "DBInstanceIdentifier">) => Effect.Effect<neptune.RebootDBInstanceResult, neptune.RebootDBInstanceError>>> {
 }
 export declare const RebootDBInstance: RebootDBInstance;

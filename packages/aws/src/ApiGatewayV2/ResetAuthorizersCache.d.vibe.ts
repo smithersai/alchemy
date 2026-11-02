@@ -24,6 +24,6 @@ import type { ApiGatewayV2Stage } from "./Stage.vibe";
  *
  * @binding
  */
-export interface ResetAuthorizersCache extends Binding.Service<ResetAuthorizersCache, "AWS.ApiGatewayV2.ResetAuthorizersCache", <S extends ApiGatewayV2Stage>(stage: S) => Effect.Effect<(() => Effect.Effect<agw2.ResetAuthorizersCacheResponse, agw2.ResetAuthorizersCacheError>)>> {
+export interface ResetAuthorizersCache extends Binding.Service<ResetAuthorizersCache, "AWS.ApiGatewayV2.ResetAuthorizersCache", <S extends ApiGatewayV2Stage>(stage: S) => Effect.Effect<() => Effect.Effect<agw2.ResetAuthorizersCacheResponse, agw2.ResetAuthorizersCacheError>>> {
 }
 export declare const ResetAuthorizersCache: ResetAuthorizersCache;

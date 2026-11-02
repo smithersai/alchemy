@@ -33,6 +33,6 @@ export interface CreateWhatsAppMessageTemplateMediaRequest extends Omit<socialme
  *
  * @binding
  */
-export interface CreateWhatsAppMessageTemplateMedia extends Binding.Service<CreateWhatsAppMessageTemplateMedia, "AWS.SocialMessaging.CreateWhatsAppMessageTemplateMedia", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<((request: CreateWhatsAppMessageTemplateMediaRequest) => Effect.Effect<socialmessaging.CreateWhatsAppMessageTemplateMediaOutput, socialmessaging.CreateWhatsAppMessageTemplateMediaError>)>> {
+export interface CreateWhatsAppMessageTemplateMedia extends Binding.Service<CreateWhatsAppMessageTemplateMedia, "AWS.SocialMessaging.CreateWhatsAppMessageTemplateMedia", (account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: CreateWhatsAppMessageTemplateMediaRequest) => Effect.Effect<socialmessaging.CreateWhatsAppMessageTemplateMediaOutput, socialmessaging.CreateWhatsAppMessageTemplateMediaError>>> {
 }
 export declare const CreateWhatsAppMessageTemplateMedia: CreateWhatsAppMessageTemplateMedia;

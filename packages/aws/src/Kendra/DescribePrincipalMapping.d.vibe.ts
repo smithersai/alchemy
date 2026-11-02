@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `DescribePrincipalMapping` request with `IndexId` injected from the bound index.
  */
@@ -27,6 +27,6 @@ export interface DescribePrincipalMappingRequest extends Omit<kendra.DescribePri
  *
  * @binding
  */
-export interface DescribePrincipalMapping extends Binding.Service<DescribePrincipalMapping, "AWS.Kendra.DescribePrincipalMapping", (index: Index) => Effect.Effect<((request: DescribePrincipalMappingRequest) => Effect.Effect<kendra.DescribePrincipalMappingResponse, kendra.DescribePrincipalMappingError>)>> {
+export interface DescribePrincipalMapping extends Binding.Service<DescribePrincipalMapping, "AWS.Kendra.DescribePrincipalMapping", (index: Index) => Effect.Effect<(request: DescribePrincipalMappingRequest) => Effect.Effect<kendra.DescribePrincipalMappingResponse, kendra.DescribePrincipalMappingError>>> {
 }
 export declare const DescribePrincipalMapping: DescribePrincipalMapping;

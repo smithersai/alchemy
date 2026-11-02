@@ -1,6 +1,6 @@
 import type { Database } from "@alchemy.run/cloudflare/D1";
 import * as Layer from "effect/Layer";
-import { RegistryStore } from "./RegistryObject.js";
+import { RegistryStore } from "./RegistryObject.ts";
 /**
  * The repo index on D1. The database must already exist; the table is
  * created idempotently on first use from the same DDL the Durable Object

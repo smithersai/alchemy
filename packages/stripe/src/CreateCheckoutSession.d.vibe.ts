@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  * @binding
  * @product Checkout
  */
-export interface CreateCheckoutSession extends Binding.Service<CreateCheckoutSession, "Stripe.CreateCheckoutSession", () => Effect.Effect<((request: CreateCheckoutSessionRequest) => Effect.Effect<CheckoutSession, CreateCheckoutSessionError, RuntimeContext>)>> {
+export interface CreateCheckoutSession extends Binding.Service<CreateCheckoutSession, "Stripe.CreateCheckoutSession", () => Effect.Effect<(request: CreateCheckoutSessionRequest) => Effect.Effect<CheckoutSession, CreateCheckoutSessionError, RuntimeContext>>> {
 }
 export declare const CreateCheckoutSession: CreateCheckoutSession;

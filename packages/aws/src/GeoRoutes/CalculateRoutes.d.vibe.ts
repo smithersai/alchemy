@@ -32,6 +32,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CalculateRoutes extends Binding.Service<CalculateRoutes, "AWS.GeoRoutes.CalculateRoutes", () => Effect.Effect<((request: geoRoutes.CalculateRoutesRequest) => Effect.Effect<geoRoutes.CalculateRoutesResponse, geoRoutes.CalculateRoutesError>)>> {
+export interface CalculateRoutes extends Binding.Service<CalculateRoutes, "AWS.GeoRoutes.CalculateRoutes", () => Effect.Effect<(request: geoRoutes.CalculateRoutesRequest) => Effect.Effect<geoRoutes.CalculateRoutesResponse, geoRoutes.CalculateRoutesError>>> {
 }
 export declare const CalculateRoutes: CalculateRoutes;

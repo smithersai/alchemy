@@ -1,8 +1,8 @@
 import * as agw2 from "@distilled.cloud/aws/apigatewayv2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export interface DomainNameProps {
     /**
      * The custom domain name, e.g. `api.example.com`. Changing this

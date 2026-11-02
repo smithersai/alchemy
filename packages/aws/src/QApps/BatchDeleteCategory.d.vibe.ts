@@ -24,6 +24,6 @@ export interface BatchDeleteCategoryRequest extends Omit<qapps.BatchDeleteCatego
  *
  * @binding
  */
-export interface BatchDeleteCategory extends Binding.Service<BatchDeleteCategory, "AWS.QApps.BatchDeleteCategory", (app: QApp) => Effect.Effect<((request: BatchDeleteCategoryRequest) => Effect.Effect<qapps.BatchDeleteCategoryResponse, qapps.BatchDeleteCategoryError>)>> {
+export interface BatchDeleteCategory extends Binding.Service<BatchDeleteCategory, "AWS.QApps.BatchDeleteCategory", (app: QApp) => Effect.Effect<(request: BatchDeleteCategoryRequest) => Effect.Effect<qapps.BatchDeleteCategoryResponse, qapps.BatchDeleteCategoryError>>> {
 }
 export declare const BatchDeleteCategory: BatchDeleteCategory;

@@ -6,7 +6,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type { PlatformError } from "effect/PlatformError";
 import * as Redacted from "effect/Redacted";
-import { Docker } from "./Docker.js";
+import { Docker } from "./Docker.ts";
 import type { Providers } from "./Providers.vibe";
 export interface ContainerProps {
     /** Image reference or Docker image resource. */

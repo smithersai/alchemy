@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Channel } from "./Channel.js";
+import type { Channel } from "./Channel.ts";
 /**
  * Shared scaffolding for Amazon IVS stream data-plane HTTP bindings.
  *
@@ -23,7 +23,7 @@ export declare const makeIvsChannelHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.IVS.GetStream`. */
     tag: string;
     /** The distilled operation; `channelArn` is injected from the channel. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the channel ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(channel: Channel) => Effect.Effect<(request?: Omit<I, "channelArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -37,7 +37,7 @@ export declare const makeIvsAccountHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.IVS.ListStreams`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

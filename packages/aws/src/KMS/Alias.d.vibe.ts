@@ -1,9 +1,9 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment, type AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
-import type { KeyId } from "./Key.js";
+import { AWSEnvironment, type AccountID } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
+import type { KeyId } from "./Key.ts";
 export type AliasName = `alias/${string}`;
 export type AliasArn = `arn:aws:kms:${RegionID}:${AccountID}:${AliasName}`;
 export interface AliasProps {

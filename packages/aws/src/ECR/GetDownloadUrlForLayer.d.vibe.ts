@@ -24,6 +24,6 @@ export interface GetDownloadUrlForLayerRequest extends Omit<ecr.GetDownloadUrlFo
  *
  * @binding
  */
-export interface GetDownloadUrlForLayer extends Binding.Service<GetDownloadUrlForLayer, "AWS.ECR.GetDownloadUrlForLayer", (repository: Repository) => Effect.Effect<((request: GetDownloadUrlForLayerRequest) => Effect.Effect<ecr.GetDownloadUrlForLayerResponse, ecr.GetDownloadUrlForLayerError>)>> {
+export interface GetDownloadUrlForLayer extends Binding.Service<GetDownloadUrlForLayer, "AWS.ECR.GetDownloadUrlForLayer", (repository: Repository) => Effect.Effect<(request: GetDownloadUrlForLayerRequest) => Effect.Effect<ecr.GetDownloadUrlForLayerResponse, ecr.GetDownloadUrlForLayerError>>> {
 }
 export declare const GetDownloadUrlForLayer: GetDownloadUrlForLayer;

@@ -1,7 +1,7 @@
 import type * as imagebuilder from "@distilled.cloud/aws/imagebuilder";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { ImagePipeline } from "./ImagePipeline.js";
+import type { ImagePipeline } from "./ImagePipeline.ts";
 /**
  * Runtime binding for `imagebuilder:GetImagePipeline`.
  *
@@ -25,6 +25,6 @@ import type { ImagePipeline } from "./ImagePipeline.js";
  *
  * @binding
  */
-export interface GetImagePipeline extends Binding.Service<GetImagePipeline, "AWS.ImageBuilder.GetImagePipeline", (pipeline: ImagePipeline) => Effect.Effect<(() => Effect.Effect<imagebuilder.GetImagePipelineResponse, imagebuilder.GetImagePipelineError>)>> {
+export interface GetImagePipeline extends Binding.Service<GetImagePipeline, "AWS.ImageBuilder.GetImagePipeline", (pipeline: ImagePipeline) => Effect.Effect<() => Effect.Effect<imagebuilder.GetImagePipelineResponse, imagebuilder.GetImagePipelineError>>> {
 }
 export declare const GetImagePipeline: GetImagePipeline;

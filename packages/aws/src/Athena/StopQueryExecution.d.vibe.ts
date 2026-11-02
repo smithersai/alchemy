@@ -20,6 +20,6 @@ import type { WorkGroup } from "./WorkGroup.vibe";
  *
  * @binding
  */
-export interface StopQueryExecution extends Binding.Service<StopQueryExecution, "AWS.Athena.StopQueryExecution", (workGroup: WorkGroup) => Effect.Effect<((request: athena.StopQueryExecutionInput) => Effect.Effect<athena.StopQueryExecutionOutput, athena.StopQueryExecutionError>)>> {
+export interface StopQueryExecution extends Binding.Service<StopQueryExecution, "AWS.Athena.StopQueryExecution", (workGroup: WorkGroup) => Effect.Effect<(request: athena.StopQueryExecutionInput) => Effect.Effect<athena.StopQueryExecutionOutput, athena.StopQueryExecutionError>>> {
 }
 export declare const StopQueryExecution: StopQueryExecution;

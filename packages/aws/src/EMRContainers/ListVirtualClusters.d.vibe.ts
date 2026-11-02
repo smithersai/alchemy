@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListVirtualClusters extends Binding.Service<ListVirtualClusters, "AWS.EMRContainers.ListVirtualClusters", () => Effect.Effect<((request?: emrc.ListVirtualClustersRequest) => Effect.Effect<emrc.ListVirtualClustersResponse, emrc.ListVirtualClustersError>)>> {
+export interface ListVirtualClusters extends Binding.Service<ListVirtualClusters, "AWS.EMRContainers.ListVirtualClusters", () => Effect.Effect<(request?: emrc.ListVirtualClustersRequest) => Effect.Effect<emrc.ListVirtualClustersResponse, emrc.ListVirtualClustersError>>> {
 }
 export declare const ListVirtualClusters: ListVirtualClusters;

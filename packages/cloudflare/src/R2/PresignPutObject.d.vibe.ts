@@ -1,8 +1,8 @@
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Bucket } from "./Bucket.js";
-import type { PresignError } from "./BucketTypes.js";
+import type { Bucket } from "./Bucket.ts";
+import type { PresignError } from "./BucketTypes.ts";
 export interface PresignPutObjectRequest {
     /**
      * Key of the object to mint a presigned upload URL for.
@@ -87,6 +87,6 @@ export interface PresignPutObjectRequest {
  * @product R2
  * @category Storage & Databases
  */
-export interface PresignPutObject extends Binding.Service<PresignPutObject, "Cloudflare.R2.PresignPutObject", (bucket: Bucket) => Effect.Effect<((request: PresignPutObjectRequest) => Effect.Effect<string, PresignError, RuntimeContext>)>> {
+export interface PresignPutObject extends Binding.Service<PresignPutObject, "Cloudflare.R2.PresignPutObject", (bucket: Bucket) => Effect.Effect<(request: PresignPutObjectRequest) => Effect.Effect<string, PresignError, RuntimeContext>>> {
 }
 export declare const PresignPutObject: PresignPutObject;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DisableOrganizationAdminAccount extends Binding.Service<DisableOrganizationAdminAccount, "AWS.SecurityHub.DisableOrganizationAdminAccount", () => Effect.Effect<((request?: securityhub.DisableOrganizationAdminAccountRequest) => Effect.Effect<securityhub.DisableOrganizationAdminAccountResponse, securityhub.DisableOrganizationAdminAccountError>)>> {
+export interface DisableOrganizationAdminAccount extends Binding.Service<DisableOrganizationAdminAccount, "AWS.SecurityHub.DisableOrganizationAdminAccount", () => Effect.Effect<(request?: securityhub.DisableOrganizationAdminAccountRequest) => Effect.Effect<securityhub.DisableOrganizationAdminAccountResponse, securityhub.DisableOrganizationAdminAccountError>>> {
 }
 export declare const DisableOrganizationAdminAccount: DisableOrganizationAdminAccount;

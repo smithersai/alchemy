@@ -26,6 +26,6 @@ export interface GetDevicePositionHistoryRequest extends Omit<location.GetDevice
  *
  * @binding
  */
-export interface GetDevicePositionHistory extends Binding.Service<GetDevicePositionHistory, "AWS.Location.GetDevicePositionHistory", (tracker: Tracker) => Effect.Effect<((request: GetDevicePositionHistoryRequest) => Effect.Effect<location.GetDevicePositionHistoryResponse, location.GetDevicePositionHistoryError>)>> {
+export interface GetDevicePositionHistory extends Binding.Service<GetDevicePositionHistory, "AWS.Location.GetDevicePositionHistory", (tracker: Tracker) => Effect.Effect<(request: GetDevicePositionHistoryRequest) => Effect.Effect<location.GetDevicePositionHistoryResponse, location.GetDevicePositionHistoryError>>> {
 }
 export declare const GetDevicePositionHistory: GetDevicePositionHistory;

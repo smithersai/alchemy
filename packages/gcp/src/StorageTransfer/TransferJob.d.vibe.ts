@@ -1,8 +1,8 @@
 import * as storagetransfer from "@distilled.cloud/gcp/storagetransfer_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type GcsData = storagetransfer.GcsData;
 export type PosixFilesystem = storagetransfer.PosixFilesystem;
 export type AwsS3Data = storagetransfer.AwsS3Data;

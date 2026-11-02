@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type { LocationsSecret } from "./LocationsSecret.vibe";
-import type { Secret } from "./Secret.js";
+import type { Secret } from "./Secret.ts";
 export interface AccessSecretVersionRequest {
     /**
      * Version id or alias. `latest` is the most recently created version.
@@ -35,6 +35,6 @@ export interface AccessSecretVersionRequest {
  * @binding
  * @category SecretManager
  */
-export interface AccessSecretVersion extends Binding.Service<AccessSecretVersion, "GCP.SecretManager.AccessSecretVersion", (secret: Secret | LocationsSecret) => Effect.Effect<((request?: AccessSecretVersionRequest) => Effect.Effect<secretmanager.AccessSecretVersionResponse, secretmanager.AccessProjectsSecretsVersionsError, RuntimeContext>)>> {
+export interface AccessSecretVersion extends Binding.Service<AccessSecretVersion, "GCP.SecretManager.AccessSecretVersion", (secret: Secret | LocationsSecret) => Effect.Effect<(request?: AccessSecretVersionRequest) => Effect.Effect<secretmanager.AccessSecretVersionResponse, secretmanager.AccessProjectsSecretsVersionsError, RuntimeContext>>> {
 }
 export declare const AccessSecretVersion: AccessSecretVersion;

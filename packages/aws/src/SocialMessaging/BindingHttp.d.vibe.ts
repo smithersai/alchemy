@@ -26,7 +26,7 @@ export declare const makeWabaScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SocialMessaging.ListWhatsAppMessageTemplates`. */
     tag: string;
     /** The distilled operation; `id` is injected from the linked account. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the WABA ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request?: Omit<I, "id"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -42,7 +42,7 @@ export declare const makeWabaPhonePlaneHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.SocialMessaging.SendWhatsAppMessage`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<(account: LinkedWhatsAppBusinessAccount) => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

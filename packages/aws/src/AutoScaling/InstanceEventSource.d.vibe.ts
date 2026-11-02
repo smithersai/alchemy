@@ -1,7 +1,7 @@
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import { type EventRecord } from "../EventBridge/EventSource.vibe";
-import type { AutoScalingGroup } from "./AutoScalingGroup.js";
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts";
 /**
  * EventBridge `detail-type`s EC2 Auto Scaling emits when a scaling activity
  * finishes launching or terminating an instance.

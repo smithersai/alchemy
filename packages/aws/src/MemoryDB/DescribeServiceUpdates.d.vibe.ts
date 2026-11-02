@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeServiceUpdates extends Binding.Service<DescribeServiceUpdates, "AWS.MemoryDB.DescribeServiceUpdates", () => Effect.Effect<((request?: memorydb.DescribeServiceUpdatesRequest) => Effect.Effect<memorydb.DescribeServiceUpdatesResponse, memorydb.DescribeServiceUpdatesError>)>> {
+export interface DescribeServiceUpdates extends Binding.Service<DescribeServiceUpdates, "AWS.MemoryDB.DescribeServiceUpdates", () => Effect.Effect<(request?: memorydb.DescribeServiceUpdatesRequest) => Effect.Effect<memorydb.DescribeServiceUpdatesResponse, memorydb.DescribeServiceUpdatesError>>> {
 }
 export declare const DescribeServiceUpdates: DescribeServiceUpdates;

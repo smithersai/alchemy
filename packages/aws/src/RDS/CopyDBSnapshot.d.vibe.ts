@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CopyDBSnapshot extends Binding.Service<CopyDBSnapshot, "AWS.RDS.CopyDBSnapshot", () => Effect.Effect<((request: rds.CopyDBSnapshotMessage) => Effect.Effect<rds.CopyDBSnapshotResult, rds.CopyDBSnapshotError>)>> {
+export interface CopyDBSnapshot extends Binding.Service<CopyDBSnapshot, "AWS.RDS.CopyDBSnapshot", () => Effect.Effect<(request: rds.CopyDBSnapshotMessage) => Effect.Effect<rds.CopyDBSnapshotResult, rds.CopyDBSnapshotError>>> {
 }
 export declare const CopyDBSnapshot: CopyDBSnapshot;

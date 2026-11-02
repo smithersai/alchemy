@@ -26,6 +26,6 @@ export interface GetSavingsPlanPurchaseRecommendationDetailsRequest extends ce.G
  *
  * @binding
  */
-export interface GetSavingsPlanPurchaseRecommendationDetails extends Binding.Service<GetSavingsPlanPurchaseRecommendationDetails, "AWS.CostExplorer.GetSavingsPlanPurchaseRecommendationDetails", () => Effect.Effect<((request: GetSavingsPlanPurchaseRecommendationDetailsRequest) => Effect.Effect<ce.GetSavingsPlanPurchaseRecommendationDetailsResponse, ce.GetSavingsPlanPurchaseRecommendationDetailsError>)>> {
+export interface GetSavingsPlanPurchaseRecommendationDetails extends Binding.Service<GetSavingsPlanPurchaseRecommendationDetails, "AWS.CostExplorer.GetSavingsPlanPurchaseRecommendationDetails", () => Effect.Effect<(request: GetSavingsPlanPurchaseRecommendationDetailsRequest) => Effect.Effect<ce.GetSavingsPlanPurchaseRecommendationDetailsResponse, ce.GetSavingsPlanPurchaseRecommendationDetailsError>>> {
 }
 export declare const GetSavingsPlanPurchaseRecommendationDetails: GetSavingsPlanPurchaseRecommendationDetails;

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetResourceProfile extends Binding.Service<GetResourceProfile, "AWS.Macie2.GetResourceProfile", () => Effect.Effect<((request?: macie2.GetResourceProfileRequest) => Effect.Effect<macie2.GetResourceProfileResponse, macie2.GetResourceProfileError>)>> {
+export interface GetResourceProfile extends Binding.Service<GetResourceProfile, "AWS.Macie2.GetResourceProfile", () => Effect.Effect<(request?: macie2.GetResourceProfileRequest) => Effect.Effect<macie2.GetResourceProfileResponse, macie2.GetResourceProfileError>>> {
 }
 export declare const GetResourceProfile: GetResourceProfile;

@@ -2,7 +2,7 @@ import type * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { ReasoningEngine } from "./ReasoningEngine.js";
+import type { ReasoningEngine } from "./ReasoningEngine.ts";
 export interface GetReasoningEngineRequest extends Omit<aiplatform.GetReasoningEnginesRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetReasoningEngineRequest extends Omit<aiplatform.GetReasoningE
  * @binding
  * @category AIPlatform
  */
-export interface GetReasoningEngine extends Binding.Service<GetReasoningEngine, "GCP.AIPlatform.GetReasoningEngine", (engine: ReasoningEngine) => Effect.Effect<((request?: GetReasoningEngineRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1ReasoningEngine, aiplatform.GetReasoningEnginesError, RuntimeContext>)>> {
+export interface GetReasoningEngine extends Binding.Service<GetReasoningEngine, "GCP.AIPlatform.GetReasoningEngine", (engine: ReasoningEngine) => Effect.Effect<(request?: GetReasoningEngineRequest) => Effect.Effect<aiplatform.GoogleCloudAiplatformV1ReasoningEngine, aiplatform.GetReasoningEnginesError, RuntimeContext>>> {
 }
 export declare const GetReasoningEngine: GetReasoningEngine;

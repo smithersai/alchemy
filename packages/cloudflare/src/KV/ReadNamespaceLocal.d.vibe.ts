@@ -23,4 +23,4 @@ import { ReadNamespace } from "./ReadNamespace.vibe";
  * );
  * ```
  */
-export declare const ReadNamespaceLocal: Layer.Layer<ReadNamespace, never, import("../CloudflareEnvironmentService.js").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;
+export declare const ReadNamespaceLocal: Layer.Layer<ReadNamespace, never, import("../CloudflareEnvironmentService.ts").CloudflareEnvironment | import("@distilled.cloud/cloudflare/Credentials").Credentials | import("effect/http/HttpClient").HttpClient>;

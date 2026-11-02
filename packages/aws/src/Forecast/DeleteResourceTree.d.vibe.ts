@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteResourceTree extends Binding.Service<DeleteResourceTree, "AWS.Forecast.DeleteResourceTree", () => Effect.Effect<((request: forecast.DeleteResourceTreeRequest) => Effect.Effect<forecast.DeleteResourceTreeResponse, forecast.DeleteResourceTreeError>)>> {
+export interface DeleteResourceTree extends Binding.Service<DeleteResourceTree, "AWS.Forecast.DeleteResourceTree", () => Effect.Effect<(request: forecast.DeleteResourceTreeRequest) => Effect.Effect<forecast.DeleteResourceTreeResponse, forecast.DeleteResourceTreeError>>> {
 }
 export declare const DeleteResourceTree: DeleteResourceTree;

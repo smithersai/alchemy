@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListHandshakesForAccount extends Binding.Service<ListHandshakesForAccount, "AWS.Organizations.ListHandshakesForAccount", () => Effect.Effect<((request?: organizations.ListHandshakesForAccountRequest) => Effect.Effect<organizations.ListHandshakesForAccountResponse, organizations.ListHandshakesForAccountError>)>> {
+export interface ListHandshakesForAccount extends Binding.Service<ListHandshakesForAccount, "AWS.Organizations.ListHandshakesForAccount", () => Effect.Effect<(request?: organizations.ListHandshakesForAccountRequest) => Effect.Effect<organizations.ListHandshakesForAccountResponse, organizations.ListHandshakesForAccountError>>> {
 }
 export declare const ListHandshakesForAccount: ListHandshakesForAccount;

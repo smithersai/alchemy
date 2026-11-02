@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSensitiveDataOccurrencesAvailability extends Binding.Service<GetSensitiveDataOccurrencesAvailability, "AWS.Macie2.GetSensitiveDataOccurrencesAvailability", () => Effect.Effect<((request: macie2.GetSensitiveDataOccurrencesAvailabilityRequest) => Effect.Effect<macie2.GetSensitiveDataOccurrencesAvailabilityResponse, macie2.GetSensitiveDataOccurrencesAvailabilityError>)>> {
+export interface GetSensitiveDataOccurrencesAvailability extends Binding.Service<GetSensitiveDataOccurrencesAvailability, "AWS.Macie2.GetSensitiveDataOccurrencesAvailability", () => Effect.Effect<(request: macie2.GetSensitiveDataOccurrencesAvailabilityRequest) => Effect.Effect<macie2.GetSensitiveDataOccurrencesAvailabilityResponse, macie2.GetSensitiveDataOccurrencesAvailabilityError>>> {
 }
 export declare const GetSensitiveDataOccurrencesAvailability: GetSensitiveDataOccurrencesAvailability;

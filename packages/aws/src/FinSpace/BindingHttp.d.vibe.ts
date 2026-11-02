@@ -25,7 +25,7 @@ export declare const makeFinSpaceKxHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.FinSpace.GetKxConnectionString`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the environment ARN and its sub-resources. */
     actions: readonly string[];
 }) => Effect.Effect<<K extends KxEnvironment>(environment: K) => Effect.Effect<(request?: Omit<I, "environmentId"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

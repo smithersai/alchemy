@@ -33,6 +33,6 @@ export interface UpdateImageSetMetadataRequest extends Omit<medicalimaging.Updat
  *
  * @binding
  */
-export interface UpdateImageSetMetadata extends Binding.Service<UpdateImageSetMetadata, "AWS.MedicalImaging.UpdateImageSetMetadata", (datastore: Datastore) => Effect.Effect<((request: UpdateImageSetMetadataRequest) => Effect.Effect<medicalimaging.UpdateImageSetMetadataResponse, medicalimaging.UpdateImageSetMetadataError>)>> {
+export interface UpdateImageSetMetadata extends Binding.Service<UpdateImageSetMetadata, "AWS.MedicalImaging.UpdateImageSetMetadata", (datastore: Datastore) => Effect.Effect<(request: UpdateImageSetMetadataRequest) => Effect.Effect<medicalimaging.UpdateImageSetMetadataResponse, medicalimaging.UpdateImageSetMetadataError>>> {
 }
 export declare const UpdateImageSetMetadata: UpdateImageSetMetadata;

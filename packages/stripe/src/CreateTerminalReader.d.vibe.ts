@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  * @binding
  * @product Terminal
  */
-export interface CreateTerminalReader extends Binding.Service<CreateTerminalReader, "Stripe.CreateTerminalReader", () => Effect.Effect<((request: CreateTerminalReaderRequest) => Effect.Effect<StripeTerminalReader, CreateTerminalReaderError, RuntimeContext>)>> {
+export interface CreateTerminalReader extends Binding.Service<CreateTerminalReader, "Stripe.CreateTerminalReader", () => Effect.Effect<(request: CreateTerminalReaderRequest) => Effect.Effect<StripeTerminalReader, CreateTerminalReaderError, RuntimeContext>>> {
 }
 export declare const CreateTerminalReader: CreateTerminalReader;

@@ -29,6 +29,6 @@ export interface CalculateRouteRequest extends Omit<location.CalculateRouteReque
  *
  * @binding
  */
-export interface CalculateRoute extends Binding.Service<CalculateRoute, "AWS.Location.CalculateRoute", (calculator: RouteCalculator) => Effect.Effect<((request: CalculateRouteRequest) => Effect.Effect<location.CalculateRouteResponse, location.CalculateRouteError>)>> {
+export interface CalculateRoute extends Binding.Service<CalculateRoute, "AWS.Location.CalculateRoute", (calculator: RouteCalculator) => Effect.Effect<(request: CalculateRouteRequest) => Effect.Effect<location.CalculateRouteResponse, location.CalculateRouteError>>> {
 }
 export declare const CalculateRoute: CalculateRoute;

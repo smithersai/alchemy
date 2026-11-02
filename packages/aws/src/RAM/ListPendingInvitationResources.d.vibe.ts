@@ -23,6 +23,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListPendingInvitationResources extends Binding.Service<ListPendingInvitationResources, "AWS.RAM.ListPendingInvitationResources", () => Effect.Effect<((request: ram.ListPendingInvitationResourcesRequest) => Effect.Effect<ram.ListPendingInvitationResourcesResponse, ram.ListPendingInvitationResourcesError>)>> {
+export interface ListPendingInvitationResources extends Binding.Service<ListPendingInvitationResources, "AWS.RAM.ListPendingInvitationResources", () => Effect.Effect<(request: ram.ListPendingInvitationResourcesRequest) => Effect.Effect<ram.ListPendingInvitationResourcesResponse, ram.ListPendingInvitationResourcesError>>> {
 }
 export declare const ListPendingInvitationResources: ListPendingInvitationResources;

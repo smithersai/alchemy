@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface BatchGetAutomationRules extends Binding.Service<BatchGetAutomationRules, "AWS.SecurityHub.BatchGetAutomationRules", () => Effect.Effect<((request?: securityhub.BatchGetAutomationRulesRequest) => Effect.Effect<securityhub.BatchGetAutomationRulesResponse, securityhub.BatchGetAutomationRulesError>)>> {
+export interface BatchGetAutomationRules extends Binding.Service<BatchGetAutomationRules, "AWS.SecurityHub.BatchGetAutomationRules", () => Effect.Effect<(request?: securityhub.BatchGetAutomationRulesRequest) => Effect.Effect<securityhub.BatchGetAutomationRulesResponse, securityhub.BatchGetAutomationRulesError>>> {
 }
 export declare const BatchGetAutomationRules: BatchGetAutomationRules;

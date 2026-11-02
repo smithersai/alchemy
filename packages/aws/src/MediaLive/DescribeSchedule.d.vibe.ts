@@ -23,6 +23,6 @@ import type { Channel } from "./Channel.vibe";
  *
  * @binding
  */
-export interface DescribeSchedule extends Binding.Service<DescribeSchedule, "AWS.MediaLive.DescribeSchedule", (channel: Channel) => Effect.Effect<((request?: Omit<medialive.DescribeScheduleRequest, "ChannelId">) => Effect.Effect<medialive.DescribeScheduleResponse, medialive.DescribeScheduleError>)>> {
+export interface DescribeSchedule extends Binding.Service<DescribeSchedule, "AWS.MediaLive.DescribeSchedule", (channel: Channel) => Effect.Effect<(request?: Omit<medialive.DescribeScheduleRequest, "ChannelId">) => Effect.Effect<medialive.DescribeScheduleResponse, medialive.DescribeScheduleError>>> {
 }
 export declare const DescribeSchedule: DescribeSchedule;

@@ -40,6 +40,6 @@ export interface ChangeResourceRecordSetsRequest extends Omit<route53.ChangeReso
  *
  * @binding
  */
-export interface ChangeResourceRecordSets extends Binding.Service<ChangeResourceRecordSets, "AWS.Route53.ChangeResourceRecordSets", (zone: HostedZone) => Effect.Effect<((request: ChangeResourceRecordSetsRequest) => Effect.Effect<route53.ChangeResourceRecordSetsResponse, route53.ChangeResourceRecordSetsError>)>> {
+export interface ChangeResourceRecordSets extends Binding.Service<ChangeResourceRecordSets, "AWS.Route53.ChangeResourceRecordSets", (zone: HostedZone) => Effect.Effect<(request: ChangeResourceRecordSetsRequest) => Effect.Effect<route53.ChangeResourceRecordSetsResponse, route53.ChangeResourceRecordSetsError>>> {
 }
 export declare const ChangeResourceRecordSets: ChangeResourceRecordSets;

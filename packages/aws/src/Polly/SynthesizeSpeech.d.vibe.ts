@@ -29,6 +29,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface SynthesizeSpeech extends Binding.Service<SynthesizeSpeech, "AWS.Polly.SynthesizeSpeech", () => Effect.Effect<((request: polly.SynthesizeSpeechInput) => Effect.Effect<polly.SynthesizeSpeechOutput, polly.SynthesizeSpeechError>)>> {
+export interface SynthesizeSpeech extends Binding.Service<SynthesizeSpeech, "AWS.Polly.SynthesizeSpeech", () => Effect.Effect<(request: polly.SynthesizeSpeechInput) => Effect.Effect<polly.SynthesizeSpeechOutput, polly.SynthesizeSpeechError>>> {
 }
 export declare const SynthesizeSpeech: SynthesizeSpeech;

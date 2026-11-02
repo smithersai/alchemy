@@ -30,6 +30,6 @@ export interface StartJobRequest extends Omit<amplify.StartJobRequest, "appId"> 
  *
  * @binding
  */
-export interface StartJob extends Binding.Service<StartJob, "AWS.Amplify.StartJob", (app: App) => Effect.Effect<((request: StartJobRequest) => Effect.Effect<amplify.StartJobResult, amplify.StartJobError>)>> {
+export interface StartJob extends Binding.Service<StartJob, "AWS.Amplify.StartJob", (app: App) => Effect.Effect<(request: StartJobRequest) => Effect.Effect<amplify.StartJobResult, amplify.StartJobError>>> {
 }
 export declare const StartJob: StartJob;

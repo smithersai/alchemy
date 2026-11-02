@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetRevealConfiguration extends Binding.Service<GetRevealConfiguration, "AWS.Macie2.GetRevealConfiguration", () => Effect.Effect<((request?: macie2.GetRevealConfigurationRequest) => Effect.Effect<macie2.GetRevealConfigurationResponse, macie2.GetRevealConfigurationError>)>> {
+export interface GetRevealConfiguration extends Binding.Service<GetRevealConfiguration, "AWS.Macie2.GetRevealConfiguration", () => Effect.Effect<(request?: macie2.GetRevealConfigurationRequest) => Effect.Effect<macie2.GetRevealConfigurationResponse, macie2.GetRevealConfigurationError>>> {
 }
 export declare const GetRevealConfiguration: GetRevealConfiguration;

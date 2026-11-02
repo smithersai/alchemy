@@ -1,7 +1,7 @@
 import type * as kendra from "@distilled.cloud/aws/kendra";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Index } from "./SearchIndex.js";
+import type { Index } from "./SearchIndex.ts";
 /**
  * `BatchGetDocumentStatus` request with `IndexId` injected from the bound index.
  */
@@ -29,6 +29,6 @@ export interface BatchGetDocumentStatusRequest extends Omit<kendra.BatchGetDocum
  *
  * @binding
  */
-export interface BatchGetDocumentStatus extends Binding.Service<BatchGetDocumentStatus, "AWS.Kendra.BatchGetDocumentStatus", (index: Index) => Effect.Effect<((request: BatchGetDocumentStatusRequest) => Effect.Effect<kendra.BatchGetDocumentStatusResponse, kendra.BatchGetDocumentStatusError>)>> {
+export interface BatchGetDocumentStatus extends Binding.Service<BatchGetDocumentStatus, "AWS.Kendra.BatchGetDocumentStatus", (index: Index) => Effect.Effect<(request: BatchGetDocumentStatusRequest) => Effect.Effect<kendra.BatchGetDocumentStatusResponse, kendra.BatchGetDocumentStatusError>>> {
 }
 export declare const BatchGetDocumentStatus: BatchGetDocumentStatus;

@@ -2,9 +2,9 @@ import * as ecs from "@distilled.cloud/aws/ecs";
 import type { Input } from "alchemy/Input";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment, type AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import { AWSEnvironment, type AccountID } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 export type CapacityProviderName = string;
 export type CapacityProviderArn = `arn:aws:ecs:${RegionID}:${AccountID}:capacity-provider/${CapacityProviderName}`;
 export interface CapacityProviderProps {

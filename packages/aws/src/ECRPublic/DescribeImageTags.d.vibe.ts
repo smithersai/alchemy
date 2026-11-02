@@ -25,6 +25,6 @@ export interface DescribeImageTagsRequest extends Omit<ecrpublic.DescribeImageTa
  *
  * @binding
  */
-export interface DescribeImageTags extends Binding.Service<DescribeImageTags, "AWS.ECRPublic.DescribeImageTags", <R extends PublicRepository>(repository: R) => Effect.Effect<((request?: DescribeImageTagsRequest) => Effect.Effect<ecrpublic.DescribeImageTagsResponse, ecrpublic.DescribeImageTagsError>)>> {
+export interface DescribeImageTags extends Binding.Service<DescribeImageTags, "AWS.ECRPublic.DescribeImageTags", <R extends PublicRepository>(repository: R) => Effect.Effect<(request?: DescribeImageTagsRequest) => Effect.Effect<ecrpublic.DescribeImageTagsResponse, ecrpublic.DescribeImageTagsError>>> {
 }
 export declare const DescribeImageTags: DescribeImageTags;

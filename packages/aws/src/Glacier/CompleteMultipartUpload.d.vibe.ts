@@ -33,6 +33,6 @@ export interface CompleteMultipartUploadRequest extends Omit<glacier.CompleteMul
  *
  * @binding
  */
-export interface CompleteMultipartUpload extends Binding.Service<CompleteMultipartUpload, "AWS.Glacier.CompleteMultipartUpload", (vault: Vault) => Effect.Effect<((request: CompleteMultipartUploadRequest) => Effect.Effect<glacier.ArchiveCreationOutput, glacier.CompleteMultipartUploadError>)>> {
+export interface CompleteMultipartUpload extends Binding.Service<CompleteMultipartUpload, "AWS.Glacier.CompleteMultipartUpload", (vault: Vault) => Effect.Effect<(request: CompleteMultipartUploadRequest) => Effect.Effect<glacier.ArchiveCreationOutput, glacier.CompleteMultipartUploadError>>> {
 }
 export declare const CompleteMultipartUpload: CompleteMultipartUpload;

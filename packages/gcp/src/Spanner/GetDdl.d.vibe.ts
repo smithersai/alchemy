@@ -2,7 +2,7 @@ import type * as spanner from "@distilled.cloud/gcp/spanner_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Database } from "./Database.js";
+import type { Database } from "./Database.ts";
 export interface GetDdlRequest extends Omit<spanner.GetDdlProjectsInstancesDatabasesRequest, "database"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetDdlRequest extends Omit<spanner.GetDdlProjectsInstancesDatab
  * @binding
  * @category Spanner
  */
-export interface GetDdl extends Binding.Service<GetDdl, "GCP.Spanner.GetDdl", (database: Database) => Effect.Effect<((request?: GetDdlRequest) => Effect.Effect<spanner.GetDatabaseDdlResponse, spanner.GetDdlProjectsInstancesDatabasesError, RuntimeContext>)>> {
+export interface GetDdl extends Binding.Service<GetDdl, "GCP.Spanner.GetDdl", (database: Database) => Effect.Effect<(request?: GetDdlRequest) => Effect.Effect<spanner.GetDatabaseDdlResponse, spanner.GetDdlProjectsInstancesDatabasesError, RuntimeContext>>> {
 }
 export declare const GetDdl: GetDdl;

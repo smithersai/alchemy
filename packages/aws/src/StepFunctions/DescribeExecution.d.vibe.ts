@@ -1,7 +1,7 @@
 import type * as sfn from "@distilled.cloud/aws/sfn";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { StateMachine } from "./StateMachine.js";
+import type { StateMachine } from "./StateMachine.ts";
 export interface DescribeExecutionRequest extends sfn.DescribeExecutionInput {
 }
 /**
@@ -21,6 +21,6 @@ export interface DescribeExecutionRequest extends sfn.DescribeExecutionInput {
  *
  * @binding
  */
-export interface DescribeExecution extends Binding.Service<DescribeExecution, "AWS.StepFunctions.DescribeExecution", (stateMachine: StateMachine) => Effect.Effect<((request: DescribeExecutionRequest) => Effect.Effect<sfn.DescribeExecutionOutput, sfn.DescribeExecutionError>)>> {
+export interface DescribeExecution extends Binding.Service<DescribeExecution, "AWS.StepFunctions.DescribeExecution", (stateMachine: StateMachine) => Effect.Effect<(request: DescribeExecutionRequest) => Effect.Effect<sfn.DescribeExecutionOutput, sfn.DescribeExecutionError>>> {
 }
 export declare const DescribeExecution: DescribeExecution;

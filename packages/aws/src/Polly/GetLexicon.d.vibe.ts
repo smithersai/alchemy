@@ -32,6 +32,6 @@ import type { Lexicon } from "./Lexicon.vibe";
  *
  * @binding
  */
-export interface GetLexicon extends Binding.Service<GetLexicon, "AWS.Polly.GetLexicon", <L extends Lexicon>(lexicon: L) => Effect.Effect<(() => Effect.Effect<polly.GetLexiconOutput, polly.GetLexiconError>)>> {
+export interface GetLexicon extends Binding.Service<GetLexicon, "AWS.Polly.GetLexicon", <L extends Lexicon>(lexicon: L) => Effect.Effect<() => Effect.Effect<polly.GetLexiconOutput, polly.GetLexiconError>>> {
 }
 export declare const GetLexicon: GetLexicon;

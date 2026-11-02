@@ -1,8 +1,8 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as FileSystem from "effect/FileSystem";
-import { type ClusterLike, type Connection } from "./Connection.js";
-import { type KubernetesObjectRef } from "./Objects.js";
+import { type ClusterLike, type Connection } from "./Connection.ts";
+import { type KubernetesObjectRef } from "./Objects.ts";
 import type { Providers } from "./Providers.vibe";
 export interface HelmChartProps {
     /**

@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListFindingsFilters extends Binding.Service<ListFindingsFilters, "AWS.Macie2.ListFindingsFilters", () => Effect.Effect<((request?: macie2.ListFindingsFiltersRequest) => Effect.Effect<macie2.ListFindingsFiltersResponse, macie2.ListFindingsFiltersError>)>> {
+export interface ListFindingsFilters extends Binding.Service<ListFindingsFilters, "AWS.Macie2.ListFindingsFilters", () => Effect.Effect<(request?: macie2.ListFindingsFiltersRequest) => Effect.Effect<macie2.ListFindingsFiltersResponse, macie2.ListFindingsFiltersError>>> {
 }
 export declare const ListFindingsFilters: ListFindingsFilters;

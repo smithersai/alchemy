@@ -23,6 +23,6 @@ import type { User } from "./User.vibe";
  *
  * @binding
  */
-export interface DescribeUser extends Binding.Service<DescribeUser, "AWS.Transfer.DescribeUser", (user: User) => Effect.Effect<((request?: Omit<transfer.DescribeUserRequest, "ServerId" | "UserName">) => Effect.Effect<transfer.DescribeUserResponse, transfer.DescribeUserError>)>> {
+export interface DescribeUser extends Binding.Service<DescribeUser, "AWS.Transfer.DescribeUser", (user: User) => Effect.Effect<(request?: Omit<transfer.DescribeUserRequest, "ServerId" | "UserName">) => Effect.Effect<transfer.DescribeUserResponse, transfer.DescribeUserError>>> {
 }
 export declare const DescribeUser: DescribeUser;

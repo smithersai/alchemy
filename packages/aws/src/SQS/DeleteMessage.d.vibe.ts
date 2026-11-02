@@ -27,6 +27,6 @@ export interface DeleteMessageRequest extends Omit<sqs.DeleteMessageRequest, "Qu
  *
  * @binding
  */
-export interface DeleteMessage extends Binding.Service<DeleteMessage, "AWS.SQS.DeleteMessage", (queue: Queue) => Effect.Effect<((request: DeleteMessageRequest) => Effect.Effect<sqs.DeleteMessageResponse, sqs.DeleteMessageError>)>> {
+export interface DeleteMessage extends Binding.Service<DeleteMessage, "AWS.SQS.DeleteMessage", (queue: Queue) => Effect.Effect<(request: DeleteMessageRequest) => Effect.Effect<sqs.DeleteMessageResponse, sqs.DeleteMessageError>>> {
 }
 export declare const DeleteMessage: DeleteMessage;

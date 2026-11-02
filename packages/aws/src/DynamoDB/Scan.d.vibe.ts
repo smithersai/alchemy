@@ -1,7 +1,7 @@
 import * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { Table } from "./Table.js";
+import type { Table } from "./Table.ts";
 export interface ScanRequest extends Omit<DynamoDB.ScanInput, "TableName"> {
 }
 /**
@@ -22,6 +22,6 @@ export interface ScanRequest extends Omit<DynamoDB.ScanInput, "TableName"> {
  *
  * @binding
  */
-export interface Scan extends Binding.Service<Scan, "AWS.DynamoDB.Scan", <T extends Table>(table: T) => Effect.Effect<((request: ScanRequest) => Effect.Effect<DynamoDB.ScanOutput, DynamoDB.ScanError>)>> {
+export interface Scan extends Binding.Service<Scan, "AWS.DynamoDB.Scan", <T extends Table>(table: T) => Effect.Effect<(request: ScanRequest) => Effect.Effect<DynamoDB.ScanOutput, DynamoDB.ScanError>>> {
 }
 export declare const Scan: Scan;

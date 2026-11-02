@@ -20,6 +20,6 @@ import type { MatchingWorkflow } from "./MatchingWorkflow.vibe";
  *
  * @binding
  */
-export interface StartMatchingJob extends Binding.Service<StartMatchingJob, "AWS.EntityResolution.StartMatchingJob", (workflow: MatchingWorkflow) => Effect.Effect<((request: Omit<entityresolution.StartMatchingJobInput, "workflowName">) => Effect.Effect<entityresolution.StartMatchingJobOutput, entityresolution.StartMatchingJobError>)>> {
+export interface StartMatchingJob extends Binding.Service<StartMatchingJob, "AWS.EntityResolution.StartMatchingJob", (workflow: MatchingWorkflow) => Effect.Effect<(request: Omit<entityresolution.StartMatchingJobInput, "workflowName">) => Effect.Effect<entityresolution.StartMatchingJobOutput, entityresolution.StartMatchingJobError>>> {
 }
 export declare const StartMatchingJob: StartMatchingJob;

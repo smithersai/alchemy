@@ -26,6 +26,6 @@ export interface GetMapStyleDescriptorRequest extends Omit<location.GetMapStyleD
  *
  * @binding
  */
-export interface GetMapStyleDescriptor extends Binding.Service<GetMapStyleDescriptor, "AWS.Location.GetMapStyleDescriptor", (map: LocationMap) => Effect.Effect<((request?: GetMapStyleDescriptorRequest) => Effect.Effect<location.GetMapStyleDescriptorResponse, location.GetMapStyleDescriptorError>)>> {
+export interface GetMapStyleDescriptor extends Binding.Service<GetMapStyleDescriptor, "AWS.Location.GetMapStyleDescriptor", (map: LocationMap) => Effect.Effect<(request?: GetMapStyleDescriptorRequest) => Effect.Effect<location.GetMapStyleDescriptorResponse, location.GetMapStyleDescriptorError>>> {
 }
 export declare const GetMapStyleDescriptor: GetMapStyleDescriptor;

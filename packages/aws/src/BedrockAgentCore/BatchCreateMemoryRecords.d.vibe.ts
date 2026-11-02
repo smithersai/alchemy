@@ -39,6 +39,6 @@ export interface BatchCreateMemoryRecordsRequest extends Omit<agentcore.BatchCre
  *
  * @binding
  */
-export interface BatchCreateMemoryRecords extends Binding.Service<BatchCreateMemoryRecords, "AWS.BedrockAgentCore.BatchCreateMemoryRecords", <R extends Memory>(memory: R) => Effect.Effect<((request: BatchCreateMemoryRecordsRequest) => Effect.Effect<agentcore.BatchCreateMemoryRecordsOutput, agentcore.BatchCreateMemoryRecordsError>)>> {
+export interface BatchCreateMemoryRecords extends Binding.Service<BatchCreateMemoryRecords, "AWS.BedrockAgentCore.BatchCreateMemoryRecords", <R extends Memory>(memory: R) => Effect.Effect<(request: BatchCreateMemoryRecordsRequest) => Effect.Effect<agentcore.BatchCreateMemoryRecordsOutput, agentcore.BatchCreateMemoryRecordsError>>> {
 }
 export declare const BatchCreateMemoryRecords: BatchCreateMemoryRecords;

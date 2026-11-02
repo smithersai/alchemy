@@ -22,6 +22,6 @@ import type { ComponentVersion } from "./ComponentVersion.vibe";
  *
  * @binding
  */
-export interface GetComponent extends Binding.Service<GetComponent, "AWS.GreengrassV2.GetComponent", (component: ComponentVersion) => Effect.Effect<((request?: Omit<greengrassv2.GetComponentRequest, "arn">) => Effect.Effect<greengrassv2.GetComponentResponse, greengrassv2.GetComponentError>)>> {
+export interface GetComponent extends Binding.Service<GetComponent, "AWS.GreengrassV2.GetComponent", (component: ComponentVersion) => Effect.Effect<(request?: Omit<greengrassv2.GetComponentRequest, "arn">) => Effect.Effect<greengrassv2.GetComponentResponse, greengrassv2.GetComponentError>>> {
 }
 export declare const GetComponent: GetComponent;

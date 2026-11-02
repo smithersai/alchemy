@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetSigningPlatform extends Binding.Service<GetSigningPlatform, "AWS.Signer.GetSigningPlatform", () => Effect.Effect<((request: signer.GetSigningPlatformRequest) => Effect.Effect<signer.GetSigningPlatformResponse, signer.GetSigningPlatformError>)>> {
+export interface GetSigningPlatform extends Binding.Service<GetSigningPlatform, "AWS.Signer.GetSigningPlatform", () => Effect.Effect<(request: signer.GetSigningPlatformRequest) => Effect.Effect<signer.GetSigningPlatformResponse, signer.GetSigningPlatformError>>> {
 }
 export declare const GetSigningPlatform: GetSigningPlatform;

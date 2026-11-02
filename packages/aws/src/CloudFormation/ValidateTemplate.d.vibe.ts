@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ValidateTemplate extends Binding.Service<ValidateTemplate, "AWS.CloudFormation.ValidateTemplate", () => Effect.Effect<((request: cloudformation.ValidateTemplateInput) => Effect.Effect<cloudformation.ValidateTemplateOutput, cloudformation.ValidateTemplateError>)>> {
+export interface ValidateTemplate extends Binding.Service<ValidateTemplate, "AWS.CloudFormation.ValidateTemplate", () => Effect.Effect<(request: cloudformation.ValidateTemplateInput) => Effect.Effect<cloudformation.ValidateTemplateOutput, cloudformation.ValidateTemplateError>>> {
 }
 export declare const ValidateTemplate: ValidateTemplate;

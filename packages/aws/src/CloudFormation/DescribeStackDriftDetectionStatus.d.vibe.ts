@@ -24,6 +24,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeStackDriftDetectionStatus extends Binding.Service<DescribeStackDriftDetectionStatus, "AWS.CloudFormation.DescribeStackDriftDetectionStatus", () => Effect.Effect<((request: cloudformation.DescribeStackDriftDetectionStatusInput) => Effect.Effect<cloudformation.DescribeStackDriftDetectionStatusOutput, cloudformation.DescribeStackDriftDetectionStatusError>)>> {
+export interface DescribeStackDriftDetectionStatus extends Binding.Service<DescribeStackDriftDetectionStatus, "AWS.CloudFormation.DescribeStackDriftDetectionStatus", () => Effect.Effect<(request: cloudformation.DescribeStackDriftDetectionStatusInput) => Effect.Effect<cloudformation.DescribeStackDriftDetectionStatusOutput, cloudformation.DescribeStackDriftDetectionStatusError>>> {
 }
 export declare const DescribeStackDriftDetectionStatus: DescribeStackDriftDetectionStatus;

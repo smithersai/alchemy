@@ -34,7 +34,7 @@ export declare const makeNotificationsHttpBinding: <I extends object, A, E, R>(o
     /** IAM actions granted on `Resource: ["*"]`. */
     iamActions: readonly string[];
     /** The distilled operation implementing the capability. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
 /**
  * Build the impl Effect for an operation scoped to one
@@ -53,5 +53,5 @@ export declare const makeNotificationConfigurationHttpBinding: <I extends {
     /** IAM actions granted on the configuration ARN. */
     iamActions: readonly string[];
     /** The distilled operation; `notificationConfigurationArn` is injected. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
 }) => Effect.Effect<(configuration: NotificationConfiguration) => Effect.Effect<(request?: Omit<I, "notificationConfigurationArn"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

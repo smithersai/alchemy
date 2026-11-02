@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface QueryLoggingConfigProps {
     /**
      * ID of the public hosted zone to log DNS queries for. Changing this forces

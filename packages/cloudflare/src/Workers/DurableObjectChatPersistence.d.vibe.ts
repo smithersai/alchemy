@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { BackingPersistence } from "effect/persistence/Persistence";
-import { DurableObjectState } from "./DurableObjectState.js";
+import { DurableObjectState } from "./DurableObjectState.ts";
 /**
  * A `BackingPersistence` layer (Effect AI persistence module) backed
  * by the surrounding Durable Object's `state.storage`. Drop-in storage

@@ -1,8 +1,8 @@
 import * as networkconnectivity from "@distilled.cloud/gcp/networkconnectivity_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type ServiceConnectionPolicySubnetworkMode = networkconnectivity.CreateProjectsLocationsServiceConnectionPoliciesSubnetworkModeEnum | (string & {});
 export type ServiceConnectionPolicyIpStack = networkconnectivity.CreateProjectsLocationsServiceConnectionPoliciesAutoSubnetworkConfig_ipStackEnum | (string & {});
 export type PscConfigProducerInstanceLocation = networkconnectivity.PscConfigProducerInstanceLocationEnum | (string & {});

@@ -21,6 +21,6 @@ import type { Instance } from "./Instance.vibe";
  *
  * @binding
  */
-export interface DeleteUser extends Binding.Service<DeleteUser, "AWS.IdentityCenter.DeleteUser", (instance: Instance) => Effect.Effect<((request: Omit<identitystore.DeleteUserRequest, "IdentityStoreId">) => Effect.Effect<identitystore.DeleteUserResponse, identitystore.DeleteUserError>)>> {
+export interface DeleteUser extends Binding.Service<DeleteUser, "AWS.IdentityCenter.DeleteUser", (instance: Instance) => Effect.Effect<(request: Omit<identitystore.DeleteUserRequest, "IdentityStoreId">) => Effect.Effect<identitystore.DeleteUserResponse, identitystore.DeleteUserError>>> {
 }
 export declare const DeleteUser: DeleteUser;

@@ -22,6 +22,6 @@ export interface GetReferenceMetadataRequest extends Omit<omics.GetReferenceMeta
  *
  * @binding
  */
-export interface GetReferenceMetadata extends Binding.Service<GetReferenceMetadata, "AWS.Omics.GetReferenceMetadata", (store: ReferenceStore) => Effect.Effect<((request?: GetReferenceMetadataRequest) => Effect.Effect<omics.GetReferenceMetadataResponse, omics.GetReferenceMetadataError>)>> {
+export interface GetReferenceMetadata extends Binding.Service<GetReferenceMetadata, "AWS.Omics.GetReferenceMetadata", (store: ReferenceStore) => Effect.Effect<(request?: GetReferenceMetadataRequest) => Effect.Effect<omics.GetReferenceMetadataResponse, omics.GetReferenceMetadataError>>> {
 }
 export declare const GetReferenceMetadata: GetReferenceMetadata;

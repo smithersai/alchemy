@@ -1,7 +1,7 @@
 import type * as SSM from "@distilled.cloud/aws/ssm";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Parameter } from "./Parameter.js";
+import type { Parameter } from "./Parameter.ts";
 export interface PutParameterRequest extends Omit<SSM.PutParameterRequest, "Name"> {
 }
 /**
@@ -28,6 +28,6 @@ export interface PutParameterRequest extends Omit<SSM.PutParameterRequest, "Name
  *
  * @binding
  */
-export interface PutParameter extends Binding.Service<PutParameter, "AWS.SSM.PutParameter", <P extends Parameter>(parameter: P) => Effect.Effect<((request: PutParameterRequest) => Effect.Effect<SSM.PutParameterResult, SSM.PutParameterError>)>> {
+export interface PutParameter extends Binding.Service<PutParameter, "AWS.SSM.PutParameter", <P extends Parameter>(parameter: P) => Effect.Effect<(request: PutParameterRequest) => Effect.Effect<SSM.PutParameterResult, SSM.PutParameterError>>> {
 }
 export declare const PutParameter: PutParameter;

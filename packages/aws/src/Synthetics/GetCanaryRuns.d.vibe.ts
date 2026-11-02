@@ -24,6 +24,6 @@ export interface GetCanaryRunsRequest extends Omit<synthetics.GetCanaryRunsReque
  *
  * @binding
  */
-export interface GetCanaryRuns extends Binding.Service<GetCanaryRuns, "AWS.Synthetics.GetCanaryRuns", (canary: Canary) => Effect.Effect<((request?: GetCanaryRunsRequest) => Effect.Effect<synthetics.GetCanaryRunsResponse, synthetics.GetCanaryRunsError>)>> {
+export interface GetCanaryRuns extends Binding.Service<GetCanaryRuns, "AWS.Synthetics.GetCanaryRuns", (canary: Canary) => Effect.Effect<(request?: GetCanaryRunsRequest) => Effect.Effect<synthetics.GetCanaryRunsResponse, synthetics.GetCanaryRunsError>>> {
 }
 export declare const GetCanaryRuns: GetCanaryRuns;

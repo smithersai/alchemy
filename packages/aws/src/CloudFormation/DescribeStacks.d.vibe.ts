@@ -24,6 +24,6 @@ import type { Stack } from "./Stack.vibe";
  *
  * @binding
  */
-export interface DescribeStacks extends Binding.Service<DescribeStacks, "AWS.CloudFormation.DescribeStacks", (stack: Stack) => Effect.Effect<((request?: Omit<cloudformation.DescribeStacksInput, "StackName">) => Effect.Effect<cloudformation.DescribeStacksOutput, cloudformation.DescribeStacksError>)>> {
+export interface DescribeStacks extends Binding.Service<DescribeStacks, "AWS.CloudFormation.DescribeStacks", (stack: Stack) => Effect.Effect<(request?: Omit<cloudformation.DescribeStacksInput, "StackName">) => Effect.Effect<cloudformation.DescribeStacksOutput, cloudformation.DescribeStacksError>>> {
 }
 export declare const DescribeStacks: DescribeStacks;

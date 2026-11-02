@@ -26,6 +26,6 @@ export interface ValidateConfigurationRequest extends Omit<appconfig.ValidateCon
  *
  * @binding
  */
-export interface ValidateConfiguration extends Binding.Service<ValidateConfiguration, "AWS.AppConfig.ValidateConfiguration", (application: Application, configurationProfile: ConfigurationProfile) => Effect.Effect<((request: ValidateConfigurationRequest) => Effect.Effect<appconfig.ValidateConfigurationResponse, appconfig.ValidateConfigurationError>)>> {
+export interface ValidateConfiguration extends Binding.Service<ValidateConfiguration, "AWS.AppConfig.ValidateConfiguration", (application: Application, configurationProfile: ConfigurationProfile) => Effect.Effect<(request: ValidateConfigurationRequest) => Effect.Effect<appconfig.ValidateConfigurationResponse, appconfig.ValidateConfigurationError>>> {
 }
 export declare const ValidateConfiguration: ValidateConfiguration;

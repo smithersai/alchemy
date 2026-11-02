@@ -2,7 +2,7 @@ import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
-import type { Mongo } from "./Mongo.js";
+import type { Mongo } from "./Mongo.ts";
 /**
  * Bind a {@link Mongo} service to a Railway {@link Service} and obtain
  * the Effect-native connection string for the MongoDB driver.

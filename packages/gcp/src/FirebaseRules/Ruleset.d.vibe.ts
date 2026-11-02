@@ -1,8 +1,8 @@
 import * as firebaserules from "@distilled.cloud/gcp/firebaserules_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 import { type RulesetFile, type RulesetSource } from "./internal.vibe";
 export type { RulesetFile, RulesetSource };
 export type RulesetProps = {

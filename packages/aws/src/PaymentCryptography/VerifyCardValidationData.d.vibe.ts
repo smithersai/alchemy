@@ -33,6 +33,6 @@ export interface VerifyCardValidationDataRequest extends Omit<paymentcryptograph
  *
  * @binding
  */
-export interface VerifyCardValidationData extends Binding.Service<VerifyCardValidationData, "AWS.PaymentCryptography.VerifyCardValidationData", <K extends Key>(key: K) => Effect.Effect<((request: VerifyCardValidationDataRequest) => Effect.Effect<paymentcryptographydata.VerifyCardValidationDataOutput, paymentcryptographydata.VerifyCardValidationDataError>)>> {
+export interface VerifyCardValidationData extends Binding.Service<VerifyCardValidationData, "AWS.PaymentCryptography.VerifyCardValidationData", <K extends Key>(key: K) => Effect.Effect<(request: VerifyCardValidationDataRequest) => Effect.Effect<paymentcryptographydata.VerifyCardValidationDataOutput, paymentcryptographydata.VerifyCardValidationDataError>>> {
 }
 export declare const VerifyCardValidationData: VerifyCardValidationData;

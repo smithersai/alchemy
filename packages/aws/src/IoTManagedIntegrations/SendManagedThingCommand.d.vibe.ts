@@ -42,6 +42,6 @@ export interface SendManagedThingCommandRequest extends Omit<mi.SendManagedThing
  *
  * @binding
  */
-export interface SendManagedThingCommand extends Binding.Service<SendManagedThingCommand, "AWS.IoTManagedIntegrations.SendManagedThingCommand", (thing: ManagedThing) => Effect.Effect<((request: SendManagedThingCommandRequest) => Effect.Effect<mi.SendManagedThingCommandResponse, mi.SendManagedThingCommandError>)>> {
+export interface SendManagedThingCommand extends Binding.Service<SendManagedThingCommand, "AWS.IoTManagedIntegrations.SendManagedThingCommand", (thing: ManagedThing) => Effect.Effect<(request: SendManagedThingCommandRequest) => Effect.Effect<mi.SendManagedThingCommandResponse, mi.SendManagedThingCommandError>>> {
 }
 export declare const SendManagedThingCommand: SendManagedThingCommand;

@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface PutResourceConfig extends Binding.Service<PutResourceConfig, "AWS.Config.PutResourceConfig", () => Effect.Effect<((request: config.PutResourceConfigRequest) => Effect.Effect<config.PutResourceConfigResponse, config.PutResourceConfigError>)>> {
+export interface PutResourceConfig extends Binding.Service<PutResourceConfig, "AWS.Config.PutResourceConfig", () => Effect.Effect<(request: config.PutResourceConfigRequest) => Effect.Effect<config.PutResourceConfigResponse, config.PutResourceConfigError>>> {
 }
 export declare const PutResourceConfig: PutResourceConfig;

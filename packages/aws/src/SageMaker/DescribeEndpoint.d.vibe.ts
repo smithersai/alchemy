@@ -22,6 +22,6 @@ import type { Endpoint } from "./Endpoint.vibe";
  *
  * @binding
  */
-export interface DescribeEndpoint extends Binding.Service<DescribeEndpoint, "AWS.SageMaker.DescribeEndpoint", <E extends Endpoint>(endpoint: E) => Effect.Effect<(() => Effect.Effect<sagemaker.DescribeEndpointOutput, sagemaker.DescribeEndpointError>)>> {
+export interface DescribeEndpoint extends Binding.Service<DescribeEndpoint, "AWS.SageMaker.DescribeEndpoint", <E extends Endpoint>(endpoint: E) => Effect.Effect<() => Effect.Effect<sagemaker.DescribeEndpointOutput, sagemaker.DescribeEndpointError>>> {
 }
 export declare const DescribeEndpoint: DescribeEndpoint;

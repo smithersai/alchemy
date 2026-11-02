@@ -18,6 +18,6 @@ export interface RetrieveTaxRegistrationRequest extends Omit<GetTaxRegistrationR
  * @binding
  * @product Tax
  */
-export interface RetrieveTaxRegistration extends Binding.Service<RetrieveTaxRegistration, "Stripe.RetrieveTaxRegistration", (taxRegistration: TaxRegistration) => Effect.Effect<((request?: RetrieveTaxRegistrationRequest) => Effect.Effect<StripeTaxRegistration, GetTaxRegistrationError, RuntimeContext>)>> {
+export interface RetrieveTaxRegistration extends Binding.Service<RetrieveTaxRegistration, "Stripe.RetrieveTaxRegistration", (taxRegistration: TaxRegistration) => Effect.Effect<(request?: RetrieveTaxRegistrationRequest) => Effect.Effect<StripeTaxRegistration, GetTaxRegistrationError, RuntimeContext>>> {
 }
 export declare const RetrieveTaxRegistration: RetrieveTaxRegistration;

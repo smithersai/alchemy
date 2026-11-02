@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeSlackWorkspaces extends Binding.Service<DescribeSlackWorkspaces, "AWS.Chatbot.DescribeSlackWorkspaces", () => Effect.Effect<((request?: chatbot.DescribeSlackWorkspacesRequest) => Effect.Effect<chatbot.DescribeSlackWorkspacesResult, chatbot.DescribeSlackWorkspacesError>)>> {
+export interface DescribeSlackWorkspaces extends Binding.Service<DescribeSlackWorkspaces, "AWS.Chatbot.DescribeSlackWorkspaces", () => Effect.Effect<(request?: chatbot.DescribeSlackWorkspacesRequest) => Effect.Effect<chatbot.DescribeSlackWorkspacesResult, chatbot.DescribeSlackWorkspacesError>>> {
 }
 export declare const DescribeSlackWorkspaces: DescribeSlackWorkspaces;

@@ -1,5 +1,5 @@
 import * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 /**
  * Shared scaffolding for AWS Kinesis Analytics v2 (Managed Service for
  * Apache Flink) HTTP bindings.
@@ -25,7 +25,7 @@ export declare const makeKinesisAnalyticsAccountHttpBinding: <I, A, E, R>(option
     /** Fully-qualified binding tag, e.g. `AWS.KinesisAnalyticsV2.ListApplications`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*`. */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request?: I | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -35,7 +35,7 @@ export declare const makeKinesisAnalyticsHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.KinesisAnalyticsV2.StartApplication`. */
     tag: string;
     /** The distilled operation; `ApplicationName` is injected from the application. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the application ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<App extends Application>(application: App) => Effect.Effect<(request?: Omit<I, "ApplicationName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

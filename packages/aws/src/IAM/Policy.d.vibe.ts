@@ -1,9 +1,9 @@
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { AccountID } from "../Environment.js";
-import { AWSEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { IamAction } from "./actions.generated.js";
+import type { AccountID } from "../Environment.ts";
+import { AWSEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { IamAction } from "./actions.generated.ts";
 declare const PolicyConflict_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "PolicyConflict";
 } & Readonly<A>;
@@ -12,7 +12,7 @@ export declare class PolicyConflict extends PolicyConflict_base<{
     readonly cause?: unknown;
 }> {
 }
-export type { IamAction } from "./actions.generated.js";
+export type { IamAction } from "./actions.generated.ts";
 export { stringifyPolicyDocument } from "./common.vibe";
 export interface PolicyDocument {
     Version: "2012-10-17";

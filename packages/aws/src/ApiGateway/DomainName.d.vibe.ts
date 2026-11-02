@@ -2,7 +2,7 @@ import * as ag from "@distilled.cloud/aws/api-gateway";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface DomainNameProps {
     /** The custom domain name (e.g. `api.example.com`). */
     domainName: string;

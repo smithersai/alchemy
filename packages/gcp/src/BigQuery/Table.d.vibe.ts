@@ -1,8 +1,8 @@
 import * as bigquery from "@distilled.cloud/gcp/bigquery_v2";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type TableField = {
     /** Field name. Letters, numbers, underscores; max 300 characters. */
     name: string;

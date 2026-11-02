@@ -26,6 +26,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListInsightsData extends Binding.Service<ListInsightsData, "AWS.CloudTrail.ListInsightsData", () => Effect.Effect<((request: cloudtrail.ListInsightsDataRequest) => Effect.Effect<cloudtrail.ListInsightsDataResponse, cloudtrail.ListInsightsDataError>)>> {
+export interface ListInsightsData extends Binding.Service<ListInsightsData, "AWS.CloudTrail.ListInsightsData", () => Effect.Effect<(request: cloudtrail.ListInsightsDataRequest) => Effect.Effect<cloudtrail.ListInsightsDataResponse, cloudtrail.ListInsightsDataError>>> {
 }
 export declare const ListInsightsData: ListInsightsData;

@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListAccountsWithInvalidEffectivePolicy extends Binding.Service<ListAccountsWithInvalidEffectivePolicy, "AWS.Organizations.ListAccountsWithInvalidEffectivePolicy", () => Effect.Effect<((request: organizations.ListAccountsWithInvalidEffectivePolicyRequest) => Effect.Effect<organizations.ListAccountsWithInvalidEffectivePolicyResponse, organizations.ListAccountsWithInvalidEffectivePolicyError>)>> {
+export interface ListAccountsWithInvalidEffectivePolicy extends Binding.Service<ListAccountsWithInvalidEffectivePolicy, "AWS.Organizations.ListAccountsWithInvalidEffectivePolicy", () => Effect.Effect<(request: organizations.ListAccountsWithInvalidEffectivePolicyRequest) => Effect.Effect<organizations.ListAccountsWithInvalidEffectivePolicyResponse, organizations.ListAccountsWithInvalidEffectivePolicyError>>> {
 }
 export declare const ListAccountsWithInvalidEffectivePolicy: ListAccountsWithInvalidEffectivePolicy;

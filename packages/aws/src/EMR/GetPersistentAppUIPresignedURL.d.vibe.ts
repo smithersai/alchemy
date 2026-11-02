@@ -17,6 +17,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface GetPersistentAppUIPresignedURL extends Binding.Service<GetPersistentAppUIPresignedURL, "AWS.EMR.GetPersistentAppUIPresignedURL", <C extends Cluster>(cluster: C) => Effect.Effect<((request: SVC.GetPersistentAppUIPresignedURLInput) => Effect.Effect<SVC.GetPersistentAppUIPresignedURLOutput, SVC.GetPersistentAppUIPresignedURLError>)>> {
+export interface GetPersistentAppUIPresignedURL extends Binding.Service<GetPersistentAppUIPresignedURL, "AWS.EMR.GetPersistentAppUIPresignedURL", <C extends Cluster>(cluster: C) => Effect.Effect<(request: SVC.GetPersistentAppUIPresignedURLInput) => Effect.Effect<SVC.GetPersistentAppUIPresignedURLOutput, SVC.GetPersistentAppUIPresignedURLError>>> {
 }
 export declare const GetPersistentAppUIPresignedURL: GetPersistentAppUIPresignedURL;

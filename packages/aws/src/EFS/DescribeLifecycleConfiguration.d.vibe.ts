@@ -23,6 +23,6 @@ import type { FileSystem } from "./FileSystem.vibe";
  *
  * @binding
  */
-export interface DescribeLifecycleConfiguration extends Binding.Service<DescribeLifecycleConfiguration, "AWS.EFS.DescribeLifecycleConfiguration", (fileSystem: FileSystem) => Effect.Effect<(() => Effect.Effect<efs.LifecycleConfigurationDescription, efs.DescribeLifecycleConfigurationError>)>> {
+export interface DescribeLifecycleConfiguration extends Binding.Service<DescribeLifecycleConfiguration, "AWS.EFS.DescribeLifecycleConfiguration", (fileSystem: FileSystem) => Effect.Effect<() => Effect.Effect<efs.LifecycleConfigurationDescription, efs.DescribeLifecycleConfigurationError>>> {
 }
 export declare const DescribeLifecycleConfiguration: DescribeLifecycleConfiguration;

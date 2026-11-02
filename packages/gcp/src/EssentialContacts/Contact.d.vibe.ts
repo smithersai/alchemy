@@ -1,9 +1,9 @@
 import * as essentialcontacts from "@distilled.cloud/gcp/essentialcontacts_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import { type NotificationCategory } from "./internal.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import { type NotificationCategory } from "./internal.ts";
 export type ContactProps = {
     /**
      * Email address that receives Google Cloud notifications. Does not

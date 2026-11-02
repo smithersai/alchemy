@@ -24,7 +24,7 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateAPIKey extends Binding.Service<CreateAPIKey, "AWS.WAFv2.CreateAPIKey", () => Effect.Effect<((request: WAFV2.CreateAPIKeyRequest) => Effect.Effect<WAFV2.CreateAPIKeyResponse, WAFV2.CreateAPIKeyError>)>> {
+export interface CreateAPIKey extends Binding.Service<CreateAPIKey, "AWS.WAFv2.CreateAPIKey", () => Effect.Effect<(request: WAFV2.CreateAPIKeyRequest) => Effect.Effect<WAFV2.CreateAPIKeyResponse, WAFV2.CreateAPIKeyError>>> {
 }
 export declare const CreateAPIKey: CreateAPIKey;
 /**
@@ -48,7 +48,7 @@ export declare const CreateAPIKey: CreateAPIKey;
  *
  * @binding
  */
-export interface GetDecryptedAPIKey extends Binding.Service<GetDecryptedAPIKey, "AWS.WAFv2.GetDecryptedAPIKey", () => Effect.Effect<((request: WAFV2.GetDecryptedAPIKeyRequest) => Effect.Effect<WAFV2.GetDecryptedAPIKeyResponse, WAFV2.GetDecryptedAPIKeyError>)>> {
+export interface GetDecryptedAPIKey extends Binding.Service<GetDecryptedAPIKey, "AWS.WAFv2.GetDecryptedAPIKey", () => Effect.Effect<(request: WAFV2.GetDecryptedAPIKeyRequest) => Effect.Effect<WAFV2.GetDecryptedAPIKeyResponse, WAFV2.GetDecryptedAPIKeyError>>> {
 }
 export declare const GetDecryptedAPIKey: GetDecryptedAPIKey;
 /**
@@ -70,7 +70,7 @@ export declare const GetDecryptedAPIKey: GetDecryptedAPIKey;
  *
  * @binding
  */
-export interface ListAPIKeys extends Binding.Service<ListAPIKeys, "AWS.WAFv2.ListAPIKeys", () => Effect.Effect<((request: WAFV2.ListAPIKeysRequest) => Effect.Effect<WAFV2.ListAPIKeysResponse, WAFV2.ListAPIKeysError>)>> {
+export interface ListAPIKeys extends Binding.Service<ListAPIKeys, "AWS.WAFv2.ListAPIKeys", () => Effect.Effect<(request: WAFV2.ListAPIKeysRequest) => Effect.Effect<WAFV2.ListAPIKeysResponse, WAFV2.ListAPIKeysError>>> {
 }
 export declare const ListAPIKeys: ListAPIKeys;
 /**
@@ -91,6 +91,6 @@ export declare const ListAPIKeys: ListAPIKeys;
  *
  * @binding
  */
-export interface DeleteAPIKey extends Binding.Service<DeleteAPIKey, "AWS.WAFv2.DeleteAPIKey", () => Effect.Effect<((request: WAFV2.DeleteAPIKeyRequest) => Effect.Effect<WAFV2.DeleteAPIKeyResponse, WAFV2.DeleteAPIKeyError>)>> {
+export interface DeleteAPIKey extends Binding.Service<DeleteAPIKey, "AWS.WAFv2.DeleteAPIKey", () => Effect.Effect<(request: WAFV2.DeleteAPIKeyRequest) => Effect.Effect<WAFV2.DeleteAPIKeyResponse, WAFV2.DeleteAPIKeyError>>> {
 }
 export declare const DeleteAPIKey: DeleteAPIKey;

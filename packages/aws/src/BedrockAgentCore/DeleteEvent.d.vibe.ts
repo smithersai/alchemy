@@ -32,6 +32,6 @@ export interface DeleteEventRequest extends Omit<agentcore.DeleteEventInput, "me
  *
  * @binding
  */
-export interface DeleteEvent extends Binding.Service<DeleteEvent, "AWS.BedrockAgentCore.DeleteEvent", <R extends Memory>(memory: R) => Effect.Effect<((request: DeleteEventRequest) => Effect.Effect<agentcore.DeleteEventOutput, agentcore.DeleteEventError>)>> {
+export interface DeleteEvent extends Binding.Service<DeleteEvent, "AWS.BedrockAgentCore.DeleteEvent", <R extends Memory>(memory: R) => Effect.Effect<(request: DeleteEventRequest) => Effect.Effect<agentcore.DeleteEventOutput, agentcore.DeleteEventError>>> {
 }
 export declare const DeleteEvent: DeleteEvent;

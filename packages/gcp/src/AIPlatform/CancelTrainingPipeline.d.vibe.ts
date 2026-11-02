@@ -2,7 +2,7 @@ import type * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { TrainingPipeline } from "./TrainingPipeline.js";
+import type { TrainingPipeline } from "./TrainingPipeline.ts";
 export interface CancelTrainingPipelineRequest extends Omit<aiplatform.CancelProjectsLocationsTrainingPipelinesRequest, "name"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface CancelTrainingPipelineRequest extends Omit<aiplatform.CancelPro
  * @binding
  * @category AIPlatform
  */
-export interface CancelTrainingPipeline extends Binding.Service<CancelTrainingPipeline, "GCP.AIPlatform.CancelTrainingPipeline", (pipeline: TrainingPipeline) => Effect.Effect<((request?: CancelTrainingPipelineRequest) => Effect.Effect<aiplatform.GoogleProtobufEmpty, aiplatform.CancelProjectsLocationsTrainingPipelinesError, RuntimeContext>)>> {
+export interface CancelTrainingPipeline extends Binding.Service<CancelTrainingPipeline, "GCP.AIPlatform.CancelTrainingPipeline", (pipeline: TrainingPipeline) => Effect.Effect<(request?: CancelTrainingPipelineRequest) => Effect.Effect<aiplatform.GoogleProtobufEmpty, aiplatform.CancelProjectsLocationsTrainingPipelinesError, RuntimeContext>>> {
 }
 export declare const CancelTrainingPipeline: CancelTrainingPipeline;

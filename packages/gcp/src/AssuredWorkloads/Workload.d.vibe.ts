@@ -1,8 +1,8 @@
 import * as assuredworkloads from "@distilled.cloud/gcp/assuredworkloads_v1";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type ComplianceRegime = assuredworkloads.GoogleCloudAssuredworkloadsV1WorkloadComplianceRegimeEnum | (string & {});
 export type Partner = assuredworkloads.GoogleCloudAssuredworkloadsV1WorkloadPartnerEnum | (string & {});
 export type ResourceType = assuredworkloads.GoogleCloudAssuredworkloadsV1WorkloadResourceSettingsResourceTypeEnum | (string & {});

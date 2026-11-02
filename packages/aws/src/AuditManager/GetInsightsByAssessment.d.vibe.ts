@@ -19,6 +19,6 @@ export interface GetInsightsByAssessmentRequest extends Omit<auditmanager.GetIns
  *
  * @binding
  */
-export interface GetInsightsByAssessment extends Binding.Service<GetInsightsByAssessment, "AWS.AuditManager.GetInsightsByAssessment", (assessment: Assessment) => Effect.Effect<((request?: GetInsightsByAssessmentRequest) => Effect.Effect<auditmanager.GetInsightsByAssessmentResponse, auditmanager.GetInsightsByAssessmentError>)>> {
+export interface GetInsightsByAssessment extends Binding.Service<GetInsightsByAssessment, "AWS.AuditManager.GetInsightsByAssessment", (assessment: Assessment) => Effect.Effect<(request?: GetInsightsByAssessmentRequest) => Effect.Effect<auditmanager.GetInsightsByAssessmentResponse, auditmanager.GetInsightsByAssessmentError>>> {
 }
 export declare const GetInsightsByAssessment: GetInsightsByAssessment;

@@ -1,8 +1,8 @@
 import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { GcpEnvironment } from "../Environment.js";
-import type { Providers } from "../Providers.js";
+import { GcpEnvironment } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
 export type ExampleConversationState = "OUTPUT_STATE_UNSPECIFIED" | "OUTPUT_STATE_OK" | "OUTPUT_STATE_CANCELLED" | "OUTPUT_STATE_FAILED" | "OUTPUT_STATE_ESCALATED" | "OUTPUT_STATE_PENDING";
 export type ExampleAction = {
     /** User utterance. */

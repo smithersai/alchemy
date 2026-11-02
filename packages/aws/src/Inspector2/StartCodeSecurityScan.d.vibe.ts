@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartCodeSecurityScan extends Binding.Service<StartCodeSecurityScan, "AWS.Inspector2.StartCodeSecurityScan", () => Effect.Effect<((request: inspector2.StartCodeSecurityScanRequest) => Effect.Effect<inspector2.StartCodeSecurityScanResponse, inspector2.StartCodeSecurityScanError>)>> {
+export interface StartCodeSecurityScan extends Binding.Service<StartCodeSecurityScan, "AWS.Inspector2.StartCodeSecurityScan", () => Effect.Effect<(request: inspector2.StartCodeSecurityScanRequest) => Effect.Effect<inspector2.StartCodeSecurityScanResponse, inspector2.StartCodeSecurityScanError>>> {
 }
 export declare const StartCodeSecurityScan: StartCodeSecurityScan;

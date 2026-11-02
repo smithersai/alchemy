@@ -24,6 +24,6 @@ export interface GetProtocolsListRequest extends fms.GetProtocolsListRequest {
  *
  * @binding
  */
-export interface GetProtocolsList extends Binding.Service<GetProtocolsList, "AWS.FMS.GetProtocolsList", () => Effect.Effect<((request: GetProtocolsListRequest) => Effect.Effect<fms.GetProtocolsListResponse, fms.GetProtocolsListError>)>> {
+export interface GetProtocolsList extends Binding.Service<GetProtocolsList, "AWS.FMS.GetProtocolsList", () => Effect.Effect<(request: GetProtocolsListRequest) => Effect.Effect<fms.GetProtocolsListResponse, fms.GetProtocolsListError>>> {
 }
 export declare const GetProtocolsList: GetProtocolsList;

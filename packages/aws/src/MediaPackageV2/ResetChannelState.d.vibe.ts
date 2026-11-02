@@ -23,6 +23,6 @@ import type { Channel } from "./Channel.vibe";
  *
  * @binding
  */
-export interface ResetChannelState extends Binding.Service<ResetChannelState, "AWS.MediaPackageV2.ResetChannelState", (channel: Channel) => Effect.Effect<(() => Effect.Effect<mediapackagev2.ResetChannelStateResponse, mediapackagev2.ResetChannelStateError>)>> {
+export interface ResetChannelState extends Binding.Service<ResetChannelState, "AWS.MediaPackageV2.ResetChannelState", (channel: Channel) => Effect.Effect<() => Effect.Effect<mediapackagev2.ResetChannelStateResponse, mediapackagev2.ResetChannelStateError>>> {
 }
 export declare const ResetChannelState: ResetChannelState;

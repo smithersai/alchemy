@@ -1,6 +1,6 @@
 import * as Layer from "effect/Layer";
 import { DestinationEventSource as IoTWirelessDestinationEventSource, type WirelessUplinkMessage } from "../IoTWireless/DestinationEventSource.vibe";
-import * as Lambda from "./Function.js";
+import * as Lambda from "./Function.ts";
 /**
  * An IoT Wireless uplink invocation — the envelope IoT Core for LoRaWAN
  * delivers to a destination's rule: the base64 `PayloadData` plus the

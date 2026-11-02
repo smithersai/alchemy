@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListStandardsControlAssociations extends Binding.Service<ListStandardsControlAssociations, "AWS.SecurityHub.ListStandardsControlAssociations", () => Effect.Effect<((request?: securityhub.ListStandardsControlAssociationsRequest) => Effect.Effect<securityhub.ListStandardsControlAssociationsResponse, securityhub.ListStandardsControlAssociationsError>)>> {
+export interface ListStandardsControlAssociations extends Binding.Service<ListStandardsControlAssociations, "AWS.SecurityHub.ListStandardsControlAssociations", () => Effect.Effect<(request?: securityhub.ListStandardsControlAssociationsRequest) => Effect.Effect<securityhub.ListStandardsControlAssociationsResponse, securityhub.ListStandardsControlAssociationsError>>> {
 }
 export declare const ListStandardsControlAssociations: ListStandardsControlAssociations;

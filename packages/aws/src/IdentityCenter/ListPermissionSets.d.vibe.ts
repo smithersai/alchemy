@@ -21,6 +21,6 @@ import type { Instance } from "./Instance.vibe";
  *
  * @binding
  */
-export interface ListPermissionSets extends Binding.Service<ListPermissionSets, "AWS.IdentityCenter.ListPermissionSets", (instance: Instance) => Effect.Effect<((request?: Omit<ssoAdmin.ListPermissionSetsRequest, "InstanceArn">) => Effect.Effect<ssoAdmin.ListPermissionSetsResponse, ssoAdmin.ListPermissionSetsError>)>> {
+export interface ListPermissionSets extends Binding.Service<ListPermissionSets, "AWS.IdentityCenter.ListPermissionSets", (instance: Instance) => Effect.Effect<(request?: Omit<ssoAdmin.ListPermissionSetsRequest, "InstanceArn">) => Effect.Effect<ssoAdmin.ListPermissionSetsResponse, ssoAdmin.ListPermissionSetsError>>> {
 }
 export declare const ListPermissionSets: ListPermissionSets;

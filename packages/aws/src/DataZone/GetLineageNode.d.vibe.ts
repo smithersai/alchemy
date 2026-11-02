@@ -22,6 +22,6 @@ export interface GetLineageNodeRequest extends Omit<datazone.GetLineageNodeInput
  *
  * @binding
  */
-export interface GetLineageNode extends Binding.Service<GetLineageNode, "AWS.DataZone.GetLineageNode", (domain: Domain) => Effect.Effect<((request: GetLineageNodeRequest) => Effect.Effect<datazone.GetLineageNodeOutput, datazone.GetLineageNodeError>)>> {
+export interface GetLineageNode extends Binding.Service<GetLineageNode, "AWS.DataZone.GetLineageNode", (domain: Domain) => Effect.Effect<(request: GetLineageNodeRequest) => Effect.Effect<datazone.GetLineageNodeOutput, datazone.GetLineageNodeError>>> {
 }
 export declare const GetLineageNode: GetLineageNode;

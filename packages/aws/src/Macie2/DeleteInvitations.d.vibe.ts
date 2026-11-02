@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DeleteInvitations extends Binding.Service<DeleteInvitations, "AWS.Macie2.DeleteInvitations", () => Effect.Effect<((request?: macie2.DeleteInvitationsRequest) => Effect.Effect<macie2.DeleteInvitationsResponse, macie2.DeleteInvitationsError>)>> {
+export interface DeleteInvitations extends Binding.Service<DeleteInvitations, "AWS.Macie2.DeleteInvitations", () => Effect.Effect<(request?: macie2.DeleteInvitationsRequest) => Effect.Effect<macie2.DeleteInvitationsResponse, macie2.DeleteInvitationsError>>> {
 }
 export declare const DeleteInvitations: DeleteInvitations;

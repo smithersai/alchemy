@@ -12,7 +12,7 @@ export declare const makeCodePipelineNameHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.CodePipeline.GetPipelineState`. */
     tag: string;
     /** The distilled operation; `name` is injected from the pipeline. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the pipeline ARN. */
     actions: readonly string[];
 }) => Effect.Effect<<P extends Pipeline>(pipeline: P) => Effect.Effect<(request?: Omit<I, "name"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;
@@ -29,7 +29,7 @@ export declare const makeCodePipelinePipelineNameHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.CodePipeline.RollbackStage`. */
     tag: string;
     /** The distilled operation; `pipelineName` is injected from the pipeline. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the pipeline ARN. */
     actions: readonly string[];
     /** Also grant on `{pipelineArn}/*` (stage-/action-addressed actions). */
@@ -45,7 +45,7 @@ export declare const makeCodePipelineJobHttpBinding: <I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.CodePipeline.PutJobSuccessResult`. */
     tag: string;
     /** The distilled operation, invoked with the caller's request as-is. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on `*` (no resource-level permission support). */
     actions: readonly string[];
 }) => Effect.Effect<() => Effect.Effect<(request: I) => Effect.Effect<A, E, never>, never, never>, never, never>;

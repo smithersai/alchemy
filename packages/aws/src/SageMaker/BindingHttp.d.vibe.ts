@@ -19,7 +19,7 @@ export declare const makeFeatureGroupHttpBinding: <Req, I, A, E, R>(options: {
     /** Fully-qualified binding tag, e.g. `AWS.SageMaker.GetRecord`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the feature group ARN. */
     actions: readonly string[];
     /** Shape the caller's request into the wire request (injecting the name). */
@@ -37,7 +37,7 @@ export declare const makeEndpointHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.SageMaker.DescribeEndpoint`. */
     tag: string;
     /** The distilled operation. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the endpoint ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(endpoint: Endpoint) => Effect.Effect<(request?: Omit<I, "EndpointName"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

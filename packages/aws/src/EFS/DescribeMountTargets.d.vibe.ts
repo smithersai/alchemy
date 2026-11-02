@@ -30,6 +30,6 @@ export interface DescribeMountTargetsRequest extends Omit<efs.DescribeMountTarge
  *
  * @binding
  */
-export interface DescribeMountTargets extends Binding.Service<DescribeMountTargets, "AWS.EFS.DescribeMountTargets", (fileSystem: FileSystem) => Effect.Effect<((request?: DescribeMountTargetsRequest) => Effect.Effect<efs.DescribeMountTargetsResponse, efs.DescribeMountTargetsError>)>> {
+export interface DescribeMountTargets extends Binding.Service<DescribeMountTargets, "AWS.EFS.DescribeMountTargets", (fileSystem: FileSystem) => Effect.Effect<(request?: DescribeMountTargetsRequest) => Effect.Effect<efs.DescribeMountTargetsResponse, efs.DescribeMountTargetsError>>> {
 }
 export declare const DescribeMountTargets: DescribeMountTargets;

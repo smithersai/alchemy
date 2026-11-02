@@ -29,6 +29,6 @@ export interface DeleteLicenseRequest extends licensemanager.DeleteLicenseReques
  *
  * @binding
  */
-export interface DeleteLicense extends Binding.Service<DeleteLicense, "AWS.LicenseManager.DeleteLicense", () => Effect.Effect<((request: DeleteLicenseRequest) => Effect.Effect<licensemanager.DeleteLicenseResponse, licensemanager.DeleteLicenseError>)>> {
+export interface DeleteLicense extends Binding.Service<DeleteLicense, "AWS.LicenseManager.DeleteLicense", () => Effect.Effect<(request: DeleteLicenseRequest) => Effect.Effect<licensemanager.DeleteLicenseResponse, licensemanager.DeleteLicenseError>>> {
 }
 export declare const DeleteLicense: DeleteLicense;

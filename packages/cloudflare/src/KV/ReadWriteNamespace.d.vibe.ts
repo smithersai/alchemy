@@ -1,9 +1,9 @@
 import * as Binding from "alchemy/Binding";
 import type { Input } from "alchemy/Input";
 import * as Effect from "effect/Effect";
-import type { InstantNamespace } from "./InstantNamespace.js";
+import type { InstantNamespace } from "./InstantNamespace.ts";
 import type { ReadWriteInstantNamespaceClient } from "./InstantNamespaceTypes.vibe";
-import type { Namespace } from "./Namespace.js";
+import type { Namespace } from "./Namespace.ts";
 import type { ReadNamespaceClient } from "./ReadNamespace.vibe";
 import type { WriteNamespaceClient } from "./WriteNamespace.vibe";
 /**

@@ -29,6 +29,6 @@ export interface DescribeAccessPointsRequest extends Omit<efs.DescribeAccessPoin
  *
  * @binding
  */
-export interface DescribeAccessPoints extends Binding.Service<DescribeAccessPoints, "AWS.EFS.DescribeAccessPoints", (fileSystem: FileSystem) => Effect.Effect<((request?: DescribeAccessPointsRequest) => Effect.Effect<efs.DescribeAccessPointsResponse, efs.DescribeAccessPointsError>)>> {
+export interface DescribeAccessPoints extends Binding.Service<DescribeAccessPoints, "AWS.EFS.DescribeAccessPoints", (fileSystem: FileSystem) => Effect.Effect<(request?: DescribeAccessPointsRequest) => Effect.Effect<efs.DescribeAccessPointsResponse, efs.DescribeAccessPointsError>>> {
 }
 export declare const DescribeAccessPoints: DescribeAccessPoints;

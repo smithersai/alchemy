@@ -2,7 +2,7 @@ import type * as alloydb from "@distilled.cloud/gcp/alloydb_v1";
 import * as Binding from "alchemy/Binding";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import type * as Effect from "effect/Effect";
-import type { Instance } from "./Instance.js";
+import type { Instance } from "./Instance.ts";
 export interface GetConnectionInfoRequest extends Omit<alloydb.GetConnectionInfoProjectsLocationsClustersInstancesRequest, "parent"> {
 }
 /**
@@ -21,6 +21,6 @@ export interface GetConnectionInfoRequest extends Omit<alloydb.GetConnectionInfo
  * @binding
  * @category AlloyDB
  */
-export interface GetConnectionInfo extends Binding.Service<GetConnectionInfo, "GCP.AlloyDB.GetConnectionInfo", (instance: Instance) => Effect.Effect<((request?: GetConnectionInfoRequest) => Effect.Effect<alloydb.ConnectionInfo, alloydb.GetConnectionInfoProjectsLocationsClustersInstancesError, RuntimeContext>)>> {
+export interface GetConnectionInfo extends Binding.Service<GetConnectionInfo, "GCP.AlloyDB.GetConnectionInfo", (instance: Instance) => Effect.Effect<(request?: GetConnectionInfoRequest) => Effect.Effect<alloydb.ConnectionInfo, alloydb.GetConnectionInfoProjectsLocationsClustersInstancesError, RuntimeContext>>> {
 }
 export declare const GetConnectionInfo: GetConnectionInfo;

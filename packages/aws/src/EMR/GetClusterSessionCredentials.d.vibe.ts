@@ -19,6 +19,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface GetClusterSessionCredentials extends Binding.Service<GetClusterSessionCredentials, "AWS.EMR.GetClusterSessionCredentials", <C extends Cluster>(cluster: C) => Effect.Effect<((request?: Omit<SVC.GetClusterSessionCredentialsInput, "ClusterId">) => Effect.Effect<SVC.GetClusterSessionCredentialsOutput, SVC.GetClusterSessionCredentialsError>)>> {
+export interface GetClusterSessionCredentials extends Binding.Service<GetClusterSessionCredentials, "AWS.EMR.GetClusterSessionCredentials", <C extends Cluster>(cluster: C) => Effect.Effect<(request?: Omit<SVC.GetClusterSessionCredentialsInput, "ClusterId">) => Effect.Effect<SVC.GetClusterSessionCredentialsOutput, SVC.GetClusterSessionCredentialsError>>> {
 }
 export declare const GetClusterSessionCredentials: GetClusterSessionCredentials;

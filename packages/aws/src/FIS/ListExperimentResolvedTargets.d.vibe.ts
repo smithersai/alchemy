@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListExperimentResolvedTargets extends Binding.Service<ListExperimentResolvedTargets, "AWS.FIS.ListExperimentResolvedTargets", () => Effect.Effect<((request: fis.ListExperimentResolvedTargetsRequest) => Effect.Effect<fis.ListExperimentResolvedTargetsResponse, fis.ListExperimentResolvedTargetsError>)>> {
+export interface ListExperimentResolvedTargets extends Binding.Service<ListExperimentResolvedTargets, "AWS.FIS.ListExperimentResolvedTargets", () => Effect.Effect<(request: fis.ListExperimentResolvedTargetsRequest) => Effect.Effect<fis.ListExperimentResolvedTargetsResponse, fis.ListExperimentResolvedTargetsError>>> {
 }
 export declare const ListExperimentResolvedTargets: ListExperimentResolvedTargets;

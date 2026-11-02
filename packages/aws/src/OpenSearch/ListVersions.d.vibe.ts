@@ -18,6 +18,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ListVersions extends Binding.Service<ListVersions, "AWS.OpenSearch.ListVersions", () => Effect.Effect<((request?: opensearch.ListVersionsRequest) => Effect.Effect<opensearch.ListVersionsResponse, opensearch.ListVersionsError>)>> {
+export interface ListVersions extends Binding.Service<ListVersions, "AWS.OpenSearch.ListVersions", () => Effect.Effect<(request?: opensearch.ListVersionsRequest) => Effect.Effect<opensearch.ListVersionsResponse, opensearch.ListVersionsError>>> {
 }
 export declare const ListVersions: ListVersions;

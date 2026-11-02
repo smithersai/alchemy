@@ -1,9 +1,9 @@
 import * as eventbridge from "@distilled.cloud/aws/eventbridge";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import { AWSEnvironment, type AccountID } from "../Environment.js";
-import type { Providers } from "../Providers.js";
-import type { RegionID } from "../Region.js";
+import { AWSEnvironment, type AccountID } from "../Environment.ts";
+import type { Providers } from "../Providers.ts";
+import type { RegionID } from "../Region.ts";
 import type { QueueArn } from "../SQS/Queue.vibe";
 export type { IncludeDetail, Level, LogConfig } from "@distilled.cloud/aws/eventbridge";
 export type EventBusName = string;

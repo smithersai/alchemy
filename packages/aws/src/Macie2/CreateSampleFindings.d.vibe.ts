@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateSampleFindings extends Binding.Service<CreateSampleFindings, "AWS.Macie2.CreateSampleFindings", () => Effect.Effect<((request?: macie2.CreateSampleFindingsRequest) => Effect.Effect<macie2.CreateSampleFindingsResponse, macie2.CreateSampleFindingsError>)>> {
+export interface CreateSampleFindings extends Binding.Service<CreateSampleFindings, "AWS.Macie2.CreateSampleFindings", () => Effect.Effect<(request?: macie2.CreateSampleFindingsRequest) => Effect.Effect<macie2.CreateSampleFindingsResponse, macie2.CreateSampleFindingsError>>> {
 }
 export declare const CreateSampleFindings: CreateSampleFindings;

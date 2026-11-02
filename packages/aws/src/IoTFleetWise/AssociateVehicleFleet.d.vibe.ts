@@ -26,6 +26,6 @@ export interface AssociateVehicleFleetRequest extends Omit<iotfleetwise.Associat
  *
  * @binding
  */
-export interface AssociateVehicleFleet extends Binding.Service<AssociateVehicleFleet, "AWS.IoTFleetWise.AssociateVehicleFleet", (fleet: Fleet) => Effect.Effect<((request: AssociateVehicleFleetRequest) => Effect.Effect<iotfleetwise.AssociateVehicleFleetResponse, iotfleetwise.AssociateVehicleFleetError>)>> {
+export interface AssociateVehicleFleet extends Binding.Service<AssociateVehicleFleet, "AWS.IoTFleetWise.AssociateVehicleFleet", (fleet: Fleet) => Effect.Effect<(request: AssociateVehicleFleetRequest) => Effect.Effect<iotfleetwise.AssociateVehicleFleetResponse, iotfleetwise.AssociateVehicleFleetError>>> {
 }
 export declare const AssociateVehicleFleet: AssociateVehicleFleet;

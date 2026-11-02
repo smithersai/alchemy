@@ -30,6 +30,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface StartPersonTracking extends Binding.Service<StartPersonTracking, "AWS.Rekognition.StartPersonTracking", () => Effect.Effect<((request: rekognition.StartPersonTrackingRequest) => Effect.Effect<rekognition.StartPersonTrackingResponse, rekognition.StartPersonTrackingError>)>> {
+export interface StartPersonTracking extends Binding.Service<StartPersonTracking, "AWS.Rekognition.StartPersonTracking", () => Effect.Effect<(request: rekognition.StartPersonTrackingRequest) => Effect.Effect<rekognition.StartPersonTrackingResponse, rekognition.StartPersonTrackingError>>> {
 }
 export declare const StartPersonTracking: StartPersonTracking;

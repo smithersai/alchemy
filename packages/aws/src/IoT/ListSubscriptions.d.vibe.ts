@@ -24,6 +24,6 @@ export interface ListSubscriptionsRequest extends iotdata.ListSubscriptionsReque
  *
  * @binding
  */
-export interface ListSubscriptions extends Binding.Service<ListSubscriptions, "AWS.IoT.ListSubscriptions", (clientIdFilter?: string) => Effect.Effect<((request: ListSubscriptionsRequest) => Effect.Effect<iotdata.ListSubscriptionsResponse, iotdata.ListSubscriptionsError>)>> {
+export interface ListSubscriptions extends Binding.Service<ListSubscriptions, "AWS.IoT.ListSubscriptions", (clientIdFilter?: string) => Effect.Effect<(request: ListSubscriptionsRequest) => Effect.Effect<iotdata.ListSubscriptionsResponse, iotdata.ListSubscriptionsError>>> {
 }
 export declare const ListSubscriptions: ListSubscriptions;

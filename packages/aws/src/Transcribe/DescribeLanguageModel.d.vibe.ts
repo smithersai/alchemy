@@ -21,6 +21,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface DescribeLanguageModel extends Binding.Service<DescribeLanguageModel, "AWS.Transcribe.DescribeLanguageModel", () => Effect.Effect<((request: transcribe.DescribeLanguageModelRequest) => Effect.Effect<transcribe.DescribeLanguageModelResponse, transcribe.DescribeLanguageModelError>)>> {
+export interface DescribeLanguageModel extends Binding.Service<DescribeLanguageModel, "AWS.Transcribe.DescribeLanguageModel", () => Effect.Effect<(request: transcribe.DescribeLanguageModelRequest) => Effect.Effect<transcribe.DescribeLanguageModelResponse, transcribe.DescribeLanguageModelError>>> {
 }
 export declare const DescribeLanguageModel: DescribeLanguageModel;

@@ -19,6 +19,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface GetExpenseAnalysis extends Binding.Service<GetExpenseAnalysis, "AWS.Textract.GetExpenseAnalysis", () => Effect.Effect<((request: textract.GetExpenseAnalysisRequest) => Effect.Effect<textract.GetExpenseAnalysisResponse, textract.GetExpenseAnalysisError>)>> {
+export interface GetExpenseAnalysis extends Binding.Service<GetExpenseAnalysis, "AWS.Textract.GetExpenseAnalysis", () => Effect.Effect<(request: textract.GetExpenseAnalysisRequest) => Effect.Effect<textract.GetExpenseAnalysisResponse, textract.GetExpenseAnalysisError>>> {
 }
 export declare const GetExpenseAnalysis: GetExpenseAnalysis;

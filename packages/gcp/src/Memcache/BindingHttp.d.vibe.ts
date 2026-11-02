@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
-import { type BindingIam, type GcpHttpOp } from "../HttpBinding.js";
-import type { Instance } from "./Instance.js";
+import { type BindingIam, type GcpHttpOp } from "../HttpBinding.ts";
+import type { Instance } from "./Instance.ts";
 /**
  * Shared HTTP scaffolding for Memorystore Memcached instance bindings.
  * NOT exported from index.ts.

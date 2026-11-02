@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateDataGrant extends Binding.Service<CreateDataGrant, "AWS.DataExchange.CreateDataGrant", () => Effect.Effect<((request: dataexchange.CreateDataGrantRequest) => Effect.Effect<dataexchange.CreateDataGrantResponse, dataexchange.CreateDataGrantError>)>> {
+export interface CreateDataGrant extends Binding.Service<CreateDataGrant, "AWS.DataExchange.CreateDataGrant", () => Effect.Effect<(request: dataexchange.CreateDataGrantRequest) => Effect.Effect<dataexchange.CreateDataGrantResponse, dataexchange.CreateDataGrantError>>> {
 }
 export declare const CreateDataGrant: CreateDataGrant;

@@ -25,6 +25,6 @@ export interface ListDeviceDiscoveriesRequest extends mi.ListDeviceDiscoveriesRe
  *
  * @binding
  */
-export interface ListDeviceDiscoveries extends Binding.Service<ListDeviceDiscoveries, "AWS.IoTManagedIntegrations.ListDeviceDiscoveries", () => Effect.Effect<((request?: ListDeviceDiscoveriesRequest) => Effect.Effect<mi.ListDeviceDiscoveriesResponse, mi.ListDeviceDiscoveriesError>)>> {
+export interface ListDeviceDiscoveries extends Binding.Service<ListDeviceDiscoveries, "AWS.IoTManagedIntegrations.ListDeviceDiscoveries", () => Effect.Effect<(request?: ListDeviceDiscoveriesRequest) => Effect.Effect<mi.ListDeviceDiscoveriesResponse, mi.ListDeviceDiscoveriesError>>> {
 }
 export declare const ListDeviceDiscoveries: ListDeviceDiscoveries;

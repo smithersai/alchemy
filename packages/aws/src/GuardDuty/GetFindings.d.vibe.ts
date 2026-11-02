@@ -21,6 +21,6 @@ import type { Detector } from "./Detector.vibe";
  *
  * @binding
  */
-export interface GetFindings extends Binding.Service<GetFindings, "AWS.GuardDuty.GetFindings", (detector: Detector) => Effect.Effect<((request?: Omit<guardduty.GetFindingsRequest, "DetectorId">) => Effect.Effect<guardduty.GetFindingsResponse, guardduty.GetFindingsError>)>> {
+export interface GetFindings extends Binding.Service<GetFindings, "AWS.GuardDuty.GetFindings", (detector: Detector) => Effect.Effect<(request?: Omit<guardduty.GetFindingsRequest, "DetectorId">) => Effect.Effect<guardduty.GetFindingsResponse, guardduty.GetFindingsError>>> {
 }
 export declare const GetFindings: GetFindings;

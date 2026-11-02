@@ -24,6 +24,6 @@ export interface ListPackagesRequest extends Omit<codeartifact.ListPackagesReque
  *
  * @binding
  */
-export interface ListPackages extends Binding.Service<ListPackages, "AWS.CodeArtifact.ListPackages", (repository: Repository) => Effect.Effect<((request: ListPackagesRequest) => Effect.Effect<codeartifact.ListPackagesResult, codeartifact.ListPackagesError>)>> {
+export interface ListPackages extends Binding.Service<ListPackages, "AWS.CodeArtifact.ListPackages", (repository: Repository) => Effect.Effect<(request: ListPackagesRequest) => Effect.Effect<codeartifact.ListPackagesResult, codeartifact.ListPackagesError>>> {
 }
 export declare const ListPackages: ListPackages;

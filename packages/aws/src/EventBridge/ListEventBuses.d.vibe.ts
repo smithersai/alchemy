@@ -20,6 +20,6 @@ export interface ListEventBusesRequest extends eventbridge.ListEventBusesRequest
  *
  * @binding
  */
-export interface ListEventBuses extends Binding.Service<ListEventBuses, "AWS.EventBridge.ListEventBuses", () => Effect.Effect<((request?: ListEventBusesRequest) => Effect.Effect<eventbridge.ListEventBusesResponse, eventbridge.ListEventBusesError>)>> {
+export interface ListEventBuses extends Binding.Service<ListEventBuses, "AWS.EventBridge.ListEventBuses", () => Effect.Effect<(request?: ListEventBusesRequest) => Effect.Effect<eventbridge.ListEventBusesResponse, eventbridge.ListEventBusesError>>> {
 }
 export declare const ListEventBuses: ListEventBuses;

@@ -25,6 +25,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface CreateSnapshot extends Binding.Service<CreateSnapshot, "AWS.FSx.CreateSnapshot", () => Effect.Effect<((request: fsx.CreateSnapshotRequest) => Effect.Effect<fsx.CreateSnapshotResponse, fsx.CreateSnapshotError>)>> {
+export interface CreateSnapshot extends Binding.Service<CreateSnapshot, "AWS.FSx.CreateSnapshot", () => Effect.Effect<(request: fsx.CreateSnapshotRequest) => Effect.Effect<fsx.CreateSnapshotResponse, fsx.CreateSnapshotError>>> {
 }
 export declare const CreateSnapshot: CreateSnapshot;

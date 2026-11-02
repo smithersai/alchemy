@@ -44,6 +44,6 @@ export interface GetMediaRequest extends Omit<kvm.GetMediaInput, "StreamName" | 
  *
  * @binding
  */
-export interface GetMedia extends Binding.Service<GetMedia, "AWS.KinesisVideo.GetMedia", <S extends Stream>(stream: S) => Effect.Effect<((request: GetMediaRequest) => Effect.Effect<kvm.GetMediaOutput, kvm.GetMediaError | kv.GetDataEndpointError>)>> {
+export interface GetMedia extends Binding.Service<GetMedia, "AWS.KinesisVideo.GetMedia", <S extends Stream>(stream: S) => Effect.Effect<(request: GetMediaRequest) => Effect.Effect<kvm.GetMediaOutput, kvm.GetMediaError | kv.GetDataEndpointError>>> {
 }
 export declare const GetMedia: GetMedia;

@@ -30,6 +30,6 @@ import type { SignalingChannel } from "./SignalingChannel.vibe";
  *
  * @binding
  */
-export interface JoinStorageSession extends Binding.Service<JoinStorageSession, "AWS.KinesisVideo.JoinStorageSession", <C extends SignalingChannel>(channel: C) => Effect.Effect<(() => Effect.Effect<kvws.JoinStorageSessionResponse, kvws.JoinStorageSessionError | kv.GetSignalingChannelEndpointError | SignalingEndpointUnavailable>)>> {
+export interface JoinStorageSession extends Binding.Service<JoinStorageSession, "AWS.KinesisVideo.JoinStorageSession", <C extends SignalingChannel>(channel: C) => Effect.Effect<() => Effect.Effect<kvws.JoinStorageSessionResponse, kvws.JoinStorageSessionError | kv.GetSignalingChannelEndpointError | SignalingEndpointUnavailable>>> {
 }
 export declare const JoinStorageSession: JoinStorageSession;

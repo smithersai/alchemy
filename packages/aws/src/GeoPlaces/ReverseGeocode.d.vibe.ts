@@ -31,6 +31,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface ReverseGeocode extends Binding.Service<ReverseGeocode, "AWS.GeoPlaces.ReverseGeocode", () => Effect.Effect<((request: geoPlaces.ReverseGeocodeRequest) => Effect.Effect<geoPlaces.ReverseGeocodeResponse, geoPlaces.ReverseGeocodeError>)>> {
+export interface ReverseGeocode extends Binding.Service<ReverseGeocode, "AWS.GeoPlaces.ReverseGeocode", () => Effect.Effect<(request: geoPlaces.ReverseGeocodeRequest) => Effect.Effect<geoPlaces.ReverseGeocodeResponse, geoPlaces.ReverseGeocodeError>>> {
 }
 export declare const ReverseGeocode: ReverseGeocode;

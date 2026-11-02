@@ -1,7 +1,7 @@
 import type * as s3control from "@distilled.cloud/aws/s3-control";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { AccessPoint } from "./AccessPoint.js";
+import type { AccessPoint } from "./AccessPoint.ts";
 /**
  * Runtime binding for `s3:GetAccessPoint`.
  *
@@ -24,6 +24,6 @@ import type { AccessPoint } from "./AccessPoint.js";
  *
  * @binding
  */
-export interface GetAccessPoint extends Binding.Service<GetAccessPoint, "AWS.S3Control.GetAccessPoint", (accessPoint: AccessPoint) => Effect.Effect<(() => Effect.Effect<s3control.GetAccessPointResult, s3control.GetAccessPointError>)>> {
+export interface GetAccessPoint extends Binding.Service<GetAccessPoint, "AWS.S3Control.GetAccessPoint", (accessPoint: AccessPoint) => Effect.Effect<() => Effect.Effect<s3control.GetAccessPointResult, s3control.GetAccessPointError>>> {
 }
 export declare const GetAccessPoint: GetAccessPoint;

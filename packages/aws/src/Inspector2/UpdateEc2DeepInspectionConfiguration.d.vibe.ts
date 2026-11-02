@@ -20,6 +20,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateEc2DeepInspectionConfiguration extends Binding.Service<UpdateEc2DeepInspectionConfiguration, "AWS.Inspector2.UpdateEc2DeepInspectionConfiguration", () => Effect.Effect<((request?: inspector2.UpdateEc2DeepInspectionConfigurationRequest) => Effect.Effect<inspector2.UpdateEc2DeepInspectionConfigurationResponse, inspector2.UpdateEc2DeepInspectionConfigurationError>)>> {
+export interface UpdateEc2DeepInspectionConfiguration extends Binding.Service<UpdateEc2DeepInspectionConfiguration, "AWS.Inspector2.UpdateEc2DeepInspectionConfiguration", () => Effect.Effect<(request?: inspector2.UpdateEc2DeepInspectionConfigurationRequest) => Effect.Effect<inspector2.UpdateEc2DeepInspectionConfigurationResponse, inspector2.UpdateEc2DeepInspectionConfigurationError>>> {
 }
 export declare const UpdateEc2DeepInspectionConfiguration: UpdateEc2DeepInspectionConfiguration;

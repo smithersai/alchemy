@@ -1,7 +1,7 @@
 import type * as emr from "@distilled.cloud/aws/emr-serverless";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Application } from "./Application.js";
+import type { Application } from "./Application.ts";
 /**
  * Request accepted by the {@link GetDashboardForJobRun} runtime callable.
  * The `applicationId` is injected from the bound {@link Application}.
@@ -28,6 +28,6 @@ export type GetDashboardForJobRunInput = Omit<emr.GetDashboardForJobRunRequest, 
  *
  * @binding
  */
-export interface GetDashboardForJobRun extends Binding.Service<GetDashboardForJobRun, "AWS.EMRServerless.GetDashboardForJobRun", (application: Application) => Effect.Effect<((request: GetDashboardForJobRunInput) => Effect.Effect<emr.GetDashboardForJobRunResponse, emr.GetDashboardForJobRunError>)>> {
+export interface GetDashboardForJobRun extends Binding.Service<GetDashboardForJobRun, "AWS.EMRServerless.GetDashboardForJobRun", (application: Application) => Effect.Effect<(request: GetDashboardForJobRunInput) => Effect.Effect<emr.GetDashboardForJobRunResponse, emr.GetDashboardForJobRunError>>> {
 }
 export declare const GetDashboardForJobRun: GetDashboardForJobRun;

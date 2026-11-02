@@ -1,7 +1,7 @@
 import * as cloudwatch from "@distilled.cloud/aws/cloudwatch";
 import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
-import type { AlarmResource } from "./binding-common.js";
+import type { AlarmResource } from "./binding-common.ts";
 export interface DescribeAlarmsRequest extends Omit<cloudwatch.DescribeAlarmsInput, "AlarmNames"> {
 }
 type AlarmResources = [AlarmResource, ...AlarmResource[]];
@@ -36,7 +36,7 @@ type AlarmResources = [AlarmResource, ...AlarmResource[]];
  *
  * @binding
  */
-export interface DescribeAlarms extends Binding.Service<DescribeAlarms, "AWS.CloudWatch.DescribeAlarms", (...alarms: AlarmResources) => Effect.Effect<((request?: DescribeAlarmsRequest) => Effect.Effect<cloudwatch.DescribeAlarmsOutput, any>)>> {
+export interface DescribeAlarms extends Binding.Service<DescribeAlarms, "AWS.CloudWatch.DescribeAlarms", (...alarms: AlarmResources) => Effect.Effect<(request?: DescribeAlarmsRequest) => Effect.Effect<cloudwatch.DescribeAlarmsOutput, any>>> {
 }
 export declare const DescribeAlarms: DescribeAlarms;
 export {};

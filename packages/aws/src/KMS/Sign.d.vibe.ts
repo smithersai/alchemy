@@ -2,7 +2,7 @@ import type * as kms from "@distilled.cloud/aws/kms";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
 import type { AliasName } from "./Alias.vibe";
-import type { Key } from "./Key.js";
+import type { Key } from "./Key.ts";
 export interface SignRequest extends Omit<kms.SignRequest, "KeyId"> {
 }
 /**
@@ -36,6 +36,6 @@ export interface SignRequest extends Omit<kms.SignRequest, "KeyId"> {
  *
  * @binding
  */
-export interface Sign extends Binding.Service<Sign, "AWS.KMS.Sign", (key: Key | AliasName) => Effect.Effect<((request: SignRequest) => Effect.Effect<kms.SignResponse, kms.SignError>)>> {
+export interface Sign extends Binding.Service<Sign, "AWS.KMS.Sign", (key: Key | AliasName) => Effect.Effect<(request: SignRequest) => Effect.Effect<kms.SignResponse, kms.SignError>>> {
 }
 export declare const Sign: Sign;

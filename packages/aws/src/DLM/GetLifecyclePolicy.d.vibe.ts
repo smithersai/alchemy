@@ -1,7 +1,7 @@
 import type * as dlm from "@distilled.cloud/aws/dlm";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { LifecyclePolicy } from "./LifecyclePolicy.js";
+import type { LifecyclePolicy } from "./LifecyclePolicy.ts";
 /**
  * Runtime binding for `dlm:GetLifecyclePolicy`.
  *
@@ -26,6 +26,6 @@ import type { LifecyclePolicy } from "./LifecyclePolicy.js";
  *
  * @binding
  */
-export interface GetLifecyclePolicy extends Binding.Service<GetLifecyclePolicy, "AWS.DLM.GetLifecyclePolicy", (policy: LifecyclePolicy) => Effect.Effect<(() => Effect.Effect<dlm.GetLifecyclePolicyResponse, dlm.GetLifecyclePolicyError>)>> {
+export interface GetLifecyclePolicy extends Binding.Service<GetLifecyclePolicy, "AWS.DLM.GetLifecyclePolicy", (policy: LifecyclePolicy) => Effect.Effect<() => Effect.Effect<dlm.GetLifecyclePolicyResponse, dlm.GetLifecyclePolicyError>>> {
 }
 export declare const GetLifecyclePolicy: GetLifecyclePolicy;

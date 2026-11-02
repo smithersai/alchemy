@@ -25,6 +25,6 @@ export interface UpdateChannelRequest extends Omit<repostspace.UpdateChannelInpu
  *
  * @binding
  */
-export interface UpdateChannel extends Binding.Service<UpdateChannel, "AWS.RePostSpace.UpdateChannel", (space: Space) => Effect.Effect<((request: UpdateChannelRequest) => Effect.Effect<repostspace.UpdateChannelOutput, repostspace.UpdateChannelError>)>> {
+export interface UpdateChannel extends Binding.Service<UpdateChannel, "AWS.RePostSpace.UpdateChannel", (space: Space) => Effect.Effect<(request: UpdateChannelRequest) => Effect.Effect<repostspace.UpdateChannelOutput, repostspace.UpdateChannelError>>> {
 }
 export declare const UpdateChannel: UpdateChannel;

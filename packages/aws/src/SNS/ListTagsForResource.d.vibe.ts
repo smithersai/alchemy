@@ -25,6 +25,6 @@ export interface ListTagsForResourceRequest extends Omit<sns.ListTagsForResource
  *
  * @binding
  */
-export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.SNS.ListTagsForResource", (topic: Topic) => Effect.Effect<((request?: ListTagsForResourceRequest) => Effect.Effect<sns.ListTagsForResourceResponse, sns.ListTagsForResourceError>)>> {
+export interface ListTagsForResource extends Binding.Service<ListTagsForResource, "AWS.SNS.ListTagsForResource", (topic: Topic) => Effect.Effect<(request?: ListTagsForResourceRequest) => Effect.Effect<sns.ListTagsForResourceResponse, sns.ListTagsForResourceError>>> {
 }
 export declare const ListTagsForResource: ListTagsForResource;

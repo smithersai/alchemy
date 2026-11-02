@@ -26,6 +26,6 @@ import type { Flow } from "./Flow.vibe";
  *
  * @binding
  */
-export interface DescribeFlowSourceThumbnail extends Binding.Service<DescribeFlowSourceThumbnail, "AWS.MediaConnect.DescribeFlowSourceThumbnail", (flow: Flow) => Effect.Effect<(() => Effect.Effect<mediaconnect.DescribeFlowSourceThumbnailResponse, mediaconnect.DescribeFlowSourceThumbnailError>)>> {
+export interface DescribeFlowSourceThumbnail extends Binding.Service<DescribeFlowSourceThumbnail, "AWS.MediaConnect.DescribeFlowSourceThumbnail", (flow: Flow) => Effect.Effect<() => Effect.Effect<mediaconnect.DescribeFlowSourceThumbnailResponse, mediaconnect.DescribeFlowSourceThumbnailError>>> {
 }
 export declare const DescribeFlowSourceThumbnail: DescribeFlowSourceThumbnail;

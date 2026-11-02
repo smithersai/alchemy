@@ -1,7 +1,7 @@
 import type * as SVC from "@distilled.cloud/aws/databrew";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Job } from "./Job.js";
+import type { Job } from "./Job.ts";
 export interface ListJobRunsRequest extends Omit<SVC.ListJobRunsRequest, "Name"> {
 }
 /**
@@ -17,6 +17,6 @@ export interface ListJobRunsRequest extends Omit<SVC.ListJobRunsRequest, "Name">
  *
  * @binding
  */
-export interface ListJobRuns extends Binding.Service<ListJobRuns, "AWS.DataBrew.ListJobRuns", <J extends Job>(job: J) => Effect.Effect<((request?: ListJobRunsRequest) => Effect.Effect<SVC.ListJobRunsResponse, SVC.ListJobRunsError>)>> {
+export interface ListJobRuns extends Binding.Service<ListJobRuns, "AWS.DataBrew.ListJobRuns", <J extends Job>(job: J) => Effect.Effect<(request?: ListJobRunsRequest) => Effect.Effect<SVC.ListJobRunsResponse, SVC.ListJobRunsError>>> {
 }
 export declare const ListJobRuns: ListJobRuns;

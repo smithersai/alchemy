@@ -23,6 +23,6 @@ import type { Graph } from "./Graph.vibe";
  *
  * @binding
  */
-export interface StartMonitoringMember extends Binding.Service<StartMonitoringMember, "AWS.Detective.StartMonitoringMember", (graph: Graph) => Effect.Effect<((request: Omit<detective.StartMonitoringMemberRequest, "GraphArn">) => Effect.Effect<detective.StartMonitoringMemberResponse, detective.StartMonitoringMemberError>)>> {
+export interface StartMonitoringMember extends Binding.Service<StartMonitoringMember, "AWS.Detective.StartMonitoringMember", (graph: Graph) => Effect.Effect<(request: Omit<detective.StartMonitoringMemberRequest, "GraphArn">) => Effect.Effect<detective.StartMonitoringMemberResponse, detective.StartMonitoringMemberError>>> {
 }
 export declare const StartMonitoringMember: StartMonitoringMember;

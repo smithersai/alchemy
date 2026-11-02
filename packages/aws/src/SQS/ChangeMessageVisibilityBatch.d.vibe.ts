@@ -33,6 +33,6 @@ export interface ChangeMessageVisibilityBatchRequest extends Omit<sqs.ChangeMess
  *
  * @binding
  */
-export interface ChangeMessageVisibilityBatch extends Binding.Service<ChangeMessageVisibilityBatch, "AWS.SQS.ChangeMessageVisibilityBatch", (queue: Queue) => Effect.Effect<((request: ChangeMessageVisibilityBatchRequest) => Effect.Effect<sqs.ChangeMessageVisibilityBatchResult, sqs.ChangeMessageVisibilityBatchError>)>> {
+export interface ChangeMessageVisibilityBatch extends Binding.Service<ChangeMessageVisibilityBatch, "AWS.SQS.ChangeMessageVisibilityBatch", (queue: Queue) => Effect.Effect<(request: ChangeMessageVisibilityBatchRequest) => Effect.Effect<sqs.ChangeMessageVisibilityBatchResult, sqs.ChangeMessageVisibilityBatchError>>> {
 }
 export declare const ChangeMessageVisibilityBatch: ChangeMessageVisibilityBatch;

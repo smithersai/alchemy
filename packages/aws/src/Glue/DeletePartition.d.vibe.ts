@@ -27,6 +27,6 @@ export interface DeletePartitionRequest extends Omit<glue.DeletePartitionRequest
  *
  * @binding
  */
-export interface DeletePartition extends Binding.Service<DeletePartition, "AWS.Glue.DeletePartition", (table: Table) => Effect.Effect<((request: DeletePartitionRequest) => Effect.Effect<glue.DeletePartitionResponse, glue.DeletePartitionError>)>> {
+export interface DeletePartition extends Binding.Service<DeletePartition, "AWS.Glue.DeletePartition", (table: Table) => Effect.Effect<(request: DeletePartitionRequest) => Effect.Effect<glue.DeletePartitionResponse, glue.DeletePartitionError>>> {
 }
 export declare const DeletePartition: DeletePartition;

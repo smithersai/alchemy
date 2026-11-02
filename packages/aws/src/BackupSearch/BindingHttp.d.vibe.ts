@@ -22,7 +22,7 @@ export declare const makeSearchJobScopedHttpBinding: <I extends {
     /** Fully-qualified binding tag, e.g. `AWS.BackupSearch.ListSearchJobResults`. */
     tag: string;
     /** The distilled operation; `SearchJobIdentifier` is injected from the resource. */
-    operation: Effect.Effect<((input: I) => Effect.Effect<A, E>), never, R>;
+    operation: Effect.Effect<(input: I) => Effect.Effect<A, E>, never, R>;
     /** IAM actions granted on the search job ARN. */
     actions: readonly string[];
 }) => Effect.Effect<(searchJob: SearchJob) => Effect.Effect<(request?: Omit<I, "SearchJobIdentifier"> | undefined) => Effect.Effect<A, E, never>, never, never>, never, never>;

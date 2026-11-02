@@ -24,6 +24,6 @@ import type { Cluster } from "./Cluster.vibe";
  *
  * @binding
  */
-export interface DecreaseReplicationFactor extends Binding.Service<DecreaseReplicationFactor, "AWS.DAX.DecreaseReplicationFactor", (cluster: Cluster) => Effect.Effect<((request: Omit<dax.DecreaseReplicationFactorRequest, "ClusterName">) => Effect.Effect<dax.DecreaseReplicationFactorResponse, dax.DecreaseReplicationFactorError>)>> {
+export interface DecreaseReplicationFactor extends Binding.Service<DecreaseReplicationFactor, "AWS.DAX.DecreaseReplicationFactor", (cluster: Cluster) => Effect.Effect<(request: Omit<dax.DecreaseReplicationFactorRequest, "ClusterName">) => Effect.Effect<dax.DecreaseReplicationFactorResponse, dax.DecreaseReplicationFactorError>>> {
 }
 export declare const DecreaseReplicationFactor: DecreaseReplicationFactor;

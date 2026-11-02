@@ -24,6 +24,6 @@ export interface ListResourceSetResourcesRequest extends fms.ListResourceSetReso
  *
  * @binding
  */
-export interface ListResourceSetResources extends Binding.Service<ListResourceSetResources, "AWS.FMS.ListResourceSetResources", () => Effect.Effect<((request: ListResourceSetResourcesRequest) => Effect.Effect<fms.ListResourceSetResourcesResponse, fms.ListResourceSetResourcesError>)>> {
+export interface ListResourceSetResources extends Binding.Service<ListResourceSetResources, "AWS.FMS.ListResourceSetResources", () => Effect.Effect<(request: ListResourceSetResourcesRequest) => Effect.Effect<fms.ListResourceSetResourcesResponse, fms.ListResourceSetResourcesError>>> {
 }
 export declare const ListResourceSetResources: ListResourceSetResources;

@@ -35,6 +35,6 @@ export interface BatchPutDocumentRequest extends Omit<qbusiness.BatchPutDocument
  *
  * @binding
  */
-export interface BatchPutDocument extends Binding.Service<BatchPutDocument, "AWS.QBusiness.BatchPutDocument", (index: Index) => Effect.Effect<((request: BatchPutDocumentRequest) => Effect.Effect<qbusiness.BatchPutDocumentResponse, qbusiness.BatchPutDocumentError>)>> {
+export interface BatchPutDocument extends Binding.Service<BatchPutDocument, "AWS.QBusiness.BatchPutDocument", (index: Index) => Effect.Effect<(request: BatchPutDocumentRequest) => Effect.Effect<qbusiness.BatchPutDocumentResponse, qbusiness.BatchPutDocumentError>>> {
 }
 export declare const BatchPutDocument: BatchPutDocument;

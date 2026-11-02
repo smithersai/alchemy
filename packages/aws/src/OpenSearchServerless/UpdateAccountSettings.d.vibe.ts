@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UpdateAccountSettings extends Binding.Service<UpdateAccountSettings, "AWS.OpenSearchServerless.UpdateAccountSettings", () => Effect.Effect<((request: aoss.UpdateAccountSettingsRequest) => Effect.Effect<aoss.UpdateAccountSettingsResponse, aoss.UpdateAccountSettingsError>)>> {
+export interface UpdateAccountSettings extends Binding.Service<UpdateAccountSettings, "AWS.OpenSearchServerless.UpdateAccountSettings", () => Effect.Effect<(request: aoss.UpdateAccountSettingsRequest) => Effect.Effect<aoss.UpdateAccountSettingsResponse, aoss.UpdateAccountSettingsError>>> {
 }
 export declare const UpdateAccountSettings: UpdateAccountSettings;

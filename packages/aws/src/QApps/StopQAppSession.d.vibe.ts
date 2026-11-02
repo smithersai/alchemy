@@ -24,6 +24,6 @@ export interface StopQAppSessionRequest extends Omit<qapps.StopQAppSessionInput,
  *
  * @binding
  */
-export interface StopQAppSession extends Binding.Service<StopQAppSession, "AWS.QApps.StopQAppSession", (app: QApp) => Effect.Effect<((request: StopQAppSessionRequest) => Effect.Effect<qapps.StopQAppSessionResponse, qapps.StopQAppSessionError>)>> {
+export interface StopQAppSession extends Binding.Service<StopQAppSession, "AWS.QApps.StopQAppSession", (app: QApp) => Effect.Effect<(request: StopQAppSessionRequest) => Effect.Effect<qapps.StopQAppSessionResponse, qapps.StopQAppSessionError>>> {
 }
 export declare const StopQAppSession: StopQAppSession;

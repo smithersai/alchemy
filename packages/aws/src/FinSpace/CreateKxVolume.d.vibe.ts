@@ -23,6 +23,6 @@ import type { KxEnvironment } from "./KxEnvironment.vibe";
  *
  * @binding
  */
-export interface CreateKxVolume extends Binding.Service<CreateKxVolume, "AWS.FinSpace.CreateKxVolume", <K extends KxEnvironment>(environment: K) => Effect.Effect<((request: Omit<SVC.CreateKxVolumeRequest, "environmentId">) => Effect.Effect<SVC.CreateKxVolumeResponse, SVC.CreateKxVolumeError>)>> {
+export interface CreateKxVolume extends Binding.Service<CreateKxVolume, "AWS.FinSpace.CreateKxVolume", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request: Omit<SVC.CreateKxVolumeRequest, "environmentId">) => Effect.Effect<SVC.CreateKxVolumeResponse, SVC.CreateKxVolumeError>>> {
 }
 export declare const CreateKxVolume: CreateKxVolume;

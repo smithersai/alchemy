@@ -18,6 +18,6 @@ export interface SuspendMicrovmRequest extends microvms.SuspendMicrovmRequest {
  *
  * @binding
  */
-export interface SuspendMicrovm extends Binding.Service<SuspendMicrovm, "AWS.Lambda.SuspendMicrovm", (image: MicrovmImage) => Effect.Effect<((request: SuspendMicrovmRequest) => Effect.Effect<microvms.SuspendMicrovmResponse, microvms.SuspendMicrovmError>)>> {
+export interface SuspendMicrovm extends Binding.Service<SuspendMicrovm, "AWS.Lambda.SuspendMicrovm", (image: MicrovmImage) => Effect.Effect<(request: SuspendMicrovmRequest) => Effect.Effect<microvms.SuspendMicrovmResponse, microvms.SuspendMicrovmError>>> {
 }
 export declare const SuspendMicrovm: SuspendMicrovm;

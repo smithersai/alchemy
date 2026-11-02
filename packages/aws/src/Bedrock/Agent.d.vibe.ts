@@ -2,7 +2,7 @@ import * as bedrock from "@distilled.cloud/aws/bedrock-agent";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import type * as Duration from "effect/Duration";
-import { AWSEnvironment } from "../Environment.js";
+import { AWSEnvironment } from "../Environment.ts";
 /**
  * A guardrail attached to an agent to apply content filters, denied topics,
  * word filters, and sensitive-information policies to model interactions.

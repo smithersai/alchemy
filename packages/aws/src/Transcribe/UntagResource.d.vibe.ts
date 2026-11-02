@@ -22,6 +22,6 @@ import type * as Effect from "effect/Effect";
  *
  * @binding
  */
-export interface UntagResource extends Binding.Service<UntagResource, "AWS.Transcribe.UntagResource", () => Effect.Effect<((request: transcribe.UntagResourceRequest) => Effect.Effect<transcribe.UntagResourceResponse, transcribe.UntagResourceError>)>> {
+export interface UntagResource extends Binding.Service<UntagResource, "AWS.Transcribe.UntagResource", () => Effect.Effect<(request: transcribe.UntagResourceRequest) => Effect.Effect<transcribe.UntagResourceResponse, transcribe.UntagResourceError>>> {
 }
 export declare const UntagResource: UntagResource;

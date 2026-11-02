@@ -28,6 +28,6 @@ export interface DeleteKeywordRequest extends Omit<smsvoice.DeleteKeywordRequest
  *
  * @binding
  */
-export interface DeleteKeyword extends Binding.Service<DeleteKeyword, "AWS.PinpointSMSVoiceV2.DeleteKeyword", (phoneNumber: PhoneNumber) => Effect.Effect<((request: DeleteKeywordRequest) => Effect.Effect<smsvoice.DeleteKeywordResult, smsvoice.DeleteKeywordError>)>> {
+export interface DeleteKeyword extends Binding.Service<DeleteKeyword, "AWS.PinpointSMSVoiceV2.DeleteKeyword", (phoneNumber: PhoneNumber) => Effect.Effect<(request: DeleteKeywordRequest) => Effect.Effect<smsvoice.DeleteKeywordResult, smsvoice.DeleteKeywordError>>> {
 }
 export declare const DeleteKeyword: DeleteKeyword;

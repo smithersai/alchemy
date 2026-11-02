@@ -32,6 +32,6 @@ import type { Server } from "./Server.vibe";
  *
  * @binding
  */
-export interface TestIdentityProvider extends Binding.Service<TestIdentityProvider, "AWS.Transfer.TestIdentityProvider", (server: Server) => Effect.Effect<((request: Omit<transfer.TestIdentityProviderRequest, "ServerId">) => Effect.Effect<transfer.TestIdentityProviderResponse, transfer.TestIdentityProviderError>)>> {
+export interface TestIdentityProvider extends Binding.Service<TestIdentityProvider, "AWS.Transfer.TestIdentityProvider", (server: Server) => Effect.Effect<(request: Omit<transfer.TestIdentityProviderRequest, "ServerId">) => Effect.Effect<transfer.TestIdentityProviderResponse, transfer.TestIdentityProviderError>>> {
 }
 export declare const TestIdentityProvider: TestIdentityProvider;

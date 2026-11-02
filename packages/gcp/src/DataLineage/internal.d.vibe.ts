@@ -62,7 +62,7 @@ export declare const findOwnedRun: (id: string, process: string) => Effect.Effec
 export declare const waitForOperation: (operation: datalineage.GoogleLongrunningOperation, options?: {
     notFoundOk?: boolean;
     alreadyExistsOk?: boolean;
-}) => Effect.Effect<datalineage.GoogleLongrunningOperation, datalineage.Forbidden | datalineage.NotFound | import("../Operation.js").OperationFailed | import("../Operation.js").OperationTimedOut | datalineage.GcpOpError, datalineage.GcpOpContext>;
+}) => Effect.Effect<datalineage.GoogleLongrunningOperation, datalineage.Forbidden | datalineage.NotFound | import("../Operation.ts").OperationFailed | import("../Operation.ts").OperationTimedOut | datalineage.GcpOpError, datalineage.GcpOpContext>;
 export declare const waitUntilGone: <A, E, R>(get: Effect.Effect<A | undefined, E, R>, name: string) => Effect.Effect<void, E | DatalineageStillExists, R>;
 export declare const createOwnership: (id: string) => Effect.Effect<Record<string, string>, never, import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
 export {};

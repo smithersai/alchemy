@@ -1,7 +1,7 @@
 import type * as ds from "@distilled.cloud/aws/directory-service";
 import * as Binding from "alchemy/Binding";
 import type * as Effect from "effect/Effect";
-import type { Directory } from "./Directory.js";
+import type { Directory } from "./Directory.ts";
 /**
  * Runtime binding for the `ResetUserPassword` operation (IAM action
  * `ds:ResetUserPassword`), scoped to one {@link Directory}.
@@ -27,6 +27,6 @@ import type { Directory } from "./Directory.js";
  *
  * @binding
  */
-export interface ResetUserPassword extends Binding.Service<ResetUserPassword, "AWS.DirectoryService.ResetUserPassword", (directory: Directory) => Effect.Effect<((request: Omit<ds.ResetUserPasswordRequest, "DirectoryId">) => Effect.Effect<ds.ResetUserPasswordResult, ds.ResetUserPasswordError>)>> {
+export interface ResetUserPassword extends Binding.Service<ResetUserPassword, "AWS.DirectoryService.ResetUserPassword", (directory: Directory) => Effect.Effect<(request: Omit<ds.ResetUserPasswordRequest, "DirectoryId">) => Effect.Effect<ds.ResetUserPasswordResult, ds.ResetUserPasswordError>>> {
 }
 export declare const ResetUserPassword: ResetUserPassword;

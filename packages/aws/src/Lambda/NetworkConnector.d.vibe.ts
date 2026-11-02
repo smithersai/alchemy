@@ -1,7 +1,7 @@
 import * as lambdacore from "@distilled.cloud/aws/lambda-core";
 import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
-import type { Providers } from "../Providers.js";
+import type { Providers } from "../Providers.ts";
 export interface NetworkConnectorProps {
     /**
      * A unique name for the network connector within your account and Region.
