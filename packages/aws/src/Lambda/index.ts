@@ -76,7 +76,7 @@ export * from "./UpdateMicrovmImageVersion.vibe";
 export * from "./UpdateMicrovmImageVersionHttp.ts";
 export * from "./UserPoolTriggerEventSource.vibe";
 export * from "./Version.ts";
-export * from "./WebFunction.ts";
+export * from "./WebFunction.vibe";
 export * from "./WebFunctionEndpoint.vibe";
 export * from "./WebFunctionPermission.vibe";
 export * from "./WebSocketEventSource.vibe";

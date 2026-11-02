@@ -92,7 +92,7 @@ export declare const Vinext: (id: string, propsIn?: InputProps<VinextProps, "ser
     url: import("alchemy").Input<string>;
     urls: import("alchemy").Input<string>[];
     build: import("alchemy/Website/Server").Server;
-    server: import("../Lambda/WebFunction.ts").WebFunction;
+    server: import("../Lambda/WebFunction.vibe").WebFunction;
     serverUrl: Output.Output<string, never>;
     cacheBucket: undefined;
 } | {
@@ -140,7 +140,7 @@ export declare const Vinext: (id: string, propsIn?: InputProps<VinextProps, "ser
     url: import("alchemy").Input<string>;
     urls: import("alchemy").Input<string>[];
     build: import("alchemy/Website/Server").Server;
-    server: import("../Lambda/WebFunction.ts").WebFunction;
+    server: import("../Lambda/WebFunction.vibe").WebFunction;
     serverUrl: Output.Output<string, never>;
     cacheBucket: Bucket;
 } | {
