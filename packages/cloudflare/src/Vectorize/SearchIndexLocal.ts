@@ -4,7 +4,7 @@ import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import { SearchIndex } from "./SearchIndex.vibe";
-import { type SearchIndexAuth, makeHttpSearchIndexClient } from "./SearchIndexHttpClient.vibe";
+import { type SearchIndexAuth, makeHttpSearchIndexClient } from "./SearchIndexHttpClient.ts";
 import type { Index } from "./VectorizeIndex.ts";
 
 /**

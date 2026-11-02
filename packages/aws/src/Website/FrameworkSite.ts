@@ -9,7 +9,7 @@ import * as Data from "effect/Data";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import { Function as LambdaFunction, type FunctionProps } from "../Lambda/Function.ts";
-import { WebFunction } from "../Lambda/WebFunction.vibe";
+import { WebFunction } from "../Lambda/WebFunction.ts";
 import { WebFunctionEndpoint } from "../Lambda/WebFunctionEndpoint.vibe";
 import { asRouterDomain, registerDevRouterRoute } from "./DevRouterRoute.ts";
 import {

@@ -2,7 +2,7 @@ export * from "./Account.ts";
 export * from "./DelegatedAdministrator.ts";
 export * from "./Organization.vibe";
 export * from "./OrganizationalUnit.ts";
-export * from "./OrganizationResourcePolicy.vibe";
+export * from "./OrganizationResourcePolicy.ts";
 export * from "./Policy.vibe";
 export * from "./PolicyAttachment.vibe";
 export * from "./Root.vibe";

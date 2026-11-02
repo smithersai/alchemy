@@ -1,9 +1,9 @@
-import type * as runtime from "@cloudflare/workers-types"
-import * as vectorize from "@distilled.cloud/cloudflare/vectorize"
-import * as Effect from "effect/Effect"
-import type * as HttpClient from "effect/http/HttpClient"
-import type { Credentials } from "../Credentials.ts"
-import type { SearchIndexClient } from "./SearchIndex.vibe"
+import type * as runtime from "@cloudflare/workers-types";
+import * as vectorize from "@distilled.cloud/cloudflare/vectorize";
+import * as Effect from "effect/Effect";
+import type * as HttpClient from "effect/http/HttpClient";
+import type { Credentials } from "../Credentials.ts";
+import type { SearchIndexClient } from "./SearchIndex.vibe";
 
 // Shared HTTP scaffolding for the Vectorize `SearchIndex` binding. NOT
 // re-exported from `index.ts` — only the contract and the impl layers are
@@ -18,10 +18,10 @@ import type { SearchIndexClient } from "./SearchIndex.vibe"
  * Cloudflare account the ops run against.
  */
 export interface SearchIndexAuth {
-  mutable authorize: <A, E>(
-    eff: A!E!Credentials | HttpClient.HttpClient,
-  ) => A!E
-  mutable accountId: string
+  authorize: <A, E>(
+    eff: Effect.Effect<A, E, Credentials | HttpClient.HttpClient>,
+  ) => Effect.Effect<A, E>;
+  accountId: string;
 }
 
 /**
@@ -40,14 +40,13 @@ export interface SearchIndexAuth {
  */
 export const makeHttpSearchIndexClient = (
   auth: SearchIndexAuth,
-  indexName: string!!,
+  indexName: Effect.Effect<string>,
 ): SearchIndexClient => {
-  const { accountId } = auth
-  const local = effect <A, E>(
-    fn: (name: string) => A!E!Credentials | HttpClient.HttpClient,
-  ): A!! =>
-    try (Effect.flatMap(indexName, effect (name) => try auth.authorize(fn(name)))
-      |> Effect.orDie(%))
+  const { accountId } = auth;
+  const local = <A, E>(
+    fn: (name: string) => Effect.Effect<A, E, Credentials | HttpClient.HttpClient>,
+  ): Effect.Effect<A> =>
+    Effect.flatMap(indexName, (name) => auth.authorize(fn(name))).pipe(Effect.orDie);
 
   return {
     raw: Effect.die(
@@ -55,65 +54,64 @@ export const makeHttpSearchIndexClient = (
         "SearchIndex over HTTP: `raw` is not available — use a native Worker binding (SearchIndexBinding) for direct access.",
       ),
     ),
-    describe: effect () =>
-      try local(effect (name) => toIndexInfo(try vectorize.getIndexInfo({ accountId, indexName: name }))),
-    query: effect (vector, options) =>
-      try local(effect (name) =>
-        toMatches(
-          try vectorize
-            .queryIndex({
-              accountId,
-              indexName: name,
-              vector: Array.from(vector),
-              topK: options?.topK,
-              returnValues: options?.returnValues,
-              returnMetadata: toReturnMetadata(options?.returnMetadata),
-              filter: options?.filter,
-            }),
-        )
+    describe: () =>
+      local((name) =>
+        vectorize.getIndexInfo({ accountId, indexName: name }).pipe(Effect.map(toIndexInfo)),
       ),
-    queryById: effect () =>
-      try Effect.die(
+    query: (vector, options) =>
+      local((name) =>
+        vectorize
+          .queryIndex({
+            accountId,
+            indexName: name,
+            vector: Array.from(vector),
+            topK: options?.topK,
+            returnValues: options?.returnValues,
+            returnMetadata: toReturnMetadata(options?.returnMetadata),
+            filter: options?.filter,
+          })
+          .pipe(Effect.map(toMatches)),
+      ),
+    queryById: () =>
+      Effect.die(
         new Error(
           "SearchIndex over HTTP: `queryById` is not supported — the HTTP query endpoint only accepts a raw query vector. Fetch the vector with `getByIds` and pass its values to `query`.",
         ),
       ),
-    insert: effect (vectors) =>
-      try local(effect (name) =>
-        toMutation(
-          try vectorize
-            .insertIndex({
-              accountId,
-              indexName: name,
-              body: toNdjsonBlob(vectors),
-            }),
-        )
+    insert: (vectors) =>
+      local((name) =>
+        vectorize
+          .insertIndex({
+            accountId,
+            indexName: name,
+            body: toNdjsonBlob(vectors),
+          })
+          .pipe(Effect.map(toMutation)),
       ),
-    upsert: effect (vectors) =>
-      try local(effect (name) =>
-        toMutation(
-          try vectorize
-            .upsertIndex({
-              accountId,
-              indexName: name,
-              body: toNdjsonBlob(vectors),
-            }),
-        )
+    upsert: (vectors) =>
+      local((name) =>
+        vectorize
+          .upsertIndex({
+            accountId,
+            indexName: name,
+            body: toNdjsonBlob(vectors),
+          })
+          .pipe(Effect.map(toMutation)),
       ),
-    deleteByIds: effect (ids) =>
-      try local(effect (name) =>
-        toMutation(
-          try vectorize
-            .deleteByIdsIndex({ accountId, indexName: name, ids }),
-        )
+    deleteByIds: (ids) =>
+      local((name) =>
+        vectorize
+          .deleteByIdsIndex({ accountId, indexName: name, ids })
+          .pipe(Effect.map(toMutation)),
       ),
-    getByIds: effect (ids) =>
-      try local(effect (name) =>
-        ((try vectorize
-          .getByIdsIndex({ accountId, indexName: name, ids })) ?? []) as runtime.VectorizeVector[]
+    getByIds: (ids) =>
+      local((name) =>
+        vectorize
+          .getByIdsIndex({ accountId, indexName: name, ids })
+          .pipe(Effect.map((result) => (result ?? []) as runtime.VectorizeVector[])),
       ),
-  } satisfies SearchIndexClient
-}
+  } satisfies SearchIndexClient;
+};
 
 // ── shape adapters (runtime types <-> distilled HTTP types) ─────────────────
 
@@ -121,7 +119,7 @@ export const makeHttpSearchIndexClient = (
  * Serialize vectors to an ndjson Blob — the raw `application/x-ndjson` request
  * body of the Vectorize v2 insert/upsert endpoints.
  */
-const toNdjsonBlob = (vectors: runtime.VectorizeVector[]): Blob => new Blob([toNdjson(vectors)])
+const toNdjsonBlob = (vectors: runtime.VectorizeVector[]): Blob => new Blob([toNdjson(vectors)]);
 
 /** Serialize vectors to ndjson — one JSON vector per line. */
 const toNdjson = (vectors: runtime.VectorizeVector[]): string =>
@@ -134,18 +132,18 @@ const toNdjson = (vectors: runtime.VectorizeVector[]): string =>
         values: Array.from(v.values),
         ...(v.namespace !== undefined ? { namespace: v.namespace } : {}),
         ...(v.metadata !== undefined ? { metadata: v.metadata } : {}),
-      })
+      }),
     )
-    .join("\n")
+    .join("\n");
 
 const toReturnMetadata = (
   value: runtime.VectorizeQueryOptions["returnMetadata"],
 ): "none" | "indexed" | "all" | undefined =>
-  value === undefined ? undefined : typeof value === "boolean" ? (value ? "all" : "none") : value
+  value === undefined ? undefined : typeof value === "boolean" ? (value ? "all" : "none") : value;
 
-const toMutation = (r: { mutable mutationId?: string | null }): runtime.VectorizeAsyncMutation => ({
+const toMutation = (r: { mutationId?: string | null }): runtime.VectorizeAsyncMutation => ({
   mutationId: r.mutationId ?? "",
-})
+});
 
 const toIndexInfo = (r: vectorize.GetIndexInfoResponse): runtime.VectorizeIndexInfo =>
   ({
@@ -153,7 +151,7 @@ const toIndexInfo = (r: vectorize.GetIndexInfoResponse): runtime.VectorizeIndexI
     dimensions: r.dimensions ?? 0,
     processedUpToDatetime: r.processedUpToDatetime ?? undefined,
     processedUpToMutation: r.processedUpToMutation ?? undefined,
-  }) as unknown as runtime.VectorizeIndexInfo
+  }) as unknown as runtime.VectorizeIndexInfo;
 
 const toMatches = (r: vectorize.QueryIndexResponse): runtime.VectorizeMatches =>
   ({
@@ -165,4 +163,4 @@ const toMatches = (r: vectorize.QueryIndexResponse): runtime.VectorizeMatches =>
       ...(m.namespace != null ? { namespace: m.namespace } : {}),
       ...(m.metadata != null ? { metadata: m.metadata } : {}),
     })),
-  }) as unknown as runtime.VectorizeMatches
+  }) as unknown as runtime.VectorizeMatches;

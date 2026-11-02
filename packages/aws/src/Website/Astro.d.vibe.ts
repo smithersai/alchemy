@@ -168,7 +168,7 @@ export declare const Astro: (id: string, props?: InputProps<AstroProps, "server"
     url: import("alchemy").Input<string>;
     urls: import("alchemy").Input<string>[];
     build: import("alchemy/Website/Server").Server;
-    server: import("../Lambda/WebFunction.vibe").WebFunction;
+    server: import("../Lambda/WebFunction.js").WebFunction;
     serverUrl: import("alchemy").Output<string, never>;
 } | {
     bucket: import("../S3/Bucket.js").Bucket;

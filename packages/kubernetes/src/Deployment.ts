@@ -1,20 +1,28 @@
-import type { DockerfileBuildOptions } from "@alchemy.run/docker/ImageSource"
-import type * as Bundle from "alchemy/Bundle/Bundle"
-import { isResolved } from "alchemy/Diff"
-import type { Input } from "alchemy/Input"
-import { createPhysicalName } from "alchemy/PhysicalName"
-import { Platform, type Main, type PlatformProps } from "alchemy/Platform"
-import * as Provider from "alchemy/Provider"
-import { Resource } from "alchemy/Resource"
+import type { DockerfileBuildOptions } from "@alchemy.run/docker/ImageSource";
+import type * as Bundle from "alchemy/Bundle/Bundle";
+import { isResolved } from "alchemy/Diff";
+import type { Input } from "alchemy/Input";
+import { createPhysicalName } from "alchemy/PhysicalName";
+import { Platform, type Main, type PlatformProps } from "alchemy/Platform";
+import * as Provider from "alchemy/Provider";
+import { Resource } from "alchemy/Resource";
 import {
   createHostRuntimeContext,
   type HostRuntimeContext,
   type ServerHost as ServerHostService,
-} from "alchemy/Runtime/Process"
-import { Stack } from "alchemy/Stack"
-import { createInternalTags } from "alchemy/Tags"
-import * as Effect from "effect/Effect"
-import { connectCluster, deleteObjects, ifClusterExists, readObject, reconcileObjects } from "./Client.ts"
+} from "alchemy/Runtime/Process";
+import { Stack } from "alchemy/Stack";
+import { createInternalTags } from "alchemy/Tags";
+import * as Data from "effect/Data";
+import * as Effect from "effect/Effect";
+import * as Schedule from "effect/Schedule";
+import {
+  connectCluster,
+  deleteObjects,
+  ifClusterExists,
+  readObject,
+  reconcileObjects,
+} from "./Client.ts";
 import {
   findClusterAdapter,
   type ClusterTransport,
@@ -24,9 +32,9 @@ import {
   type WorkloadIdentityOptions,
   type WorkloadImageSource,
   type WorkloadServices,
-} from "./ClusterAdapter.ts"
-import { toConnection, type ClusterLike, type Connection } from "./Connection.ts"
-import { makeConnectionRegistry } from "./internal/registry.vibe"
+} from "./ClusterAdapter.ts";
+import { toConnection, type ClusterLike, type Connection } from "./Connection.ts";
+import { makeConnectionRegistry } from "./internal/registry.vibe";
 import {
   collectBindingEnv,
   containerEnvValue,
@@ -38,15 +46,19 @@ import {
   resolveWorkloadImage,
   tryConnectionOf,
   workloadImageHash,
-} from "./internal/workload.ts"
-import { toKubernetesObjectRef, type KubernetesObjectDefinition, type KubernetesObjectRef } from "./Objects.ts"
-import type { Providers } from "./Providers.vibe"
+} from "./internal/workload.ts";
+import {
+  toKubernetesObjectRef,
+  type KubernetesObjectDefinition,
+  type KubernetesObjectRef,
+} from "./Objects.ts";
+import type { Providers } from "./Providers.vibe";
 
 export const isDeployment = (value: any): value is Deployment =>
-  typeof value === "object"
-  && value !== null
-  && "Type" in value
-  && value.Type === "Kubernetes.Deployment"
+  typeof value === "object" &&
+  value !== null &&
+  "Type" in value &&
+  value.Type === "Kubernetes.Deployment";
 
 /**
  * The image-source props shared by the workload platforms. Exactly one of
@@ -63,71 +75,71 @@ export interface DeploymentPropsBase extends PlatformProps {
    * these, so `{ cluster: Cluster }` and `{ cluster: yield* Cluster }`
    * both type-check.
    */
-  mutable cluster: ClusterLike | (Input<ClusterLike>!never!any)
+  cluster: ClusterLike | Effect.Effect<Input<ClusterLike>, never, any>;
   /**
    * Base name for the generated Deployment / Service / ServiceAccount. If
    * omitted, a deterministic name is derived from the stack, stage, and
    * logical id.
    */
-  mutable name?: string
+  name?: string;
   /**
    * Kubernetes namespace to deploy into. The namespace must already exist.
    * @default "default"
    */
-  mutable namespace?: string
+  namespace?: string;
   /**
    * HTTP port exposed by the container and the Service.
    * @default 3000
    */
-  mutable port?: number
+  port?: number;
   /**
    * Replica count for the Deployment.
    * @default 1
    */
-  mutable replicas?: number
+  replicas?: number;
   /**
    * Kubernetes Service type. `LoadBalancer` provisions the platform's
    * cloud load balancer and exposes its hostname as the Deployment `url`.
    * @default "LoadBalancer"
    */
-  mutable serviceType?: "ClusterIP" | "NodePort" | "LoadBalancer"
+  serviceType?: "ClusterIP" | "NodePort" | "LoadBalancer";
   /**
    * Annotations applied to the Service (e.g. load-balancer scheme /
    * target-type hints).
    */
-  mutable serviceAnnotations?: Record<string, string>
+  serviceAnnotations?: Record<string, string>;
   /**
    * Container entrypoint override (Kubernetes `command`). Mostly useful with
    * `image` / `context` sources.
    */
-  mutable command?: string[]
+  command?: string[];
   /**
    * Container arguments (Kubernetes `args`).
    */
-  mutable args?: string[]
+  args?: string[];
   /**
    * Container CPU/memory requests + limits (Kubernetes resource quantities).
    */
-  mutable resources?: {
-    mutable requests?: { mutable cpu?: string; mutable memory?: string }
-    mutable limits?: { mutable cpu?: string; mutable memory?: string }
-  }
+  resources?: {
+    requests?: { cpu?: string; memory?: string };
+    limits?: { cpu?: string; memory?: string };
+  };
   /**
    * Additional environment variables for the container.
    */
-  mutable env?: Record<string, any>
+  env?: Record<string, any>;
   /**
    * Container image build architecture.
    * @default the connection's `architecture`, else "amd64"
    */
-  mutable architecture?: "amd64" | "arm64"
+  architecture?: "amd64" | "arm64";
   /**
    * Deep-partial Kubernetes Pod template merged into the synthesized
    * template (objects merge recursively; arrays and primitives replace) —
    * a literal object in the shape of `PodTemplateSpec`, e.g.
    * `{ spec: { tolerations: [...], nodeSelector: {...} } }`.
    */
-  mutable podTemplate?: Record<string, unknown>
+  podTemplate?: Record<string, unknown>;
   /**
    * Cloud-specific workload-identity options, consumed by the cluster
    * platform's identity adapter (on EKS: `{ managedPolicyArns: [...] }`
@@ -135,17 +147,17 @@ export interface DeploymentPropsBase extends PlatformProps {
    * GKE: `{ gcpServiceAccount }` runs the pods as an existing Google
    * service account instead of the ServiceAccount's own principal).
    */
-  mutable identity?: WorkloadIdentityOptions
+  identity?: WorkloadIdentityOptions;
   /**
    * Deployment / pod labels, merged over the generated
    * `app.kubernetes.io/name` label. Also used as the Service selector.
    */
-  mutable labels?: Record<string, string>
+  labels?: Record<string, string>;
   /**
    * User-defined tags applied to workload-owned cloud resources (identity
    * roles, image repositories).
    */
-  mutable tags?: Record<string, string>
+  tags?: Record<string, string>;
 }
 
 /** Bundle an inline Effect program (`main`) into a generated image. */
@@ -154,32 +166,32 @@ export interface BundledDeploymentProps extends DeploymentPropsBase {
    * Module entrypoint for the bundled program. This should typically be
    * `import.meta.url` from an inline Effect program.
    */
-  mutable main: string
+  main: string;
   /**
    * Environment image used as the generated Dockerfile's `FROM`; must be
    * able to run the bun runtime.
    * @default "oven/bun:1"
    */
-  mutable image?: string
+  image?: string;
   /** Named export to load from `main`. @default "default" */
-  mutable handler?: string
+  handler?: string;
   /** Bundler configuration for the entrypoint. */
-  mutable build?: Bundle.BundleConfig
+  build?: Bundle.BundleConfig;
   /** Environment Dockerfile (path or inline content). */
-  mutable dockerfile?: WorkloadImageSource["dockerfile"]
+  dockerfile?: WorkloadImageSource["dockerfile"];
   /** Build context for a path {@link dockerfile} environment. */
-  mutable context?: string
+  context?: string;
 }
 
 /** Build the user's own Dockerfile (`context` + optional `dockerfile` path). */
 export interface DockerfileDeploymentProps extends DeploymentPropsBase, DockerfileBuildOptions {
   /** Docker build context directory. */
-  mutable context?: string
+  context?: string;
   /**
    * Path to the Dockerfile (relative to the cwd), or inline content.
    * @default `${context}/Dockerfile`
    */
-  mutable dockerfile?: WorkloadImageSource["dockerfile"]
+  dockerfile?: WorkloadImageSource["dockerfile"];
 }
 
 /** Run a pre-built registry image. */
@@ -188,70 +200,68 @@ export interface ImageDeploymentProps extends DeploymentPropsBase {
    * A pre-built image reference, e.g. `nginx:1.27`, pulled by the nodes as
    * written. EKS clusters mirror it into ECR first.
    */
-  mutable image: string
+  image: string;
 }
 
 export type DeploymentProps =
   | BundledDeploymentProps
   | DockerfileDeploymentProps
-  | ImageDeploymentProps
+  | ImageDeploymentProps;
 
-export interface Deployment extends
-  Resource<
-    "Kubernetes.Deployment",
-    DeploymentProps,
-    {
-      /** The connection of the cluster the deployment runs on. */
-      mutable connection: Connection
-      /** The Kubernetes namespace the deployment's objects live in. */
-      mutable namespace: string
-      /** The name of the Kubernetes Deployment. */
-      mutable deploymentName: string
-      /** The name of the Kubernetes Service exposing the deployment. */
-      mutable serviceName: string
-      /** The name of the service account the pods run as. */
-      mutable serviceAccountName: string
-      /** The container port the server listens on. */
-      mutable port: number
-      /** The URI of the container image the deployment runs. */
-      mutable imageUri: string
-      /**
-       * Workload-identity state provisioned by the cluster platform's
-       * adapter (on EKS: the pod-identity role + association; on GKE: the
-       * Workload Identity principal and the IAM grants applied to it).
-       */
-      // oxlint-disable-next-line typescript/no-redundant-type-constituents -- registry type is `never` until cloud packages augment it
-      mutable identity: IdentityState | undefined
-      /**
-       * Image-registry state provisioned by the cluster platform's adapter
-       * (on EKS: the ECR repository).
-       */
-      mutable registry: RegistryState | undefined
-      /**
-       * The LoadBalancer URL (`http://<hostname>[:port]` — the cloud load
-       * balancer listens on the Service `port`, so a non-80 port is part of
-       * the URL) when `serviceType` is `LoadBalancer`, otherwise
-       * `undefined`. May be `undefined` immediately after a create while
-       * the cloud load balancer is still provisioning.
-       */
-      mutable url: string | undefined
-      /** References to the Kubernetes objects created for the deployment. */
-      mutable kubernetesObjects: KubernetesObjectRef[]
-      /** The content hash of the container image source. */
-      mutable code: { mutable hash: string }
-    },
-    WorkloadBindingContract,
-    Providers
-  >
-{}
+export interface Deployment extends Resource<
+  "Kubernetes.Deployment",
+  DeploymentProps,
+  {
+    /** The connection of the cluster the deployment runs on. */
+    connection: Connection;
+    /** The Kubernetes namespace the deployment's objects live in. */
+    namespace: string;
+    /** The name of the Kubernetes Deployment. */
+    deploymentName: string;
+    /** The name of the Kubernetes Service exposing the deployment. */
+    serviceName: string;
+    /** The name of the service account the pods run as. */
+    serviceAccountName: string;
+    /** The container port the server listens on. */
+    port: number;
+    /** The URI of the container image the deployment runs. */
+    imageUri: string;
+    /**
+     * Workload-identity state provisioned by the cluster platform's
+     * adapter (on EKS: the pod-identity role + association; on GKE: the
+     * Workload Identity principal and the IAM grants applied to it).
+     */
+    // oxlint-disable-next-line typescript/no-redundant-type-constituents -- registry type is `never` until cloud packages augment it
+    identity: IdentityState | undefined;
+    /**
+     * Image-registry state provisioned by the cluster platform's adapter
+     * (on EKS: the ECR repository).
+     */
+    registry: RegistryState | undefined;
+    /**
+     * The LoadBalancer URL (`http://<hostname>[:port]` — the cloud load
+     * balancer listens on the Service `port`, so a non-80 port is part of
+     * the URL) when `serviceType` is `LoadBalancer`, otherwise
+     * `undefined`. May be `undefined` immediately after a create while
+     * the cloud load balancer is still provisioning.
+     */
+    url: string | undefined;
+    /** References to the Kubernetes objects created for the deployment. */
+    kubernetesObjects: KubernetesObjectRef[];
+    /** The content hash of the container image source. */
+    code: { hash: string };
+  },
+  WorkloadBindingContract,
+  Providers
+> {}
 
 // oxlint-disable-next-line typescript/no-redundant-type-constituents -- registry type is `never` until cloud packages augment it
-export type DeploymentServices = ServerHostService | WorkloadServices
+export type DeploymentServices = ServerHostService | WorkloadServices;
 
-export type DeploymentShape = Main<DeploymentServices>
+export type DeploymentShape = Main<DeploymentServices>;
 
 export interface DeploymentRuntimeContext extends HostRuntimeContext {
-  readonly Type: "Kubernetes.Deployment"
+  readonly Type: "Kubernetes.Deployment";
 }
 
 /**
@@ -455,107 +465,102 @@ export const Deployment: Platform<
   // `{ cluster: Cluster }` at module scope is an Effect. Yield it here so the
   // cluster is registered and `news.cluster` is resolved at reconcile (same
   // as `yield* Cluster` inside Effect.gen).
-  transformProps: effect (_id, props) => {
-    if (globalThis.__ALCHEMY_RUNTIME__) return props
-    const cluster = Effect.isEffect(props.cluster)
-      ? try (props.cluster as ClusterLike!!)
-      : props.cluster
-    return { ...props, cluster }
-  },
+  transformProps: (_id, props) =>
+    Effect.gen(function* () {
+      if (globalThis.__ALCHEMY_RUNTIME__) return props;
+      const cluster = Effect.isEffect(props.cluster)
+        ? yield* props.cluster as Effect.Effect<ClusterLike>
+        : props.cluster;
+      return { ...props, cluster };
+    }),
   createRuntimeContext: createHostRuntimeContext("Kubernetes.Deployment") as (
     id: string,
   ) => DeploymentRuntimeContext,
-})
+});
 
 /**
  * `cluster` as the provider sees it. `transformProps` yields an Effect-valued
  * `cluster` before any lifecycle operation runs, so only the resolved shape
  * reaches the provider.
  */
-const clusterOf = (cluster: DeploymentPropsBase["cluster"] | undefined): infer _ => cluster as ClusterLike | undefined
+const clusterOf = (cluster: DeploymentPropsBase["cluster"] | undefined) =>
+  cluster as ClusterLike | undefined;
 
-// @vibelang-diagnostics-next-line EK4830:off
 class ServiceNotReady extends Data.TaggedError("Kubernetes.ServiceNotReady")<{}> {}
 
 // Bounded ~3 min wait for the cloud load balancer to publish its hostname
 // (an EKS Auto Mode NLB typically appears within 2–3 min of the Service
 // apply).
-const loadBalancerRetrySchedule = Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(36)])
+const loadBalancerRetrySchedule = Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(36)]);
 
 /**
  * Explicitly-typed pipeable retry for the LB-hostname wait. An inline
  * `Effect.retry` in the provider leaks `Retry.Return`'s conditional into
  * declaration emit and widens the provider layer to `unknown` R.
  */
-const retryUntilServiceReady = effect <A, E, R>(self: A!E!R): A!E!R =>
-  try Effect.retry(self, {
+const retryUntilServiceReady = <A, E, R>(self: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
+  Effect.retry(self, {
     while: (error) => error instanceof ServiceNotReady,
     schedule: loadBalancerRetrySchedule,
-  })
+  });
 
-// @vibelang-diagnostics-next-line EK4830:off
 class ServiceStillExists extends Data.TaggedError("Kubernetes.ServiceStillExists")<{}> {}
 
 /**
  * Bounded (~3 min) wait for a deleted Service to disappear, i.e. for the
  * cloud controller to tear down its load balancer and drop the finalizer.
  */
-const waitForServiceGone = effect (
+const waitForServiceGone = (
   transport: ClusterTransport,
   service: KubernetesObjectRef,
-): void!unknown =>
-  try Effect.retry(
-    effect {
-      return (try effect {
-        try readObject({ transport, object: service })
-        return throw new ServiceStillExists()
-      }) catch effect (e) => match (e) { when { _tag: "KubernetesNotFound" }: try Effect.void; default: throw e; }
-    },
+): Effect.Effect<void, unknown> =>
+  Effect.retry(
+    readObject({ transport, object: service }).pipe(
+      Effect.flatMap(() => Effect.fail(new ServiceStillExists())),
+      Effect.catchTag("KubernetesNotFound", () => Effect.void),
+    ),
     { while: (error) => error instanceof ServiceStillExists, schedule: loadBalancerRetrySchedule },
-  )
+  );
 
-export const DeploymentProvider = (): infer _ =>
+export const DeploymentProvider = () =>
   Provider.effect(
     Deployment,
-    effect {
-      const stack = try Effect.service(Stack)
-      const connectionRegistry = try makeConnectionRegistry
+    Effect.gen(function* () {
+      const stack = yield* Stack;
+      const connectionRegistry = yield* makeConnectionRegistry;
 
       const alchemyEnv = {
         ALCHEMY_STACK_NAME: stack.name,
         ALCHEMY_STAGE: stack.stage,
         ALCHEMY_PHASE: "runtime",
-      }
+      };
 
       // The base name doubles as the `app.kubernetes.io/name` label value
       // (and the Service name), both capped at 63 characters.
-      const toBaseName = effect (id: string, props: { mutable name?: string } = {}) => (props.name
-        ? props.name
-        : (try createPhysicalName({ id, maxLength: 63, lowercase: true })).replaceAll(/[^a-z0-9-]/g, "-"))
+      const toBaseName = (id: string, props: { name?: string } = {}) =>
+        props.name
+          ? Effect.succeed(props.name)
+          : createPhysicalName({ id, maxLength: 63, lowercase: true }).pipe(
+              Effect.map((name) => name.replaceAll(/[^a-z0-9-]/g, "-")),
+            );
 
       // Read a LoadBalancer Service's assigned hostname (bounded wait).
-      const waitForLoadBalancer = effect (transport: ClusterTransport, service: KubernetesObjectRef) =>
-        (try (effect {
-          return try effect {
-            const hostname = try effect {
-              const response = try readObject({ transport, object: service })
-
-              const ingress = (
-                response as {
-                  mutable status?: {
-                    mutable loadBalancer?: { mutable ingress?: { mutable hostname?: string; mutable ip?: string }[] }
-                  }
-                }
-              )?.status?.loadBalancer?.ingress?.[0]
-              return ingress?.hostname ?? ingress?.ip
-            }
-            return (hostname ? hostname : throw new ServiceNotReady())
-          }
-        }
-          |> retryUntilServiceReady(%))) catch effect (e) => match (e) {
-            when { _tag: "Kubernetes.ServiceNotReady" }: try Effect.undefined;
-            default: throw e;
-          }
+      const waitForLoadBalancer = (transport: ClusterTransport, service: KubernetesObjectRef) =>
+        readObject({ transport, object: service }).pipe(
+          Effect.map((response) => {
+            const ingress = (
+              response as {
+                status?: { loadBalancer?: { ingress?: { hostname?: string; ip?: string }[] } };
+              }
+            )?.status?.loadBalancer?.ingress?.[0];
+            return ingress?.hostname ?? ingress?.ip;
+          }),
+          Effect.flatMap((hostname) =>
+            hostname ? Effect.succeed(hostname) : Effect.fail(new ServiceNotReady()),
+          ),
+          retryUntilServiceReady,
+          Effect.catchTag("Kubernetes.ServiceNotReady", () => Effect.undefined),
+        );
 
       return {
         stables: [
@@ -572,38 +577,36 @@ export const DeploymentProvider = (): infer _ =>
         // There is no single enumeration that faithfully reconstructs that
         // composite, so enumeration is intentionally empty — `read` (below)
         // refreshes a known instance from its persisted output.
-        list: effect () => [] as Deployment["Attributes"][],
-        diff: effect ({ olds = {} as DeploymentProps, news: input, output }) => {
+        list: () => Effect.succeed([] as Deployment["Attributes"][]),
+        diff: Effect.fn(function* ({ olds = {} as DeploymentProps, news: input, output }) {
           // `exports` carries the program's runtime Effects (never plain
           // data); everything else must be resolved to diff.
-          const { exports: _exports, ...declared } = input as typeof input & { mutable exports?: unknown }
-          if (!isResolved(declared)) {
-            return
-          }
-          const news = input as unknown as DeploymentProps
-          const oldCluster = connectionIdentity(tryConnectionOf(clusterOf(olds.cluster)))
-          const newCluster = connectionIdentity(tryConnectionOf(clusterOf(news.cluster)))
+          const { exports: _exports, ...declared } = input as typeof input & { exports?: unknown };
+          if (!isResolved(declared)) return;
+          const news = input as unknown as DeploymentProps;
+          const oldCluster = connectionIdentity(tryConnectionOf(clusterOf(olds.cluster)));
+          const newCluster = connectionIdentity(tryConnectionOf(clusterOf(news.cluster)));
           // Workload identity keys on (cluster, namespace, serviceAccount);
           // a change to either forces a replacement. Only compare when the
           // old value is present so a first create (empty `olds`) doesn't
           // spuriously replace.
           if (oldCluster !== undefined && newCluster !== undefined && oldCluster !== newCluster) {
-            return { action: "replace" } as const
+            return { action: "replace" } as const;
           }
           if (
-            oldCluster !== undefined
-            && (olds.namespace ?? "default") !== (news.namespace ?? "default")
+            oldCluster !== undefined &&
+            (olds.namespace ?? "default") !== (news.namespace ?? "default")
           ) {
-            return { action: "replace" } as const
+            return { action: "replace" } as const;
           }
           // Content drift: the props don't change when files under a build
           // context (or the bundled program) do, so surface hash drift as
           // an update.
-          const connection = tryConnectionOf(clusterOf(news.cluster))
+          const connection = tryConnectionOf(clusterOf(news.cluster));
           if (output && connection) {
-            const adapter = try findClusterAdapter(connection.auth.kind)
-            const source = news as WorkloadImageSource
-            const hash = try workloadImageHash({
+            const adapter = yield* findClusterAdapter(connection.auth.kind);
+            const source = news as WorkloadImageSource;
+            const hash = yield* workloadImageHash({
               adapter,
               connection,
               connectionRegistry,
@@ -614,76 +617,76 @@ export const DeploymentProvider = (): infer _ =>
               bootstrap: (adapter.bootstrap?.server ?? makeServerBootstrap)(
                 source.handler ?? "default",
               ),
-            })
+            });
             if (hash !== undefined && hash !== output.code.hash) {
-              return { action: "update" } as const
+              return { action: "update" } as const;
             }
           }
-        },
-        read: effect ({ output }) => {
-          if (!output) return undefined
-          const connection = connectionOfOutput(output)
-          if (!connection) return undefined
-          const transport = try connectCluster(connection)
+        }),
+        read: Effect.fn(function* ({ output }) {
+          if (!output) return undefined;
+          const connection = connectionOfOutput(output);
+          if (!connection) return undefined;
+          const transport = yield* connectCluster(connection);
           // The ServiceAccount is the stable first object of the workload
           // (one-shot Job objects are content-addressed and may have been
           // TTL-collected, so they are not an existence signal).
-          const anchor = (output.kubernetesObjects ?? [])[0]
-          if (!anchor) return output
-          const observed = readObject({ transport, object: anchor }) catch effect (e) => match (e) {
-            when { _tag: "KubernetesNotFound" }: try Effect.undefined;
-            default: throw e;
-          }
-          if (observed === undefined) return undefined
-          return output
-        },
-        reconcile: effect ({ id, news, bindings, output, session }) => {
-          const connection = toConnection(clusterOf(news.cluster)!)
-          const adapter = try findClusterAdapter(connection.auth.kind)
-          const transport = try adapter.connect(connection)
-          const namespace = news.namespace ?? "default"
-          const port = news.port ?? 3000
-          const serviceType = news.serviceType ?? "LoadBalancer"
+          const anchor = (output.kubernetesObjects ?? [])[0];
+          if (!anchor) return output;
+          const observed = yield* readObject({ transport, object: anchor }).pipe(
+            Effect.catchTag("KubernetesNotFound", () => Effect.undefined),
+          );
+          if (observed === undefined) return undefined;
+          return output;
+        }),
+        reconcile: Effect.fn(function* ({ id, news, bindings, output, session }) {
+          const connection = toConnection(clusterOf(news.cluster)!);
+          const adapter = yield* findClusterAdapter(connection.auth.kind);
+          const transport = yield* adapter.connect(connection);
+          const namespace = news.namespace ?? "default";
+          const port = news.port ?? 3000;
+          const serviceType = news.serviceType ?? "LoadBalancer";
 
-          const baseName = output?.deploymentName ?? (try toBaseName(id, news))
-          const serviceAccountName = output?.serviceAccountName ?? baseName
-          const tags = { ...(try createInternalTags(id)), ...news.tags }
+          const baseName = output?.deploymentName ?? (yield* toBaseName(id, news));
+          const serviceAccountName = output?.serviceAccountName ?? baseName;
+          const tags = { ...(yield* createInternalTags(id)), ...news.tags };
 
           // Environment from bindings is collected generically; cloud
           // credential grants (any non-env binding channel) require the
           // cluster platform's identity adapter.
-          const { env: bindingEnv, grantKeys } = collectBindingEnv(bindings)
+          const { env: bindingEnv, grantKeys } = collectBindingEnv(bindings);
           if (grantKeys.length > 0 && adapter.identity === undefined) {
-            return try Effect.die(
+            return yield* Effect.die(
               new Error(
-                `'${id}': bindings carry cloud credential grants `
-                  + `(${grantKeys.join(", ")}) but this cluster's platform `
-                  + "has no workload-identity adapter. Target a managed "
-                  + "cluster (e.g. AWS.EKS.Cluster) or bind through "
-                  + "environment variables instead.",
+                `'${id}': bindings carry cloud credential grants ` +
+                  `(${grantKeys.join(", ")}) but this cluster's platform ` +
+                  "has no workload-identity adapter. Target a managed " +
+                  "cluster (e.g. AWS.EKS.Cluster) or bind through " +
+                  "environment variables instead.",
               ),
-            )
+            );
           }
           const identity = adapter.identity
-            ? try adapter.identity.reconcile({
-              id,
-              connection,
-              namespace,
-              serviceAccount: serviceAccountName,
-              bindings,
-              options: news.identity,
-              state: (output?.identity as Record<string, unknown> | undefined)
-                ?? (output as Record<string, unknown> | undefined),
-              tags,
-            })
-            : undefined
+            ? yield* adapter.identity.reconcile({
+                id,
+                connection,
+                namespace,
+                serviceAccount: serviceAccountName,
+                bindings,
+                options: news.identity,
+                state:
+                  (output?.identity as Record<string, unknown> | undefined) ??
+                  (output as Record<string, unknown> | undefined),
+                tags,
+              })
+            : undefined;
 
           // Resolve the container image from whichever source the props
           // declare (`main` | `context` | `image`) through the platform's
           // registry adapter (pre-built `image` refs pass through verbatim
           // on registry-less clusters).
-          const source = news as WorkloadImageSource
-          const resolved = try resolveWorkloadImage({
+          const source = news as WorkloadImageSource;
+          const resolved = yield* resolveWorkloadImage({
             adapter,
             connection,
             connectionRegistry,
@@ -696,10 +699,11 @@ export const DeploymentProvider = (): infer _ =>
               source.handler ?? "default",
             ),
             tags,
-            state: (output?.registry as Record<string, unknown> | undefined)
-              ?? (output as Record<string, unknown> | undefined),
+            state:
+              (output?.registry as Record<string, unknown> | undefined) ??
+              (output as Record<string, unknown> | undefined),
             session,
-          })
+          });
 
           // Synthesize the Kubernetes objects. Container env merges binding
           // env (Output-referenced resource attributes flow via the
@@ -707,14 +711,14 @@ export const DeploymentProvider = (): infer _ =>
           // EKS), alchemy env, and user env. The generated name label is
           // always present so the Service selector stays workload-unique
           // even when user labels are set.
-          const labels = { "app.kubernetes.io/name": baseName, ...news.labels }
+          const labels = { "app.kubernetes.io/name": baseName, ...news.labels };
           const containerEnv = {
             ...bindingEnv,
             ...identity?.env,
             ...alchemyEnv,
             PORT: String(port),
             ...news.env,
-          }
+          };
 
           const serviceAccountObject: KubernetesObjectDefinition = {
             apiVersion: "v1",
@@ -727,7 +731,7 @@ export const DeploymentProvider = (): infer _ =>
                 ? { annotations: identity.serviceAccountAnnotations }
                 : {}),
             },
-          }
+          };
           const podTemplate = deepMerge(
             {
               metadata: { labels },
@@ -750,7 +754,7 @@ export const DeploymentProvider = (): infer _ =>
               },
             },
             news.podTemplate,
-          )
+          );
           const deploymentObject: KubernetesObjectDefinition = {
             apiVersion: "apps/v1",
             kind: "Deployment",
@@ -760,19 +764,19 @@ export const DeploymentProvider = (): infer _ =>
               selector: { matchLabels: labels },
               template: podTemplate,
             },
-          }
+          };
           // `LoadBalancer` Services need platform defaults on some managed
           // clouds (EKS Auto Mode only reconciles Services carrying its
           // `loadBalancerClass`, and defaults new NLBs to the internal
           // scheme) — ask the adapter. User `serviceAnnotations` always win.
-          let loadBalancerClass: string | undefined
-          let serviceAnnotations = news.serviceAnnotations
+          let loadBalancerClass: string | undefined;
+          let serviceAnnotations = news.serviceAnnotations;
           if (serviceType === "LoadBalancer") {
             const defaults = adapter.loadBalancerDefaults
-              ? try adapter.loadBalancerDefaults({ connection })
-              : undefined
-            loadBalancerClass = defaults?.loadBalancerClass
-            serviceAnnotations = { ...defaults?.annotations, ...news.serviceAnnotations }
+              ? yield* adapter.loadBalancerDefaults({ connection })
+              : undefined;
+            loadBalancerClass = defaults?.loadBalancerClass;
+            serviceAnnotations = { ...defaults?.annotations, ...news.serviceAnnotations };
           }
           const serviceObject: KubernetesObjectDefinition = {
             apiVersion: "v1",
@@ -784,30 +788,32 @@ export const DeploymentProvider = (): infer _ =>
               selector: labels,
               ports: [{ port, targetPort: port, protocol: "TCP" }],
             },
-          }
+          };
 
-          const desiredObjects = [serviceAccountObject, deploymentObject, serviceObject]
+          const desiredObjects = [serviceAccountObject, deploymentObject, serviceObject];
 
-          const kubernetesObjects = try reconcileObjects({
+          const kubernetesObjects = yield* reconcileObjects({
             transport,
             previousObjects: output?.kubernetesObjects ?? [],
             desiredObjects,
-          })
+          });
 
-          try session.note(`Applied Kubernetes Deployment ${namespace}/${baseName}`)
+          yield* session.note(`Applied Kubernetes Deployment ${namespace}/${baseName}`);
 
           // Resolve the LoadBalancer URL if applicable. The cloud listener
           // is the Service `port` (Kubernetes maps `spec.ports[].port` 1:1
           // to it), so the URL carries the port unless it's 80 — mirroring
           // `AWS.ECS.Service`'s url semantics.
-          const hostname = serviceType === "LoadBalancer"
-            ? try waitForLoadBalancer(transport, toKubernetesObjectRef(serviceObject))
-            : undefined
-          const url = hostname === undefined
-            ? undefined
-            : port === 80
-            ? `http://${hostname}`
-            : `http://${hostname}:${port}`
+          const hostname =
+            serviceType === "LoadBalancer"
+              ? yield* waitForLoadBalancer(transport, toKubernetesObjectRef(serviceObject))
+              : undefined;
+          const url =
+            hostname === undefined
+              ? undefined
+              : port === 80
+                ? `http://${hostname}`
+                : `http://${hostname}:${port}`;
 
           return {
             connection,
@@ -822,43 +828,45 @@ export const DeploymentProvider = (): infer _ =>
             url,
             kubernetesObjects,
             code: { hash: resolved.codeHash },
-          }
-        },
-        delete: effect ({ output }) => {
-          const connection = connectionOfOutput(output)
-          if (!connection) return
-          const adapter = try findClusterAdapter(connection.auth.kind)
+          };
+        }),
+        delete: Effect.fn(function* ({ output }) {
+          const connection = connectionOfOutput(output);
+          if (!connection) return;
+          const adapter = yield* findClusterAdapter(connection.auth.kind);
 
           // Skip only a missing cluster, then still clean up adapter-owned
           // cloud resources (image repository, identity role).
-          const transport = try ifClusterExists(adapter.connect(connection))
+          const transport = yield* ifClusterExists(adapter.connect(connection));
           if (transport && (output.kubernetesObjects ?? []).length > 0) {
-            try deleteObjects({ transport, objects: output.kubernetesObjects ?? [] })
+            yield* deleteObjects({ transport, objects: output.kubernetesObjects ?? [] });
             // A LoadBalancer Service carries the cloud controller's cleanup
             // finalizer; wait for it so the cloud load balancer is gone
             // before the cluster (and its controller) can be deleted —
             // deleting the cluster first leaks the load balancer.
-            try Effect.forEach(
+            yield* Effect.forEach(
               (output.kubernetesObjects ?? []).filter((object) => object.kind === "Service"),
-              effect (service) => try waitForServiceGone(transport, service),
+              (service) => waitForServiceGone(transport, service),
               { discard: true },
-            )
+            );
           }
 
           if (adapter.identity) {
-            try adapter.identity.delete({
+            yield* adapter.identity.delete({
               connection,
-              state: (output.identity as Record<string, unknown> | undefined)
-                ?? (output as Record<string, unknown>),
-            })
+              state:
+                (output.identity as Record<string, unknown> | undefined) ??
+                (output as Record<string, unknown>),
+            });
           }
           if (adapter.registry) {
-            try adapter.registry.delete({
-              state: (output.registry as Record<string, unknown> | undefined)
-                ?? (output as Record<string, unknown>),
-            })
+            yield* adapter.registry.delete({
+              state:
+                (output.registry as Record<string, unknown> | undefined) ??
+                (output as Record<string, unknown>),
+            });
           }
-        },
-      }
-    },
-  )
+        }),
+      };
+    }),
+  );

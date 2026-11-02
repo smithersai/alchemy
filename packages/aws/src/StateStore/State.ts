@@ -1,25 +1,29 @@
-import type { Credentials } from "@distilled.cloud/aws/Credentials"
-import type { Region } from "@distilled.cloud/aws/Region"
-import * as s3 from "@distilled.cloud/aws/s3"
-import { CredentialsStoreLive } from "alchemy/Auth/Credentials"
-import { type BucketObjects, makeBucketState } from "alchemy/State/BucketState"
-import * as Provisioning from "alchemy/State/Provisioning"
-import { State, StateStoreError } from "alchemy/State/State"
-import { recordStateStoreInit } from "alchemy/Telemetry/Metrics"
-import { globalLogs } from "alchemy/Util/LogRecord"
-import * as Effect from "effect/Effect"
-import type { HttpClient } from "effect/http/HttpClient"
-import * as Layer from "effect/Layer"
-import * as Scope from "effect/Scope"
-import { AwsAuth } from "../AuthProvider.ts"
-import * as AwsCredentials from "../Credentials.ts"
-import * as Endpoint from "../Endpoint.ts"
-import { AWSEnvironment, providedOrDefault } from "../Environment.ts"
-import * as AwsRegion from "../Region.ts"
-import { syncBucketEncryption, type BucketEncryption } from "../S3/Bucket.ts"
+import type { Credentials } from "@distilled.cloud/aws/Credentials";
+import type { Region } from "@distilled.cloud/aws/Region";
+import * as s3 from "@distilled.cloud/aws/s3";
+import { CredentialsStoreLive } from "alchemy/Auth/Credentials";
+import { type BucketObjects, makeBucketState } from "alchemy/State/BucketState";
+import * as Provisioning from "alchemy/State/Provisioning";
+import { State, StateStoreError } from "alchemy/State/State";
+import { recordStateStoreInit } from "alchemy/Telemetry/Metrics";
+import { globalLogs } from "alchemy/Util/LogRecord";
+import * as Effect from "effect/Effect";
+import type { HttpClient } from "effect/http/HttpClient";
+import * as Layer from "effect/Layer";
+import * as LogLevel from "effect/LogLevel";
+import * as References from "effect/References";
+import * as Schedule from "effect/Schedule";
+import * as Scope from "effect/Scope";
+import * as Stream from "effect/Stream";
+import { AwsAuth } from "../AuthProvider.ts";
+import * as AwsCredentials from "../Credentials.ts";
+import * as Endpoint from "../Endpoint.ts";
+import { AWSEnvironment, providedOrDefault } from "../Environment.ts";
+import * as AwsRegion from "../Region.ts";
+import { syncBucketEncryption, type BucketEncryption } from "../S3/Bucket.ts";
 
 /** Maximum number of keys S3 accepts in a single DeleteObjects call. */
-const DELETE_BATCH_SIZE = 1000
+const DELETE_BATCH_SIZE = 1000;
 
 export interface S3StateOptions {
   /**
@@ -30,7 +34,7 @@ export interface S3StateOptions {
    *
    * @default the account's default store, `alchemy-state-<accountId>-<region>-an`
    */
-  mutable name?: string
+  name?: string;
   /**
    * A full bucket name instead of one derived from {@link S3StateOptions.name},
    * e.g. an existing bucket. Created on first use like a named store's, in the
@@ -39,14 +43,14 @@ export interface S3StateOptions {
    *
    * @see https://docs.aws.amazon.com/AmazonS3/latest/userguide/gpbucketnamespaces.html#account-regional-gp-buckets
    */
-  mutable bucketName?: string
+  bucketName?: string;
   /**
    * Key prefix within the bucket under which all state objects are
    * stored, e.g. `"alchemy"`. A trailing `/` is appended automatically.
    *
    * @default "" (bucket root)
    */
-  mutable prefix?: string
+  prefix?: string;
   /**
    * Default encryption enforced on every fresh state-service initialization.
    * Omission restores AES256, no KMS key, bucket keys disabled, and no blocked
@@ -55,19 +59,18 @@ export interface S3StateOptions {
    *
    * @default `{ sseAlgorithm: "AES256", bucketKeyEnabled: false, blockedEncryptionTypes: [] }`
    */
-  mutable encryption?: BucketEncryption
+  encryption?: BucketEncryption;
 }
 
 /** Whether a state bucket exists. */
-export const stateBucketExists = effect (bucket: string) =>
-  (try (s3.headBucket({ Bucket: bucket })
-    |> Effect.as(%, true))) catch effect (e) => match (e) {
-      when { _tag: "NotFound" } or { _tag: "NoSuchBucket" }: false;
-      default: throw e;
-    }
+export const stateBucketExists = (bucket: string) =>
+  s3.headBucket({ Bucket: bucket }).pipe(
+    Effect.as(true),
+    Effect.catchTag(["NotFound", "NoSuchBucket"], () => Effect.succeed(false)),
+  );
 
 /** Context required by the distilled S3 operations. */
-type S3Deps = Credentials | HttpClient | Region
+type S3Deps = Credentials | HttpClient | Region;
 
 /**
  * Run with Debug and Trace records switched off.
@@ -78,10 +81,9 @@ type S3Deps = Credentials | HttpClient | Region
  * the store is built (the CLI's run log sets one) must not reach them. Floors
  * already stricter than Info are left alone.
  */
-export const withoutSdkDebugLogs = Effect.updateService(
-  References.MinimumLogLevel,
-  (level) => LogLevel.isLessThan(level, "Info") ? "Info" : level,
-)
+export const withoutSdkDebugLogs = Effect.updateService(References.MinimumLogLevel, (level) =>
+  LogLevel.isLessThan(level, "Info") ? "Info" : level,
+);
 
 /**
  * State store backed by an AWS S3 bucket.
@@ -106,6 +108,7 @@ export const withoutSdkDebugLogs = Effect.updateService(
  * The bucket is created lazily on the first state operation if it does
  * not already exist — nothing touches AWS credentials at layer
  * construction time.
+ *
  *
  * ### Using the S3 State Store
  * Pass `AWS.state({ backend: "s3" })` as the `state` option of a Stack. By
@@ -184,26 +187,26 @@ export const withoutSdkDebugLogs = Effect.updateService(
  * key, disabled bucket keys, and no encryption restrictions. Existing objects
  * are not rewritten.
  */
-export const s3State = (options: S3StateOptions = {}): infer _ =>
+export const s3State = (options: S3StateOptions = {}) =>
   Layer.effect(
     State,
-    effect {
-      const scope = try Effect.scope
-      const context = try Effect.context<S3Deps | AWSEnvironment>()
+    Effect.gen(function* () {
+      const scope = yield* Effect.scope;
+      const context = yield* Effect.context<S3Deps | AWSEnvironment>();
 
       // Bind the lease to this layer's scope. The cached effect runs on
       // the first state operation, which may sit in a shorter scope.
-      const make = effect {
-        return try (Scope.provide(makeS3State(options), scope)
-          |> recordStateStoreInit(%)
-          |> globalLogs(%)
-          |> Effect.orDie(%)
-          |> Effect.provideContext(%, context))
-      }
+      const make = Scope.provide(makeS3State(options), scope).pipe(
+        recordStateStoreInit,
+        // Account-level: filed in the global run log, not the project's.
+        globalLogs,
+        Effect.orDie,
+        Effect.provideContext(context),
+      );
 
-      return try Effect.cached(make)
-    },
-  ).pipe(Layer.provideMerge(stateEnvironment()), Layer.orDie)
+      return yield* Effect.cached(make);
+    }),
+  ).pipe(Layer.provideMerge(stateEnvironment()), Layer.orDie);
 
 /**
  * Construct an S3-backed {@link StateService}.
@@ -213,60 +216,54 @@ export const s3State = (options: S3StateOptions = {}): infer _ =>
  * that runs once, on the first state operation.
  */
 export const makeS3State = (options: S3StateOptions = {}) =>
-  effect {
+  Effect.gen(function* () {
     // Captured under `withoutSdkDebugLogs` (below), so every store call runs
     // with the raised floor.
-    const context = try Effect.context<S3Deps | AWSEnvironment>()
+    const context = yield* Effect.context<S3Deps | AWSEnvironment>();
 
-    const toError = (cause: unknown): infer _ =>
+    const toError = (cause: unknown) =>
       new StateStoreError({
         message: cause instanceof Error ? cause.message : `S3 state store error: ${String(cause)}`,
         cause: cause instanceof Error ? cause : undefined,
-      })
+      });
 
     // Close over the captured context so every operation is self-contained.
-    const run = effect <A, E>(effect: A!E!S3Deps): A!StateStoreError =>
-      (try (effect
-        |> Effect.provideContext(%, context))) catch effect (e) => {
-          throw toError(e)
-        }
+    const run = <A, E>(effect: Effect.Effect<A, E, S3Deps>): Effect.Effect<A, StateStoreError> =>
+      effect.pipe(Effect.provideContext(context), Effect.mapError(toError));
 
     // Anything that touches AWS credentials must NOT run at layer
     // construction time. Resolving the environment (account/region),
     // deriving the bucket name, and ensuring the bucket exists all run on
     // the first state operation; `makeBucketState` caches the result.
-    const objects = effect {
-      return (try (effect {
-        const { accountId, region } = try AWSEnvironment.current
-        if (options.name !== undefined) try Provisioning.storeName(options.name)
-        const bucketName = options.bucketName ?? createStateBucketName(accountId, region, options.name)
-        const ensure = effect {
-          return try ensureStateBucket(bucketName, region, options)
-        } // First use creates the bucket (except in CI); every use converges
-         // its settings.
-        ;(try stateBucketExists(bucketName)) ? try ensure : try Provisioning.deployMissing(
-          {
-            backend: "aws-s3",
-            name: options.name,
-            label: `S3 state bucket '${bucketName}'`,
-            configured: options.bucketName !== undefined,
-          },
-          ensure,
-        )
-        return s3Objects(bucketName, run)
-      }
-        |> Effect.provideContext(%, context))) catch effect (e) => {
-          throw toError(e)
-        }
-    }
+    const objects = Effect.gen(function* () {
+      const { accountId, region } = yield* AWSEnvironment.current;
+      if (options.name !== undefined) yield* Provisioning.storeName(options.name);
+      const bucketName =
+        options.bucketName ?? createStateBucketName(accountId, region, options.name);
+      const ensure = ensureStateBucket(bucketName, region, options);
+      // First use creates the bucket (except in CI); every use converges
+      // its settings.
+      yield* (yield* stateBucketExists(bucketName))
+        ? ensure
+        : Provisioning.deployMissing(
+            {
+              backend: "aws-s3",
+              name: options.name,
+              label: `S3 state bucket '${bucketName}'`,
+              configured: options.bucketName !== undefined,
+            },
+            ensure,
+          );
+      return s3Objects(bucketName, run);
+    }).pipe(Effect.provideContext(context), Effect.mapError(toError));
 
-    return try makeBucketState({ id: "s3", label: "S3", prefix: options.prefix, objects })
-  }.pipe(withoutSdkDebugLogs)
+    return yield* makeBucketState({ id: "s3", label: "S3", prefix: options.prefix, objects });
+  }).pipe(withoutSdkDebugLogs);
 
 /** The S3 {@link BucketObjects} of `bucket`, versioned by ETag. */
 const s3Objects = (
   bucket: string,
-  run: <A, E>(effect: A!E!S3Deps) => A!StateStoreError,
+  run: <A, E>(effect: Effect.Effect<A, E, S3Deps>) => Effect.Effect<A, StateStoreError>,
 ): BucketObjects => ({
   listKeys: (prefix) =>
     run(
@@ -292,69 +289,71 @@ const s3Objects = (
     ),
   read: (key) =>
     run(
-      effect {
-        return (try effect {
-          const result = try s3.getObject({ Bucket: bucket, Key: key })
-          return (result.Body === undefined ? try Effect.undefined : try effect {
-            const text = try (result.Body
-              |> Stream.decodeText(%)
-              |> Stream.mkString(%))
-            return ({ text, version: result.ETag ?? "" })
-          })
-        }) catch effect (e) => match (e) { when { _tag: "NoSuchKey" }: try Effect.undefined; default: throw e; }
-      },
+      s3.getObject({ Bucket: bucket, Key: key }).pipe(
+        Effect.flatMap((result) =>
+          result.Body === undefined
+            ? Effect.undefined
+            : result.Body.pipe(
+                Stream.decodeText,
+                Stream.mkString,
+                Effect.map((text) => ({ text, version: result.ETag ?? "" })),
+              ),
+        ),
+        Effect.catchTag("NoSuchKey", () => Effect.undefined),
+      ),
     ),
   write: (key, body, condition) =>
     run(
-      effect {
-        return (try (effect {
-          return try effect {
-            const result = try s3
-              .putObject({
-                Bucket: bucket,
-                Key: key,
-                Body: body,
-                ContentType: "application/json",
-                ...(condition === undefined
-                  ? {}
-                  : "ifAbsent" in condition
-                  ? { IfNoneMatch: "*" }
-                  : { IfMatch: condition.ifVersion }),
-              })
-            return (result.ETag === undefined
-              ? throw new StateStoreError({
-                message: `S3 state object '${key}' was written without an ETag`,
-              })
-              : result.ETag)
-          }
-        }
-          |> Effect.retry(%, {
+      s3
+        .putObject({
+          Bucket: bucket,
+          Key: key,
+          Body: body,
+          ContentType: "application/json",
+          ...(condition === undefined
+            ? {}
+            : "ifAbsent" in condition
+              ? { IfNoneMatch: "*" }
+              : { IfMatch: condition.ifVersion }),
+        })
+        .pipe(
+          Effect.flatMap((result) =>
+            result.ETag === undefined
+              ? Effect.fail(
+                  new StateStoreError({
+                    message: `S3 state object '${key}' was written without an ETag`,
+                  }),
+                )
+              : Effect.succeed<string | undefined>(result.ETag),
+          ),
+          Effect.retry({
             while: (error) => error._tag === "ConditionalRequestConflict",
             schedule: Schedule.spaced("200 millis"),
             times: 4,
-          }))) catch effect (e) => match (e) {
-            when { _tag: "PreconditionFailed" } or { _tag: "ConditionalRequestConflict" }: try Effect.undefined;
-            default: throw e;
-          }
-      },
+          }),
+          // A lost condition: 412, or 409 after retries.
+          Effect.catchTag(
+            ["PreconditionFailed", "ConditionalRequestConflict"],
+            () => Effect.undefined,
+          ),
+        ),
     ),
   delete: (key, ifVersion) =>
     run(
-      effect {
-        return try (s3
-          .deleteObject({
-            Bucket: bucket,
-            Key: key,
-            ...(ifVersion === undefined ? {} : { IfMatch: ifVersion }),
-          })
-          |> Effect.asVoid(%))
-      },
+      s3
+        .deleteObject({
+          Bucket: bucket,
+          Key: key,
+          ...(ifVersion === undefined ? {} : { IfMatch: ifVersion }),
+        })
+        .pipe(Effect.asVoid),
     ),
   deleteMany: (keys) =>
     run(
       Effect.forEach(
         Array.from({ length: Math.ceil(keys.length / DELETE_BATCH_SIZE) }, (_, i) =>
-          keys.slice(i * DELETE_BATCH_SIZE, (i + 1) * DELETE_BATCH_SIZE)),
+          keys.slice(i * DELETE_BATCH_SIZE, (i + 1) * DELETE_BATCH_SIZE),
+        ),
         (batch) =>
           s3.deleteObjects({
             Bucket: bucket,
@@ -363,7 +362,7 @@ const s3Objects = (
         { discard: true },
       ),
     ),
-})
+});
 
 /**
  * Build the default account-regional state bucket name.
@@ -373,26 +372,26 @@ const s3Objects = (
  *
  * @see https://docs.aws.amazon.com/AmazonS3/latest/userguide/gpbucketnamespaces.html#account-regional-gp-buckets
  */
-export const createStateBucketName = (accountId: string, region: string, name?: string): infer _ =>
-  `alchemy-state-${name === undefined ? "" : `${name}-`}${accountId}-${region}-an`.toLowerCase()
+export const createStateBucketName = (accountId: string, region: string, name?: string) =>
+  `alchemy-state-${name === undefined ? "" : `${name}-`}${accountId}-${region}-an`.toLowerCase();
 
 /**
  * Observe-then-ensure the state bucket: head it, create it if missing
  * (tolerating create races), and wait for it to become available.
  */
-const ensureStateBucket = effect (bucket: string, region: string, options: S3StateOptions) =>
-  try (effect {
+const ensureStateBucket = (bucket: string, region: string, options: S3StateOptions) =>
+  Effect.gen(function* () {
     // An absent bucket surfaces as either `NotFound` (the HEAD 404) or
     // `NoSuchBucket` depending on the namespace/path — treat both as "create
     // it". Catching only `NotFound` let a deleted state bucket (e.g. after a
     // nuke) escape as an uncaught `NoSuchBucket` instead of being recreated.
-    const exists = (try effect {
-      try s3.headBucket({ Bucket: bucket })
-      return true
-    }) catch effect (e) => match (e) { when { _tag: "NotFound" } or { _tag: "NoSuchBucket" }: false; default: throw e; }
+    const exists = yield* s3.headBucket({ Bucket: bucket }).pipe(
+      Effect.map(() => true),
+      Effect.catchTag(["NotFound", "NoSuchBucket"], () => Effect.succeed(false)),
+    );
     if (!exists) {
-      try Effect.logInfo(`S3 state store: creating bucket ${bucket} in ${region}`)
-      s3
+      yield* Effect.logInfo(`S3 state store: creating bucket ${bucket} in ${region}`);
+      yield* s3
         .createBucket({
           Bucket: bucket,
           // account-regional namespace: the bucket name only needs to be
@@ -403,90 +402,103 @@ const ensureStateBucket = effect (bucket: string, region: string, options: S3Sta
           ...(region === "us-east-1"
             ? {}
             : {
-              CreateBucketConfiguration: {
-                LocationConstraint: region as s3.BucketLocationConstraint,
-              },
-            }),
-        }) catch effect (e) => match (e) {
-          when { _tag: "BucketAlreadyOwnedByYou" } or { _tag: "BucketAlreadyExists" } or { _tag: "OperationAborted" }:
-            try Effect.void;
-          default: throw e;
-        }
+                CreateBucketConfiguration: {
+                  LocationConstraint: region as s3.BucketLocationConstraint,
+                },
+              }),
+        })
+        .pipe(
+          // Many callers race to create the shared default state bucket on
+          // first use. The loser sees the create already done
+          // (`BucketAlreadyOwnedByYou`/`BucketAlreadyExists`) or mid-flight
+          // (`OperationAborted`). All mean "someone else is creating it".
+          Effect.catchTag(
+            ["BucketAlreadyOwnedByYou", "BucketAlreadyExists", "OperationAborted"],
+            () => Effect.void,
+          ),
+        );
 
       // Wait for the bucket to become available. Under a concurrent create
       // the bucket is briefly not yet head-able and object/configuration ops
       // would race ahead of it.
-      try (s3.headBucket({ Bucket: bucket })
-        |> Effect.retry(%, {
+      yield* s3.headBucket({ Bucket: bucket }).pipe(
+        Effect.retry({
           while: (error) => error._tag === "NotFound" || error._tag === "NoSuchBucket",
           schedule: Schedule.max([Schedule.spaced("1 second"), Schedule.recurs(10)]),
-        }))
+        }),
+      );
     }
 
     // Secure defaults are reconciled for BOTH newly-created and existing
     // buckets. This makes AWS.state converge out-of-band drift and explicit
     // custom buckets rather than only securing the greenfield path.
-    const desiredVersioning = "Enabled"
-    const observedVersioning = try s3.getBucketVersioning({
+    const desiredVersioning = "Enabled";
+    const observedVersioning = yield* s3.getBucketVersioning({
       Bucket: bucket,
-    })
+    });
     if (observedVersioning.Status !== desiredVersioning) {
-      try s3.putBucketVersioning({
+      yield* s3.putBucketVersioning({
         Bucket: bucket,
         VersioningConfiguration: { Status: desiredVersioning },
-      })
+      });
     }
 
-    try syncBucketEncryption(bucket, options.encryption)
+    yield* syncBucketEncryption(bucket, options.encryption);
 
     const desiredPublicAccess: s3.PublicAccessBlockConfiguration = {
       BlockPublicAcls: true,
       IgnorePublicAcls: true,
       BlockPublicPolicy: true,
       RestrictPublicBuckets: true,
-    }
-    const observedPublicAccess = (try s3.getPublicAccessBlock({ Bucket: bucket })).PublicAccessBlockConfiguration catch effect (e) => match (e) {
-        when { _tag: "NoSuchPublicAccessBlockConfiguration" }: try Effect.undefined;
-        default: throw e;
-      }
-    const publicAccessFingerprint = (config: s3.PublicAccessBlockConfiguration | undefined): infer _ =>
+    };
+    const observedPublicAccess = yield* s3.getPublicAccessBlock({ Bucket: bucket }).pipe(
+      Effect.map((result) => result.PublicAccessBlockConfiguration),
+      Effect.catchTag("NoSuchPublicAccessBlockConfiguration", () => Effect.undefined),
+    );
+    const publicAccessFingerprint = (config: s3.PublicAccessBlockConfiguration | undefined) =>
       JSON.stringify({
         blockAcls: config?.BlockPublicAcls ?? false,
         ignoreAcls: config?.IgnorePublicAcls ?? false,
         blockPolicy: config?.BlockPublicPolicy ?? false,
         restrictBuckets: config?.RestrictPublicBuckets ?? false,
-      })
+      });
     if (
       publicAccessFingerprint(observedPublicAccess) !== publicAccessFingerprint(desiredPublicAccess)
     ) {
-      try s3.putPublicAccessBlock({
+      yield* s3.putPublicAccessBlock({
         Bucket: bucket,
         PublicAccessBlockConfiguration: desiredPublicAccess,
-      })
+      });
     }
 
-    const desiredOwnership = "BucketOwnerEnforced"
-    const observedOwnership =
-      ((try s3.getBucketOwnershipControls({ Bucket: bucket })).OwnershipControls?.Rules?.[0]?.ObjectOwnership) catch effect (e) => match (e) {
-          when { _tag: "OwnershipControlsNotFoundError" }: try Effect.undefined;
-          default: throw e;
-        }
+    const desiredOwnership = "BucketOwnerEnforced";
+    const observedOwnership = yield* s3.getBucketOwnershipControls({ Bucket: bucket }).pipe(
+      Effect.map((result) => result.OwnershipControls?.Rules?.[0]?.ObjectOwnership),
+      Effect.catchTag("OwnershipControlsNotFoundError", () => Effect.undefined),
+    );
     if (observedOwnership !== desiredOwnership) {
-      try s3.putBucketOwnershipControls({
+      yield* s3.putBucketOwnershipControls({
         Bucket: bucket,
         OwnershipControls: {
           Rules: [{ ObjectOwnership: desiredOwnership }],
         },
-      })
+      });
     }
-  }
-    |> Effect.retry(%, {
-      while: (e) => e._tag === "OperationAborted" || e._tag === "NoSuchBucket" || e._tag === "NotFound",
+  }).pipe(
+    // The whole observe→create→wait sequence races other first-callers of the
+    // shared bucket; `OperationAborted` (conflicting create) and a transiently
+    // absent bucket (`NoSuchBucket`/`NotFound`) are the faces of that race.
+    // Retry the entire sequence so a concurrent create that is still settling
+    // converges instead of surfacing as a `StateStoreError`.
+    Effect.retry({
+      while: (e) =>
+        e._tag === "OperationAborted" || e._tag === "NoSuchBucket" || e._tag === "NotFound",
       schedule: Schedule.max([Schedule.spaced("2 seconds"), Schedule.recurs(10)]),
-    }))
+    }),
+  );
 
 /** The profile's AWS environment, resolved the way {@link state} resolves it. */
-export const stateEnvironment = (): infer _ =>
+export const stateEnvironment = () =>
   // Fresh per call: these derive from the environment below, and shared
   // (memoized) instances built for another environment in the same run
   // would shadow an `AWSEnvironment` provided to this layer.
@@ -496,29 +508,32 @@ export const stateEnvironment = (): infer _ =>
     Layer.provideMerge(providedOrDefault()),
     Layer.provideMerge(AwsAuth),
     Layer.provideMerge(CredentialsStoreLive),
-  )
+  );
 
 /**
  * Create the state bucket with its secure defaults, or converge an existing
  * one to them: what first use of {@link state} does. With `kmsKeyId`,
  * objects are encrypted with that KMS key.
  */
-export const provisionStateBucket = effect (
+export const provisionStateBucket = (
   bucket: string,
   region: string,
   kmsKeyId?: string,
-): void!StateStoreError!S3Deps =>
+): Effect.Effect<void, StateStoreError, S3Deps> =>
   ensureStateBucket(
     bucket,
     region,
     kmsKeyId === undefined
       ? {}
       : {
-        encryption: { sseAlgorithm: "aws:kms", kmsMasterKeyId: kmsKeyId, bucketKeyEnabled: true },
-      },
-  ) catch effect (cause) => {
-    throw new StateStoreError({
-      message: `Could not provision state bucket ${bucket}: ${cause._tag}`,
-      cause: cause instanceof Error ? cause : undefined,
-    })
-  }
+          encryption: { sseAlgorithm: "aws:kms", kmsMasterKeyId: kmsKeyId, bucketKeyEnabled: true },
+        },
+  ).pipe(
+    Effect.mapError(
+      (cause) =>
+        new StateStoreError({
+          message: `Could not provision state bucket ${bucket}: ${cause._tag}`,
+          cause: cause instanceof Error ? cause : undefined,
+        }),
+    ),
+  );
