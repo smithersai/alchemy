@@ -8,7 +8,7 @@ export {
 export * from "./AuthOAuthProvider.vibe";
 export * from "./AuthTrustedDomain.vibe";
 export * from "./DataApi.vibe";
-export * from "./AIGateway.vibe";
+export * from "./AIGateway.ts";
 export * from "./ConnectAuth.vibe";
 export * from "./QueryDataApi.vibe";
 export * from "./QueryAIGateway.ts";

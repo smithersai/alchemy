@@ -1,52 +1,50 @@
-import { getProjectBranchAiGateway } from "@distilled.cloud/neon"
-import * as Namespace from "alchemy/Namespace"
-import * as Output from "alchemy/Output"
-import * as Effect from "effect/Effect"
-import { InvalidBranchScope, resolveBranchScope } from "./BranchScope.ts"
-import type { Credential } from "./Credential.ts"
+import { getProjectBranchAiGateway } from "@distilled.cloud/neon";
+import * as Namespace from "alchemy/Namespace";
+import * as Output from "alchemy/Output";
+import * as Effect from "effect/Effect";
+import { InvalidBranchScope, resolveBranchScope } from "./BranchScope.ts";
+import type { Credential } from "./Credential.ts";
 
-export type AIGatewayProps =
-  & (
-    | {
+export type AIGatewayProps = (
+  | {
       /** Branch resource or explicit identity; output references are accepted. */
       branch:
         | import("./Branch.ts").Branch
         | {
-          projectId: string | Output.Output<string>
-          branchId: string | Output.Output<string>
-        }
-      project?: never
+            projectId: string | Output.Output<string>;
+            branchId: string | Output.Output<string>;
+          };
+      project?: never;
     }
-    | {
+  | {
       /** Project resource or identity whose default branch supplies the gateway. */
       project:
         | import("./Project.ts").Project
         | {
-          projectId: string | Output.Output<string>
-        }
-      branch?: never
+            projectId: string | Output.Output<string>;
+          };
+      branch?: never;
     }
-  )
-  & {
-    /** Optional managed branch credential with ai_gateway:invoke permission. */
-    credential?: Credential
-  }
+) & {
+  /** Optional managed branch credential with ai_gateway:invoke permission. */
+  credential?: Credential;
+};
 
 export interface AIGateway {
   /** Construct identity, used for deterministic binding names. */
-  readonly FQN: string
+  readonly FQN: string;
   /** Local construct identity. */
-  readonly LogicalId: string
+  readonly LogicalId: string;
   /** Declared scope and credential, retained for binding identity. */
-  readonly Props: AIGatewayProps
+  readonly Props: AIGatewayProps;
   /** Endpoint's owning project. */
-  readonly projectId: Output.Output<string>
+  readonly projectId: Output.Output<string>;
   /** Endpoint's owning branch. */
-  readonly branchId: Output.Output<string>
+  readonly branchId: Output.Output<string>;
   /** Gateway root, before the chat or Responses dialect path. */
-  readonly baseUrl: Output.Output<string>
+  readonly baseUrl: Output.Output<string>;
   /** Optional explicit credential; never an account deployment API key. */
-  readonly credential: Credential | undefined
+  readonly credential: Credential | undefined;
 }
 
 /**
@@ -77,34 +75,34 @@ export interface AIGateway {
  * @product AI Gateway
  * @category AI Gateway
  */
-export const AIGateway = effect (id: string, props: AIGatewayProps) => {
+export const AIGateway = Effect.fn(function* (id: string, props: AIGatewayProps) {
   if ((props.branch !== undefined) === (props.project !== undefined)) {
-    return try Effect.die(
+    return yield* Effect.die(
       new InvalidBranchScope({
         message: "Specify exactly one of branch or project",
       }),
-    )
+    );
   }
-  const namespace = try Namespace.CurrentChain
-  const projectId = Output.asOutput(props.branch?.projectId ?? props.project!.projectId)
+  const namespace = yield* Namespace.CurrentChain;
+  const projectId = Output.asOutput(props.branch?.projectId ?? props.project!.projectId);
   const branchId = props.branch
     ? Output.asOutput(props.branch.branchId)
     : projectId.pipe(
-      Output.mapEffect(effect (projectId) =>
-        try (effect {
-          return (try resolveBranchScope({ project: { projectId } })).branchId
-        }
-          |> Effect.orDie(%))
-      ),
-    )
+        Output.mapEffect((projectId) =>
+          resolveBranchScope({ project: { projectId } }).pipe(
+            Effect.map((scope) => scope.branchId),
+            Effect.orDie,
+          ),
+        ),
+      );
   const baseUrl = Output.all(projectId, branchId).pipe(
-    Output.mapEffect(effect ([project_id, branch_id]) =>
-      try (effect {
-        return (try getProjectBranchAiGateway({ project_id, branch_id })).base_url.replace(/\/$/, "")
-      }
-        |> Effect.orDie(%))
+    Output.mapEffect(([project_id, branch_id]) =>
+      getProjectBranchAiGateway({ project_id, branch_id }).pipe(
+        Effect.map((gateway) => gateway.base_url.replace(/\/$/, "")),
+        Effect.orDie,
+      ),
     ),
-  )
+  );
   return {
     FQN: [...namespace].reverse().concat(id).join("/"),
     LogicalId: id,
@@ -113,5 +111,5 @@ export const AIGateway = effect (id: string, props: AIGatewayProps) => {
     branchId,
     baseUrl,
     credential: props.credential,
-  } satisfies AIGateway
-}
+  } satisfies AIGateway;
+});
