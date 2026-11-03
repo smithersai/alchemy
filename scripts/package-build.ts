@@ -435,6 +435,11 @@ const syncPublishExports = Effect.fn(function* (
   const blocks = options.generate ? yield* internalBlocks(packageDirectory) : {};
   const published = Object.fromEntries(
     Object.entries(exports).flatMap((entry) => [
+      // A declaration sidecar is not a runtime module. Keep it private even
+      // where a source-only wildcard intentionally publishes TypeScript.
+      ...(options.sourceOnly?.includes(entry[0]) && entry[0].endsWith("*")
+        ? [[entry[0] + ".d.vibe", null] as const]
+        : []),
       ...(entry[0] === "./*" ? Object.entries(blocks) : []),
       entry,
     ]),
