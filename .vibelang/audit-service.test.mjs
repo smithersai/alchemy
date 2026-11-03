@@ -43,10 +43,10 @@ const signature = (parameters) =>
   'export declare const Binding: Binding.Service<"Binding", (' +
   parameters +
   ") => Effect.Effect<void>>;";
-test("missing implementation directory stays empty", async () => {
+void test("missing implementation directory stays empty", async () => {
   assert.deepEqual([...(await run(audit.getAlchemyFiles(join(temp, "missing"))))], []);
 });
-test("migrated modules and sidecars count once and exclude the index", async () => {
+void test("migrated modules and sidecars count once and exclude the index", async () => {
   const dir = fixture();
   for (const name of [
     "GetObject.vibe",
@@ -57,12 +57,12 @@ test("migrated modules and sidecars count once and exclude the index", async () 
     "index.d.vibe.ts",
   ])
     writeFileSync(join(dir, name), "");
-  assert.deepEqual([...(await run(audit.getAlchemyFiles(dir)))].sort(), [
-    "CopyObject",
-    "GetObject",
-  ]);
+  assert.deepEqual(
+    [...(await run(audit.getAlchemyFiles(dir)))].sort((a, b) => a.localeCompare(b)),
+    ["CopyObject", "GetObject"],
+  );
 });
-test("index registrations accept migrated specifiers", async () => {
+void test("index registrations accept migrated specifiers", async () => {
   const dir = fixture(),
     file = join(dir, "index.ts");
   writeFileSync(
@@ -71,7 +71,7 @@ test("index registrations accept migrated specifiers", async () => {
   );
   assert.deepEqual([...(await run(audit.getIndexExports(file)))], ["GetObject"]);
 });
-test("resource arity comes from the migrated declaration sidecar", async () => {
+void test("resource arity comes from the migrated declaration sidecar", async () => {
   const dir = fixture();
   for (const entry of corpus.cases) {
     writeFileSync(join(dir, entry.name + ".vibe"), "export const value = effect { return 1 }");
@@ -83,7 +83,7 @@ test("resource arity comes from the migrated declaration sidecar", async () => {
     );
   }
 });
-test("least-privilege warnings inspect the migrated source", async () => {
+void test("least-privilege warnings inspect the migrated source", async () => {
   const dir = fixture();
   writeFileSync(join(dir, "GetObject.vibe"), 'export const policy = { Resource: ["*"] };');
   const result = await run(
@@ -94,7 +94,7 @@ test("least-privilege warnings inspect the migrated source", async () => {
   assert.equal(result.length, 1);
   assert.equal(result[0].file, join(dir, "GetObject.vibe"));
 });
-test("mixed source layouts preserve implementation names and declaration arities", async () => {
+void test("mixed source layouts preserve implementation names and declaration arities", async () => {
   await fc.assert(
     fc.asyncProperty(
       fc.array(
@@ -121,8 +121,8 @@ test("mixed source layouts preserve implementation names and declaration arities
           assert.equal(await run(audit.inferImplementedResourceArity(dir, name, 99)), shape.arity);
         }
         assert.deepEqual(
-          [...(await run(audit.getAlchemyFiles(dir)))].sort(),
-          entries.map((_, i) => "Binding" + i).sort(),
+          [...(await run(audit.getAlchemyFiles(dir)))].sort((a, b) => a.localeCompare(b)),
+          entries.map((_, i) => "Binding" + i).sort((a, b) => a.localeCompare(b)),
         );
       },
     ),

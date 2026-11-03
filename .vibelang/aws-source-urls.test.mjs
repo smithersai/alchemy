@@ -102,15 +102,15 @@ function resolves({
 }
 
 for (const entry of cases)
-  test(entry.id + ": a TypeScript caller resolves its converted sibling", () =>
+  void test(entry.id + ": a TypeScript caller resolves its converted sibling", () =>
     resolves({ entry }),
   );
-test("ordinary TypeScript and emitted JavaScript siblings remain resolvable", () => {
+void test("ordinary TypeScript and emitted JavaScript siblings remain resolvable", () => {
   for (const entry of cases)
     for (const suffix of ["ts", "js"])
       resolves({ entry, callerSuffix: suffix, targetSuffix: suffix, query: true });
 });
-test("AWS source URL property preserves real targets across extensions and loader queries", () => {
+void test("AWS source URL property preserves real targets across extensions and loader queries", () => {
   fc.assert(
     fc.property(
       fc.record({

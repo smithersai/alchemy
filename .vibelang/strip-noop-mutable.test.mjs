@@ -68,9 +68,9 @@ function witness({
   }
 }
 
-test("an explicit tree without --compiler never edits cwd", options, () => witness({}));
+void test("an explicit tree without --compiler never edits cwd", options, () => witness({}));
 
-test(
+void test(
   "explicit-tree selection preserves cwd across generated path and flag layouts",
   options,
   () => {
@@ -91,7 +91,7 @@ test(
 );
 
 const run = (s) => strip(s, editsFor(compiler, s, "a.vibe"));
-test("interface and type-literal members lose the modifier", options, () => {
+void test("interface and type-literal members lose the modifier", options, () => {
   assert.equal(
     run("export interface A { mutable x: string; y: number }\n"),
     "export interface A { x: string; y: number }\n",
@@ -105,13 +105,13 @@ test("interface and type-literal members lose the modifier", options, () => {
     "export interface I { [k: string]: unknown }\n",
   );
 });
-test("a heritage type argument and a parameter type count as type literals", options, () => {
+void test("a heritage type argument and a parameter type count as type literals", options, () => {
   assert.equal(
     run("export const f = (p: { mutable a: string }) => p.a\n"),
     "export const f = (p: { a: string }) => p.a\n",
   );
 });
-test("error, schema and data bodies stay", options, () => {
+void test("error, schema and data bodies stay", options, () => {
   for (const s of [
     "error Bad { mutable message: string }\n",
     "schema S { mutable a: string }\n",
@@ -121,7 +121,7 @@ test("error, schema and data bodies stay", options, () => {
   const nested = "error Bad { mutable details: { mutable a: string } }\n";
   assert.equal(run(nested), nested);
 });
-test("names, strings and comments stay", options, () => {
+void test("names, strings and comments stay", options, () => {
   for (const s of [
     "export interface A { mutable?: boolean }\n",
     "const a = { mutable: true }\nexport const b = a.mutable\n",
@@ -130,7 +130,7 @@ test("names, strings and comments stay", options, () => {
   ])
     assert.equal(run(s), s);
 });
-test("idempotent", options, () => {
+void test("idempotent", options, () => {
   const once = run("export interface A { mutable x: string }\n");
   assert.equal(run(once), once);
 });
