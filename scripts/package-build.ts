@@ -272,6 +272,42 @@ const internalBlocks = Effect.fn(function* (packageDirectory: string) {
   };
 });
 
+// Exact entries with the same ordered target as their winning wildcard
+// add no resolution behavior and make Node repeatedly deserialize a large map.
+const compactPublishExports = (entries: Record<string, unknown>): Record<string, unknown> => {
+  const result = { ...entries };
+  const patterns = Object.keys(result)
+    .filter((key) => key.includes("*"))
+    .sort((a, b) => b.indexOf("*") - a.indexOf("*") || b.length - a.length);
+  const expand = (value: unknown, capture: string): unknown => {
+    if (typeof value === "string") return value.replaceAll("*", capture);
+    if (Array.isArray(value)) return value.map((item) => expand(item, capture));
+    if (value !== null && typeof value === "object")
+      return Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [key, expand(item, capture)]),
+      );
+    return value;
+  };
+  for (const [key, value] of Object.entries(result)) {
+    if (key === "." || key.includes("*") || value === null) continue;
+    const pattern = patterns.find((candidate) => {
+      const star = candidate.indexOf("*");
+      return (
+        star === candidate.lastIndexOf("*") &&
+        key.length >= candidate.length &&
+        key.startsWith(candidate.slice(0, star)) &&
+        key.endsWith(candidate.slice(star + 1))
+      );
+    });
+    if (!pattern) continue;
+    const star = pattern.indexOf("*");
+    const capture = key.slice(star, key.length - (pattern.length - star - 1));
+    if (JSON.stringify(value) === JSON.stringify(expand(result[pattern], capture)))
+      delete result[key];
+  }
+  return result;
+};
+
 const syncPublishExports = Effect.fn(function* (
   packageDirectory: string,
   options: NonNullable<BuildOptions["exports"]>,
@@ -328,7 +364,10 @@ const syncPublishExports = Effect.fn(function* (
   yield* fs.writeFileString(
     packageJsonPath,
     JSON.stringify(
-      { ...packageJson, publishConfig: { ...packageJson.publishConfig, exports: published } },
+      {
+        ...packageJson,
+        publishConfig: { ...packageJson.publishConfig, exports: compactPublishExports(published) },
+      },
       null,
       2,
     ) + "\n",
