@@ -402,6 +402,20 @@ const syncPublishExports = Effect.fn(function* (
     recursive: true,
   })).some((file) => file.endsWith(".vibe"));
 
+  // Inline TypeScript modules emit *.vibe.raw implementations. They are
+  // compiler details, while the facade remains a public module.
+  if (hasVibeSource) {
+    const sourceExports = packageJson.exports;
+    packageJson.exports = Object.fromEntries(
+      Object.entries(sourceExports).flatMap((entry) => [
+        ...(entry[0].endsWith("*") && !Object.hasOwn(sourceExports, entry[0] + ".vibe.raw")
+          ? [[entry[0] + ".vibe.raw", null] as const]
+          : []),
+        entry,
+      ]),
+    );
+  }
+
   const exports = Object.fromEntries(
     Object.entries(packageJson.exports)
       // Development tests may reach internal modules; published consumers may not.
