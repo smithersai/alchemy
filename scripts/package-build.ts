@@ -379,6 +379,54 @@ export const bunEntries = (...entries: Array<string>): Step => ({
     }),
 });
 
+// Ask the installed compiler which top-level declarations are inline modules.
+// Comment/string lookalikes never become export exclusions.
+const inlineModuleBlocks = Effect.fn(function* (packageDirectory: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const sourceDirectory = path.join(packageDirectory, "src");
+  const files = (yield* fs.readDirectory(sourceDirectory, { recursive: true })).map((file) =>
+    file.split(path.sep).join("/"),
+  );
+  const authored = new Set(files);
+  const blocks: Record<string, null> = {};
+  for (const file of files.filter((name) => /\.vibex?$/.test(name))) {
+    const sourcePath = path.join(sourceDirectory, file);
+    const source = yield* fs.readFileString(sourcePath);
+    if (!/\bmodule\s/.test(source)) continue;
+    const result = spawnSync(
+      NodePath.join(import.meta.dirname, "node_modules/.bin/vibelang"),
+      ["--estree", sourcePath],
+      { input: source, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    );
+    if (result.status !== 0)
+      throw new Error("Cannot inspect inline modules in " + file + ": " + result.stderr);
+    const ast = JSON.parse(result.stdout) as {
+      ast: { body: Array<{ type: string; id?: { name: string } }> };
+    };
+    for (const declaration of ast.ast.body) {
+      if (declaration.type !== "VibeModuleDeclaration") continue;
+      const name = declaration.id?.name;
+      if (!name) throw new Error("Inline module has no identifier in " + file);
+      // Current compiler spelling plus VIP-40's injective filename spelling.
+      const lower = Array.from(name, (char) => Array.from(char.toLowerCase())[0]).join("");
+      const encoded = Array.from(name, (char) =>
+        /^[a-z0-9_]$/.test(char) ? char : "-" + char.codePointAt(0)!.toString(16) + "-",
+      ).join("");
+      for (const suffix of new Set([lower, encoded])) {
+        const stem = file + "." + suffix;
+        if (
+          suffix !== "raw" &&
+          [".ts", ".tsx", ".mts", ".cts", ".vibe", ".vibex"].some((ext) => authored.has(stem + ext))
+        )
+          throw new Error("Inline module output collides with an authored source: " + stem);
+        blocks["./" + stem] = null;
+      }
+    }
+  }
+  return blocks;
+});
+
 const syncPublishExports = Effect.fn(function* (
   packageDirectory: string,
   options: NonNullable<BuildOptions["exports"]>,
@@ -415,6 +463,13 @@ const syncPublishExports = Effect.fn(function* (
       ]),
     );
   }
+
+  const inlineBlocks = yield* inlineModuleBlocks(packageDirectory);
+  for (const key of Object.keys(inlineBlocks)) {
+    if (Object.hasOwn(packageJson.exports, key) && packageJson.exports[key] !== null)
+      throw new Error("Inline module output conflicts with a public export: " + key);
+  }
+  packageJson.exports = { ...packageJson.exports, ...inlineBlocks };
 
   const exports = Object.fromEntries(
     Object.entries(packageJson.exports)
