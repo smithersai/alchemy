@@ -52,6 +52,16 @@ export interface BuildOptions {
     readonly worker?: boolean;
     /** Subpaths that resolve to source in every condition. */
     readonly sourceOnly?: ReadonlyArray<string>;
+    /** Per-entry runtime targets; types and ordinary Node targets are preserved. */
+    readonly runtimeConditions?: Readonly<
+      Record<
+        string,
+        {
+          readonly bun?: string;
+          readonly worker?: string;
+        }
+      >
+    >;
   };
   /** Copy THIRD_PARTY_LICENSES.md into the package. */
   readonly thirdPartyLicenses?: boolean;
@@ -308,6 +318,67 @@ const compactPublishExports = (entries: Record<string, unknown>): Record<string,
   return result;
 };
 
+const applyRuntimeConditions = (
+  entries: Record<string, unknown>,
+  overrides: NonNullable<BuildOptions["exports"]>["runtimeConditions"],
+): Record<string, unknown> => {
+  const result = { ...entries };
+  const patterns = Object.keys(result)
+    .filter((key) => key.includes("*"))
+    .sort((a, b) => b.indexOf("*") - a.indexOf("*") || b.length - a.length);
+  for (const [key, override] of Object.entries(overrides ?? {})) {
+    let entry = result[key];
+    if (!Object.hasOwn(result, key)) {
+      const pattern = patterns.find((candidate) => {
+        const star = candidate.indexOf("*");
+        return (
+          star === candidate.lastIndexOf("*") &&
+          key.length >= candidate.length &&
+          key.startsWith(candidate.slice(0, star)) &&
+          key.endsWith(candidate.slice(star + 1))
+        );
+      });
+      if (pattern) {
+        const star = pattern.indexOf("*");
+        const capture = key.slice(star, key.length - (pattern.length - star - 1));
+        const target = result[pattern];
+        entry =
+          target !== null && typeof target === "object" && !Array.isArray(target)
+            ? Object.fromEntries(
+                Object.entries(target).map(([name, value]) => [
+                  name,
+                  typeof value === "string" ? value.replaceAll("*", capture) : value,
+                ]),
+              )
+            : target;
+      }
+    }
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry))
+      throw new Error("Runtime conditions need an existing module export: " + key);
+    const conditions = Object.fromEntries(
+      Object.entries(override).filter(([, value]) => value !== undefined),
+    );
+    const target = entry as Record<string, unknown>;
+    result[key] = Object.fromEntries([
+      ...(Object.hasOwn(target, "types") ? [["types", target.types]] : []),
+      ...Object.entries(conditions),
+      ...Object.entries(target).filter(
+        ([name]) => name !== "types" && !Object.hasOwn(conditions, name),
+      ),
+    ]);
+  }
+  return result;
+};
+
+export const bunEntries = (...entries: Array<string>): Step => ({
+  name: "Bun source entries",
+  run: (directory) =>
+    Effect.tryPromise(async () => {
+      const { buildBunEntries } = await import("./bun-entries.ts");
+      await buildBunEntries(directory, entries);
+    }),
+});
+
 const syncPublishExports = Effect.fn(function* (
   packageDirectory: string,
   options: NonNullable<BuildOptions["exports"]>,
@@ -366,7 +437,12 @@ const syncPublishExports = Effect.fn(function* (
     JSON.stringify(
       {
         ...packageJson,
-        publishConfig: { ...packageJson.publishConfig, exports: compactPublishExports(published) },
+        publishConfig: {
+          ...packageJson.publishConfig,
+          exports: compactPublishExports(
+            applyRuntimeConditions(published, options.runtimeConditions),
+          ),
+        },
       },
       null,
       2,

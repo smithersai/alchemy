@@ -27,14 +27,16 @@ const builderSource = stripTypeScriptTypes(
 );
 writeFileSync(
   join(temp, "package-build.mjs"),
-  builderSource + "\nexport { syncPublishExports };\n",
+  builderSource + "\nexport { syncPublishExports, compactPublishExports };\n",
 );
 writeFileSync(
   join(temp, "reference-build.mjs"),
-  builderSource.replace("compactPublishExports(published)", "published") +
+  builderSource.replace(/\bcompactPublishExports\(/g, "((value) => value)(") +
     "\nexport { syncPublishExports };\n",
 );
-const { syncPublishExports } = await import(pathToFileURL(join(temp, "package-build.mjs")).href);
+const { syncPublishExports, compactPublishExports } = await import(
+  pathToFileURL(join(temp, "package-build.mjs")).href
+);
 const { syncPublishExports: referencePublish } = await import(
   pathToFileURL(join(temp, "reference-build.mjs")).href
 );
@@ -46,6 +48,7 @@ let fixtureId = 0;
 async function publish(exports, reference = false) {
   const dir = join(temp, "fixture-" + fixtureId++);
   mkdirSync(dir);
+  mkdirSync(join(dir, "src"));
   writeFileSync(
     join(dir, "tsconfig.json"),
     JSON.stringify({ compilerOptions: { outDir: "./lib" } }),
@@ -69,6 +72,11 @@ void test("a large equivalent exact map collapses to its wildcard", async () => 
   );
   const map = await publish({ ".": "./src/index.ts", ...entries, "./*": "./src/*.ts" });
   assert.deepEqual(Object.keys(map), [".", "./*"]);
+  const uncompressed = await publish(
+    { ".": "./src/index.ts", ...entries, "./*": "./src/*.ts" },
+    true,
+  );
+  assert.equal(Object.keys(uncompressed).length, corpus.largeMapEntries + 2);
 });
 
 void test("aliases and null blocks retain their exact resolution", async () => {
@@ -91,8 +99,11 @@ void test("the most specific wildcard decides whether an exact entry is redundan
   assert.equal(map["./Scoped/*"], null);
 });
 
-void test("a different Bun condition keeps an otherwise matching compiled entry", async () => {
-  const map = await publish({ "./Value": "./src/Value.vibe", "./*": "./src/*.ts" });
+void test("a different Bun condition keeps an otherwise matching compiled entry", () => {
+  const map = compactPublishExports({
+    "./Value": { types: "./lib/Value.d.ts", default: "./lib/Value.js" },
+    "./*": { types: "./lib/*.d.ts", bun: "./src/*.ts", default: "./lib/*.js" },
+  });
   assert.equal(map["./Value"].default, "./lib/Value.js");
   assert.equal(map["./Value"].bun, undefined);
   assert.equal(map["./*"].bun, "./src/*.ts");
