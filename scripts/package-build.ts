@@ -217,7 +217,7 @@ const generateExports = Effect.fn(function* (
   const directories = yield* sourceDirectories(sourceDirectory);
   const vibeModules = (yield* fs.readDirectory(sourceDirectory, { recursive: true }))
     .map((file) => file.split(path.sep).join("/"))
-    .filter((file) => file.endsWith(".vibe") && !isInternal(file) && !file.endsWith("/index.vibe"))
+    .filter((file) => file.endsWith(".vibe") && !file.endsWith("/index.vibe"))
     .map((file) => file.slice(0, -".vibe".length))
     .filter((module) => module !== "index")
     .sort((a, b) => a.localeCompare(b));
@@ -398,38 +398,46 @@ const syncPublishExports = Effect.fn(function* (
     yield* fs.readFileString(path.join(packageDirectory, "tsconfig.json")),
   ) as { compilerOptions: { outDir: string } };
   const outDir = `./${path.normalize(tsconfig.compilerOptions.outDir)}/`;
+  const hasVibeSource = (yield* fs.readDirectory(path.join(packageDirectory, "src"), {
+    recursive: true,
+  })).some((file) => file.endsWith(".vibe"));
 
   const exports = Object.fromEntries(
-    Object.entries(packageJson.exports).map(([subpath, source]) => {
-      // Non-source entries (bin scripts, package.json) publish as-is.
-      if (source === null || !source.startsWith("./src/")) {
-        return [subpath, source];
-      }
-      if (options.sourceOnly?.includes(subpath)) {
-        return [subpath, { types: source, bun: source, default: source }];
-      }
+    Object.entries(packageJson.exports)
+      // Development tests may reach internal modules; published consumers may not.
+      .filter(([subpath, source]) => source === null || !isInternal(subpath))
+      .map(([subpath, source]) => {
+        // Non-source entries (bin scripts, package.json) publish as-is.
+        if (source === null || !source.startsWith("./src/")) {
+          return [subpath, source];
+        }
+        if (options.sourceOnly?.includes(subpath)) {
+          return [subpath, { types: source, bun: source, default: source }];
+        }
 
-      const output = source.replace(/^\.\/src\//, outDir);
-      return [
-        subpath,
-        {
-          types: output.replace(/\.(?:tsx?|vibe)$/, ".d.ts"),
-          // A published .vibe source would need VibeLang's loader, so its consumers read the build.
-          ...(source.endsWith(".vibe")
-            ? {}
-            : { bun: source, ...(options.worker ? { worker: source } : {}) }),
-          default: output.replace(/\.(?:tsx?|vibe)$/, ".js"),
-        },
-      ];
-    }),
+        const output = source.replace(/^\.\/src\//, outDir);
+        return [
+          subpath,
+          {
+            types: output.replace(/\.(?:tsx?|vibe)$/, ".d.ts"),
+            // Published .vibe source needs VibeLang's loader, and a .ts source can import it, so
+            // a package holding any .vibe module gives its consumers the build everywhere.
+            ...(hasVibeSource
+              ? {}
+              : { bun: source, ...(options.worker ? { worker: source } : {}) }),
+            default: output.replace(/\.(?:tsx?|vibe)$/, ".js"),
+          },
+        ];
+      }),
   );
 
   // Blocks go just before `./*` so the published map reads top to bottom.
   const blocks = options.generate ? yield* internalBlocks(packageDirectory) : {};
   const published = Object.fromEntries(
-    Object.entries(exports).flatMap((entry) =>
-      entry[0] === "./*" ? [...Object.entries(blocks), entry] : [entry],
-    ),
+    Object.entries(exports).flatMap((entry) => [
+      ...(entry[0] === "./*" ? Object.entries(blocks) : []),
+      entry,
+    ]),
   );
 
   yield* fs.writeFileString(
