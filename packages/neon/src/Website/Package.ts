@@ -26,7 +26,9 @@ export const packageWebsiteInChild = Effect.fn(
     yield* fs.writeFileString(inputPath, JSON.stringify(props));
     const runner = yield* path.fromFileUrl(
       new URL(
-        import.meta.url.endsWith(".ts") ? "./PackageRunner.ts" : "./PackageRunner.js",
+        new URL(import.meta.url).pathname.endsWith(".js")
+          ? "./PackageRunner.js"
+          : "./PackageRunner.ts",
         import.meta.url,
       ),
     );
