@@ -68,11 +68,11 @@ export type UserApiToken = Resource<"Cloudflare.ApiToken.UserApiToken", Props, {
  * accessor reads it back (as `Redacted`) at runtime.
  * ```typescript
  * // init
- * const value = yield* token.value; // Accessor<Redacted.Redacted<string>>
+ * const value = yield* token.value; // Accessor<Redacted<string>>
  *
  * return {
  *   fetch: Effect.gen(function* () {
- *     const apiToken = yield* value; // Redacted.Redacted<string>
+ *     const apiToken = yield* value; // Redacted<string>
  *     // ... call the Cloudflare API with `apiToken`
  *     return HttpServerResponse.text("ok");
  *   }),

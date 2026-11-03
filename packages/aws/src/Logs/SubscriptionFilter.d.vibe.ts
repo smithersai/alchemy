@@ -67,7 +67,7 @@ export interface SubscriptionFilter extends Resource<"AWS.Logs.SubscriptionFilte
  *
  * For the Lambda-consumer DX (subscribe a Lambda to a log group with automatic
  * permission wiring and payload decoding), prefer
- * {@link import("./LogGroupEventSource.vibe").consumeLogEvents}.
+ * {@link import("./LogGroupEventSource.ts").consumeLogEvents}.
  * ### Subscribing a Lambda Function
  * **Example:** Deliver Error Logs to a Lambda Function
  * ```typescript

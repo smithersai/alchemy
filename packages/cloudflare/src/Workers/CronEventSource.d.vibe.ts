@@ -36,10 +36,11 @@ import { Worker } from "./Worker.ts";
  * the invocation failed and Cloudflare may retry it — call
  * `controller.noRetry()` before rethrowing to suppress that.
  *
- * Async (non-Effect.Effect) Workers don't use `cron` — they attach schedules with
+ * Async (non-Effect) Workers don't use `cron` — they attach schedules with
  * the Worker's `crons` prop and export their own `scheduled` handler from
  * the entry module (each section below includes the async variant). Pass
  * `crons: []` to remove all Cron Triggers from a Worker.
+ *
  *
  * ### Declare a schedule
  * **Example:** Effect-native Worker (recommended)
@@ -154,7 +155,7 @@ import { Worker } from "./Worker.ts";
  * import * as Schedule from "effect/Schedule";
  *
  * // The event source reports the invocation as successful even when the
- * // handler fails, so Cloudflare's platform retry rarely engages for Effect.Effect
+ * // handler fails, so Cloudflare's platform retry rarely engages for Effect
  * // handlers — Effect.retry is the primary retry control. Calling
  * // controller.noRetry() once retries are exhausted defensively covers
  * // anything that can still mark the invocation failed (e.g. a failing

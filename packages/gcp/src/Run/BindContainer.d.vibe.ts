@@ -150,7 +150,7 @@ export declare function bindContainer<Groups extends HttpApiGroup.Constraint, Re
  *   startupProbe: { tcpSocket: {} },
  * });
  *
- * // inside the service's Effect.Effect
+ * // inside the service's Effect
  * const cache = yield* GCP.Run.bindPort(Cache, 6379);
  * // cache.url === "http://localhost:6379"; connect with `redis://localhost:${cache.port}`
  * ```

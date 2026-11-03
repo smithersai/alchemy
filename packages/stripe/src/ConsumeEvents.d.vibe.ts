@@ -31,7 +31,7 @@ export declare const webhookEndpointLogicalId: (path?: string) => string;
  * types, and binds the endpoint's minted signing secret onto the host so
  * deliveries are verified. No separate endpoint declaration is needed.
  *
- * Provide `Stripe.ConsumeEventsLive` on the host's Effect.Effect, e.g. a Cloudflare
+ * Provide `Stripe.ConsumeEventsLive` on the host's Effect, e.g. a Cloudflare
  * Worker.
  *
  * ### Handling events

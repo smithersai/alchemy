@@ -8,7 +8,7 @@ export interface StopQueryRequest extends Logs.StopQueryRequest {
  * Runtime binding for `logs:StopQuery` (CloudWatch Logs Insights).
  *
  * Bind this operation to the `LogGroup` an Insights query was started against
- * (via {@link import("./StartQuery.vibe").StartQuery}) to cancel it while it is
+ * (via {@link import("./StartQuery.ts").StartQuery}) to cancel it while it is
  * still `Scheduled` or `Running` — e.g. on caller timeout or shutdown.
  * ### Logs Insights
  * **Example:** Cancel a Running Query

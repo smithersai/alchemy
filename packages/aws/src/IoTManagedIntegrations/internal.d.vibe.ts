@@ -2,7 +2,7 @@ import * as mi from "@distilled.cloud/aws/iot-managed-integrations";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 /**
- * Unwrap a distilled `SensitiveString` (`string | Redacted.Redacted<string>`) into a
+ * Unwrap a distilled `SensitiveString` (`string | Redacted<string>`) into a
  * plain string, preserving `undefined`.
  */
 export declare const unwrapSensitive: (value: string | Redacted.Redacted<string> | undefined) => string | undefined;

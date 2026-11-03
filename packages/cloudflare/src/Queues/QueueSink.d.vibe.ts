@@ -46,7 +46,7 @@ import type { SendError } from "./QueueTypes.ts";
  * );
  * ```
  *
- * ### Source → Transform → Sink.Sink
+ * ### Source → Transform → Sink
  * **Example:** Forward a consumed Queue into another Queue
  * ```typescript
  * Effect.gen(function* () {

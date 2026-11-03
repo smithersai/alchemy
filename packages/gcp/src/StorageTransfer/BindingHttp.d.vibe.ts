@@ -8,7 +8,7 @@ import type { TransferJob } from "./TransferJob.vibe";
  * NOT exported from index.ts.
  *
  * Distilled ops are `OperationMethod`s: yield them once at Layer construction
- * (after providing Credentials + HttpClient.HttpClient) so the inner runtime Effect is
+ * (after providing Credentials + HttpClient) so the inner runtime Effect is
  * `Effect<A, E>` and does not leak `GcpOpContext`.
  */
 export declare const makeTransferJobHttpBinding: <I extends {

@@ -55,7 +55,7 @@ export declare const publishWebsiteDomainDns: (args: {
  */
 export interface FrameworkSiteProps {
     /**
-     * Parent Railway Project. Accepts a `Railway.Project` or an Effect.Effect
+     * Parent Railway Project. Accepts a `Railway.Project` or an Effect
      * that produces one. When omitted, a `Railway.Project("Project")` is
      * created under this site's namespace.
      */

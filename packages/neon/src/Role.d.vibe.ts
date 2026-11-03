@@ -41,7 +41,7 @@ export interface Role extends Resource<"Neon.Role", RoleProps, RoleAttributes, n
  * **Example:** A login role on a branch
  * ```typescript
  * const app = yield* Neon.Role("App", { branch });
- * // app.roleName and app.password (Redacted.Redacted) connect to branch.origin.host
+ * // app.roleName and app.password (Redacted) connect to branch.origin.host
  * ```
  *
  * **Example:** A role on the project's default branch

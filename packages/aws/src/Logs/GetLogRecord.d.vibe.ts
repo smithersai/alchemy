@@ -9,7 +9,7 @@ export interface GetLogRecordRequest extends Logs.GetLogRecordRequest {
  *
  * Bind this operation to the `LogGroup` an Insights query ran against to
  * fetch the complete log record behind a query-result row: every row returned
- * by {@link import("./GetQueryResults.vibe").GetQueryResults} carries a `@ptr`
+ * by {@link import("./GetQueryResults.ts").GetQueryResults} carries a `@ptr`
  * field that identifies the record.
  * ### Logs Insights
  * **Example:** Fetch the Full Record Behind a Query Result

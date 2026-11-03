@@ -6,7 +6,7 @@ import type * as Sink from "effect/Sink";
 import type { Stream, StreamRecord } from "./Stream.ts";
 import type { StreamSendError } from "./WriteStream.ts";
 /**
- * Binding service that exposes a Pipelines {@link Stream} as an Effect.Effect
+ * Binding service that exposes a Pipelines {@link Stream} as an Effect
  * `Sink`: run a `Stream` of records into it and every element is
  * ingested. Also exported as `Cloudflare.Basin.StreamSink`.
  *

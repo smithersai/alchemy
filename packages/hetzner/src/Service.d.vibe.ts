@@ -16,7 +16,7 @@ import type { Server } from "./Server.ts";
 type Ref<T> = T | Effect.Effect<T, never, Providers>;
 export interface ServiceProps extends PlatformProps {
     /**
-     * Server this Service runs on. Accepts a `Hetzner.Server` or an Effect.Effect
+     * Server this Service runs on. Accepts a `Hetzner.Server` or an Effect
      * that produces one. Changing the Server replaces the Service.
      */
     server: Ref<Server>;

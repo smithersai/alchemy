@@ -80,7 +80,7 @@ export declare class StreamEventSource extends StreamEventSource_base {
  * TODO: Workers cannot consume K2 yet — K2 has no push consumers (they are
  * on Cloudflare's roadmap), so no Worker layer ships.
  * :::
- * ### Consuming a Stream.Stream
+ * ### Consuming a Stream
  * **Example:** Log every record
  * ```typescript
  * yield* Cloudflare.K2.consumeStreamRecords(Orders, (records) =>
