@@ -1,6 +1,4 @@
 import { type KubernetesObjectDefinition, type KubernetesObjectMetadata } from "@alchemy.run/kubernetes/Objects";
-import * as Effect from "effect/Effect";
-import type { Cluster } from "../Cluster.ts";
 /**
  * Internal helpers for binding Kubernetes objects onto a
  * `GCP.Container.Cluster` through its `KubernetesObjectBinding` contract.
@@ -8,6 +6,8 @@ import type { Cluster } from "../Cluster.ts";
  * the control plane is RUNNING. Not exported from the Container index —
  * the public path for raw manifests is `Kubernetes.Manifest`.
  */
+import * as Effect from "effect/Effect";
+import type { Cluster } from "../Cluster.ts";
 export interface ClusterObjectProps {
     /** Target GKE cluster that will own this Kubernetes object. */
     cluster: Cluster;
