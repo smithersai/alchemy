@@ -1,5 +1,4 @@
 import type { Input } from "alchemy/Input";
-import { moduleExtension } from "alchemy/Util/Node";
 import * as Duration from "effect/Duration";
 import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
 import type { SubnetId } from "../EC2/Subnet.ts";
@@ -81,8 +80,7 @@ export interface MigrationRunnerProps {
  */
 export const MigrationRunner = (id: string, props: MigrationRunnerProps) =>
   LambdaFunction(id, {
-    main: new URL(`./MigrationRunnerHandler${moduleExtension(import.meta.url)}`, import.meta.url)
-      .href,
+    main: import.meta.resolve("@alchemy.run/aws/RDS/MigrationRunnerHandler"),
     handler: "handler",
     runtime: "nodejs24.x",
     vpc: {
