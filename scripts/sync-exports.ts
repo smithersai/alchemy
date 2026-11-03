@@ -16,18 +16,19 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import { ChildProcess } from "effect/process";
 import { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";
+import { findInternalReferences } from "./exports-check.ts";
 
 class InvalidManifest extends Data.TaggedError("InvalidManifest")<{
   readonly path: string;
   readonly cause: unknown;
 }> {}
 
-const run = Effect.fn(function* (command: string, args: Array<string>, cwd: string) {
+const run = Effect.fn(function* (command: string, args: Array<string>, cwd: string, check = false) {
   const spawner = yield* ChildProcessSpawner;
   return yield* spawner.exitCode(
     ChildProcess.make(command, args, {
       cwd,
-      env: { PACKAGE_BUILD_EXPORTS_ONLY: "1" },
+      env: { PACKAGE_BUILD_EXPORTS_ONLY: "1", PACKAGE_BUILD_EXPORTS_CHECK: check ? "1" : "0" },
       extendEnv: true,
       stdout: "inherit",
       stderr: "inherit",
@@ -57,7 +58,7 @@ const command = Command.make(
     for (const name of directories) {
       const directory = path.join(packages, name);
       if (!(yield* fs.exists(path.join(directory, "scripts", "build.ts")))) continue;
-      const exitCode = yield* run("node", ["scripts/build.ts"], directory);
+      const exitCode = yield* run("node", ["scripts/build.ts"], directory, check);
       if (exitCode !== 0) {
         return yield* Effect.fail(
           new Error(`packages/${name}: export sync exited with ${exitCode}`),
@@ -73,37 +74,18 @@ const command = Command.make(
         catch: (cause) => new InvalidManifest({ path: `packages/${name}/package.json`, cause }),
       });
       if (Object.values(manifest.publishConfig?.exports ?? {}).includes(null)) {
-        blocking.push(manifest.name.replaceAll(".", String.raw`\.`));
+        blocking.push(manifest.name);
       }
     }
 
     if (check) {
-      const exitCode = yield* run(
-        "git",
-        ["diff", "--exit-code", "--stat", "--", "packages/*/package.json"],
-        root,
+      const found = yield* Effect.tryPromise(() =>
+        findInternalReferences(root, directories, blocking),
       );
-      if (exitCode !== 0) {
-        return yield* Effect.fail(
-          new Error(
-            "Package exports are out of date. Run `pnpm exports:sync` and commit the result.",
-          ),
-        );
-      }
-      // Published packages block `internal/` and `internal.ts`, so only tests may reach into them.
-      const found = yield* run(
-        "git",
-        [
-          "grep",
-          "-nE",
-          `"(${blocking.join("|")})/([^"]*/)?internal[/"]`,
-          "--",
-          "packages/*/src/**",
-          "examples",
-        ],
-        root,
-      );
-      if (found === 0) {
+      if (found.length > 0) {
+        for (const reference of found) {
+          yield* Console.error(reference.file + ":" + reference.line + ": " + reference.specifier);
+        }
         return yield* Effect.fail(
           new Error(
             "Package source and examples must not import another package's internal/ or internal.ts.",

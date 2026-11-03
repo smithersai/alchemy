@@ -435,7 +435,8 @@ const syncPublishExports = Effect.fn(function* (
   const path = yield* Path.Path;
 
   const packageJsonPath = path.join(packageDirectory, "package.json");
-  const packageJson = JSON.parse(yield* fs.readFileString(packageJsonPath)) as {
+  const originalText = yield* fs.readFileString(packageJsonPath);
+  const packageJson = JSON.parse(originalText) as {
     exports: Record<string, string | null>;
     publishConfig?: Record<string, unknown>;
   };
@@ -514,8 +515,7 @@ const syncPublishExports = Effect.fn(function* (
     ]),
   );
 
-  yield* fs.writeFileString(
-    packageJsonPath,
+  const nextText =
     JSON.stringify(
       {
         ...packageJson,
@@ -528,8 +528,14 @@ const syncPublishExports = Effect.fn(function* (
       },
       null,
       2,
-    ) + "\n",
-  );
+    ) + "\n";
+  if (process.env.PACKAGE_BUILD_EXPORTS_CHECK === "1") {
+    if (nextText !== originalText) {
+      return yield* Effect.fail(new Error("Package exports are out of date: " + packageJsonPath));
+    }
+  } else {
+    yield* fs.writeFileString(packageJsonPath, nextText);
+  }
 });
 
 const copyRepositoryFiles = Effect.fn(function* (packageDirectory: string, options: BuildOptions) {
