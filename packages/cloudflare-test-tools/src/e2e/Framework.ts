@@ -7,7 +7,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Cwd } from "./Cwd.ts";
 import * as Options from "./Options.ts";
-import * as Vite from "./Vite.vibe";
+import * as Vite from "./Vite.ts";
 
 /**
  * The built-in Vite implementation of framework-core's `Framework` service —

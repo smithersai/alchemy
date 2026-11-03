@@ -19,8 +19,8 @@ import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import { COMMENT_MARKER, RegistryConfig } from "./Bindings.vibe";
-import * as KVCache from "./KVCache.vibe";
+import { COMMENT_MARKER, RegistryConfig } from "./Bindings.ts";
+import * as KVCache from "./KVCache.ts";
 
 export class CryptoError extends Data.TaggedError("CryptoError")<{ readonly message: string }> {}
 

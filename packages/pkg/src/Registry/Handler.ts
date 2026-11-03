@@ -16,7 +16,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
-import { ManifestJson, type ManifestPackage } from "../Manifest.vibe";
+import { ManifestJson, type ManifestPackage } from "../Manifest.ts";
 import {
   BadRequest,
   Forbidden,
@@ -28,18 +28,11 @@ import {
   RunRef,
   Upstream,
 } from "../Protocol.ts";
-import {
-  Bucket,
-  Cache,
-  COMMENT_MARKER,
-  Database,
-  RegistryConfig,
-  tarballKey,
-} from "./Bindings.vibe";
+import { Bucket, Cache, COMMENT_MARKER, Database, RegistryConfig, tarballKey } from "./Bindings.ts";
 import * as GitHub from "./GitHub.ts";
-import * as KVCache from "./KVCache.vibe";
-import { sweep } from "./Sweep.vibe";
-import * as Tags from "./Tags.vibe";
+import * as KVCache from "./KVCache.ts";
+import { sweep } from "./Sweep.ts";
+import * as Tags from "./Tags.ts";
 
 /** What GitHub says about a run. */
 const Run = Schema.Struct({

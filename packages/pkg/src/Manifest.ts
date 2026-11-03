@@ -1,4 +1,4 @@
-import * as Schema from "effect/Schema"
+import * as Schema from "effect/Schema";
 
 /**
  * An npm package name, scoped or unscoped, under the rules npm applies to
@@ -11,12 +11,12 @@ export const PackageName = Schema.String.pipe(
     Schema.isPattern(/^(?:@[a-z0-9-*~][a-z0-9-*._~]*\/)?[a-z0-9-~][a-z0-9-._~]*$/),
     Schema.isMaxLength(214),
   ),
-)
+);
 
 /** A display group label for the install comment: `Alchemy`, `@alchemy.run`. */
 export const GroupName = Schema.String.pipe(
   Schema.check(Schema.isPattern(/^[@A-Za-z0-9][A-Za-z0-9 ._@/-]{0,63}$/)),
-)
+);
 
 /**
  * One packed workspace package inside a `pkg pack` artifact.
@@ -39,16 +39,16 @@ export const ManifestPackage = Schema.Struct({
   sha256: Schema.String,
   /** Tarball size in bytes. */
   size: Schema.Number,
-})
-export type ManifestPackage = typeof ManifestPackage.Type
+});
+export type ManifestPackage = typeof ManifestPackage.Type;
 
 /** A display group in the install comment, in the order `pkg pack` listed it. */
 export const ManifestGroup = Schema.Struct({
   name: GroupName,
   /** Render the group collapsed in the install comment. */
   collapsed: Schema.Boolean,
-})
-export type ManifestGroup = typeof ManifestGroup.Type
+});
+export type ManifestGroup = typeof ManifestGroup.Type;
 
 /**
  * The `pkg-manifest.json` written next to the tarballs by `pkg pack` and read
@@ -66,9 +66,9 @@ export const Manifest = Schema.Struct({
    */
   head: Schema.String,
   packages: Schema.Array(ManifestPackage),
-})
-export type Manifest = typeof Manifest.Type
+});
+export type Manifest = typeof Manifest.Type;
 
-export const ManifestJson = Schema.fromJsonString(Manifest)
+export const ManifestJson = Schema.fromJsonString(Manifest);
 
-export const MANIFEST_FILE = "pkg-manifest.json"
+export const MANIFEST_FILE = "pkg-manifest.json";

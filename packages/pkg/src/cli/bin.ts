@@ -8,7 +8,7 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import pkg from "../../package.json" with { type: "json" };
 import { Group, pack } from "./pack.ts";
-import { publish } from "./publish.vibe";
+import { publish } from "./publish.ts";
 
 const groupFlag = Flag.String("group").pipe(
   Flag.withDescription(

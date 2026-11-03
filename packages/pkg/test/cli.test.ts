@@ -16,8 +16,8 @@ import {
   rewriteDependencies,
   tarballFile,
 } from "../src/cli/pack.ts";
-import { publish } from "../src/cli/publish.vibe";
-import { GroupName, PackageName, type Manifest } from "../src/Manifest.vibe";
+import { publish } from "../src/cli/publish.ts";
+import { GroupName, PackageName, type Manifest } from "../src/Manifest.ts";
 import { manifestArtifactName, tarballUrl } from "../src/Protocol.ts";
 import { Policy } from "../src/Registry.ts";
 import { installTag, parseInstallPath, tagsFor } from "../src/Registry/Handler.ts";
