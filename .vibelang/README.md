@@ -18,5 +18,3 @@ behaviour with:
 
 The tests cover development and published exports, source-only conditions,
 nested paths, Unicode module names and relative imports through public facades.
-
-`pnpm exports:check` validates the generated maps without writing manifests or consulting version control. It also checks quoted private package references in authored package source and examples, including `.vibe` files. Use `pnpm exports:sync` to write updated maps.

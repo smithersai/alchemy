@@ -2,7 +2,6 @@
 
 ### Bug fixes
 
-- `exports:check` could reject correct maps because it depended on Git state. It now checks source files without version control and leaves package manifests unchanged.
 - Compiler-generated inline module helpers could appear as public package subpaths. Named helper implementations now stay private while their public facades remain usable.
 
 ## v2.0.0-beta.84
