@@ -16,7 +16,7 @@ import type { ArtifactStore } from "./Artifacts.ts";
 import type { CredentialsStore } from "./Auth/Credentials.ts";
 import type { ProfileStore } from "./Auth/Profile.ts";
 import { AuthProvidersLive, type AuthProviders } from "./Auth/Registry.ts";
-import type { Input, InputProps } from "./Input.ts";
+import type { Input, InputProps } from "./Input.vibe";
 // Type-only: with verbatimModuleSyntax a value import would survive emit and
 // drag the terminal helpers (node:tty, Sigil's ansi helpers) into every unbundled
 // child process that loads Stack.ts.

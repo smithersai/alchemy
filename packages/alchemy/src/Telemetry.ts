@@ -49,7 +49,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
-import type { Input } from "./Input.ts";
+import type { Input } from "./Input.vibe";
 import * as Output from "./Output.ts";
 import { CurrentRuntimeContext } from "./RuntimeContext.ts";
 import {

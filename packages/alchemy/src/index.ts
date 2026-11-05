@@ -10,7 +10,7 @@ export {
 } from "./Binding.ts";
 export * from "./Destroy.ts";
 export * from "./Diff.ts";
-export * from "./Input.ts";
+export * from "./Input.vibe";
 export * from "./InstanceId.ts";
 export * from "./KeyPair.ts";
 export * from "./Namespace.ts";

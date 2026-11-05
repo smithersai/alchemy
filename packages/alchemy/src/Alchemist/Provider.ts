@@ -7,7 +7,7 @@ import { resolveProfileName } from "../Auth/Resolve.ts";
 import { loadConfigProvider } from "../Util/ConfigProvider.ts";
 import { collectAuthProviders } from "./AuthRegistry.ts";
 import { DEFAULT_ENTRYPOINT, type Target } from "./Entrypoint.ts";
-import { AlchemistInvalidInput } from "./Errors.ts";
+import { AlchemistInvalidInput } from "./Errors.vibe";
 
 export interface CheckEnvironmentInput extends Target {
   /** Providers to check. Omitted means every registered provider. */

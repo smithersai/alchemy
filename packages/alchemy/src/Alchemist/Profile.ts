@@ -10,7 +10,7 @@ import { emit } from "../Events.ts";
 import type { Interaction } from "../Interaction.ts";
 import { collectAuthProviders } from "./AuthRegistry.ts";
 import { DEFAULT_ENTRYPOINT, type Target } from "./Entrypoint.ts";
-import { AlchemistInvalidInput, AlchemistNotFound } from "./Errors.ts";
+import { AlchemistInvalidInput, AlchemistNotFound } from "./Errors.vibe";
 
 /** Which project/profile pair a provider-scoped operation resolves against. */
 export interface ProviderContext extends Target {

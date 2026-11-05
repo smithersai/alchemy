@@ -6,7 +6,7 @@ import * as Option from "effect/Option";
 import type { Pipeable } from "effect/Pipeable";
 import { AdoptPolicy } from "./AdoptPolicy.ts";
 import { toFqn } from "./FQN.ts";
-import type { Input, InputProps, PropsInput } from "./Input.ts";
+import type { Input, InputProps, PropsInput } from "./Input.vibe";
 import { CurrentNamespace, type NamespaceNode } from "./Namespace.ts";
 import * as Output from "./Output.ts";
 import { Provider } from "./Provider.ts";

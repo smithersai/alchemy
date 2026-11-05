@@ -34,7 +34,7 @@ import {
 } from "./Auth/Demand.ts";
 import { havePropsChanged, isResolved, stripEffects, stripUnresolved } from "./Diff.ts";
 import { captureEmit, type ApplyEvent, type ApplyStatus } from "./Events.ts";
-import type { Input } from "./Input.ts";
+import type { Input } from "./Input.vibe";
 import { generateInstanceId } from "./InstanceId.ts";
 import * as Output from "./Output.ts";
 import { type ActionApply, type Apply, type Delete, type Plan } from "./Plan.ts";
