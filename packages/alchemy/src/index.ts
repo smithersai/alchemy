@@ -27,7 +27,7 @@ export * from "./Ref.ts";
 export * as RemovalPolicy from "./RemovalPolicy.ts";
 export { renamedFrom } from "./Rename.ts";
 export * from "./Resource.ts";
-export * from "./ResourceContext.ts";
+export * from "./ResourceContext.vibe";
 export * as Schema from "./Schema.ts";
 export * as Secrets from "./Secrets/index.ts";
 export { Stack, type SecretProviders, type StackSecrets } from "./Stack.ts";

@@ -9,7 +9,7 @@ import { AlchemyContext } from "../AlchemyContext.ts";
 import type { AuthProviders } from "../Auth/AuthProvider.ts";
 import type { ProfileStore } from "../Auth/Profile.ts";
 import type { Stack } from "../Stack.ts";
-import { StackContext } from "../StackContext.ts";
+import { StackContext } from "../StackContext.vibe";
 import { Stage } from "../Stage.ts";
 
 /** What a secrets provider may depend on. */

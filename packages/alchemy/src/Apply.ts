@@ -48,7 +48,7 @@ import {
 import { stampedMode, type ProviderMode } from "./ProviderMode.ts";
 import { resourceSession } from "./Report.ts";
 import type { ResourceBinding } from "./Resource.ts";
-import { ResourceContext } from "./ResourceContext.ts";
+import { ResourceContext } from "./ResourceContext.vibe";
 import { RuntimeContext } from "./RuntimeContext.ts";
 import { Stack } from "./Stack.ts";
 import { Stage } from "./Stage.ts";

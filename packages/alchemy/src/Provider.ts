@@ -18,7 +18,7 @@ import type {
   ResourceClassLike,
   ResourceLike,
 } from "./Resource.ts";
-import type { ResourceContext } from "./ResourceContext.ts";
+import type { ResourceContext } from "./ResourceContext.vibe";
 import type { State } from "./State/State.ts";
 
 export interface Provider<R extends ResourceLike = ResourceLike> extends Effect.Effect<

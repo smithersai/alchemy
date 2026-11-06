@@ -25,7 +25,7 @@ import * as Output from "./Output.ts";
 import type { Provider, ProviderCollectionLike } from "./Provider.ts";
 import type { ResourceBinding, ResourceLike } from "./Resource.ts";
 import type { SecretsEntry, SecretsOption } from "./Secrets/Provider.ts";
-import { StackContext } from "./StackContext.ts";
+import { StackContext } from "./StackContext.vibe";
 import { Stage } from "./Stage.ts";
 import type { State } from "./State/State.ts";
 import { stackConfigLayer } from "./Util/ConfigProvider.ts";

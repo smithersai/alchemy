@@ -19,7 +19,7 @@ import { ref as makeRef } from "./Ref.ts";
 import { RemovalPolicy } from "./RemovalPolicy.ts";
 import { RenamePolicy } from "./Rename.ts";
 import { Self } from "./Self.ts";
-import { StackContext } from "./StackContext.ts";
+import { StackContext } from "./StackContext.vibe";
 
 export type ResourceConstructor<R extends ResourceLike, Req = never> = {
   Type: R["Type"];
