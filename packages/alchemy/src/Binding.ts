@@ -6,7 +6,7 @@ import type { Input } from "./Input.vibe";
 import * as Output from "./Output.ts";
 import { describeDataPlane, type DataPlaneResolution } from "./Provider.ts";
 import { isResource, type ResourceLike } from "./Resource.ts";
-import { Self } from "./Self.ts";
+import { Self } from "./Self.vibe";
 import { taggedFunction } from "./Util/effect.ts";
 
 export interface ServiceLike {

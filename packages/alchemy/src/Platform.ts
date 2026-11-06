@@ -32,7 +32,7 @@ import {
   sanitizeKey,
   type BaseRuntimeContext,
 } from "./RuntimeContext.ts";
-import { Self } from "./Self.ts";
+import { Self } from "./Self.vibe";
 import type { Stack, StackServices } from "./Stack.ts";
 import { StackContext } from "./StackContext.vibe";
 import type { Stage } from "./Stage.ts";
