@@ -17,7 +17,7 @@ import type { CredentialsStore } from "./Auth/Credentials.ts";
 import type { ProfileStore } from "./Auth/Profile.ts";
 import type { Interaction } from "./Interaction.ts";
 import type { State } from "./State/State.ts";
-import { UserFacingError } from "./UserFacingError.ts";
+import { UserFacingError } from "./UserFacingError.vibe";
 import type { PlatformServices } from "./Util/PlatformServices.ts";
 
 /**

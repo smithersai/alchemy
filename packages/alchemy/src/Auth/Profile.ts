@@ -9,7 +9,7 @@ import * as Path from "effect/Path";
 import type { PlatformError } from "effect/PlatformError";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
-import { UserFacingError } from "../UserFacingError.ts";
+import { UserFacingError } from "../UserFacingError.vibe";
 import { writeFileAtomic } from "../Util/AtomicFile.ts";
 import { profileCommandHint } from "../Util/interactive.ts";
 import { AuthError, type AuthProvider } from "./AuthProvider.ts";

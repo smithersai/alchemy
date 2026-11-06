@@ -5,7 +5,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Runtime from "effect/Runtime";
 import * as Schema from "effect/Schema";
-import { isUserFacing, UserFacingError } from "../../UserFacingError.ts";
+import { isUserFacing, UserFacingError } from "../../UserFacingError.vibe";
 import {
   ANSI_DIM,
   ANSI_RESET,

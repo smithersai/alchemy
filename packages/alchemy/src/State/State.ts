@@ -1,7 +1,7 @@
 import * as Context from "effect/Context";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import { UserFacingError } from "../UserFacingError.ts";
+import { UserFacingError } from "../UserFacingError.vibe";
 import type { ActionState } from "./ActionState.ts";
 import type { ReplacedResourceState, ResourceState } from "./ResourceState.ts";
 

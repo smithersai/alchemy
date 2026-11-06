@@ -3,7 +3,7 @@ import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import { UserFacingError } from "../UserFacingError.ts";
+import { UserFacingError } from "../UserFacingError.vibe";
 import { loadConfigProvider } from "../Util/ConfigProvider.ts";
 import { AuthError, getAuthProvider, presentEnvironment } from "./AuthProvider.ts";
 import { cacheUntilExpiry } from "./CredentialsCache.ts";
