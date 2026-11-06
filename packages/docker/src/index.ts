@@ -10,7 +10,7 @@ export {
   DockerRegistryBlobUnknown,
   DockerRegistryUnavailable,
   type DockerImagePublicationError,
-} from "./RegistryError.ts";
+} from "./RegistryError.vibe";
 export * from "./RemoteImage.vibe";
 export * from "./Service.ts";
 export * from "./Swarm.vibe";

@@ -66,7 +66,7 @@ export declare const makeServiceImage: Effect.Effect<{
     }) => Effect.Effect<{
         imageRef: string;
         codeHash: string;
-    }, Bundle.BundleError | import("./RegistryError.ts").DockerImagePublicationError, import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
+    }, Bundle.BundleError | import("./RegistryError.vibe").DockerImagePublicationError, import("effect/FileSystem").FileSystem | import("effect/Path").Path | import("alchemy/Stack").Stack | import("alchemy/Stage").Stage>;
     hash: (options: {
         source: BundledServiceSource;
         isExternal?: boolean;
