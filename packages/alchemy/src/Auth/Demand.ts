@@ -41,7 +41,7 @@ import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import type { BindingNode, Plan } from "../Plan.ts";
-import { UserFacingError } from "../UserFacingError.vibe";
+import { UserFacingError } from "../UserFacingError.ts";
 import { profileCommandHint } from "../Util/interactive.ts";
 import { AuthError, AuthProviders, NeedsReauth, presentEnvironment } from "./AuthProvider.ts";
 import {

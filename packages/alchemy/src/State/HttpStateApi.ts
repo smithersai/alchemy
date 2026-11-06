@@ -10,7 +10,7 @@ import * as HttpApiSecurity from "effect/http-api/HttpApiSecurity";
 import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
-import { UserFacingError } from "../UserFacingError.vibe";
+import { UserFacingError } from "../UserFacingError.ts";
 
 /**
  * Resource-state payload shape on the wire.

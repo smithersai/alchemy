@@ -28,7 +28,7 @@ import { ChildProcess } from "effect/process";
 import type { ChildProcessSpawner } from "effect/process/ChildProcessSpawner";
 import type * as Scope from "effect/Scope";
 import type { ReactNode } from "react";
-import { UserFacingError } from "./UserFacingError.vibe";
+import { UserFacingError } from "./UserFacingError.ts";
 import { ANSI_DIM, ANSI_RESET, ansiFg, colorsEnabled, unicodeEnabled } from "./Util/Terminal.ts";
 import { glyphsFor, statusColor, type StatusVariant } from "./Util/Theme.ts";
 

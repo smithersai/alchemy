@@ -1,4 +1,4 @@
-import { UserFacingError } from "../UserFacingError.vibe";
+import { UserFacingError } from "../UserFacingError.ts";
 /** A non-fatal note attached to a successful result. */
 export interface Diagnostic {
     readonly severity: "debug" | "info" | "warning" | "error";

@@ -7,7 +7,7 @@ import * as Path from "effect/Path";
 import * as Predicate from "effect/Predicate";
 import { emit } from "../Events.ts";
 import type { ConfiguredStack } from "../Stack.ts";
-import { UserFacingError } from "../UserFacingError.vibe";
+import { UserFacingError } from "../UserFacingError.ts";
 
 export class StackEntrypointError extends Data.TaggedError("StackEntrypointError")<{
   readonly message: string;
