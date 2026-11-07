@@ -1,4 +1,4 @@
-import { type MigrationConnectionTarget } from "./MigrationConnection.ts";
+import { type MigrationConnectionTarget } from "./MigrationConnection.vibe";
 /**
  * One SQL operation the deploying machine asks the in-VPC runner to perform.
  * `batch` runs its statements in one transaction.

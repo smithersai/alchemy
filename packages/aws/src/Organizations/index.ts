@@ -8,7 +8,7 @@ export * from "./PolicyAttachment.vibe";
 export * from "./Root.vibe";
 export * from "./RootPolicyType.vibe";
 export * from "./TrustedServiceAccess.vibe";
-export * from "./TenantRoot.ts";
+export * from "./TenantRoot.vibe";
 // Event source
 export * from "./OrganizationsEventSource.ts";
 // Runtime bindings (contracts + HTTP implementations).

@@ -51,7 +51,7 @@ export * from "./ListMetricsHttp.vibe";
 export * from "./ListTagsForResource.vibe";
 export * from "./ListTagsForResourceHttp.vibe";
 export * from "./MetricSink.vibe";
-export * from "./MetricSinkHttp.ts";
+export * from "./MetricSinkHttp.vibe";
 export * from "./MetricStream.vibe";
 export * from "./PutMetricData.vibe";
 export * from "./PutMetricDataHttp.vibe";

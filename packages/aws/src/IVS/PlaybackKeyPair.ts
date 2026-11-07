@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { retryWhileThrottled, syncIvsTags, toTagRecord } from "./internal.ts";
+import { retryWhileThrottled, syncIvsTags, toTagRecord } from "./internal.vibe";
 
 export interface PlaybackKeyPairProps {
   /**

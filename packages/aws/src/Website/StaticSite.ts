@@ -23,7 +23,7 @@ import {
   MANAGED_CACHING_OPTIMIZED_POLICY_ID,
 } from "../CloudFront/ManagedPolicies.ts";
 import { OriginAccessControl } from "../CloudFront/OriginAccessControl.vibe";
-import { domainCertificate, resolveDomainDns } from "../CustomDomain.ts";
+import { domainCertificate, resolveDomainDns } from "../CustomDomain.vibe";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { Bucket } from "../S3/Bucket.ts";
 import { AssetDeployment } from "./AssetDeployment.ts";

@@ -15,7 +15,7 @@ import * as Effectable from "effect/Effectable";
 import type * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import type { Scope } from "effect/Scope";
-import type { DurableExecutionContext, DurableStep } from "./Durable.ts";
+import type { DurableExecutionContext, DurableStep } from "./Durable.vibe";
 import {
   DURABLE_SDK_MODULE,
   encodeDurableEnvelope,

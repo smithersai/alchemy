@@ -19,7 +19,7 @@ export * from "./PurgeQueueHttp.vibe";
 export * from "./Queue.vibe";
 export * from "./QueueEventSource.ts";
 export * from "./QueueSink.vibe";
-export * from "./QueueSinkHttp.ts";
+export * from "./QueueSinkHttp.vibe";
 export * from "./ReceiveMessage.vibe";
 export * from "./ReceiveMessageHttp.vibe";
 export * from "./SendMessage.vibe";

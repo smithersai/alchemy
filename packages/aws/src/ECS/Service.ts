@@ -26,7 +26,7 @@ import { ScalableTarget } from "../ApplicationAutoScaling/ScalableTarget.vibe";
 import { ScalingPolicy } from "../ApplicationAutoScaling/ScalingPolicy.vibe";
 import { Service as CloudMapService } from "../CloudMap/Service.vibe";
 import type { Credentials } from "../Credentials.ts";
-import { domainCertificate, isRoute53Dns, resolveDomainDns } from "../CustomDomain.ts";
+import { domainCertificate, isRoute53Dns, resolveDomainDns } from "../CustomDomain.vibe";
 import {
   SecurityGroup,
   type SecurityGroupId,

@@ -22,7 +22,7 @@ import {
   retryWhileConflict,
   retryWhileRoleNotAssumable,
   syncTags,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 /** An S3 output target for a recipe job. */
 export interface JobOutput {

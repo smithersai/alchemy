@@ -14,7 +14,7 @@ import { KeyValueStore } from "../CloudFront/KeyValueStore.vibe";
 import { KvEntries } from "../CloudFront/KvEntries.vibe";
 import { KvRoutesUpdate } from "../CloudFront/KvRoutesUpdate.ts";
 import { MANAGED_ALL_VIEWER_EXCEPT_HOST_HEADER_POLICY_ID } from "../CloudFront/ManagedPolicies.ts";
-import { domainCertificate, resolveDomainDns } from "../CustomDomain.ts";
+import { domainCertificate, resolveDomainDns } from "../CustomDomain.vibe";
 import type { PolicyStatement } from "../IAM/Policy.vibe";
 import type { Bucket } from "../S3/Bucket.ts";
 import { buildHostRedirectInjection, CF_ROUTER_INJECTION } from "./cfcode.ts";

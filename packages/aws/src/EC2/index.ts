@@ -21,7 +21,7 @@ export * from "./GetConsoleOutput.vibe";
 export * from "./GetConsoleOutputHttp.vibe";
 export * from "./GetPasswordData.vibe";
 export * from "./GetPasswordDataHttp.vibe";
-export * from "./Image.ts";
+export * from "./Image.vibe";
 export * from "./Instance.ts";
 export * from "./InstanceEventSource.ts";
 export * from "./InternetGateway.vibe";

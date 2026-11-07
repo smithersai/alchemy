@@ -1,6 +1,6 @@
 export * from "./DeliveryStream.vibe";
 export * from "./DeliveryStreamSink.vibe";
-export * from "./DeliveryStreamSinkHttp.ts";
+export * from "./DeliveryStreamSinkHttp.vibe";
 export * from "./ListDeliveryStreams.vibe";
 export * from "./ListDeliveryStreamsHttp.vibe";
 export * from "./PutRecord.vibe";

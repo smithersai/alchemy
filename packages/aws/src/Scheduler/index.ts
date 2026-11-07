@@ -1,4 +1,4 @@
-export * from "./builders.ts";
+export * from "./builders.vibe";
 export * from "./CreateSchedule.vibe";
 export * from "./CreateScheduleHttp.vibe";
 export * from "./DeleteSchedule.vibe";
@@ -8,7 +8,7 @@ export * from "./GetScheduleHttp.vibe";
 export * from "./ListSchedules.vibe";
 export * from "./ListSchedulesHttp.vibe";
 export * from "./Schedule.vibe";
-export * from "./ScheduleEventSource.ts";
+export * from "./ScheduleEventSource.vibe";
 export * from "./ScheduleGroup.vibe";
 export * from "./UpdateSchedule.vibe";
 export * from "./UpdateScheduleHttp.vibe";

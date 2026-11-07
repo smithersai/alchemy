@@ -2,7 +2,7 @@ import type * as ec2 from "@distilled.cloud/aws/ec2";
 import * as Binding from "alchemy/Binding";
 import type { Input } from "alchemy/Input";
 import type * as Effect from "effect/Effect";
-import type { FindImageOptions } from "./Image.ts";
+import type { FindImageOptions } from "./Image.vibe";
 /**
  * The `DescribeImages`-backed AMI lookup (IAM action `ec2:DescribeImages`;
  * `Describe*` actions do not support resource-level permissions, so the

@@ -34,6 +34,6 @@ export * from "./Stream.vibe";
 export * from "./StreamConsumer.vibe";
 export * from "./StreamEventSource.vibe";
 export * from "./StreamSink.vibe";
-export * from "./StreamSinkHttp.ts";
+export * from "./StreamSinkHttp.vibe";
 export * from "./SubscribeToShard.vibe";
 export * from "./SubscribeToShardHttp.vibe";
