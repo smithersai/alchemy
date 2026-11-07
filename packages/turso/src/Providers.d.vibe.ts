@@ -1,6 +1,6 @@
 import * as Provider from "alchemy/Provider";
 import * as Layer from "effect/Layer";
-import * as Credentials from "./Credentials.ts";
+import * as Credentials from "./Credentials.vibe";
 declare const Providers_base: Provider.ProviderCollection<Providers, "Turso">;
 /**
  * Service tag bundling all Turso providers + auth + credentials. Use

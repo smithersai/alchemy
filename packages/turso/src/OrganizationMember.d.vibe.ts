@@ -43,4 +43,4 @@ export type OrganizationMember = Resource<"Turso.OrganizationMember", Organizati
  * @product Organization
  */
 export declare const OrganizationMember: import("alchemy/Resource").ResourceClass<OrganizationMember>;
-export declare const OrganizationMemberProvider: () => import("effect/Layer").Layer<Provider.Provider<OrganizationMember>, never, import("./Credentials.ts").Organization | turso.TursoOpContext>;
+export declare const OrganizationMemberProvider: () => import("effect/Layer").Layer<Provider.Provider<OrganizationMember>, never, import("./Credentials.vibe").Organization | turso.TursoOpContext>;

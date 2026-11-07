@@ -47,5 +47,5 @@ export type OrganizationSettings = Resource<"Turso.OrganizationSettings", Organi
  * @product Organization
  */
 export declare const OrganizationSettings: import("alchemy/Resource").ResourceClass<OrganizationSettings>;
-export declare const OrganizationSettingsProvider: () => import("effect/Layer").Layer<Provider.Provider<OrganizationSettings>, never, import("./Credentials.ts").Organization | turso.TursoOpContext>;
+export declare const OrganizationSettingsProvider: () => import("effect/Layer").Layer<Provider.Provider<OrganizationSettings>, never, import("./Credentials.vibe").Organization | turso.TursoOpContext>;
 export {};

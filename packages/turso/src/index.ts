@@ -8,7 +8,7 @@ export {
   fromAuthProvider,
   fromToken,
   Organization,
-} from "./Credentials.ts";
+} from "./Credentials.vibe";
 export * from "./Database.ts";
 export * from "./DatabaseToken.ts";
 export * from "./Group.vibe";

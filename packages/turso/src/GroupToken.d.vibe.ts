@@ -52,5 +52,5 @@ export type GroupToken = Resource<"Turso.GroupToken", GroupTokenProps, GroupToke
  * @product Group
  */
 export declare const GroupToken: import("alchemy/Resource").ResourceClass<GroupToken>;
-export declare const GroupTokenProvider: () => import("effect/Layer").Layer<Provider.Provider<GroupToken>, never, import("./Credentials.ts").Organization | turso.TursoOpContext>;
+export declare const GroupTokenProvider: () => import("effect/Layer").Layer<Provider.Provider<GroupToken>, never, import("./Credentials.vibe").Organization | turso.TursoOpContext>;
 export {};
