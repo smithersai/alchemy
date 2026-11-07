@@ -2,6 +2,10 @@
 
 ### Bug fixes
 
+- Export checks could report native package maps as stale after rebuilding. Raw module privacy blocks now keep a stable order across regeneration.
+- SSR website sources could fail to load their shared domain helper. They now resolve its native module.
+- Bun and Node benchmark images could fail to resolve their shared native implementation. Both image sources now import the correct module.
+- Neon credential scope declarations could point at a missing native peer. They now reference the retained TypeScript gateway source.
 - Frozen dependency installs could reject an unchanged workspace hook. The lockfile now records its checksum without changing dependency versions.
 - Compiler-generated inline module helpers could appear as public package subpaths. Named helper implementations now stay private while their public facades remain usable.
 

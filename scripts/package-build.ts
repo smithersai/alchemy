@@ -471,13 +471,20 @@ const syncPublishExports = Effect.fn(function* (
   // compiler details, while the facade remains a public module.
   if (hasVibeSource) {
     const sourceExports = packageJson.exports;
+    const rawSubpaths = new Set(
+      Object.keys(sourceExports)
+        .filter((subpath) => subpath.endsWith("*"))
+        .map((subpath) => subpath + ".vibe.raw"),
+    );
     packageJson.exports = Object.fromEntries(
-      Object.entries(sourceExports).flatMap((entry) => [
-        ...(entry[0].endsWith("*") && !Object.hasOwn(sourceExports, entry[0] + ".vibe.raw")
-          ? [[entry[0] + ".vibe.raw", null] as const]
-          : []),
-        entry,
-      ]),
+      Object.entries(sourceExports)
+        .filter(([subpath]) => !rawSubpaths.has(subpath))
+        .flatMap((entry) => [
+          ...(entry[0].endsWith("*")
+            ? [[entry[0] + ".vibe.raw", sourceExports[entry[0] + ".vibe.raw"] ?? null] as const]
+            : []),
+          entry,
+        ]),
     );
   }
 
