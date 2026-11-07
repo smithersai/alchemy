@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
-import { EntriesTable, GuestbookCluster, GuestbookNamespace } from "./infra.ts";
+import { EntriesTable, GuestbookCluster, GuestbookNamespace } from "./infra.vibe";
 
 /**
  * The guestbook API: a `Kubernetes.Deployment` in the TAGGED form — the class
