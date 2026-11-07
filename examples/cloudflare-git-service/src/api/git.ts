@@ -7,7 +7,7 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import * as Layer from "effect/Layer";
 import { AppApi, MeLive } from "./api.vibe";
 import { GitHubLive } from "./github.vibe";
-import { Authentication } from "./middleware.ts";
+import { Authentication } from "./middleware.vibe";
 import { ProtocolLive } from "./protocol.ts";
 import { RefsLive, PullsLive } from "./ref-writes.vibe";
 

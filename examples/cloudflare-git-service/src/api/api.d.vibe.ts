@@ -2,7 +2,7 @@
 import * as Git from "@alchemy.run/git";
 import * as HttpApi from "effect/http-api/HttpApi";
 import { Unauthorized } from "./auth.ts";
-import { Authentication } from "./middleware.ts";
+import { Authentication } from "./middleware.vibe";
 declare const AppApi_base: HttpApi.HttpApi<"app", import("effect/http-api/HttpApiGroup").HttpApiGroup<"app", import("effect/http-api/HttpApiEndpoint").HttpApiEndpoint<"me", "GET", "/api/v1/me", never, never, never, never, import("effect/Schema").toCodecJson<import("effect/Schema").Struct<{
     readonly id: import("effect/Schema").String;
     readonly name: import("effect/Schema").optional<import("effect/Schema").String>;
