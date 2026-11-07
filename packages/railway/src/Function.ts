@@ -45,7 +45,7 @@ import { ownedProjects, projectEnvironmentIds, type Project } from "./Project.ts
 import type { Providers } from "./Providers.ts";
 import { mintRpcToken, RPC_TOKEN_ENV } from "./rpc-token.ts";
 import { ensureServiceDomain, type ServiceDomainRecord } from "./ServiceDomain.ts";
-import { readServiceRegion, syncServiceRegion } from "./ServiceRegion.ts";
+import { readServiceRegion, syncServiceRegion } from "./ServiceRegion.vibe";
 import { attachVolumeToService } from "./Volume.ts";
 
 const serviceFields = <E>(service: Query<RailwayService, E>) => ({

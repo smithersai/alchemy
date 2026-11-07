@@ -1,7 +1,7 @@
 export * from "./AuthProvider.ts";
 export * from "./Bind.ts";
 export { enableRailwayRpc, serveRailwayRpc } from "./rpc-server.ts";
-export * from "./LoginSession.ts";
+export * from "./LoginSession.vibe";
 export * from "./Bucket.ts";
 export * from "./Catalog.vibe";
 export * from "./CloudAgent.vibe";
