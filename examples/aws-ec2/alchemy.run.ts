@@ -2,7 +2,7 @@ import * as AWS from "@alchemy.run/aws";
 import * as Alchemy from "alchemy";
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import { NetworkLive } from "./src/Network.ts";
+import { NetworkLive } from "./src/Network.vibe";
 import Server from "./src/Server.ts";
 
 export default Alchemy.Stack(
