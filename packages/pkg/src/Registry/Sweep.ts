@@ -6,7 +6,7 @@ import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import { Bucket, ORPHAN_GRACE, RegistryConfig, SWEEP_LOOKAHEAD, tarballKey } from "./Bindings.ts";
 import * as GitHub from "./GitHub.ts";
-import * as Tags from "./Tags.ts";
+import * as Tags from "./Tags.vibe";
 
 /**
  * Expiry sweep. Tags tied to pull requests are extended while any of those

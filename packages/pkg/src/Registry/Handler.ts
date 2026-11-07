@@ -32,7 +32,7 @@ import { Bucket, Cache, COMMENT_MARKER, Database, RegistryConfig, tarballKey } f
 import * as GitHub from "./GitHub.ts";
 import * as KVCache from "./KVCache.ts";
 import { sweep } from "./Sweep.ts";
-import * as Tags from "./Tags.ts";
+import * as Tags from "./Tags.vibe";
 
 /** What GitHub says about a run. */
 const Run = Schema.Struct({
