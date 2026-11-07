@@ -17,7 +17,10 @@ import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
-import { classifyDockerRegistryError, type DockerImagePublicationError } from "./RegistryError.vibe";
+import {
+  classifyDockerRegistryError,
+  type DockerImagePublicationError,
+} from "./RegistryError.vibe";
 
 /** Credentials for a single image registry, scoped to a Docker command. */
 export interface RegistryCredentials {

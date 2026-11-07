@@ -28,7 +28,14 @@ import {
   RunRef,
   Upstream,
 } from "../Protocol.ts";
-import { Bucket, Cache, COMMENT_MARKER, Database, RegistryConfig, tarballKey } from "./Bindings.vibe";
+import {
+  Bucket,
+  Cache,
+  COMMENT_MARKER,
+  Database,
+  RegistryConfig,
+  tarballKey,
+} from "./Bindings.vibe";
 import * as GitHub from "./GitHub.ts";
 import * as KVCache from "./KVCache.ts";
 import { sweep } from "./Sweep.ts";
