@@ -23,7 +23,7 @@ export * from "./GetPasswordData.vibe";
 export * from "./GetPasswordDataHttp.vibe";
 export * from "./Image.vibe";
 export * from "./Instance.ts";
-export * from "./InstanceEventSource.ts";
+export * from "./InstanceEventSource.vibe";
 export * from "./InternetGateway.vibe";
 export * from "./KeyPair.vibe";
 export * from "./NatGateway.ts";

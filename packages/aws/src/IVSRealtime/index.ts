@@ -19,7 +19,7 @@ export * from "./ListParticipantsHttp.vibe";
 export * from "./ListStageSessions.vibe";
 export * from "./ListStageSessionsHttp.vibe";
 export * from "./Stage.vibe";
-export * from "./StageEventSource.ts";
+export * from "./StageEventSource.vibe";
 export * from "./StartComposition.vibe";
 export * from "./StartCompositionHttp.vibe";
 export * from "./StartParticipantReplication.vibe";

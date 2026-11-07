@@ -25,7 +25,7 @@ export * from "./NamedQuery.vibe";
 export * from "./PreparedStatement.vibe";
 export * from "./Query.vibe";
 export * from "./QueryHttp.ts";
-export * from "./QueryStateChangeEventSource.ts";
+export * from "./QueryStateChangeEventSource.vibe";
 export * from "./StopQueryExecution.vibe";
 export * from "./StopQueryExecutionHttp.vibe";
 export * from "./WorkGroup.vibe";

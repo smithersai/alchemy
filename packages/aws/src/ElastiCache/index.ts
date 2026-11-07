@@ -1,4 +1,4 @@
-export * from "./CacheEventSource.ts";
+export * from "./CacheEventSource.vibe";
 export * from "./CacheCluster.ts";
 export * from "./Connect.vibe";
 export * from "./ConnectHttp.vibe";

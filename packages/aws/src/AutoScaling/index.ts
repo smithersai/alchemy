@@ -7,7 +7,7 @@ export * from "./DescribeScalingActivities.vibe";
 export * from "./DescribeScalingActivitiesHttp.vibe";
 export * from "./ExecutePolicy.vibe";
 export * from "./ExecutePolicyHttp.vibe";
-export * from "./InstanceEventSource.ts";
+export * from "./InstanceEventSource.vibe";
 export * from "./InstanceRefresh.vibe";
 export * from "./InstanceRefreshHttp.vibe";
 export * from "./LaunchTemplate.ts";

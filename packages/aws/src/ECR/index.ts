@@ -40,7 +40,7 @@ export {
   type ImageScanDetail,
   type ImageScanEvent,
   type ImageScansProps,
-} from "./ImageActionEventSource.ts";
+} from "./ImageActionEventSource.vibe";
 export { InitiateLayerUpload, type InitiateLayerUploadRequest } from "./InitiateLayerUpload.vibe";
 export { InitiateLayerUploadHttp } from "./InitiateLayerUploadHttp.vibe";
 export { ListImages, type ListImagesRequest } from "./ListImages.vibe";

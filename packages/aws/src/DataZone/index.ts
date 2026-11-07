@@ -10,7 +10,7 @@ export * from "./CreateAssetRevision.vibe";
 export * from "./CreateAssetRevisionHttp.vibe";
 export * from "./CreateSubscriptionRequest.vibe";
 export * from "./CreateSubscriptionRequestHttp.vibe";
-export * from "./DataZoneEventSource.ts";
+export * from "./DataZoneEventSource.vibe";
 export * from "./Domain.vibe";
 export * from "./Environment.vibe";
 export * from "./EnvironmentBlueprintConfiguration.ts";

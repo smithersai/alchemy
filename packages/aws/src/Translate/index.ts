@@ -22,4 +22,4 @@ export * from "./TranslateDocument.vibe";
 export * from "./TranslateDocumentHttp.vibe";
 export * from "./TranslateText.vibe";
 export * from "./TranslateTextHttp.vibe";
-export * from "./TranslationJobEventSource.ts";
+export * from "./TranslationJobEventSource.vibe";

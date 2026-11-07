@@ -11,6 +11,6 @@ export * from "./LocationS3.vibe";
 export * from "./StartTaskExecution.vibe";
 export * from "./StartTaskExecutionHttp.vibe";
 export * from "./Task.vibe";
-export * from "./TaskEventSource.ts";
+export * from "./TaskEventSource.vibe";
 export * from "./UpdateTaskExecution.vibe";
 export * from "./UpdateTaskExecutionHttp.vibe";

@@ -1,5 +1,5 @@
 export * from "./Analysis.vibe";
-export * from "./AssetEventSource.ts";
+export * from "./AssetEventSource.vibe";
 export * from "./CancelIngestion.vibe";
 export * from "./CancelIngestionHttp.vibe";
 export * from "./CreateIngestion.vibe";

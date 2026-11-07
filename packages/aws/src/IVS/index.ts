@@ -20,5 +20,5 @@ export * from "./StartViewerSessionRevocation.vibe";
 export * from "./StartViewerSessionRevocationHttp.vibe";
 export * from "./StopStream.vibe";
 export * from "./StopStreamHttp.vibe";
-export * from "./StreamEventSource.ts";
+export * from "./StreamEventSource.vibe";
 export * from "./StreamKey.vibe";

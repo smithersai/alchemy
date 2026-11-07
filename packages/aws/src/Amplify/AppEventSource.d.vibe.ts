@@ -1,7 +1,7 @@
 import type * as amplify from "@distilled.cloud/aws/amplify";
 import * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
-import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.ts";
+import { type EventRecord, type EventRouteProps } from "../EventBridge/EventSource.vibe";
 /**
  * The `detail` payload Amplify Hosting delivers to EventBridge when a
  * deployment (build job) changes status.
@@ -89,4 +89,4 @@ export interface DeploymentStatusChangeEventSourceProps extends EventRouteProps 
  * );
  * ```
  */
-export declare const consumeDeploymentStatusChanges: <StreamReq = never, Req = never>(props: DeploymentStatusChangeEventSourceProps, process: (events: Stream.Stream<DeploymentStatusChangeEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.ts").EventSource>;
+export declare const consumeDeploymentStatusChanges: <StreamReq = never, Req = never>(props: DeploymentStatusChangeEventSourceProps, process: (events: Stream.Stream<DeploymentStatusChangeEvent, never, StreamReq>) => Effect.Effect<void, never, Req>) => Effect.Effect<void, never, import("../EventBridge/EventSource.vibe").EventSource>;

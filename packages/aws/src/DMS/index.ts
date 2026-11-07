@@ -25,7 +25,7 @@ export * from "./RefreshSchemas.vibe";
 export * from "./RefreshSchemasHttp.vibe";
 export * from "./ReloadTables.vibe";
 export * from "./ReloadTablesHttp.vibe";
-export * from "./ReplicationEventSource.ts";
+export * from "./ReplicationEventSource.vibe";
 export * from "./ReplicationInstance.vibe";
 export * from "./ReplicationSubnetGroup.vibe";
 export * from "./StartReplication.vibe";

@@ -42,7 +42,7 @@ export {
   type KeyEventDetail,
   type KeyEventKind,
   type KeyEventSourceProps,
-} from "./KeyEventSource.ts";
+} from "./KeyEventSource.vibe";
 export { ReEncrypt, type ReEncryptRequest } from "./ReEncrypt.vibe";
 export { ReEncryptHttp } from "./ReEncryptHttp.ts";
 export { Sign, type SignRequest } from "./Sign.vibe";

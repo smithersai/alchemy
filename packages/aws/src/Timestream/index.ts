@@ -15,7 +15,7 @@ export * from "./PrepareQueryHttp.vibe";
 export * from "./Query.vibe";
 export * from "./QueryHttp.vibe";
 export * from "./RecordsSink.vibe";
-export * from "./RecordsSinkHttp.ts";
+export * from "./RecordsSinkHttp.vibe";
 export * from "./ResumeBatchLoadTask.vibe";
 export * from "./ResumeBatchLoadTaskHttp.vibe";
 export * from "./ScheduledQuery.vibe";

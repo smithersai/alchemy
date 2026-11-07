@@ -10,7 +10,7 @@ export * from "./ContinueDeploymentHttp.vibe";
 export * from "./CreateDeployment.vibe";
 export * from "./CreateDeploymentHttp.vibe";
 export * from "./DeploymentConfig.vibe";
-export * from "./DeploymentEventSource.ts";
+export * from "./DeploymentEventSource.vibe";
 export * from "./DeploymentGroup.vibe";
 export * from "./GetApplicationRevision.vibe";
 export * from "./GetApplicationRevisionHttp.vibe";

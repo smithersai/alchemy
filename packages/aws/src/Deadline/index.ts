@@ -2,7 +2,7 @@ export * from "./Budget.vibe";
 export * from "./CreateJob.vibe";
 export * from "./CreateJobHttp.vibe";
 export * from "./Farm.vibe";
-export * from "./FarmEventSource.ts";
+export * from "./FarmEventSource.vibe";
 export * from "./Fleet.vibe";
 export * from "./GetJob.vibe";
 export * from "./GetJobHttp.vibe";

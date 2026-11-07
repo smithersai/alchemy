@@ -29,7 +29,7 @@ export * from "./Enabler.vibe";
 export * from "./EnableDelegatedAdminAccount.vibe";
 export * from "./EnableDelegatedAdminAccountHttp.vibe";
 export * from "./Filter.vibe";
-export * from "./FindingEventSource.ts";
+export * from "./FindingEventSource.vibe";
 export * from "./GetCisScanReport.vibe";
 export * from "./GetCisScanReportHttp.vibe";
 export * from "./GetCisScanResultDetails.vibe";

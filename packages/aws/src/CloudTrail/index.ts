@@ -1,4 +1,4 @@
-export * from "./ApiCallEventSource.ts";
+export * from "./ApiCallEventSource.vibe";
 export * from "./CancelQuery.vibe";
 export * from "./CancelQueryHttp.vibe";
 export * from "./DescribeQuery.vibe";

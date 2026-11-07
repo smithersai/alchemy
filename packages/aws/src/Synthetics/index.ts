@@ -1,5 +1,5 @@
 export * from "./Canary.vibe";
-export * from "./CanaryEventSource.ts";
+export * from "./CanaryEventSource.vibe";
 export * from "./DescribeCanariesLastRun.vibe";
 export * from "./DescribeCanariesLastRunHttp.vibe";
 export * from "./GetCanary.vibe";

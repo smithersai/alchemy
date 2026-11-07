@@ -21,7 +21,7 @@ export * from "./ListStackResourcesHttp.vibe";
 export * from "./SignalResource.vibe";
 export * from "./SignalResourceHttp.vibe";
 export * from "./Stack.vibe";
-export * from "./StackEventSource.ts";
+export * from "./StackEventSource.vibe";
 export * from "./ValidateTemplate.vibe";
 export * from "./ValidateTemplateHttp.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding and intentionally NOT exported.

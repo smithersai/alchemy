@@ -7,7 +7,7 @@ export * from "./AddJobFlowStepsHttp.vibe";
 export * from "./CancelSteps.vibe";
 export * from "./CancelStepsHttp.vibe";
 export * from "./Cluster.vibe";
-export * from "./ClusterEventSource.ts";
+export * from "./ClusterEventSource.vibe";
 export * from "./CreatePersistentAppUI.vibe";
 export * from "./CreatePersistentAppUIHttp.vibe";
 export * from "./DescribePersistentAppUI.vibe";

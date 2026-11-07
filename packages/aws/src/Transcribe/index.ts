@@ -84,4 +84,4 @@ export * from "./UpdateVocabulary.vibe";
 export * from "./UpdateVocabularyHttp.vibe";
 export * from "./UpdateVocabularyFilter.vibe";
 export * from "./UpdateVocabularyFilterHttp.vibe";
-export * from "./JobEventSource.ts";
+export * from "./JobEventSource.vibe";

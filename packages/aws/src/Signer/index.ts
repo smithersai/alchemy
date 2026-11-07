@@ -13,7 +13,7 @@ export * from "./RevokeSignature.vibe";
 export * from "./RevokeSignatureHttp.vibe";
 export * from "./RevokeSigningProfile.vibe";
 export * from "./RevokeSigningProfileHttp.vibe";
-export * from "./SigningJobEventSource.ts";
+export * from "./SigningJobEventSource.vibe";
 export * from "./SigningProfile.vibe";
 export * from "./SignPayload.vibe";
 export * from "./SignPayloadHttp.vibe";

@@ -1,4 +1,4 @@
-export * from "./AnomalyEventSource.ts";
+export * from "./AnomalyEventSource.vibe";
 export * from "./AnomalyMonitor.vibe";
 export * from "./AnomalySubscription.vibe";
 export * from "./CostCategory.vibe";

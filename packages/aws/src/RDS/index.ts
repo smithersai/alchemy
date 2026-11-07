@@ -42,7 +42,7 @@ export * from "./FailoverDBCluster.vibe";
 export * from "./FailoverDBClusterHttp.vibe";
 export * from "./MigrationRunner.ts";
 export type { MigrationsTransport } from "./Migrations.vibe";
-export * from "./RdsEventSource.ts";
+export * from "./RdsEventSource.vibe";
 export * from "./RebootDBInstance.vibe";
 export * from "./RebootDBInstanceHttp.vibe";
 export * from "./StartDBCluster.vibe";

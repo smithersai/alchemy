@@ -10,7 +10,7 @@ export * from "./RootPolicyType.vibe";
 export * from "./TrustedServiceAccess.vibe";
 export * from "./TenantRoot.vibe";
 // Event source
-export * from "./OrganizationsEventSource.ts";
+export * from "./OrganizationsEventSource.vibe";
 // Runtime bindings (contracts + HTTP implementations).
 // `BindingHttp.ts` is shared scaffolding and intentionally NOT exported.
 export * from "./AcceptHandshake.vibe";

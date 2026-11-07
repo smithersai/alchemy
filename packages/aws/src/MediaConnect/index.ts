@@ -5,7 +5,7 @@ export * from "./DescribeFlowSourceMetadataHttp.vibe";
 export * from "./DescribeFlowSourceThumbnail.vibe";
 export * from "./DescribeFlowSourceThumbnailHttp.vibe";
 export * from "./Flow.vibe";
-export * from "./FlowEventSource.ts";
+export * from "./FlowEventSource.vibe";
 export * from "./GrantFlowEntitlements.vibe";
 export * from "./GrantFlowEntitlementsHttp.vibe";
 export * from "./ListEntitlements.vibe";

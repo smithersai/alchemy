@@ -31,7 +31,7 @@ export * from "./DisassociateMember.vibe";
 export * from "./DisassociateMemberHttp.vibe";
 export * from "./EnableOrganizationAdminAccount.vibe";
 export * from "./EnableOrganizationAdminAccountHttp.vibe";
-export * from "./FindingEventSource.ts";
+export * from "./FindingEventSource.vibe";
 export * from "./FindingsFilter.vibe";
 export * from "./GetAdministratorAccount.vibe";
 export * from "./GetAdministratorAccountHttp.vibe";

@@ -12,7 +12,7 @@ export * from "./GetWorkflowExecution.vibe";
 export * from "./GetWorkflowExecutionHttp.vibe";
 export * from "./GetWorkflowStepExecution.vibe";
 export * from "./GetWorkflowStepExecutionHttp.vibe";
-export * from "./ImageEventSource.ts";
+export * from "./ImageEventSource.vibe";
 export * from "./ImagePipeline.ts";
 export * from "./ImageRecipe.ts";
 export * from "./InfrastructureConfiguration.ts";

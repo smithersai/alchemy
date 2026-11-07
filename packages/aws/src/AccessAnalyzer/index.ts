@@ -13,7 +13,7 @@ export * from "./CheckNoPublicAccess.vibe";
 export * from "./CheckNoPublicAccessHttp.vibe";
 export * from "./CreateAccessPreview.vibe";
 export * from "./CreateAccessPreviewHttp.vibe";
-export * from "./FindingsEventSource.ts";
+export * from "./FindingsEventSource.vibe";
 export * from "./GenerateFindingRecommendation.vibe";
 export * from "./GenerateFindingRecommendationHttp.vibe";
 export * from "./GetAccessPreview.vibe";
