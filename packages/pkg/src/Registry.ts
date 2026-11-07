@@ -17,10 +17,10 @@ import {
   Settings,
   type GitHubCredentials,
   type WorkerOverrides,
-} from "./Registry/Bindings.ts";
+} from "./Registry/Bindings.vibe";
 import { handler } from "./Registry/Handler.ts";
 
-export { Bucket, Cache, Database, Policy, RegistryConfig, Settings } from "./Registry/Bindings.ts";
+export { Bucket, Cache, Database, Policy, RegistryConfig, Settings } from "./Registry/Bindings.vibe";
 
 export interface RegistryOptions {
   /**
