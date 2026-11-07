@@ -3,7 +3,7 @@ import * as SQL from "@alchemy.run/sql/Postgres";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { Connection, Project } from "./Database.ts";
+import { Connection, Project } from "./Database.vibe";
 
 export default class Api extends Prisma.Compute<Api>()(
   "Api",
