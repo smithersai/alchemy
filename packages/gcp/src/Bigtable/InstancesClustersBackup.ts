@@ -20,7 +20,7 @@ import {
   toPhysicalId,
   waitForOperation,
   collectPages,
-} from "./operations.ts";
+} from "./operations.vibe";
 
 const DEFAULT_EXPIRE_MS = 7 * 24 * 60 * 60 * 1000;
 

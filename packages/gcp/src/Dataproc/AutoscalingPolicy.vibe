@@ -1,0 +1,313 @@
+import * as dataproc from "@distilled.cloud/gcp/dataproc_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  collectPages,
+  LIST_LOCATIONS,
+  MAX_POLICY_ID_LENGTH,
+  defaultWorkerConfig,
+  defaultYarnConfig,
+  emptyOnMissing,
+  fingerprint,
+  hasAlchemyLabelMap,
+  locationParent,
+  normalizeLocation,
+  parseResourceName,
+  sameJson,
+  toPhysicalId,
+  userLabels,
+  waitUntilGone,
+} from "./internal.ts"
+
+export type AutoscalingPolicyProps = {
+  /**
+   * Policy id (the `{policy}` segment of
+   * `projects/{project}/locations/{location}/autoscalingPolicies/{policy}`).
+   * If omitted, a unique RFC1035 name is generated. 3-50 characters;
+   * letters, numbers, hyphens, underscores. Immutable — changing it
+   * replaces the policy.
+   */
+  policyId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * policy. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  location?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Cluster topology this policy applies to (`STANDARD`, `ZERO_SCALE`).
+   */
+  clusterType?: dataproc.AutoscalingPolicyClusterTypeEnum | (string & {})
+  /**
+   * Primary worker bounds. Defaults to min 2, max 3, weight 1.
+   */
+  workerConfig?: dataproc.InstanceGroupAutoscalingPolicyConfig
+  /**
+   * Secondary worker bounds. Optional; omitted means no secondary workers.
+   */
+  secondaryWorkerConfig?: dataproc.InstanceGroupAutoscalingPolicyConfig
+  /**
+   * Duration between scaling events (JSON Duration). Bounds: 2m-1d.
+   * @default "2m"
+   */
+  cooldownPeriod?: string
+  /**
+   * YARN autoscaling configuration. Defaults to scale-up 0.5, no
+   * scale-down, 3600s graceful decommission.
+   */
+  yarnConfig?: dataproc.BasicYarnAutoscalingConfig
+  /**
+   * Spark Standalone autoscaling configuration (Spark Standalone clusters).
+   */
+  sparkStandaloneConfig?: dataproc.SparkStandaloneAutoscalingConfig
+}
+
+export type AutoscalingPolicy = Resource<
+  "GCP.Dataproc.AutoscalingPolicy",
+  AutoscalingPolicyProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/autoscalingPolicies/{policy}`. */
+    name: string
+    /** Policy id (last path segment). */
+    policyId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Cluster topology this policy applies to. */
+    clusterType: string | undefined
+    /** Primary worker min instances. */
+    workerMinInstances: number | undefined
+    /** Primary worker max instances. */
+    workerMaxInstances: number | undefined
+    /** Cooldown period. */
+    cooldownPeriod: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dataproc autoscaling policy (locations API).
+ *
+ * Changing `policyId` or `location` replaces the policy. Worker bounds,
+ * algorithm, and labels update in place via a full-resource replace.
+ *
+ * ### Creating a Policy
+ * **Example:** Generated name
+ * ```typescript
+ * const policy = yield* GCP.Dataproc.AutoscalingPolicy("SparkScale", {});
+ * ```
+ *
+ * **Example:** Explicit bounds
+ * ```typescript
+ * const policy = yield* GCP.Dataproc.AutoscalingPolicy("SparkScale", {
+ *   policyId: "spark-scale",
+ *   location: "us-central1",
+ *   workerConfig: { minInstances: 2, maxInstances: 6 },
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dataproc
+ */
+export const AutoscalingPolicy = Resource<AutoscalingPolicy>("GCP.Dataproc.AutoscalingPolicy")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AutoscalingPolicyNotResolved extends Data.TaggedError(
+  "GCP.Dataproc.AutoscalingPolicyNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (project: string, location: string, policyId: string): infer _ =>
+  `${locationParent(project, location)}/autoscalingPolicies/${policyId}`
+
+const toAttrs = (policy: dataproc.AutoscalingPolicy, project: string, location: string): infer _ => {
+  const name = policy.name ?? ""
+  const parsed = parseResourceName(name, "autoscalingPolicies", location)
+  return {
+    name,
+    policyId: policy.id ?? parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || location,
+    labels: userLabels(policy.labels),
+    clusterType: policy.clusterType,
+    workerMinInstances: policy.workerConfig?.minInstances,
+    workerMaxInstances: policy.workerConfig?.maxInstances,
+    cooldownPeriod: policy.basicAlgorithm?.cooldownPeriod,
+  }
+}
+
+const desiredBody = (
+  news: AutoscalingPolicyProps,
+  policyId: string,
+  name: string,
+  desiredLabels: Record<string, string>,
+): dataproc.AutoscalingPolicy => ({
+  id: policyId,
+  name,
+  labels: desiredLabels,
+  clusterType: news.clusterType,
+  workerConfig: news.workerConfig ?? defaultWorkerConfig(),
+  secondaryWorkerConfig: news.secondaryWorkerConfig,
+  basicAlgorithm: {
+    cooldownPeriod: news.cooldownPeriod,
+    yarnConfig: news.yarnConfig ?? defaultYarnConfig(),
+    sparkStandaloneConfig: news.sparkStandaloneConfig,
+  },
+})
+
+const getByName = effect (name: string) =>
+  dataproc
+    .getProjectsLocationsAutoscalingPolicies({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listLocation = effect (project: string, location: string) =>
+  try emptyOnMissing(
+    effect {
+      return (try collectPages(
+        dataproc.listProjectsLocationsAutoscalingPolicies.pages({
+          parent: locationParent(project, location),
+          pageSize: 1000,
+        }),
+        (page) => page.policies,
+      ))
+        .filter((policy) => hasAlchemyLabelMap(policy.labels))
+        .map((policy) => toAttrs(policy, project, location))
+    },
+  )
+
+const policyChanged = (current: dataproc.AutoscalingPolicy, desired: dataproc.AutoscalingPolicy): infer _ =>
+  !sameJson(current.workerConfig, desired.workerConfig)
+  || !sameJson(current.secondaryWorkerConfig, desired.secondaryWorkerConfig)
+  || (current.clusterType ?? "") !== (desired.clusterType ?? "")
+  || fingerprint(current.basicAlgorithm) !== fingerprint(desired.basicAlgorithm)
+
+export const AutoscalingPolicyProvider = (): infer _ =>
+  Provider.succeed(AutoscalingPolicy, {
+    stables: ["name", "policyId", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousId = olds?.policyId ?? output?.policyId
+      const nextId = news.policyId ?? previousId
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      if (
+        (previousId !== undefined && nextId !== undefined && previousId !== nextId)
+        || (output !== undefined && previousLocation !== nextLocation)
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst: previousLocation === nextLocation && previousId !== undefined && nextId === previousId,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const policyId = try toPhysicalId(
+        id,
+        olds?.policyId,
+        output?.policyId,
+        MAX_POLICY_ID_LENGTH,
+        "policy",
+      )
+      const name = output?.name ?? resourceName(env.project, location, policyId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, location)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const pages = try Effect.forEach(
+        [...new Set([env.region, ...LIST_LOCATIONS])],
+        effect (location) => try listLocation(env.project, location),
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const policyId = try toPhysicalId(
+        id,
+        news.policyId,
+        output?.policyId,
+        MAX_POLICY_ID_LENGTH,
+        "policy",
+      )
+      const name = resourceName(env.project, location, policyId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const desired = desiredBody(news, policyId, name, desiredLabels)
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = dataproc
+          .createProjectsLocationsAutoscalingPolicies({
+            parent: locationParent(env.project, location),
+            body: desired,
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new AutoscalingPolicyNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+
+      if (labelsChanged || policyChanged(current, desired)) {
+        current = try dataproc.updateProjectsLocationsAutoscalingPolicies({
+          name: current.name ?? name,
+          body: {
+            ...desired,
+            name: current.name ?? name,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, location)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      dataproc
+        .deleteProjectsLocationsAutoscalingPolicies({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

@@ -1,0 +1,188 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { PolicyStatement } from "../IAM/Policy.vibe"
+import type { Dataset } from "./Dataset.vibe"
+import type { EventTracker } from "./EventTracker.vibe"
+
+/**
+ * Shared HTTP scaffolding for the Amazon Personalize runtime bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the three
+ * builders below. Everything except the distilled operation, the identifier
+ * injection, and the IAM action list is boilerplate:
+ *
+ * - dataset-scoped operations (`PutItems`, `PutUsers`, `PutActions`) inject
+ *   the bound {@link Dataset}'s ARN as `datasetArn` and grant on it,
+ * - event-tracker-scoped operations (`PutEvents`, `PutActionInteractions`)
+ *   inject the bound {@link EventTracker}'s `trackingId`; per the service
+ *   authorization reference these actions support no resource types, so the
+ *   grant is on `Resource: ["*"]`,
+ * - account-level operations (the `personalize-runtime` recommenders and the
+ *   MLOps retraining loop) address campaigns / solutions / import jobs whose
+ *   ARNs are created at runtime, so they grant on `Resource: ["*"]`.
+ */
+
+/**
+ * Build the impl Effect for a dataset-scoped Personalize operation: the
+ * runtime callable injects the bound {@link Dataset}'s ARN as `datasetArn`
+ * and the deploy-time half grants `actions` on the dataset ARN.
+ */
+export const makePersonalizeDatasetHttpBinding = effect <
+  I extends { datasetArn: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Personalize.PutItems`. */
+  tag: string
+  /** The distilled operation; `datasetArn` is injected from the dataset. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the dataset ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (dataset: Dataset) => {
+    const datasetArn = try dataset.datasetArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${dataset})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [dataset.datasetArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "datasetArn">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            datasetArn: try datasetArn,
+          } as I)
+        },
+        `${options.tag}(${dataset.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an event-tracker-scoped Personalize operation:
+ * the runtime callable injects the bound {@link EventTracker}'s tracking ID
+ * as `trackingId`. The deploy-time half grants `actions` on `Resource: ["*"]`
+ * — `personalize:PutEvents` / `personalize:PutActionInteractions` support no
+ * resource types (a tracker-ARN-scoped grant answers AccessDeniedException).
+ */
+export const makePersonalizeEventTrackerHttpBinding = effect <
+  I extends { trackingId: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Personalize.PutEvents`. */
+  tag: string
+  /** The distilled operation; `trackingId` is injected from the tracker. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the event tracker ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (tracker: EventTracker) => {
+    const trackingId = try tracker.trackingId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${tracker})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            // The event-ingestion actions support no resource types.
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "trackingId">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            trackingId: try trackingId,
+          } as I)
+        },
+        `${options.tag}(${tracker.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level Personalize operation (the
+ * `personalize-runtime` recommendation calls and the MLOps retraining loop):
+ * campaigns, solutions, and import jobs are addressed by ARNs the caller
+ * supplies at runtime, so the deploy-time half grants `actions` on
+ * `Resource: ["*"]`.
+ */
+export const makePersonalizeAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Personalize.GetRecommendations`. */
+  tag: string
+  /** The distilled operation implementing the capability. */
+  operation: ((input: I) => A!E)!never!R
+  /**
+   * IAM actions granted on `Resource: ["*"]` (the target ARNs are chosen by
+   * the caller at runtime).
+   */
+  actions: readonly string[]
+  /**
+   * Grant `iam:PassRole` (conditioned to `personalize.amazonaws.com`) so the
+   * function can hand Personalize the role it assumes to read S3 training
+   * data. Set on `CreateDatasetImportJob`, which accepts a `roleArn`.
+   */
+  passRole?: boolean
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const policyStatements: PolicyStatement[] = [
+        {
+          Effect: "Allow",
+          Action: [...options.actions],
+          // Campaign/solution/import-job ARNs are chosen at runtime.
+          Resource: ["*"],
+        },
+      ]
+      if (options.passRole) {
+        policyStatements.push({
+          Effect: "Allow",
+          Action: ["iam:PassRole"],
+          Resource: ["*"],
+          Condition: {
+            StringEquals: {
+              "iam:PassedToService": "personalize.amazonaws.com",
+            },
+          },
+        })
+      }
+      try bind`${options.tag}()`({
+        policyStatements,
+      })
+    }
+    return effect (request: I) =>
+      try withSpan(
+        effect {
+          return try op(request)
+        },
+        options.tag,
+      )
+  }
+}

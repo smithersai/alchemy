@@ -1,0 +1,414 @@
+import * as athena from "@distilled.cloud/aws/athena"
+import * as logs from "@distilled.cloud/aws/cloudwatch-logs"
+import * as datazone from "@distilled.cloud/aws/datazone"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { deleteGlueDatabase } from "../Glue/internal.ts"
+import { unredact } from "./internal.vibe"
+
+/**
+ * A name/value provisioning parameter passed to the environment's blueprint.
+ */
+export interface EnvironmentUserParameter {
+  /** The parameter name. */
+  name?: string
+  /** The parameter value. */
+  value?: string
+}
+
+export interface EnvironmentProps {
+  /**
+   * The identifier of the {@link Domain} the environment lives in. Accepts a
+   * domain's `domainId` output. Changing it triggers a replacement.
+   */
+  domainId: string
+  /**
+   * The identifier of the {@link Project} that owns the environment. Accepts
+   * a project's `projectId` output. Changing it triggers a replacement.
+   */
+  projectId: string
+  /**
+   * Name of the environment. If omitted, a deterministic physical name is
+   * generated from the app, stage, and logical ID. The name is mutable — it
+   * converges via `UpdateEnvironment` without replacement.
+   */
+  name?: string
+  /**
+   * A description of the environment.
+   */
+  description?: string
+  /**
+   * The identifier of the environment profile to create the environment
+   * from (V1 domains). Changing it triggers a replacement.
+   */
+  environmentProfileId?: string
+  /**
+   * The identifier of the environment blueprint to create the environment
+   * from directly (profile-less flows). Changing it triggers a replacement.
+   */
+  environmentBlueprintId?: string
+  /**
+   * The AWS account to provision the environment in. Defaults to the
+   * domain's account. Changing it triggers a replacement.
+   */
+  environmentAccountId?: string
+  /**
+   * The region to provision the environment in. Changing it triggers a
+   * replacement.
+   */
+  environmentAccountRegion?: string
+  /**
+   * Blueprint provisioning parameters (e.g. the Glue database name for
+   * `DefaultDataLake`).
+   */
+  userParameters?: EnvironmentUserParameter[]
+  /**
+   * Glossary term identifiers to attach to the environment.
+   */
+  glossaryTerms?: string[]
+}
+
+export interface Environment extends
+  Resource<
+    "AWS.DataZone.Environment",
+    EnvironmentProps,
+    {
+      /** The unique identifier of the environment. */
+      environmentId: string
+      /** The identifier of the domain the environment lives in. */
+      domainId: string
+      /** The identifier of the owning project. */
+      projectId: string
+      /** The name of the environment. */
+      name: string
+      /** The status of the environment (`ACTIVE` once deployed). */
+      status: string | undefined
+      /** The provider of the environment (e.g. `Amazon DataZone`). */
+      provider: string
+      /** The AWS account the environment is provisioned in. */
+      awsAccountId: string | undefined
+      /** The region the environment is provisioned in. */
+      awsAccountRegion: string | undefined
+      /** The identifier of the environment profile the environment came from. */
+      environmentProfileId: string | undefined
+      /** The identifier of the blueprint the environment came from. */
+      environmentBlueprintId: string | undefined
+    }
+  >
+{}
+
+/**
+ * An Amazon DataZone environment — the provisioned collection of AWS
+ * resources (Glue databases, IAM roles, Athena workgroups, ...) a project
+ * works with, deployed from an environment blueprint via CloudFormation.
+ *
+ * Environment deployment is asynchronous (minutes — DataZone drives a
+ * CloudFormation stack) and is polled to `ACTIVE` with a bounded wait. The
+ * environment's blueprint must be configured in the domain first (see
+ * {@link EnvironmentBlueprintConfiguration}).
+ *
+ * ### Creating Environments
+ * **Example:** Environment from a Profile (V1 Domains)
+ * ```typescript
+ * import * as DataZone from "@alchemy.run/aws/DataZone";
+ *
+ * const env = yield* DataZone.Environment("datalake-env", {
+ *   domainId: domain.domainId,
+ *   projectId: project.projectId,
+ *   environmentProfileId: profileId,
+ * });
+ * ```
+ *
+ * **Example:** Environment with Provisioning Parameters
+ * ```typescript
+ * const env = yield* DataZone.Environment("datalake-env", {
+ *   domainId: domain.domainId,
+ *   projectId: project.projectId,
+ *   environmentProfileId: profileId,
+ *   description: "Analytics data lake environment",
+ *   userParameters: [
+ *     { name: "glueDbName", value: "analytics_db" },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Environment = Resource<Environment>("AWS.DataZone.Environment")
+
+/** The environment deployment settled in a failed state. */
+// @vibelang-diagnostics-next-line EK4830:off
+export class EnvironmentDeploymentFailed extends Data.TaggedError(
+  "AWS.DataZone.EnvironmentDeploymentFailed",
+)<{
+  readonly environmentId: string
+  readonly status: string
+  readonly reason: string | undefined
+}> {
+  override get message() {
+    return `DataZone environment ${this.environmentId} ${this.status}${this.reason ? `: ${this.reason}` : ""}`
+  }
+}
+
+/** Environment status values indicating an in-flight transition to wait out. */
+const ENVIRONMENT_TRANSIENT = new Set(["CREATING", "UPDATING", "DELETING"])
+
+/** Environment status values indicating a failed deployment. */
+const ENVIRONMENT_FAILED = new Set(["CREATE_FAILED", "UPDATE_FAILED", "VALIDATION_FAILED"])
+
+export const EnvironmentProvider = (): infer _ =>
+  Provider.effect(
+    Environment,
+    effect {
+      const createName = effect (id: string, props: Pick<EnvironmentProps, "name">) =>
+        props.name ?? (try createPhysicalName({ id, maxLength: 64 }))
+
+      // A deleted environment — or one inside a deleted domain — is reported
+      // as AccessDeniedException, NOT ResourceNotFoundException: DataZone
+      // evaluates domain-scoped authorization before existence. Both mean
+      // "absent".
+      const getEnvironmentOrUndefined = effect (
+        domainId: string,
+        environmentId: string,
+      ) =>
+        datazone
+          .getEnvironment({
+            domainIdentifier: domainId,
+            identifier: environmentId,
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "AccessDeniedException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      const findByName = effect (domainId: string, projectId: string, name: string) => {
+        const found = datazone
+          .listEnvironments({
+            domainIdentifier: domainId,
+            projectIdentifier: projectId,
+            name,
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            when { _tag: "AccessDeniedException" }: try Effect.undefined;
+            default: throw e;
+          }
+        const summary = (found?.items ?? []).find(
+          (s) => unredact(s.name) === name && s.status !== "DELETING",
+        )
+        return summary?.id
+      }
+
+      // Poll the environment to a settled (non-transient) status. Deployment
+      // drives a CloudFormation stack — bounded at ~5 minutes.
+      const waitForSettled = effect (domainId: string, environmentId: string) =>
+        try (getEnvironmentOrUndefined(domainId, environmentId)
+          |> Effect.repeat(%, {
+            schedule: Schedule.fixed("5 seconds"),
+            until: (env) =>
+              env === undefined
+              || env.status === undefined
+              || !ENVIRONMENT_TRANSIENT.has(env.status),
+            times: 60,
+          }))
+
+      // Poll the environment until it no longer exists — teardown drives a
+      // CloudFormation stack delete, bounded at ~5 minutes.
+      const waitForGone = effect (domainId: string, environmentId: string) => {
+        try (getEnvironmentOrUndefined(domainId, environmentId)
+          |> Effect.repeat(%, {
+            schedule: Schedule.fixed("5 seconds"),
+            until: (env) => env === undefined || env.status === "DELETED",
+            times: 60,
+          }))
+      }
+
+      // DataZone's data-lake blueprint stack retains its Glue databases,
+      // Athena workgroup, and log group (CloudFormation DELETE_SKIPPED), so
+      // deleting the environment leaks them. Read their names from the
+      // environment's provisioned resources and delete them once it is gone.
+      const deleteRetainedResources = effect (
+        resources: ReadonlyArray<datazone.Resource>,
+      ) => {
+        const valueOf = (name: string): infer _ => resources.find((r) => r.name === name)?.value
+        for (const name of ["glueProducerDBName", "glueConsumerDBName"]) {
+          const database = valueOf(name)
+          if (database) try deleteGlueDatabase(database, undefined)
+        }
+        const workGroup = valueOf("athenaWorkGroupName")
+        if (workGroup) {
+          try athena.deleteWorkGroup({ WorkGroup: workGroup, RecursiveDeleteOption: true })
+        }
+        // arn:aws:logs:{region}:{account}:log-group:{name}:*
+        const logGroup = valueOf("logGroupArn")?.split(":")[6]
+        if (logGroup) {
+          logs
+            .deleteLogGroup({ logGroupName: logGroup }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        }
+      }
+
+      const failIfDeploymentFailed = effect (
+        env: datazone.GetEnvironmentOutput,
+        environmentId: string,
+      ) => {
+        if (env.status !== undefined && ENVIRONMENT_FAILED.has(env.status)) {
+          throw new EnvironmentDeploymentFailed({
+            environmentId,
+            status: env.status,
+            reason: env.lastDeployment?.failureReason?.message,
+          })
+        }
+        return env
+      }
+
+      const toAttributes = (env: datazone.GetEnvironmentOutput, environmentId: string): infer _ => ({
+        environmentId,
+        domainId: env.domainId,
+        projectId: env.projectId,
+        name: unredact(env.name),
+        status: env.status,
+        provider: env.provider,
+        awsAccountId: env.awsAccountId,
+        awsAccountRegion: env.awsAccountRegion,
+        environmentProfileId: env.environmentProfileId,
+        environmentBlueprintId: env.environmentBlueprintId,
+      })
+
+      return Environment.Provider.of({
+        stables: ["environmentId", "domainId", "projectId", "awsAccountId", "awsAccountRegion"],
+
+        // Environments are keyed by their parent domain + project — there is
+        // no account-level enumeration without those identifiers.
+        list: effect () => [],
+
+        read: effect ({ id, olds, output }) => {
+          const domainId = output?.domainId ?? olds?.domainId
+          const projectId = output?.projectId ?? olds?.projectId
+          if (domainId === undefined || projectId === undefined) {
+            return undefined
+          }
+          const environmentId = output?.environmentId
+            ?? (try findByName(domainId, projectId, try createName(id, olds ?? {})))
+          if (environmentId === undefined) return undefined
+          const env = try getEnvironmentOrUndefined(domainId, environmentId)
+          if (env === undefined || env.status === "DELETING" || env.status === "DELETED") {
+            return undefined
+          }
+          // Environments have no tags — ownership is tracked purely by
+          // identity.
+          return toAttributes(env, environmentId)
+        },
+
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return undefined
+          if (olds === undefined) return undefined
+          if (
+            olds.domainId !== news.domainId
+            || olds.projectId !== news.projectId
+            || olds.environmentProfileId !== news.environmentProfileId
+            || olds.environmentBlueprintId !== news.environmentBlueprintId
+            || olds.environmentAccountId !== news.environmentAccountId
+            || olds.environmentAccountRegion !== news.environmentAccountRegion
+          ) {
+            return { action: "replace" } as const
+          }
+          // name, description, and glossaryTerms converge via
+          // updateEnvironment.
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const domainId = news.domainId
+          const projectId = news.projectId
+          const name = try createName(id, news)
+
+          // 1. OBSERVE — cloud state is authoritative; output is only an id
+          //    cache. Fall back to a name lookup after state loss.
+          let environmentId = output?.environmentId
+          let env = environmentId
+            ? try getEnvironmentOrUndefined(domainId, environmentId)
+            : undefined
+          if (env === undefined) {
+            environmentId = try findByName(domainId, projectId, name)
+            if (environmentId !== undefined) {
+              env = try getEnvironmentOrUndefined(domainId, environmentId)
+            }
+          }
+
+          if (env === undefined) {
+            // 2. ENSURE — create and wait out the CloudFormation deployment.
+            const created = try datazone.createEnvironment({
+              domainIdentifier: domainId,
+              projectIdentifier: projectId,
+              name,
+              description: news.description,
+              environmentProfileIdentifier: news.environmentProfileId,
+              environmentBlueprintIdentifier: news.environmentBlueprintId,
+              environmentAccountIdentifier: news.environmentAccountId,
+              environmentAccountRegion: news.environmentAccountRegion,
+              userParameters: news.userParameters,
+              glossaryTerms: news.glossaryTerms,
+            })
+            environmentId = created.id ?? (try findByName(domainId, projectId, name))
+            if (environmentId === undefined) {
+              throw new EnvironmentDeploymentFailed({
+                environmentId: "",
+                status: "UNKNOWN",
+                reason: `createEnvironment for ${name} returned no id`,
+              })
+            }
+            env = try waitForSettled(domainId, environmentId)
+            if (env === undefined) {
+              throw new EnvironmentDeploymentFailed({
+                environmentId,
+                status: "DELETED",
+                reason: "environment disappeared during deployment",
+              })
+            }
+            env = try failIfDeploymentFailed(env, environmentId)
+          } else {
+            // 3. SYNC — wait out any in-flight transition, then converge the
+            //    mutable aspects by diffing OBSERVED state against desired.
+            env = (try waitForSettled(domainId, environmentId!)) ?? env
+            const drifted = unredact(env.name) !== name
+              || (env.description === undefined ? undefined : unredact(env.description))
+                !== (news.description ?? undefined)
+            if (drifted) {
+              try datazone.updateEnvironment({
+                domainIdentifier: domainId,
+                identifier: environmentId!,
+                name,
+                description: news.description,
+                glossaryTerms: news.glossaryTerms,
+              })
+              env = (try waitForSettled(domainId, environmentId!)) ?? env
+              env = try failIfDeploymentFailed(env, environmentId!)
+            }
+          }
+
+          try session.note(environmentId!)
+          return toAttributes(env, environmentId!)
+        },
+
+        delete: effect ({ output }) => {
+          // wait out any in-flight transition first — deleting a CREATING
+          // environment is rejected with a conflict.
+          const env = try waitForSettled(output.domainId, output.environmentId)
+          datazone
+            .deleteEnvironment({
+              domainIdentifier: output.domainId,
+              identifier: output.environmentId,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "AccessDeniedException" }: try Effect.void;
+              default: throw e;
+            }
+          try waitForGone(output.domainId, output.environmentId)
+          try deleteRetainedResources(env?.provisionedResources ?? [])
+        },
+      })
+    },
+  )

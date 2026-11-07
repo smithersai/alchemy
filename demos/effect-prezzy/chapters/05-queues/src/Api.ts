@@ -11,8 +11,8 @@ import * as Stream from "effect/Stream";
 import { Clicks, type ClickEvent } from "./Clicks.ts";
 import { Db } from "./Db.ts";
 import { LinkNotFound, newCode, type Link } from "./Link.ts";
-import LinkRoom from "./LinkRoom.ts";
-import { ShortyApi } from "./ShortyApi.ts";
+import LinkRoom from "./LinkRoom.vibe";
+import { ShortyApi } from "./ShortyApi.vibe";
 
 export default class Api extends Cloudflare.Worker<Api>()(
   "Api",

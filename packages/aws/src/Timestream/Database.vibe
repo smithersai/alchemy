@@ -1,0 +1,253 @@
+import * as TSW from "@distilled.cloud/aws/timestream-write"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import { AWSEnvironment, type AccountID } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import type { RegionID } from "../Region.ts"
+import { withWriteEndpoint } from "./internal.ts"
+
+export error TimestreamDatabaseUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type DatabaseArn = `arn:aws:timestream:${RegionID}:${AccountID}:database/${string}`
+
+export interface DatabaseProps {
+  /**
+   * Name of the Timestream database. Must be unique within the account and
+   * region and between 3 and 256 characters.
+   * @default ${app}-${stage}-${id}
+   */
+  databaseName?: string
+  /**
+   * The ID (or ARN/alias) of the KMS key used to encrypt data at rest. When
+   * omitted, Timestream provisions and manages an AWS-owned KMS key.
+   */
+  kmsKeyId?: string
+  /**
+   * Tags to associate with the database.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Database extends
+  Resource<
+    "AWS.Timestream.Database",
+    DatabaseProps,
+    {
+      /**
+       * The database's physical name.
+       */
+      databaseName: string
+      /**
+       * ARN of the database.
+       */
+      databaseArn: DatabaseArn
+      /**
+       * The KMS key backing encryption at rest.
+       */
+      kmsKeyId: string | undefined
+      /**
+       * Number of tables in the database.
+       */
+      tableCount: number | undefined
+      /**
+       * Current tags reported for the database.
+       */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Timestream for LiveAnalytics database — the top-level container for
+ * time-series {@link Table}s.
+ *
+ * `Database` owns the database's lifecycle and its mutable configuration: the
+ * KMS key used for encryption at rest and its tags. A database name is
+ * auto-generated from the app, stage, and logical ID unless you provide one.
+ *
+ * :::note
+ * Timestream for LiveAnalytics is closed to new AWS customers. Accounts that
+ * were not already onboarded receive `TimestreamNotOnboarded` (a specialized
+ * `AccessDenied`) on every operation.
+ * :::
+ * ### Creating Databases
+ * **Example:** Basic Database
+ * ```typescript
+ * import * as Timestream from "@alchemy.run/aws/Timestream";
+ *
+ * const database = yield* Timestream.Database("Metrics");
+ * ```
+ *
+ * **Example:** Database with a Customer-Managed KMS Key
+ * ```typescript
+ * const database = yield* Timestream.Database("SecureMetrics", {
+ *   kmsKeyId: "alias/my-timestream-key",
+ *   tags: { Environment: "production" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Database = Resource<Database>("AWS.Timestream.Database")
+
+const createDatabaseName = effect (id: string, props: { databaseName?: string | undefined }) => {
+  if (props.databaseName) {
+    return props.databaseName
+  }
+  return try createPhysicalName({ id, maxLength: 256 })
+}
+
+const toTagRecord = (
+  tags: Array<{ Key: string; Value: string }> | undefined,
+): Record<string, string> => Object.fromEntries((tags ?? []).map((tag) => [tag.Key, tag.Value]))
+
+const readDatabase = effect (databaseName: string) => {
+  const response = withWriteEndpoint(
+    TSW.describeDatabase({ DatabaseName: databaseName }),
+  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+  if (!response?.Database) {
+    return undefined
+  }
+  const database = response.Database
+  const tagsResponse = withWriteEndpoint(
+    TSW.listTagsForResource({ ResourceARN: database.Arn! }),
+  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+  if (!tagsResponse) {
+    return undefined
+  }
+  return {
+    databaseName: database.DatabaseName!,
+    databaseArn: database.Arn as DatabaseArn,
+    kmsKeyId: database.KmsKeyId,
+    tableCount: database.TableCount,
+    tags: toTagRecord(tagsResponse.Tags),
+  } satisfies Database["Attributes"]
+}
+
+export const DatabaseProvider = (): infer _ =>
+  Provider.effect(
+    Database,
+    effect {
+      return {
+        stables: ["databaseName", "databaseArn"],
+        // Enumerate every Timestream database in the ambient account/region.
+        // `listDatabases` is paginated; collect every page and hydrate each
+        // into the exact `read` Attributes shape. A database that vanishes
+        // between listing and hydration is dropped (typed NotFound handled in
+        // `readDatabase`).
+        list: effect () => {
+          const names = Array.from(
+            try withWriteEndpoint(
+              TSW.listDatabases.pages({}).pipe(EffectStream.runCollect),
+            ),
+          ).flatMap((page) => (page.Databases ?? []).flatMap((db) => db.DatabaseName ? [db.DatabaseName] : []))
+          const hydrated = try Effect.forEach(names, (name) => readDatabase(name), {
+            concurrency: 10,
+          })
+          return hydrated.filter((attrs): attrs is Database["Attributes"] => attrs !== undefined)
+        },
+        read: effect ({ id, olds, output }) => {
+          const databaseName = output?.databaseName ?? (try createDatabaseName(id, olds ?? {}))
+          const state = try readDatabase(databaseName)
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+        },
+        diff: effect ({ id, news = {}, olds = {} }) => {
+          if (!isResolved(news)) return
+          const oldName = try createDatabaseName(id, olds)
+          const newName = try createDatabaseName(id, news)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news = {}, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const databaseName = output?.databaseName ?? (try createDatabaseName(id, news))
+          const databaseArn = `arn:aws:timestream:${region}:${accountId}:database/${databaseName}` as DatabaseArn
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — cloud state is authoritative; output is only a name cache.
+          let state = try readDatabase(databaseName)
+
+          // Ensure — create if missing. Tolerate a ConflictException as a race
+          // with a peer reconciler and fall through to sync.
+          if (state === undefined) {
+            withWriteEndpoint(
+              TSW.createDatabase({
+                DatabaseName: databaseName,
+                KmsKeyId: news.kmsKeyId,
+                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }),
+            ) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            try session.note(`Creating database ${databaseName}...`)
+            state = try readDatabase(databaseName)
+            if (state === undefined) {
+              throw new TimestreamDatabaseUnexpectedResponse({
+                message: `failed to read created database ${databaseName}`,
+              })
+            }
+          }
+
+          // Sync KMS key — only when the user pinned one and it drifted.
+          if (news.kmsKeyId !== undefined && state.kmsKeyId !== news.kmsKeyId) {
+            try withWriteEndpoint(
+              TSW.updateDatabase({
+                DatabaseName: databaseName,
+                KmsKeyId: news.kmsKeyId,
+              }),
+            )
+            try session.note(`Updated KMS key for ${databaseName}`)
+          }
+
+          // Sync tags — diff against observed cloud tags.
+          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          if (removed.length > 0) {
+            try withWriteEndpoint(
+              TSW.untagResource({
+                ResourceARN: databaseArn,
+                TagKeys: removed,
+              }),
+            )
+          }
+          if (upsert.length > 0) {
+            try withWriteEndpoint(
+              TSW.tagResource({
+                ResourceARN: databaseArn,
+                Tags: upsert.map(({ Key, Value }) => ({ Key, Value })),
+              }),
+            )
+          }
+
+          try session.note(databaseArn)
+
+          const final = try readDatabase(databaseName)
+          if (!final) {
+            throw new TimestreamDatabaseUnexpectedResponse({
+              message: `failed to read reconciled database ${databaseName}`,
+            })
+          }
+          return final
+        },
+        delete: effect ({ output }) => {
+          withWriteEndpoint(TSW.deleteDatabase({ DatabaseName: output.databaseName })) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            default: throw e;
+          }
+        },
+      }
+    },
+  )

@@ -16,7 +16,7 @@ import { loadConfigProvider } from "../../../Util/ConfigProvider.ts";
 import { formatElapsed } from "../../Format.ts";
 import { exitDeclined, failWithHelp, UserInputError } from "../errors.ts";
 import { config, envFile, profile, yes } from "../flags.ts";
-import { instrumentCommand } from "../instrument.ts";
+import { instrumentCommand } from "../instrument.vibe";
 import {
   deleteProfileFlow,
   editProfileFlow,

@@ -1,6 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as AWSBindings from "../AWSBindings.ts";
-import type { CertificateAuthority } from "./CertificateAuthority.ts";
+import type { CertificateAuthority } from "./CertificateAuthority.vibe";
 
 /**
  * Options for {@link makeACMPCAHttpBinding}.

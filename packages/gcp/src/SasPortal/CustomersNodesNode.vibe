@@ -1,0 +1,240 @@
+import * as sasportal from "@distilled.cloud/gcp/sasportal_v1alpha1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnershipLine,
+  expandPath,
+  findOwnedCustomerNodeNode,
+  getNodeNode,
+  hasOwnershipMarker,
+  lastSegment,
+  listCustomerNodeNodes,
+  MAX_DISPLAY_NAME_LENGTH,
+  ownedByAlchemy,
+  ownershipLabels,
+  parentOf,
+  parseOwnership,
+  replaceOnIdentity,
+  retryDelete,
+  sameStringList,
+  sameText,
+  scanOwnedCustomerNodeNode,
+  toDisplayName,
+  updateMaskOf,
+  waitUntilGone,
+  walkCustomerNodes,
+} from "./internal.ts"
+
+export type CustomersNodesNodeProps = {
+  /**
+   * Parent SAS node, as `customers/{customer}/nodes/{node}`.
+   * Immutable — changing it replaces the child node.
+   */
+  parent: string
+  /**
+   * Server-assigned node resource name (`customers/{customer}/nodes/{node}/nodes/{node}`).
+   * Immutable — changing it replaces the node.
+   */
+  name?: string
+  /**
+   * Display name. SAS Portal nodes have no labels field, so Alchemy
+   * stamps ownership into a `[alchemy …]` prefix and strips it from
+   * attributes.
+   */
+  displayName?: string
+  /**
+   * SAS user ids used by devices that belong to this node.
+   */
+  sasUserIds?: string[]
+}
+
+export type CustomersNodesNode = Resource<
+  "GCP.SasPortal.CustomersNodesNode",
+  CustomersNodesNodeProps,
+  {
+    /** Resource name `customers/{customer}/nodes/{node}/nodes/{node}`. */
+    name: string
+    /** Node id (last path segment). */
+    nodeId: string
+    /** Parent resource name. */
+    parent: string
+    /** Project id used when the node was reconciled. */
+    project: string
+    /** User-facing display name with the Alchemy prefix stripped. */
+    displayName: string | undefined
+    /** SAS user ids on the node. */
+    sasUserIds: string[] | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Spectrum Access System (SAS) Portal node nested under a customer node.
+ *
+ * SAS Portal nodes have no labels field, so Alchemy stamps ownership
+ * into `displayName` for `list` / nuke. Parent is identity. Display
+ * name and SAS user ids update in place.
+ *
+ * ### Creating a Child Node
+ * **Example:** Nested node
+ * ```typescript
+ * const child = yield* GCP.SasPortal.CustomersNodesNode("Sector", {
+ *   parent: node.name,
+ *   displayName: "sector-1",
+ * });
+ * ```
+ *
+ * ### Updating a Child Node
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Rename
+ * ```typescript
+ * const child = yield* GCP.SasPortal.CustomersNodesNode("Sector", {
+ *   parent: node.name,
+ *   displayName: "sector-1-2",
+ * });
+ * ```
+ *
+ * @resource
+ * @category SasPortal
+ */
+export const CustomersNodesNode = Resource<CustomersNodesNode>("GCP.SasPortal.CustomersNodesNode")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class CustomersNodesNodeNotResolved extends Data.TaggedError(
+  "GCP.SasPortal.CustomersNodesNodeNotResolved",
+)<{
+  parent: string
+  resourceName: string
+}> {}
+
+const toAttrs = (node: sasportal.SasPortalNode, parent: string, project: string): infer _ => {
+  const name = node.name ?? ""
+  return {
+    name,
+    nodeId: lastSegment(name),
+    parent: parentOf(name) || parent,
+    project,
+    displayName: parseOwnership(node.displayName).text,
+    sasUserIds: node.sasUserIds,
+  }
+}
+
+export const CustomersNodesNodeProvider = (): infer _ =>
+  Provider.succeed(CustomersNodesNode, {
+    stables: ["name", "nodeId", "parent", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      return replaceOnIdentity({
+        previousParent: olds?.parent ?? output?.parent,
+        nextParent: expandPath(news.parent),
+        previousId: olds?.name ?? output?.name,
+        nextId: news.name,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = expandPath(olds?.parent ?? output?.parent ?? "")
+      const name = olds?.name ?? output?.name ?? ""
+      let existing = try getNodeNode(name)
+      let locatedParent = existing ? parentOf(existing.name ?? "") || parent : parent
+      if (existing === undefined) {
+        const found = (try findOwnedCustomerNodeNode(id, parent))
+          ?? (try scanOwnedCustomerNodeNode(id, parent))
+        existing = found?.row
+        locatedParent = found?.parent ?? locatedParent
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, locatedParent, env.project)
+      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const parents = try walkCustomerNodes()
+      const pages = try Effect.forEach(
+        parents,
+        effect (entry) => {
+          const parent = entry.node.name ?? ""
+          return (parent.length === 0 ? [] : (try listCustomerNodeNodes(parent))
+            .filter((row) => hasOwnershipMarker(row.displayName))
+            .map((row) => toAttrs(row, parent, env.project)))
+        },
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = expandPath(news.parent)
+      const ownership = try ownershipLabels(id)
+      const displayName = encodeOwnershipLine(
+        ownership,
+        try toDisplayName(id, news.displayName, output?.displayName),
+        MAX_DISPLAY_NAME_LENGTH,
+      )
+      const desired: sasportal.SasPortalNode = {
+        displayName,
+        sasUserIds: news.sasUserIds,
+      }
+
+      let current = try getNodeNode(news.name ?? output?.name ?? "")
+      if (current === undefined) {
+        const found = (try findOwnedCustomerNodeNode(id, parent))
+          ?? (try scanOwnedCustomerNodeNode(id, parent))
+        current = found?.row
+      }
+
+      if (current === undefined) {
+        const created = sasportal
+          .createCustomersNodesNodes({
+            parent,
+            body: desired,
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: (try findOwnedCustomerNodeNode(id, parent))?.row;
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new CustomersNodesNodeNotResolved({
+          parent,
+          resourceName: news.name ?? output?.name ?? displayName,
+        })
+      }
+
+      const name = current.name ?? news.name ?? output?.name ?? ""
+      const nameChanged = !sameText(current.displayName, displayName)
+      const usersChanged = news.sasUserIds !== undefined && !sameStringList(current.sasUserIds, news.sasUserIds)
+      if (nameChanged || usersChanged) {
+        current = try sasportal.patchNodesNodes({
+          name,
+          updateMask: updateMaskOf(
+            "displayName",
+            news.sasUserIds !== undefined ? "sasUserIds" : undefined,
+          ),
+          body: desired,
+        })
+      }
+
+      return toAttrs(current, parent, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      retryDelete(sasportal.deleteNodesNodes({ name: output.name })) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.void;
+        default: throw e;
+      }
+      try waitUntilGone(getNodeNode(output.name))
+    },
+  })

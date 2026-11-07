@@ -4,7 +4,7 @@ import * as Layer from "effect/Layer";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Credentials } from "../Credentials.ts";
 import type { Queue } from "./Queue.ts";
-import { WriteQueue } from "./WriteQueue.ts";
+import { WriteQueue } from "./WriteQueue.vibe";
 import { makeWriteQueueHttpClient } from "./WriteQueueHttp.ts";
 
 /**

@@ -4,9 +4,9 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import { fromConsumedRecords } from "./K2Codec.ts";
 import { type K2Auth, makeK2HttpAuth } from "./K2Http.ts";
-import type { Batch } from "./K2Types.ts";
-import { ReadSubscription, type ReadSubscriptionClient } from "./ReadSubscription.ts";
-import type { Subscription } from "./Subscription.ts";
+import type { Batch } from "./K2Types.vibe";
+import { ReadSubscription, type ReadSubscriptionClient } from "./ReadSubscription.vibe";
+import type { Subscription } from "./Subscription.vibe";
 
 /** Default `maxRecords` per `consume`. */
 export const DEFAULT_MAX_RECORDS = 100;

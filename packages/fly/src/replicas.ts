@@ -15,7 +15,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
-import { listOwnedApps } from "./App.ts";
+import { listOwnedApps } from "./App.vibe";
 import { reconcileBlueGreen, setRouting } from "./bluegreen.ts";
 import { validateDeployment, type DeploymentPolicy, type MachineCheck } from "./Deployment.ts";
 import { classifyDeploymentState, validProtocol2Generation } from "./DeploymentState.ts";
@@ -25,7 +25,7 @@ import type {
   MachineImageRef,
   MachineService,
   MachineServiceCheck,
-} from "./Machine.ts";
+} from "./Machine.vibe";
 import {
   alchemyMetadataKeys,
   createMachineMetadata,
@@ -33,7 +33,7 @@ import {
   sanitizeFlyAppName,
   type FlyAlchemyType,
 } from "./Metadata.ts";
-import type { DiskSpec, MountedDisk } from "./MountVolume.ts";
+import type { DiskSpec, MountedDisk } from "./MountVolume.vibe";
 import { regionOfReplica } from "./Region.ts";
 import { deleteVolume, ensureVolumeGroup, getVolumeById, volumeGroupName } from "./Volume.ts";
 

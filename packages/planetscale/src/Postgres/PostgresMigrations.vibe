@@ -1,0 +1,115 @@
+import {
+  runMigrations,
+  withPgExecutor,
+  type NormalizedMigrationsInput,
+  type SqlExecutor,
+  type StampedMigrationsState,
+} from "@alchemy.run/sql/Migrations"
+import { stripSslQueryParams } from "@alchemy.run/sql/PostgresDriver"
+import { applySqlImports } from "@alchemy.run/sql/SqlFile"
+import * as ps from "@distilled.cloud/planetscale"
+import * as Effect from "effect/Effect"
+
+const MIGRATION_ROLE_TTL_SECONDS = 600
+
+export interface PostgresMigrationTarget {
+  organization: string
+  database: string
+  branch: string
+}
+
+/**
+ * PlanetScale Postgres's migration adaptation is exactly this: the shared
+ * pipeline with a temp-role-scoped pg client as its executor.
+ */
+export const runPostgresMigrations = effect (
+  target: PostgresMigrationTarget,
+  input: NormalizedMigrationsInput,
+  stamped: StampedMigrationsState,
+) =>
+  try runMigrations({
+    input,
+    stamped,
+    withExecutor: effect (apply) => try withPostgresExecutor(target, apply),
+  })
+
+/** Apply `importFiles`, each once and again only when it changes. */
+export const runPostgresImports = effect (
+  target: PostgresMigrationTarget,
+  importFiles: ReadonlyArray<string>,
+  rootDir: string,
+  previous: Record<string, string>,
+) =>
+  try applySqlImports({
+    importFiles,
+    rootDir,
+    previous,
+    apply: effect (file) =>
+      try (withPostgresExecutor(target, effect (executor) => try executor.query(file.sql))
+        |> Effect.asVoid(%)),
+  })
+
+/** A verified-TLS `pg` session as a short-lived migration role. */
+const withPostgresExecutor = effect <A, E, R>(
+  target: PostgresMigrationTarget,
+  use: (executor: SqlExecutor) => A!E!R,
+) =>
+  try withTemporaryPostgresRole(target, effect (role) =>
+    try withPgExecutor(
+      {
+        connectionString: role.connectionUrl.pipe(Redacted.value, stripSslQueryParams),
+        ssl: { rejectUnauthorized: true },
+      },
+      use,
+    ))
+
+const withTemporaryPostgresRole = effect <A, E, R>(
+  target: PostgresMigrationTarget,
+  use: (role: { id: string; connectionUrl: Redacted.Redacted<string> }) => A!E!R,
+) =>
+  try Effect.acquireUseRelease(
+    effect {
+      const created = try ps.createRole({
+        organization: target.organization,
+        database: target.database,
+        branch: target.branch,
+        ttl: MIGRATION_ROLE_TTL_SECONDS,
+        inherited_roles: ["postgres"],
+      })
+
+      const password = created.password!
+      const value = Redacted.value(password)
+      const connectionUrl = try Effect.sync(
+        () =>
+          `postgresql://${encodeURIComponent(created.username)}:${
+            encodeURIComponent(value)
+          }@${created.access_host_url}:5432/${created.database_name}?sslmode=verify-full`,
+      )
+      return {
+        id: created.id,
+        connectionUrl: Redacted.make(connectionUrl),
+      }
+    },
+    use,
+    effect (role) =>
+      (try (effect {
+        return ps
+          .deleteRole({
+            organization: target.organization,
+            database: target.database,
+            branch: target.branch,
+            id: role.id,
+            successor: "postgres",
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+        |> Effect.retry(%, {
+          schedule: Schedule.max([Schedule.exponential("500 millis"), Schedule.recurs(5)]),
+        }))) catch effect (cause) =>
+          try Effect.logWarning(
+            `Failed to delete temporary Planetscale migration role after retries. `
+              + `It will expire via TTL (~${MIGRATION_ROLE_TTL_SECONDS}s). `
+              + `organization=${target.organization} database=${target.database} `
+              + `branch=${target.branch} id=${role.id}`,
+            cause,
+          ),
+  )

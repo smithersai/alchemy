@@ -6,7 +6,7 @@ import {
   ListTagsForResource,
   type ListTagsForResourceRequest,
   type TaggableResource,
-} from "./ListTagsForResource.ts";
+} from "./ListTagsForResource.vibe";
 
 export const ListTagsForResourceHttp = Layer.effect(
   ListTagsForResource,

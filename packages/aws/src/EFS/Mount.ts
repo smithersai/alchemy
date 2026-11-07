@@ -3,8 +3,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { isTask } from "../ECS/Task.ts";
 import type { Function } from "../Lambda/Function.ts";
-import type { AccessPoint } from "./AccessPoint.ts";
-import type { FileSystem } from "./FileSystem.ts";
+import type { AccessPoint } from "./AccessPoint.vibe";
+import type { FileSystem } from "./FileSystem.vibe";
 
 /**
  * Options for {@link Mount}.

@@ -54,8 +54,8 @@ import {
   ProtocolError,
   readPktLineAt,
 } from "./Pkt.ts";
-import { sidebandFrames } from "./Sideband.ts";
-import { StoreError } from "./Store.ts";
+import { sidebandFrames } from "./Sideband.vibe";
+import { StoreError } from "./Store.vibe";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Commands

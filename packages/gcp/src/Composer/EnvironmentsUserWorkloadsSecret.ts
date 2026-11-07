@@ -14,7 +14,7 @@ import {
   mapOf,
   parseWorkloadName,
   toPhysicalId,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type EnvironmentsUserWorkloadsSecretProps = {
   /**

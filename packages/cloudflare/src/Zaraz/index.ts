@@ -22,4 +22,4 @@ export type {
   System,
   Track,
   WebApi,
-} from "./ZarazEventTypes.ts";
+} from "./ZarazEventTypes.vibe";

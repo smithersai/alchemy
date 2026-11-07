@@ -1,0 +1,44 @@
+import * as agw2 from "@distilled.cloud/aws/apigatewayv2"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Api } from "./Api.vibe"
+import { RegisterApiGatewayV2Binding } from "./BindingHttp.vibe"
+import { ExportApi, type ExportApiRequest } from "./ExportApi.vibe"
+
+/**
+ * HTTP implementation of the {@link ExportApi} binding. Grants
+ * `apigateway:GET` on the API's `/exports/*` path and calls the API with
+ * the host Function's credentials.
+ */
+export const ExportApiHttp = Layer.effect(
+  ExportApi,
+  effect {
+    const registerApiGatewayV2Binding = try RegisterApiGatewayV2Binding
+    const exportApi = try AWSBindings.withCredentials(agw2.exportApi)
+    return effect <A extends Api>(api: A) => {
+      const ApiId = try api.apiId.asEffect()
+      try registerApiGatewayV2Binding({
+        cap: "AWS.ApiGatewayV2.ExportApi",
+        target: api,
+        verb: "GET",
+        paths: (region) => [
+          Output.interpolate`arn:aws:apigateway:${region}::/apis/${api.apiId}/exports/*`,
+        ],
+      })
+      return effect (
+        request?: ExportApiRequest | undefined,
+      ) =>
+        try withSpan(
+          effect {
+            return try exportApi({
+              ...request,
+              ApiId: try ApiId,
+              Specification: request?.Specification ?? "OAS30",
+            })
+          },
+          `AWS.ApiGatewayV2.ExportApi(${api.LogicalId})`,
+        )
+    }
+  },
+)

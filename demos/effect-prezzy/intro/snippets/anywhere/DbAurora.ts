@@ -2,7 +2,7 @@ import * as AWS from "@alchemy.run/aws";
 import * as Postgres from "@alchemy.run/sql/Postgres";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { Private } from "./Network.ts";
+import { Private } from "./Network.vibe";
 
 // #region show
 export const DatabaseLive = Layer.unwrap(

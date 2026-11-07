@@ -1,6 +1,6 @@
 import { Effect, Layer, Schema } from "effect";
 import { Rpc, RpcGroup, RpcSerialization, RpcServer } from "effect/rpc";
-import { Job, JobId } from "./Job.ts";
+import { Job, JobId } from "./Job.vibe";
 import { JobNotifications } from "./JobNotifications.ts";
 import { JobStorage } from "./JobStorage.ts";
 

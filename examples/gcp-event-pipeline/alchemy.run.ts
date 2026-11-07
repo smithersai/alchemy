@@ -1,9 +1,9 @@
 import * as GCP from "@alchemy.run/gcp";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Drain from "./src/Drain.ts";
+import Drain from "./src/Drain.vibe";
 import Ingest from "./src/Ingest.ts";
-import { EventsTable, Inbox } from "./src/resources.ts";
+import { EventsTable, Inbox } from "./src/resources.vibe";
 
 export default Alchemy.Stack(
   "GcpEventPipelineExample",

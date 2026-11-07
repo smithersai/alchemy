@@ -8,7 +8,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { retryWhileConflict, retryWhileThrottled, syncIvsTags, toTagRecord } from "./internal.ts";
+import { retryWhileConflict, retryWhileThrottled, syncIvsTags, toTagRecord } from "./internal.vibe";
 
 export interface ChannelProps {
   /**

@@ -8,7 +8,7 @@ import {
   ConnectCacheCluster,
   cacheClusterConnectEnvPrefix,
   type ConnectCacheClusterOptions,
-} from "./ConnectCacheCluster.ts";
+} from "./ConnectCacheCluster.vibe";
 
 export const ConnectCacheClusterHttp = Layer.effect(
   ConnectCacheCluster,

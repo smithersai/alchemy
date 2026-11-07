@@ -1,0 +1,451 @@
+import * as compute from "@distilled.cloud/gcp/compute_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.ts"
+import { OperationFailed } from "../Operation.ts"
+import type { Providers } from "../Providers.ts"
+import { waitZoneOperation } from "./operations.vibe"
+
+const DEFAULT_ZONE = "us-central1-a"
+
+export type InstantSnapshotProps = {
+  /**
+   * Instant snapshot name (RFC1035, 1-63 characters). If omitted, a unique
+   * name is generated from the stack, stage, and logical id. Changing the
+   * name replaces the snapshot.
+   */
+  instantSnapshotName?: string
+  /**
+   * Zone of the snapshot and its source disk (e.g. `us-central1-a`).
+   * Immutable — changing it replaces the snapshot. Inferred from
+   * `sourceDisk` when omitted.
+   * @default "us-central1-a"
+   */
+  zone?: string
+  /**
+   * Source disk URL or relative path
+   * (`projects/{project}/zones/{zone}/disks/{disk}`). Immutable —
+   * changing it replaces the snapshot.
+   */
+  sourceDisk: string
+  /**
+   * Optional description. Immutable — changing it replaces the snapshot.
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically
+   * and synced via `instantSnapshots.setLabels`.
+   */
+  labels?: Record<string, string>
+}
+
+export type InstantSnapshot = Resource<
+  "GCP.Compute.InstantSnapshot",
+  InstantSnapshotProps,
+  {
+    /** Instant snapshot name. */
+    instantSnapshotName: string
+    /** Server-assigned numeric id. */
+    instantSnapshotId: string | undefined
+    /** Project id. */
+    project: string
+    /** Zone short name (`us-central1-a`). */
+    zone: string
+    /** Source disk URL. */
+    sourceDisk: string | undefined
+    /** Server-assigned source disk id. */
+    sourceDiskId: string | undefined
+    /** Optional description. */
+    description: string | undefined
+    /** Server-reported status (`READY`, `CREATING`, …). */
+    status: string | undefined
+    /** Size of the source disk in GB. */
+    diskSizeGb: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Compute Engine self-link. */
+    selfLink: string | undefined
+    /** RFC3339 creation timestamp. */
+    creationTimestamp: string | undefined
+    /** Architecture (`X86_64` or `ARM64`). */
+    architecture: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A zonal Compute Engine instant snapshot.
+ *
+ * Instant snapshots capture a disk's point-in-time state in the same zone
+ * (Hyperdisk and some persistent-disk types). Name, zone, source disk, and
+ * description are immutable — changing them replaces the snapshot. Labels
+ * update in place via `instantSnapshots.setLabels`.
+ *
+ * ### Creating an Instant Snapshot
+ * **Example:** Snapshot of a disk
+ * ```typescript
+ * const disk = yield* GCP.Compute.Disk("data", {
+ *   zone: "us-central1-a",
+ *   type: "pd-balanced",
+ *   sizeGb: 10,
+ * });
+ * const snap = yield* GCP.Compute.InstantSnapshot("checkpoint", {
+ *   sourceDisk: disk.selfLink,
+ *   zone: disk.zone,
+ * });
+ * ```
+ *
+ * **Example:** Named snapshot with labels
+ * ```typescript
+ * const snap = yield* GCP.Compute.InstantSnapshot("checkpoint", {
+ *   instantSnapshotName: "app-data-now",
+ *   zone: "us-central1-a",
+ *   sourceDisk: "zones/us-central1-a/disks/app-data",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Compute
+ */
+export const InstantSnapshot = Resource<InstantSnapshot>("GCP.Compute.InstantSnapshot")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class InstantSnapshotNotResolved extends Data.TaggedError(
+  "GCP.Compute.InstantSnapshotNotResolved",
+)<{
+  instantSnapshotName: string
+  zone: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class InstantSnapshotNotReady extends Data.TaggedError(
+  "GCP.Compute.InstantSnapshotNotReady",
+)<{
+  instantSnapshotName: string
+  status: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class InstantSnapshotFailed extends Data.TaggedError("GCP.Compute.InstantSnapshotFailed")<{
+  instantSnapshotName: string
+  status: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class InstantSnapshotStillExists extends Data.TaggedError(
+  "GCP.Compute.InstantSnapshotStillExists",
+)<{
+  instantSnapshotName: string
+  status: string
+}> {}
+
+const lastSegment = (value: string | undefined): string | undefined => {
+  if (value === undefined || value.length === 0) return undefined
+  const parts = value.replace(/\/+$/, "").split("/")
+  return parts[parts.length - 1] || value
+}
+
+const zoneFromDisk = (sourceDisk: string | undefined): string | undefined => {
+  if (!sourceDisk) return undefined
+  const match = sourceDisk.match(/\/zones\/([^/]+)\//)
+  return match?.[1]
+}
+
+const canonicalizeSource = (source: string | undefined): string => {
+  if (source === undefined || source.length === 0) return ""
+  return lastSegment(source) ?? source
+}
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const rfc1035 = (name: string): string => {
+  let next = name
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+/, "")
+    .replace(/-+$/, "")
+  if (!/^[a-z]/.test(next)) {
+    next = `i${next}`
+  }
+  next = next.slice(0, 63).replace(/-+$/, "")
+  return next.length > 0 ? next : "instantsnapshot"
+}
+
+const toName = effect (id: string, name: string | undefined, existing?: string) => {
+  if (name !== undefined) return name
+  if (existing !== undefined) return existing
+  return rfc1035(
+    try createPhysicalName({
+      id,
+      maxLength: 63,
+      lowercase: true,
+    }),
+  )
+}
+
+const toAttrs = (
+  snapshot: compute.InstantSnapshot,
+  project: string,
+): InstantSnapshot["Attributes"] => ({
+  instantSnapshotName: snapshot.name ?? snapshot.id ?? "",
+  instantSnapshotId: snapshot.id,
+  project,
+  zone: lastSegment(snapshot.zone) ?? DEFAULT_ZONE,
+  sourceDisk: snapshot.sourceDisk,
+  sourceDiskId: snapshot.sourceDiskId,
+  description: snapshot.description,
+  status: snapshot.status,
+  diskSizeGb: snapshot.diskSizeGb,
+  labels: userLabels(snapshot.labels),
+  selfLink: snapshot.selfLink,
+  creationTimestamp: snapshot.creationTimestamp,
+  architecture: snapshot.architecture,
+})
+
+const getByName = effect (project: string, zone: string, instantSnapshot: string) =>
+  compute
+    .getInstantSnapshots({ project, zone, instantSnapshot }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const waitReady = effect (project: string, zone: string, name: string) =>
+  try (effect {
+    return try effect {
+      const snapshot = try getByName(project, zone, name)
+      return (snapshot?.status === "FAILED"
+        ? throw new InstantSnapshotFailed({
+          instantSnapshotName: name,
+          status: "FAILED",
+        })
+        : snapshot)
+    }
+  }
+    |> Effect.filterOrFail(%, (snapshot): snapshot is compute.InstantSnapshot =>
+      snapshot !== undefined && snapshot.status === "READY", (snapshot) =>
+      new InstantSnapshotNotReady({
+        instantSnapshotName: name,
+        status: snapshot?.status ?? "MISSING",
+      }))
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.Compute.InstantSnapshotNotReady",
+      times: 10,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+const waitGone = effect (project: string, zone: string, name: string) =>
+  try (effect {
+    return try effect {
+      const snapshot = try getByName(project, zone, name)
+      return (snapshot === undefined ? try Effect.void : throw new InstantSnapshotStillExists({
+        instantSnapshotName: name,
+        status: snapshot.status ?? "EXISTS",
+      }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.Compute.InstantSnapshotStillExists",
+      times: 10,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+export const InstantSnapshotProvider = (): infer _ =>
+  Provider.succeed(InstantSnapshot, {
+    stables: [
+      "instantSnapshotName",
+      "instantSnapshotId",
+      "project",
+      "zone",
+      "sourceDisk",
+      "sourceDiskId",
+      "selfLink",
+      "creationTimestamp",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousName = olds?.instantSnapshotName ?? output?.instantSnapshotName
+      const nextName = news.instantSnapshotName ?? previousName
+      const previousZone = lastSegment(olds?.zone) ?? lastSegment(output?.zone) ?? DEFAULT_ZONE
+      const nextZone = lastSegment(news.zone) ?? zoneFromDisk(news.sourceDisk) ?? previousZone
+      const previousDisk = canonicalizeSource(olds?.sourceDisk ?? output?.sourceDisk)
+      const nextDisk = canonicalizeSource(news.sourceDisk)
+      const previousDescription = olds?.description ?? output?.description ?? ""
+      const nextDescription = news.description ?? ""
+
+      const replace = (previousName !== undefined && nextName !== undefined && previousName !== nextName)
+        || previousZone !== nextZone
+        || (nextDisk.length > 0 && previousDisk.length > 0 && previousDisk !== nextDisk)
+        || previousDescription !== nextDescription
+
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousName !== undefined
+          && nextName !== undefined
+          && previousName === nextName
+          && previousZone === nextZone,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const instantSnapshotName = try toName(
+        id,
+        olds?.instantSnapshotName,
+        output?.instantSnapshotName,
+      )
+      const zone = lastSegment(olds?.zone)
+        ?? lastSegment(output?.zone)
+        ?? zoneFromDisk(olds?.sourceDisk ?? output?.sourceDisk)
+        ?? DEFAULT_ZONE
+      const existing = try getByName(env.project, zone, instantSnapshotName)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const pages = try compute.aggregatedListInstantSnapshots
+        .pages({
+          project: env.project,
+          filter: "labels.alchemy-id:*",
+          returnPartialSuccess: true,
+          maxResults: 500,
+        })
+        .pipe(Stream.runCollect)
+      return Array.from(pages).flatMap((page) =>
+        Object.values(page.items ?? {}).flatMap((scoped) =>
+          (scoped?.instantSnapshots ?? [])
+            .filter((item) => Object.keys(item.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+            .map((item) => toAttrs(item, env.project))
+        )
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const instantSnapshotName = try toName(
+        id,
+        news.instantSnapshotName,
+        output?.instantSnapshotName,
+      )
+      const zone = lastSegment(news.zone)
+        ?? lastSegment(output?.zone)
+        ?? zoneFromDisk(news.sourceDisk)
+        ?? DEFAULT_ZONE
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(env.project, zone, instantSnapshotName)
+      if (current?.status === "DELETING") {
+        try waitGone(env.project, zone, instantSnapshotName)
+        current = undefined
+      }
+
+      if (current === undefined) {
+        // "The previous instant snapshot is too recent" — one instant snapshot
+        // per disk every 30 seconds.
+        const tooRecent = (error: { readonly _tag: string }): infer _ =>
+          error instanceof OperationFailed && error.reason === "UNSUPPORTED_OPERATION"
+        try (effect {
+          return try effect {
+            const inserted = compute
+              .insertInstantSnapshots({
+                project: env.project,
+                zone,
+                body: {
+                  name: instantSnapshotName,
+                  sourceDisk: news.sourceDisk,
+                  description: news.description,
+                  labels: desiredLabels,
+                },
+              }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+            return (inserted === undefined ? try Effect.void : try waitZoneOperation(env.project, zone, inserted, {
+              ignore: ["RESOURCE_ALREADY_EXISTS"],
+            }))
+          }
+        }
+          |> Effect.retry(%, {
+            while: tooRecent,
+            times: 3,
+            schedule: Schedule.spaced("30 seconds"),
+          }))
+        current = try waitReady(env.project, zone, instantSnapshotName)
+      }
+
+      if (current === undefined) {
+        throw new InstantSnapshotNotResolved({
+          instantSnapshotName,
+          zone,
+        })
+      }
+
+      if (current.status !== "READY") {
+        current = try waitReady(env.project, zone, instantSnapshotName)
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      if (upsert.length > 0 || removed.length > 0) {
+        const labeled = try compute.setLabelsInstantSnapshots({
+          project: env.project,
+          zone,
+          resource: instantSnapshotName,
+          body: {
+            labels: desiredLabels,
+            labelFingerprint: current.labelFingerprint,
+          },
+        })
+        try waitZoneOperation(env.project, zone, labeled)
+        current = try getByName(env.project, zone, instantSnapshotName)
+      }
+
+      if (current === undefined) {
+        throw new InstantSnapshotNotResolved({
+          instantSnapshotName,
+          zone,
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const env = try GcpEnvironment.current
+      const project = output.project || env.project
+      const zone = lastSegment(output.zone) ?? DEFAULT_ZONE
+      const operation = (try (compute
+        .deleteInstantSnapshots({
+          project,
+          zone,
+          instantSnapshot: output.instantSnapshotName,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        waitZoneOperation(project, zone, operation) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+      }
+      try waitGone(project, zone, output.instantSnapshotName)
+    },
+  })

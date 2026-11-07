@@ -11,7 +11,7 @@ import { Artifacts, ArtifactStore, makeScopedArtifacts } from "../Artifacts.ts";
 import type { Platform } from "../Platform.ts";
 import * as Provider from "../Provider.ts";
 import type { ResourceClassLike, ResourceLike } from "../Resource.ts";
-import { ResourceContext } from "../ResourceContext.ts";
+import { ResourceContext } from "../ResourceContext.vibe";
 import { Stack } from "../Stack.ts";
 import { Stage } from "../Stage.ts";
 import { LogAnnotation } from "../Util/LogAnnotation.ts";

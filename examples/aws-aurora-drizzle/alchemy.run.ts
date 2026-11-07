@@ -2,7 +2,7 @@ import * as AWS from "@alchemy.run/aws";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import Api from "./src/Api.ts";
-import { database } from "./src/database.ts";
+import { database } from "./src/database.vibe";
 
 export default Alchemy.Stack(
   "aws-aurora-drizzle",

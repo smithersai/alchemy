@@ -1,0 +1,52 @@
+import * as cloudtrail from "@distilled.cloud/aws/cloudtrail"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { EventDataStore } from "./EventDataStore.vibe"
+import { StartQuery, type StartQueryRequest } from "./StartQuery.vibe"
+
+/**
+ * Bespoke (not scaffolded): the runtime callable resolves the bound store's
+ * ID out of its ARN and threads it through a `QueryStatement` callback —
+ * CloudTrail Lake SQL references the store by ID in the `FROM` clause rather
+ * than as a request field.
+ */
+export const StartQueryHttp = Layer.effect(
+  StartQuery,
+  effect {
+    const bind = try AWSBindings.Bind
+    const startQuery = try AWSBindings.withCredentials(cloudtrail.startQuery)
+
+    return effect (store: EventDataStore) => {
+      const Arn = try store.eventDataStoreArn.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.CloudTrail.StartQuery(${store})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["cloudtrail:StartQuery"],
+              Resource: [store.eventDataStoreArn],
+            },
+          ],
+        })
+      }
+      return effect (
+        request: StartQueryRequest,
+      ) =>
+        try withSpan(
+          effect {
+            const arn = try Arn
+            const eventDataStoreId = arn.split("/").pop()!
+            const { QueryStatement, ...rest } = request
+            return try startQuery({
+              ...rest,
+              QueryStatement: typeof QueryStatement === "function"
+                ? QueryStatement(eventDataStoreId)
+                : QueryStatement,
+            })
+          },
+          `AWS.CloudTrail.StartQuery(${store.LogicalId})`,
+        )
+    }
+  },
+)

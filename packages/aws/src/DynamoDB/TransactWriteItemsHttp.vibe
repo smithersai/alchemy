@@ -1,0 +1,107 @@
+import * as DynamoDB from "@distilled.cloud/aws/dynamodb"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { GrantTables, tablesRegion } from "./BindingHttp.ts"
+import {
+  TransactWriteItems,
+  type TransactWriteItemsRequest,
+  type TransactWriteItemsTables,
+} from "./TransactWriteItems.vibe"
+
+export const TransactWriteItemsHttp = Layer.effect(
+  TransactWriteItems,
+  effect {
+    const grantTables = try GrantTables
+    return effect (...tables: TransactWriteItemsTables) => {
+      const sortedTables = sortTables(tables)
+      const tableNames = new Map(
+        try Effect.forEach(sortedTables, effect (table) => [table.LogicalId, try table.tableName.asEffect()] as const),
+      )
+
+      const getTableName = effect (tableId: string) => {
+        const TableName = tableNames.get(tableId)
+        if (!TableName) {
+          return try Effect.die(
+            new Error(`TransactWriteItems request references unbound table '${tableId}'`),
+          )
+        }
+        return try TableName
+      }
+
+      try grantTables(
+        `AWS.DynamoDB.TransactWriteItems(${sortedTables.map((table) => table.LogicalId).join(", ")})`,
+        () => [
+          {
+            Effect: "Allow",
+            Action: [
+              "dynamodb:ConditionCheckItem",
+              "dynamodb:DeleteItem",
+              "dynamodb:PutItem",
+              "dynamodb:UpdateItem",
+            ],
+            Resource: sortedTables.map((table) => table.tableArn),
+          },
+        ],
+      )
+      const transactWriteItems = try AWSBindings.withCredentials(
+        DynamoDB.transactWriteItems,
+        tablesRegion(sortedTables),
+      )
+
+      return effect (request: TransactWriteItemsRequest) =>
+        try withSpan(
+          effect {
+            const transactItems = try Effect.forEach(request.TransactItems, effect (item) => {
+              if (item.ConditionCheck) {
+                return {
+                  ConditionCheck: {
+                    ...item.ConditionCheck,
+                    TableName: try getTableName(item.ConditionCheck.Table),
+                  },
+                }
+              }
+              if (item.Delete) {
+                return {
+                  Delete: {
+                    ...item.Delete,
+                    TableName: try getTableName(item.Delete.Table),
+                  },
+                }
+              }
+              if (item.Put) {
+                return {
+                  Put: {
+                    ...item.Put,
+                    TableName: try getTableName(item.Put.Table),
+                  },
+                }
+              }
+              if (item.Update) {
+                return {
+                  Update: {
+                    ...item.Update,
+                    TableName: try getTableName(item.Update.Table),
+                  },
+                }
+              }
+              return try Effect.die(
+                new Error("TransactWriteItems request item must include one DynamoDB operation"),
+              )
+            })
+
+            return try transactWriteItems({
+              ...request,
+              TransactItems: transactItems,
+            })
+          },
+          `AWS.DynamoDB.TransactWriteItems(${sortedTables.map((table) => table.LogicalId).join(", ")})`,
+        )
+    }
+  },
+)
+
+const sortTables = (tables: TransactWriteItemsTables): infer _ =>
+  [...new Map(tables.map((table) => [table.LogicalId, table] as const)).values()].sort((a, b) =>
+    a.LogicalId.localeCompare(b.LogicalId)
+  ) as TransactWriteItemsTables

@@ -10,7 +10,7 @@ import * as Schedule from "effect/Schedule";
 import { GcpEnvironment } from "../Environment.ts";
 import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitRegionOperation } from "./operations.ts";
+import { waitRegionOperation } from "./operations.vibe";
 
 const DEFAULT_ADVERTISE_MODE = "DEFAULT";
 const DEFAULT_KEEPALIVE = 20;

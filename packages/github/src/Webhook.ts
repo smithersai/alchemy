@@ -7,8 +7,8 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
 import { withBaseUrl, gitHubBaseUrlChanged } from "./BaseUrl.ts";
-import type * as GitHub from "./Providers.ts";
-import type { WebhookEventName } from "./RepositoryEventSource.ts";
+import type * as GitHub from "./Providers.vibe";
+import type { WebhookEventName } from "./RepositoryEventSource.vibe";
 
 export interface WebhookProps {
   /**

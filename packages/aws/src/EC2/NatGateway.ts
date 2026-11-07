@@ -18,9 +18,9 @@ import type { AccountID } from "../Environment.ts";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
-import type { AllocationId } from "./EIP.ts";
+import type { AllocationId } from "./EIP.vibe";
 import type { SubnetId } from "./Subnet.ts";
-import type { VpcId } from "./Vpc.ts";
+import type { VpcId } from "./Vpc.vibe";
 
 export class NatGatewayUnexpectedResponse extends Data.TaggedError("NatGatewayUnexpectedResponse")<{
   readonly message: string;

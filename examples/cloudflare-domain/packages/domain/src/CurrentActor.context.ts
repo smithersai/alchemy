@@ -1,5 +1,5 @@
 import * as Domain from "@alchemy.run/domain";
-import { Actor } from "./Actor.ts";
+import { Actor } from "./Actor.vibe";
 
 /**
  * Who is making the current request. `Session` provides it; commands read it

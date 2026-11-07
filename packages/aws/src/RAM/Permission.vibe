@@ -1,0 +1,350 @@
+import * as ram from "@distilled.cloud/aws/ram"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import * as Arr from "effect/Array"
+import type { Providers } from "../Providers.ts"
+
+export error RAMPermissionUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+/**
+ * The policy template of a customer managed permission — the actions a
+ * resource share grants to principals for the permission's resource type.
+ * RAM policy templates only support `Effect: "Allow"` with `Action` and an
+ * optional `Condition`; the `Principal` and `Resource` are supplied by the
+ * resource share at association time.
+ */
+export interface PermissionPolicyTemplate {
+  /**
+   * Actions granted to principals the resource share is shared with. Must be
+   * a subset of the actions RAM supports for the permission's `resourceType`
+   * (for example `appsync:SourceGraphQL` for `appsync:Apis`).
+   */
+  actions: string[]
+
+  /**
+   * Optional IAM condition block constraining when the actions are granted.
+   */
+  condition?: Record<string, unknown>
+}
+
+export interface PermissionProps {
+  /**
+   * Name of the customer managed permission. Must be unique within your
+   * account and Region. If omitted, Alchemy generates a deterministic name
+   * from the stack, stage, and logical ID. Max 36 characters.
+   * Changing the name replaces the permission.
+   */
+  permissionName?: string
+
+  /**
+   * The resource type this permission applies to, in `service:Type` format —
+   * for example `appsync:Apis`. Only some resource types support customer
+   * managed permissions (others, like `ec2:Subnet`, only allow the AWS
+   * managed default permission).
+   * Changing the resource type replaces the permission.
+   */
+  resourceType: string
+
+  /**
+   * The policy template granted by resource shares using this permission.
+   * Changing the template creates a new permission version and promotes it
+   * to the default; the previous default version is deleted when it is no
+   * longer attached to any resource share.
+   */
+  policyTemplate: PermissionPolicyTemplate
+
+  /**
+   * Tags applied to the permission.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Permission extends
+  Resource<
+    "AWS.RAM.Permission",
+    PermissionProps,
+    {
+      /** ARN of the customer managed permission. */
+      permissionArn: string
+      /** Name of the permission. */
+      name: string
+      /** The resource type the permission applies to. */
+      resourceType: string
+      /** The default version number of the permission. */
+      version: string | undefined
+      /** Current status (`ATTACHABLE`, `UNATTACHABLE`, `DELETING`, ...). */
+      status: string | undefined
+      /** Tags applied to the permission. */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Resource Access Manager (RAM) customer managed permission.
+ *
+ * A customer managed permission precisely controls which actions principals
+ * receive on resources of a given type when you attach the permission to a
+ * {@link ResourceShare} via `permissionArns`.
+ *
+ * ### Creating a Permission
+ * **Example:** Least-privilege AppSync API sharing
+ * ```typescript
+ * const permission = yield* Permission("SourceGraphQLOnly", {
+ *   resourceType: "appsync:Apis",
+ *   policyTemplate: {
+ *     actions: ["appsync:SourceGraphQL"],
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Attach a permission to a resource share
+ * ```typescript
+ * const share = yield* ResourceShare("ApiShare", {
+ *   resourceArns: [api.apiArn],
+ *   principals: ["123456789012"],
+ *   permissionArns: [permission.permissionArn],
+ * });
+ * ```
+ *
+ * ### Updating the Policy
+ * **Example:** Add an action (creates a new default version)
+ * ```typescript
+ * const permission = yield* Permission("SourceGraphQLOnly", {
+ *   resourceType: "appsync:Apis",
+ *   policyTemplate: {
+ *     actions: ["appsync:SourceGraphQL", "appsync:GraphQL"],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Permission = Resource<Permission>("AWS.RAM.Permission")
+
+const toName = effect (
+  id: string,
+  props: { permissionName?: string } = {},
+) => (props.permissionName ? props.permissionName : try createPhysicalName({ id, maxLength: 36 }))
+
+/** RAM's inline `{ key, value }` tag list → a plain `Record`. */
+const tagsToRecord = (tags: readonly ram.Tag[] | undefined): Record<string, string> => {
+  const record: Record<string, string> = {}
+  for (const tag of tags ?? []) {
+    if (tag.key !== undefined && tag.value !== undefined) {
+      record[tag.key] = tag.value
+    }
+  }
+  return record
+}
+
+/** A permission is "live" only while it is not deleting/deleted. */
+const isLive = (status: string | undefined): boolean => status !== "DELETING" && status !== "DELETED"
+
+/** Serialize the declared policy template to RAM's JSON wire format. */
+const renderPolicyTemplate = (template: PermissionPolicyTemplate): string =>
+  JSON.stringify({
+    Effect: "Allow",
+    Action: [...template.actions].sort(),
+    ...(template.condition ? { Condition: template.condition } : {}),
+  })
+
+/** Parse an observed policy document into a comparable canonical string. */
+const canonicalizePolicy = (policy: string | undefined): string => {
+  if (policy === undefined) return ""
+  try {
+    const parsed = JSON.parse(policy) as {
+      Effect?: string
+      Action?: string | string[]
+      Condition?: Record<string, unknown>
+    }
+    const actions = typeof parsed.Action === "string" ? [parsed.Action] : (parsed.Action ?? [])
+    return JSON.stringify({
+      Effect: parsed.Effect ?? "Allow",
+      Action: [...actions].sort(),
+      ...(parsed.Condition ? { Condition: parsed.Condition } : {}),
+    })
+  } catch {
+    return policy
+  }
+}
+
+const toAttrs = (
+  permission: ram.ResourceSharePermissionSummary | ram.ResourceSharePermissionDetail,
+): Permission["Attributes"] => ({
+  permissionArn: permission.arn!,
+  name: permission.name!,
+  resourceType: permission.resourceType!,
+  version: permission.version,
+  status: permission.status,
+  tags: tagsToRecord(permission.tags),
+})
+
+/** Read the default version of a permission by ARN; undefined if missing. */
+const readDetail = effect (arn: string) => {
+  const detail = (try ram.getPermission({ permissionArn: arn })).permission catch effect (e) => match (e) {
+    when { _tag: "UnknownResourceException" }: try Effect.undefined;
+    default: throw e;
+  }
+  return detail && isLive(detail.status) ? detail : undefined
+}
+
+/** Find a live customer managed permission owned by us with the given name. */
+const readByName = effect (name: string) => {
+  const permissions = Arr.fromIterable(
+    try (ram.listPermissions.pages({ permissionType: "CUSTOMER_MANAGED" })
+      |> Stream.runCollect(%)),
+  ).flatMap((page) => page.permissions ?? [])
+  const summary = permissions.find((p) => p.name === name && isLive(p.status))
+  return summary?.arn ? try readDetail(summary.arn) : undefined
+}
+
+export const PermissionProvider = (): infer _ =>
+  Provider.effect(
+    Permission,
+    effect {
+      return {
+        stables: ["permissionArn"],
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          // Name and resource type are fixed at creation (RAM has no
+          // rename/retype API for permissions).
+          if (olds !== undefined) {
+            if (news.permissionName !== olds.permissionName) {
+              return { action: "replace" } as const
+            }
+            if (news.resourceType !== olds.resourceType) {
+              return { action: "replace" } as const
+            }
+          }
+        },
+        list: effect () =>
+          Arr.fromIterable(
+            try (ram.listPermissions.pages({ permissionType: "CUSTOMER_MANAGED" })
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.permissions ?? [])
+            .filter((p) => isLive(p.status) && p.arn !== undefined && p.name !== undefined)
+            .map(toAttrs),
+        read: effect ({ id, olds, output }) => {
+          const detail = output?.permissionArn
+            ? try readDetail(output.permissionArn)
+            : try readByName(try toName(id, olds ?? {}))
+          if (!detail) return undefined
+          const state = toAttrs(detail)
+          return (try hasAlchemyTags(id, state.tags)) ? state : Unowned(state)
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try toName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+          const desiredPolicy = renderPolicyTemplate(news.policyTemplate)
+
+          // 1. OBSERVE — output ARN is only a cache; re-read live state.
+          let detail = output?.permissionArn
+            ? try readDetail(output.permissionArn)
+            : try readByName(name)
+
+          // 2. ENSURE — create if missing. PermissionAlreadyExists is a
+          //    race with a concurrent create; fall through to observation.
+          if (!detail) {
+            const created = (try ram
+              .createPermission({
+                name,
+                resourceType: news.resourceType,
+                policyTemplate: desiredPolicy,
+                tags: Object.entries(desiredTags).map(([key, value]) => ({
+                  key,
+                  value,
+                })),
+              })).permission catch effect (e) => match (e) {
+                when { _tag: "PermissionAlreadyExistsException" }: try Effect.undefined;
+                default: throw e;
+              }
+            // Prefer the ARN from the create response; on the AlreadyExists
+            // race fall back to the (briefly eventually consistent) list.
+            detail = created?.arn ? try readDetail(created.arn) : try readByName(name)
+            if (!detail?.arn) {
+              if (created?.arn) {
+                try session.note(created.arn)
+                return { ...toAttrs(created), tags: desiredTags }
+              }
+              throw new RAMPermissionUnexpectedResponse({
+                message: `permission '${name}' not found after create`,
+              })
+            }
+            try session.note(detail.arn)
+            return toAttrs(detail)
+          }
+
+          const arn = detail.arn!
+          const previousVersion = detail.version
+
+          // 3a. SYNC policy — diff the observed default version's policy
+          //     against the desired template; publish a new default version
+          //     on drift, then drop the superseded version (RAM caps a
+          //     permission at 5 versions).
+          if (canonicalizePolicy(detail.permission) !== desiredPolicy) {
+            // createPermissionVersion automatically becomes the default.
+            try ram.createPermissionVersion({
+              permissionArn: arn,
+              policyTemplate: desiredPolicy,
+            })
+            if (previousVersion !== undefined) {
+              // The old version may still be attached to an existing share;
+              // that's fine — leave it and converge on a later reconcile.
+              ram
+                .deletePermissionVersion({
+                  permissionArn: arn,
+                  permissionVersion: Number(previousVersion),
+                }) catch effect (e) => match (e) {
+                  when { _tag: "OperationNotPermittedException" } or { _tag: "InvalidParameterException" }: try Effect
+                    .void;
+                  default: throw e;
+                }
+            }
+          }
+
+          // 3b. SYNC tags — diff against observed cloud tags.
+          const { upsert, removed } = diffTags(tagsToRecord(detail.tags), desiredTags)
+          if (upsert.length > 0) {
+            try ram.tagResource({
+              resourceArn: arn,
+              tags: upsert.map((t) => ({ key: t.Key, value: t.Value })),
+            })
+          }
+          if (removed.length > 0) {
+            try ram.untagResource({ resourceArn: arn, tagKeys: removed })
+          }
+
+          // 4. RETURN fresh state.
+          const updated = try readDetail(arn)
+          try session.note(arn)
+          return updated ? toAttrs(updated) : { ...toAttrs(detail), tags: desiredTags }
+        },
+        delete: effect ({ output }) => {
+          // A permission cannot be deleted while attached to a resource
+          // share; shares delete asynchronously, so retry briefly on
+          // OperationNotPermitted before giving up.
+          ;(try (ram.deletePermission({ permissionArn: output.permissionArn })
+            |> Effect.retry(%, {
+              while: (e): boolean => e._tag === "OperationNotPermittedException",
+              schedule: Schedule.exponential("2 seconds"),
+              times: 8,
+            }))) catch effect (e) => match (e) {
+              when { _tag: "UnknownResourceException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

@@ -45,7 +45,7 @@ import {
   workloadImageHash,
 } from "./internal/workload.ts";
 import type { KubernetesObjectDefinition, KubernetesObjectRef } from "./Objects.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 export const isJob = (value: any): value is Job =>
   typeof value === "object" && value !== null && "Type" in value && value.Type === "Kubernetes.Job";

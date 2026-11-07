@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import * as Effect from "effect/Effect";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { Database } from "./Db.ts";
+import { Database } from "./Db.vibe";
 import { relations, Users } from "./schema.ts";
 
 export default class Api extends Cloudflare.Worker<Api>()(

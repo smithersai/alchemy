@@ -1,0 +1,75 @@
+import * as Docker from "@alchemy.run/docker"
+import * as Alchemy from "alchemy"
+
+const POSTGRES_PORT = 15432
+const POSTGRES_CONTAINER = "alchemy-example-postgres"
+
+export default Alchemy.Stack(
+  "DockerPostgresExample",
+  {
+    providers: Layer.merge(Docker.providers(), Alchemy.RandomProvider()),
+    state: Alchemy.localState(),
+  },
+  effect {
+    const configuredPassword = try Config.Redacted("POSTGRES_PASSWORD").pipe(Config.option)
+    const password = do {
+      const $optionSubject = configuredPassword
+      const $optionHandlers: {
+        readonly onNone: import("effect/Function").LazyArg<
+          import("alchemy/Output").ObjectExpr<import("effect/Redacted").Redacted<string>, never>!!Alchemy.Provider<Alchemy.Random>
+        >
+        readonly onSome: (
+          a: import("effect/Redacted").Redacted<string>,
+        ) => import("effect/Redacted").Redacted<string>!!
+      } = {
+        onSome: Effect.succeed,
+        onNone: () => Alchemy.makeRandom("PostgresPassword", { bytes: 16 }),
+      }
+      const { onNone: $optionNone, onSome: $optionSome } = $optionHandlers
+      match ($optionSubject) {
+        when Option.Some(let $optionValue): try $optionSome($optionValue);
+        default: try $optionNone();
+      }
+    }
+
+    const image = try Docker.RemoteImage("postgres-image", {
+      name: "postgres",
+      tag: "18-alpine",
+      alwaysPull: false,
+    })
+    const network = try Docker.Network("app-network")
+    const data = try Docker.Volume("postgres-data")
+
+    const postgres = try Docker.Container("postgres", {
+      name: POSTGRES_CONTAINER,
+      image,
+      environment: {
+        POSTGRES_DB: "app",
+        POSTGRES_USER: "alchemy",
+        POSTGRES_PASSWORD: password,
+      },
+      ports: [{ external: POSTGRES_PORT, internal: 5432 }],
+      volumes: [
+        {
+          hostPath: data.name,
+          containerPath: "/var/lib/postgresql/data",
+        },
+      ],
+      networks: [{ name: network.name, aliases: ["postgres"] }],
+      healthcheck: {
+        cmd: ["CMD-SHELL", "pg_isready -U alchemy -d app"],
+        interval: "5 seconds",
+        timeout: "5 seconds",
+        retries: 10,
+      },
+      start: true,
+    })
+    return {
+      container: postgres.name,
+      image: image.imageRef,
+      network: network.name,
+      volume: data.name,
+      hostPort: postgres.ports,
+    }
+  },
+)

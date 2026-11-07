@@ -7,7 +7,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import path from "pathe";
 import { BetterAuth } from "../../../src/index.ts";
-import { Neon as NeonDatabase } from "../../../src/Neon.ts";
+import { Neon as NeonDatabase } from "../../../src/Neon.vibe";
 
 const main = path.resolve(import.meta.dirname, "auth-handler.ts");
 

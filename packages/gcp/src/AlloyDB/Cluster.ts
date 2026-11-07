@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitForDeleteOperation, waitForOperation } from "./operations.ts";
+import { waitForDeleteOperation, waitForOperation } from "./operations.vibe";
 
 const DEFAULT_CLUSTER_TYPE = "PRIMARY";
 const DEFAULT_NETWORK = "default";

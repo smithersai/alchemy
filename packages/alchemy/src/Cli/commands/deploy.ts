@@ -23,7 +23,7 @@ import {
   stage,
   yes,
 } from "./flags.ts";
-import { instrumentCommand } from "./instrument.ts";
+import { instrumentCommand } from "./instrument.vibe";
 import { renderPlanning } from "./render.ts";
 
 interface StackCommandOptions {

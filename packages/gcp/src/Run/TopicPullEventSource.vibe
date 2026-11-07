@@ -1,0 +1,119 @@
+import * as Binding from "alchemy/Binding"
+import * as Namespace from "alchemy/Namespace"
+import { ServerHost } from "alchemy/Runtime/Process"
+import * as Layer from "effect/Layer"
+import { Acknowledge } from "../PubSub/Acknowledge.vibe"
+import { AcknowledgeHttp } from "../PubSub/AcknowledgeHttp.vibe"
+import { Pull } from "../PubSub/Pull.vibe"
+import { PullHttp } from "../PubSub/PullHttp.vibe"
+import { Subscription } from "../PubSub/Subscription.vibe"
+import type { Topic } from "../PubSub/Topic.vibe"
+import {
+  TopicEventSource as PubSubTopicEventSource,
+  type TopicEventSourceProps,
+  type TopicEventSourceService,
+  type TopicMessage,
+} from "../PubSub/TopicEventSource.ts"
+
+/**
+ * Subscription `deadLetterPolicy` and `retryPolicy` for the event source's
+ * props. Dead-lettering defaults to a backoff so its attempts span more
+ * than a transient failure.
+ */
+const deliveryPolicyOf = (props: TopicEventSourceProps): infer _ => ({
+  deadLetterPolicy: props.deadLetter === undefined
+    ? undefined
+    : {
+      deadLetterTopic: props.deadLetter.topic.name,
+      maxDeliveryAttempts: props.deadLetter.maxDeliveryAttempts ?? 5,
+    },
+  retryPolicy: props.retryPolicy
+    ?? (props.deadLetter === undefined
+      ? undefined
+      : { minimumBackoff: "10s", maximumBackoff: "600s" }),
+})
+
+/**
+ * Pull implementation of `GCP.PubSub.TopicEventSource` for hosts without
+ * an inbound URL (`GCP.Run.Job`, `GCP.Run.WorkerPool`; any host with
+ * `ServerHost`).
+ *
+ * Deploy-time: creates a pull subscription owned by the host and grants
+ * the host's runtime service account `roles/pubsub.subscriber` on it
+ * (through the `Pull` / `Acknowledge` bindings). Runtime: a background
+ * loop pulls batches, runs the handler, and acks the batch once the
+ * handler succeeds. A failed handler leaves the batch unacked, so Pub/Sub
+ * redelivers after the ack deadline.
+ *
+ * @layer
+ * @provides GCP.PubSub.TopicEventSource
+ * @category Run
+ */
+export const TopicPullEventSource = Layer.effect(
+  PubSubTopicEventSource,
+  effect {
+    const { run } = try Effect.service(ServerHost)
+    const subscription = try Subscription
+    const pull = try Effect.service(Pull)
+    const acknowledge = try Effect.service(Acknowledge)
+
+    return (effect <Req = never>(
+      topic: Topic,
+      props: TopicEventSourceProps,
+      process: (messages: Stream.Stream<TopicMessage>) => void!never!Req,
+    ) => {
+      const host = try Binding.Host
+      const hostId = host?.LogicalId ?? "Host"
+      // Declared in both phases: at runtime the declaration resolves to the
+      // deployed subscription's outputs, which the bindings below read.
+      const sub = try Namespace.push(
+        hostId,
+        subscription(
+          `${topic.LogicalId}-Pull`,
+          effect {
+            return ({
+              topic: topic.name,
+              ackDeadlineSeconds: props.ackDeadlineSeconds ?? 60,
+              filter: props.filter,
+              ...deliveryPolicyOf(props),
+            })
+          },
+        ),
+      )
+      const pullBatch = try pull(sub)
+      const ackBatch = try acknowledge(sub)
+      const subscriptionName = try sub.name.asEffect()
+
+      try run(
+        effect {
+          return try (effect {
+            const name = try subscriptionName
+            const { receivedMessages = [] } = try pullBatch({
+              body: { maxMessages: props.maxMessages ?? 10 },
+            })
+            const received = receivedMessages.filter(
+              (item) => item.ackId !== undefined && item.message !== undefined,
+            )
+            if (received.length === 0) return
+            try process(
+              Stream.fromIterable(
+                received.map((item) => ({
+                  message: item.message!,
+                  subscription: name,
+                  deliveryAttempt: item.deliveryAttempt,
+                })),
+              ),
+            )
+            try ackBatch({
+              body: { ackIds: received.map((item) => item.ackId!) },
+            })
+          }
+            |> Effect.catchCause(%, effect (cause) =>
+              try (Effect.logWarning("Pub/Sub pull iteration failed", cause)
+                |> Effect.andThen(%, Effect.sleep("1 second"))))
+            |> Effect.forever(%))
+        },
+      )
+    }) as TopicEventSourceService
+  },
+).pipe(Layer.provide(Layer.mergeAll(PullHttp, AcknowledgeHttp)))

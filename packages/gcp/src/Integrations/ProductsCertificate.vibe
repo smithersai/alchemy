@@ -1,0 +1,309 @@
+import * as integrations from "@distilled.cloud/gcp/integrations_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_PRODUCT,
+  encodeOwnership,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  normalizeLocation,
+  normalizeProduct,
+  ownedByAlchemy,
+  parseOwnership,
+  productOf,
+  productParent,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./ownership.vibe"
+import type { ClientCertificate } from "./shared.ts"
+
+export type ProductsCertificateProps = {
+  /**
+   * Certificate id (the `{certificate}` segment). Server-assigned on
+   * create. Immutable — changing it replaces the certificate.
+   */
+  certificateId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * certificate. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile
+   *   region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Product id (`IP` for Application Integration, `APIGEE` for Apigee
+   * Integration). Immutable — changing it replaces the certificate.
+   * @default "IP"
+   */
+  product?: string
+  /**
+   * Display name.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. Certificates have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+  /**
+   * Requestor id registered with trawler. Immutable.
+   */
+  requestorId?: string
+  /**
+   * Raw client certificate (PEM). Write-only — never returned on
+   * attributes. Changing it replaces the certificate.
+   */
+  rawCertificate?: ClientCertificate
+}
+
+export type ProductsCertificate = Resource<
+  "GCP.Integrations.ProductsCertificate",
+  ProductsCertificateProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Certificate id (last path segment). */
+    certificateId: string
+    /** Location id. */
+    location: string
+    /** Product id. */
+    product: string
+    /** Project id. */
+    project: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Requestor id. */
+    requestorId: string | undefined
+    /** Certificate status (`ACTIVE`, `EXPIRED`, …). */
+    certificateStatus: string | undefined
+    /** RFC3339 start of validity. */
+    validStartTime: string | undefined
+    /** RFC3339 end of validity. */
+    validEndTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A product-scoped Application Integration client certificate
+ * (`projects/.../products/{product}/certificates/{certificate}`).
+ *
+ * Certificates have no labels field — Alchemy stamps ownership into the
+ * description. Location, product, and id are immutable. Display name
+ * and description update in place. The PEM payload is write-only.
+ *
+ * ### Creating a Certificate
+ * **Example:** Register a PEM client cert
+ * ```typescript
+ * const cert = yield* GCP.Integrations.ProductsCertificate("ClientTls", {
+ *   product: "IP",
+ *   displayName: "client-tls",
+ *   rawCertificate: {
+ *     sslCertificate: pem,
+ *     encryptedPrivateKey: keyPem,
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Integrations
+ */
+export const ProductsCertificate = Resource<ProductsCertificate>(
+  "GCP.Integrations.ProductsCertificate",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ProductsCertificateNotResolved extends Data.TaggedError(
+  "GCP.Integrations.ProductsCertificateNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (project: string, location: string, product: string, certificateId: string): infer _ =>
+  `${productParent(project, location, product)}/certificates/${certificateId}`
+
+const toAttrs = (
+  certificate: integrations.GoogleCloudIntegrationsV1alphaCertificate,
+  project: string,
+  region: string,
+): infer _ => {
+  const name = certificate.name ?? ""
+  const parsed = parseOwnership(certificate.description)
+  return {
+    name,
+    certificateId: lastSegment(name),
+    location: locationOf(name, region),
+    product: productOf(name),
+    project,
+    displayName: certificate.displayName,
+    description: parsed.text,
+    requestorId: certificate.requestorId,
+    certificateStatus: certificate.certificateStatus,
+    validStartTime: certificate.validStartTime,
+    validEndTime: certificate.validEndTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : integrations
+  .getProjectsLocationsProductsCertificates({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string, region: string) =>
+  (Array.from(
+    try (integrations.listProjectsLocationsProductsCertificates.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.certificates ?? []))
+      |> Stream.filter(%, (certificate) => hasOwnershipMarker(certificate.description))
+      |> Stream.map(%, (certificate) => toAttrs(certificate, project, region))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findOwned = effect (parent: string, id: string) =>
+  (try effect {
+    const option = try (integrations.listProjectsLocationsProductsCertificates.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.certificates ?? []))
+      |> Stream.filterEffect(%, effect (certificate) => try ownedByAlchemy(id, certificate.description))
+      |> Stream.runHead(%))
+    return (option._tag === "Some" ? option.value : undefined)
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+export const ProductsCertificateProvider = (): infer _ =>
+  Provider.succeed(ProductsCertificate, {
+    stables: ["name", "certificateId", "location", "product", "project", "requestorId"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousLocation = olds?.location ?? output?.location
+      const nextLocation = normalizeLocation(news.location, previousLocation ?? env.region)
+      if (
+        previousLocation !== undefined
+        && normalizeLocation(previousLocation, env.region) !== nextLocation
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousProduct = olds?.product ?? output?.product
+      const nextProduct = normalizeProduct(news.product)
+      if (previousProduct !== undefined && normalizeProduct(previousProduct) !== nextProduct) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.certificateId ?? output?.certificateId
+      if (
+        previousId !== undefined
+        && news.certificateId !== undefined
+        && news.certificateId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      // The patch API only accepts certificate_name, description, and
+      // certificate_status, so a new raw certificate needs a new resource.
+      if (
+        olds !== undefined
+        && JSON.stringify(olds.rawCertificate ?? null) !== JSON.stringify(news.rawCertificate ?? null)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const certificateId = try toResourceId(id, olds?.certificateId, output?.certificateId)
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const product = normalizeProduct(olds?.product ?? output?.product)
+      const name = output?.name ?? resourceName(env.project, location, product, certificateId)
+      let existing = try getByName(name)
+      if (existing === undefined && output?.name === undefined) {
+        existing = try findOwned(productParent(env.project, location, product), id)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAt(
+        productParent(env.project, env.region, DEFAULT_PRODUCT),
+        env.project,
+        env.region,
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const product = normalizeProduct(news.product ?? output?.product ?? DEFAULT_PRODUCT)
+      const parent = productParent(env.project, location, product)
+      const certificateId = try toResourceId(id, news.certificateId, output?.certificateId)
+      const name = output?.name ?? resourceName(env.project, location, product, certificateId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? certificateId
+
+      let current = try getByName(output?.name ?? name)
+      if (current === undefined) {
+        current = try findOwned(parent, id)
+      }
+
+      if (current === undefined) {
+        const created = integrations
+          .createProjectsLocationsProductsCertificates({
+            parent,
+            body: {
+              displayName,
+              description,
+              requestorId: news.requestorId,
+              rawCertificate: news.rawCertificate,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try findOwned(parent, id); default: throw e; }
+        current = created ?? (try findOwned(parent, id))
+      }
+
+      if (current === undefined) {
+        throw new ProductsCertificateNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = (current.description ?? "") !== description
+
+      if (displayChanged || descriptionChanged) {
+        current = try integrations.patchProjectsLocationsProductsCertificates({
+          name: currentName,
+          updateMask: updateMaskOf(
+            displayChanged ? "certificate_name" : undefined,
+            descriptionChanged ? "description" : undefined,
+          ),
+          body: {
+            name: currentName,
+            displayName,
+            description,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      integrations
+        .deleteProjectsLocationsProductsCertificates({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

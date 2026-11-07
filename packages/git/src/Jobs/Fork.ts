@@ -23,7 +23,7 @@ import { Base64 } from "effect/encoding";
 import * as Option from "effect/Option";
 import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
-import { StoreError } from "../Protocol/Store.ts";
+import { StoreError } from "../Protocol/Store.vibe";
 import { LIVE_OBJECTS } from "../Store/ObjectStore.ts";
 import type { CommitParentRow, CommitRow, ObjectRow, RefRow, SqlClient } from "../Store/Sql.ts";
 

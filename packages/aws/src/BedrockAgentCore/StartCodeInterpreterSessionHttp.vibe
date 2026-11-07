@@ -1,0 +1,47 @@
+import * as agentcore from "@distilled.cloud/aws/bedrock-agentcore"
+import { toWireSeconds } from "alchemy/Util/Duration"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { CodeInterpreter } from "./CodeInterpreter.vibe"
+import {
+  StartCodeInterpreterSession,
+  type StartCodeInterpreterSessionRequest,
+} from "./StartCodeInterpreterSession.vibe"
+
+// Bespoke (not the shared scaffold): converts the ergonomic `sessionTimeout`
+// Duration.Input to the wire `sessionTimeoutSeconds` field.
+export const StartCodeInterpreterSessionHttp = Layer.effect(
+  StartCodeInterpreterSession,
+  effect {
+    const bind = try AWSBindings.Bind
+    const startCodeInterpreterSession = try AWSBindings.withCredentials(
+      agentcore.startCodeInterpreterSession,
+    )
+
+    return effect <R extends CodeInterpreter>(codeInterpreter: R) => {
+      const Identifier = try codeInterpreter.codeInterpreterId.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.BedrockAgentCore.StartCodeInterpreterSession(${codeInterpreter})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["bedrock-agentcore:StartCodeInterpreterSession"],
+              Resource: [codeInterpreter.codeInterpreterArn],
+            },
+          ],
+        })
+      }
+      return effect ({ sessionTimeout, ...request }: StartCodeInterpreterSessionRequest) =>
+        try withSpan(
+          effect {
+            return try startCodeInterpreterSession({
+              ...request,
+              sessionTimeoutSeconds: toWireSeconds(sessionTimeout),
+              codeInterpreterIdentifier: try Identifier,
+            })
+          },
+          `AWS.BedrockAgentCore.StartCodeInterpreterSession(${codeInterpreter.LogicalId})`,
+        )
+    }
+  },
+)

@@ -23,7 +23,7 @@
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { concatBytes, isOid, type Oid } from "./ObjectCodec.ts";
-import { packDataBytes, type PackEvent, writePack } from "./PackWriter.ts";
+import { packDataBytes, type PackEvent, writePack } from "./PackWriter.vibe";
 import {
   decodePktLines,
   flushPkt,
@@ -32,9 +32,9 @@ import {
   pktText,
   ProtocolError,
 } from "./Pkt.ts";
-import { progressMessage, sidebandFrames } from "./Sideband.ts";
-import type { ClosureResult, ClosureSource, ObjectSource } from "./Store.ts";
-import { StoreError } from "./Store.ts";
+import { progressMessage, sidebandFrames } from "./Sideband.vibe";
+import type { ClosureResult, ClosureSource, ObjectSource } from "./Store.vibe";
+import { StoreError } from "./Store.vibe";
 
 /**
  * A parsed `git-upload-pack` request body.

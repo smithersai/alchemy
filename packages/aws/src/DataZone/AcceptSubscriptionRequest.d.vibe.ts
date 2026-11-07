@@ -1,0 +1,27 @@
+import type * as datazone from "@distilled.cloud/aws/datazone";
+import * as Binding from "alchemy/Binding";
+import type * as Effect from "effect/Effect";
+import type { Domain } from "./Domain.vibe";
+export interface AcceptSubscriptionRequestRequest extends Omit<datazone.AcceptSubscriptionRequestInput, "domainIdentifier"> {
+}
+/**
+ * Runtime binding for `datazone:AcceptSubscriptionRequest`.
+ *
+ * Approves a pending subscription request in the bound domain — the core of an automated approval workflow. The domain id is injected from the binding.
+ * Provide the implementation with
+ * `Effect.provide(AWS.DataZone.AcceptSubscriptionRequestHttp)`.
+ * ### Subscription Workflows
+ * **Example:** Auto-approve a Request
+ * ```typescript
+ * // init — bind the operation to the domain
+ * const acceptSubscriptionRequest = yield* AWS.DataZone.AcceptSubscriptionRequest(domain);
+ *
+ * // runtime
+ * yield* acceptSubscriptionRequest({ identifier: requestId, decisionComment: "auto-approved" });
+ * ```
+ *
+ * @binding
+ */
+export interface AcceptSubscriptionRequest extends Binding.Service<AcceptSubscriptionRequest, "AWS.DataZone.AcceptSubscriptionRequest", (domain: Domain) => Effect.Effect<(request: AcceptSubscriptionRequestRequest) => Effect.Effect<datazone.AcceptSubscriptionRequestOutput, datazone.AcceptSubscriptionRequestError>>> {
+}
+export declare const AcceptSubscriptionRequest: AcceptSubscriptionRequest;

@@ -1,2 +1,2 @@
-export * from "./AchievementConfiguration.ts";
-export * from "./LeaderboardConfiguration.ts";
+export * from "./AchievementConfiguration.vibe";
+export * from "./LeaderboardConfiguration.vibe";

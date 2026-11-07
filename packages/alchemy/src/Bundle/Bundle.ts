@@ -10,8 +10,8 @@ import * as Stream from "effect/Stream";
 import type * as rolldown from "rolldown";
 import { dotAlchemyDirectory } from "../AlchemyContext.ts";
 import { encodeFqn } from "../FQN.ts";
-import { ResourceContext } from "../ResourceContext.ts";
-import { StackContext } from "../StackContext.ts";
+import { ResourceContext } from "../ResourceContext.vibe";
+import { StackContext } from "../StackContext.vibe";
 import { LogAnnotation } from "../Util/LogAnnotation.ts";
 import { sha256, sha256Object } from "../Util/sha256.ts";
 import { bundleAnalyzerPlugin, type BundleAnalyzerPluginOptions } from "./BundleAnalyzerPlugin.ts";
@@ -45,6 +45,12 @@ export const NODE_CONDITION_NAMES: readonly string[] = ["node", "module", "defau
  * nothing must not require the native bundler to be loadable (#562).
  */
 const loadRolldown = () => import("rolldown");
+
+/**
+ * VibeLang's Rolldown plugin compiles each `.vibe` module a bundle reaches
+ * and claims no other file. It loads lazily, like Rolldown.
+ */
+const loadVibeLang = () => import("vibelang-unplugin/rolldown");
 
 /**
  * Extra options accepted by {@link build} / {@link watch} on top of the
@@ -603,7 +609,9 @@ export function bundleOutputFromRolldownOutputBundle(
  * `@alchemy.run/cloudflare-runtime/rolldown`.
  */
 async function builtInPlugins(extra?: BundleExtraOptions): Promise<rolldown.RolldownPluginOption> {
+  const { default: vibelang } = await loadVibeLang();
   return [
+    vibelang(),
     extra?.bundleAnalyzer
       ? await bundleAnalyzerPlugin(extra.bundleAnalyzer === true ? {} : extra.bundleAnalyzer)
       : undefined,

@@ -1,0 +1,62 @@
+import * as wafv2 from "@distilled.cloud/aws/wafv2"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { retryOptimisticLock, withWafScope } from "./internal.ts"
+import type { IPSet } from "./IPSet.ts"
+import { UpdateIPSet, type UpdateIPSetRequest } from "./UpdateIPSet.vibe"
+
+/**
+ * Bespoke (multi-op) binding: reads the IP set for a fresh `LockToken`,
+ * applies the full-replacement update, and retries optimistic-lock
+ * conflicts by re-reading.
+ */
+export const UpdateIPSetHttp = Layer.effect(
+  UpdateIPSet,
+  effect {
+    const bind = try AWSBindings.Bind
+    const get = try AWSBindings.withCredentials(wafv2.getIPSet)
+    const update = try AWSBindings.withCredentials(wafv2.updateIPSet)
+
+    return effect (ipSet: IPSet) => {
+      const Name = try ipSet.ipSetName.asEffect()
+      const Id = try ipSet.ipSetId.asEffect()
+      const Scope = try ipSet.scope.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.WAFv2.UpdateIPSet(${ipSet})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["wafv2:GetIPSet", "wafv2:UpdateIPSet"],
+              Resource: [ipSet.ipSetArn],
+            },
+          ],
+        })
+      }
+      return effect (
+        request: UpdateIPSetRequest,
+      ) =>
+        try withSpan(
+          effect {
+            const scope = try Scope
+            const key = { Name: try Name, Scope: scope, Id: try Id }
+            return try retryOptimisticLock(
+              withWafScope(
+                scope,
+                effect {
+                  const fresh = try get(key)
+                  return try update({
+                    ...key,
+                    Addresses: request.addresses,
+                    Description: request.description ?? fresh.IPSet?.Description,
+                    LockToken: fresh.LockToken ?? "",
+                  })
+                },
+              ),
+            )
+          },
+          `AWS.WAFv2.UpdateIPSet(${ipSet.LogicalId})`,
+        )
+    }
+  },
+)

@@ -1,0 +1,69 @@
+import * as keyspaces from "@distilled.cloud/aws/keyspaces"
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Keyspace } from "./Keyspace.ts"
+import { RestoreTable, type RestoreTableRequest } from "./RestoreTable.vibe"
+import type { Table } from "./Table.ts"
+
+/**
+ * HTTP implementation of {@link RestoreTable}: grants `cassandra:Select` on
+ * the source table plus `cassandra:Restore` (and the `Create`/`TagResource`
+ * actions the restore performs) on the target keyspace and its tables, and
+ * calls the Keyspaces HTTP API with the function's IAM credentials.
+ */
+export const RestoreTableHttp = Layer.effect(
+  RestoreTable,
+  effect {
+    const bind = try AWSBindings.Bind
+    const restoreTable = try AWSBindings.withCredentials(keyspaces.restoreTable)
+
+    return effect <From extends Table, To extends Keyspace>(
+      source: From,
+      targetKeyspace: To,
+    ) => {
+      const SourceKeyspaceName = try source.keyspaceName.asEffect()
+      const SourceTableName = try source.tableName.asEffect()
+      const TargetKeyspaceName = try targetKeyspace.keyspaceName.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.Keyspaces.RestoreTable(${source}, ${targetKeyspace})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["cassandra:Select"],
+              Resource: [source.tableArn],
+            },
+            {
+              // The keyspace ARN ends with a trailing slash
+              // (`.../keyspace/name/`), so its tables match `table/*`.
+              Effect: "Allow",
+              Action: ["cassandra:Restore", "cassandra:Create", "cassandra:TagResource"],
+              Resource: [
+                targetKeyspace.keyspaceArn,
+                Output.interpolate`${targetKeyspace.keyspaceArn}table/*`,
+              ],
+            },
+          ],
+        })
+      }
+      return effect (
+        request: RestoreTableRequest,
+      ) =>
+        try withSpan(
+          effect {
+            const sourceKeyspaceName = try SourceKeyspaceName
+            const sourceTableName = try SourceTableName
+            const targetKeyspaceName = try TargetKeyspaceName
+            return try restoreTable({
+              ...request,
+              sourceKeyspaceName,
+              sourceTableName,
+              targetKeyspaceName,
+            })
+          },
+          `AWS.Keyspaces.RestoreTable(${source.LogicalId})`,
+        )
+    }
+  },
+)

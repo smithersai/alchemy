@@ -7,7 +7,7 @@ import {
   GetParameters,
   type GetParametersParameters,
   type GetParametersRequest,
-} from "./GetParameters.ts";
+} from "./GetParameters.vibe";
 
 export const GetParametersHttp = Layer.effect(
   GetParameters,

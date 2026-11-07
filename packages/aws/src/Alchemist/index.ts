@@ -9,7 +9,7 @@ import * as Option from "effect/Option";
 import {
   bootstrap as bootstrapAws,
   destroyBootstrap as destroyBootstrapAws,
-} from "../AssetsBucket.ts";
+} from "../AssetsBucket.vibe";
 import { getAccountId, silentConsole } from "../AuthProvider.ts";
 import * as AWSCredentials from "../Credentials.ts";
 import { AWSEnvironment } from "../Environment.ts";

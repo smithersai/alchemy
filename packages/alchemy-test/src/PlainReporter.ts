@@ -10,7 +10,7 @@
  */
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import type { LogEntry } from "./Model.ts";
+import type { LogEntry } from "./Model.vibe";
 import { formatPlanPreview } from "./Plan.ts";
 import { Reporter, type RunSummary, type TestEvent, type TestResult } from "./Reporter.ts";
 import { writeDirect } from "./StrayOutput.ts";

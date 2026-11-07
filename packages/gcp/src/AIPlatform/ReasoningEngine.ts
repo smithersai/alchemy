@@ -25,7 +25,7 @@ import {
   stableJson,
   toPhysicalId,
   listLocations,
-} from "./names.ts";
+} from "./names.vibe";
 import { resourceNameFromOperation, waitForOperation } from "./operations.ts";
 
 export type ReasoningEngineSpec = aiplatform.GoogleCloudAiplatformV1ReasoningEngineSpec;

@@ -5,14 +5,14 @@ import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import { concatBytes } from "../Protocol/ObjectCodec.ts";
 import { errPkt, flushPkt, pktText } from "../Protocol/Pkt.ts";
-import { sidebandFrames } from "../Protocol/Sideband.ts";
-import { StoreError } from "../Protocol/Store.ts";
-import { incomingStates, type PushInput } from "../Push.ts";
+import { sidebandFrames } from "../Protocol/Sideband.vibe";
+import { StoreError } from "../Protocol/Store.vibe";
+import { incomingStates, type PushInput } from "../Push.vibe";
 import { parseReceivePackRequest, type CommitPushResult } from "../RepoObject.ts";
 import { feedBody, HEAD_BYTES } from "../Store/IncomingBody.ts";
-import { makeStreamingSource } from "../Store/StreamingSource.ts";
+import { makeStreamingSource } from "../Store/StreamingSource.vibe";
 
-export { ReceivePack as endpoint } from "../Api/Protocol.ts";
+export { ReceivePack as endpoint } from "../Api/Protocol.vibe";
 
 export interface Push {
   readonly _tag: "Push";

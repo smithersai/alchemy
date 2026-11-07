@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Schema from "effect/Schema";
-import { connectDatabase } from "./client.ts";
+import { connectDatabase } from "./client.vibe";
 import { Todos } from "./schema.ts";
 
 export default class Api extends AWS.Lambda.Function<Api>()(

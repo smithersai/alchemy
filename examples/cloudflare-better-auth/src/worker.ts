@@ -6,7 +6,7 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as Layer from "effect/Layer";
 import { Auth } from "./auth.ts";
 import { AuthDb } from "./database.ts";
-import { HttpLive } from "./http.ts";
+import { HttpLive } from "./http.vibe";
 
 export default class AuthApi extends Cloudflare.Worker<AuthApi>()(
   "AuthApi",

@@ -3,10 +3,10 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { toProduceRecords } from "./K2Codec.ts";
 import { type K2Auth, makeK2HttpAuth } from "./K2Http.ts";
-import type { EncodedRecord, RecordSchema } from "./K2Types.ts";
+import type { EncodedRecord, RecordSchema } from "./K2Types.vibe";
 import type { Stream } from "./Stream.ts";
-import { WriteStream } from "./WriteStream.ts";
-import { makeWriteStreamClient } from "./WriteStreamClient.ts";
+import { WriteStream } from "./WriteStream.vibe";
+import { makeWriteStreamClient } from "./WriteStreamClient.vibe";
 
 /**
  * HTTP-backed implementation of the {@link WriteStream} service. Mints a

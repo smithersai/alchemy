@@ -19,7 +19,7 @@ import {
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
 import type { EncryptionConfig } from "./Cluster.ts";
-import { waitForDeleteOperation, waitForOperation } from "./operations.ts";
+import { waitForDeleteOperation, waitForOperation } from "./operations.vibe";
 
 const DEFAULT_BACKUP_TYPE = "ON_DEMAND";
 const MAX_NAME_LENGTH = 63;

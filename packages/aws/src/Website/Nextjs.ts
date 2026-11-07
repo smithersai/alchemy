@@ -9,12 +9,12 @@ import { Server, type ServerDevProps } from "alchemy/Website/Server";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import { Table } from "../DynamoDB/Table.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { EventSourceMapping } from "../Lambda/EventSourceMapping.ts";
 import { Function as LambdaFunction } from "../Lambda/Function.ts";
-import { WebFunction } from "../Lambda/WebFunction.ts";
+import { WebFunction } from "../Lambda/WebFunction.vibe";
 import { Bucket } from "../S3/Bucket.ts";
-import { Queue } from "../SQS/Queue.ts";
+import { Queue } from "../SQS/Queue.vibe";
 import { AssetDeployment } from "./AssetDeployment.ts";
 import { asRouterDomain, registerDevRouterRoute } from "./DevRouterRoute.ts";
 import {

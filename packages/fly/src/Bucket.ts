@@ -13,9 +13,9 @@ import * as Redacted from "effect/Redacted";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 import { resolveOrgSlug } from "./Environment.ts";
-import { TigrisCredentialsMissing } from "./Errors.ts";
+import { TigrisCredentialsMissing } from "./Errors.vibe";
 import { createFlyAppName, matchesAlchemyPhysicalName } from "./Metadata.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 /** Env-var names Tigris HTTP bindings write onto an App (same as `fly storage create`). */
 export const BUCKET_SECRET_NAMES = [

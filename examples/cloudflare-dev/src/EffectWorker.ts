@@ -6,8 +6,8 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
 import { KV } from "./KV.ts";
-import NotifyWorkflow from "./NotifyWorkflow.ts";
-import SandboxDO from "./SandboxDO.ts";
+import NotifyWorkflow from "./NotifyWorkflow.vibe";
+import SandboxDO from "./SandboxDO.vibe";
 
 /**
  * Analytics Engine dataset — a plain binding value, not a cloud resource.

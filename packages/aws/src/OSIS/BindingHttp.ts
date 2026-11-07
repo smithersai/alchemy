@@ -24,7 +24,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as AWSBindings from "../AWSBindings.ts";
-import type { Pipeline } from "./Pipeline.ts";
+import type { Pipeline } from "./Pipeline.vibe";
 
 /**
  * Build the impl Effect for an OSIS operation scoped to a {@link Pipeline}:

@@ -7,7 +7,7 @@ import {
   ConnectReplicationGroup,
   replicationGroupConnectEnvPrefix,
   type ConnectReplicationGroupOptions,
-} from "./ConnectReplicationGroup.ts";
+} from "./ConnectReplicationGroup.vibe";
 import type { ReplicationGroup } from "./ReplicationGroup.ts";
 
 export const ConnectReplicationGroupHttp = Layer.effect(

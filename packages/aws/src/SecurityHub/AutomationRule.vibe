@@ -1,0 +1,293 @@
+import * as securityhub from "@distilled.cloud/aws/securityhub"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, tagRecord } from "alchemy/Tags"
+import type { Providers } from "../Providers.ts"
+
+/** Whether the automation rule is applied to new and updated findings. */
+export type RuleStatus = "ENABLED" | "DISABLED"
+
+export interface AutomationRuleProps {
+  /**
+   * Name of the rule. If omitted, a unique name is generated. Updatable in
+   * place.
+   */
+  ruleName?: string
+
+  /**
+   * Description of the rule. Updatable in place.
+   */
+  description: string
+
+  /**
+   * Order in which rules are applied (1 first; lower wins on conflicts).
+   * Updatable in place.
+   */
+  ruleOrder: number
+
+  /**
+   * Whether the rule is applied to findings: `ENABLED` or `DISABLED`.
+   * Updatable in place.
+   * @default "ENABLED"
+   */
+  ruleStatus?: RuleStatus
+
+  /**
+   * Whether matching findings stop evaluating further rules. Updatable in
+   * place.
+   * @default false
+   */
+  isTerminal?: boolean
+
+  /**
+   * The criteria findings are matched against, e.g.
+   * `{ SeverityLabel: [{ Value: "INFORMATIONAL", Comparison: "EQUALS" }] }`.
+   * Updatable in place.
+   */
+  criteria: securityhub.AutomationRulesFindingFilters
+
+  /**
+   * The updates applied to matching findings, e.g.
+   * `[{ Type: "FINDING_FIELDS_UPDATE", FindingFieldsUpdate: { Workflow: { Status: "SUPPRESSED" } } }]`.
+   * Updatable in place.
+   */
+  actions: securityhub.AutomationRulesAction[]
+
+  /**
+   * Tags applied to the rule. Alchemy ownership tags are merged in
+   * automatically.
+   */
+  tags?: Record<string, string>
+}
+
+/** @resource */
+export interface AutomationRule extends
+  Resource<
+    "AWS.SecurityHub.AutomationRule",
+    AutomationRuleProps,
+    {
+      /** ARN of the automation rule (its identity). */
+      ruleArn: string
+      /** Name of the rule. */
+      ruleName: string
+      /** Evaluation order of the rule. */
+      ruleOrder: number | undefined
+      /** Whether the rule is applied to findings. */
+      ruleStatus: string | undefined
+      /** Whether matching findings stop evaluating further rules. */
+      isTerminal: boolean | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A Security Hub automation rule — automatically updates findings that match
+ * its criteria (suppress, change severity, add notes) as they are ingested.
+ *
+ * ### Automating Finding Triage
+ * **Example:** Suppress Informational Findings
+ * ```typescript
+ * const rule = yield* AWS.SecurityHub.AutomationRule("SuppressInfo", {
+ *   description: "Suppress informational findings",
+ *   ruleOrder: 1,
+ *   criteria: {
+ *     SeverityLabel: [{ Value: "INFORMATIONAL", Comparison: "EQUALS" }],
+ *   },
+ *   actions: [{
+ *     Type: "FINDING_FIELDS_UPDATE",
+ *     FindingFieldsUpdate: { Workflow: { Status: "SUPPRESSED" } },
+ *   }],
+ * });
+ * ```
+ *
+ * **Example:** Escalate Production Findings
+ * ```typescript
+ * const rule = yield* AWS.SecurityHub.AutomationRule("EscalateProd", {
+ *   description: "Raise severity of findings on production resources",
+ *   ruleOrder: 2,
+ *   isTerminal: true,
+ *   criteria: {
+ *     ResourceTags: [{ Key: "env", Value: "prod", Comparison: "EQUALS" }],
+ *   },
+ *   actions: [{
+ *     Type: "FINDING_FIELDS_UPDATE",
+ *     FindingFieldsUpdate: { Severity: { Label: "CRITICAL" } },
+ *   }],
+ * });
+ * ```
+ */
+const AutomationRuleResource = Resource<AutomationRule>("AWS.SecurityHub.AutomationRule")
+
+export { AutomationRuleResource as AutomationRule }
+
+export const AutomationRuleProvider = (): infer _ =>
+  Provider.effect(
+    AutomationRuleResource,
+    effect {
+      const toName = effect (
+        id: string,
+        props: { ruleName?: string },
+      ) => (props.ruleName ? props.ruleName : try createPhysicalName({ id, maxLength: 128 }))
+
+      const getRule = effect (arn: string) =>
+        ((try securityhub.batchGetAutomationRules({ AutomationRulesArns: [arn] })).Rules?.[0]) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          when { _tag: "InvalidAccessException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      // `ListAutomationRules` is not modeled as paginated in the Smithy spec
+      // (no `.pages` helper) — page manually, bounded (accounts are limited
+      // to 100 rules).
+      const listRules = effect {
+        return (try effect {
+          const out: securityhub.AutomationRulesMetadata[] = []
+          let nextToken: string | undefined
+          for (let i = 0; i < 10; i++) {
+            const page = try securityhub.listAutomationRules({
+              MaxResults: 100,
+              NextToken: nextToken,
+            })
+            out.push(...(page.AutomationRulesMetadata ?? []))
+            nextToken = page.NextToken
+            if (!nextToken) break
+          }
+          return out
+        }) catch effect (e) => match (e) {
+          when { _tag: "InvalidAccessException" }: [] as securityhub.AutomationRulesMetadata[];
+          default: throw e;
+        }
+      }
+
+      const readTags = effect (arn: string) =>
+        (tagRecord((try securityhub.listTagsForResource({ ResourceArn: arn })).Tags)) catch () => ({})
+
+      const buildAttrs = (r: {
+        RuleArn?: string
+        RuleName?: string
+        RuleOrder?: number
+        RuleStatus?: string
+        IsTerminal?: boolean
+      }): infer _ => ({
+        ruleArn: r.RuleArn!,
+        ruleName: r.RuleName ?? "",
+        ruleOrder: r.RuleOrder,
+        ruleStatus: r.RuleStatus,
+        isTerminal: r.IsTerminal,
+      })
+
+      return {
+        stables: ["ruleArn"],
+        read: effect ({ id, olds, output }) => {
+          let arn = output?.ruleArn
+          if (!arn) {
+            // No prior state — find by (deterministic) name.
+            const name = try toName(id, olds ?? {})
+            const all = try listRules
+            arn = all.find((r) => r.RuleName === name)?.RuleArn
+          }
+          if (!arn) return undefined
+          const live = try getRule(arn)
+          if (!live) return undefined
+          const attrs = buildAttrs(live)
+          const tags = try readTags(arn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+        list: effect () => (try listRules).filter((r) => r.RuleArn).map((r) => buildAttrs(r)),
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try toName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — by cached ARN first, then by name.
+          let arn = output?.ruleArn
+          let live = arn ? try getRule(arn) : undefined
+          if (!live) {
+            const all = try listRules
+            arn = all.find((r) => r.RuleName === name)?.RuleArn
+            live = arn ? try getRule(arn) : undefined
+          }
+
+          if (!live) {
+            // 2. ENSURE — create with tags applied inline.
+            const { RuleArn } = try securityhub.createAutomationRule({
+              RuleName: name,
+              Description: news.description,
+              RuleOrder: news.ruleOrder,
+              RuleStatus: news.ruleStatus ?? "ENABLED",
+              IsTerminal: news.isTerminal ?? false,
+              Criteria: news.criteria,
+              Actions: news.actions,
+              Tags: desiredTags,
+            })
+            arn = RuleArn!
+          } else {
+            arn = live.RuleArn!
+            // 3. SYNC settings — observed ↔ desired.
+            const desiredStatus = news.ruleStatus ?? "ENABLED"
+            const desiredTerminal = news.isTerminal ?? false
+            const drift = live.RuleName !== name
+              || live.Description !== news.description
+              || live.RuleOrder !== news.ruleOrder
+              || live.RuleStatus !== desiredStatus
+              || (live.IsTerminal ?? false) !== desiredTerminal
+              || JSON.stringify(live.Criteria) !== JSON.stringify(news.criteria)
+              || JSON.stringify(live.Actions) !== JSON.stringify(news.actions)
+            if (drift) {
+              try securityhub.batchUpdateAutomationRules({
+                UpdateAutomationRulesRequestItems: [
+                  {
+                    RuleArn: arn,
+                    RuleName: name,
+                    Description: news.description,
+                    RuleOrder: news.ruleOrder,
+                    RuleStatus: desiredStatus,
+                    IsTerminal: desiredTerminal,
+                    Criteria: news.criteria,
+                    Actions: news.actions,
+                  },
+                ],
+              })
+            }
+
+            // 3b. SYNC tags — diff against OBSERVED cloud tags.
+            const currentTags = try readTags(arn)
+            const { upsert, removed } = diffTags(currentTags, desiredTags)
+            if (upsert.length > 0) {
+              try securityhub.tagResource({
+                ResourceArn: arn,
+                Tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+              })
+            }
+            if (removed.length > 0) {
+              try securityhub.untagResource({
+                ResourceArn: arn,
+                TagKeys: removed,
+              })
+            }
+          }
+
+          // 4. RETURN fresh attributes.
+          const final = try getRule(arn)
+          try session.note(arn)
+          return buildAttrs(final ?? { RuleArn: arn, RuleName: name })
+        },
+        delete: effect ({ output }) => {
+          // Idempotent — an unknown ARN comes back in
+          // UnprocessedAutomationRules rather than as an error.
+          securityhub
+            .batchDeleteAutomationRules({
+              AutomationRulesArns: [output.ruleArn],
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              when { _tag: "InvalidAccessException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

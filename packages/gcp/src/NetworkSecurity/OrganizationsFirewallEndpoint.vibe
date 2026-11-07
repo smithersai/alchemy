@@ -1,0 +1,393 @@
+import * as networksecurity from "@distilled.cloud/gcp/networksecurity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  listOrganizations,
+  normalizeZone,
+  organizationParent,
+  parseResourceName,
+  ResourceNotResolved,
+  resolveOrganization,
+  toPhysicalId,
+  userLabels,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./operations.vibe"
+
+export type OrganizationsFirewallEndpointState =
+  | networksecurity.FirewallEndpointStateEnum
+  | (string & {})
+
+export type OrganizationsFirewallEndpointSettings = {
+  /**
+   * Whether jumbo frames are enabled. Immutable — changing it replaces
+   * the endpoint.
+   * @default false
+   */
+  jumboFramesEnabled?: boolean
+}
+
+export type OrganizationsFirewallEndpointAssociation = {
+  /** FirewallEndpointAssociation resource name. */
+  name: string | undefined
+  /** VPC network `projects/{project}/global/networks/{name}`. */
+  network: string | undefined
+}
+
+export type OrganizationsFirewallEndpointProps = {
+  /**
+   * Firewall endpoint id. If omitted, a unique RFC1035 name is generated
+   * from the stack, stage, and logical id. Immutable — changing it
+   * replaces the endpoint.
+   */
+  firewallEndpointId?: string
+  /**
+   * Organization id or `organizations/{organization}`. If omitted,
+   * Alchemy uses `GOOGLE_ORGANIZATION_ID` or the project's Resource
+   * Manager parent. Immutable — changing it replaces the endpoint.
+   */
+  organization?: string
+  /**
+   * Zone (`us-central1-a`, …). Firewall endpoints are zonal. Immutable —
+   * changing it replaces the endpoint.
+   * @default "us-central1-a"
+   */
+  location?: string
+  /**
+   * Project billed for the endpoint. Required for organization-scoped
+   * endpoints. Defaults to the stack project.
+   */
+  billingProjectId?: string
+  /**
+   * Endpoint settings. `jumboFramesEnabled` is immutable.
+   */
+  endpointSettings?: OrganizationsFirewallEndpointSettings
+  /**
+   * Human-readable description (max 2048 characters).
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type OrganizationsFirewallEndpoint = Resource<
+  "GCP.NetworkSecurity.OrganizationsFirewallEndpoint",
+  OrganizationsFirewallEndpointProps,
+  {
+    /** Full resource name `organizations/{organization}/locations/{location}/firewallEndpoints/{firewallEndpoint}`. */
+    name: string
+    /** Firewall endpoint id (last path segment). */
+    firewallEndpointId: string
+    /** Organization id. */
+    organization: string
+    /** Zone id. */
+    location: string
+    /** Project billed for the endpoint. */
+    billingProjectId: string | undefined
+    /** Whether jumbo frames are enabled. */
+    jumboFramesEnabled: boolean
+    /** User-provided description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Server-reported lifecycle state. */
+    state: string | undefined
+    /** Whether the endpoint is reconciling. */
+    reconciling: boolean
+    /** Associated FirewallEndpointAssociations. */
+    associations: OrganizationsFirewallEndpointAssociation[]
+    /** Associated VPC networks. */
+    associatedNetworks: string[]
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An organization-scoped Cloud NGFW firewall endpoint.
+ *
+ * Endpoints are zonal and bill to `billingProjectId`. Changing
+ * `firewallEndpointId`, `organization`, `location`, `billingProjectId`,
+ * or jumbo-frame settings replaces the endpoint. Description and labels
+ * update in place. Provisioning is slow — tests skip when `FAST` is set.
+ *
+ * ### Creating a Firewall Endpoint
+ * **Example:** Generated name
+ * ```typescript
+ * const endpoint = yield* GCP.NetworkSecurity.OrganizationsFirewallEndpoint(
+ *   "Ngfw",
+ *   { location: "us-central1-a" },
+ * );
+ * ```
+ *
+ * **Example:** Named endpoint
+ * ```typescript
+ * const endpoint = yield* GCP.NetworkSecurity.OrganizationsFirewallEndpoint(
+ *   "Ngfw",
+ *   {
+ *     firewallEndpointId: "app-ngfw",
+ *     organization: "123456789",
+ *     location: "us-central1-a",
+ *     billingProjectId: "my-project",
+ *     description: "prod NGFW",
+ *     labels: { env: "prod" },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category NetworkSecurity
+ */
+export const OrganizationsFirewallEndpoint = Resource<OrganizationsFirewallEndpoint>(
+  "GCP.NetworkSecurity.OrganizationsFirewallEndpoint",
+)
+
+const resourceName = (organization: string, location: string, firewallEndpointId: string): infer _ =>
+  `organizations/${organization}/locations/${location}/firewallEndpoints/${firewallEndpointId}`
+
+const jumboOf = (settings: OrganizationsFirewallEndpointSettings | undefined): infer _ =>
+  settings?.jumboFramesEnabled === true
+
+const toAttrs = (endpoint: networksecurity.FirewallEndpoint): infer _ => {
+  const name = endpoint.name ?? ""
+  const parsed = parseResourceName(name)
+  return {
+    name,
+    firewallEndpointId: parsed.id,
+    organization: parsed.parentId,
+    location: parsed.location,
+    billingProjectId: endpoint.billingProjectId,
+    jumboFramesEnabled: endpoint.endpointSettings?.jumboFramesEnabled === true,
+    description: endpoint.description,
+    labels: userLabels(endpoint.labels),
+    state: endpoint.state,
+    reconciling: endpoint.reconciling === true,
+    associations: (endpoint.associations ?? []).map((association) => ({
+      name: association.name,
+      network: association.network,
+    })),
+    associatedNetworks: endpoint.associatedNetworks ?? [],
+    createTime: endpoint.createTime,
+    updateTime: endpoint.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networksecurity
+    .getOrganizationsLocationsFirewallEndpoints({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const isPendingState = (state: string | undefined): infer _ =>
+  state === "CREATING" || state === "DELETING" || state === "STATE_UNSPECIFIED"
+
+const waitUntilReady = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(%, (endpoint): endpoint is networksecurity.FirewallEndpoint =>
+      endpoint !== undefined, () =>
+      new ResourceNotResolved({ resourceName: name }))
+    |> Effect.filterOrFail(%, (endpoint) =>
+      !isPendingState(endpoint.state), () =>
+      new ResourceNotResolved({ resourceName: name }))
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.NetworkSecurity.ResourceNotResolved",
+      times: 10,
+      schedule: Schedule.spaced("5 seconds"),
+    }))
+
+const listOwned = effect (organization: string) =>
+  (Array.from(
+    try (networksecurity.listOrganizationsLocationsFirewallEndpoints
+      .pages({
+        parent: organizationParent(organization, "-"),
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.firewallEndpoints ?? []))
+      |> Stream.filter(%, (endpoint) => Object.keys(endpoint.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+      |> Stream.map(%, toAttrs)
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const OrganizationsFirewallEndpointProvider = (): infer _ =>
+  Provider.succeed(OrganizationsFirewallEndpoint, {
+    stables: [
+      "name",
+      "firewallEndpointId",
+      "organization",
+      "location",
+      "billingProjectId",
+      "jumboFramesEnabled",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.firewallEndpointId ?? output?.firewallEndpointId
+      const nextId = news.firewallEndpointId ?? previousId
+      const previousOrg = olds?.organization ?? output?.organization
+      const nextOrg = news.organization ?? previousOrg
+      const previousLocation = normalizeZone(olds?.location ?? output?.location)
+      const nextLocation = normalizeZone(news.location ?? olds?.location ?? output?.location)
+      const previousBilling = olds?.billingProjectId ?? output?.billingProjectId
+      const nextBilling = news.billingProjectId ?? previousBilling
+      const previousJumbo = jumboOf(olds?.endpointSettings)
+      const nextJumbo = news.endpointSettings !== undefined
+        ? jumboOf(news.endpointSettings)
+        : (output?.jumboFramesEnabled ?? previousJumbo)
+      const replace = (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || (previousOrg !== undefined && nextOrg !== undefined && nextOrg !== previousOrg)
+        || previousLocation !== nextLocation
+        || (previousBilling !== undefined
+          && nextBilling !== undefined
+          && previousBilling !== nextBilling)
+        || previousJumbo !== nextJumbo
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousLocation === nextLocation
+          && previousOrg === nextOrg
+          && previousId !== undefined
+          && nextId === previousId,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const firewallEndpointId = try toPhysicalId(
+        id,
+        olds?.firewallEndpointId,
+        output?.firewallEndpointId,
+        "fwep",
+      )
+      const organization = resolveOrganization(
+        olds?.organization ?? output?.organization,
+        output?.organization,
+      ) catch effect (e) => match (e) {
+        when { _tag: "GCP.NetworkSecurity.OrganizationRequired" }: output?.organization ?? "";
+        default: throw e;
+      }
+      const location = normalizeZone(olds?.location ?? output?.location)
+      const name = output?.name
+        ?? (organization.length > 0 ? resourceName(organization, location, firewallEndpointId) : "")
+      if (name.length === 0) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const orgs = try listOrganizations(env.project)
+      const listed: OrganizationsFirewallEndpoint["Attributes"][] = []
+      for (const organization of orgs) {
+        listed.push(...(try listOwned(organization)))
+      }
+      return listed
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const firewallEndpointId = try toPhysicalId(
+        id,
+        news.firewallEndpointId,
+        output?.firewallEndpointId,
+        "fwep",
+      )
+      const organization = try resolveOrganization(
+        news.organization ?? output?.organization,
+        output?.organization,
+      )
+      const location = normalizeZone(news.location ?? output?.location)
+      const name = resourceName(organization, location, firewallEndpointId)
+      const billingProjectId = news.billingProjectId ?? env.project
+      const jumboFramesEnabled = jumboOf(news.endpointSettings)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (try (networksecurity
+          .createOrganizationsLocationsFirewallEndpoints({
+            parent: organizationParent(organization, location),
+            firewallEndpointId,
+            body: {
+              billingProjectId,
+              description: news.description,
+              labels: desiredLabels,
+              endpointSettings: { jumboFramesEnabled },
+            },
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 5,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilReady(name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const labelsChanged = upsert.length > 0 || removed.length > 0
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+
+      if (labelsChanged || descriptionChanged) {
+        const updateMask = [
+          labelsChanged ? "labels" : undefined,
+          descriptionChanged ? "description" : undefined,
+        ].filter((field): field is string => field !== undefined)
+
+        const operation = try networksecurity.patchOrganizationsLocationsFirewallEndpoints({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            labels: desiredLabels,
+            description: news.description,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (networksecurity
+        .deleteOrganizationsLocationsFirewallEndpoints({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

@@ -4,9 +4,9 @@ import { makeBatchedSink } from "alchemy/Util/BatchedSink";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
-import { RecordsSink, type RecordsSinkProps, type RecordsSinkRecord } from "./RecordsSink.ts";
-import type { Table } from "./Table.ts";
-import { WriteRecords } from "./WriteRecords.ts";
+import { RecordsSink, type RecordsSinkProps, type RecordsSinkRecord } from "./RecordsSink.vibe";
+import type { Table } from "./Table.vibe";
+import { WriteRecords } from "./WriteRecords.vibe";
 
 /**
  * Normalized `WriteRecords` outcome: which positions of the submitted batch

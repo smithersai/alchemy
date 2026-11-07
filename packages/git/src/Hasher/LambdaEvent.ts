@@ -8,7 +8,7 @@
  * receiver inflates it).
  */
 import * as Effect from "effect/Effect";
-import { scanPart, type ScanResult, type UnresolvedDelta } from "../Protocol/PartialScan.ts";
+import { scanPart, type ScanResult, type UnresolvedDelta } from "../Protocol/PartialScan.vibe";
 import { decodeScanResult, encodeScanResult, HashError, type HashPartOptions } from "./Hasher.ts";
 
 /** Chunk size the Lambda hasher asks the pump for (4 MiB → ~5.6 MB base64). */

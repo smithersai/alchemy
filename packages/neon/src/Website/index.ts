@@ -1,4 +1,4 @@
-export * from "./Astro.ts";
+export * from "./Astro.vibe";
 export * from "./Foldkit.ts";
 export * from "./Nextjs.ts";
 export * from "./Nuxt.ts";

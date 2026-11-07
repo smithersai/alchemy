@@ -17,7 +17,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitZoneOperation } from "./operations.ts";
+import { waitZoneOperation } from "./operations.vibe";
 
 const DEFAULT_ZONE = "us-central1-a";
 const DEFAULT_COOL_DOWN_SEC = 60;

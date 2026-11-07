@@ -2,7 +2,7 @@ import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as AWSBindings from "../AWSBindings.ts";
 import type { JobTemplate } from "./JobTemplate.ts";
-import type { VirtualCluster } from "./VirtualCluster.ts";
+import type { VirtualCluster } from "./VirtualCluster.vibe";
 
 /**
  * Shared scaffolding for Amazon EMR on EKS (`emr-containers`) HTTP bindings.

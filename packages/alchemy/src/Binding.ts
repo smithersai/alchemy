@@ -2,11 +2,11 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import type * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import type { Input } from "./Input.ts";
+import type { Input } from "./Input.vibe";
 import * as Output from "./Output.ts";
 import { describeDataPlane, type DataPlaneResolution } from "./Provider.ts";
 import { isResource, type ResourceLike } from "./Resource.ts";
-import { Self } from "./Self.ts";
+import { Self } from "./Self.vibe";
 import { taggedFunction } from "./Util/effect.ts";
 
 export interface ServiceLike {

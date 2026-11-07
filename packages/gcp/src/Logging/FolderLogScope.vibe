@@ -1,0 +1,269 @@
+import * as logging from "@distilled.cloud/gcp/logging_v2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_LOCATION,
+  createOwnership,
+  encodeDescription,
+  hasOwnershipMarker,
+  jsonEqual,
+  lastSegment,
+  locationParent,
+  ownedBy,
+  parseDescription,
+  parseLoggingName,
+  scopeParent,
+  toPhysicalId,
+} from "./internal.ts"
+
+export type FolderLogScopeProps = {
+  /**
+   * Folder id (`folders/{folder}` or the numeric id). When omitted, the
+   * stack project is used. Immutable — changing it replaces the log
+   * scope.
+   */
+  folderId?: string
+  /**
+   * Location of the log scope. Log scopes are only available in `global`.
+   * Immutable — changing it replaces the log scope.
+   * @default "global"
+   */
+  location?: string
+  /**
+   * Log scope id (the `{logScope}` segment of
+   * `{parent}/locations/{location}/logScopes/{logScope}`). If omitted, a
+   * unique name is generated. Limited to 100 characters: letters, digits,
+   * underscores, hyphens, periods; first character must be alphanumeric.
+   * Immutable — changing it replaces the log scope.
+   */
+  logScopeId?: string
+  /**
+   * Parent resources to read log entries from. Project names
+   * (`projects/{project}`) and/or log views
+   * (`projects/{project}/locations/{location}/buckets/{bucket}/views/{view}`).
+   * Organizations and folders are not supported. Max 5 projects and 100
+   * resources total.
+   */
+  resourceNames: string[]
+  /**
+   * Human-readable description (max 8000 characters). Log scopes have no
+   * labels field, so Alchemy ownership is stored in a `[alchemy …]` prefix
+   * and stripped from attributes.
+   */
+  description?: string
+}
+
+export type FolderLogScope = Resource<
+  "GCP.Logging.FolderLogScope",
+  FolderLogScopeProps,
+  {
+    /** Full resource name `{parent}/locations/{location}/logScopes/{logScopeId}`. */
+    name: string
+    /** Log scope id (last path segment). */
+    logScopeId: string
+    /** Parent resource (`folders/{folder}` or `projects/{project}`). */
+    parent: string
+    /** Folder id when the parent is a folder. */
+    folderId: string | undefined
+    /** Location (`global`). */
+    location: string
+    /** Resource names included in the scope. */
+    resourceNames: string[]
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Logging log scope grouping projects and views to read together.
+ *
+ * Log scopes exist only in `global`. They have no labels field, so Alchemy
+ * stamps ownership into the description for `list` / nuke. `folderId`,
+ * `logScopeId`, and `location` are identity — changing any of them
+ * replaces the log scope. `resourceNames` and `description` update in
+ * place. The `_Default` log scope cannot be modified or deleted.
+ *
+ * ### Creating a Folder Log Scope
+ * **Example:** Scope the stack project
+ * ```typescript
+ * const scope = yield* GCP.Logging.FolderLogScope("App", {
+ *   resourceNames: ["projects/my-project"],
+ *   description: "application logs",
+ * });
+ * ```
+ *
+ * ### Updating a Folder Log Scope
+ * **Example:** Change the description
+ * ```typescript
+ * const scope = yield* GCP.Logging.FolderLogScope("App", {
+ *   resourceNames: ["projects/my-project"],
+ *   description: "updated application logs",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Logging
+ */
+export const FolderLogScope = Resource<FolderLogScope>("GCP.Logging.FolderLogScope")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class FolderLogScopeNotResolved extends Data.TaggedError(
+  "GCP.Logging.FolderLogScopeNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (parent: string, location: string, logScopeId: string): infer _ =>
+  `${locationParent(parent, location)}/logScopes/${logScopeId}`
+
+const folderIdOf = (parent: string): infer _ => parent.startsWith("folders/") ? lastSegment(parent) : undefined
+
+const sortedNames = (names: readonly string[] | undefined): infer _ => [...(names ?? [])].slice().sort()
+
+const toAttrs = (scope: logging.LogScope, parent: string, location: string): infer _ => {
+  const parsed = parseLoggingName(scope.name ?? "")
+  const logScopeId = parsed.logScopeId ?? lastSegment(scope.name ?? "")
+  const resolvedParent = parsed.parent || parent
+  const resolvedLocation = parsed.location ?? location
+  const description = parseDescription(scope.description)
+  return {
+    name: scope.name ?? (logScopeId ? resourceName(resolvedParent, resolvedLocation, logScopeId) : ""),
+    logScopeId,
+    parent: resolvedParent,
+    folderId: folderIdOf(resolvedParent),
+    location: resolvedLocation,
+    resourceNames: [...(scope.resourceNames ?? [])],
+    description: description.description,
+    createTime: scope.createTime,
+    updateTime: scope.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  logging
+    .getFoldersLocationsLogScopes({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const FolderLogScopeProvider = (): infer _ =>
+  Provider.succeed(FolderLogScope, {
+    stables: ["name", "logScopeId", "parent", "folderId", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.logScopeId ?? output?.logScopeId
+      const idChanged = previousId !== undefined && news.logScopeId !== undefined && news.logScopeId !== previousId
+      const previousLocation = olds?.location ?? output?.location
+      const locationChanged = previousLocation !== undefined
+        && news.location !== undefined
+        && news.location !== previousLocation
+      const previousFolder = olds?.folderId ?? output?.folderId
+      const folderChanged = news.folderId !== undefined && news.folderId !== previousFolder
+      if (!idChanged && !locationChanged && !folderChanged) return undefined
+      return { action: "replace" as const, deleteFirst: false }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = scopeParent(env.project, olds?.folderId ?? output?.folderId)
+      const location = olds?.location ?? output?.location ?? DEFAULT_LOCATION
+      const logScopeId = try toPhysicalId(id, olds?.logScopeId, output?.logScopeId, "s")
+      const name = output?.name ?? resourceName(parent, location, logScopeId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, parent, location)
+      const { labels } = parseDescription(existing.description)
+      return (try ownedBy(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (logging.listFoldersLocationsLogScopes
+          .pages({
+            parent: `projects/${env.project}/locations/-`,
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.logScopes ?? []))
+          |> Stream.filter(%, (scope) => hasOwnershipMarker(scope.description))
+          |> Stream.map(%, (scope) =>
+            toAttrs(
+              scope,
+              parseLoggingName(scope.name ?? "").parent || `projects/${env.project}`,
+              parseLoggingName(scope.name ?? "").location ?? DEFAULT_LOCATION,
+            ))
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = scopeParent(env.project, news.folderId ?? output?.folderId)
+      const location = news.location ?? output?.location ?? DEFAULT_LOCATION
+      const logScopeId = try toPhysicalId(id, news.logScopeId, output?.logScopeId, "s")
+      const name = resourceName(parent, location, logScopeId)
+      const ownership = try createOwnership(id)
+      const desiredDescription = encodeDescription(ownership, news.description)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = logging
+          .createFoldersLocationsLogScopes({
+            parent: locationParent(parent, location),
+            logScopeId,
+            body: {
+              resourceNames: [...news.resourceNames],
+              description: desiredDescription,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new FolderLogScopeNotResolved({ resourceName: name })
+      }
+
+      const namesChanged = !jsonEqual(
+        sortedNames(current.resourceNames),
+        sortedNames(news.resourceNames),
+      )
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const updateMask = [
+        namesChanged ? "resourceNames" : undefined,
+        descriptionChanged ? "description" : undefined,
+      ].filter((field): field is string => field !== undefined)
+
+      if (updateMask.length > 0) {
+        current = try logging.patchFoldersLocationsLogScopes({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            resourceNames: [...news.resourceNames],
+            description: desiredDescription,
+          },
+        })
+      }
+
+      return toAttrs(current, parent, location)
+    },
+
+    delete: effect ({ output }) => {
+      logging
+        .deleteFoldersLocationsLogScopes({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

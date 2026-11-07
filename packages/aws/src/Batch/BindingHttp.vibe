@@ -1,0 +1,103 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { JobQueue } from "./JobQueue.vibe"
+
+/**
+ * Shared scaffolding for AWS Batch HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every queue-anchored `{Op}Http.ts` in this
+ * service is a thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of
+ * the two builders below. Everything except the operation, the IAM action
+ * list, and (for queue-scoped operations) the injected `jobQueue` is
+ * boilerplate. `SubmitJobHttp` binds TWO resources (queue + job definition)
+ * and injects both, so it stays bespoke.
+ */
+
+/**
+ * Build the impl Effect for a job-level operation (describe/terminate/cancel
+ * submitted jobs). The bound {@link JobQueue} anchors the binding's identity;
+ * the deploy-time half grants `actions` on `*` because job ARNs
+ * (`arn:…:job/{jobId}`) are only known at runtime and `batch:DescribeJobs` /
+ * `batch:ListJobs` have no resource-level IAM at all.
+ */
+export const makeBatchJobHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Batch.DescribeJobs`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (queue: JobQueue) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${queue})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request: I) =>
+      try withSpan(
+        effect {
+          return try op(request)
+        },
+        `${options.tag}(${queue.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a queue-scoped operation: the runtime callable
+ * injects the bound {@link JobQueue}'s ARN as `jobQueue` and the deploy-time
+ * half grants `actions` on the queue ARN (or `*` when the action has no
+ * resource-level IAM).
+ */
+export const makeBatchQueueHttpBinding = effect <I extends { jobQueue?: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Batch.ListJobs`. */
+  tag: string
+  /** The distilled operation; `jobQueue` is injected from the bound queue. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the queue ARN (or `*` — see `wildcardIam`). */
+  actions: readonly string[]
+  /** Grant on `*` instead of the queue ARN (actions without resource-level IAM). */
+  wildcardIam?: boolean
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (queue: JobQueue) => {
+    // Outputs yield a DEFERRED effect — resolve again per invocation below.
+    const JobQueueArn = try queue.jobQueueArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${queue})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: options.wildcardIam ? ["*"] : [Output.interpolate`${queue.jobQueueArn}`],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "jobQueue"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            jobQueue: try JobQueueArn,
+          } as I)
+        },
+        `${options.tag}(${queue.LogicalId})`,
+      )
+  }
+}

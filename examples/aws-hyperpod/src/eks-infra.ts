@@ -3,7 +3,7 @@ import * as Kubernetes from "@alchemy.run/kubernetes";
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import { FetchHyperPodChart } from "./hyperpod-chart.ts";
-import { UploadLifecycleScript } from "./lifecycle.ts";
+import { UploadLifecycleScript } from "./lifecycle.vibe";
 
 /**
  * Shared infrastructure for the EKS-orchestrated HyperPod stack:

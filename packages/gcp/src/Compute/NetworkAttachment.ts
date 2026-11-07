@@ -11,8 +11,8 @@ import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import { alchemyLabelKeys, createInternalLabels, hasAlchemyLabels } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { ignoredCodes } from "./internal.ts";
-import { waitRegionOperation } from "./operations.ts";
+import { ignoredCodes } from "./internal.vibe";
+import { waitRegionOperation } from "./operations.vibe";
 
 const DEFAULT_CONNECTION_PREFERENCE = "ACCEPT_AUTOMATIC";
 const MAX_NAME_LENGTH = 63;

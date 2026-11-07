@@ -14,4 +14,4 @@ export {
   DopplerSecretsError,
   DopplerSecretsProvider,
   type DopplerOptions,
-} from "./SecretsProvider.ts";
+} from "./SecretsProvider.vibe";

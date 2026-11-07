@@ -6,8 +6,8 @@ import * as Clock from "effect/Clock";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import { organization } from "./Credentials.ts";
-import type { Providers } from "./Providers.ts";
+import { organization } from "./Credentials.vibe";
+import type { Providers } from "./Providers.vibe";
 
 export class DatabaseTokenUnexpectedResponse extends Data.TaggedError(
   "DatabaseTokenUnexpectedResponse",

@@ -4,7 +4,7 @@ import type * as Scope from "effect/Scope";
 import { AlchemyContext } from "./AlchemyContext.ts";
 import * as Apply from "./Apply.ts";
 import { evalStack } from "./EvalStack.ts";
-import type { Input } from "./Input.ts";
+import type { Input } from "./Input.vibe";
 import * as Plan from "./Plan.ts";
 import { renderApply } from "./Report.ts";
 import type { ResourceSelection, SelectionOutput } from "./ResourceSelection.ts";

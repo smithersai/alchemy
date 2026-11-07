@@ -1,0 +1,139 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import { Region } from "../Region.ts"
+import type { PublicRepository } from "./Repository.vibe"
+
+/**
+ * Shared HTTP scaffolding for the Amazon ECR Public runtime bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation, the IAM action list, and (for the
+ * repository-scoped builder) the injected repository name is boilerplate.
+ *
+ * Amazon ECR Public is a single global registry served exclusively from the
+ * `us-east-1` endpoint, so every operation is resolved with the Region
+ * pinned via {@link pinEcrPublic} — exactly like the resource provider in
+ * `Repository.ts`.
+ *
+ * Per the `ecr-public` service authorization reference, repository-scoped
+ * actions authorize on the repository ARN, while registry-level actions
+ * (`GetAuthorizationToken`, `DescribeRegistries`, `GetRegistryCatalogData`)
+ * support no repository resource type, so the registry builder grants on
+ * `Resource: ["*"]`.
+ */
+
+const US_EAST_1 = "us-east-1"
+
+/** Pin a distilled `ecr-public` effect to the service's home region. */
+export const pinEcrPublic = effect <A, E, R>(effect: A!E!R) =>
+  try effect {
+    provide Region = Effect.succeed(US_EAST_1) {
+      return try effect
+    }
+  }
+
+/**
+ * Build the impl Effect for an operation scoped to one
+ * {@link PublicRepository}. The runtime callable injects the bound
+ * repository's name as the request's `repositoryName`; the deploy-time half
+ * grants `iamActions` on the repository's ARN.
+ */
+export const makePublicRepositoryHttpBinding = effect <
+  I extends { repositoryName: string },
+  A,
+  E,
+  R,
+>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"DescribeImages"`.
+   */
+  capability: string
+  /** IAM actions granted on the repository ARN. */
+  iamActions: readonly string[]
+  /** The distilled operation; `repositoryName` is injected. */
+  operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try (options.operation
+    |> pinEcrPublic(%)
+    |> AWSBindings.withCredentials(%))
+
+  return effect (repository: PublicRepository) => {
+    const RepositoryName = try repository.repositoryName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.ECRPublic.${options.capability}(${repository})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: [repository.repositoryArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "repositoryName"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          // The region must also be pinned at the call site: the yield-time
+          // snapshot is only a fallback — the calling fiber's ambient Region
+          // (the host Function's own region) wins over it.
+          return try pinEcrPublic(
+            op({
+              ...request,
+              repositoryName: try RepositoryName,
+            } as unknown as I),
+          )
+        },
+        `AWS.ECRPublic.${options.capability}(${repository.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a registry-level ECR Public operation
+ * (`GetAuthorizationToken`, `DescribeRegistries`, `GetRegistryCatalogData` —
+ * none of which are repository-scoped, so the grant is on
+ * `Resource: ["*"]`).
+ */
+export const makePublicRegistryHttpBinding = effect <I extends object, A, E, R>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"GetAuthorizationToken"`.
+   */
+  capability: string
+  /** IAM actions granted on `Resource: ["*"]`. */
+  iamActions: readonly string[]
+  /** The distilled operation implementing the capability. */
+  operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try (options.operation
+    |> pinEcrPublic(%)
+    |> AWSBindings.withCredentials(%))
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.ECRPublic.${options.capability}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          // Call-site region pin — see makePublicRepositoryHttpBinding above.
+          return try pinEcrPublic(op((request ?? {}) as I))
+        },
+        `AWS.ECRPublic.${options.capability}`,
+      )
+  }
+}

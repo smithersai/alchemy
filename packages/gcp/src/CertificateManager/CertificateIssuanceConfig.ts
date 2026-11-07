@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitForOperation } from "./operations.ts";
+import { waitForOperation } from "./operations.vibe";
 
 const DEFAULT_LOCATION = "global";
 const DEFAULT_LIFETIME = "2592000s";

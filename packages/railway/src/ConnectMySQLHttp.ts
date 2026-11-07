@@ -9,7 +9,7 @@ import {
   MySQLUrlMissing,
   connectEnvKeys,
   type ConnectMySQLClient,
-} from "./ConnectMySQL.ts";
+} from "./ConnectMySQL.vibe";
 import { isRailwayHost } from "./MountVolume.ts";
 import { MYSQL_URL_SECRET, MYSQL_PUBLIC_URL_SECRET, type MySQL } from "./MySQL.ts";
 

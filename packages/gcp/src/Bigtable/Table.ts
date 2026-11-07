@@ -17,7 +17,7 @@ import {
   toPhysicalId,
   waitForOperation,
   collectPages,
-} from "./operations.ts";
+} from "./operations.vibe";
 
 export type GcRule = {
   /** Keep only the most recent N versions of each cell. */

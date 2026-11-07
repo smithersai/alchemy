@@ -5,7 +5,7 @@ import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import Api from "./src/Api.ts";
-import { Dashboard } from "./src/Dashboard.ts";
+import { Dashboard } from "./src/Dashboard.vibe";
 
 export default Alchemy.Stack(
   "Shorty",

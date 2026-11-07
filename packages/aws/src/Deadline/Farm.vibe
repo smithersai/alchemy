@@ -1,0 +1,290 @@
+import * as deadline from "@distilled.cloud/aws/deadline"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.ts"
+import {
+  asPlain,
+  deadlineArnOf,
+  fetchDeadlineTags,
+  reapDeadlineLogGroups,
+  reapFarmChildren,
+  retryWhileConflict,
+  syncDeadlineTags,
+} from "./internal.ts"
+
+export error FarmInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error FarmUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface FarmProps {
+  /**
+   * Display name of the farm.
+   * @default ${app}-${stage}-${id}
+   */
+  displayName?: string
+  /**
+   * A description of the farm.
+   */
+  description?: string
+  /**
+   * ARN of the KMS key used to encrypt farm data. Changing it replaces the
+   * farm.
+   * @default an AWS-owned key
+   */
+  kmsKeyArn?: string
+  /**
+   * Multiplier applied to the cost of renders on this farm when computing
+   * budget usage.
+   * @default 1
+   */
+  costScaleFactor?: number
+  /**
+   * Tags to associate with the farm.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Farm extends
+  Resource<
+    "AWS.Deadline.Farm",
+    FarmProps,
+    {
+      /**
+       * Service-assigned unique identifier of the farm (`farm-...`).
+       */
+      farmId: string
+      /**
+       * ARN of the farm.
+       */
+      farmArn: string
+      /**
+       * The farm's display name.
+       */
+      displayName: string
+      /**
+       * ARN of the KMS key encrypting farm data, when customer-managed.
+       */
+      kmsKeyArn: string | undefined
+      /**
+       * The configured cost scale factor.
+       */
+      costScaleFactor: number
+      /**
+       * Current tags reported for the farm.
+       */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Deadline Cloud farm — the top-level container for render-farm
+ * queues, fleets, storage profiles, and budgets.
+ *
+ * ### Creating Farms
+ * **Example:** Basic Farm
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const farm = yield* AWS.Deadline.Farm("RenderFarm", {});
+ * ```
+ *
+ * **Example:** Farm with Description and Cost Scaling
+ * ```typescript
+ * const farm = yield* AWS.Deadline.Farm("RenderFarm", {
+ *   displayName: "studio-renders",
+ *   description: "Production render farm",
+ *   costScaleFactor: 1.5,
+ *   tags: { team: "vfx" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Farm = Resource<Farm>("AWS.Deadline.Farm")
+
+const createFarmName = effect (
+  id: string,
+  props: { displayName?: string | undefined },
+) => (props.displayName ? props.displayName : try createPhysicalName({ id, maxLength: 100 }))
+
+interface FarmState {
+  attrs: Farm["Attributes"]
+  described: deadline.GetFarmResponse
+}
+
+const readFarmById = effect (farmId: string, arnOf: (path: string) => string) => {
+  const described = deadline
+    .getFarm({ farmId }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!described) return undefined
+  const farmArn = arnOf(`farm/${described.farmId}`)
+  const state: FarmState = {
+    described,
+    attrs: {
+      farmId: described.farmId,
+      farmArn,
+      displayName: described.displayName,
+      kmsKeyArn: described.kmsKeyArn,
+      costScaleFactor: described.costScaleFactor,
+      tags: try fetchDeadlineTags(farmArn),
+    },
+  }
+  return state
+}
+
+const findFarmByDisplayName = effect (
+  displayName: string,
+  arnOf: (path: string) => string,
+) => {
+  const summaries = Array.from(
+    try (deadline.listFarms.items({})
+      |> EffectStream.runCollect(%)),
+  )
+  const match = summaries.find((summary) => summary.displayName === displayName)
+  if (!match) return undefined
+  return try readFarmById(match.farmId, arnOf)
+}
+
+export const FarmProvider = (): infer _ =>
+  Provider.effect(
+    Farm,
+    effect {
+      return {
+        stables: ["farmId", "farmArn"],
+        list: effect () => {
+          const arnOf = try deadlineArnOf
+          const summaries = Array.from(
+            try (deadline.listFarms.items({})
+              |> EffectStream.runCollect(%)),
+          )
+          const states = try Effect.forEach(
+            summaries,
+            (summary) => readFarmById(summary.farmId, arnOf),
+            { concurrency: 4 },
+          )
+          return states
+            .filter((state): state is FarmState => state !== undefined)
+            .map((state) => state.attrs)
+        },
+        read: effect ({ id, olds, output }) => {
+          const arnOf = try deadlineArnOf
+          const state = output?.farmId
+            ? try readFarmById(output.farmId, arnOf)
+            : try findFarmByDisplayName(try createFarmName(id, olds ?? {}), arnOf)
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.attrs.tags as Tags))
+            ? state.attrs
+            : Unowned(state.attrs)
+        },
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          if (olds === undefined) return
+          // The KMS key is fixed at creation.
+          if ((olds.kmsKeyArn ?? undefined) !== (news.kmsKeyArn ?? undefined)) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (news === undefined) {
+            throw new FarmInvalidProps({ message: "AWS.Deadline.Farm requires props" })
+          }
+          const arnOf = try deadlineArnOf
+          const displayName = try createFarmName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — prefer the cached farmId; fall back to a display-name
+          // lookup so a create whose state failed to persist is adopted.
+          let state = output?.farmId
+            ? try readFarmById(output.farmId, arnOf)
+            : try findFarmByDisplayName(displayName, arnOf)
+
+          // Ensure — create if missing.
+          if (state === undefined) {
+            const created = try deadline.createFarm({
+              displayName,
+              description: news.description,
+              kmsKeyArn: news.kmsKeyArn,
+              costScaleFactor: news.costScaleFactor,
+              tags: desiredTags,
+            })
+            try session.note(`Created farm ${displayName} (${created.farmId})`)
+            state = try readFarmById(created.farmId, arnOf)
+            if (state === undefined) {
+              throw new FarmUnexpectedResponse({
+                message: `failed to read created farm ${displayName}`,
+              })
+            }
+          }
+
+          // Sync mutable settings — only when drifted from OBSERVED state.
+          const described = state.described
+          const needsUpdate = displayName !== described.displayName
+            || (news.description !== undefined
+              && news.description !== (asPlain(described.description) ?? ""))
+            || (news.costScaleFactor !== undefined
+              && news.costScaleFactor !== described.costScaleFactor)
+          if (needsUpdate) {
+            try deadline.updateFarm({
+              farmId: state.attrs.farmId,
+              displayName,
+              description: news.description,
+              costScaleFactor: news.costScaleFactor,
+            })
+            try session.note(`Updated farm ${displayName}`)
+          }
+
+          // Sync tags — diff against observed cloud tags.
+          try syncDeadlineTags(state.attrs.farmArn, desiredTags)
+
+          try session.note(state.attrs.farmArn)
+          const final = try readFarmById(state.attrs.farmId, arnOf)
+          if (!final) {
+            throw new FarmUnexpectedResponse({
+              message: `failed to read reconciled farm ${displayName}`,
+            })
+          }
+          return final.attrs
+        },
+        delete: effect ({ output }) => {
+          // A farm refuses deletion while ANY child resource exists (storage
+          // profiles, queues, fleets, budgets, limits, associations) — and
+          // unlike async sub-resource drain, those conflicts never resolve
+          // by waiting. A normal stack destroy deletes children first, so
+          // this reap observes nothing; an orphan sweep (nuke) or a mid-run
+          // crash targets a farm whose children were never enumerated, and
+          // without the reap deleteFarm conflicts until the retry budget
+          // runs out and the farm leaks.
+          try reapFarmChildren(output.farmId)
+          // Child deletion (queues, fleets) finishes asynchronously; the
+          // farm rejects deletion with ConflictException until it settles.
+          retryWhileConflict(deadline.deleteFarm({ farmId: output.farmId })) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            default: throw e;
+          }
+          // Deadline auto-creates log groups under /aws/deadline/{farmId}/
+          // (queue job/session logs, fleet worker logs) and deleteFarm does
+          // NOT remove them. The farm only deletes once every sub-resource
+          // is fully gone, so by this point all of its log groups exist if
+          // they ever will — sweep the whole prefix.
+          try reapDeadlineLogGroups(`/aws/deadline/${output.farmId}`)
+        },
+      }
+    },
+  )

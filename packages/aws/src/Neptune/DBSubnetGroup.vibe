@@ -1,0 +1,237 @@
+import * as neptune from "@distilled.cloud/aws/neptune"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags } from "alchemy/Tags"
+import type { SubnetId } from "../EC2/Subnet.ts"
+import type { Providers } from "../Providers.ts"
+
+export error NeptuneDBSubnetGroupUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface DBSubnetGroupProps {
+  /**
+   * Name of the DB subnet group. If omitted, a deterministic name is generated.
+   */
+  dbSubnetGroupName?: string
+  /**
+   * Description for the subnet group.
+   * @default "Managed by Alchemy"
+   */
+  description?: string
+  /**
+   * Subnets the Neptune cluster may use. Must span at least two
+   * Availability Zones.
+   */
+  subnetIds: SubnetId[]
+  /**
+   * User-defined tags for the subnet group.
+   */
+  tags?: Record<string, string>
+}
+
+export interface DBSubnetGroup extends
+  Resource<
+    "AWS.Neptune.DBSubnetGroup",
+    DBSubnetGroupProps,
+    {
+      /** Name of the subnet group. */
+      dbSubnetGroupName: string
+      /** ARN of the subnet group. */
+      dbSubnetGroupArn: string | undefined
+      /** ID of the VPC the subnets belong to. */
+      vpcId: string | undefined
+      /** IDs of the subnets in the group. */
+      subnetIds: string[]
+      /** Status of the subnet group (e.g. `Complete`). */
+      status: string | undefined
+      /** Tags on the subnet group (user + internal Alchemy tags). */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Neptune DB subnet group — the set of VPC subnets a Neptune
+ * cluster and its instances are placed into. Neptune is VPC-only, so a
+ * subnet group spanning at least two Availability Zones is required before a
+ * cluster can be created.
+ * ### Creating a Subnet Group
+ * **Example:** Multi-AZ subnet group
+ * ```typescript
+ * const subnetGroup = yield* DBSubnetGroup("NeptuneSubnets", {
+ *   subnetIds: [subnetA.subnetId, subnetB.subnetId],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DBSubnetGroup = Resource<DBSubnetGroup>("AWS.Neptune.DBSubnetGroup")
+
+export const DBSubnetGroupProvider = (): infer _ =>
+  Provider.effect(
+    DBSubnetGroup,
+    effect {
+      const toName = effect (
+        id: string,
+        props: DBSubnetGroupProps,
+      ) => (props.dbSubnetGroupName ? props.dbSubnetGroupName : try createPhysicalName({ id, maxLength: 255 }))
+
+      const readGroup = effect (groupName: string) => {
+        const response = neptune
+          .describeDBSubnetGroups({
+            DBSubnetGroupName: groupName,
+          }) catch effect (e) => match (e) {
+            when { _tag: "DBSubnetGroupNotFoundFault" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.DBSubnetGroups?.[0]
+      }
+
+      return {
+        stables: ["dbSubnetGroupArn", "dbSubnetGroupName", "vpcId"],
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toName(id, olds ?? { subnetIds: [] })) !== (try toName(id, news))) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const name = output?.dbSubnetGroupName
+            ?? (try toName(id, olds ?? ({ subnetIds: [] } as DBSubnetGroupProps)))
+          const group = try readGroup(name)
+          if (!group?.DBSubnetGroupName) {
+            return undefined
+          }
+
+          return {
+            dbSubnetGroupName: group.DBSubnetGroupName,
+            dbSubnetGroupArn: group.DBSubnetGroupArn,
+            vpcId: group.VpcId,
+            subnetIds: (group.Subnets ?? []).flatMap((subnet) =>
+              subnet.SubnetIdentifier ? [subnet.SubnetIdentifier] : []
+            ),
+            status: group.SubnetGroupStatus,
+            tags: output?.tags ?? {},
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const dbSubnetGroupName = output?.dbSubnetGroupName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — fetch live subnet-group state.
+          let observed = try readGroup(dbSubnetGroupName)
+
+          // Ensure — create if missing. Tolerate
+          // `DBSubnetGroupAlreadyExistsFault` as a race with a peer
+          // reconciler by re-reading.
+          if (!observed?.DBSubnetGroupName) {
+            neptune
+              .createDBSubnetGroup({
+                DBSubnetGroupName: dbSubnetGroupName,
+                DBSubnetGroupDescription: news.description ?? "Managed by Alchemy",
+                SubnetIds: news.subnetIds,
+                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "DBSubnetGroupAlreadyExistsFault" }: try Effect.void;
+                default: throw e;
+              }
+            observed = try readGroup(dbSubnetGroupName)
+            if (!observed?.DBSubnetGroupName) {
+              throw new NeptuneDBSubnetGroupUnexpectedResponse({
+                message: `Failed to create DB subnet group '${dbSubnetGroupName}'`,
+              })
+            }
+          } else {
+            // Sync description and subnet membership — `modifyDBSubnetGroup`
+            // accepts the full desired set and is idempotent for unchanged
+            // input.
+            try neptune.modifyDBSubnetGroup({
+              DBSubnetGroupName: dbSubnetGroupName,
+              DBSubnetGroupDescription: news.description ?? "Managed by Alchemy",
+              SubnetIds: news.subnetIds,
+            })
+            observed = try readGroup(dbSubnetGroupName)
+            if (!observed?.DBSubnetGroupName) {
+              throw new NeptuneDBSubnetGroupUnexpectedResponse({
+                message: `DB subnet group '${dbSubnetGroupName}' not found after update`,
+              })
+            }
+          }
+
+          const dbSubnetGroupArn = observed.DBSubnetGroupArn
+
+          // Sync tags — diff prior recorded tags against desired (describe
+          // does not surface tags inline).
+          const observedTags = output?.tags ?? {}
+          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0 && dbSubnetGroupArn) {
+            try neptune.addTagsToResource({
+              ResourceName: dbSubnetGroupArn,
+              Tags: upsert,
+            })
+          }
+          if (removed.length > 0 && dbSubnetGroupArn) {
+            try neptune.removeTagsFromResource({
+              ResourceName: dbSubnetGroupArn,
+              TagKeys: removed,
+            })
+          }
+
+          try session.note(dbSubnetGroupArn ?? dbSubnetGroupName)
+          return {
+            dbSubnetGroupName: observed.DBSubnetGroupName,
+            dbSubnetGroupArn,
+            vpcId: observed.VpcId,
+            subnetIds: (observed.Subnets ?? []).flatMap((subnet) =>
+              subnet.SubnetIdentifier ? [subnet.SubnetIdentifier] : []
+            ),
+            status: observed.SubnetGroupStatus,
+            tags: desiredTags,
+          }
+        },
+        list: effect () =>
+          Array.from(
+            try (neptune.describeDBSubnetGroups.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.DBSubnetGroups ?? []).flatMap((group) =>
+              // `default` is the RDS-family subnet group AWS auto-creates
+              // for the default VPC — never ours, never census/nuke it.
+              group.DBSubnetGroupName && group.DBSubnetGroupName !== "default"
+                ? [
+                  {
+                    dbSubnetGroupName: group.DBSubnetGroupName,
+                    dbSubnetGroupArn: group.DBSubnetGroupArn,
+                    vpcId: group.VpcId,
+                    subnetIds: (group.Subnets ?? []).flatMap((subnet) =>
+                      subnet.SubnetIdentifier ? [subnet.SubnetIdentifier] : []
+                    ),
+                    status: group.SubnetGroupStatus,
+                    tags: {} as Record<string, string>,
+                  },
+                ]
+                : []
+            )
+          ),
+        delete: effect ({ output }) => {
+          neptune
+            .deleteDBSubnetGroup({
+              DBSubnetGroupName: output.dbSubnetGroupName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "DBSubnetGroupNotFoundFault" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

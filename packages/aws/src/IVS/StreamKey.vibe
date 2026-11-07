@@ -1,0 +1,229 @@
+import * as ivs from "@distilled.cloud/aws/ivs"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type * as Redacted from "effect/Redacted"
+import { toRedactedString } from "../IAM/common.vibe"
+import type { Providers } from "../Providers.ts"
+import { retryWhileThrottled, syncIvsTags, toTagRecord } from "./internal.vibe"
+
+export interface StreamKeyProps {
+  /**
+   * ARN of the channel the stream key authorizes broadcasts to.
+   * Changing the channel replaces the stream key.
+   */
+  channelArn: string
+  /**
+   * Tags to apply to the stream key. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface StreamKey extends
+  Resource<
+    "AWS.IVS.StreamKey",
+    StreamKeyProps,
+    {
+      /**
+       * ARN of the stream key.
+       */
+      streamKeyArn: string
+      /**
+       * ARN of the channel the stream key authorizes broadcasts to.
+       */
+      channelArn: string
+      /**
+       * The secret stream key value used by broadcast software to
+       * authenticate against the channel's ingest endpoint.
+       */
+      value: Redacted.Redacted<string> | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon IVS stream key — the secret credential broadcast software
+ * uses to authenticate against a channel's ingest endpoint.
+ *
+ * IVS allows at most one stream key per channel, and `CreateChannel`
+ * provisions one automatically. This resource therefore *manages the
+ * channel's stream key*: if the channel already has its auto-created key,
+ * the resource takes ownership of it (tagging it with Alchemy's internal
+ * tags) instead of failing the per-channel quota.
+ * ### Creating Stream Keys
+ * **Example:** Stream Key for a Channel
+ * ```typescript
+ * import * as IVS from "@alchemy.run/aws/IVS";
+ *
+ * const channel = yield* IVS.Channel("LiveChannel");
+ * const streamKey = yield* IVS.StreamKey("LiveKey", {
+ *   channelArn: channel.channelArn,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const StreamKey = Resource<StreamKey>("AWS.IVS.StreamKey")
+
+/**
+ * Raised when the IVS API returns a stream key missing its ARN or channel
+ * ARN.
+ */
+export error IvsStreamKeyIncomplete {
+  mutable message: string
+}
+
+export const StreamKeyProvider = (): infer _ =>
+  Provider.effect(
+    StreamKey,
+    effect {
+      const toAttrs = effect (streamKey: ivs.StreamKey) => {
+        if (!streamKey.arn || !streamKey.channelArn) {
+          throw new IvsStreamKeyIncomplete({
+            message: "IVS stream key is missing its ARN or channel ARN",
+          })
+        }
+        return {
+          streamKeyArn: streamKey.arn,
+          channelArn: streamKey.channelArn,
+          value: toRedactedString(streamKey.value),
+        }
+      }
+
+      const getByArn = effect (arn: string) => {
+        const response = (try (ivs.getStreamKey({ arn })
+          |> retryWhileThrottled(%))) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.streamKey
+      }
+
+      /**
+       * A channel has at most one stream key, so "the channel's stream
+       * key" is a well-defined lookup. Tolerates a deleted channel (the
+       * key is gone with it).
+       */
+      const findByChannel = effect (channelArn: string) => {
+        const page = (try (ivs.listStreamKeys({ channelArn })
+          |> retryWhileThrottled(%))) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        const arn = page?.streamKeys.find((s) => s.arn !== undefined)?.arn
+        return arn === undefined ? undefined : try getByArn(arn)
+      }
+
+      return {
+        stables: ["streamKeyArn", "channelArn"],
+
+        read: effect ({ id, olds, output }) => {
+          const streamKey = output?.streamKeyArn
+            ? try getByArn(output.streamKeyArn)
+            : olds?.channelArn
+            ? try findByChannel(olds.channelArn)
+            : undefined
+          if (streamKey === undefined) return undefined
+          const attrs = try toAttrs(streamKey)
+          const tags = toTagRecord(streamKey.tags)
+          if (try hasAlchemyTags(id, tags)) return attrs
+          // CreateChannel provisions an untagged default key before the
+          // engine can resolve this resource's channelArn. It belongs to the
+          // channel lifecycle, so an owned channel may claim its default key.
+          // Keys carrying user or ownership tags still require explicit adoption.
+          if (
+            output === undefined
+            && olds?.channelArn !== undefined
+            && Object.keys(tags).length === 0
+          ) {
+            const response = (try (ivs.getChannel({ arn: olds.channelArn })
+              |> retryWhileThrottled(%))) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                default: throw e;
+              }
+            const channelTags = toTagRecord(response?.channel?.tags)
+            const channelId = channelTags["alchemy::id"]
+            if (channelId !== undefined && (try hasAlchemyTags(channelId, channelTags))) {
+              return attrs
+            }
+          }
+          return Unowned(attrs)
+        },
+
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return undefined
+          // A stream key is bound to its channel at create time — moving
+          // it to another channel requires a replacement.
+          if (olds.channelArn !== news.channelArn) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe — prefer the cached ARN; fall back to the channel's
+          // (at most one) existing key.
+          let observed = output?.streamKeyArn
+            ? try getByArn(output.streamKeyArn)
+            : try findByChannel(news.channelArn)
+          // A cached ARN can belong to a previous channel after a failed
+          // replacement — only trust keys on the desired channel.
+          if (observed !== undefined && observed.channelArn !== news.channelArn) {
+            observed = undefined
+          }
+
+          // 2. Ensure — create if missing. The per-channel quota is 1 and
+          // CreateChannel auto-provisions a key, so a quota rejection means
+          // the channel already has its key: adopt it (tags are converged
+          // below).
+          if (observed === undefined) {
+            observed = (try (ivs
+              .createStreamKey({ channelArn: news.channelArn, tags: desiredTags })
+              |> retryWhileThrottled(%))).streamKey catch effect (e) => match (e) {
+                when { _tag: "ServiceQuotaExceededException" }: try findByChannel(news.channelArn);
+                default: throw e;
+              }
+          }
+          const arn = observed?.arn
+          if (observed === undefined || arn === undefined) {
+            throw new IvsStreamKeyIncomplete({
+              message: `IVS channel '${news.channelArn}' has no stream key and one could not be created`,
+            })
+          }
+
+          // 3. Sync tags — the only mutable aspect. Diff against OBSERVED
+          // cloud tags so adopting the auto-created key converges.
+          try syncIvsTags(arn, desiredTags)
+
+          // 4. Return fresh attributes (GetStreamKey carries the secret
+          // value; the ListStreamKeys summary does not).
+          const final = try getByArn(arn)
+          if (final === undefined) {
+            throw new IvsStreamKeyIncomplete({
+              message: `IVS stream key '${arn}' vanished during reconcile`,
+            })
+          }
+          try session.note(arn)
+          return try toAttrs(final)
+        },
+
+        delete: effect ({ output }) => {
+          ;(try (ivs.deleteStreamKey({ arn: output.streamKeyArn })
+            |> retryWhileThrottled(%))) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        // Stream keys are sub-resources keyed by their parent channel —
+        // there is no account-level enumeration to reconcile against.
+        list: effect () => [],
+      }
+    },
+  )

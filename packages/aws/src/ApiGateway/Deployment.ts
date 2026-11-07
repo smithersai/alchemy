@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
 import { retryOnApiStatusUpdating } from "./common.ts";
-import type { RestApi, RestApiBinding } from "./RestApi.ts";
+import type { RestApi, RestApiBinding } from "./RestApi.vibe";
 
 export interface DeploymentProps {
   /**

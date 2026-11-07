@@ -1,0 +1,48 @@
+import * as AVP from "@distilled.cloud/aws/verifiedpermissions"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { GetPolicies, type GetPoliciesRequest } from "./GetPolicies.vibe"
+import type { PolicyStore } from "./PolicyStore.vibe"
+
+export const GetPoliciesHttp = Layer.effect(
+  GetPolicies,
+  effect {
+    const bind = try AWSBindings.Bind
+    const batchGetPolicy = try AWSBindings.withCredentials(AVP.batchGetPolicy)
+
+    return effect <S extends PolicyStore>(store: S) => {
+      const PolicyStoreId = try store.policyStoreId.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.VerifiedPermissions.GetPolicies(${store})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              // BatchGetPolicy authorizes under verifiedpermissions:GetPolicy
+              Action: ["verifiedpermissions:GetPolicy", "verifiedpermissions:BatchGetPolicy"],
+              Resource: [store.policyStoreArn],
+            },
+          ],
+        })
+      }
+      const label = store.LogicalId
+      return {
+        batchGetPolicy: effect (
+          request: GetPoliciesRequest,
+        ) =>
+          try withSpan(
+            effect {
+              const policyStoreId = try PolicyStoreId
+              return try batchGetPolicy({
+                requests: request.policyIds.map((policyId) => ({
+                  policyStoreId,
+                  policyId,
+                })),
+              })
+            },
+            `AWS.VerifiedPermissions.BatchGetPolicy(${label})`,
+          ),
+      }
+    }
+  },
+)

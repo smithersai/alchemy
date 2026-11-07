@@ -8,12 +8,12 @@ import * as Layer from "effect/Layer";
 import * as GCPBindings from "../GCPBindings.ts";
 import { HOST_SERVICE_ACCOUNT } from "../Host.ts";
 import { grantFor } from "../HttpBinding.ts";
-import type { Bucket } from "./Bucket.ts";
+import type { Bucket } from "./Bucket.vibe";
 import {
   SignedUrlFailed,
   SignGetObjectUrl,
   type SignGetObjectUrlRequest,
-} from "./SignGetObjectUrl.ts";
+} from "./SignGetObjectUrl.vibe";
 
 const EMAIL_ENDPOINT =
   "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/email";

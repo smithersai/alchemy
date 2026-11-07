@@ -7,7 +7,7 @@ import type { Main } from "alchemy/Platform";
 import type { Resource } from "alchemy/Resource";
 import type { ProcessContext } from "alchemy/Runtime/Process";
 import * as Effect from "effect/Effect";
-import type { PolicyStatement } from "../IAM/Policy.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 import type { Role } from "../IAM/Role.ts";
 import type { Providers } from "../Providers.ts";
 import { makeMicrovmRuntimeContext, MicrovmImageTypeId } from "./MicrovmRuntimeContext.ts";

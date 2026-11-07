@@ -1,0 +1,299 @@
+import * as firebasedataconnect from "@distilled.cloud/gcp/firebasedataconnect_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  fieldMask,
+  fingerprint,
+  listAtLocation,
+  listLabeledPages,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  retryStaleEtag,
+  sameText,
+  stringMap,
+  toPhysicalId,
+  userLabels,
+  waitForDeleteOperation,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.ts"
+
+export type ServiceProps = {
+  /**
+   * Service id (the `{service}` segment of
+   * `projects/{project}/locations/{location}/services/{service}`).
+   * If omitted, a unique RFC1035 name is generated from the stack,
+   * stage, and logical id. Immutable — changing it replaces the
+   * service. Must start with a letter, contain only lowercase letters,
+   * digits, and hyphens, and be at most 63 characters.
+   */
+  serviceId?: string
+  /**
+   * Region (`us-central1`, `us-east1`, …). Immutable — changing it
+   * replaces the service. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Human-readable name. 63 character limit.
+   */
+  displayName?: string
+  /**
+   * User annotations (preserved by external tools).
+   */
+  annotations?: Record<string, string>
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type Service = Resource<
+  "GCP.FirebaseDataConnect.Service",
+  ServiceProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Service id (last path segment). */
+    serviceId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Human-readable name. */
+    displayName: string | undefined
+    /** True while Data Connect is applying an LRO. */
+    reconciling: boolean
+    /** User annotations. */
+    annotations: Record<string, string>
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Server-generated resource uid. */
+    uid: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** Server-computed etag. */
+    etag: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Firebase Data Connect service — the parent of a GraphQL schema and
+ * connectors.
+ *
+ * Changing `serviceId` or `location` replaces the service. Display
+ * name, labels, and annotations update in place.
+ *
+ * ### Creating a Service
+ * **Example:** Generated name
+ * ```typescript
+ * const service = yield* GCP.FirebaseDataConnect.Service("App", {
+ *   labels: { env: "test" },
+ * });
+ * ```
+ *
+ * **Example:** Explicit id
+ * ```typescript
+ * const service = yield* GCP.FirebaseDataConnect.Service("App", {
+ *   serviceId: "movies",
+ *   displayName: "movie tracker",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * ### Updating a Service
+ * **Example:** Display name and labels
+ * ```typescript
+ * const service = yield* GCP.FirebaseDataConnect.Service("App", {
+ *   displayName: "movie tracker v2",
+ *   labels: { env: "prod", team: "data" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category FirebaseDataConnect
+ */
+export const Service = Resource<Service>("GCP.FirebaseDataConnect.Service")
+
+const resourceName = (project: string, location: string, serviceId: string): infer _ =>
+  `projects/${project}/locations/${location}/services/${serviceId}`
+
+const toAttrs = (
+  item: firebasedataconnect.Service,
+  project: string,
+  region: string,
+): Service["Attributes"] => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "services", region)
+  return {
+    name,
+    serviceId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: item.displayName,
+    reconciling: item.reconciling === true,
+    annotations: stringMap(item.annotations),
+    labels: userLabels(item.labels),
+    uid: item.uid,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+    etag: item.etag,
+  }
+}
+
+const getByName = effect (name: string) =>
+  firebasedataconnect
+    .getProjectsLocationsServices({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOwned = effect (project: string) =>
+  try listAtLocation(project, effect (parent) =>
+    try listLabeledPages(
+      firebasedataconnect.listProjectsLocationsServices.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.services,
+      (item) => item.labels,
+    ))
+
+export const ServiceProvider = (): infer _ =>
+  Provider.succeed(Service, {
+    stables: ["name", "serviceId", "project", "location", "uid", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      return replaceOnIdentity({
+        previousId: olds?.serviceId ?? output?.serviceId,
+        nextId: news.serviceId ?? olds?.serviceId ?? output?.serviceId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceId = try toPhysicalId(id, olds?.serviceId, output?.serviceId, "service")
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, serviceId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const serviceId = try toPhysicalId(id, news.serviceId, output?.serviceId, "service")
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, serviceId)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      const desiredAnnotations = news.annotations ?? {}
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = firebasedataconnect
+          .createProjectsLocationsServices({
+            parent: parentOf(env.project, location),
+            serviceId,
+            body: {
+              displayName: news.displayName,
+              annotations: desiredAnnotations,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      const mask = fieldMask([
+        (upsert.length > 0 || removed.length > 0) && "labels",
+        fingerprint(stringMap(current.annotations)) !== fingerprint(desiredAnnotations)
+        && "annotations",
+        !sameText(current.displayName, news.displayName) && "displayName",
+      ])
+
+      if (mask.length > 0) {
+        const serviceName = current.name ?? name
+        // Child schema/connector updates bump the service etag while this
+        // patch is in flight: re-read the etag on each attempt.
+        try retryStaleEtag(
+          effect {
+            const latest = try getByName(serviceName)
+            const operation = try firebasedataconnect.patchProjectsLocationsServices({
+              name: serviceName,
+              updateMask: mask,
+              body: {
+                etag: latest?.etag,
+                displayName: news.displayName,
+                annotations: desiredAnnotations,
+                labels: desiredLabels,
+              },
+            })
+            try waitForOperation(operation)
+          },
+        )
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      current = try waitUntilReady(getByName(current.name ?? name), current.name ?? name)
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (firebasedataconnect
+        .deleteProjectsLocationsServices({
+          name: output.name,
+          force: true,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForDeleteOperation(operation)
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

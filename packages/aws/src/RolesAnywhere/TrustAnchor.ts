@@ -10,7 +10,7 @@ import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { readRolesAnywhereTags, syncRolesAnywhereTags, toWireTags } from "./internal.ts";
+import { readRolesAnywhereTags, syncRolesAnywhereTags, toWireTags } from "./internal.vibe";
 
 /**
  * Raised before any AWS call when the trust anchor's source is misconfigured

@@ -17,10 +17,10 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { RecordSet } from "../RecordSet.ts";
 import { Server } from "../Server.ts";
-import { Service } from "../Service.ts";
+import { Service } from "../Service.vibe";
 import type { Zone } from "../Zone.ts";
 
 /**

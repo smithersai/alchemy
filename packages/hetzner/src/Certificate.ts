@@ -12,7 +12,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { waitForAction } from "./actions.ts";
+import { waitForAction } from "./actions.vibe";
 import {
   alchemyStackSelector,
   createInternalLabels,
@@ -21,8 +21,8 @@ import {
   labelSelector,
   stripInternalLabels,
   toLabels,
-} from "./Labels.ts";
-import type { Providers } from "./Providers.ts";
+} from "./Labels.vibe";
+import type { Providers } from "./Providers.vibe";
 
 export type CertificateType = "uploaded" | "managed";
 

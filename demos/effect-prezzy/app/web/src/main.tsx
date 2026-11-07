@@ -3,7 +3,7 @@ import * as HttpApiClient from "effect/http-api/HttpApiClient";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import { StrictMode, useEffect, useState, type FormEvent } from "react";
 import { createRoot } from "react-dom/client";
-import { ShortyApi, type LinkView } from "../../src/ShortyApi.ts";
+import { ShortyApi, type LinkView } from "../../src/ShortyApi.vibe";
 import "./styles.css";
 
 const API_URL = import.meta.env.VITE_API_URL as string;

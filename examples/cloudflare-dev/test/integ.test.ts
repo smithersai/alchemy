@@ -14,7 +14,7 @@ import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import Stack, { SECRETS_STORE_VALUE } from "../alchemy.run.ts";
 import type { Message } from "../src/AsyncWorker.ts";
-import { WORKFLOW_SECRET_VALUE } from "../src/NotifyWorkflow.ts";
+import { WORKFLOW_SECRET_VALUE } from "../src/NotifyWorkflow.vibe";
 
 const { test, beforeAll, afterAll, deploy, destroy } = Test.make({
   providers: Cloudflare.providers(),

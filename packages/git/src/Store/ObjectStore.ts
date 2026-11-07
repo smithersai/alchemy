@@ -26,13 +26,13 @@ import * as Stream from "effect/Stream";
 import type { BlobStoreError, BlobStoreShape } from "../BlobStore.ts";
 import type { ObjectType, Oid } from "../Protocol/ObjectCodec.ts";
 import { concatBytes, encodeTypeSize, type PackEntryType } from "../Protocol/ObjectCodec.ts";
-import type { ManifestEntry } from "../Protocol/Store.ts";
+import type { ManifestEntry } from "../Protocol/Store.vibe";
 import {
   StoreError,
   type ObjectLocation,
   type ObjectMeta,
   type ObjectSource,
-} from "../Protocol/Store.ts";
+} from "../Protocol/Store.vibe";
 import * as Zlib from "../Protocol/Zlib.ts";
 import { objectKey, packKeyOf } from "./Keys.ts";
 import type { ObjectMetaRow, SqlClient } from "./Sql.ts";

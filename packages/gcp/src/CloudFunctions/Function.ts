@@ -36,7 +36,7 @@ import {
   DEFAULT_NODE_RUNTIME,
   FUNCTION_ENTRY_POINT,
   makeFunctionSource,
-} from "./FunctionSource.ts";
+} from "./FunctionSource.vibe";
 
 const DEFAULT_ENVIRONMENT = "GEN_2";
 const DEFAULT_RUNTIME = "nodejs20";

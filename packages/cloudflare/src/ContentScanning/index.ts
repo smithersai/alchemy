@@ -1,2 +1,2 @@
-export * from "./ContentScanning.ts";
+export * from "./ContentScanning.vibe";
 export * from "./Expression.ts";

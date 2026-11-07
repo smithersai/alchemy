@@ -1,0 +1,43 @@
+import type * as runtime from "@cloudflare/workers-types"
+import * as Layer from "effect/Layer"
+import { Worker, WorkerEnvironment } from "../Workers/Worker.ts"
+import type { Database } from "./Database.ts"
+import { type QueryDatabaseClient, PreparedStatement, QueryDatabase } from "./QueryDatabase.ts"
+
+export const QueryDatabaseBinding = Layer.effect(
+  QueryDatabase,
+  effect {
+    const env = try Effect.service(WorkerEnvironment)
+    const host = try Worker
+
+    return effect (database: Database) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try host.bind`${database}`({
+          bindings: [
+            {
+              type: "d1",
+              name: database.LogicalId,
+              databaseId: database.databaseId,
+            },
+          ],
+        })
+      }
+
+      const rawEff = effect {
+        return (env as Record<string, runtime.D1Database>)[database.LogicalId]!
+      }
+
+      return {
+        raw: rawEff,
+        prepare: (query: string) => new PreparedStatement(query, [], rawEff),
+        exec: effect (query: string) =>
+          try Effect.flatMap(rawEff, effect (raw) => try Effect.promise(() => raw.exec(query))),
+        batch: effect <T = unknown>(statements: PreparedStatement[]) =>
+          try Effect.flatMap(
+            rawEff,
+            effect (raw) => try Effect.promise(() => raw.batch<T>(statements.map((s) => s._build(raw)))),
+          ),
+      } satisfies QueryDatabaseClient
+    }
+  },
+)

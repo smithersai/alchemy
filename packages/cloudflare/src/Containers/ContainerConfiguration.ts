@@ -11,7 +11,7 @@ import type {
   DevContainerImage,
   DurableObjectApplicationSettings,
   DurableObjectContainerProps,
-} from "./ContainerApplication.ts";
+} from "./ContainerApplication.vibe";
 import type { DurableObjectApplication } from "./DurableObjectApplication.ts";
 
 export class ContainerConfigurationError extends Data.TaggedError("ContainerConfigurationError")<{

@@ -1,0 +1,10 @@
+import * as translate from "@distilled.cloud/gcp/translate_v3";
+import * as Layer from "effect/Layer";
+import { GetGlossariesGlossaryEntry } from "./GetGlossariesGlossaryEntry.vibe";
+/**
+ * HTTP implementation of {@link GetGlossariesGlossaryEntry}.
+ *
+ * @layer
+ * @provides GCP.Translate.GetGlossariesGlossaryEntry
+ */
+export declare const GetGlossariesGlossaryEntryHttp: Layer.Layer<GetGlossariesGlossaryEntry, never, translate.GcpOpContext>;

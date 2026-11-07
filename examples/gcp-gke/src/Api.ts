@@ -3,7 +3,7 @@ import * as Kubernetes from "@alchemy.run/kubernetes";
 import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { EntriesDatabase, entryPath, GuestbookCluster, GuestbookNamespace } from "./infra.ts";
+import { EntriesDatabase, entryPath, GuestbookCluster, GuestbookNamespace } from "./infra.vibe";
 
 /**
  * The guestbook API: a `Kubernetes.Deployment` in the TAGGED form — the class

@@ -23,7 +23,7 @@ import {
   profilesDirPath,
   rootDir,
 } from "./Paths.ts";
-import * as V0 from "./ProfileMigrationV0.ts";
+import * as V0 from "./ProfileMigrationV0.vibe";
 
 export {
   configFilePath,

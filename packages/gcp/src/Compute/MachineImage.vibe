@@ -1,0 +1,428 @@
+import * as compute from "@distilled.cloud/gcp/compute_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import { waitGlobalOperation } from "./operations.vibe"
+
+export type MachineImageProps = {
+  /**
+   * Machine image name (RFC1035, 1-63 characters). If omitted, a unique
+   * name is generated from the stack, stage, and logical id. Changing the
+   * name replaces the machine image.
+   */
+  machineImageName?: string
+  /**
+   * Source instance URL used to create the machine image
+   * (`projects/{project}/zones/{zone}/instances/{instance}` or a full
+   * self-link). Immutable — changing it replaces the machine image.
+   */
+  sourceInstance: string
+  /**
+   * Optional description. Immutable — changing it replaces the machine
+   * image (the API has no patch).
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically
+   * and synced via `machineImages.setLabels`.
+   */
+  labels?: Record<string, string>
+  /**
+   * Cloud Storage locations for the machine image (`us-central1`, `us`,
+   * …). Immutable — changing it replaces the machine image.
+   */
+  storageLocations?: string[]
+  /**
+   * Attempt an application-consistent image by flushing the guest OS.
+   * Input-only; not persisted on the resource.
+   */
+  guestFlush?: boolean
+}
+
+export type MachineImage = Resource<
+  "GCP.Compute.MachineImage",
+  MachineImageProps,
+  {
+    /** Machine image name. */
+    machineImageName: string
+    /** Server-assigned numeric id. */
+    machineImageId: string | undefined
+    /** Project id. */
+    project: string
+    /** Server-reported status (`CREATING`, `READY`, `DELETING`, …). */
+    status: string | undefined
+    /** Description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Source instance URL. */
+    sourceInstance: string | undefined
+    /** Cloud Storage locations. */
+    storageLocations: string[]
+    /** Total storage used by the machine image, in bytes. */
+    totalStorageBytes: string | undefined
+    /** Compute Engine self-link. */
+    selfLink: string | undefined
+    /** RFC3339 creation timestamp. */
+    creationTimestamp: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Compute Engine machine image capturing a VM's disks, metadata, and
+ * configuration so it can be used to create new instances.
+ *
+ * Create from a source instance. Name, source instance, description, and
+ * storage locations replace the machine image. Labels are synced in place
+ * via `setLabels`.
+ *
+ * ### Creating a Machine Image
+ * **Example:** Machine image from an instance
+ * ```typescript
+ * const vm = yield* GCP.Compute.Instance("web", {
+ *   zone: "us-central1-a",
+ *   machineType: "e2-micro",
+ * });
+ * const image = yield* GCP.Compute.MachineImage("backup", {
+ *   sourceInstance: vm.selfLink,
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * **Example:** Explicit name and regional storage
+ * ```typescript
+ * const image = yield* GCP.Compute.MachineImage("backup", {
+ *   machineImageName: "web-golden",
+ *   sourceInstance:
+ *     "projects/{project}/zones/us-central1-a/instances/web",
+ *   description: "golden image of web",
+ *   storageLocations: ["us-central1"],
+ * });
+ * ```
+ *
+ * ### Updating a Machine Image
+ * **Example:** Labels
+ * ```typescript
+ * const image = yield* GCP.Compute.MachineImage("backup", {
+ *   machineImageName: "web-golden",
+ *   sourceInstance:
+ *     "projects/{project}/zones/us-central1-a/instances/web",
+ *   labels: { env: "prod", role: "golden" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category Compute
+ */
+export const MachineImage = Resource<MachineImage>("GCP.Compute.MachineImage")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MachineImageNotResolved extends Data.TaggedError(
+  "GCP.Compute.MachineImageNotResolved",
+)<{
+  machineImageName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MachineImagePending extends Data.TaggedError("GCP.Compute.MachineImagePending")<{
+  machineImageName: string
+  status: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MachineImageFailed extends Data.TaggedError("GCP.Compute.MachineImageFailed")<{
+  machineImageName: string
+  status: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MachineImageStillExists extends Data.TaggedError(
+  "GCP.Compute.MachineImageStillExists",
+)<{
+  machineImageName: string
+  status: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MachineImageSourceRequired extends Data.TaggedError(
+  "GCP.Compute.MachineImageSourceRequired",
+)<{
+  machineImageName: string
+}> {}
+
+const MAX_NAME_LENGTH = 63
+
+const lastSegment = (value: string | undefined): string => {
+  if (value === undefined || value.length === 0) return ""
+  const parts = value.split("/")
+  return parts[parts.length - 1] || value
+}
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const sameStrings = (left?: readonly string[], right?: readonly string[]): infer _ => {
+  const a = [...(left ?? [])].map((value) => value.toLowerCase()).sort()
+  const b = [...(right ?? [])].map((value) => value.toLowerCase()).sort()
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
+const toName = effect (id: string, name: string | undefined, existing?: string) => {
+  if (name !== undefined) return name
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: MAX_NAME_LENGTH,
+    lowercase: true,
+  })
+  return /^[a-z]/.test(generated) ? generated : `m${generated}`.slice(0, MAX_NAME_LENGTH)
+}
+
+const toAttrs = (image: compute.MachineImage, project: string): infer _ => ({
+  machineImageName: image.name ?? image.id ?? "",
+  machineImageId: image.id,
+  project,
+  status: image.status,
+  description: image.description,
+  labels: userLabels(image.labels),
+  sourceInstance: image.sourceInstance,
+  storageLocations: image.storageLocations ?? [],
+  totalStorageBytes: image.totalStorageBytes,
+  selfLink: image.selfLink,
+  creationTimestamp: image.creationTimestamp,
+})
+
+const getByName = effect (project: string, machineImage: string) =>
+  compute
+    .getMachineImages({ project, machineImage }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const canonicalizeSourceInstance = (source: string | undefined): string => {
+  if (source === undefined || source.length === 0) return ""
+  const cleaned = source.split("?")[0] ?? source
+  const full = cleaned.match(/(projects\/[^/]+\/zones\/[^/]+\/instances\/[^/]+)$/)
+  if (full?.[1] !== undefined) return full[1]
+  const zonal = cleaned.match(/(zones\/[^/]+\/instances\/[^/]+)$/)
+  if (zonal?.[1] !== undefined) return zonal[1]
+  return lastSegment(cleaned)
+}
+
+const waitUntilReady = effect (project: string, machineImageName: string) =>
+  try (effect {
+    return try effect {
+      const image = try getByName(project, machineImageName)
+      return (image?.status === "INVALID" || image?.status === "FAILED"
+        ? throw new MachineImageFailed({
+          machineImageName,
+          status: image.status ?? "INVALID",
+        })
+        : image)
+    }
+  }
+    |> Effect.filterOrFail(%, (image): image is compute.MachineImage =>
+      image !== undefined && image.status === "READY", (image) =>
+      new MachineImagePending({
+        machineImageName,
+        status: image?.status ?? "MISSING",
+      }))
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.Compute.MachineImagePending",
+      times: 10,
+      schedule: Schedule.spaced("5 seconds"),
+    }))
+
+const waitUntilGone = effect (project: string, machineImageName: string) =>
+  try (effect {
+    return try effect {
+      const image = try getByName(project, machineImageName)
+      return (image === undefined ? try Effect.void : throw new MachineImageStillExists({
+        machineImageName,
+        status: image.status ?? "UNKNOWN",
+      }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.Compute.MachineImageStillExists",
+      times: 10,
+      schedule: Schedule.spaced("3 seconds"),
+    }))
+
+const insertBody = (
+  machineImageName: string,
+  news: MachineImageProps,
+  labels: Record<string, string>,
+): compute.MachineImage => ({
+  name: machineImageName,
+  sourceInstance: news.sourceInstance,
+  description: news.description,
+  labels,
+  storageLocations: news.storageLocations,
+  guestFlush: news.guestFlush,
+})
+
+export const MachineImageProvider = (): infer _ =>
+  Provider.succeed(MachineImage, {
+    stables: [
+      "machineImageName",
+      "machineImageId",
+      "project",
+      "selfLink",
+      "creationTimestamp",
+      "sourceInstance",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousName = olds.machineImageName ?? output?.machineImageName
+      const nextName = news.machineImageName ?? previousName
+      const nameChanged = previousName !== undefined && nextName !== undefined && previousName !== nextName
+
+      const previousSource = canonicalizeSourceInstance(
+        olds.sourceInstance ?? output?.sourceInstance,
+      )
+      const nextSource = canonicalizeSourceInstance(news.sourceInstance)
+      const sourceChanged = previousSource.length > 0 && nextSource.length > 0 && previousSource !== nextSource
+
+      const previousDescription = olds.description ?? output?.description ?? ""
+      const nextDescription = news.description ?? ""
+      const descriptionChanged = previousDescription !== nextDescription
+
+      const storageChanged = news.storageLocations !== undefined
+        && !sameStrings(news.storageLocations, olds.storageLocations ?? output?.storageLocations)
+
+      const replace = nameChanged || sourceChanged || descriptionChanged || storageChanged
+
+      if (!replace) return undefined
+      return {
+        action: "replace" as const,
+        deleteFirst: previousName !== undefined && nextName !== undefined && nextName === previousName,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const machineImageName = try toName(id, olds?.machineImageName, output?.machineImageName)
+      const existing = try getByName(env.project, machineImageName)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (compute.listMachineImages
+          .items({
+            project: env.project,
+            maxResults: 500,
+            filter: "labels.alchemy-id:*",
+          })
+          |> Stream.filter(%, (image) => Object.keys(image.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+          |> Stream.map(%, (image) => toAttrs(image, env.project))
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const machineImageName = try toName(id, news.machineImageName, output?.machineImageName)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(env.project, machineImageName)
+      if (current?.status === "DELETING") {
+        try waitUntilGone(env.project, machineImageName)
+        current = undefined
+      }
+
+      if (current === undefined) {
+        if (news.sourceInstance === undefined || news.sourceInstance.length === 0) {
+          throw new MachineImageSourceRequired({ machineImageName })
+        }
+        const inserted = compute
+          .insertMachineImages({
+            project: env.project,
+            sourceInstance: news.sourceInstance,
+            body: insertBody(machineImageName, news, desiredLabels),
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (inserted !== undefined) {
+          try waitGlobalOperation(env.project, inserted, {
+            ignore: ["RESOURCE_ALREADY_EXISTS"],
+          })
+        }
+        current = try waitUntilReady(env.project, machineImageName)
+      }
+
+      if (current === undefined) {
+        throw new MachineImageNotResolved({ machineImageName })
+      }
+
+      if (current.status !== "READY") {
+        current = try waitUntilReady(env.project, machineImageName)
+      }
+
+      if (current === undefined) {
+        throw new MachineImageNotResolved({ machineImageName })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      if (upsert.length > 0 || removed.length > 0) {
+        try waitGlobalOperation(
+          env.project,
+          try compute
+            .setLabelsMachineImages({
+              project: env.project,
+              resource: machineImageName,
+              body: {
+                labels: desiredLabels,
+                labelFingerprint: current.labelFingerprint,
+              },
+            }),
+        )
+        current = (try getByName(env.project, machineImageName)) ?? current
+      }
+
+      if (current === undefined) {
+        throw new MachineImageNotResolved({ machineImageName })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const env = try GcpEnvironment.current
+      const operation = try (effect {
+        return compute
+          .deleteMachineImages({
+            project: env.project,
+            machineImage: output.machineImageName,
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      }
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))
+      if (operation !== undefined) {
+        waitGlobalOperation(env.project, operation, {
+          ignore: ["RESOURCE_NOT_FOUND"],
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+      try waitUntilGone(env.project, output.machineImageName)
+    },
+  })

@@ -1,0 +1,438 @@
+import * as finspace from "@distilled.cloud/aws/finspace"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.ts"
+
+export error KxEnvironmentInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error KxEnvironmentUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type KxEnvironmentStatus = finspace.EnvironmentStatus
+export type TransitGatewayConfiguration = finspace.TransitGatewayConfiguration
+export type CustomDNSServer = finspace.CustomDNSServer
+
+export interface KxEnvironmentProps {
+  /**
+   * Name of the kdb environment.
+   * @default ${app}-${id}-${stage}-${suffix}
+   */
+  name?: string
+  /**
+   * A description of the kdb environment.
+   */
+  description?: string
+  /**
+   * The KMS key id used to encrypt data in the environment. Required;
+   * changing it replaces the environment.
+   */
+  kmsKeyId: string
+  /**
+   * Transit gateway to attach so on-prem kdb clients can reach the
+   * environment. Attached once via `UpdateKxEnvironmentNetwork` after the
+   * environment is created; FinSpace does not support changing an attached
+   * network, so changing an existing configuration replaces the environment.
+   */
+  transitGatewayConfiguration?: TransitGatewayConfiguration
+  /**
+   * Custom DNS servers to resolve on-prem hostnames from inside the
+   * environment. Attached together with `transitGatewayConfiguration`;
+   * changing an existing configuration replaces the environment.
+   */
+  customDNSConfiguration?: CustomDNSServer[]
+  /**
+   * Tags to associate with the environment.
+   */
+  tags?: Record<string, string>
+}
+
+export interface KxEnvironment extends
+  Resource<
+    "AWS.FinSpace.KxEnvironment",
+    KxEnvironmentProps,
+    {
+      /**
+       * Service-assigned unique identifier of the kdb environment.
+       */
+      environmentId: string
+      /**
+       * ARN of the kdb environment.
+       */
+      environmentArn: string
+      /**
+       * The environment's name.
+       */
+      name: string
+      /**
+       * Current lifecycle status of the environment.
+       */
+      status: KxEnvironmentStatus | undefined
+      /**
+       * ID of the KMS key encrypting the environment.
+       */
+      kmsKeyId: string | undefined
+      /**
+       * The environment's description.
+       */
+      description: string | undefined
+      /**
+       * The transit gateway attached to the environment, if any.
+       */
+      transitGatewayConfiguration: TransitGatewayConfiguration | undefined
+      /**
+       * The custom DNS servers configured on the environment, if any.
+       */
+      customDNSConfiguration: CustomDNSServer[] | undefined
+      /**
+       * Current tags reported for the environment.
+       */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon FinSpace Managed kdb environment — the account-level container
+ * that kdb databases, clusters, users, volumes and scaling groups live in.
+ *
+ * :::caution
+ * kdb environment provisioning is slow (tens of minutes) and the service is
+ * gated to onboarded accounts. Live lifecycle tests are gated behind
+ * `AWS_TEST_FINSPACE=1`.
+ * :::
+ * ### Creating kdb Environments
+ * **Example:** Basic kdb Environment
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const key = yield* AWS.KMS.Key("KdbKey", {});
+ * const env = yield* AWS.FinSpace.KxEnvironment("Kdb", {
+ *   kmsKeyId: key.keyArn,
+ *   description: "managed kdb environment",
+ * });
+ * ```
+ *
+ * ### Connecting to On-Prem Networks
+ * **Example:** Attach a Transit Gateway
+ * ```typescript
+ * const env = yield* AWS.FinSpace.KxEnvironment("Kdb", {
+ *   kmsKeyId: key.keyArn,
+ *   transitGatewayConfiguration: {
+ *     transitGatewayID: "tgw-0123456789abcdef0",
+ *     routableCIDRSpace: "10.0.0.0/16",
+ *   },
+ *   customDNSConfiguration: [
+ *     { customDNSServerName: "dns.corp.example", customDNSServerIP: "10.0.0.2" },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const KxEnvironment = Resource<KxEnvironment>("AWS.FinSpace.KxEnvironment")
+
+const createKxEnvironmentName = effect (
+  id: string,
+  props: { name?: string | undefined },
+) => (props.name ? props.name : try createPhysicalName({ id, maxLength: 255 }))
+
+const fetchKxTags = effect (arn: string) => {
+  const response = finspace
+    .listTagsForResource({ resourceArn: arn }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" } or { _tag: "InvalidRequestException" }: try Effect.undefined;
+      default: throw e;
+    }
+  return Object.fromEntries(
+    Object.entries(response?.tags ?? {}).flatMap(([key, value]) => value === undefined ? [] : [[key, value] as const]),
+  )
+}
+
+const isGone = (status: KxEnvironmentStatus | undefined): infer _ =>
+  status === "DELETED" || status === "DELETING" || status === "DELETE_REQUESTED"
+
+const sameJson = (a: unknown, b: unknown): infer _ => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
+
+interface KxEnvironmentView {
+  environmentId?: string
+  environmentArn?: string
+  name?: string
+  status?: KxEnvironmentStatus
+  kmsKeyId?: string
+  description?: string
+  transitGatewayConfiguration?: TransitGatewayConfiguration
+  customDNSConfiguration?: CustomDNSServer[]
+}
+
+const toKxAttributes = effect (env: KxEnvironmentView, fallbackId: string) => {
+  const environmentArn = env.environmentArn ?? ""
+  const attrs: KxEnvironment["Attributes"] = {
+    environmentId: env.environmentId ?? fallbackId,
+    environmentArn,
+    name: env.name ?? "",
+    status: env.status,
+    kmsKeyId: env.kmsKeyId,
+    description: env.description,
+    transitGatewayConfiguration: env.transitGatewayConfiguration,
+    customDNSConfiguration: env.customDNSConfiguration
+      ? [...env.customDNSConfiguration]
+      : undefined,
+    tags: environmentArn ? try fetchKxTags(environmentArn) : {},
+  }
+  return attrs
+}
+
+const readKxEnvironmentById = effect (environmentId: string) => {
+  const response = finspace
+    .getKxEnvironment({ environmentId }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!response || isGone(response.status)) return undefined
+  return response
+}
+
+const findKxEnvironmentByName = effect (name: string) => {
+  const environments = Array.from(
+    try (finspace.listKxEnvironments.items({})
+      |> EffectStream.runCollect(%)),
+  )
+  return environments.find((env) => env.name === name && !isGone(env.status))
+}
+
+/**
+ * A kdb environment still transitioning toward the awaited status — retried
+ * by the bounded schedule in {@link waitForKxEnvironmentStatus}.
+ */
+error KxEnvironmentNotReady {
+  environmentId: string
+  status: string | undefined
+}
+
+/**
+ * A kdb environment whose asynchronous provisioning converged to the
+ * terminal `FAILED_CREATION` status.
+ */
+export error KxEnvironmentProvisioningFailed {
+  environmentId: string
+  status: string | undefined
+}
+
+// Explicitly-typed retry wrapper — an inline `Effect.retry` in provider
+// lifecycle code leaks `Retry.Return`'s conditional type into declaration
+// emit and widens the provider layer to `unknown` for every consumer of
+// `AWS.providers()`.
+const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "KxEnvironmentNotReady",
+    // kdb environment provisioning is slow; poll every 20s up to ~40 min.
+    schedule: Schedule.max([Schedule.spaced("20 seconds"), Schedule.recurs(120)]),
+  })
+
+// Deleting an environment that is still creating/updating surfaces as a
+// Conflict — bounded retry through it. Explicitly typed for the same
+// declaration-emit reason as retryWhileNotReady.
+const retryThroughConflict = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "ConflictException",
+    schedule: Schedule.max([Schedule.spaced("15 seconds"), Schedule.recurs(8)]),
+  })
+
+const waitForKxEnvironmentStatus = (environmentId: string, target: "CREATED" | "DELETED") =>
+  retryWhileNotReady(
+    effect {
+      const response = finspace
+        .getKxEnvironment({ environmentId }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+      const status = response?.status
+      if (target === "DELETED") {
+        if (response === undefined || isGone(status)) return
+        throw new KxEnvironmentNotReady({ environmentId, status })
+      }
+      if (status === "CREATED") return
+      if (status === "FAILED_CREATION") {
+        throw new KxEnvironmentProvisioningFailed({ environmentId, status })
+      }
+      throw new KxEnvironmentNotReady({ environmentId, status })
+    },
+  )
+
+export const KxEnvironmentProvider = (): infer _ =>
+  Provider.effect(
+    KxEnvironment,
+    effect {
+      return {
+        stables: ["environmentId", "environmentArn"],
+        list: effect () => {
+          const environments = Array.from(
+            try (finspace.listKxEnvironments.items({})
+              |> EffectStream.runCollect(%)),
+          )
+          return try Effect.forEach(
+            environments.filter((env) => !isGone(env.status)),
+            (env) => toKxAttributes(env, env.environmentId ?? ""),
+            { concurrency: 5 },
+          )
+        },
+        read: effect ({ id, olds, output }) => {
+          const env = output?.environmentId
+            ? try readKxEnvironmentById(output.environmentId)
+            : try findKxEnvironmentByName(try createKxEnvironmentName(id, olds ?? {}))
+          if (!env) return undefined
+          const attrs = try toKxAttributes(env, output?.environmentId ?? "")
+          return (try hasAlchemyTags(id, attrs.tags as Tags)) ? attrs : Unowned(attrs)
+        },
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          if (olds === undefined) return
+          // The KMS key is fixed at creation.
+          if (olds.kmsKeyId !== news.kmsKeyId) {
+            return { action: "replace" } as const
+          }
+          // FinSpace does not support changing or detaching an attached
+          // network (UpdateKxEnvironmentNetwork is attach-once).
+          const hadNetwork = olds.transitGatewayConfiguration !== undefined
+            || olds.customDNSConfiguration !== undefined
+          if (
+            hadNetwork
+            && (!sameJson(olds.transitGatewayConfiguration, news.transitGatewayConfiguration)
+              || !sameJson(olds.customDNSConfiguration, news.customDNSConfiguration))
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (!news) {
+            throw new KxEnvironmentInvalidProps({
+              message: "FinSpace KxEnvironment requires props",
+            })
+          }
+          const name = try createKxEnvironmentName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — prefer the cached id; fall back to a name lookup so a
+          // create whose state failed to persist is adopted, not duplicated.
+          let env: KxEnvironmentView | undefined = output?.environmentId
+            ? try readKxEnvironmentById(output.environmentId)
+            : try findKxEnvironmentByName(name)
+
+          // Ensure — create if missing, then wait for CREATED.
+          if (env === undefined) {
+            const created = try finspace.createKxEnvironment({
+              name,
+              description: news.description,
+              kmsKeyId: news.kmsKeyId,
+              tags: desiredTags,
+            })
+            if (!created.environmentId) {
+              throw new KxEnvironmentUnexpectedResponse({
+                message: `CreateKxEnvironment for '${name}' returned no id`,
+              })
+            }
+            try session.note(`Creating kdb environment ${name} (${created.environmentId})...`)
+            try waitForKxEnvironmentStatus(created.environmentId, "CREATED")
+            env = try readKxEnvironmentById(created.environmentId)
+            if (env === undefined) {
+              throw new KxEnvironmentUnexpectedResponse({
+                message: `failed to read created kdb environment ${name}`,
+              })
+            }
+          }
+          const environmentId = env.environmentId
+          if (environmentId === undefined) {
+            throw new KxEnvironmentUnexpectedResponse({
+              message: `kdb environment '${name}' has no environmentId`,
+            })
+          }
+
+          // Sync network — UpdateKxEnvironmentNetwork is attach-once: apply
+          // only when a network is desired and none is observed. (Changing
+          // an attached network is a replacement — see diff.)
+          const wantsNetwork = news.transitGatewayConfiguration !== undefined
+            || news.customDNSConfiguration !== undefined
+          const hasNetwork = env.transitGatewayConfiguration !== undefined
+            || (env.customDNSConfiguration !== undefined && env.customDNSConfiguration.length > 0)
+          if (wantsNetwork && !hasNetwork) {
+            try finspace.updateKxEnvironmentNetwork({
+              environmentId,
+              transitGatewayConfiguration: news.transitGatewayConfiguration,
+              customDNSConfiguration: news.customDNSConfiguration,
+            })
+            try session.note(`Attaching network to kdb environment ${name}...`)
+            try waitForKxEnvironmentStatus(environmentId, "CREATED")
+            env = (try readKxEnvironmentById(environmentId)) ?? env
+          }
+
+          // Sync mutable settings — only call UpdateKxEnvironment on drift.
+          const needsUpdate = name !== env.name
+            || (news.description !== undefined && news.description !== env.description)
+          if (needsUpdate) {
+            try finspace.updateKxEnvironment({
+              environmentId,
+              name,
+              description: news.description,
+            })
+            try session.note(`Updated kdb environment ${name}`)
+          }
+
+          // Sync tags — diff against observed cloud tags.
+          const attrs = try toKxAttributes(env, environmentId)
+          if (attrs.environmentArn) {
+            const { removed, upsert } = diffTags(attrs.tags, desiredTags)
+            if (removed.length > 0) {
+              try finspace.untagResource({
+                resourceArn: attrs.environmentArn,
+                tagKeys: removed,
+              })
+            }
+            if (upsert.length > 0) {
+              try finspace.tagResource({
+                resourceArn: attrs.environmentArn,
+                tags: Object.fromEntries(upsert.map(({ Key, Value }) => [Key, Value])),
+              })
+            }
+          }
+
+          try session.note(attrs.environmentArn)
+
+          const final = try readKxEnvironmentById(environmentId)
+          if (!final) {
+            throw new KxEnvironmentUnexpectedResponse({
+              message: `failed to read reconciled kdb environment ${name}`,
+            })
+          }
+          return try toKxAttributes(final, environmentId)
+        },
+        delete: effect ({ output }) => {
+          try retryThroughConflict(
+            effect {
+              return finspace
+                .deleteKxEnvironment({ environmentId: output.environmentId }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            },
+          )
+          try waitForKxEnvironmentStatus(output.environmentId, "DELETED")
+        },
+      }
+    },
+  )

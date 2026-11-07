@@ -1,0 +1,4 @@
+import * as Layer from "effect/Layer";
+import { ReadTunnel } from "./ReadTunnel.vibe";
+/** Runtime layer for {@link ReadTunnel}. */
+export declare const ReadTunnelBinding: Layer.Layer<ReadTunnel, never, import("../CloudflareEnvironmentService.ts").CloudflareEnvironment>;

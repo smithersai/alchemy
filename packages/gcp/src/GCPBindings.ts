@@ -16,11 +16,11 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import type * as rolldown from "rolldown";
 import type { GcpIamGrant } from "./Host.ts";
-import { Member } from "./IAM/Member.ts";
+import { Member } from "./IAM/Member.vibe";
 import { ServiceAccount } from "./IAM/ServiceAccount.ts";
-import { ServiceAccountKey } from "./IAM/ServiceAccountKey.ts";
-import { WorkloadIdentityPool } from "./IAM/WorkloadIdentityPool.ts";
-import { WorkloadIdentityProvider } from "./IAM/WorkloadIdentityProvider.ts";
+import { ServiceAccountKey } from "./IAM/ServiceAccountKey.vibe";
+import { WorkloadIdentityPool } from "./IAM/WorkloadIdentityPool.vibe";
+import { WorkloadIdentityProvider } from "./IAM/WorkloadIdentityProvider.vibe";
 
 /**
  * How a GCP binding reaches GCP from its host:

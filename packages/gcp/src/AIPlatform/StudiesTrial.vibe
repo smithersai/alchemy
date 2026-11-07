@@ -1,0 +1,241 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import { listLocations } from "./names.vibe"
+import { lastSegment, locationOf, locationParent, parentOf } from "./ownership.vibe"
+import { hasStudyOwnership } from "./Study.ts"
+
+export type TrialParameter = {
+  /** Parameter id defined on the parent Study. */
+  parameterId: string
+  /** Assigned value (`number` for numeric parameters, `string` for categorical). */
+  value?: unknown
+}
+
+export type StudiesTrialProps = {
+  /**
+   * Parent Study resource name
+   * (`projects/{project}/locations/{location}/studies/{study}`).
+   * Immutable — changing it replaces the Trial.
+   */
+  parent: string
+  /**
+   * User-provided parameter assignments. Immutable after create.
+   */
+  parameters?: TrialParameter[]
+  /**
+   * Client identifier recorded on the Trial. Alchemy stores the logical
+   * id here when omitted so `list` / nuke can find user-provided trials.
+   */
+  clientId?: string
+}
+
+export type StudiesTrial = Resource<
+  "GCP.AIPlatform.StudiesTrial",
+  StudiesTrialProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Trial id assigned by Vizier. */
+    trialId: string
+    /** Parent Study resource name. */
+    parent: string
+    /** Region id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** Client identifier. */
+    clientId: string | undefined
+    /** Parameter assignments. */
+    parameters: TrialParameter[]
+    /** Server-reported state. */
+    state: string | undefined
+    /** Final measurement, if the trial completed. */
+    finalMeasurement: aiplatform.GoogleCloudAiplatformV1Measurement | undefined
+    /** RFC3339 start timestamp. */
+    startTime: string | undefined
+    /** RFC3339 end timestamp. */
+    endTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A user-provided Vertex AI Vizier Trial attached to a Study.
+ *
+ * Trials have no labels and no update RPC. Alchemy records the logical
+ * id in `clientId` so `list` can find them. Parent and parameters are
+ * immutable.
+ *
+ * ### Creating a Trial
+ * **Example:** User-provided trial
+ * ```typescript
+ * const trial = yield* GCP.AIPlatform.StudiesTrial("Seed", {
+ *   parent: study.name,
+ *   parameters: [{ parameterId: "learning_rate", value: 0.01 }],
+ * });
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const StudiesTrial = Resource<StudiesTrial>("GCP.AIPlatform.StudiesTrial")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class StudiesTrialNotResolved extends Data.TaggedError(
+  "GCP.AIPlatform.StudiesTrialNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const toAttrs = (trial: aiplatform.GoogleCloudAiplatformV1Trial, project: string): infer _ => {
+  const name = trial.name ?? ""
+  return {
+    name,
+    trialId: trial.id ?? lastSegment(name),
+    parent: parentOf(name),
+    location: locationOf(name),
+    project,
+    clientId: trial.clientId,
+    parameters: (trial.parameters ?? []).map((parameter) => ({
+      parameterId: parameter.parameterId ?? "",
+      value: parameter.value,
+    })),
+    state: trial.state,
+    finalMeasurement: trial.finalMeasurement,
+    startTime: trial.startTime,
+    endTime: trial.endTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : aiplatform
+  .getProjectsLocationsStudiesTrials({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listStudies = effect (parent: string) =>
+  (Array.from(
+    try (aiplatform.listProjectsLocationsStudies.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.studies ?? []))
+      |> Stream.filter(%, (study) => hasStudyOwnership(study.displayName))
+      |> Stream.map(%, (study) => study.name ?? "")
+      |> Stream.filter(%, (name) => name.length > 0)
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+
+const listAtParent = effect (parent: string, project: string, clientId?: string) =>
+  (Array.from(
+    try (aiplatform.listProjectsLocationsStudiesTrials.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.trials ?? []))
+      |> Stream.filter(%, (trial) => (clientId !== undefined ? trial.clientId === clientId : true))
+      |> Stream.map(%, (trial) => toAttrs(trial, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findByClientId = effect (parent: string, clientId: string, project: string) =>
+  (try listAtParent(parent, project, clientId))[0]
+
+export const StudiesTrialProvider = (): infer _ =>
+  Provider.succeed(StudiesTrial, {
+    stables: ["name", "trialId", "parent", "location", "project", "startTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (previousParent !== undefined && news.parent !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const existing = try getByName(output?.name ?? "")
+      if (existing !== undefined) {
+        return toAttrs(existing, env.project)
+      }
+      if (olds?.parent === undefined) return undefined
+      const ownership = try createInternalLabels(id)
+      const clientId = olds.clientId ?? `alchemy-${ownership["alchemy-id"]}`
+      const match = try findByClientId(olds.parent, clientId, env.project)
+      if (match === undefined) return undefined
+      const fetched = try getByName(match.name)
+      if (fetched === undefined) return undefined
+      const attrs = toAttrs(fetched, env.project)
+      return fetched.clientId === clientId ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const studies = (try Effect.forEach(listLocations(env.region), effect (location) =>
+        try listStudies(locationParent(env.project, location)))).flat()
+      const pages = try Effect.forEach(
+        studies,
+        effect (parent) =>
+          try listAtParent(parent, env.project),
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const ownership = try createInternalLabels(id)
+      const clientId = news.clientId ?? `alchemy-${ownership["alchemy-id"]}`
+
+      let current = try getByName(output?.name ?? "")
+      if (current === undefined) {
+        const match = try findByClientId(news.parent, clientId, env.project)
+        if (match !== undefined) {
+          current = try getByName(match.name)
+        }
+      }
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsStudiesTrials({
+            parent: news.parent,
+            body: {
+              clientId,
+              // Vizier rejects user trials without a status ("Can not add
+              // trial with status: UNKNOWN").
+              state: "ACTIVE",
+              parameters: news.parameters?.map((parameter) => ({
+                parameterId: parameter.parameterId,
+                value: parameter.value,
+              })),
+            },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try effect {
+              const match = try findByClientId(news.parent, clientId, env.project)
+              return (match ? try getByName(match.name) : try Effect.undefined)
+            };
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new StudiesTrialNotResolved({
+          resourceName: output?.name ?? `${news.parent}/trials/-`,
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      aiplatform
+        .deleteProjectsLocationsStudiesTrials({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

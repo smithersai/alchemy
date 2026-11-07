@@ -33,7 +33,7 @@ import {
   parseResourceName,
   toPhysicalId,
   waitForOperation,
-} from "./operations.ts";
+} from "./operations.vibe";
 
 export type ClusterAutoscalingLimits = {
   /** Minimum nodes the autoscaler can scale down to. */

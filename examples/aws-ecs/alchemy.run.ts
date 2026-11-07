@@ -19,7 +19,7 @@ import * as Alchemy from "alchemy";
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import ApiLive, { Api } from "./src/Api.ts";
-import { OrdersCluster, OrdersIngress, OrdersNetwork, OrdersTable } from "./src/infra.ts";
+import { OrdersCluster, OrdersIngress, OrdersNetwork, OrdersTable } from "./src/infra.vibe";
 
 export default Alchemy.Stack(
   "AwsEcsExample",

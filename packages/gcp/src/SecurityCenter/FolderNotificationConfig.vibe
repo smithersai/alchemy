@@ -1,0 +1,244 @@
+import * as scc from "@distilled.cloud/gcp/securitycenter_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeDescription,
+  folderIdOf,
+  folderParent,
+  hasOwnershipMarker,
+  lastSegment,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOn,
+  resolveFolder,
+  sameText,
+  SecuritycenterNotResolved,
+  toPhysicalId,
+  tryResolveFolder,
+  updateMaskOf,
+} from "./internal.ts"
+
+export type FolderNotificationConfigProps = {
+  /**
+   * Config id (the `{config}` segment of
+   * `folders/{folder}/notificationConfigs/{config}`). If omitted, a unique
+   * id is generated from the stack, stage, and logical id. Letters,
+   * digits, and hyphens; max 63 characters. Immutable — changing it
+   * replaces the config.
+   */
+  configId?: string
+  /**
+   * Parent folder (`folders/{folder}` or the numeric id). Defaults to
+   * the project's Resource Manager folder ancestor.
+   * Immutable — changing it replaces the config.
+   */
+  folder?: string
+  /**
+   * Pub/Sub topic that receives findings
+   * (`projects/{project}/topics/{topic}`).
+   */
+  pubsubTopic: string
+  /**
+   * Finding filter. Empty exports every finding under the parent.
+   */
+  filter?: string
+  /**
+   * Human-readable description. Notification configs have no labels field,
+   * so Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+}
+
+export type FolderNotificationConfig = Resource<
+  "GCP.SecurityCenter.FolderNotificationConfig",
+  FolderNotificationConfigProps,
+  {
+    /** Full resource name `folders/{folder}/notificationConfigs/{config}`. */
+    name: string
+    /** Config id (last path segment). */
+    configId: string
+    /** Folder resource name. */
+    folder: string
+    /** Folder id. */
+    folderId: string
+    /** Project id of the deploying stack. */
+    project: string
+    /** Pub/Sub topic that receives findings. */
+    pubsubTopic: string
+    /** Finding filter. */
+    filter: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Service account Security Command Center uses to publish. */
+    serviceAccount: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A folder-scoped Security Command Center notification config.
+ *
+ * Notification configs have no labels field — Alchemy stamps ownership
+ * into the description so `list` / nuke can find them. Config id and
+ * folder are identity. Pub/Sub topic, filter, and description update in
+ * place.
+ *
+ * ### Creating a Notification Config
+ * **Example:** Stream findings to Pub/Sub
+ * ```typescript
+ * const topic = yield* GCP.PubSub.Topic("SccFindings", {});
+ * const config = yield* GCP.SecurityCenter.FolderNotificationConfig(
+ *   "Findings",
+ *   {
+ *     pubsubTopic: topic.name,
+ *     filter: 'state="ACTIVE"',
+ *     description: "active findings",
+ *   },
+ * );
+ * ```
+ *
+ * **Example:** Named config on an explicit folder
+ * ```typescript
+ * const config = yield* GCP.SecurityCenter.FolderNotificationConfig(
+ *   "Findings",
+ *   {
+ *     folder: "folders/123456789",
+ *     configId: "active-findings",
+ *     pubsubTopic: "projects/my-project/topics/scc",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category SecurityCenter
+ */
+export const FolderNotificationConfig = Resource<FolderNotificationConfig>(
+  "GCP.SecurityCenter.FolderNotificationConfig",
+)
+
+const resourceName = (folder: string, configId: string): infer _ => `${folder}/notificationConfigs/${configId}`
+
+const toAttrs = (config: scc.NotificationConfig, folder: string, project: string): infer _ => {
+  const name = config.name ?? ""
+  const parsed = parseName(name, "notificationConfigs")
+  const ownership = parseOwnership(config.description)
+  return {
+    name,
+    configId: parsed.id || lastSegment(name),
+    folder,
+    folderId: folderIdOf(folder),
+    project,
+    pubsubTopic: config.pubsubTopic ?? "",
+    filter: config.streamingConfig?.filter,
+    description: ownership.text,
+    serviceAccount: config.serviceAccount,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : scc
+  .getFoldersNotificationConfigs({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+export const FolderNotificationConfigProvider = (): infer _ =>
+  Provider.succeed(FolderNotificationConfig, {
+    stables: ["name", "configId", "folder", "folderId", "project"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      return (
+        replaceOn(olds?.configId ?? output?.configId, news.configId)
+          ?? replaceOn(
+            olds?.folder ?? output?.folder,
+            news.folder !== undefined ? folderParent(news.folder) : undefined,
+          )
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const folder = try resolveFolder(olds?.folder ?? output?.folder, output?.folder)
+      const configId = try toPhysicalId(id, olds?.configId, output?.configId)
+      const name = output?.name ?? resourceName(folder, configId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, folder, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const folder = try tryResolveFolder()
+      if (folder === undefined) return []
+      return (Array.from(
+        try (scc.listFoldersNotificationConfigs
+          .pages({ parent: folder, pageSize: 100 })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.notificationConfigs ?? []))
+          |> Stream.filter(%, (config) => hasOwnershipMarker(config.description))
+          |> Stream.map(%, (config) => toAttrs(config, folder, env.project))
+          |> Stream.runCollect(%)),
+      )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const folder = try resolveFolder(news.folder, output?.folder)
+      const configId = try toPhysicalId(id, news.configId, output?.configId)
+      const name = resourceName(folder, configId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeDescription(ownership, news.description)
+      const pubsubTopic = news.pubsubTopic
+      const filter = news.filter ?? ""
+      const streamingConfig = { filter }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = scc
+          .createFoldersNotificationConfigs({
+            parent: folder,
+            configId,
+            body: { pubsubTopic, description, streamingConfig },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SecuritycenterNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const updateMask = updateMaskOf(
+        !sameText(current.pubsubTopic, pubsubTopic) ? "pubsubTopic" : undefined,
+        !sameText(current.description, description) ? "description" : undefined,
+        !sameText(current.streamingConfig?.filter, filter) ? "streamingConfig.filter" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try scc.patchFoldersNotificationConfigs({
+          name: currentName,
+          updateMask,
+          body: { pubsubTopic, description, streamingConfig },
+        })
+      }
+
+      return toAttrs(current, folder, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      scc
+        .deleteFoldersNotificationConfigs({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

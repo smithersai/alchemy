@@ -1,8 +1,8 @@
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as AWSBindings from "../AWSBindings.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
-import type { SigningProfile } from "./SigningProfile.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
+import type { SigningProfile } from "./SigningProfile.vibe";
 
 /**
  * Shared scaffolding for the AWS Signer HTTP runtime bindings.

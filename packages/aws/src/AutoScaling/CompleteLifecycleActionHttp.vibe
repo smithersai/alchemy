@@ -1,0 +1,60 @@
+import * as autoscaling from "@distilled.cloud/aws/auto-scaling"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts"
+import {
+  CompleteLifecycleAction,
+  type CompleteLifecycleActionRequest,
+  type RecordLifecycleActionHeartbeatRequest,
+} from "./CompleteLifecycleAction.vibe"
+
+export const CompleteLifecycleActionHttp = Layer.effect(
+  CompleteLifecycleAction,
+  effect {
+    const bind = try AWSBindings.Bind
+    const complete = try AWSBindings.withCredentials(autoscaling.completeLifecycleAction)
+    const heartbeat = try AWSBindings.withCredentials(
+      autoscaling.recordLifecycleActionHeartbeat,
+    )
+
+    return effect (group: AutoScalingGroup) => {
+      const AutoScalingGroupName = try group.autoScalingGroupName.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.AutoScaling.CompleteLifecycleAction(${group})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: [
+                "autoscaling:CompleteLifecycleAction",
+                "autoscaling:RecordLifecycleActionHeartbeat",
+              ],
+              Resource: [group.autoScalingGroupArn],
+            },
+          ],
+        })
+      }
+      return {
+        complete: effect (request: CompleteLifecycleActionRequest) =>
+          try withSpan(
+            effect {
+              return try complete({
+                ...request,
+                AutoScalingGroupName: try AutoScalingGroupName,
+              })
+            },
+            `AWS.AutoScaling.CompleteLifecycleAction(${group.LogicalId})`,
+          ),
+        heartbeat: effect (request: RecordLifecycleActionHeartbeatRequest) =>
+          try withSpan(
+            effect {
+              return try heartbeat({
+                ...request,
+                AutoScalingGroupName: try AutoScalingGroupName,
+              })
+            },
+            `AWS.AutoScaling.RecordLifecycleActionHeartbeat(${group.LogicalId})`,
+          ),
+      }
+    }
+  },
+)

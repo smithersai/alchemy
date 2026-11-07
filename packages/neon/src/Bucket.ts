@@ -12,7 +12,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import { resolveBranchScope, type BranchScope, type ResolvedBranchScope } from "./BranchScope.ts";
 import { Credential, validateCredential, type CredentialAttributes } from "./Credential.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 import { emptyStorageBucket, makeStorageClient } from "./Storage.ts";
 
 export type BucketProps = BranchScope & {

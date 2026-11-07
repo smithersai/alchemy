@@ -8,7 +8,7 @@ import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import Stack from "../alchemy.run.ts";
-import { WORKFLOW_SECRET_VALUE } from "../src/NotifyWorkflow.ts";
+import { WORKFLOW_SECRET_VALUE } from "../src/NotifyWorkflow.vibe";
 
 const { test, beforeAll, afterAll, deploy, destroy } = Test.make({
   providers: Cloudflare.providers(),

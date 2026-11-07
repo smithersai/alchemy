@@ -8,7 +8,7 @@ import {
   K2SchemaError,
   type Record as K2Record,
   type RecordSchema,
-} from "./K2Types.ts";
+} from "./K2Types.vibe";
 
 /**
  * Record encoding shared by the K2 producer and consumer clients. Internal —

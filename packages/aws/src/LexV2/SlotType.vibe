@@ -1,0 +1,285 @@
+import * as lexm from "@distilled.cloud/aws/lex-models-v2"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.ts"
+import { retryWhileConflict, toLexName } from "./internal.ts"
+
+export error SlotTypeUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+/** One enumerable value of a custom slot type, with optional synonyms. */
+export interface SlotTypeValueSpec {
+  /** The canonical value, e.g. `small`. */
+  value: string
+  /** Synonyms that resolve to the canonical value, e.g. `["tiny"]`. */
+  synonyms?: string[]
+}
+
+export interface SlotTypeProps {
+  /**
+   * ID of the bot the slot type belongs to. Changing it replaces the slot
+   * type.
+   */
+  botId: string
+  /**
+   * Locale the slot type lives under, e.g. `en_US`. Changing it replaces the
+   * slot type. Pass the `localeId` attribute of a `BotLocale` so the slot
+   * type depends on the locale.
+   */
+  localeId: string
+  /**
+   * Name of the slot type. Mutable — renames update the slot type in place
+   * (identity is the generated slot type ID).
+   * @default ${app}-${id}-${stage}-${suffix}
+   */
+  slotTypeName?: string
+  /**
+   * Description of the slot type.
+   */
+  description?: string
+  /**
+   * The enumerable values the slot type accepts.
+   */
+  slotTypeValues?: SlotTypeValueSpec[]
+  /**
+   * How slot values are resolved: `OriginalValue` returns the user's words;
+   * `TopResolution` returns the first matching canonical value.
+   * @default "OriginalValue" when slotTypeValues are present
+   */
+  resolutionStrategy?: "OriginalValue" | "TopResolution"
+  /**
+   * Signature of a built-in slot type to extend, e.g.
+   * `AMAZON.AlphaNumeric`.
+   */
+  parentSlotTypeSignature?: string
+}
+
+export interface SlotType extends
+  Resource<
+    "AWS.LexV2.SlotType",
+    SlotTypeProps,
+    {
+      /** Unique identifier assigned to the slot type. */
+      slotTypeId: string
+      /** Name of the slot type. */
+      slotTypeName: string
+      /** ID of the bot the slot type belongs to. */
+      botId: string
+      /** Bot version the slot type lives on — always `DRAFT`. */
+      botVersion: string
+      /** Locale the slot type lives under. */
+      localeId: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A custom slot type on the DRAFT locale of an Amazon Lex V2 bot — the set of
+ * values a slot can take, with optional synonyms and resolution strategy.
+ *
+ * ### Creating Slot Types
+ * **Example:** Enumerated Slot Type
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const size = yield* AWS.LexV2.SlotType("Size", {
+ *   botId: locale.botId,
+ *   localeId: locale.localeId,
+ *   slotTypeValues: [
+ *     { value: "small", synonyms: ["tiny"] },
+ *     { value: "large", synonyms: ["big", "huge"] },
+ *   ],
+ *   resolutionStrategy: "TopResolution",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const SlotType = Resource<SlotType>("AWS.LexV2.SlotType")
+
+const createSlotTypeName = effect (id: string, props: { slotTypeName?: string | undefined }) => {
+  if (props.slotTypeName) return props.slotTypeName
+  return toLexName(try createPhysicalName({ id, maxLength: 100 }))
+}
+
+const describeSlotType = effect (botId: string, localeId: string, slotTypeId: string) =>
+  lexm
+    .describeSlotType({ botId, botVersion: "DRAFT", localeId, slotTypeId }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+
+/** Find a slot type of the locale by exact name (used when state was lost). */
+const findSlotTypeByName = effect (
+  botId: string,
+  localeId: string,
+  slotTypeName: string,
+) => {
+  const pages = (try (lexm.listSlotTypes
+    .pages({
+      botId,
+      botVersion: "DRAFT",
+      localeId,
+      filters: [{ name: "SlotTypeName", values: [slotTypeName], operator: "EQ" }],
+    })
+    |> Stream.runCollect(%))) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: [] as lexm.ListSlotTypesResponse[];
+      default: throw e;
+    }
+  const summary = Array.from(pages)
+    .flatMap((page) => page.slotTypeSummaries ?? [])
+    .find((slotType) => slotType.slotTypeName === slotTypeName)
+  if (summary?.slotTypeId === undefined) return undefined
+  return try describeSlotType(botId, localeId, summary.slotTypeId)
+}
+
+const toWireValues = (values: SlotTypeValueSpec[] | undefined): lexm.SlotTypeValue[] | undefined =>
+  values?.map((value) => ({
+    sampleValue: { value: value.value },
+    synonyms: value.synonyms?.map((synonym) => ({ value: synonym })),
+  }))
+
+const fromWireValues = (values: readonly lexm.SlotTypeValue[] | undefined): SlotTypeValueSpec[] =>
+  (values ?? []).map((value) => ({
+    value: value.sampleValue?.value ?? "",
+    synonyms: value.synonyms?.map((synonym) => synonym.value),
+  }))
+
+const attributesOf = (slotType: lexm.DescribeSlotTypeResponse): SlotType["Attributes"] => ({
+  slotTypeId: slotType.slotTypeId!,
+  slotTypeName: slotType.slotTypeName!,
+  botId: slotType.botId!,
+  botVersion: "DRAFT",
+  localeId: slotType.localeId!,
+})
+
+export const SlotTypeProvider = (): infer _ =>
+  Provider.effect(
+    SlotType,
+    effect {
+      /** The wire value-selection setting derived from the declared props. */
+      const desiredSelection = (news: SlotTypeProps): lexm.SlotValueSelectionSetting | undefined =>
+        news.resolutionStrategy !== undefined || news.slotTypeValues !== undefined
+          ? { resolutionStrategy: news.resolutionStrategy ?? "OriginalValue" }
+          : undefined
+
+      return {
+        stables: ["slotTypeId", "botId", "botVersion", "localeId"],
+
+        // Sub-resource keyed entirely by its bot locale — nuke reaches it
+        // through the parent bot's deletion.
+        list: effect () => [],
+
+        read: effect ({ id, olds, output }) => {
+          const botId = output?.botId ?? olds?.botId
+          const localeId = output?.localeId ?? olds?.localeId
+          if (botId === undefined || localeId === undefined) return undefined
+          const observed = output?.slotTypeId !== undefined
+            ? try describeSlotType(botId, localeId, output.slotTypeId)
+            : try findSlotTypeByName(
+              botId,
+              localeId,
+              try createSlotTypeName(id, olds ?? {}),
+            )
+          return observed === undefined ? undefined : attributesOf(observed)
+        },
+
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return undefined
+          if (olds?.botId !== news.botId || olds?.localeId !== news.localeId) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const slotTypeName = try createSlotTypeName(id, news)
+          const desiredValues = news.slotTypeValues ?? []
+
+          // 1. OBSERVE — output.slotTypeId is only a cache; fall back to name.
+          let observed = output?.slotTypeId !== undefined
+            ? try describeSlotType(news.botId, news.localeId, output.slotTypeId)
+            : undefined
+          if (observed === undefined) {
+            observed = try findSlotTypeByName(news.botId, news.localeId, slotTypeName)
+          }
+
+          // 2. ENSURE — create when missing.
+          if (observed === undefined) {
+            const created = try retryWhileConflict(
+              lexm.createSlotType({
+                botId: news.botId,
+                botVersion: "DRAFT",
+                localeId: news.localeId,
+                slotTypeName,
+                description: news.description,
+                slotTypeValues: toWireValues(news.slotTypeValues),
+                valueSelectionSetting: desiredSelection(news),
+                parentSlotTypeSignature: news.parentSlotTypeSignature,
+              }),
+            )
+            observed = try describeSlotType(news.botId, news.localeId, created.slotTypeId!)
+            if (observed === undefined) {
+              throw new SlotTypeUnexpectedResponse({
+                message: `failed to read created Lex slot type ${slotTypeName}`,
+              })
+            }
+          } else if (
+            // 3. SYNC — UpdateSlotType replaces the declared aspects; skip
+            //    the call when nothing drifted.
+            observed.slotTypeName !== slotTypeName
+            || (observed.description ?? undefined) !== (news.description ?? undefined)
+            || JSON.stringify(fromWireValues(observed.slotTypeValues))
+              !== JSON.stringify(desiredValues)
+            || (observed.valueSelectionSetting?.resolutionStrategy ?? undefined)
+              !== (desiredSelection(news)?.resolutionStrategy ?? undefined)
+          ) {
+            try retryWhileConflict(
+              lexm.updateSlotType({
+                botId: news.botId,
+                botVersion: "DRAFT",
+                localeId: news.localeId,
+                slotTypeId: observed.slotTypeId!,
+                slotTypeName,
+                description: news.description,
+                slotTypeValues: toWireValues(news.slotTypeValues),
+                valueSelectionSetting: desiredSelection(news),
+                parentSlotTypeSignature: news.parentSlotTypeSignature,
+              }),
+            )
+            observed = try describeSlotType(news.botId, news.localeId, observed.slotTypeId!)
+            if (observed === undefined) {
+              throw new SlotTypeUnexpectedResponse({
+                message: `failed to read updated Lex slot type ${slotTypeName}`,
+              })
+            }
+          }
+
+          try session.note(observed.slotTypeId!)
+          return attributesOf(observed)
+        },
+
+        delete: effect ({ output }) => {
+          // Lex reports a missing slot type (or already-deleted parent) as
+          // PreconditionFailed.
+          retryWhileConflict(
+            lexm.deleteSlotType({
+              botId: output.botId,
+              botVersion: "DRAFT",
+              localeId: output.localeId,
+              slotTypeId: output.slotTypeId,
+              skipResourceInUseCheck: true,
+            }),
+          ) catch effect (e) => match (e) {
+            when { _tag: "PreconditionFailedException" }: try Effect.void;
+            default: throw e;
+          }
+        },
+      }
+    },
+  )

@@ -27,7 +27,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import type { Input } from "../Input.ts";
+import type { Input } from "../Input.vibe";
 import * as Output from "../Output.ts";
 import type { Resource, ResourceLike } from "../Resource.ts";
 

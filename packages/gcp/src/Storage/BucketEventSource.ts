@@ -3,7 +3,7 @@ import * as Binding from "alchemy/Binding";
 import * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import type { TopicEventSourceProps, TopicMessage } from "../PubSub/TopicEventSource.ts";
-import type { Bucket } from "./Bucket.ts";
+import type { Bucket } from "./Bucket.vibe";
 
 /** Cloud Storage object event types delivered through Pub/Sub. */
 export type BucketEventType =

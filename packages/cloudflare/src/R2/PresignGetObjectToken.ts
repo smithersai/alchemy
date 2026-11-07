@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { PresignGetObject, type PresignGetObjectRequest } from "./PresignGetObject.ts";
-import { makePresignBinding, presignR2Url } from "./PresignToken.ts";
+import { PresignGetObject, type PresignGetObjectRequest } from "./PresignGetObject.vibe";
+import { makePresignBinding, presignR2Url } from "./PresignToken.vibe";
 
 /**
  * Implementation of {@link PresignGetObject} that signs URLs with S3

@@ -1,0 +1,92 @@
+/** Authorization and commit stay in the request effect, across every write transport. */
+import * as Git from "@alchemy.run/git"
+import * as Effect from "effect/Effect"
+import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder"
+import { AppApi } from "./api.vibe"
+import { checkRefChanges } from "./branch-policy.vibe"
+
+export const RefsLive = HttpApiBuilder.group(AppApi, "refs", effect (h) => {
+  const git = try Effect.service(Git.Engine)
+  const defaults = try Effect.service(Git.Handlers)
+  return h.handleAll({
+    ...defaults.refs,
+    update: effect ({ params, query, payload }) =>
+      Effect.scoped(
+        effect {
+          if (/^0+$/.test(payload.newOid)) {
+            throw new Git.PushDenied({
+              ref: query.name,
+              reason: "use the DELETE endpoint to remove a ref",
+            })
+          }
+          const repo = try git.repositories.get(params)
+          const prepared = try git.prepareRefUpdate(repo, {
+            ref: query.name,
+            ...payload,
+          })
+          try checkRefChanges(repo, prepared.updates)
+          const result = try prepared.commit
+          if (result === undefined) {
+            throw new Git.PushDenied({
+              ref: query.name,
+              reason: "use the DELETE endpoint to remove a ref",
+            })
+          }
+          return new Git.Ref({
+            name: result.name,
+            oid: result.oid as Git.Oid,
+          })
+        },
+      ) catch effect (e) => match (e) { when { _tag: "StoreError" }: try Effect.die(e); default: throw e; },
+    remove: effect ({ params, query, payload }) =>
+      Effect.scoped(
+        effect {
+          const repo = try git.repositories.get(params)
+          const prepared = try git.prepareRefRemoval(repo, {
+            ref: query.name,
+            ...payload,
+          })
+          try checkRefChanges(repo, prepared.updates)
+          try prepared.commit
+        },
+      ) catch effect (e) => match (e) { when { _tag: "StoreError" }: try Effect.die(e); default: throw e; },
+  })
+})
+
+/** Used by both the typed REST endpoint and the GitHub facade. */
+export const mergePull = effect (
+  git: Effect.Success<typeof Git.Engine>,
+  params: { owner: string; repo: string; number: number },
+  input: { message?: string; expectedHeadOid?: string },
+) =>
+  Effect.scoped(
+    effect {
+      const repo = try git.repositories.get(params)
+      const prepared = try git.prepareMerge(repo, {
+        number: params.number,
+        ...input,
+      })
+      try checkRefChanges(repo, prepared.updates)
+      return try prepared.commit
+    },
+  ) catch effect (e) => match (e) { when { _tag: "StoreError" }: try Effect.die(e); default: throw e; }
+
+export const PullsLive = HttpApiBuilder.group(AppApi, "pulls", effect (h) => {
+  const defaults = try Effect.service(Git.Handlers)
+  const git = try Effect.service(Git.Engine)
+  return h.handleAll({
+    ...defaults.pulls,
+    merge: effect ({ params, payload }) =>
+      try effect {
+        const result = try mergePull(git, params, payload)
+        return new Git.MergeResult({
+          ...result,
+          oid: result.oid as Git.Oid,
+          pull: new Git.Pull({
+            ...result.pull,
+            mergeCommit: result.pull.mergeCommit as Git.Oid | null,
+          }),
+        })
+      },
+  })
+})

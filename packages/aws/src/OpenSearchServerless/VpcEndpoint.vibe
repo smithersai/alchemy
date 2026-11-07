@@ -1,0 +1,231 @@
+import * as aoss from "@distilled.cloud/aws/opensearchserverless"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.ts"
+import { awaitVpcEndpointActive, retryWhileConflict } from "./internal.vibe"
+
+export interface VpcEndpointProps {
+  /**
+   * Name of the VPC endpoint (3-32 characters, lowercase). Changing the name
+   * replaces the endpoint.
+   * @default a generated physical name
+   */
+  endpointName?: string
+  /**
+   * The ID of the VPC from which the endpoint accesses OpenSearch Serverless.
+   * Changing the VPC replaces the endpoint.
+   */
+  vpcId: string
+  /**
+   * The IDs of the subnets in which to create the interface endpoint's network
+   * interfaces.
+   */
+  subnetIds: string[]
+  /**
+   * The IDs of the security groups to attach to the endpoint's network
+   * interfaces.
+   */
+  securityGroupIds?: string[]
+}
+
+export interface VpcEndpoint extends
+  Resource<
+    "AWS.OpenSearchServerless.VpcEndpoint",
+    VpcEndpointProps,
+    {
+      /**
+       * Unique identifier of the VPC endpoint.
+       */
+      vpcEndpointId: string
+      /**
+       * Name of the VPC endpoint.
+       */
+      endpointName: string
+      /**
+       * Endpoint status (e.g. `ACTIVE`, `PENDING`, `DELETING`).
+       */
+      status?: string
+    },
+    {},
+    Providers
+  >
+{}
+
+/**
+ * An Amazon OpenSearch Serverless-managed interface VPC endpoint. Creating one
+ * lets resources in a VPC reach a collection privately (without traversing the
+ * public internet), and lets a network {@link SecurityPolicy} restrict a
+ * collection's access to only that endpoint. Creation is asynchronous — the
+ * provider polls (bounded) until the endpoint reaches `ACTIVE`.
+ *
+ * ### Creating VPC Endpoints
+ * **Example:** Interface Endpoint in a VPC
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const endpoint = yield* AWS.OpenSearchServerless.VpcEndpoint("Endpoint", {
+ *   endpointName: "my-endpoint",
+ *   vpcId: vpc.vpcId,
+ *   subnetIds: [subnet.subnetId],
+ *   securityGroupIds: [securityGroup.groupId],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const VpcEndpoint = Resource<VpcEndpoint>("AWS.OpenSearchServerless.VpcEndpoint")
+
+export const VpcEndpointProvider = (): infer _ =>
+  Provider.effect(
+    VpcEndpoint,
+    effect {
+      const createName = effect (
+        id: string,
+        props: { endpointName?: string | undefined },
+      ) => (
+        props.endpointName ?? (try createPhysicalName({ id, maxLength: 32, lowercase: true }))
+      )
+
+      const findByName = effect (name: string) => {
+        const pages = try aoss.listVpcEndpoints.pages({}).pipe(Stream.runCollect)
+        return Array.from(pages)
+          .flatMap((page) => page.vpcEndpointSummaries ?? [])
+          .find((s) => s.name === name)
+      }
+
+      const observe = effect (name: string, vpcEndpointId: string | undefined) => {
+        if (vpcEndpointId !== undefined) {
+          const byId = (try aoss
+            .batchGetVpcEndpoint({ ids: [vpcEndpointId] })).vpcEndpointDetails?.[0]
+          if (byId?.id !== undefined && byId.status !== "DELETING") {
+            return byId
+          }
+        }
+        const summary = try findByName(name)
+        if (summary?.id === undefined || summary.status === "DELETING") {
+          return undefined
+        }
+        return (try aoss
+          .batchGetVpcEndpoint({ ids: [summary.id] })).vpcEndpointDetails?.[0]
+      }
+
+      return VpcEndpoint.Provider.of({
+        stables: ["vpcEndpointId", "endpointName"],
+
+        list: effect () => {
+          const pages = try aoss.listVpcEndpoints.pages({}).pipe(Stream.runCollect)
+          return Array.from(pages)
+            .flatMap((page) => page.vpcEndpointSummaries ?? [])
+            .filter((s) => s.id !== undefined && s.name !== undefined)
+            .map((s) => ({
+              vpcEndpointId: s.id!,
+              endpointName: s.name!,
+              status: s.status,
+            }))
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.endpointName ?? (try createName(id, olds ?? {}))
+          const detail = try observe(name, output?.vpcEndpointId)
+          if (detail?.id === undefined) {
+            return undefined
+          }
+          // VPC endpoints carry no tags — an existing same-name endpoint is
+          // adopted.
+          return {
+            vpcEndpointId: detail.id,
+            endpointName: detail.name!,
+            status: detail.status,
+          }
+        },
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+          if (olds.vpcId !== news.vpcId) {
+            return { action: "replace" } as const
+          }
+          // subnetIds/securityGroupIds fall through to the default update path
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.endpointName ?? (try createName(id, news))
+
+          // 1. OBSERVE
+          let detail = try observe(name, output?.vpcEndpointId)
+
+          // 2. ENSURE — create if missing; wait for ACTIVE (async provisioning)
+          if (detail === undefined) {
+            const created = (try aoss
+              .createVpcEndpoint({
+                name,
+                vpcId: news.vpcId,
+                subnetIds: news.subnetIds,
+                securityGroupIds: news.securityGroupIds,
+              })).createVpcEndpointDetail catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try Effect.undefined;
+                default: throw e;
+              }
+            const endpointId = created?.id ?? (try findByName(name))?.id
+            if (endpointId === undefined) {
+              throw aoss.ResourceNotFoundException.make({
+                message: `VPC endpoint ${name} not visible after create`,
+              })
+            }
+            try session.note(`creating VPC endpoint ${name} (async)...`)
+            detail = try awaitVpcEndpointActive(endpointId)
+          } else if (detail.status !== "ACTIVE") {
+            detail = try awaitVpcEndpointActive(detail.id!)
+          }
+
+          // 3. SYNC — subnet/security-group membership deltas
+          const observedSubnets = new Set(detail.subnetIds ?? [])
+          const desiredSubnets = new Set(news.subnetIds)
+          const addSubnetIds = news.subnetIds.filter((s) => !observedSubnets.has(s))
+          const removeSubnetIds = (detail.subnetIds ?? []).filter((s) => !desiredSubnets.has(s))
+          const observedSgs = new Set(detail.securityGroupIds ?? [])
+          const desiredSgs = new Set(news.securityGroupIds ?? [])
+          const addSecurityGroupIds = (news.securityGroupIds ?? []).filter(
+            (s) => !observedSgs.has(s),
+          )
+          const removeSecurityGroupIds = (detail.securityGroupIds ?? []).filter(
+            (s) => !desiredSgs.has(s),
+          )
+          if (
+            addSubnetIds.length > 0
+            || removeSubnetIds.length > 0
+            || addSecurityGroupIds.length > 0
+            || removeSecurityGroupIds.length > 0
+          ) {
+            try aoss.updateVpcEndpoint({
+              id: detail.id!,
+              addSubnetIds: addSubnetIds.length > 0 ? addSubnetIds : undefined,
+              removeSubnetIds: removeSubnetIds.length > 0 ? removeSubnetIds : undefined,
+              addSecurityGroupIds: addSecurityGroupIds.length > 0 ? addSecurityGroupIds : undefined,
+              removeSecurityGroupIds: removeSecurityGroupIds.length > 0 ? removeSecurityGroupIds : undefined,
+            })
+          }
+
+          try session.note(detail.id!)
+          return {
+            vpcEndpointId: detail.id!,
+            endpointName: detail.name!,
+            status: detail.status,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          retryWhileConflict(aoss.deleteVpcEndpoint({ id: output.vpcEndpointId })) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.void;
+            default: throw e;
+          }
+        },
+      })
+    },
+  )

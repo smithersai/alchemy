@@ -1,0 +1,35 @@
+import * as Domain from "@alchemy.run/domain"
+import * as Effect from "effect/Effect"
+import { ClaimUsername } from "./ClaimUsername.command.ts"
+import { ConfirmRegistration } from "./ConfirmRegistration.command.vibe"
+import { Customer } from "./Customer.aggregate.vibe"
+import { RegistrationRequested } from "./RegisterCustomer.command.vibe"
+import { RejectRegistration } from "./RejectRegistration.command.vibe"
+import { UsernameClaim } from "./UsernameClaim.aggregate.vibe"
+
+/**
+ * Reserve first, then commit: claim the username, and only then register the
+ * customer. Nothing downstream (the main account) happens for a registration
+ * whose username is taken.
+ */
+export class UsernameReservation extends Domain.Policy("UsernameReservation", {
+  from: Customer,
+  on: [RegistrationRequested],
+}) {}
+
+export const UsernameReservationLive = UsernameReservation.toLayer(
+  effect {
+    const claims = try Effect.service(UsernameClaim)
+    const customers = try Effect.service(Customer)
+    return effect ({ source, event }) => {
+      ;(try (claims.send(event.username, new ClaimUsername({ customerId: source.id }))
+        |> Effect.andThen(%, customers.send(source, new ConfirmRegistration())))) catch effect (e) => match (e) {
+          when { _tag: "UsernameTaken" }: try customers.send(
+            source,
+            new RejectRegistration({ reason: "username taken" }),
+          );
+          default: throw e;
+        }
+    }
+  },
+)

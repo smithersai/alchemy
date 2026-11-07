@@ -5,10 +5,10 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import { dieOnStore } from "./errors.ts";
-import LinkRoom from "./LinkRoom.ts";
+import LinkRoom from "./LinkRoom.vibe";
 import { Links, LinksSql } from "./Links.ts";
-import { serve } from "./serve.ts";
-import { ShortyApi } from "./ShortyApi.ts";
+import { serve } from "./serve.vibe";
+import { ShortyApi } from "./ShortyApi.vibe";
 import { NeonStorage } from "./Storage.ts";
 
 // #region show

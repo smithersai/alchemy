@@ -1,0 +1,94 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Rule } from "./Rule.vibe"
+
+/**
+ * Shared scaffolding for the Recycle Bin (rbin) HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the two builders
+ * below. Everything except the operation and the IAM action list is
+ * boilerplate.
+ */
+
+/**
+ * Build the impl Effect for a Recycle Bin operation scoped to a retention
+ * {@link Rule}: the deploy-time half grants `actions` on the bound rule's
+ * ARN, and the runtime half injects the rule's `Identifier` into every
+ * request.
+ */
+export const makeRbinRuleHttpBinding = effect <I extends { Identifier: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Rbin.GetRule`. */
+  tag: string
+  /** The distilled operation. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the retention rule ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (rule: Rule) => {
+    const Identifier = try rule.identifier.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${rule})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [rule.ruleArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "Identifier"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const identifier = try Identifier
+          return try op({ ...request, Identifier: identifier } as I)
+        },
+        `${options.tag}(${rule.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level Recycle Bin operation
+ * (enumerating the Region's retention rules). The deploy-time half grants
+ * `actions` on `*` — `rbin:ListRules` is a list action that is not scoped to
+ * a single rule resource.
+ */
+export const makeRbinAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Rbin.ListRules`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request: I) =>
+      try withSpan(
+        effect {
+          return try op(request)
+        },
+        options.tag,
+      )
+  }
+}

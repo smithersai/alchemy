@@ -14,9 +14,9 @@ import * as Fly from "@alchemy.run/fly";
  */
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import Gateway from "./src/gateway.ts";
-import Orders from "./src/orders.ts";
-import Users from "./src/users.ts";
+import Gateway from "./src/gateway.vibe";
+import Orders from "./src/orders.vibe";
+import Users from "./src/users.vibe";
 
 export default Alchemy.Stack(
   "FlyMicroservices",

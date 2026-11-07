@@ -3,8 +3,8 @@ import * as Git from "@alchemy.run/git";
 import * as GitHttp from "@alchemy.run/git/Http";
 import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-import { AppApi } from "./api.ts";
-import { checkRefChanges } from "./branch-policy.ts";
+import { AppApi } from "./api.vibe";
+import { checkRefChanges } from "./branch-policy.vibe";
 
 export const ProtocolLive = HttpApiBuilder.group(AppApi, "protocol", (h) =>
   Effect.gen(function* () {

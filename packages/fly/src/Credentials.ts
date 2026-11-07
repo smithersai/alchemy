@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
-import { FLY_AUTH_PROVIDER_NAME, type FlyResolvedCredentials } from "./AuthProvider.ts";
+import { FLY_AUTH_PROVIDER_NAME, type FlyResolvedCredentials } from "./AuthProvider.vibe";
 
 export {
   Credentials,

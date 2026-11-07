@@ -15,7 +15,7 @@ import { recordsEqual } from "alchemy/Util/equal";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { BaseDatabaseAttributes, BaseDatabaseProps } from "../Database.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import {
   deleteUnprotectedDatabase,
   PlanetscaleConflict,
@@ -29,7 +29,7 @@ import {
   toPostgresClusterSku,
   type PostgresClusterSize,
 } from "./PostgresClusterSize.ts";
-import { runPostgresImports, runPostgresMigrations } from "./PostgresMigrations.ts";
+import { runPostgresImports, runPostgresMigrations } from "./PostgresMigrations.vibe";
 
 /**
  * Properties for creating or updating a PostgreSQL PlanetScale database.

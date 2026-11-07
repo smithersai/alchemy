@@ -1,0 +1,47 @@
+import type * as runtime from "@cloudflare/workers-types"
+import * as Layer from "effect/Layer"
+import { Worker, WorkerEnvironment } from "../Workers/Worker.ts"
+import { type SearchIndexClient, SearchIndex } from "./SearchIndex.vibe"
+import type { Index } from "./VectorizeIndex.ts"
+
+export const SearchIndexBinding = Layer.effect(
+  SearchIndex,
+  effect {
+    const env = try Effect.service(WorkerEnvironment)
+    const host = try Worker
+
+    return effect (index: Index) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try host.bind`${index}`({
+          bindings: [
+            {
+              type: "vectorize",
+              name: index.LogicalId,
+              indexName: index.indexName,
+            },
+          ],
+        })
+      }
+
+      const rawEff = effect {
+        return try Effect.sync(
+          () => (env as Record<string, runtime.Vectorize>)[index.LogicalId]!,
+        )
+      }
+
+      const withRuntime = effect <A>(fn: (raw: runtime.Vectorize) => Promise<A>) =>
+        try Effect.flatMap(rawEff, effect (raw) => try Effect.promise(() => fn(raw)))
+
+      return {
+        raw: rawEff,
+        describe: effect () => try withRuntime((raw) => raw.describe()),
+        query: effect (vector, options) => try withRuntime((raw) => raw.query(vector, options)),
+        queryById: effect (vectorId, options) => try withRuntime((raw) => raw.queryById(vectorId, options)),
+        insert: effect (vectors) => try withRuntime((raw) => raw.insert(vectors)),
+        upsert: effect (vectors) => try withRuntime((raw) => raw.upsert(vectors)),
+        deleteByIds: effect (ids) => try withRuntime((raw) => raw.deleteByIds(ids)),
+        getByIds: effect (ids) => try withRuntime((raw) => raw.getByIds(ids)),
+      } satisfies SearchIndexClient
+    }
+  },
+)

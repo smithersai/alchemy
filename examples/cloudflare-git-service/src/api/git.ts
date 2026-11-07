@@ -5,11 +5,11 @@ import * as Http from "alchemy/Http";
 import * as Effect from "effect/Effect";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import * as Layer from "effect/Layer";
-import { AppApi, MeLive } from "./api.ts";
-import { GitHubLive } from "./github.ts";
-import { Authentication } from "./middleware.ts";
+import { AppApi, MeLive } from "./api.vibe";
+import { GitHubLive } from "./github.vibe";
+import { Authentication } from "./middleware.vibe";
 import { ProtocolLive } from "./protocol.ts";
-import { RefsLive, PullsLive } from "./ref-writes.ts";
+import { RefsLive, PullsLive } from "./ref-writes.vibe";
 
 /** Packs, clone bundles, and spilled pushes. */
 export const GitObjects = Cloudflare.R2.Bucket("GitObjects", {

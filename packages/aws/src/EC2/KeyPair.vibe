@@ -1,0 +1,302 @@
+import * as ec2 from "@distilled.cloud/aws/ec2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, diffTags, hasTags } from "alchemy/Tags"
+import * as Redacted from "effect/Redacted"
+import type { Providers } from "../Providers.ts"
+
+export type KeyPairId<ID extends string = string> = `key-${ID}`
+
+/** Key algorithm for a generated EC2 key pair. */
+export type KeyPairType = "rsa" | "ed25519"
+
+/** Private-key file format for a generated EC2 key pair. */
+export type KeyPairFormat = "pem" | "ppk"
+
+export interface KeyPairProps {
+  /**
+   * Name of the key pair. If omitted, a unique name is generated from the
+   * stack, stage, and logical id. Changing it replaces the key pair.
+   */
+  keyName?: string
+  /**
+   * Algorithm used when Alchemy generates the key pair. Ignored when
+   * {@link publicKeyMaterial} is supplied (an imported key keeps its own type).
+   * Changing it replaces the key pair.
+   * @default "rsa"
+   */
+  keyType?: KeyPairType
+  /**
+   * Format of the returned private key material. Only meaningful when Alchemy
+   * generates the key pair. Changing it replaces the key pair.
+   * @default "pem"
+   */
+  keyFormat?: KeyPairFormat
+  /**
+   * Public key material (PEM or OpenSSH) to import instead of generating a new
+   * key pair. When set, AWS stores only the public key — no `privateKey` is
+   * returned. Changing it replaces the key pair.
+   */
+  publicKeyMaterial?: string
+  /**
+   * Tags to assign to the key pair. Merged with the alchemy auto-tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface KeyPair extends
+  Resource<
+    "AWS.EC2.KeyPair",
+    KeyPairProps,
+    {
+      /** The ID of the key pair (e.g. `key-0123456789abcdef0`). */
+      keyPairId: KeyPairId
+      /** The name of the key pair. */
+      keyName: string
+      /** SHA-1/MD5 fingerprint of the key pair. */
+      keyFingerprint: string
+      /** The algorithm of the key pair. */
+      keyType: KeyPairType
+      /**
+       * The unencrypted PEM/PPK private key material. Only present when Alchemy
+       * generated the key pair (not when {@link KeyPairProps.publicKeyMaterial}
+       * was imported). AWS returns this exactly once, at create time; it is then
+       * persisted as a secret in alchemy state.
+       */
+      privateKey?: Redacted.Redacted<string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An EC2 key pair used to grant SSH access to instances launched with its
+ * `keyName`.
+ *
+ * By default Alchemy asks EC2 to generate the key pair and captures the
+ * private key (returned only once, at create time) as a secret in state. Pass
+ * {@link KeyPairProps.publicKeyMaterial} to import your own public key instead,
+ * in which case no private key is stored.
+ *
+ * ### Creating a Key Pair
+ * **Example:** Generated key pair
+ * ```typescript
+ * const keyPair = yield* AWS.EC2.KeyPair("DeployKey", {
+ *   keyType: "ed25519",
+ * });
+ * // keyPair.keyName       -> pass to AWS.EC2.Instance({ keyName })
+ * // keyPair.privateKey    -> Redacted<string> (the PEM private key)
+ * ```
+ *
+ * **Example:** Imported public key
+ * ```typescript
+ * const keyPair = yield* AWS.EC2.KeyPair("ImportedKey", {
+ *   publicKeyMaterial: "ssh-ed25519 AAAAC3Nz... user@host",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const KeyPair = Resource<KeyPair>("AWS.EC2.KeyPair")
+
+const toKeyName = effect (
+  id: string,
+  props: { keyName?: string } = {},
+) => (props.keyName ? props.keyName : try createPhysicalName({ id, maxLength: 255 }))
+
+const asRedacted = (
+  material: string | Redacted.Redacted<string> | undefined,
+): Redacted.Redacted<string> | undefined =>
+  material === undefined
+    ? undefined
+    : Redacted.isRedacted(material)
+    ? material
+    : Redacted.make(material)
+
+export const KeyPairProvider = (): infer _ =>
+  Provider.effect(
+    KeyPair,
+    effect {
+      const describeByName = effect (keyName: string) =>
+        (ec2.describeKeyPairs({ KeyNames: [keyName] }) catch effect (e) => match (e) {
+          when { _tag: "InvalidKeyPair.NotFound" }: { KeyPairs: [] };
+          default: throw e;
+        }).KeyPairs?.[0]
+
+      return {
+        stables: ["keyPairId", "keyName", "keyType"],
+
+        // Generated key pairs are immutable except for tags. A changed name /
+        // type / format / imported material means a different key pair.
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return
+          const oldName = try toKeyName(id, olds ?? {})
+          const newName = try toKeyName(id, news)
+          if (
+            oldName !== newName
+            || (olds?.keyType ?? "rsa") !== (news.keyType ?? "rsa")
+            || (olds?.keyFormat ?? "pem") !== (news.keyFormat ?? "pem")
+            || olds?.publicKeyMaterial !== news.publicKeyMaterial
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const keyName = output?.keyName ?? (try toKeyName(id, olds ?? {}))
+          const info = try describeByName(keyName)
+          if (!info?.KeyPairId) return undefined
+          const tags = try createInternalTags(id)
+          const observedTags: Record<string, string | undefined> = Object.fromEntries(
+            (info.Tags ?? []).map((t) => [t.Key ?? "", t.Value]),
+          )
+          if (!hasTags(tags, observedTags)) {
+            // Exists but unbranded — let the engine gate adoption behind --adopt.
+            return Unowned({
+              keyPairId: info.KeyPairId as KeyPairId,
+              keyName: info.KeyName ?? keyName,
+              keyFingerprint: info.KeyFingerprint ?? "",
+              keyType: (info.KeyType ?? "rsa") as KeyPairType,
+              // Private key is only available at create time; keep any cached
+              // copy from prior state.
+              privateKey: output?.privateKey,
+            })
+          }
+          return {
+            keyPairId: info.KeyPairId as KeyPairId,
+            keyName: info.KeyName ?? keyName,
+            keyFingerprint: info.KeyFingerprint ?? output?.keyFingerprint ?? "",
+            keyType: (info.KeyType ?? output?.keyType ?? "rsa") as KeyPairType,
+            privateKey: output?.privateKey,
+          }
+        },
+
+        list: effect () => {
+          const result = try ec2.describeKeyPairs({})
+          return (result.KeyPairs ?? [])
+            .filter(
+              (
+                kp,
+              ): kp is ec2.KeyPairInfo & {
+                KeyPairId: string
+                KeyName: string
+              } => kp.KeyPairId != null && kp.KeyName != null,
+            )
+            .filter((kp) => (kp.Tags ?? []).some((t) => t.Key === "alchemy::stack"))
+            .map((kp) => ({
+              keyPairId: kp.KeyPairId as KeyPairId,
+              keyName: kp.KeyName,
+              keyFingerprint: kp.KeyFingerprint ?? "",
+              keyType: (kp.KeyType ?? "rsa") as KeyPairType,
+              privateKey: undefined,
+            }))
+        },
+
+        reconcile: effect ({ id, news = {}, output, session }) => {
+          const keyName = output?.keyName ?? (try toKeyName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — is the key pair already present?
+          let info = try describeByName(keyName)
+          let privateKey = output?.privateKey
+
+          // Ensure — import or generate when missing.
+          if (!info?.KeyPairId) {
+            if (news.publicKeyMaterial !== undefined) {
+              const imported = ec2
+                .importKeyPair({
+                  KeyName: keyName,
+                  PublicKeyMaterial: new TextEncoder().encode(news.publicKeyMaterial),
+                  TagSpecifications: [
+                    {
+                      ResourceType: "key-pair",
+                      Tags: createTagsList(desiredTags),
+                    },
+                  ],
+                }) catch effect (e) => match (e) {
+                  when { _tag: "InvalidKeyPair.Duplicate" }: try Effect.undefined;
+                  default: throw e;
+                }
+              if (imported?.KeyPairId) {
+                info = {
+                  KeyPairId: imported.KeyPairId,
+                  KeyName: imported.KeyName,
+                  KeyFingerprint: imported.KeyFingerprint,
+                  KeyType: "rsa",
+                }
+              } else {
+                info = try describeByName(keyName)
+              }
+            } else {
+              const created = ec2
+                .createKeyPair({
+                  KeyName: keyName,
+                  KeyType: news.keyType ?? "rsa",
+                  KeyFormat: news.keyFormat ?? "pem",
+                  TagSpecifications: [
+                    {
+                      ResourceType: "key-pair",
+                      Tags: createTagsList(desiredTags),
+                    },
+                  ],
+                }) catch effect (e) => match (e) {
+                  when { _tag: "InvalidKeyPair.Duplicate" }: try Effect.undefined;
+                  default: throw e;
+                }
+              if (created?.KeyPairId) {
+                privateKey = asRedacted(created.KeyMaterial) ?? privateKey
+                info = {
+                  KeyPairId: created.KeyPairId,
+                  KeyName: created.KeyName,
+                  KeyFingerprint: created.KeyFingerprint,
+                  KeyType: (news.keyType ?? "rsa") as KeyPairType,
+                }
+              } else {
+                info = try describeByName(keyName)
+              }
+            }
+          }
+
+          if (!info?.KeyPairId) {
+            return try Effect.die(new Error(`Failed to resolve EC2 key pair '${keyName}'`))
+          }
+          const keyPairId = info.KeyPairId as KeyPairId
+
+          // Sync tags — observed cloud tags vs desired.
+          const observedTags = Object.fromEntries(
+            (info.Tags ?? []).map((t) => [t.Key!, t.Value!]),
+          ) as Record<string, string>
+          const { removed, upsert } = diffTags(observedTags, desiredTags)
+          if (removed.length > 0) {
+            try ec2.deleteTags({
+              Resources: [keyPairId],
+              Tags: removed.map((key) => ({ Key: key })),
+            })
+          }
+          if (upsert.length > 0) {
+            try ec2.createTags({ Resources: [keyPairId], Tags: upsert })
+          }
+
+          try session.note(`Key pair ${keyName} (${keyPairId})`)
+          return {
+            keyPairId,
+            keyName: info.KeyName ?? keyName,
+            keyFingerprint: info.KeyFingerprint ?? "",
+            keyType: (info.KeyType ?? news.keyType ?? "rsa") as KeyPairType,
+            privateKey,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          // `deleteKeyPair` is idempotent — deleting a missing key pair
+          // succeeds, so there is no NotFound error to catch.
+          try ec2.deleteKeyPair({ KeyPairId: output.keyPairId })
+        },
+      }
+    },
+  )

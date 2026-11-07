@@ -14,7 +14,7 @@ import {
   validateGovernanceScope,
   type GovernanceRoleBaseline,
 } from "./OrganizationMemberRole.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 /** Direct project roles supported by Neon. */
 export type ProjectGovernanceRole = "viewer" | "editor" | "admin";

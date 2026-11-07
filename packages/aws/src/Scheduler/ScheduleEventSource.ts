@@ -6,8 +6,8 @@ import * as IAM from "../IAM/index.ts";
 import type { Function as LambdaFunction } from "../Lambda/Function.ts";
 import { qualifiedArnOf } from "../Lambda/QualifiedArn.ts";
 import type { ScheduleBuilder, ScheduleBuilderState } from "./builders.ts";
-import { Schedule } from "./Schedule.ts";
-import type { ScheduleGroup } from "./ScheduleGroup.ts";
+import { Schedule } from "./Schedule.vibe";
+import type { ScheduleGroup } from "./ScheduleGroup.vibe";
 
 /**
  * The typed event a consumed schedule delivers to its handler. EventBridge

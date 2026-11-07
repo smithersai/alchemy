@@ -1,0 +1,56 @@
+import * as backup from "@distilled.cloud/aws/backup"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Role } from "../IAM/Role.ts"
+import type { BackupVault } from "./BackupVault.vibe"
+import { StartBackupJob, type StartBackupJobRequest } from "./StartBackupJob.vibe"
+
+export const StartBackupJobHttp = Layer.effect(
+  StartBackupJob,
+  effect {
+    const bind = try AWSBindings.Bind
+    const startBackupJob = try AWSBindings.withCredentials(backup.startBackupJob)
+
+    return effect <R extends Role>(vault: BackupVault, backupRole: R) => {
+      const BackupVaultName = try vault.backupVaultName.asEffect()
+      const RoleArn = try backupRole.roleArn.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.Backup.StartBackupJob(${vault}, ${backupRole})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["backup:StartBackupJob"],
+              Resource: [Output.interpolate`${vault.backupVaultArn}`],
+            },
+            // CRITICAL: without iam:PassRole on the backup role,
+            // StartBackupJob fails only at runtime with an AccessDenied.
+            {
+              Effect: "Allow",
+              Action: ["iam:PassRole"],
+              Resource: [Output.interpolate`${backupRole.roleArn}`],
+              Condition: {
+                StringEquals: {
+                  "iam:PassedToService": "backup.amazonaws.com",
+                },
+              },
+            },
+          ],
+        })
+      }
+      return effect (
+        request: StartBackupJobRequest,
+      ) =>
+        try withSpan(
+          effect {
+            return try startBackupJob({
+              ...request,
+              BackupVaultName: try BackupVaultName,
+              IamRoleArn: request.IamRoleArn ?? (try RoleArn),
+            })
+          },
+          `AWS.Backup.StartBackupJob(${vault.LogicalId})`,
+        )
+    }
+  },
+)

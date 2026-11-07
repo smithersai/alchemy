@@ -18,7 +18,7 @@ import {
   parseDescription,
   runGlobalOp,
   toPhysicalName,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 const DEFAULT_NETWORK_ENDPOINT_TYPE = "INTERNET_FQDN_PORT";
 

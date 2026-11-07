@@ -2,7 +2,7 @@ export { Action, isAction, type Action as ActionInstance, type ActionLike } from
 export * as AdoptPolicy from "./AdoptPolicy.ts";
 export * from "./AlchemyContext.ts";
 export * from "./Apply.ts";
-export * from "./Callback.ts";
+export * from "./Callback.vibe";
 export {
   Service as BindingService,
   type ServiceLike as BindingServiceLike,
@@ -10,13 +10,13 @@ export {
 } from "./Binding.ts";
 export * from "./Destroy.ts";
 export * from "./Diff.ts";
-export * from "./Input.ts";
+export * from "./Input.vibe";
 export * from "./InstanceId.ts";
 export * from "./KeyPair.ts";
 export * from "./Namespace.ts";
 export { stackRef } from "./Output.ts";
 export type { Output } from "./Output.ts";
-export { ALCHEMY_DEV, ALCHEMY_PHASE, type AlchemyPhase } from "./Phase.ts";
+export { ALCHEMY_DEV, ALCHEMY_PHASE, type AlchemyPhase } from "./Phase.vibe";
 export * from "./PhysicalName.ts";
 export * as Plan from "./Plan.ts";
 export { Provider, ProviderCollection } from "./Provider.ts";
@@ -27,7 +27,7 @@ export * from "./Ref.ts";
 export * as RemovalPolicy from "./RemovalPolicy.ts";
 export { renamedFrom } from "./Rename.ts";
 export * from "./Resource.ts";
-export * from "./ResourceContext.ts";
+export * from "./ResourceContext.vibe";
 export * as Schema from "./Schema.ts";
 export * as Secrets from "./Secrets/index.ts";
 export { Stack, type SecretProviders, type StackSecrets } from "./Stack.ts";
@@ -42,7 +42,7 @@ export { AuthProviders } from "./Auth/AuthProvider.ts";
 export { Cli } from "./Report.ts";
 export * as Events from "./Events.ts";
 export * as Report from "./Report.ts";
-export type { Dependencies } from "./Dependencies.ts";
+export type { Dependencies } from "./Dependencies.vibe";
 export type { Named } from "./Named.ts";
 export type * from "./Platform.ts";
 export { Platform } from "./Platform.ts";

@@ -1,0 +1,13 @@
+import * as Cloudflare from "@alchemy.run/cloudflare";
+import * as Drizzle from "@alchemy.run/drizzle";
+import * as Effect from "effect/Effect";
+/**
+ * A Drizzle schema + D1 database. The database's `migrations` prop is wired
+ * to the schema resource, so the provider order becomes:
+ *
+ *   1. `Drizzle.Schema` regenerates pending migration SQL files whenever
+ *      `src/schema.ts` drifts from the latest checked-in snapshot.
+ *   2. `Cloudflare.D1.Database` scans the directory and applies any new
+ *      migrations into the `drizzle_migrations` table.
+ */
+export declare const Database: Effect.Effect<Cloudflare.D1.Database, never, Cloudflare.Providers | Drizzle.Providers>;

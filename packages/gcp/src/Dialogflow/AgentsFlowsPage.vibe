@@ -1,0 +1,281 @@
+import * as dialogflow from "@distilled.cloud/gcp/dialogflow_v3"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnership,
+  listAgents,
+  listFlows,
+  listPagesAt,
+  ownedByAlchemy,
+  ownershipLabels,
+  ownershipText,
+  parseOwnership,
+  parseResourceName,
+  sameJson,
+  sameText,
+  updateMaskOf,
+  retryQuota,
+} from "./internal.ts"
+
+export type PageFulfillment = {
+  /** Response messages. */
+  messages?: Array<{
+    text?: { text?: string[]; allowPlaybackInterruption?: boolean }
+  }>
+  /** Return to the calling page. */
+  returnPartialResponses?: boolean
+  /** Tag passed to a webhook. */
+  tag?: string
+}
+
+export type AgentsFlowsPageProps = {
+  /**
+   * Parent flow resource name
+   * `projects/{project}/locations/{location}/agents/{agent}/flows/{flow}`.
+   * Immutable — changing it replaces the page.
+   */
+  flow: string
+  /**
+   * Page id (the `{page}` segment). Server-assigned on create. Immutable
+   * — changing it replaces the page.
+   */
+  pageId?: string
+  /** Human-readable name, unique within the flow. */
+  displayName?: string
+  /**
+   * Description. Pages have no labels field, so Alchemy stamps ownership
+   * into this field for `list` / nuke.
+   */
+  description?: string
+  /** Fulfillment run when the page is entered. */
+  entryFulfillment?: PageFulfillment
+  /** Language code of the page. */
+  languageCode?: string
+}
+
+export type AgentsFlowsPage = Resource<
+  "GCP.Dialogflow.AgentsFlowsPage",
+  AgentsFlowsPageProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Page id (last path segment). */
+    pageId: string
+    /** Parent flow resource name. */
+    flow: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Dialogflow CX page under a flow.
+ *
+ * Pages have no labels field, so Alchemy stamps ownership into
+ * `description` for `list` / nuke. Parent flow and page id are
+ * immutable. Display name, description, and entry fulfillment update
+ * in place.
+ *
+ * ### Creating a Page
+ * **Example:** Greeting page
+ * ```typescript
+ * const page = yield* GCP.Dialogflow.AgentsFlowsPage("Greeting", {
+ *   flow: flow.name,
+ *   displayName: "greeting",
+ *   description: "welcome the user",
+ * });
+ * ```
+ *
+ * ### Updating a Page
+ * Change props on the same logical id; the engine keeps the physical id.
+ *
+ * **Example:** Rename
+ * ```typescript
+ * const page = yield* GCP.Dialogflow.AgentsFlowsPage("Greeting", {
+ *   flow: flow.name,
+ *   displayName: "welcome",
+ *   description: "welcome the user",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Dialogflow
+ */
+export const AgentsFlowsPage = Resource<AgentsFlowsPage>("GCP.Dialogflow.AgentsFlowsPage")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class AgentsFlowsPageNotResolved extends Data.TaggedError(
+  "GCP.Dialogflow.AgentsFlowsPageNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const toAttrs = (page: dialogflow.GoogleCloudDialogflowCxV3Page, project: string): infer _ => {
+  const name = page.name ?? ""
+  const parsed = parseResourceName(name, "pages")
+  return {
+    name,
+    pageId: parsed.id,
+    flow: parsed.flow || parsed.parent,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: page.displayName,
+    description: parseOwnership(page.description).text,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : dialogflow
+  .getProjectsLocationsAgentsFlowsPages({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const findOwned = effect (id: string, flow: string, hinted?: string) => {
+  if (hinted !== undefined && hinted.length > 0) {
+    const existing = try getByName(hinted)
+    if (existing !== undefined) return existing
+  }
+  const pages = try listPagesAt(flow)
+  for (const page of pages) {
+    if (try ownedByAlchemy(id, ownershipText(page))) return page
+  }
+  return undefined as dialogflow.GoogleCloudDialogflowCxV3Page | undefined
+}
+
+const listOwned = effect (project: string) => {
+  const agents = try listAgents(project)
+  const flows = (try Effect.forEach(
+    agents,
+    effect (agent) => (agent.name ? try listFlows(agent.name) : []),
+    { concurrency: 4 },
+  )).flat()
+  const pages = (try Effect.forEach(
+    flows,
+    effect (flow) => (flow.name ? try listPagesAt(flow.name) : []),
+    { concurrency: 4 },
+  )).flat()
+  return pages
+    .filter(
+      (page) =>
+        parseOwnership(page.description).labels["alchemy-id"] !== undefined
+        || parseOwnership(page.displayName).labels["alchemy-id"] !== undefined,
+    )
+    .map((page) => toAttrs(page, project))
+}
+
+export const AgentsFlowsPageProvider = (): infer _ =>
+  Provider.succeed(AgentsFlowsPage, {
+    stables: ["name", "pageId", "flow", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousFlow = olds?.flow ?? output?.flow
+      const previousId = olds?.pageId ?? output?.pageId
+      if (
+        (previousFlow !== undefined && news.flow !== previousFlow)
+        || (previousId !== undefined && news.pageId !== undefined && news.pageId !== previousId)
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst: previousFlow === news.flow && previousId !== undefined && news.pageId === previousId,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const flow = olds?.flow ?? output?.flow
+      const existing = output?.name !== undefined
+        ? try getByName(output.name)
+        : flow !== undefined
+        ? try findOwned(id, flow)
+        : undefined
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, ownershipText(existing))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listOwned(env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) =>
+      try (effect {
+        const env = try GcpEnvironment.current
+        const flow = news.flow
+        const ownership = try ownershipLabels(id)
+        const description = encodeOwnership(ownership, news.description)
+        const displayName = news.displayName ?? "page"
+        const body: dialogflow.GoogleCloudDialogflowCxV3Page = {
+          displayName,
+          description,
+          entryFulfillment: news.entryFulfillment,
+        }
+
+        let current = try findOwned(id, flow, output?.name)
+
+        if (current === undefined) {
+          const created = dialogflow
+            .createProjectsLocationsAgentsFlowsPages({
+              parent: flow,
+              languageCode: news.languageCode,
+              body,
+            }) catch effect (e) => match (e) {
+              when { _tag: "Conflict" }: try findOwned(id, flow, output?.name);
+              default: throw e;
+            }
+          current = created ?? undefined
+        }
+
+        if (current === undefined) {
+          throw new AgentsFlowsPageNotResolved({
+            resourceName: output?.name ?? `${flow}/pages/${news.pageId ?? "unknown"}`,
+          })
+        }
+
+        const currentName = current.name ?? output?.name ?? ""
+        const displayChanged = !sameText(current.displayName, displayName)
+        const descriptionChanged = !sameText(current.description, description)
+        const fulfillmentChanged = !sameJson(current.entryFulfillment, news.entryFulfillment)
+
+        if (displayChanged || descriptionChanged || fulfillmentChanged) {
+          current = try dialogflow.patchProjectsLocationsAgentsFlowsPages({
+            name: currentName,
+            languageCode: news.languageCode,
+            updateMask: updateMaskOf(
+              displayChanged ? "display_name" : undefined,
+              descriptionChanged ? "description" : undefined,
+              fulfillmentChanged ? "entry_fulfillment" : undefined,
+            ),
+            body: { ...body, name: currentName },
+          })
+        }
+
+        return toAttrs(current, env.project)
+      }
+        |> retryQuota(%)),
+
+    delete: effect ({ output }) =>
+      try (effect {
+        dialogflow
+          .deleteProjectsLocationsAgentsFlowsPages({
+            name: output.name,
+            force: true,
+          }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+      }
+        |> retryQuota(%)),
+  })

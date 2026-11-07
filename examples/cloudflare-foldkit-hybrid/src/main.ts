@@ -5,7 +5,7 @@ import { defineMessageUnion } from "foldkit/message";
 import { UrlRequest, load, pushUrl } from "foldkit/navigation";
 import { modifyFields } from "foldkit/struct";
 import { Url, toString as urlToString } from "foldkit/url";
-import { AppRoute, aboutRouter, counterRouter, homeRouter, urlToAppRoute } from "./route";
+import { AppRoute, aboutRouter, counterRouter, homeRouter, urlToAppRoute } from "./route.vibe";
 
 // MODEL
 

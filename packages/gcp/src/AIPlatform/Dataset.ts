@@ -23,8 +23,8 @@ import {
   userLabels,
   waitForOperation,
 } from "./internal.ts";
-import { listLocations } from "./names.ts";
-import type { EncryptionSpec } from "./shared.ts";
+import { listLocations } from "./names.vibe";
+import type { EncryptionSpec } from "./shared.vibe";
 
 export type DatasetProps = {
   /**

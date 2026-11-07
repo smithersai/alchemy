@@ -1,0 +1,285 @@
+import * as organizations from "@distilled.cloud/aws/organizations"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.ts"
+import { collectPages, retryOrganizations } from "./common.ts"
+
+export error PolicyAttachmentUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface PolicyAttachmentProps {
+  /**
+   * Policy to attach.
+   */
+  policyId: string
+  /**
+   * Target root, OU, or account ID.
+   */
+  targetId: string
+}
+
+export interface PolicyAttachment extends
+  Resource<
+    "AWS.Organizations.PolicyAttachment",
+    PolicyAttachmentProps,
+    {
+      /**
+       * ID of the attached policy.
+       */
+      policyId: string
+      /**
+       * ID of the root, OU, or account the policy is attached to.
+       */
+      targetId: string
+      /**
+       * ARN of the attachment target.
+       */
+      targetArn: string | undefined
+      /**
+       * Friendly name of the attachment target.
+       */
+      targetName: string | undefined
+      /**
+       * Kind of the attachment target (`ROOT`, `ORGANIZATIONAL_UNIT`, or
+       * `ACCOUNT`).
+       */
+      targetType: organizations.TargetType | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Attaches an Organizations {@link Policy} to a root, OU, or account.
+ *
+ * Existence-only resource: changing either `policyId` or `targetId` replaces
+ * the attachment. The policy's type must already be enabled on the root (see
+ * {@link RootPolicyType}).
+ * ### Attaching Policies
+ * **Example:** Attach an SCP to an Organizational Unit
+ * ```typescript
+ * const workloads = yield* OrganizationalUnit("Workloads", {
+ *   parentId: root.rootId,
+ *   name: "workloads",
+ * });
+ *
+ * const denyRegions = yield* Policy("DenyOtherRegions", {
+ *   type: "SERVICE_CONTROL_POLICY",
+ *   document: {
+ *     Version: "2012-10-17",
+ *     Statement: [
+ *       {
+ *         Effect: "Deny",
+ *         NotAction: ["iam:*", "organizations:*", "sts:*"],
+ *         Resource: "*",
+ *         Condition: {
+ *           StringNotEquals: { "aws:RequestedRegion": ["us-east-1", "us-west-2"] },
+ *         },
+ *       },
+ *     ],
+ *   },
+ * });
+ *
+ * yield* PolicyAttachment("DenyRegionsOnWorkloads", {
+ *   policyId: denyRegions.policyId,
+ *   targetId: workloads.ouId,
+ * });
+ * ```
+ *
+ * **Example:** Attach a Policy to a Member Account
+ * ```typescript
+ * yield* PolicyAttachment("DenyRegionsOnDev", {
+ *   policyId: denyRegions.policyId,
+ *   targetId: devAccount.accountId,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const PolicyAttachment = Resource<PolicyAttachment>("AWS.Organizations.PolicyAttachment")
+
+export const PolicyAttachmentProvider = (): infer _ =>
+  Provider.effect(
+    PolicyAttachment,
+    effect {
+      return {
+        stables: ["policyId", "targetId"],
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return
+          if (olds?.policyId !== news.policyId || olds?.targetId !== news.targetId) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          const policyId = output?.policyId ?? olds?.policyId
+          const targetId = output?.targetId ?? olds?.targetId
+          if (policyId === undefined || targetId === undefined) {
+            // A `creating` row persisted before upstream Outputs resolved
+            // can't round-trip Output-valued ids — they deserialize as
+            // `undefined`. Report "not found" so the engine re-drives the
+            // create (reconcile observes before attaching).
+            return undefined
+          }
+          return try readAttachment({ policyId, targetId })
+        },
+        // Enumerate every (policy, target) attachment. There is no direct
+        // "list attachments" API, so we fan out: for each policy type, list the
+        // policies of that type, then list each policy's targets, emitting one
+        // Attributes per (policy, target) pair — the exact shape `read` returns.
+        // listPolicies/listTargetsForPolicy may only be called from the org
+        // management account or a delegated administrator; a member account or a
+        // standalone account that isn't part of an org rejects with the typed
+        // AccessDeniedException / AWSOrganizationsNotInUseException, which we
+        // degrade to [].
+        list: effect () =>
+          (try effect {
+            const perType = try Effect.forEach(
+              POLICY_TYPES,
+              effect (Filter) => {
+                const policies = try retryOrganizations(
+                  collectPages(
+                    (NextToken) => organizations.listPolicies({ Filter, NextToken }),
+                    (page) => page.Policies,
+                  ),
+                )
+                const policyIds = policies
+                  .map((policy) => policy.Id)
+                  .filter((id): id is string => id != null)
+                const perPolicy = try Effect.forEach(
+                  policyIds,
+                  (policyId) => listAttachmentsForPolicy(policyId),
+                  { concurrency: 10 },
+                )
+                return perPolicy.flat()
+              },
+              { concurrency: 10 },
+            )
+            return perType.flat()
+          }) catch effect (e) => match (e) {
+            when { _tag: "AccessDeniedException" }: [] as PolicyAttachment["Attributes"][];
+            when { _tag: "AWSOrganizationsNotInUseException" }: [] as PolicyAttachment["Attributes"][];
+            default: throw e;
+          },
+        reconcile: effect ({ news, session }) => {
+          // Observe — list current attachments to see whether ours is present.
+          // The attachment is identity-only; both `policyId` and `targetId`
+          // are stable, so `diff` handles any change as a replacement.
+          let state = try readAttachment(news)
+
+          // Ensure — attach if missing. `DuplicatePolicyAttachmentException`
+          // is treated as success (e.g. a peer reconciler attached
+          // concurrently, or our observation lost a race).
+          if (!state) {
+            try retryOrganizations(
+              effect {
+                return organizations
+                  .attachPolicy({
+                    PolicyId: news.policyId,
+                    TargetId: news.targetId,
+                  }) catch effect (e) => match (e) {
+                    when { _tag: "DuplicatePolicyAttachmentException" }: try Effect.void;
+                    default: throw e;
+                  }
+              },
+            )
+            state = try readAttachment(news)
+            if (!state) {
+              throw new PolicyAttachmentUnexpectedResponse({
+                message: `policy attachment '${news.policyId}' -> '${news.targetId}' not found after create`,
+              })
+            }
+          }
+
+          try session.note(`${state.policyId}:${state.targetId}`)
+          return state
+        },
+        delete: effect ({ output }) => {
+          try retryOrganizations(
+            effect {
+              return organizations
+                .detachPolicy({
+                  PolicyId: output.policyId,
+                  TargetId: output.targetId,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "PolicyNotAttachedException" }: try Effect.void;
+                  when { _tag: "PolicyNotFoundException" }: try Effect.void;
+                  when { _tag: "TargetNotFoundException" }: try Effect.void;
+                  default: throw e;
+                }
+            },
+          )
+        },
+      }
+    },
+  )
+
+// All policy types that can be attached to a root, OU, or account. `list()`
+// fans out over each of these because listPolicies requires an explicit
+// `Filter` and only returns policies of that single type.
+const POLICY_TYPES = [
+  "SERVICE_CONTROL_POLICY",
+  "RESOURCE_CONTROL_POLICY",
+  "TAG_POLICY",
+  "BACKUP_POLICY",
+  "AISERVICES_OPT_OUT_POLICY",
+  "CHATBOT_POLICY",
+  "DECLARATIVE_POLICY_EC2",
+  "SECURITYHUB_POLICY",
+  "INSPECTOR_POLICY",
+  "UPGRADE_ROLLOUT_POLICY",
+  "BEDROCK_POLICY",
+  "S3_POLICY",
+  "NETWORK_SECURITY_DIRECTOR_POLICY",
+] as const satisfies readonly organizations.PolicyType[]
+
+const listAttachmentsForPolicy = effect (policyId: string) =>
+  ((try retryOrganizations(
+    collectPages(
+      (NextToken) => organizations.listTargetsForPolicy({ PolicyId: policyId, NextToken }),
+      (page) => page.Targets,
+    ),
+  ))
+    .filter(
+      (
+        target,
+      ): target is organizations.PolicyTargetSummary & {
+        TargetId: string
+      } => target.TargetId != null,
+    )
+    .map(
+      (target) =>
+        ({
+          policyId,
+          targetId: target.TargetId,
+          targetArn: target.Arn,
+          targetName: target.Name,
+          targetType: target.Type,
+        }) satisfies PolicyAttachment["Attributes"],
+    )) catch effect (e) => match (e) {
+      when { _tag: "PolicyNotFoundException" }: [] as PolicyAttachment["Attributes"][];
+      default: throw e;
+    }
+
+const readAttachment = effect ({ policyId, targetId }: PolicyAttachmentProps) => {
+  const targets = try retryOrganizations(
+    collectPages(
+      (NextToken) => organizations.listTargetsForPolicy({ PolicyId: policyId, NextToken }),
+      (page) => page.Targets,
+    ),
+  )
+
+  const target = targets.find((candidate) => candidate.TargetId === targetId)
+  return target
+    ? ({
+      policyId,
+      targetId,
+      targetArn: target.Arn,
+      targetName: target.Name,
+      targetType: target.Type,
+    } satisfies PolicyAttachment["Attributes"])
+    : undefined
+}

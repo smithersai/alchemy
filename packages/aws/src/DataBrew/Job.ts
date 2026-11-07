@@ -14,7 +14,7 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { buildS3Location, type S3Location } from "./Dataset.ts";
+import { buildS3Location, type S3Location } from "./Dataset.vibe";
 import {
   cleanMap,
   databrewArn,
@@ -22,7 +22,7 @@ import {
   retryWhileConflict,
   retryWhileRoleNotAssumable,
   syncTags,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 /** An S3 output target for a recipe job. */
 export interface JobOutput {

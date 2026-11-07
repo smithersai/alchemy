@@ -1,0 +1,403 @@
+import * as dms from "@distilled.cloud/aws/database-migration-service"
+import * as iam from "@distilled.cloud/aws/iam"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+
+export error ReplicationSubnetGroupUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface ReplicationSubnetGroupProps {
+  /**
+   * Subnet-group identifier. Must be lowercase, 1-255 characters, and cannot
+   * be the reserved value `default`. If omitted, a deterministic physical
+   * name is generated. Changing it replaces the subnet group.
+   */
+  replicationSubnetGroupIdentifier?: string
+  /**
+   * Human-readable description of the subnet group.
+   */
+  description?: string
+  /**
+   * VPC subnet IDs the replication instance can be placed in. Must span at
+   * least two Availability Zones.
+   */
+  subnetIds: string[]
+  /**
+   * User-defined tags for the subnet group.
+   */
+  tags?: Record<string, string>
+}
+
+export interface ReplicationSubnetGroup extends
+  Resource<
+    "AWS.DMS.ReplicationSubnetGroup",
+    ReplicationSubnetGroupProps,
+    {
+      /** The subnet group identifier (unique per account/region). */
+      replicationSubnetGroupIdentifier: string
+      /** The ARN of the replication subnet group. */
+      replicationSubnetGroupArn: string
+      /** The VPC the subnets belong to. */
+      vpcId: string | undefined
+      /** The IDs of the subnets in the group. */
+      subnetIds: string[]
+      /** The current status of the subnet group, e.g. `Complete`. */
+      status: string | undefined
+      /** The tags attached to the subnet group. */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A DMS replication subnet group — the set of VPC subnets a replication
+ * instance can be launched into. Must cover at least two Availability Zones.
+ * Free and fast to create.
+ * ### Creating a Subnet Group
+ * **Example:** Two-AZ Subnet Group
+ * ```typescript
+ * const subnetGroup = yield* ReplicationSubnetGroup("Migration", {
+ *   description: "DMS replication subnets",
+ *   subnetIds: [subnetA.subnetId, subnetB.subnetId],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ReplicationSubnetGroup = Resource<ReplicationSubnetGroup>(
+  "AWS.DMS.ReplicationSubnetGroup",
+)
+
+const toTagRecord = (
+  tags: Array<{ Key?: string; Value?: string }> | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    (tags ?? [])
+      .filter(
+        (tag): tag is { Key: string; Value: string } => typeof tag.Key === "string" && typeof tag.Value === "string",
+      )
+      .map((tag) => [tag.Key, tag.Value]),
+  )
+
+const sameStringSet = (
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined,
+): boolean => {
+  const left = [...(a ?? [])].sort()
+  const right = [...(b ?? [])].sort()
+  return left.length === right.length && left.every((v, i) => v === right[i])
+}
+
+const DMS_VPC_ROLE_NAME = "dms-vpc-role"
+const DMS_VPC_POLICY_ARN = "arn:aws:iam::aws:policy/service-role/AmazonDMSVPCManagementRole"
+const DMS_VPC_ROLE_OWNER_TAG = {
+  Key: "alchemy::managed-by",
+  Value: "AWS.DMS.ReplicationSubnetGroup",
+} as const
+
+export const ReplicationSubnetGroupProvider = (): infer _ =>
+  Provider.effect(
+    ReplicationSubnetGroup,
+    effect {
+      const toName = effect (id: string, props: ReplicationSubnetGroupProps) => (props.replicationSubnetGroupIdentifier
+        ? props.replicationSubnetGroupIdentifier
+        : try createPhysicalName({ id, maxLength: 200, lowercase: true }))
+
+      // Subnet-group ARNs deterministically embed the identifier, so we build
+      // them rather than reading one back (describe returns no ARN).
+      const toArn = effect (identifier: string) => {
+        const { accountId, region } = try AWSEnvironment.current
+        return `arn:aws:dms:${region}:${accountId}:subgrp:${identifier}`
+      }
+
+      const findGroup = effect (identifier: string) => {
+        const response = dms
+          .describeReplicationSubnetGroups({
+            Filters: [{ Name: "replication-subnet-group-id", Values: [identifier] }],
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundFault" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.ReplicationSubnetGroups?.[0]
+      }
+
+      // DMS requires the account-wide `dms-vpc-role` (trusting
+      // dms.amazonaws.com with the AmazonDMSVPCManagementRole managed policy)
+      // before any VPC-touching operation. The console creates it implicitly;
+      // API callers must ensure it. Tag only roles created by this provider so
+      // deletion can distinguish our helper from pre-existing account
+      // infrastructure with the same AWS-mandated name.
+      const ensureDmsVpcRole = effect {
+        return try (effect {
+          iam
+            .createRole({
+              RoleName: DMS_VPC_ROLE_NAME,
+              AssumeRolePolicyDocument: JSON.stringify({
+                Version: "2012-10-17",
+                Statement: [
+                  {
+                    Effect: "Allow",
+                    Principal: { Service: "dms.amazonaws.com" },
+                    Action: "sts:AssumeRole",
+                  },
+                ],
+              }),
+              Tags: [DMS_VPC_ROLE_OWNER_TAG],
+            }) catch effect (e) => match (e) {
+              when { _tag: "EntityAlreadyExistsException" }: try Effect.void;
+              default: throw e;
+            }
+          // Idempotent — attaching an already-attached managed policy is a no-op.
+          try iam.attachRolePolicy({
+            RoleName: DMS_VPC_ROLE_NAME,
+            PolicyArn: DMS_VPC_POLICY_ARN,
+          })
+        }
+          |> Effect.retry(%, {
+            while: (error) =>
+              error._tag === "NoSuchEntityException"
+              || error._tag === "ConcurrentModificationException"
+              || error._tag === "LimitExceededException"
+              || error._tag === "ServiceFailureException",
+            schedule: Schedule.max([Schedule.fixed("1 second"), Schedule.recurs(10)]),
+          }))
+      }
+
+      const deleteOwnedDmsVpcRoleIfUnused = effect {
+        // Bound the whole observe/detach/delete loop to 30 seconds. Every pass
+        // rechecks DMS first, so a concurrent subnet-group create protects the
+        // role and takes responsibility for deleting it later.
+        for (let attempt = 0; attempt < 30; attempt++) {
+          const groups = try dms.describeReplicationSubnetGroups({})
+          if ((groups.ReplicationSubnetGroups ?? []).length > 0) {
+            return
+          }
+
+          const tags = iam
+            .listRoleTags({ RoleName: DMS_VPC_ROLE_NAME }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+              default: throw e;
+            }
+          if (tags === undefined) return
+          const owned = (tags.Tags ?? []).some(
+            (tag) => tag.Key === DMS_VPC_ROLE_OWNER_TAG.Key && tag.Value === DMS_VPC_ROLE_OWNER_TAG.Value,
+          )
+          if (!owned) return
+
+          const deleted = (try effect {
+            iam
+              .detachRolePolicy({
+                RoleName: DMS_VPC_ROLE_NAME,
+                PolicyArn: DMS_VPC_POLICY_ARN,
+              }) catch effect (e) => match (e) {
+                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                default: throw e;
+              }
+            iam
+              .deleteRole({ RoleName: DMS_VPC_ROLE_NAME }) catch effect (e) => match (e) {
+                when { _tag: "NoSuchEntityException" }: try Effect.void;
+                default: throw e;
+              }
+            return true
+          }) catch effect (e) => match (e) {
+            when { _tag: "ConcurrentModificationException" } or { _tag: "DeleteConflictException" } or { _tag: "LimitExceededException" } or { _tag: "ServiceFailureException" }:
+              false;
+            default: throw e;
+          }
+          if (!deleted) {
+            try Effect.sleep("1 second")
+            continue
+          }
+
+          const remaining = iam
+            .getRole({ RoleName: DMS_VPC_ROLE_NAME }) catch effect (e) => match (e) {
+              when { _tag: "NoSuchEntityException" }: try Effect.undefined;
+              default: throw e;
+            }
+          if (remaining === undefined) return
+          try Effect.sleep("1 second")
+        }
+        return try Effect.die(
+          new Error(
+            `IAM role ${DMS_VPC_ROLE_NAME} remained observable 30 seconds after the last DMS subnet group was deleted`,
+          ),
+        )
+      }
+
+      const readTags = effect (arn: string) => {
+        const response = dms
+          .listTagsForResource({ ResourceArn: arn }) catch () => undefined
+        return toTagRecord(response?.TagList)
+      }
+
+      const toAttrs = effect (group: dms.ReplicationSubnetGroup) => {
+        const identifier = group.ReplicationSubnetGroupIdentifier
+        if (!identifier) {
+          throw new ReplicationSubnetGroupUnexpectedResponse({
+            message: "DMS replication subnet group is missing its identifier",
+          })
+        }
+        const arn = try toArn(identifier)
+        return {
+          replicationSubnetGroupIdentifier: identifier,
+          replicationSubnetGroupArn: arn,
+          vpcId: group.VpcId,
+          subnetIds: (group.Subnets ?? [])
+            .map((s) => s.SubnetIdentifier)
+            .filter((s): s is string => typeof s === "string"),
+          status: group.SubnetGroupStatus,
+          tags: try readTags(arn),
+        }
+      }
+
+      return {
+        stables: ["replicationSubnetGroupIdentifier", "replicationSubnetGroupArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if (
+            (try toName(id, olds ?? ({ subnetIds: [] } as ReplicationSubnetGroupProps)))
+              !== (try toName(id, news))
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.replicationSubnetGroupIdentifier
+            ?? (try toName(id, olds ?? ({ subnetIds: [] } as ReplicationSubnetGroupProps)))
+          const group = try findGroup(name)
+          if (!group?.ReplicationSubnetGroupIdentifier) return undefined
+          const attrs = try toAttrs(group)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.replicationSubnetGroupIdentifier ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const description = news.description ?? "Managed by Alchemy"
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = try findGroup(name)
+
+          // 2. Ensure — create if missing; tolerate AlreadyExists as a race.
+          if (observed === undefined) {
+            try ensureDmsVpcRole
+            ;(try (effect {
+              return dms
+                .createReplicationSubnetGroup({
+                  ReplicationSubnetGroupIdentifier: name,
+                  ReplicationSubnetGroupDescription: description,
+                  SubnetIds: news.subnetIds,
+                  Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                    Key,
+                    Value,
+                  })),
+                }) catch effect (error) => match (error) {
+                  when { _tag: "AccessDeniedFault" }: try (ensureDmsVpcRole
+                    |> Effect.andThen(%, Effect.fail(error)));
+                  default: throw error;
+                }
+            }
+              |> Effect.retry(%, {
+                while: (e) => e._tag === "AccessDeniedFault",
+                schedule: Schedule.spaced("5 seconds"),
+                times: 10,
+              }))) catch effect (e) => match (e) {
+                when { _tag: "ResourceAlreadyExistsFault" }: try Effect.void;
+                default: throw e;
+              }
+            observed = try findGroup(name)
+          } else {
+            // 3. Sync — modify description / subnet set in place when they drift.
+            const observedSubnets = (observed.Subnets ?? [])
+              .map((s) => s.SubnetIdentifier)
+              .filter((s): s is string => typeof s === "string")
+            if (
+              description !== observed.ReplicationSubnetGroupDescription
+              || !sameStringSet(news.subnetIds, observedSubnets)
+            ) {
+              try dms.modifyReplicationSubnetGroup({
+                ReplicationSubnetGroupIdentifier: name,
+                ReplicationSubnetGroupDescription: description,
+                SubnetIds: news.subnetIds,
+              })
+              observed = try findGroup(name)
+            }
+          }
+
+          if (!observed?.ReplicationSubnetGroupIdentifier) {
+            throw new ReplicationSubnetGroupUnexpectedResponse({
+              message: `DMS replication subnet group '${name}' not found after reconcile`,
+            })
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags.
+          const arn = try toArn(name)
+          const observedTags = try readTags(arn)
+          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0) {
+            try dms.addTagsToResource({ ResourceArn: arn, Tags: upsert })
+          }
+          if (removed.length > 0) {
+            try dms.removeTagsFromResource({
+              ResourceArn: arn,
+              TagKeys: removed,
+            })
+          }
+
+          try session.note(name)
+          return try toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          dms
+            .deleteReplicationSubnetGroup({
+              ReplicationSubnetGroupIdentifier: output.replicationSubnetGroupIdentifier,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundFault" }: try Effect.void;
+              default: throw e;
+            }
+
+          // Observe actual absence before discarding state or considering the
+          // shared helper unused. DMS deletion is eventually consistent.
+          for (let attempt = 0; attempt < 30; attempt++) {
+            if ((try findGroup(output.replicationSubnetGroupIdentifier)) === undefined) {
+              try deleteOwnedDmsVpcRoleIfUnused
+              return
+            }
+            try Effect.sleep("1 second")
+          }
+          return try Effect.die(
+            new Error(
+              `DMS replication subnet group ${output.replicationSubnetGroupIdentifier} remained observable 30 seconds after delete`,
+            ),
+          )
+        },
+
+        list: effect () =>
+          try (effect {
+            return Array.from(
+              try (dms.describeReplicationSubnetGroups.pages({})
+                |> Stream.runCollect(%)),
+            ).flatMap((page) =>
+              (page.ReplicationSubnetGroups ?? []).filter(
+                (group) => group.ReplicationSubnetGroupIdentifier !== undefined,
+              )
+            )
+          }
+            |> Effect.flatMap(%, Effect.forEach((group) => toAttrs(group), { concurrency: 4 }))),
+      }
+    },
+  )

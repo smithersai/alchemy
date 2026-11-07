@@ -14,11 +14,11 @@ import {
   backendSecret,
   backendString,
   bindBackendEnvironment,
-} from "./BackendConnection.ts";
+} from "./BackendConnection.vibe";
 import { Credential, validateCredential } from "./Credential.ts";
-import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.ts";
-import { FunctionEnvironment } from "./FunctionEnvironment.ts";
-import { makeLanguageModelLayer, type LanguageModelOptions } from "./LanguageModel.ts";
+import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.vibe";
+import { FunctionEnvironment } from "./FunctionEnvironment.vibe";
+import { makeLanguageModelLayer, type LanguageModelOptions } from "./LanguageModel.vibe";
 
 export interface QueryAIGatewayClient {
   /** Bare gateway root for SDKs that handle their own routing. */

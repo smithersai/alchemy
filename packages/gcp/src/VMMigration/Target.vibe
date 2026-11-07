@@ -1,0 +1,249 @@
+import * as vm from "@distilled.cloud/gcp/vmmigration_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnership,
+  fieldMask,
+  GLOBAL_LOCATION,
+  globalParent,
+  hasOwnershipMarker,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.ts"
+
+export type TargetProps = {
+  /**
+   * Target project id (the `{targetProject}` segment of
+   * `projects/{project}/locations/global/targetProjects/{targetProject}`).
+   * If omitted, a unique RFC1035 name is generated. Immutable — changing
+   * it replaces the target.
+   */
+  targetProjectId?: string
+  /**
+   * Compute Engine project id (or number) this target points at.
+   * Defaults to the current Alchemy GCP project.
+   */
+  project?: string
+  /**
+   * Free-text description. Target projects have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+}
+
+export type Target = Resource<
+  "GCP.VMMigration.Target",
+  TargetProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Target project id (last path segment). */
+    targetProjectId: string
+    /** Host project id of the VM Migration resource. */
+    hostProject: string
+    /** Compute Engine project this target points at. */
+    project: string
+    /** Location id — always `global`. */
+    location: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A VM Migration target project: the Compute Engine project clones and
+ * cutovers land in.
+ *
+ * Target projects are global. They have no labels field — Alchemy stamps
+ * ownership into the description so `list` / nuke can find them. The
+ * resource id is immutable; `project` and `description` update in place.
+ *
+ * ### Creating a Target
+ * **Example:** Point at the current project
+ * ```typescript
+ * const target = yield* GCP.VMMigration.Target("Default", {
+ *   description: "this project",
+ * });
+ * ```
+ *
+ * **Example:** Explicit Compute Engine project
+ * ```typescript
+ * const target = yield* GCP.VMMigration.Target("Prod", {
+ *   project: "prod-compute",
+ *   description: "production landing zone",
+ * });
+ * ```
+ *
+ * @resource
+ * @category VMMigration
+ */
+export const Target = Resource<Target>("GCP.VMMigration.Target")
+
+const resourceName = (hostProject: string, targetProjectId: string): infer _ =>
+  `${globalParent(hostProject)}/targetProjects/${targetProjectId}`
+
+const toAttrs = (target: vm.TargetProject, hostProject: string): infer _ => {
+  const name = target.name ?? ""
+  const parsed = parseName(name, "targetProjects", "global")
+  const ownership = parseOwnership(target.description)
+  return {
+    name,
+    targetProjectId: parsed.id,
+    hostProject: parsed.project || hostProject,
+    project: target.project ?? parsed.project ?? hostProject,
+    location: GLOBAL_LOCATION,
+    description: ownership.text,
+    createTime: target.createTime,
+    updateTime: target.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : vm
+  .getProjectsLocationsTargetProjects({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string) =>
+  (Array.from(
+    try (vm.listProjectsLocationsTargetProjects
+      .pages({
+        parent: globalParent(project),
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.targetProjects ?? []))
+      |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as vm.TargetProject[]; default: throw e; }
+
+export const TargetProvider = (): infer _ =>
+  Provider.succeed(Target, {
+    stables: ["name", "targetProjectId", "hostProject", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      return replaceOnIdentity({
+        previousId: olds?.targetProjectId ?? output?.targetProjectId,
+        nextId: news?.targetProjectId ?? olds?.targetProjectId ?? output?.targetProjectId,
+        previousLocation: GLOBAL_LOCATION,
+        nextLocation: GLOBAL_LOCATION,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const targetProjectId = try toPhysicalId(
+        id,
+        olds?.targetProjectId,
+        output?.targetProjectId,
+        "target",
+      )
+      const name = output?.name ?? resourceName(env.project, targetProjectId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project)
+      return items.map((item) => toAttrs(item, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const targetProjectId = try toPhysicalId(
+        id,
+        news?.targetProjectId,
+        output?.targetProjectId,
+        "target",
+      )
+      const name = resourceName(env.project, targetProjectId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news?.description)
+      const project = news?.project ?? env.project
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = vm
+          .createProjectsLocationsTargetProjects({
+            parent: globalParent(env.project),
+            targetProjectId,
+            body: {
+              project,
+              description,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          // ALREADY_EXISTS (6): a concurrent create won the race.
+          waitForOperation(created) catch effect (error) => match (error) {
+            when { _tag: "GCP.OperationFailed" }: try (error.code === 6 ? Effect.void : throw error);
+            default: throw error;
+          }
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== description
+      const projectChanged = (current.project ?? "") !== project
+      const mask = fieldMask([descriptionChanged && "description", projectChanged && "project"])
+
+      if (mask.length > 0) {
+        const operation = try vm.patchProjectsLocationsTargetProjects({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            project,
+            description,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (vm.deleteProjectsLocationsTargetProjects({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        // NOT_FOUND (5): already gone.
+        waitForOperation(operation) catch effect (error) => match (error) {
+          when { _tag: "GCP.OperationFailed" }: try (error.code === 5 ? Effect.void : throw error);
+          default: throw error;
+        }
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

@@ -1,0 +1,45 @@
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.ts"
+import { type BindingIam, type GcpHttpOp, grantFor } from "../HttpBinding.ts"
+import type { Table } from "./Table.vibe"
+
+/**
+ * Shared HTTP scaffolding for BigQuery table bindings.
+ * NOT exported from index.ts.
+ */
+export const makeTableHttpBinding = effect <
+  I extends { projectId: string; datasetId: string; tableId: string },
+  A,
+  E,
+>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (table: Table) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${table})`({
+        iam: [grantFor(options.iam, table.name)],
+      })
+    }
+    const project = try table.project.asEffect()
+    const datasetId = try table.datasetId.asEffect()
+    const tableId = try table.tableId.asEffect()
+    return effect (
+      request?: Omit<I, "projectId" | "datasetId" | "tableId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try run({
+            ...request,
+            projectId: try project,
+            datasetId: try datasetId,
+            tableId: try tableId,
+          } as I)
+        },
+        `${options.tag}(${table.LogicalId})`,
+      )
+  }
+}

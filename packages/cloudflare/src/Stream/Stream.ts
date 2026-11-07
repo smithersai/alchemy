@@ -3,7 +3,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Data from "effect/Data";
 import type * as Effect from "effect/Effect";
 import * as Binding from "../Workers/Binding.ts";
-import type { StreamBinding } from "./StreamBinding.ts";
+import type { StreamBinding } from "./StreamBinding.vibe";
 
 const TypeId = "Cloudflare.Stream.Stream" as const;
 type TypeId = typeof TypeId;

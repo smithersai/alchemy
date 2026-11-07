@@ -7,7 +7,7 @@ import * as HttpPlatform from "effect/http/HttpPlatform";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
-import { BackendApi } from "./BackendApi";
+import { BackendApi } from "./BackendApi.vibe";
 import { BackendHandlers } from "./BackendHandlers";
 
 const platformLayer = Layer.mergeAll(

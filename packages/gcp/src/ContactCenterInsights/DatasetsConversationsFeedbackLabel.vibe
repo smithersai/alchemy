@@ -1,0 +1,285 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import type { QaAnswerLabel } from "./AuthorizedViewSetsAuthorizedViewsConversationsFeedbackLabel.vibe"
+import {
+  encodeOwnershipLine,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  MAX_LABEL_LENGTH,
+  ownedByAlchemy,
+  parentOf,
+  parseOwnership,
+  sameJson,
+  toResourceId,
+} from "./ownership.vibe"
+
+export type DatasetsConversationsFeedbackLabelProps = {
+  /**
+   * Parent dataset conversation resource name
+   * (`projects/{project}/locations/{location}/datasets/{dataset}/conversations/{conversation}`).
+   * Immutable — changing it replaces the feedback label.
+   */
+  parent: string
+  /**
+   * Feedback label id (the `{feedback_label}` segment). If omitted, a
+   * unique id is generated. Immutable — changing it replaces the label.
+   */
+  feedbackLabelId?: string
+  /**
+   * Topic-modeling string label. Feedback labels have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  label?: string
+  /**
+   * Resource being labeled (scorecard question, issue model, or generator).
+   */
+  labeledResource?: string
+  /**
+   * Quality-AI answer label.
+   */
+  qaAnswerLabel?: QaAnswerLabel
+}
+
+export type DatasetsConversationsFeedbackLabel = Resource<
+  "GCP.ContactCenterInsights.DatasetsConversationsFeedbackLabel",
+  DatasetsConversationsFeedbackLabelProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Feedback label id (last path segment). */
+    feedbackLabelId: string
+    /** Parent dataset conversation resource name. */
+    parent: string
+    /** Region id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** User label with the Alchemy ownership prefix stripped. */
+    label: string | undefined
+    /** Resource being labeled. */
+    labeledResource: string | undefined
+    /** Quality-AI answer label. */
+    qaAnswerLabel: QaAnswerLabel | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A feedback label on a conversation inside a Contact Center Insights
+ * dataset.
+ *
+ * Parent dataset conversation and feedback label id are immutable.
+ * Feedback labels have no labels map — Alchemy stamps ownership into the
+ * `label` string. The label text, labeled resource, and QA answer update
+ * in place.
+ *
+ * ### Creating a Dataset Conversation Feedback Label
+ * **Example:** Topic-modeling label
+ * ```typescript
+ * const label = yield* GCP.ContactCenterInsights.DatasetsConversationsFeedbackLabel(
+ *   "Topic",
+ *   {
+ *     parent: datasetConversation.name,
+ *     label: "billing",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const DatasetsConversationsFeedbackLabel = Resource<DatasetsConversationsFeedbackLabel>(
+  "GCP.ContactCenterInsights.DatasetsConversationsFeedbackLabel",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DatasetsConversationsFeedbackLabelNotResolved extends Data.TaggedError(
+  "GCP.ContactCenterInsights.DatasetsConversationsFeedbackLabelNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (parent: string, feedbackLabelId: string): infer _ => `${parent}/feedbackLabels/${feedbackLabelId}`
+
+const toQa = (
+  value: cci.GoogleCloudContactcenterinsightsV1QaAnswerAnswerValue | QaAnswerLabel | undefined,
+): QaAnswerLabel | undefined => {
+  if (value === undefined) return undefined
+  return {
+    skipValue: value.skipValue,
+    naValue: value.naValue,
+    key: value.key,
+    numValue: value.numValue,
+    boolValue: value.boolValue,
+    strValue: value.strValue,
+  }
+}
+
+const toAttrs = (label: cci.GoogleCloudContactcenterinsightsV1FeedbackLabel, project: string): infer _ => {
+  const name = label.name ?? ""
+  const parsed = parseOwnership(label.label)
+  return {
+    name,
+    feedbackLabelId: lastSegment(name),
+    parent: parentOf(name),
+    location: locationOf(name),
+    project,
+    label: parsed.text,
+    labeledResource: label.labeledResource,
+    qaAnswerLabel: toQa(label.qaAnswerLabel),
+    createTime: label.createTime,
+    updateTime: label.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+  .getProjectsLocationsDatasetsConversationsFeedbackLabels({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listDatasets = effect (parent: string) =>
+  (Array.from(
+    try (cci.listProjectsLocationsDatasets.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.datasets ?? []))
+      |> Stream.map(%, (dataset) => dataset.name ?? "")
+      |> Stream.filter(%, (name) => name.length > 0)
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+
+const listAtDataset = effect (dataset: string, project: string) =>
+  (Array.from(
+    try (cci.listAllFeedbackLabelsProjectsLocationsDatasets.pages({ parent: dataset, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.feedbackLabels ?? []))
+      |> Stream.filter(%, (label) => hasOwnershipMarker(label.label))
+      |> Stream.map(%, (label) => toAttrs(label, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const DatasetsConversationsFeedbackLabelProvider = (): infer _ =>
+  Provider.succeed(DatasetsConversationsFeedbackLabel, {
+    stables: ["name", "feedbackLabelId", "parent", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (previousParent !== undefined && news.parent !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.feedbackLabelId ?? output?.feedbackLabelId
+      if (
+        previousId !== undefined
+        && news.feedbackLabelId !== undefined
+        && news.feedbackLabelId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const feedbackLabelId = try toResourceId(
+        id,
+        olds?.feedbackLabelId,
+        output?.feedbackLabelId,
+      )
+      const name = output?.name
+        ?? (olds?.parent !== undefined ? resourceName(olds.parent, feedbackLabelId) : "")
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.label)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const datasets = try listDatasets(locationParent(env.project, env.region))
+      const pages = try Effect.forEach(
+        datasets,
+        effect (dataset) => try listAtDataset(dataset, env.project),
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const feedbackLabelId = try toResourceId(
+        id,
+        news.feedbackLabelId,
+        output?.feedbackLabelId,
+      )
+      const name = resourceName(news.parent, feedbackLabelId)
+      const ownership = try createInternalLabels(id)
+      const label = encodeOwnershipLine(ownership, news.label, MAX_LABEL_LENGTH)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = cci
+          .createProjectsLocationsDatasetsConversationsFeedbackLabels({
+            parent: news.parent,
+            feedbackLabelId,
+            body: {
+              label,
+              labeledResource: news.labeledResource,
+              qaAnswerLabel: news.qaAnswerLabel,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new DatasetsConversationsFeedbackLabelNotResolved({
+          resourceName: name,
+        })
+      }
+
+      const labelChanged = (current.label ?? "") !== label
+      const resourceChanged = (current.labeledResource ?? "") !== (news.labeledResource ?? "")
+      const qaChanged = !sameJson(toQa(current.qaAnswerLabel), news.qaAnswerLabel)
+
+      if (labelChanged || resourceChanged || qaChanged) {
+        current = try cci.patchProjectsLocationsDatasetsConversationsFeedbackLabels({
+          name: current.name ?? name,
+          updateMask: [
+            labelChanged ? "label" : undefined,
+            resourceChanged ? "labeled_resource" : undefined,
+            qaChanged ? "qa_answer_label" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name: current.name ?? name,
+            label,
+            labeledResource: news.labeledResource,
+            qaAnswerLabel: news.qaAnswerLabel,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      cci
+        .deleteProjectsLocationsDatasetsConversationsFeedbackLabels({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

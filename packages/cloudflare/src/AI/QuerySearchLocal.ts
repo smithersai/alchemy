@@ -3,8 +3,8 @@ import type * as HttpClient from "effect/http/HttpClient";
 import * as Layer from "effect/Layer";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Credentials } from "../Credentials.ts";
-import { QuerySearch } from "./QuerySearch.ts";
-import { makeLocalSearchClient, type SearchAuth } from "./SearchHttpClient.ts";
+import { QuerySearch } from "./QuerySearch.vibe";
+import { makeLocalSearchClient, type SearchAuth } from "./SearchHttpClient.vibe";
 import type { SearchInstance } from "./SearchInstance.ts";
 
 /**

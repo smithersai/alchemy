@@ -28,11 +28,11 @@ import * as Socket from "effect/socket/Socket";
 import * as Stream from "effect/Stream";
 import * as Tracer from "effect/Tracer";
 import type * as Aggregate from "./Aggregate.ts";
-import * as Command from "./Command.ts";
-import { type Filter, matches } from "./Filter.ts";
+import * as Command from "./Command.vibe";
+import { type Filter, matches } from "./Filter.vibe";
 import { decodeEnvelope } from "./Kernel.ts";
-import * as Key from "./Key.ts";
-import * as Middleware from "./Middleware.ts";
+import * as Key from "./Key.vibe";
+import * as Middleware from "./Middleware.vibe";
 import * as Model from "./Model.ts";
 import {
   type AggregateStore,
@@ -40,13 +40,13 @@ import {
   type StreamStore,
   type Subscription,
   type ViewStore,
-} from "./Platform.ts";
-import type * as Read from "./Read.ts";
+} from "./Platform.vibe";
+import type * as Read from "./Read.vibe";
 import { contractOf, nameOf, readRpcs } from "./ReadRpcs.ts";
 import * as RequestContext from "./RequestContext.ts";
-import type * as DomainStream from "./Stream.ts";
-import type * as View from "./View.ts";
-import * as Watch from "./Watch.ts";
+import type * as DomainStream from "./Stream.vibe";
+import type * as View from "./View.vibe";
+import * as Watch from "./Watch.vibe";
 
 /**
  * What an Api exposes: commands (writes); views, streams, and aggregates that

@@ -2,9 +2,9 @@ import * as Effect from "effect/Effect";
 import * as Queue from "effect/Queue";
 import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
-import { CommandError, ProtocolError, type UrlMissing } from "./Errors.ts";
+import { CommandError, ProtocolError, type UrlMissing } from "./Errors.vibe";
 import { encodeCommand, Parser, type Arg, type Reply } from "./Resp.ts";
-import type { RuntimeContext } from "./RuntimeContext.ts";
+import type { RuntimeContext } from "./RuntimeContext.vibe";
 
 export const DEFAULT_PORT = 6379;
 export const TLS_PORT = 6380;

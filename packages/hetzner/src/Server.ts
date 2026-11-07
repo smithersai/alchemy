@@ -16,7 +16,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { waitForAction, waitForActions } from "./actions.ts";
+import { waitForAction, waitForActions } from "./actions.vibe";
 import {
   alchemyStackSelector,
   createInternalLabels,
@@ -24,8 +24,8 @@ import {
   hasAlchemyLabels,
   stripInternalLabels,
   toLabels,
-} from "./Labels.ts";
-import type { Providers } from "./Providers.ts";
+} from "./Labels.vibe";
+import type { Providers } from "./Providers.vibe";
 
 const DEFAULT_LOCATION = "nbg1";
 const MAX_NAME_LENGTH = 63;

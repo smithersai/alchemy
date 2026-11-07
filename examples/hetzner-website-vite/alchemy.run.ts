@@ -5,7 +5,7 @@ import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import Api from "./src/api.ts";
-import { Box, NeonBranch, NeonProject } from "./src/shared.ts";
+import { Box, NeonBranch, NeonProject } from "./src/shared.vibe";
 
 export default Alchemy.Stack(
   "HetznerWebsiteViteExample",

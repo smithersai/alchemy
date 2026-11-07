@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
-import { DeleteNotConfirmed } from "../Errors.ts";
+import { DeleteNotConfirmed } from "../Errors.vibe";
 import {
   createInternalLabels,
   diffLabels,

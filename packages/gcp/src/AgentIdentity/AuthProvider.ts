@@ -30,7 +30,7 @@ import {
   type AuthProviderTypeParams,
   type ThreeLeggedOAuthParams,
   type TwoLeggedOAuthParams,
-} from "./internal.ts";
+} from "./internal.vibe";
 
 export type { ApiKeyParams, AuthProviderTypeParams, ThreeLeggedOAuthParams, TwoLeggedOAuthParams };
 

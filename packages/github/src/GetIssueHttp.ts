@@ -2,8 +2,8 @@ import * as Issues from "@distilled.cloud/github/issues";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as BindingHttp from "./BindingHttp.ts";
-import { IssueNotFound } from "./Errors.ts";
-import { GetIssue, type GetIssueRequest } from "./GetIssue.ts";
+import { IssueNotFound } from "./Errors.vibe";
+import { GetIssue, type GetIssueRequest } from "./GetIssue.vibe";
 
 export const getIssueOperation = BindingHttp.operation(
   "issues.get",

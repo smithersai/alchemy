@@ -5,7 +5,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import ApiFunction from "./src/ApiFunction.ts";
 import Ec2Box from "./src/Ec2Box.ts";
-import EchoWorker from "./src/EchoWorker.ts";
+import EchoWorker from "./src/EchoWorker.vibe";
 import MicrovmWorker from "./src/MicrovmWorker.ts";
 import { PORTS } from "./src/ports.ts";
 import { SandboxLive } from "./src/SandboxContainer.ts";

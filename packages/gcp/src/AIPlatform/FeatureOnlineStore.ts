@@ -18,8 +18,8 @@ import {
   specifiedEquals,
   toPhysicalSnake,
   userLabels,
-} from "./helpers.ts";
-import { listLocations } from "./names.ts";
+} from "./helpers.vibe";
+import { listLocations } from "./names.vibe";
 import { waitForOperation } from "./operations.ts";
 
 const MAX_NAME_LENGTH = 60;

@@ -5,7 +5,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { DeleteNotConfirmed } from "../Errors.ts";
+import { DeleteNotConfirmed } from "../Errors.vibe";
 import { ALCHEMY_LABEL_PREFIX, stripInternalLabels } from "../Labels.ts";
 
 export const DEFAULT_LOCATION = "global";

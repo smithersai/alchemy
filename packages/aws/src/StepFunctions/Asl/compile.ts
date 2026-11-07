@@ -13,7 +13,7 @@ import { toSeconds as toWholeSeconds } from "alchemy/Util/Duration";
  */
 import * as Data from "effect/Data";
 import type * as Duration from "effect/Duration";
-import type { PolicyStatement } from "../../IAM/Policy.ts";
+import type { PolicyStatement } from "../../IAM/Policy.vibe";
 import {
   inputExpr,
   isExpr,
@@ -22,8 +22,8 @@ import {
   renderNode,
   variableExpr,
 } from "./Jsonata.ts";
-import type { AslNode, RetryOptions } from "./Node.ts";
-import { isSfnEffect, type SfnEffect } from "./Program.ts";
+import type { AslNode, RetryOptions } from "./Node.vibe";
+import { isSfnEffect, type SfnEffect } from "./Program.vibe";
 
 /**
  * A program failed to compile to ASL — e.g. yielding a non-`Sfn` value

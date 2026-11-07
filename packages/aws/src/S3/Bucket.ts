@@ -19,8 +19,8 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment, type AccountID } from "../Environment.ts";
-import { durationToDays } from "../IAM/common.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
+import { durationToDays } from "../IAM/common.vibe";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
 

@@ -5,7 +5,7 @@ import * as Provider from "alchemy/Provider";
 import { Resource } from "alchemy/Resource";
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 export interface OrganizationSpendingLimitProps {
   /** Existing Neon organization ID. Restore and remove this control before changing organizations. */

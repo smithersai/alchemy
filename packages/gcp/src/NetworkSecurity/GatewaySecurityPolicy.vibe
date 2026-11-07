@@ -1,0 +1,283 @@
+import * as networksecurity from "@distilled.cloud/gcp/networksecurity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  NetworksecurityNotResolved,
+  canonicalizeLink,
+  changedFields,
+  collectPages,
+  encodeOwnership,
+  hasOwnershipMarker,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  parseOwnership,
+  rfc1035,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilGone,
+  waitUntilPresent,
+} from "./internal.ts"
+
+const COLLECTION = "gatewaySecurityPolicies"
+
+export type GatewaySecurityPolicyProps = {
+  /**
+   * GatewaySecurityPolicy id (the `{gatewaySecurityPolicy}` segment of
+   * `projects/{project}/locations/{location}/gatewaySecurityPolicies/{gatewaySecurityPolicy}`).
+   * If omitted, a unique RFC1035 name is generated from the stack, stage,
+   * and logical id. Immutable — changing it replaces the policy.
+   */
+  gatewaySecurityPolicyId?: string
+  /**
+   * Region of the policy (`us-central1`, …). Immutable — changing it
+   * replaces the policy. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  location?: string
+  /**
+   * Human-readable description. GatewaySecurityPolicy has no labels
+   * field, so Alchemy stamps ownership into a `[alchemy …]` prefix and
+   * strips it from attributes.
+   */
+  description?: string
+  /**
+   * TlsInspectionPolicy resource name used by rules that enable TLS
+   * inspection.
+   */
+  tlsInspectionPolicy?: string
+}
+
+export type GatewaySecurityPolicy = Resource<
+  "GCP.NetworkSecurity.GatewaySecurityPolicy",
+  GatewaySecurityPolicyProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/gatewaySecurityPolicies/{gatewaySecurityPolicy}`. */
+    name: string
+    /** GatewaySecurityPolicy id (last path segment). */
+    gatewaySecurityPolicyId: string
+    /** Project id. */
+    project: string
+    /** Location id (`us-central1`). */
+    location: string
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Attached TlsInspectionPolicy resource name, if any. */
+    tlsInspectionPolicy: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Gateway Security Policy — a collection of
+ * GatewaySecurityPolicyRules used by Secure Web Proxy.
+ *
+ * The API has no labels field, so Alchemy stamps ownership into the
+ * description for `list` / nuke. Changing `gatewaySecurityPolicyId` or
+ * `location` replaces the policy. Description and `tlsInspectionPolicy`
+ * update in place.
+ *
+ * ### Creating a GatewaySecurityPolicy
+ * **Example:** Generated name
+ * ```typescript
+ * const policy = yield* GCP.NetworkSecurity.GatewaySecurityPolicy("Swp", {
+ *   description: "secure web proxy",
+ * });
+ * ```
+ *
+ * **Example:** Named policy with TLS inspection
+ * ```typescript
+ * const policy = yield* GCP.NetworkSecurity.GatewaySecurityPolicy("Swp", {
+ *   gatewaySecurityPolicyId: "app-swp",
+ *   location: "us-central1",
+ *   tlsInspectionPolicy: inspection.name,
+ * });
+ * ```
+ *
+ * @resource
+ * @category NetworkSecurity
+ */
+export const GatewaySecurityPolicy = Resource<GatewaySecurityPolicy>(
+  "GCP.NetworkSecurity.GatewaySecurityPolicy",
+)
+
+const resourceName = (project: string, location: string, gatewaySecurityPolicyId: string): infer _ =>
+  `projects/${project}/locations/${location}/gatewaySecurityPolicies/${gatewaySecurityPolicyId}`
+
+const toAttrs = (
+  policy: networksecurity.GatewaySecurityPolicy,
+  project: string,
+  region: string,
+): infer _ => {
+  const name = policy.name ?? ""
+  const parsed = parseName(name, COLLECTION, region)
+  const ownership = parseOwnership(policy.description)
+  return {
+    name,
+    gatewaySecurityPolicyId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location || region,
+    description: ownership.text,
+    tlsInspectionPolicy: policy.tlsInspectionPolicy
+      ? canonicalizeLink(policy.tlsInspectionPolicy)
+      : undefined,
+    createTime: policy.createTime,
+    updateTime: policy.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  networksecurity
+    .getProjectsLocationsGatewaySecurityPolicies({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const GatewaySecurityPolicyProvider = (): infer _ =>
+  Provider.succeed(GatewaySecurityPolicy, {
+    stables: ["name", "gatewaySecurityPolicyId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousId = olds?.gatewaySecurityPolicyId ?? output?.gatewaySecurityPolicyId
+      const nextId = news.gatewaySecurityPolicyId
+        ? rfc1035(news.gatewaySecurityPolicyId, "gateway-security-policy")
+        : previousId
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      if (
+        (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+        || previousLocation !== nextLocation
+      ) {
+        return { action: "replace" as const }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const gatewaySecurityPolicyId = try toPhysicalId(
+        id,
+        olds?.gatewaySecurityPolicyId,
+        output?.gatewaySecurityPolicyId,
+        "gateway-security-policy",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, gatewaySecurityPolicyId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      const { labels } = parseOwnership(existing.description)
+      return (try hasAlchemyLabels(id, labels)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try collectPages(
+        networksecurity.listProjectsLocationsGatewaySecurityPolicies.pages({
+          parent: parentOf(env.project, "-"),
+          pageSize: 1000,
+        }),
+        (page) => page.gatewaySecurityPolicies,
+      )
+      return items
+        .filter((item) => hasOwnershipMarker(item.description))
+        .map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const gatewaySecurityPolicyId = try toPhysicalId(
+        id,
+        news.gatewaySecurityPolicyId,
+        output?.gatewaySecurityPolicyId,
+        "gateway-security-policy",
+      )
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, gatewaySecurityPolicyId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeOwnership(ownership, news.description)
+      const tlsInspectionPolicy = news.tlsInspectionPolicy
+        ? canonicalizeLink(news.tlsInspectionPolicy)
+        : undefined
+
+      let current = try getByName(name)
+
+      if (current === undefined) {
+        const created = (try (networksecurity
+          .createProjectsLocationsGatewaySecurityPolicies({
+            parent: parentOf(env.project, location),
+            gatewaySecurityPolicyId,
+            body: {
+              description: desiredDescription,
+              tlsInspectionPolicy,
+            },
+          })
+          |> Effect.retry(%, {
+            while: (error) => error._tag === "Conflict",
+            times: 5,
+            schedule: Schedule.spaced("2 seconds"),
+          }))) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created)
+        }
+        current = try waitUntilPresent(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new NetworksecurityNotResolved({ resourceName: name })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const tlsChanged = canonicalizeLink(current.tlsInspectionPolicy) !== (tlsInspectionPolicy ?? "")
+      const updateMask = changedFields([
+        ["description", descriptionChanged],
+        ["tlsInspectionPolicy", tlsChanged],
+      ])
+
+      if (updateMask.length > 0) {
+        const operation = try networksecurity.patchProjectsLocationsGatewaySecurityPolicies({
+          name: current.name ?? name,
+          updateMask: updateMask.join(","),
+          body: {
+            name: current.name ?? name,
+            description: desiredDescription,
+            tlsInspectionPolicy,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilPresent(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (networksecurity
+        .deleteProjectsLocationsGatewaySecurityPolicies({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

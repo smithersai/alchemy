@@ -57,15 +57,15 @@ import {
   WrongObjectType,
   type Oid as ApiOid,
   type RepoStatus,
-} from "./Api.ts";
+} from "./Api.vibe";
 import type { BlobMultipart, UploadedPart } from "./BlobStore.ts";
 import { BlobStore, type BlobStoreShape } from "./BlobStore.ts";
 import { type HasherShape, type HashPartResult } from "./Hasher/Hasher.ts";
-import { bundleCovers, runBundleJob, type BundleInfo } from "./Jobs/Bundle.ts";
-import { runCompactJob, runGeometricMergeJob, shouldCompact } from "./Jobs/Compact.ts";
+import { bundleCovers, runBundleJob, type BundleInfo } from "./Jobs/Bundle.vibe";
+import { runCompactJob, runGeometricMergeJob, shouldCompact } from "./Jobs/Compact.vibe";
 import { runForkJob, snapshotStream, type SnapshotChunk } from "./Jobs/Fork.ts";
 import { runImport, type ImportSource } from "./Jobs/Import.ts";
-import { runPurgeJob } from "./Jobs/Purge.ts";
+import { runPurgeJob } from "./Jobs/Purge.vibe";
 import { applyDelta } from "./Protocol/Delta.ts";
 import {
   bytesToHex,
@@ -91,9 +91,9 @@ import {
 } from "./Protocol/ObjectCodec.ts";
 import * as PackParser from "./Protocol/PackParser.ts";
 import type { RandomAccess } from "./Protocol/PackParser.ts";
-import * as PartialScan from "./Protocol/PartialScan.ts";
-import type { ScanResult } from "./Protocol/PartialScan.ts";
-import type { DeltaBase, DeltaJob, UnresolvedDelta } from "./Protocol/PartialScan.ts";
+import * as PartialScan from "./Protocol/PartialScan.vibe";
+import type { ScanResult } from "./Protocol/PartialScan.vibe";
+import type { DeltaBase, DeltaJob, UnresolvedDelta } from "./Protocol/PartialScan.vibe";
 import {
   decodePktLines,
   errPkt,
@@ -103,14 +103,14 @@ import {
   readPktLineAt,
   type PktLine,
 } from "./Protocol/Pkt.ts";
-import { progressMessage, pumpPackBody } from "./Protocol/Sideband.ts";
-import { StoreError, type ManifestEntry, type ObjectSource } from "./Protocol/Store.ts";
+import { progressMessage, pumpPackBody } from "./Protocol/Sideband.vibe";
+import { StoreError, type ManifestEntry, type ObjectSource } from "./Protocol/Store.vibe";
 import {
   applyTreeChanges,
   conflictingPaths,
   diffTrees,
   type DiffEntryData,
-} from "./Protocol/TreeDiff.ts";
+} from "./Protocol/TreeDiff.vibe";
 import * as Zlib from "./Protocol/Zlib.ts";
 import { decodeStagedBatch } from "./PushWire.ts";
 import { RegistryStore, ulid } from "./RegistryObject.ts";
@@ -133,8 +133,8 @@ import {
   type PullRow,
   type RefRow,
 } from "./Store/Sql.ts";
-import type { StreamingFeeder } from "./Store/StreamingSource.ts";
-import { BACKPRESSURE_BYTES, RETAIN_BYTES } from "./Store/StreamingSource.ts";
+import type { StreamingFeeder } from "./Store/StreamingSource.vibe";
+import { BACKPRESSURE_BYTES, RETAIN_BYTES } from "./Store/StreamingSource.vibe";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -188,7 +188,7 @@ export const STAGE_BATCH_BYTES = 8 * 1024 * 1024;
 // The tree-diff caps (`MAX_DIFF_FILES`, `MAX_DIFF_TREE_READS`) live with
 // the pure walk in `Protocol/TreeDiff.ts`; re-exported here alongside the other
 // serving-plane bounds.
-export { MAX_DIFF_FILES, MAX_DIFF_TREE_READS } from "./Protocol/TreeDiff.ts";
+export { MAX_DIFF_FILES, MAX_DIFF_TREE_READS } from "./Protocol/TreeDiff.vibe";
 
 /** Max commits popped by the merge-base paint walk. */
 export const MAX_COMPARE_WALK = 10_000;
@@ -513,7 +513,7 @@ export interface CommitLogPage {
 
 // `DiffEntryData` (one changed file) is defined next to the pure walk in
 // `Protocol/TreeDiff.ts`; re-exported here with the other RPC data shapes.
-export type { DiffEntryData } from "./Protocol/TreeDiff.ts";
+export type { DiffEntryData } from "./Protocol/TreeDiff.vibe";
 
 /** Result of {@link GitRepoShape.readCommitDiff}. */
 export interface CommitDiffData {

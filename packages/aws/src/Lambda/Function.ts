@@ -43,7 +43,7 @@ import type * as rolldown from "rolldown";
 import { Assets } from "../Assets.ts";
 import { AWSEnvironment } from "../Environment.ts";
 import * as IAM from "../IAM/index.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.ts";
 import type { Providers } from "../Providers.ts";
 import {
@@ -52,8 +52,12 @@ import {
   type EventInvokeConfig,
   type ObservedEventInvokeConfig,
 } from "./EventInvokeConfig.ts";
-import { makeFunctionBundler } from "./FunctionBundle.ts";
-import { composeFunctionDomain, functionDomainUrl, type FunctionDomain } from "./FunctionDomain.ts";
+import { makeFunctionBundler } from "./FunctionBundle.vibe";
+import {
+  composeFunctionDomain,
+  functionDomainUrl,
+  type FunctionDomain,
+} from "./FunctionDomain.vibe";
 import {
   decodeFunctionImageSource,
   type FunctionImageAttributes,
@@ -86,7 +90,7 @@ export {
   InvalidFunctionDomain,
   type FunctionDomain,
   type FunctionDomainConfig,
-} from "./FunctionDomain.ts";
+} from "./FunctionDomain.vibe";
 
 export const FunctionTypeId = "AWS.Lambda.Function" as const;
 export type FunctionTypeId = typeof FunctionTypeId;

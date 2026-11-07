@@ -1,0 +1,102 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { View } from "./View.vibe"
+
+/**
+ * Shared HTTP scaffolding for the AWS Resource Explorer runtime bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service
+ * is a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the two
+ * builders below. Everything except the operation and the IAM action list
+ * is boilerplate.
+ */
+
+/**
+ * Build the impl Effect for a Resource Explorer operation scoped to a
+ * {@link View}: the deploy-time half grants `actions` on the bound view's
+ * ARN, and the runtime half injects the view's `ViewArn` into every
+ * request.
+ */
+export const makeResourceExplorerViewHttpBinding = effect <
+  I extends { ViewArn?: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.ResourceExplorer.Search`. */
+  tag: string
+  /** The distilled operation. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the view ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect <V extends View>(view: V) => {
+    const ViewArn = try view.viewArn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${view})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [view.viewArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "ViewArn"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const viewArn = try ViewArn
+          return try op({ ...request, ViewArn: viewArn } as I)
+        },
+        `${options.tag}(${view.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level Resource Explorer operation
+ * (e.g. enumerating the searchable resource types). The deploy-time half
+ * grants `actions` on `*` — these operations are not scoped to a single
+ * Resource Explorer resource.
+ */
+export const makeResourceExplorerAccountHttpBinding = effect <I, A, E, R>(options: {
+  /**
+   * Fully-qualified binding tag, e.g.
+   * `AWS.ResourceExplorer.ListSupportedResourceTypes`.
+   */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

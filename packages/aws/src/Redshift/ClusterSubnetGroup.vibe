@@ -1,0 +1,289 @@
+import * as redshift from "@distilled.cloud/aws/redshift"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { SubnetId } from "../EC2/Subnet.ts"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { applyRedshiftTagDelta, redshiftArn, sameStringSet, toTagRecord } from "./internal.vibe"
+
+export error ClusterSubnetGroupUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface ClusterSubnetGroupProps {
+  /**
+   * Name of the cluster subnet group. Must contain no more than 255
+   * lowercase alphanumeric characters or hyphens and must not be `default`.
+   * If omitted, a deterministic physical name is generated. Changing the
+   * name replaces the subnet group.
+   */
+  clusterSubnetGroupName?: string
+  /**
+   * Human-readable description of the subnet group.
+   * @default "Managed by Alchemy"
+   */
+  description?: string
+  /**
+   * VPC subnet IDs the subnet group spans. Redshift places cluster nodes
+   * into these subnets; span at least two Availability Zones so the cluster
+   * can relocate during maintenance.
+   */
+  subnetIds: SubnetId[]
+  /**
+   * User-defined tags for the subnet group.
+   */
+  tags?: Record<string, string>
+}
+
+export interface ClusterSubnetGroup extends
+  Resource<
+    "AWS.Redshift.ClusterSubnetGroup",
+    ClusterSubnetGroupProps,
+    {
+      /**
+       * Name of the subnet group.
+       */
+      clusterSubnetGroupName: string
+      /**
+       * ARN of the subnet group.
+       */
+      clusterSubnetGroupArn: string
+      /**
+       * Description of the subnet group.
+       */
+      description: string | undefined
+      /**
+       * ID of the VPC the subnets belong to.
+       */
+      vpcId: string | undefined
+      /**
+       * IDs of the subnets in the group.
+       */
+      subnetIds: string[]
+      /**
+       * Status of the subnet group (e.g. `"Complete"`).
+       */
+      subnetGroupStatus: string | undefined
+      /**
+       * Tags on the subnet group (including internal Alchemy tags).
+       */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Redshift cluster subnet group — the set of VPC subnets a
+ * provisioned Redshift cluster's nodes are placed into.
+ *
+ * Subnet groups are free and provision instantly. A {@link Cluster}
+ * references one by name via `clusterSubnetGroupName`.
+ * ### Creating a Cluster Subnet Group
+ * **Example:** Subnet Group Spanning Two Subnets
+ * ```typescript
+ * const subnetGroup = yield* Redshift.ClusterSubnetGroup("WarehouseSubnets", {
+ *   description: "Subnets for the analytics warehouse",
+ *   subnetIds: [subnetA.subnetId, subnetB.subnetId],
+ * });
+ * ```
+ * **Example:** Tagged Subnet Group
+ * ```typescript
+ * const subnetGroup = yield* Redshift.ClusterSubnetGroup("WarehouseSubnets", {
+ *   subnetIds: [subnetA.subnetId, subnetB.subnetId],
+ *   tags: { team: "analytics" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ClusterSubnetGroup = Resource<ClusterSubnetGroup>("AWS.Redshift.ClusterSubnetGroup")
+
+/**
+ * Retry an effect while the subnet group is still held by a cluster that is
+ * mid-deletion (`InvalidClusterSubnetGroupStateFault`), bounded to ~10
+ * minutes — a Redshift cluster releases its subnet group only once its own
+ * deletion completes, several minutes after `deleteCluster` returns.
+ *
+ * Expressed as an explicitly-typed module-scope helper: inlining
+ * `Effect.retry` in a lifecycle operation leaves `Retry.Return`'s
+ * conditional type unresolved in the provider's inferred layer type, which
+ * declaration emit widens to an `unknown` R — poisoning `AWS.providers()`
+ * for every downstream consumer.
+ */
+const retryWhileSubnetGroupInUse = effect <A, E extends { _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "InvalidClusterSubnetGroupStateFault",
+    schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(40)]),
+  })
+
+export const ClusterSubnetGroupProvider = (): infer _ =>
+  Provider.effect(
+    ClusterSubnetGroup,
+    effect {
+      const toName = effect (id: string, props: Partial<ClusterSubnetGroupProps>) => (props.clusterSubnetGroupName
+        ? props.clusterSubnetGroupName
+        : try createPhysicalName({ id, maxLength: 255, lowercase: true }))
+
+      const readGroup = effect (name: string) => {
+        const response = redshift
+          .describeClusterSubnetGroups({ ClusterSubnetGroupName: name }) catch effect (e) => match (e) {
+            when { _tag: "ClusterSubnetGroupNotFoundFault" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.ClusterSubnetGroups?.[0]
+      }
+
+      const toAttrs = effect (group: redshift.ClusterSubnetGroup) => {
+        const { accountId, region } = try AWSEnvironment.current
+        if (!group.ClusterSubnetGroupName) {
+          throw new ClusterSubnetGroupUnexpectedResponse({
+            message: "Cluster subnet group is missing its name",
+          })
+        }
+        return {
+          clusterSubnetGroupName: group.ClusterSubnetGroupName,
+          clusterSubnetGroupArn: redshiftArn(
+            region,
+            accountId,
+            "subnetgroup",
+            group.ClusterSubnetGroupName,
+          ),
+          description: group.Description,
+          vpcId: group.VpcId,
+          subnetIds: (group.Subnets ?? []).flatMap((subnet) =>
+            subnet.SubnetIdentifier ? [subnet.SubnetIdentifier] : []
+          ),
+          subnetGroupStatus: group.SubnetGroupStatus,
+          tags: toTagRecord(group.Tags),
+        }
+      }
+
+      return {
+        stables: ["clusterSubnetGroupName", "clusterSubnetGroupArn", "vpcId"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.clusterSubnetGroupName ?? (try toName(id, olds ?? {}))
+          const group = try readGroup(name)
+          if (!group?.ClusterSubnetGroupName) return undefined
+          const attrs = try toAttrs(group)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.clusterSubnetGroupName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const description = news.description ?? "Managed by Alchemy"
+
+          // 1. Observe — cloud state is authoritative.
+          let observed = try readGroup(name)
+
+          // 2. Ensure — create if missing; tolerate AlreadyExists as a race
+          //    with a peer reconciler by re-reading.
+          if (!observed?.ClusterSubnetGroupName) {
+            redshift
+              .createClusterSubnetGroup({
+                ClusterSubnetGroupName: name,
+                Description: description,
+                SubnetIds: news.subnetIds,
+                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "ClusterSubnetGroupAlreadyExistsFault" }: try Effect.void;
+                default: throw e;
+              }
+            observed = try readGroup(name)
+            if (!observed?.ClusterSubnetGroupName) {
+              throw new ClusterSubnetGroupUnexpectedResponse({
+                message: `Failed to create cluster subnet group '${name}'`,
+              })
+            }
+          }
+
+          // 3. Sync — diff OBSERVED description/subnets against desired;
+          //    modifyClusterSubnetGroup replaces the whole subnet list.
+          const observedSubnets = (observed.Subnets ?? []).flatMap((subnet) =>
+            subnet.SubnetIdentifier ? [subnet.SubnetIdentifier] : []
+          )
+          if (
+            observed.Description !== description
+            || !sameStringSet(observedSubnets, news.subnetIds)
+          ) {
+            try redshift.modifyClusterSubnetGroup({
+              ClusterSubnetGroupName: name,
+              Description: description,
+              SubnetIds: news.subnetIds,
+            })
+            observed = try readGroup(name)
+            if (!observed?.ClusterSubnetGroupName) {
+              throw new ClusterSubnetGroupUnexpectedResponse({
+                message: `Cluster subnet group '${name}' not found after update`,
+              })
+            }
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags (describe
+          //     surfaces them inline).
+          const { accountId, region } = try AWSEnvironment.current
+          const arn = redshiftArn(region, accountId, "subnetgroup", name)
+          const { removed, upsert } = diffTags(toTagRecord(observed.Tags), desiredTags)
+          try applyRedshiftTagDelta({ arn, upsert, removed })
+
+          try session.note(arn)
+          const attrs = try toAttrs(observed)
+          return { ...attrs, tags: desiredTags }
+        },
+
+        delete: effect ({ output }) => {
+          // A cluster deleting out of this group holds it until the
+          // cluster's own deletion completes — retry through that window.
+          try retryWhileSubnetGroupInUse(
+            effect {
+              return redshift
+                .deleteClusterSubnetGroup({
+                  ClusterSubnetGroupName: output.clusterSubnetGroupName,
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ClusterSubnetGroupNotFoundFault" }: try Effect.undefined;
+                  default: throw e;
+                }
+            },
+          )
+        },
+
+        list: effect () =>
+          try (effect {
+            return Array.from(
+              try (redshift.describeClusterSubnetGroups.pages({})
+                |> Stream.runCollect(%)),
+            ).flatMap((page) =>
+              (page.ClusterSubnetGroups ?? []).filter(
+                (group) =>
+                  group.ClusterSubnetGroupName !== undefined
+                  // `default` is auto-created by Redshift for the default
+                  // VPC — never ours, never census/nuke it.
+                  && group.ClusterSubnetGroupName !== "default",
+              )
+            )
+          }
+            |> Effect.flatMap(%, Effect.forEach((group) => toAttrs(group), { concurrency: 4 }))),
+      }
+    },
+  )

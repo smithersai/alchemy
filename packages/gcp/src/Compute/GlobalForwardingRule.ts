@@ -23,8 +23,8 @@ import {
   hasOwnershipMarker,
   lastSegment,
   parseDescription,
-} from "./internal.ts";
-import { waitGlobalOperation } from "./operations.ts";
+} from "./internal.vibe";
+import { waitGlobalOperation } from "./operations.vibe";
 
 const DEFAULT_PROTOCOL = "TCP";
 const DEFAULT_SCHEME = "EXTERNAL";

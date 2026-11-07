@@ -6,7 +6,7 @@ import * as HttpApiClient from "effect/http-api/HttpApiClient";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import Stack from "./alchemy.run.ts";
-import { ShortyApi } from "./ShortyApi.ts";
+import { ShortyApi } from "./ShortyApi.vibe";
 
 // #region show
 const { test, beforeAll, deploy } = Test.make({

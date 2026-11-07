@@ -1,0 +1,248 @@
+import * as appconfig from "@distilled.cloud/aws/appconfig"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import { toWireMinutes } from "alchemy/Util/Duration"
+import type * as Duration from "effect/Duration"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { deploymentStrategyArn, readAppConfigTags, syncAppConfigTags } from "./internal.vibe"
+
+export interface DeploymentStrategyProps {
+  /**
+   * Name of the deployment strategy. Must be 1-64 characters. If omitted, a
+   * deterministic physical name is generated. Changing the name replaces the
+   * strategy.
+   */
+  deploymentStrategyName?: string
+  /**
+   * Total amount of time over which the deployment rolls the configuration
+   * out to targets (e.g. `"10 minutes"` or `Duration.minutes(10)`; a bare
+   * number is milliseconds). Sent to AppConfig as whole minutes.
+   */
+  deploymentDuration: Duration.Input
+  /**
+   * Percentage of targets to receive a deployed configuration during each
+   * interval.
+   */
+  growthFactor: number
+  /**
+   * How growth is applied over the deployment. `LINEAR` grows by
+   * `growthFactor` each interval; `EXPONENTIAL` follows `2^(N*growthFactor)`.
+   * @default "LINEAR"
+   */
+  growthType?: "LINEAR" | "EXPONENTIAL"
+  /**
+   * Amount of time AppConfig monitors for alarms before considering the
+   * deployment complete (e.g. `"5 minutes"`). Sent to AppConfig as whole
+   * minutes.
+   * @default 0
+   */
+  finalBakeTime?: Duration.Input
+  /**
+   * Where to save a copy of the applied configuration. Immutable — changing
+   * it replaces the strategy.
+   * @default "NONE"
+   */
+  replicateTo?: "NONE" | "SSM_DOCUMENT"
+  /**
+   * Description of the deployment strategy.
+   */
+  description?: string
+  /**
+   * User-defined tags for the deployment strategy.
+   */
+  tags?: Record<string, string>
+}
+
+export interface DeploymentStrategy extends
+  Resource<
+    "AWS.AppConfig.DeploymentStrategy",
+    DeploymentStrategyProps,
+    {
+      deploymentStrategyId: string
+      deploymentStrategyName: string
+      deploymentStrategyArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS AppConfig deployment strategy — defines how a configuration version
+ * rolls out to an environment: the total duration, the per-interval growth,
+ * and the final bake time during which alarms can trigger a rollback.
+ *
+ * ### Creating a Deployment Strategy
+ * **Example:** All-At-Once (instant, no bake)
+ * ```typescript
+ * const strategy = yield* AppConfig.DeploymentStrategy("Fast", {
+ *   deploymentDuration: 0,
+ *   growthFactor: 100,
+ *   finalBakeTime: 0,
+ *   replicateTo: "NONE",
+ * });
+ * ```
+ *
+ * **Example:** Linear rollout over 10 minutes
+ * ```typescript
+ * const strategy = yield* AppConfig.DeploymentStrategy("Linear", {
+ *   deploymentDuration: "10 minutes",
+ *   growthFactor: 25,
+ *   growthType: "LINEAR",
+ *   finalBakeTime: "5 minutes",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DeploymentStrategy = Resource<DeploymentStrategy>("AWS.AppConfig.DeploymentStrategy")
+
+export const DeploymentStrategyProvider = (): infer _ =>
+  Provider.effect(
+    DeploymentStrategy,
+    effect {
+      const toName = effect (
+        id: string,
+        props: Partial<DeploymentStrategyProps>,
+      ) => (props.deploymentStrategyName
+        ? props.deploymentStrategyName
+        : try createPhysicalName({ id, maxLength: 64 }))
+
+      const readStrategy = effect (deploymentStrategyId: string) =>
+        appconfig
+          .getDeploymentStrategy({ DeploymentStrategyId: deploymentStrategyId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      const findByName = effect (name: string) => {
+        const strategies = Array.from(
+          try (appconfig.listDeploymentStrategies.pages({})
+            |> Stream.runCollect(%)),
+        ).flatMap((page) => page.Items ?? [])
+        return strategies.find((s) => s.Name === name)
+      }
+
+      return {
+        stables: ["deploymentStrategyId", "deploymentStrategyName", "deploymentStrategyArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+            return { action: "replace" } as const
+          }
+          // ReplicateTo is create-only.
+          if ((olds?.replicateTo ?? "NONE") !== (news?.replicateTo ?? "NONE")) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const strategy = output?.deploymentStrategyId
+            ? try readStrategy(output.deploymentStrategyId)
+            : try findByName(try toName(id, olds ?? {}))
+          if (strategy?.Id === undefined) return undefined
+          const arn = deploymentStrategyArn(region, accountId, strategy.Id)
+          const attrs = {
+            deploymentStrategyId: strategy.Id,
+            deploymentStrategyName: strategy.Name!,
+            deploymentStrategyArn: arn,
+          }
+          const tags = try readAppConfigTags(arn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.deploymentStrategyName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe.
+          let observed = output?.deploymentStrategyId
+            ? try readStrategy(output.deploymentStrategyId)
+            : undefined
+          if (observed === undefined) {
+            observed = try findByName(name)
+          }
+
+          // 2. Ensure.
+          if (observed?.Id === undefined) {
+            observed = try appconfig.createDeploymentStrategy({
+              Name: name,
+              Description: news.description,
+              DeploymentDurationInMinutes: toWireMinutes(news.deploymentDuration)!,
+              FinalBakeTimeInMinutes: toWireMinutes(news.finalBakeTime),
+              GrowthFactor: news.growthFactor,
+              GrowthType: news.growthType,
+              ReplicateTo: news.replicateTo ?? "NONE",
+              Tags: desiredTags,
+            })
+          } else {
+            // 3. Sync — everything but Name and ReplicateTo is mutable.
+            observed = try appconfig.updateDeploymentStrategy({
+              DeploymentStrategyId: observed.Id,
+              Description: news.description,
+              DeploymentDurationInMinutes: toWireMinutes(news.deploymentDuration),
+              FinalBakeTimeInMinutes: toWireMinutes(news.finalBakeTime),
+              GrowthFactor: news.growthFactor,
+              GrowthType: news.growthType,
+            })
+          }
+
+          const arn = deploymentStrategyArn(region, accountId, observed.Id!)
+
+          // 3b. Sync tags.
+          try syncAppConfigTags(arn, desiredTags)
+
+          try session.note(name)
+          return {
+            deploymentStrategyId: observed.Id!,
+            deploymentStrategyName: observed.Name ?? name,
+            deploymentStrategyArn: arn,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          appconfig
+            .deleteDeploymentStrategy({
+              DeploymentStrategyId: output.deploymentStrategyId,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const strategies = Array.from(
+            try (appconfig.listDeploymentStrategies.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Items ?? [])
+          return strategies.flatMap((s) =>
+            s.Id !== undefined
+              && s.Name !== undefined
+              // AWS-predefined strategies (AppConfig.AllAtOnce,
+              // AppConfig.Linear50PercentEvery30Seconds, ...) are managed by
+              // AWS and cannot be deleted — deleteDeploymentStrategy rejects
+              // them with "Cannot delete predefined Deployment Strategy".
+              && !s.Id.startsWith("AppConfig.")
+              ? [
+                {
+                  deploymentStrategyId: s.Id,
+                  deploymentStrategyName: s.Name,
+                  deploymentStrategyArn: deploymentStrategyArn(region, accountId, s.Id),
+                },
+              ]
+              : []
+          )
+        },
+      }
+    },
+  )

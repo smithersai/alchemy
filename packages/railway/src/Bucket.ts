@@ -13,11 +13,15 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { projectBuckets } from "./GraphQL.ts";
-import { createRailwayName, matchesAlchemyPhysicalName, sanitizeRailwayName } from "./Metadata.ts";
+import { projectBuckets } from "./GraphQL.vibe";
+import {
+  createRailwayName,
+  matchesAlchemyPhysicalName,
+  sanitizeRailwayName,
+} from "./Metadata.vibe";
 import { ownedProjects, projectEnvironmentIds, type Project } from "./Project.ts";
 import type { Providers } from "./Providers.ts";
-import { withEnvironmentConfigLock } from "./transient.ts";
+import { withEnvironmentConfigLock } from "./transient.vibe";
 
 const bucketFields = <E>(bucket: Query<RailwayBucket, E>) => ({
   id: bucket.id,

@@ -1,0 +1,85 @@
+import * as Namespace from "alchemy/Namespace"
+import * as Layer from "effect/Layer"
+import {
+  ClusterEventSource as DocDBClusterEventSourceContract,
+  type ClusterEventSourceProps,
+  type ClusterEventSourceService,
+  type DocumentDBRecord,
+} from "../DocDB/ClusterEventSource.vibe"
+import type { DBCluster } from "../DocDB/DBCluster.vibe"
+import { EventSourceMapping } from "./EventSourceMapping.ts"
+import * as Lambda from "./Function.ts"
+
+export const isDocumentDBEvent = (
+  event: any,
+): event is { eventSourceArn?: string; events: unknown[] } =>
+  typeof event?.eventSourceArn === "string" && Array.isArray(event?.events)
+
+/** @binding */
+export const DocDBClusterEventSource = Layer.effect(
+  DocDBClusterEventSourceContract,
+  effect {
+    const host = try Lambda.eventSourceHost("AWS.Lambda.DocDBClusterEventSource")
+    const Mapping = try EventSourceMapping
+
+    return (effect <TDoc = unknown, Req = never>(
+      cluster: DBCluster,
+      props: ClusterEventSourceProps,
+      process: (stream: Stream<DocumentDBRecord<TDoc>>) => void!never!Req,
+    ) => {
+      const ClusterArn = try cluster.dbClusterArn.asEffect()
+
+      // Deploy-time: grant IAM (secret access) and create the DocumentDB
+      // event-source mapping. Skipped once running inside the deployed Function
+      // (the global guard), where the only work is registering the runtime
+      // handler below. Namespaced under the host so the mapping's logical
+      // identity is stable.
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try Namespace.push(
+          host.LogicalId,
+          effect {
+            try host.bind`Allow(${host}, AWS.DocDB.ClusterEventSource(${cluster}))`({
+              policyStatements: [
+                {
+                  Effect: "Allow",
+                  Action: ["secretsmanager:GetSecretValue"],
+                  Resource: [props.secretArn],
+                },
+              ],
+            })
+
+            try Mapping(
+              `AWS.Lambda.EventSourceMapping(${host.LogicalId}, ${cluster.LogicalId})`,
+              {
+                functionName: Lambda.qualifiedNameOf(host),
+                eventSourceArn: cluster.dbClusterArn,
+                startingPosition: props.startingPosition ?? "LATEST",
+                batchSize: props.batchSize,
+                maximumBatchingWindow: props.maximumBatchingWindow,
+                enabled: props.enabled ?? true,
+                documentDBEventSourceConfig: {
+                  DatabaseName: props.databaseName,
+                  CollectionName: props.collectionName,
+                  FullDocument: props.fullDocument ?? "Default",
+                },
+                sourceAccessConfigurations: [{ Type: "BASIC_AUTH", URI: props.secretArn }],
+              },
+            )
+          },
+        )
+      }
+
+      try host.listen(
+        effect {
+          const clusterArn = try ClusterArn
+          return effect (event: any) => {
+            if (isDocumentDBEvent(event) && event.eventSourceArn === clusterArn) {
+              return try (process(Stream.fromArray(event.events as DocumentDBRecord<TDoc>[]))
+                |> Effect.orDie(%))
+            }
+          }
+        },
+      )
+    }) as ClusterEventSourceService
+  },
+)

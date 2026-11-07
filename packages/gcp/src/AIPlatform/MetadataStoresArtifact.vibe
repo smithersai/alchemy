@@ -1,0 +1,374 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  createInternalLabels,
+  hasAlchemyPrefix,
+  labelsDiffer,
+  listLocations,
+  locationOf,
+  lastSegment,
+  projectOf,
+  stableJson,
+  toDisplayName,
+  toLabels,
+  toResourceId,
+  userLabels,
+} from "./names.vibe"
+import { waitForOperation } from "./operations.ts"
+
+const DEFAULT_SCHEMA_TITLE = "system.Artifact"
+
+export type MetadataStoresArtifactProps = {
+  /**
+   * Parent MetadataStore resource name
+   * `projects/{project}/locations/{location}/metadataStores/{metadatastore}`.
+   * Immutable — changing it replaces the artifact.
+   */
+  metadataStore: string
+  /**
+   * Artifact id. If omitted, a unique id is generated. Must be 4-128
+   * characters of `a-z` and `-`. Immutable.
+   */
+  artifactId?: string
+  /**
+   * Display name (max 128 Unicode characters).
+   */
+  displayName?: string
+  /**
+   * Human-readable description.
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Uniform resource identifier of the artifact file.
+   */
+  uri?: string
+  /**
+   * Artifact lifecycle state.
+   */
+  state?: aiplatform.GoogleCloudAiplatformV1ArtifactStateEnum | (string & {})
+  /**
+   * Schema title registered in the MetadataStore. Vertex AI rejects
+   * entries without one.
+   * @default "system.Artifact"
+   */
+  schemaTitle?: string
+  /**
+   * Schema version registered in the MetadataStore.
+   */
+  schemaVersion?: string
+  /**
+   * Arbitrary metadata properties.
+   */
+  metadata?: aiplatform.DocumentMap
+}
+
+export type MetadataStoresArtifact = Resource<
+  "GCP.AIPlatform.MetadataStoresArtifact",
+  MetadataStoresArtifactProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Artifact id (last path segment). */
+    artifactId: string
+    /** Parent MetadataStore resource name. */
+    metadataStore: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User-provided description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Artifact URI. */
+    uri: string | undefined
+    /** Artifact state. */
+    state: string | undefined
+    /** Schema title. */
+    schemaTitle: string | undefined
+    /** Schema version. */
+    schemaVersion: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex ML Metadata Artifact associated with a MetadataStore.
+ *
+ * Changing `metadataStore` or `artifactId` replaces the artifact. Display
+ * name, description, labels, URI, state, schema, and metadata update in
+ * place.
+ *
+ * ### Creating an Artifact
+ * **Example:** Generated id
+ * ```typescript
+ * const artifact = yield* GCP.AIPlatform.MetadataStoresArtifact("Model", {
+ *   metadataStore: store.name,
+ *   displayName: "trained-model",
+ *   uri: "gs://bucket/model",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const MetadataStoresArtifact = Resource<MetadataStoresArtifact>(
+  "GCP.AIPlatform.MetadataStoresArtifact",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MetadataStoresArtifactNotResolved extends Data.TaggedError(
+  "GCP.AIPlatform.MetadataStoresArtifactNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MetadataStoresArtifactStillExists extends Data.TaggedError(
+  "GCP.AIPlatform.MetadataStoresArtifactStillExists",
+)<{
+  resourceName: string
+}> {}
+
+const parentOf = (name: string): infer _ => {
+  const at = name.lastIndexOf("/artifacts/")
+  return at >= 0 ? name.slice(0, at) : name
+}
+
+const resourceName = (metadataStore: string, artifactId: string): infer _ => `${metadataStore}/artifacts/${artifactId}`
+
+const toAttrs = (artifact: aiplatform.GoogleCloudAiplatformV1Artifact, project: string): infer _ => {
+  const name = artifact.name ?? ""
+  return {
+    name,
+    artifactId: lastSegment(name),
+    metadataStore: parentOf(name),
+    project: projectOf(name, project),
+    location: locationOf(name),
+    displayName: artifact.displayName,
+    description: artifact.description,
+    labels: userLabels(artifact.labels),
+    uri: artifact.uri,
+    state: artifact.state,
+    schemaTitle: artifact.schemaTitle,
+    schemaVersion: artifact.schemaVersion,
+    createTime: artifact.createTime,
+    updateTime: artifact.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  aiplatform
+    .getProjectsLocationsMetadataStoresArtifacts({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listArtifacts = effect (parent: string) =>
+  (Array.from(
+    try (aiplatform.listProjectsLocationsMetadataStoresArtifacts.pages({ parent, pageSize: 100 })
+      |> Stream.runCollect(%)),
+  ).flatMap((page) => page.artifacts ?? [])) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1Artifact[];
+    default: throw e;
+  }
+
+const listStores = effect (parent: string) =>
+  (Array.from(
+    try (aiplatform.listProjectsLocationsMetadataStores.pages({ parent, pageSize: 100 })
+      |> Stream.runCollect(%)),
+  ).flatMap((page) => page.metadataStores ?? [])) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1MetadataStore[];
+    default: throw e;
+  }
+
+const waitUntilGone = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(%, (artifact) =>
+      artifact === undefined, () =>
+      new MetadataStoresArtifactStillExists({ resourceName: name }))
+    |> Effect.asVoid(%)
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.AIPlatform.MetadataStoresArtifactStillExists",
+      times: 10,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+export const MetadataStoresArtifactProvider = (): infer _ =>
+  Provider.succeed(MetadataStoresArtifact, {
+    stables: ["name", "artifactId", "metadataStore", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.metadataStore ?? output?.metadataStore
+      const nextParent = news.metadataStore ?? previousParent
+      const previousId = olds?.artifactId ?? output?.artifactId
+      const nextId = news.artifactId ?? previousId
+      if (
+        (previousParent !== undefined
+          && nextParent !== undefined
+          && nextParent !== previousParent)
+        || (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst: previousParent === nextParent && previousId !== undefined && nextId === previousId,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const artifactId = try toResourceId(id, olds?.artifactId, output?.artifactId)
+      const metadataStore = olds?.metadataStore ?? output?.metadataStore
+      const name = output?.name
+        ?? (metadataStore !== undefined ? resourceName(metadataStore, artifactId) : "")
+      if (name.length === 0) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const stores = try Effect.forEach(
+        listLocations(env.region),
+        effect (location) => try listStores(`projects/${env.project}/locations/${location}`),
+        { concurrency: 4 },
+      )
+      const artifacts = try Effect.forEach(
+        stores.flat().filter((store) => store.name !== undefined),
+        effect (store) => try listArtifacts(store.name!),
+        { concurrency: 4 },
+      )
+      return artifacts
+        .flat()
+        .filter((artifact) => hasAlchemyPrefix(artifact.labels))
+        .map((artifact) => toAttrs(artifact, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const artifactId = try toResourceId(id, news.artifactId, output?.artifactId)
+      const metadataStore = news.metadataStore
+      const name = resourceName(metadataStore, artifactId)
+      const displayName = try toDisplayName(id, news.displayName, output?.displayName)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsMetadataStoresArtifacts({
+            parent: metadataStore,
+            artifactId,
+            body: {
+              displayName,
+              description: news.description,
+              labels: desiredLabels,
+              uri: news.uri,
+              state: news.state,
+              schemaTitle: news.schemaTitle ?? DEFAULT_SCHEMA_TITLE,
+              schemaVersion: news.schemaVersion,
+              metadata: news.metadata,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new MetadataStoresArtifactNotResolved({ resourceName: name })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const displayChanged = (current.displayName ?? "") !== displayName
+      const labelsChanged = labelsDiffer(current.labels, desiredLabels)
+      const uriChanged = (current.uri ?? "") !== (news.uri ?? "")
+      const stateChanged = (current.state ?? "") !== (news.state ?? "")
+      const schemaTitleChanged = (current.schemaTitle ?? "") !== (news.schemaTitle ?? DEFAULT_SCHEMA_TITLE)
+      const schemaVersionChanged = (current.schemaVersion ?? "") !== (news.schemaVersion ?? "")
+      const metadataChanged = news.metadata !== undefined && stableJson(current.metadata) !== stableJson(news.metadata)
+
+      if (
+        descriptionChanged
+        || displayChanged
+        || labelsChanged
+        || uriChanged
+        || stateChanged
+        || schemaTitleChanged
+        || schemaVersionChanged
+        || metadataChanged
+      ) {
+        current = try aiplatform.patchProjectsLocationsMetadataStoresArtifacts({
+          name,
+          updateMask: [
+            descriptionChanged ? "description" : undefined,
+            displayChanged ? "display_name" : undefined,
+            labelsChanged ? "labels" : undefined,
+            uriChanged ? "uri" : undefined,
+            stateChanged ? "state" : undefined,
+            schemaTitleChanged ? "schema_title" : undefined,
+            schemaVersionChanged ? "schema_version" : undefined,
+            metadataChanged ? "metadata" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name,
+            displayName,
+            description: news.description,
+            labels: desiredLabels,
+            uri: news.uri,
+            state: news.state,
+            schemaTitle: news.schemaTitle ?? DEFAULT_SCHEMA_TITLE,
+            schemaVersion: news.schemaVersion,
+            metadata: news.metadata,
+            etag: current.etag,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (aiplatform
+        .deleteProjectsLocationsMetadataStoresArtifacts({
+          name: output.name,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(output.name)
+    },
+  })

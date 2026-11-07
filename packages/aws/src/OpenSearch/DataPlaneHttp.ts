@@ -27,11 +27,11 @@ import type {
   SearchRequest,
   SearchResponse,
   WriteDocumentResponse,
-} from "./DataPlaneTypes.ts";
-import { OpenSearchApiError } from "./DataPlaneTypes.ts";
-import type { Domain } from "./Domain.ts";
-import type { ReadDomainClient } from "./DomainRead.ts";
-import type { WriteDomainClient } from "./DomainWrite.ts";
+} from "./DataPlaneTypes.vibe";
+import { OpenSearchApiError } from "./DataPlaneTypes.vibe";
+import type { Domain } from "./Domain.vibe";
+import type { ReadDomainClient } from "./DomainRead.vibe";
+import type { WriteDomainClient } from "./DomainWrite.vibe";
 
 /** One signed request against the domain's REST data plane. */
 export interface OpenSearchHttpRequest {

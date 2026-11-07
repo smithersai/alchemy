@@ -2,7 +2,7 @@ import * as Cloudflare from "@alchemy.run/cloudflare";
 
 /**
  * Cloudflare-container twin of
- * {@link import("./opencode-image.ts").OpencodeMicrovm}: the same Dockerfile
+ * {@link import("./opencode-image.vibe").OpencodeMicrovm}: the same Dockerfile
  * shape (opencode server as the entrypoint), but Cloudflare boots the image
  * from scratch on each cold start — there is no build-time memory snapshot —
  * so opencode's process startup is inside every measured boot.

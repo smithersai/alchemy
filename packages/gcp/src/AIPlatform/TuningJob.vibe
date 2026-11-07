@@ -1,0 +1,312 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, hasAlchemyLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  hasAlchemyLabelKeys,
+  isJobTerminal,
+  normalizeLocation,
+  parentOf,
+  parseResourceName,
+  rfc1035,
+  userLabels,
+} from "./internal.ts"
+import { listLocations } from "./names.vibe"
+
+export type TuningJobProps = {
+  /**
+   * Vertex AI location. Immutable — changing it replaces the job.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Description of the tuning job.
+   */
+  description?: string
+  /**
+   * Display name of the tuned model (max 128 Unicode characters).
+   */
+  tunedModelDisplayName?: string
+  /**
+   * Base model being tuned (for example `gemini-2.0-flash-001`).
+   */
+  baseModel?: string
+  /**
+   * Supervised fine-tuning spec. Required unless `preferenceOptimizationSpec`
+   * or `preTunedModel` is set.
+   */
+  supervisedTuningSpec?: aiplatform.GoogleCloudAiplatformV1SupervisedTuningSpec
+  /**
+   * Preference-optimization spec.
+   */
+  preferenceOptimizationSpec?: aiplatform.GoogleCloudAiplatformV1PreferenceOptimizationSpec
+  /**
+   * Pre-tuned model for continuous tuning.
+   */
+  preTunedModel?: aiplatform.GoogleCloudAiplatformV1PreTunedModel
+  /**
+   * Runtime service account email.
+   */
+  serviceAccount?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Customer-managed encryption key. Immutable.
+   */
+  encryptionSpec?: aiplatform.GoogleCloudAiplatformV1EncryptionSpec
+}
+
+export type TuningJob = Resource<
+  "GCP.AIPlatform.TuningJob",
+  TuningJobProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Job id (last path segment). */
+    tuningJobId: string
+    /** Project id. */
+    project: string
+    /** Location. */
+    location: string
+    /** Description. */
+    description: string | undefined
+    /** Tuned-model display name. */
+    tunedModelDisplayName: string | undefined
+    /** Base model. */
+    baseModel: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Job state. */
+    state: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 start timestamp. */
+    startTime: string | undefined
+    /** RFC3339 end timestamp. */
+    endTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** Failure/cancel status, if any. */
+    error: { code?: number; message?: string } | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex AI TuningJob (supervised fine-tune / preference optimization).
+ *
+ * Creating a TuningJob starts it immediately. There is no update API, so
+ * reconcile is observe-ensure (create if missing). There is no delete RPC —
+ * destroy cancels the job. Alchemy ownership labels are merged into `labels`
+ * so `list` / nuke can find it.
+ *
+ * ### Creating a Tuning Job
+ * **Example:** Supervised fine-tune
+ * ```typescript
+ * const job = yield* GCP.AIPlatform.TuningJob("Tune", {
+ *   baseModel: "gemini-2.0-flash-001",
+ *   supervisedTuningSpec: {
+ *     trainingDatasetUri: "gs://bucket/train.jsonl",
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const TuningJob = Resource<TuningJob>("GCP.AIPlatform.TuningJob")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class TuningJobNotResolved extends Data.TaggedError("GCP.AIPlatform.TuningJobNotResolved")<{
+  resourceName: string
+}> {}
+
+const toDisplayName = effect (id: string, existing?: string) => {
+  if (existing !== undefined) return existing
+  return rfc1035(
+    try createPhysicalName({
+      id,
+      maxLength: 63,
+      lowercase: true,
+    }),
+  )
+}
+
+const toAttrs = (job: aiplatform.GoogleCloudAiplatformV1TuningJob, project: string): infer _ => {
+  const name = job.name ?? ""
+  const parsed = parseResourceName(name, "tuningJobs")
+  return {
+    name,
+    tuningJobId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    description: job.description,
+    tunedModelDisplayName: job.tunedModelDisplayName,
+    baseModel: job.baseModel,
+    labels: userLabels(job.labels),
+    state: typeof job.state === "string" ? job.state : undefined,
+    createTime: job.createTime,
+    startTime: job.startTime,
+    endTime: job.endTime,
+    updateTime: job.updateTime,
+    error: job.error ? { code: job.error.code, message: job.error.message } : undefined,
+  }
+}
+
+const getByName = effect (name: string) =>
+  aiplatform
+    .getProjectsLocationsTuningJobs({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listJobs = effect (project: string, region: string) => {
+  const collect = effect (parent: string) =>
+    Array.from(
+      try (aiplatform.listProjectsLocationsTuningJobs.pages({ parent, pageSize: 100 })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tuningJobs ?? []))
+        |> Stream.filter(%, (job) => hasAlchemyLabelKeys(job.labels))
+        |> Stream.runCollect(%)),
+    )
+  const fallback = effect {
+    return (try Effect.forEach(
+      listLocations(region),
+      effect (location) => try collect(`projects/${project}/locations/${location}`),
+    )).flat()
+  }
+  // Vertex AI has no `locations/-` wildcard; scan known locations.
+  return (try fallback) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+}
+
+const findOwned = effect (id: string, project: string, region: string, hinted?: string) => {
+  if (hinted !== undefined && hinted.length > 0) {
+    const existing = try getByName(hinted)
+    if (existing !== undefined) return existing
+  }
+  const jobs = try listJobs(project, region)
+  for (const job of jobs) {
+    if (try hasAlchemyLabels(id, tagRecord(job.labels))) return job
+  }
+  return undefined as aiplatform.GoogleCloudAiplatformV1TuningJob | undefined
+}
+
+const cancelJob = effect (name: string) => {
+  const existing = try getByName(name)
+  if (existing === undefined) return
+  if (!isJobTerminal(typeof existing.state === "string" ? existing.state : undefined)) {
+    aiplatform
+      .cancelProjectsLocationsTuningJobs({ name }) catch effect (e) => match (e) {
+        when { _tag: "NotFound" }: try Effect.void;
+        default: throw e;
+      }
+    ;(try (getByName(name)
+      |> Effect.filterOrFail(
+        %,
+        (job) =>
+          job === undefined
+          || isJobTerminal(typeof job.state === "string" ? job.state : undefined),
+        () => new TuningJobNotResolved({ resourceName: name }),
+      )
+      |> Effect.retry(%, {
+        while: (error) => error._tag === "GCP.AIPlatform.TuningJobNotResolved",
+        times: 8,
+        schedule: Schedule.spaced("4 seconds"),
+      }))) catch effect (e) => match (e) {
+        when { _tag: "GCP.AIPlatform.TuningJobNotResolved" }: try Effect.void;
+        default: throw e;
+      }
+  }
+}
+
+export const TuningJobProvider = (): infer _ =>
+  Provider.succeed(TuningJob, {
+    stables: ["name", "tuningJobId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      const env = try GcpEnvironment.current
+      if (!isResolved(news)) return undefined
+      const previousLocation = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const nextLocation = normalizeLocation(
+        news.location ?? olds?.location ?? output?.location,
+        env.region,
+      )
+      if (previousLocation !== nextLocation) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, output }) => {
+      const env = try GcpEnvironment.current
+      const existing = try findOwned(id, env.project, env.region, output?.name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const jobs = try listJobs(env.project, env.region)
+      // Tuning jobs have no delete API — `delete` cancels. A terminal job
+      // holds no resources and can never be removed, so it is not a
+      // reclaimable leftover (nuke / census would report it forever).
+      return jobs
+        .filter((job) => !isJobTerminal(typeof job.state === "string" ? job.state : undefined))
+        .map((job) => toAttrs(job, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const tunedModelDisplayName = news.tunedModelDisplayName ?? (try toDisplayName(id, output?.tuningJobId))
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try findOwned(id, env.project, env.region, output?.name)
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsTuningJobs({
+            parent: parentOf(env.project, location),
+            body: {
+              description: news.description,
+              tunedModelDisplayName,
+              baseModel: news.baseModel,
+              supervisedTuningSpec: news.supervisedTuningSpec,
+              preferenceOptimizationSpec: news.preferenceOptimizationSpec,
+              preTunedModel: news.preTunedModel,
+              serviceAccount: news.serviceAccount,
+              labels: desiredLabels,
+              encryptionSpec: news.encryptionSpec,
+            },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try findOwned(id, env.project, env.region);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new TuningJobNotResolved({
+          resourceName: output?.name ?? parentOf(env.project, location),
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      try cancelJob(output.name)
+    },
+  })

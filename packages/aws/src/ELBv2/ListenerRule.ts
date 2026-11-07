@@ -16,9 +16,9 @@ import {
   type ListenerRuleCondition,
   serializeActions,
   serializeConditions,
-} from "./common.ts";
-import { readElbTags } from "./internal.ts";
-import type { Listener, ListenerArn } from "./Listener.ts";
+} from "./common.vibe";
+import { readElbTags } from "./internal.vibe";
+import type { Listener, ListenerArn } from "./Listener.vibe";
 
 export type RuleArn =
   `arn:aws:elasticloadbalancing:${RegionID}:${AccountID}:listener-rule/${string}`;

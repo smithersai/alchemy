@@ -20,8 +20,8 @@ import type { AccountID } from "../Environment.ts";
 import { tagListRecord } from "../internal/Observe.ts";
 import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
-import { retryWhileLingeringEnis } from "./LingeringEnis.ts";
-import type { VpcId } from "./Vpc.ts";
+import { retryWhileLingeringEnis } from "./LingeringEnis.vibe";
+import type { VpcId } from "./Vpc.vibe";
 
 export class SubnetUnexpectedResponse extends Data.TaggedError("SubnetUnexpectedResponse")<{
   readonly message: string;

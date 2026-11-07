@@ -4,7 +4,7 @@ import * as Turso from "@alchemy.run/turso";
 import * as Effect from "effect/Effect";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
-import { Template, Tenants } from "./Db.ts";
+import { Template, Tenants } from "./Db.vibe";
 import { Notes } from "./schema.ts";
 
 export default class Api extends Cloudflare.Worker<Api>()(

@@ -1,0 +1,107 @@
+import * as Drizzle from "@alchemy.run/drizzle/Postgres"
+import * as Railway from "@alchemy.run/railway"
+import * as Config from "effect/Config"
+import * as Effect from "effect/Effect"
+import { HttpServerRequest } from "effect/http/HttpServerRequest"
+import * as HttpServerResponse from "effect/http/HttpServerResponse"
+import * as Layer from "effect/Layer"
+import * as Stream from "effect/Stream"
+import { API_PORT, Cache, Data, Db, Marker, OBJECT_KEY, REDIS_KEY, SECRET_NAME, Site } from "./shared.ts"
+
+const runtime = Layer.mergeAll(
+  Railway.ConnectPostgresHttp,
+  Railway.ReadWriteRedisHttp,
+  Railway.PutObjectHttp,
+  Railway.GetObjectHttp,
+  Railway.HeadObjectHttp,
+  Railway.ListObjectsV2Http,
+  Railway.DeleteObjectHttp,
+)
+
+/**
+ * HTTP Service. Binds Postgres, Redis, and the Bucket. Reads the
+ * shared {@link Marker} variable from env.
+ */
+export default class Api extends Railway.Service<Api>()(
+  "Api",
+  {
+    project: Site,
+    main: import.meta.url,
+    port: API_PORT,
+    healthcheck: "/health",
+    env: {
+      [SECRET_NAME]: Railway.ref("shared", SECRET_NAME),
+    },
+  },
+  effect {
+    return try effect {
+      provide runtime {
+        return try effect {
+          try Marker
+          const conn = try Railway.ConnectPostgres(Db)
+          const db = try Drizzle.Postgres(conn.connectionString)
+          const cache = try Railway.ReadWriteRedis(Cache)
+          const putObject = try Railway.PutObject(Data)
+          const getObject = try Railway.GetObject(Data)
+          const headObject = try Railway.HeadObject(Data)
+          const listObjects = try Railway.ListObjectsV2(Data)
+          const deleteObject = try Railway.DeleteObject(Data)
+
+          return {
+            fetch: effect {
+              return (try effect {
+                const request = try Effect.service(HttpServerRequest)
+                const path = new URL(request.url, "http://service").pathname
+
+                if (path === "/secret") {
+                  const value = Config.String(SECRET_NAME) catch () => ""
+                  return try HttpServerResponse.json({
+                    ok: value.length > 0,
+                    name: SECRET_NAME,
+                  })
+                }
+
+                if (path === "/redis") {
+                  try cache.set(REDIS_KEY, "hello")
+                  const value = try cache.get(REDIS_KEY)
+                  return try HttpServerResponse.json({
+                    ok: value === "hello",
+                    value,
+                  })
+                }
+
+                if (path === "/bucket") {
+                  try putObject({
+                    Key: OBJECT_KEY,
+                    Body: "hello",
+                    ContentType: "text/plain",
+                  })
+                  const head = try headObject({ Key: OBJECT_KEY })
+                  const listed = try listObjects({
+                    Prefix: OBJECT_KEY,
+                    MaxKeys: 10,
+                  })
+                  const obj = try getObject({ Key: OBJECT_KEY })
+                  const text = obj.Body === undefined ? "" : try Stream.mkString(Stream.decodeText(obj.Body))
+                  try deleteObject({ Key: OBJECT_KEY })
+                  return try HttpServerResponse.json({
+                    ok: text === "hello",
+                    etag: head.ETag,
+                    listed: listed.KeyCount,
+                  })
+                }
+
+                const rows = try db.execute("select 1 as ok")
+                if (path === "/health" || path === "/" || path === "/postgres") {
+                  return try HttpServerResponse.json({ rows })
+                }
+                return try HttpServerResponse.json({ rows }, { status: 404 })
+              }) catch effect (error) =>
+                try HttpServerResponse.json({ ok: false, error: String(error) }, { status: 500 })
+            },
+          }
+        }
+      }
+    }
+  },
+) {}

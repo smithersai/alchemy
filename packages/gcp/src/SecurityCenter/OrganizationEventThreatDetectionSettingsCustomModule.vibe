@@ -1,0 +1,292 @@
+import * as scc from "@distilled.cloud/gcp/securitycenter_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  DEFAULT_CLOUD_PROVIDER,
+  DEFAULT_ENABLEMENT,
+  DEFAULT_ETD_TYPE,
+  defaultEtdConfig,
+  encodeDescription,
+  etdSettingsParent,
+  fingerprint,
+  hasOwnershipMarker,
+  lastSegment,
+  organizationIdOf,
+  organizationParent,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOn,
+  resolveOrganization,
+  sameText,
+  SecuritycenterNotResolved,
+  tryResolveOrganization,
+  updateMaskOf,
+} from "./internal.ts"
+
+export type OrganizationEventThreatDetectionSettingsCustomModuleProps = {
+  /**
+   * Parent organization (`organizations/{organization}` or the numeric
+   * id). Defaults to the project's Resource
+   * Manager ancestor. Immutable — changing it replaces the module.
+   */
+  organization?: string
+  /**
+   * Custom module type (for example `CONFIGURABLE_BAD_IP`). Immutable —
+   * changing it replaces the module.
+   * @default "CONFIGURABLE_BAD_IP"
+   */
+  type?: string
+  /**
+   * Module configuration matching `type`.
+   */
+  config?: scc.DocumentMap
+  /**
+   * Enablement state.
+   * @default "ENABLED"
+   */
+  enablementState?: scc.EventThreatDetectionCustomModuleEnablementStateEnum | (string & {})
+  /**
+   * Cloud provider this module applies to.
+   * @default "GOOGLE_CLOUD_PLATFORM"
+   */
+  cloudProvider?: scc.EventThreatDetectionCustomModuleCloudProviderEnum | (string & {})
+  /**
+   * Human-readable display name.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. Event Threat Detection custom modules
+   * have no labels field, so Alchemy ownership is stored in a
+   * `[alchemy …]` prefix and stripped from attributes.
+   */
+  description?: string
+}
+
+export type OrganizationEventThreatDetectionSettingsCustomModule = Resource<
+  "GCP.SecurityCenter.OrganizationEventThreatDetectionSettingsCustomModule",
+  OrganizationEventThreatDetectionSettingsCustomModuleProps,
+  {
+    /** Full resource name `{organization}/eventThreatDetectionSettings/customModules/{module}`. */
+    name: string
+    /** Module id (last path segment; server assigned). */
+    moduleId: string
+    /** Organization resource name. */
+    organization: string
+    /** Organization id. */
+    organizationId: string
+    /** Project id of the deploying stack. */
+    project: string
+    /** Custom module type. */
+    type: string | undefined
+    /** Module configuration. */
+    config: scc.DocumentMap | undefined
+    /** Enablement state. */
+    enablementState: string | undefined
+    /** Cloud provider. */
+    cloudProvider: string | undefined
+    /** Display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Ancestor module this one inherits from, if any. */
+    ancestorModule: string | undefined
+    /** Last editor of the module. */
+    lastEditor: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An organization-scoped Event Threat Detection custom module.
+ *
+ * Custom modules have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. The module id is assigned by
+ * the API. Organization and type are identity. Config, enablement, display
+ * name, and description update in place.
+ *
+ * ### Creating a Custom Module
+ * **Example:** Flag a test IP
+ * ```typescript
+ * const module = yield* GCP.SecurityCenter.OrganizationEventThreatDetectionSettingsCustomModule(
+ *   "BadIp",
+ *   {
+ *     type: "CONFIGURABLE_BAD_IP",
+ *     config: {
+ *       metadata: { severity: "LOW" },
+ *       ips: ["192.0.2.1"],
+ *     },
+ *     description: "test bad ip",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category SecurityCenter
+ */
+export const OrganizationEventThreatDetectionSettingsCustomModule = Resource<
+  OrganizationEventThreatDetectionSettingsCustomModule
+>(
+  "GCP.SecurityCenter.OrganizationEventThreatDetectionSettingsCustomModule",
+)
+
+const toAttrs = (
+  module: scc.EventThreatDetectionCustomModule,
+  organization: string,
+  project: string,
+): infer _ => {
+  const name = module.name ?? ""
+  const parsed = parseName(name, "customModules")
+  const ownership = parseOwnership(module.description)
+  return {
+    name,
+    moduleId: parsed.id || lastSegment(name),
+    organization,
+    organizationId: organizationIdOf(organization),
+    project,
+    type: module.type,
+    config: module.config,
+    enablementState: module.enablementState,
+    cloudProvider: module.cloudProvider,
+    displayName: module.displayName,
+    description: ownership.text,
+    ancestorModule: module.ancestorModule,
+    lastEditor: module.lastEditor,
+    updateTime: module.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : scc
+  .getOrganizationsEventThreatDetectionSettingsCustomModules({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string) =>
+  (Array.from(
+    try (scc.listOrganizationsEventThreatDetectionSettingsCustomModules
+      .pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.eventThreatDetectionCustomModules ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findOwned = effect (parent: string, id: string) => {
+  const modules = try listAt(parent)
+  for (const module of modules) {
+    if (try ownedByAlchemy(id, module.description)) return module
+  }
+  return undefined
+}
+
+export const OrganizationEventThreatDetectionSettingsCustomModuleProvider = (): infer _ =>
+  Provider.succeed(OrganizationEventThreatDetectionSettingsCustomModule, {
+    stables: ["name", "moduleId", "organization", "organizationId", "project", "type"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      return (
+        replaceOn(
+          olds?.organization ?? output?.organization,
+          news.organization !== undefined ? organizationParent(news.organization) : undefined,
+        ) ?? replaceOn(olds?.type ?? output?.type, news.type)
+      )
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(
+        olds?.organization ?? output?.organization,
+        output?.organization,
+      )
+      let existing = try getByName(output?.name ?? "")
+      if (existing === undefined) {
+        existing = try findOwned(etdSettingsParent(organization), id)
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, organization, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const organization = try tryResolveOrganization()
+      if (organization === undefined) return []
+      const modules = try listAt(etdSettingsParent(organization))
+      return modules
+        .filter((module) => hasOwnershipMarker(module.description))
+        .map((module) => toAttrs(module, organization, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = try resolveOrganization(news.organization, output?.organization)
+      const parent = etdSettingsParent(organization)
+      const ownership = try createInternalLabels(id)
+      const description = encodeDescription(ownership, news.description)
+      const type = news.type ?? DEFAULT_ETD_TYPE
+      const config = news.config ?? defaultEtdConfig
+      const enablementState = news.enablementState ?? DEFAULT_ENABLEMENT
+      const cloudProvider = news.cloudProvider ?? DEFAULT_CLOUD_PROVIDER
+      const displayName = news.displayName
+
+      let current = try getByName(output?.name ?? "")
+      if (current === undefined) {
+        current = try findOwned(parent, id)
+      }
+
+      if (current === undefined) {
+        const created = scc
+          .createOrganizationsEventThreatDetectionSettingsCustomModules({
+            parent,
+            body: {
+              type,
+              config,
+              enablementState,
+              cloudProvider,
+              displayName,
+              description,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try findOwned(parent, id); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new SecuritycenterNotResolved({
+          resourceName: `${parent}/customModules`,
+        })
+      }
+
+      const currentName = current.name ?? ""
+      const updateMask = updateMaskOf(
+        fingerprint(current.config) !== fingerprint(config) ? "config" : undefined,
+        !sameText(current.enablementState, enablementState) ? "enablementState" : undefined,
+        !sameText(current.displayName, displayName) ? "displayName" : undefined,
+        !sameText(current.description, description) ? "description" : undefined,
+      )
+
+      if (updateMask.length > 0) {
+        current = try scc.patchOrganizationsEventThreatDetectionSettingsCustomModules({
+          name: currentName,
+          updateMask,
+          body: { config, enablementState, displayName, description },
+        })
+      }
+
+      return toAttrs(current, organization, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      scc
+        .deleteOrganizationsEventThreatDetectionSettingsCustomModules({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

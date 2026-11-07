@@ -24,8 +24,8 @@ import * as Path from "effect/Path";
 import * as Semaphore from "effect/Semaphore";
 import { makeCapture } from "./Capture.ts";
 import { makeFileLog, type FileLog } from "./FileLog.ts";
-import type { Exclusive, FileSuite, Hook, LogEntry, Suite, TestCase } from "./Model.ts";
-import { containsOnly, forEachTest, makeFileSuite, titlePath } from "./Model.ts";
+import type { Exclusive, FileSuite, Hook, LogEntry, Suite, TestCase } from "./Model.vibe";
+import { containsOnly, forEachTest, makeFileSuite, titlePath } from "./Model.vibe";
 import type { TestPlan } from "./Plan.ts";
 import * as Registry from "./Registry.ts";
 import {

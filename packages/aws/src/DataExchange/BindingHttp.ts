@@ -2,8 +2,8 @@ import * as Output from "alchemy/Output";
 import type { Output as OutputType } from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as AWSBindings from "../AWSBindings.ts";
-import type { DataSet } from "./DataSet.ts";
-import type { Revision } from "./Revision.ts";
+import type { DataSet } from "./DataSet.vibe";
+import type { Revision } from "./Revision.vibe";
 
 /**
  * Shared scaffolding for AWS Data Exchange HTTP bindings.

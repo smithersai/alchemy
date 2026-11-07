@@ -1,4 +1,4 @@
-export * from "./Errors.ts";
+export * from "./Errors.vibe";
 // Operations report progress as typed events: log records `onEvent` observes.
 export {
   Event,

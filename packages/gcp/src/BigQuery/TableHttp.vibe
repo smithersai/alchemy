@@ -1,0 +1,213 @@
+import * as bigquery from "@distilled.cloud/gcp/bigquery_v2"
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.ts"
+import { type BindingIam, grantFor } from "../HttpBinding.ts"
+import { type ListTableResult, QueryNotComplete, type ReadTableClient } from "./ReadTable.vibe"
+import { decodeRows, encodeRow, queryParameter } from "./Rows.ts"
+import type { Table } from "./Table.vibe"
+import { InsertRowsFailed, type WriteTableClient } from "./WriteTable.vibe"
+
+// bigquery.jobs.create is only grantable on the project; data access is
+// granted on the table's own IAM policy.
+export const readTableIam: ReadonlyArray<BindingIam> = [
+  { role: "roles/bigquery.dataViewer", on: "bigquery.table" },
+  { role: "roles/bigquery.jobUser" },
+]
+export const writeTableIam: ReadonlyArray<BindingIam> = [
+  { role: "roles/bigquery.dataEditor", on: "bigquery.table" },
+]
+export const readWriteTableIam: ReadonlyArray<BindingIam> = [
+  { role: "roles/bigquery.dataEditor", on: "bigquery.table" },
+  { role: "roles/bigquery.jobUser" },
+]
+
+export interface TableRef {
+  project: string
+  datasetId: string
+  tableId: string
+  location: string | undefined
+}
+
+// `getQueryResults` long-polls up to `timeoutMs` per call, so this bounds
+// the total wait for a query job at ~2 minutes.
+const QUERY_WAIT_MS = 10_000
+const QUERY_POLLS = 12
+
+interface QueryPage {
+  jobComplete?: boolean
+  schema?: bigquery.TableSchema
+  rows?: bigquery.TableRow[]
+  pageToken?: string
+}
+
+/** Fetch every result page after `pageToken`. */
+const remainingRows = effect <E>(
+  fetchPage: (pageToken: string) => QueryPage!E,
+  pageToken: string | undefined,
+): ReadonlyArray<bigquery.TableRow>!E => (pageToken
+  ? try effect {
+    const page = try fetchPage(pageToken)
+    return [...(page.rows ?? []), ...(try remainingRows(fetchPage, page.pageToken))]
+  }
+  : [])
+
+/**
+ * Shared HTTP scaffolding for the BigQuery Read/Write/ReadWrite table
+ * bindings: resolves the distilled operations once at Layer construction
+ * and grants the level's roles at deploy time.
+ *
+ * NOT exported from `index.ts`.
+ */
+export const makeBigQueryTableHelpers = effect {
+  const getTable = try GCPBindings.withCredentials(bigquery.getTables)
+  const listTabledata = try GCPBindings.withCredentials(bigquery.listTabledata)
+  const queryJobs = try GCPBindings.withCredentials(bigquery.queryJobs)
+  const getQueryResults = try GCPBindings.withCredentials(bigquery.getQueryResultsJobs)
+  const insertAll = try GCPBindings.withCredentials(bigquery.insertAllTabledata)
+
+  const makeRead = (table: TableRef!!): ReadTableClient => ({
+    list: effect (
+      options,
+    ): ListTableResult!bigquery.GetTablesError | bigquery.ListTabledataError => {
+      const ref = try table
+      const key = {
+        projectId: ref.project,
+        datasetId: ref.datasetId,
+        tableId: ref.tableId,
+      }
+      const metadata = try getTable({ ...key, view: "BASIC" })
+      const page = try listTabledata({
+        ...key,
+        maxResults: options?.maxResults,
+        pageToken: options?.pageToken,
+        "formatOptions.useInt64Timestamp": true,
+      })
+      return {
+        rows: decodeRows(metadata.schema, page.rows),
+        nextPageToken: page.pageToken || undefined,
+      }
+    },
+    query: effect (
+      sql,
+      params,
+    ): Record<string, unknown>[]!bigquery.QueryJobsError | bigquery.GetQueryResultsJobsError | QueryNotComplete => {
+      const ref = try table
+      const first = try queryJobs({
+        projectId: ref.project,
+        body: {
+          query: sql,
+          useLegacySql: false,
+          location: ref.location,
+          defaultDataset: {
+            projectId: ref.project,
+            datasetId: ref.datasetId,
+          },
+          timeoutMs: QUERY_WAIT_MS,
+          formatOptions: { useInt64Timestamp: true },
+          ...(params === undefined
+            ? {}
+            : {
+              parameterMode: "NAMED",
+              queryParameters: Object.entries(params).map(([name, value]) => queryParameter(name, value)),
+            }),
+        },
+      })
+      const jobId = first.jobReference?.jobId
+      const location = first.jobReference?.location ?? ref.location
+      const results = effect (
+        pageToken: string | undefined,
+      ): bigquery.GetQueryResultsResponse!bigquery.GetQueryResultsJobsError | QueryNotComplete => (jobId === undefined
+        ? throw new QueryNotComplete({ jobId })
+        : try getQueryResults({
+          projectId: ref.project,
+          jobId,
+          location,
+          pageToken,
+          timeoutMs: QUERY_WAIT_MS,
+          "formatOptions.useInt64Timestamp": true,
+        }))
+
+      const settled: QueryPage!bigquery.GetQueryResultsJobsError | QueryNotComplete = first.jobComplete === true
+        ? Effect.succeed(first)
+        : effect {
+          return try (results(undefined)
+            |> Effect.repeat(%, {
+              until: (r: bigquery.GetQueryResultsResponse) => r.jobComplete === true,
+              times: QUERY_POLLS,
+            }))
+        }
+      const complete = try settled
+      if (complete.jobComplete !== true) {
+        throw new QueryNotComplete({ jobId })
+      }
+      const schema = complete.schema
+      const rest: ReadonlyArray<bigquery.TableRow> = try remainingRows(
+        results,
+        complete.pageToken,
+      )
+      return decodeRows(schema, [...(complete.rows ?? []), ...rest])
+    },
+  })
+
+  const makeWrite = (table: TableRef!!): WriteTableClient => ({
+    insert: effect (rows, options) => {
+      if (rows.length === 0) return
+      const ref = try table
+      const response = try insertAll({
+        projectId: ref.project,
+        datasetId: ref.datasetId,
+        tableId: ref.tableId,
+        body: {
+          rows: rows.map((row, index) => ({
+            json: encodeRow(row),
+            insertId: options?.insertIds?.[index],
+          })),
+        },
+      })
+      const insertErrors = response.insertErrors ?? []
+      if (insertErrors.length > 0) {
+        throw new InsertRowsFailed({
+          insertErrors: insertErrors.map((item) => ({
+            index: item.index,
+            errors: item.errors ?? [],
+          })),
+        })
+      }
+    },
+  })
+
+  return { makeRead, makeWrite }
+}
+
+/** Build a table binding that grants `iam` and returns `makeClient`'s client. */
+export const makeBigQueryTableBinding = effect <Client>(options: {
+  tag: string
+  iam: ReadonlyArray<BindingIam>
+  makeClient: (
+    helpers: Effect.Success<typeof makeBigQueryTableHelpers>,
+    table: TableRef!!,
+  ) => Client
+}) => {
+  const bind = try GCPBindings.Bind
+  const helpers = try makeBigQueryTableHelpers
+  return effect (table: Table) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${table})`({
+        iam: options.iam.map((iam) => grantFor(iam, table.name)),
+      })
+    }
+    const project = try table.project.asEffect()
+    const datasetId = try table.datasetId.asEffect()
+    const tableId = try table.tableId.asEffect()
+    const location = try table.location.asEffect()
+    const ref = effect {
+      return try Effect.all({
+        project,
+        datasetId,
+        tableId,
+        location,
+      })
+    }
+    return options.makeClient(helpers, ref)
+  }
+}

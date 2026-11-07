@@ -6,7 +6,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import { ShellMicrovm } from "./shell-image.ts";
-import ShellSession from "./shell-session.ts";
+import ShellSession from "./shell-session.vibe";
 import { TERMINAL_HTML } from "./terminal-html.ts";
 
 /**

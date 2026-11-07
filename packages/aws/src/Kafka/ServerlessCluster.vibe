@@ -1,0 +1,338 @@
+import * as kafka from "@distilled.cloud/aws/kafka"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.ts"
+
+export error ServerlessClusterNotReady {
+  message: string
+  cause?: unknown
+}
+
+export error ServerlessClusterUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface ServerlessClusterProps {
+  /**
+   * Name of the MSK Serverless cluster. Must be 1-64 characters. If omitted, a
+   * deterministic physical name is generated. Changing the name replaces the
+   * cluster.
+   */
+  clusterName?: string
+  /**
+   * VPC subnets the cluster's brokers are reachable from. At least two subnets
+   * in different Availability Zones are required. Changing subnets replaces the
+   * cluster.
+   */
+  subnetIds: string[]
+  /**
+   * VPC security groups that control network access to the cluster. If omitted,
+   * the VPC's default security group is used. Changing security groups replaces
+   * the cluster.
+   */
+  securityGroupIds?: string[]
+  /**
+   * User-defined tags for the cluster.
+   */
+  tags?: Record<string, string>
+}
+
+export interface ServerlessCluster extends
+  Resource<
+    "AWS.Kafka.ServerlessCluster",
+    ServerlessClusterProps,
+    {
+      /** Name of the cluster. */
+      clusterName: string
+      /** ARN of the cluster. */
+      clusterArn: string
+      /** Cluster type — always `SERVERLESS` for this resource. */
+      clusterType: string
+      /** Current state (`CREATING`, `ACTIVE`, `DELETING`, ...). */
+      state: string
+      /**
+       * SASL/IAM bootstrap broker connection string — the endpoint kafkajs-style
+       * clients connect to using IAM authentication.
+       */
+      bootstrapBrokerStringSaslIam: string | undefined
+      /** Subnets the cluster is reachable from. */
+      subnetIds: string[]
+      /** Security groups attached to the cluster. */
+      securityGroupIds: string[]
+      /** Tags observed on the cluster. */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon MSK (Managed Streaming for Apache Kafka) **Serverless** cluster.
+ *
+ * MSK Serverless clusters use IAM authentication exclusively and scale broker
+ * capacity automatically — there is no broker count, instance type, or storage
+ * to configure. They are reachable only from inside a VPC. Creation takes
+ * roughly 5-10 minutes.
+ *
+ * The provisioned (broker-count) MSK cluster is a separate, much slower
+ * (~20-40 minute) resource and is intentionally not modeled here.
+ *
+ * ### Creating a Serverless Cluster
+ * **Example:** Serverless Cluster in a VPC
+ * ```typescript
+ * const cluster = yield* ServerlessCluster("Events", {
+ *   subnetIds: [subnetA.subnetId, subnetB.subnetId],
+ *   securityGroupIds: [kafkaSecurityGroup.securityGroupId],
+ * });
+ * ```
+ *
+ * ### Consuming from a Lambda Function
+ * **Example:** Wire a topic to a Lambda
+ * ```typescript
+ * yield* Kafka.consumeKafkaTopic(cluster, { topics: ["orders"] }, (records) =>
+ *   records.pipe(Stream.runForEach((r) => Effect.log(r.value))),
+ * );
+ * ```
+ *
+ * @resource
+ */
+export const ServerlessCluster = Resource<ServerlessCluster>("AWS.Kafka.ServerlessCluster")
+
+const sameStringSet = (
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined,
+): boolean => {
+  const left = [...(a ?? [])].sort()
+  const right = [...(b ?? [])].sort()
+  return left.length === right.length && left.every((v, i) => v === right[i])
+}
+
+const toTagRecord = (
+  tags: { [key: string]: string | undefined } | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(tags ?? {}).filter(
+      (entry): entry is [string, string] => typeof entry[1] === "string",
+    ),
+  )
+
+export const ServerlessClusterProvider = (): infer _ =>
+  Provider.effect(
+    ServerlessCluster,
+    effect {
+      const toName = effect (
+        id: string,
+        props: Partial<ServerlessClusterProps>,
+      ) => (props.clusterName ? props.clusterName : try createPhysicalName({ id, maxLength: 64 }))
+
+      // Serverless clusters can only be looked up by ARN via describeClusterV2.
+      // Before we have an ARN (or after a state-persistence failure) we scan
+      // listClustersV2 filtered by name.
+      const findByName = effect (name: string) =>
+        Array.from(
+          try (kafka.listClustersV2
+            .pages({ ClusterNameFilter: name, ClusterTypeFilter: "SERVERLESS" })
+            |> Stream.runCollect(%)),
+        )
+          .flatMap((page) => page.ClusterInfoList ?? [])
+          .find((c) => c.ClusterName === name)
+
+      const describeByArn = effect (arn: string) => {
+        const response = kafka
+          .describeClusterV2({ ClusterArn: arn }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.ClusterInfo
+      }
+
+      const readBrokers = effect (arn: string) =>
+        (try kafka.getBootstrapBrokers({ ClusterArn: arn })).BootstrapBrokerStringSaslIam catch effect (e) => match (e) {
+          when { _tag: "BadRequestException" }: try Effect.undefined;
+          when { _tag: "ConflictException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      // Bounded readiness wait. MSK Serverless create typically completes in
+      // 5-10 minutes; budget ~15 min (60 * 15s).
+      const waitForActive = effect (arn: string) => {
+        const policy = Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(60)])
+        return try (effect {
+          return try effect {
+            const cluster = try describeByArn(arn)
+
+            if (!cluster) {
+              throw new ServerlessClusterNotReady({ message: `MSK cluster '${arn}' not found` })
+            }
+            if (cluster.State === "FAILED") {
+              return try Effect.die(
+                new Error(
+                  `MSK cluster '${arn}' entered FAILED state: ${cluster.StateInfo?.Message ?? ""}`,
+                ),
+              )
+            }
+            if (cluster.State !== "ACTIVE") {
+              throw new ServerlessClusterNotReady({
+                message: `MSK cluster '${arn}' not active (state: ${cluster.State})`,
+              })
+            }
+            return cluster
+          }
+        }
+          |> Effect.retry(%, { schedule: policy }))
+      }
+
+      const toAttrs = effect (cluster: kafka.Cluster) => {
+        if (!cluster.ClusterName || !cluster.ClusterArn) {
+          throw new ServerlessClusterUnexpectedResponse({
+            message: `MSK cluster is missing its name or ARN (state: ${cluster.State})`,
+          })
+        }
+        const bootstrap = cluster.State === "ACTIVE" ? try readBrokers(cluster.ClusterArn) : undefined
+        const vpcConfigs = cluster.Serverless?.VpcConfigs ?? []
+        return {
+          clusterName: cluster.ClusterName,
+          clusterArn: cluster.ClusterArn,
+          clusterType: cluster.ClusterType ?? "SERVERLESS",
+          state: cluster.State ?? "ACTIVE",
+          bootstrapBrokerStringSaslIam: bootstrap,
+          subnetIds: vpcConfigs.flatMap((v) => v.SubnetIds ?? []),
+          securityGroupIds: vpcConfigs.flatMap((v) => v.SecurityGroupIds ?? []),
+          tags: toTagRecord(cluster.Tags),
+        }
+      }
+
+      return {
+        stables: ["clusterName", "clusterArn", "clusterType"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+            return { action: "replace" } as const
+          }
+          // VPC configuration is create-only for serverless clusters.
+          if (olds?.subnetIds !== undefined && !sameStringSet(news?.subnetIds, olds.subnetIds)) {
+            return { action: "replace" } as const
+          }
+          if (
+            olds?.securityGroupIds !== undefined
+            && !sameStringSet(news?.securityGroupIds, olds.securityGroupIds)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const cluster = output?.clusterArn
+            ? try describeByArn(output.clusterArn)
+            : try findByName(try toName(id, olds ?? {}))
+          if (!cluster?.ClusterArn) return undefined
+          const attrs = try toAttrs(cluster)
+          return (try hasAlchemyTags(id, attrs.tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.clusterName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe — cloud state is authoritative. Prefer the cached ARN,
+          //    fall back to a name scan (recovery / adoption).
+          let observed = output?.clusterArn
+            ? try describeByArn(output.clusterArn)
+            : try findByName(name)
+
+          // 2. Ensure — create if missing; tolerate a concurrent create
+          //    (ConflictException) by re-scanning for the cluster by name.
+          if (!observed?.ClusterArn) {
+            const created = (try kafka
+              .createClusterV2({
+                ClusterName: name,
+                Tags: desiredTags,
+                Serverless: {
+                  VpcConfigs: [
+                    {
+                      SubnetIds: news.subnetIds,
+                      SecurityGroupIds: news.securityGroupIds,
+                    },
+                  ],
+                  ClientAuthentication: { Sasl: { Iam: { Enabled: true } } },
+                },
+              })).ClusterArn catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: (try findByName(name))?.ClusterArn;
+                default: throw e;
+              }
+            if (!created) {
+              return try Effect.die(
+                new Error(`MSK ServerlessCluster(${id}) could not be created`),
+              )
+            }
+            observed = try describeByArn(created)
+          }
+
+          if (!observed?.ClusterArn) {
+            return try Effect.die(
+              new Error(`MSK ServerlessCluster(${id}) could not be reconciled`),
+            )
+          }
+          const arn = observed.ClusterArn
+
+          // Wait for ACTIVE (bounded) so tag sync and broker resolution work.
+          observed = try waitForActive(arn)
+
+          // 3. Sync tags — diff against OBSERVED cloud tags so adoption
+          //    rewrites ownership tags correctly.
+          const { removed, upsert } = diffTags(toTagRecord(observed.Tags), desiredTags)
+          if (removed.length > 0) {
+            try kafka.untagResource({ ResourceArn: arn, TagKeys: removed })
+          }
+          if (upsert.length > 0) {
+            try kafka.tagResource({
+              ResourceArn: arn,
+              Tags: Object.fromEntries(upsert.map(({ Key, Value }) => [Key, Value])),
+            })
+            observed = (try describeByArn(arn)) ?? observed
+          }
+
+          // 4. Return fresh attributes.
+          try session.note(name)
+          return try toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          ;(try (effect {
+            return kafka.deleteCluster({ ClusterArn: output.clusterArn }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          }
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "BadRequestException",
+              schedule: Schedule.max([Schedule.fixed("15 seconds"), Schedule.recurs(40)]),
+            }))) catch effect (e) => match (e) {
+              when { _tag: "BadRequestException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        list: effect () =>
+          try (effect {
+            return Array.from(
+              try (kafka.listClustersV2.pages({ ClusterTypeFilter: "SERVERLESS" })
+                |> Stream.runCollect(%)),
+            ).flatMap((page) =>
+              (page.ClusterInfoList ?? []).filter(
+                (c) => c.ClusterName !== undefined && c.ClusterArn !== undefined,
+              )
+            )
+          }
+            |> Effect.flatMap(%, Effect.forEach((cluster) => toAttrs(cluster), { concurrency: 4 }))),
+      }
+    },
+  )

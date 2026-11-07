@@ -1,9 +1,9 @@
-export * from "./CatalogsBranchesProduct.ts";
-export * from "./CatalogsControl.ts";
-export * from "./CatalogsModel.ts";
-export * from "./CatalogsServingConfig.ts";
-export * from "./Predict.ts";
-export * from "./PredictHttp.ts";
-export * from "./Search.ts";
-export * from "./SearchHttp.ts";
+export * from "./CatalogsBranchesProduct.vibe";
+export * from "./CatalogsControl.vibe";
+export * from "./CatalogsModel.vibe";
+export * from "./CatalogsServingConfig.vibe";
+export * from "./Predict.vibe";
+export * from "./PredictHttp.vibe";
+export * from "./Search.vibe";
+export * from "./SearchHttp.vibe";
 export { resourceNameFromOperation, waitForOperation } from "./operations.ts";

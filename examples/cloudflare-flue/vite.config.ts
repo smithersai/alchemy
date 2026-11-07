@@ -1,5 +1,6 @@
 import { cloudflare } from "@cloudflare/vite-plugin";
 import { flue, flueWorkerConfig } from "@flue/vite";
+import vibelang from "vibelang-vite";
 import { defineConfig } from "vite";
 
 // Flue's documented Cloudflare setup, unchanged: `flue()` generates the
@@ -7,5 +8,5 @@ import { defineConfig } from "vite";
 // Cloudflare plugin through `flueWorkerConfig()`. Alchemy builds and serves
 // the Worker in place of `@cloudflare/vite-plugin`.
 export default defineConfig({
-  plugins: [flue(), cloudflare({ config: flueWorkerConfig() })],
+  plugins: [vibelang(), flue(), cloudflare({ config: flueWorkerConfig() })],
 });

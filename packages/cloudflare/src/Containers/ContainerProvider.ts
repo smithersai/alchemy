@@ -29,7 +29,7 @@ import type {
   AnyContainerApplicationProps,
   ContainerApplication,
   DurableObjectContainerProps,
-} from "./ContainerApplication.ts";
+} from "./ContainerApplication.vibe";
 import {
   buildFinalDockerfile,
   bundleContainerProgram,
@@ -46,7 +46,7 @@ import {
   isDurableObjectContainer,
   validateContainerConfiguration,
 } from "./ContainerConfiguration.ts";
-import { waitForContainerImage } from "./ContainerImagePreparation.ts";
+import { waitForContainerImage } from "./ContainerImagePreparation.vibe";
 import { ContainerPlatform } from "./ContainerPlatform.ts";
 import { retryContainerBuild, retryContainerPublication } from "./ContainerPublication.ts";
 import { retryNamespacePropagation } from "./DurableObjectApplication.ts";

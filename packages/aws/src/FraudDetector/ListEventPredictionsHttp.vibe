@@ -1,0 +1,46 @@
+import * as frauddetector from "@distilled.cloud/aws/frauddetector"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Detector } from "./Detector.vibe"
+import { ListEventPredictions } from "./ListEventPredictions.vibe"
+
+/**
+ * Bespoke implementation — unlike the other detector-scoped operations, the
+ * detector is a `FilterCondition` (`{ value }`) rather than a plain
+ * `detectorId` field, and `frauddetector:ListEventPredictions` supports no
+ * resource-level IAM scoping, so the grant is on `*`.
+ */
+export const ListEventPredictionsHttp = Layer.effect(
+  ListEventPredictions,
+  effect {
+    const bind = try AWSBindings.Bind
+    const op = try AWSBindings.withCredentials(frauddetector.listEventPredictions)
+
+    return effect (detector: Detector) => {
+      // Output yields a DEFERRED effect — resolve again per invocation below.
+      const DetectorId = try detector.detectorId.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.FraudDetector.ListEventPredictions(${detector})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["frauddetector:ListEventPredictions"],
+              Resource: ["*"],
+            },
+          ],
+        })
+      }
+      return effect (
+        request: Omit<frauddetector.ListEventPredictionsRequest, "detectorId">,
+      ) =>
+        try withSpan(
+          effect {
+            const detectorId = try DetectorId
+            return try op({ ...request, detectorId: { value: detectorId } })
+          },
+          `AWS.FraudDetector.ListEventPredictions(${detector.LogicalId})`,
+        )
+    }
+  },
+)

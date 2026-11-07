@@ -22,8 +22,8 @@ import {
   toNetworkResource,
   toResourcePath,
   userLabels,
-} from "./names.ts";
-import { waitForOperation } from "./operations.ts";
+} from "./names.vibe";
+import { waitForOperation } from "./operations.vibe";
 
 const COLLECTION = "interceptEndpointGroupAssociations";
 

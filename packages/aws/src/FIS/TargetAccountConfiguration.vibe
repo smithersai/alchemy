@@ -1,0 +1,215 @@
+import * as fis from "@distilled.cloud/aws/fis"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.ts"
+
+export interface TargetAccountConfigurationProps {
+  /**
+   * The ID of the experiment template the target account belongs to. The
+   * template must use `accountTargeting: "multi-account"`. Changing it
+   * replaces the configuration.
+   */
+  experimentTemplateId: string
+  /**
+   * The AWS account ID of the target account. Changing it replaces the
+   * configuration.
+   */
+  accountId: string
+  /**
+   * The ARN of an IAM role in the target account that grants FIS permission
+   * to perform the experiment's actions there. The role must trust
+   * `fis.amazonaws.com`.
+   */
+  roleArn: string
+  /**
+   * A description of the target account. Once set, it cannot be fully
+   * removed via the API — only changed.
+   */
+  description?: string
+}
+
+export interface TargetAccountConfiguration extends
+  Resource<
+    "AWS.FIS.TargetAccountConfiguration",
+    TargetAccountConfigurationProps,
+    {
+      /**
+       * The ID of the experiment template the target account belongs to.
+       */
+      experimentTemplateId: string
+      /**
+       * The AWS account ID of the target account.
+       */
+      accountId: string
+      /**
+       * The ARN of the IAM role FIS assumes in the target account.
+       */
+      roleArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A target account configuration for a multi-account AWS Fault Injection
+ * Service (FIS) experiment template — registers an AWS account (and the IAM
+ * role FIS assumes there) as a target of the experiment, so a single
+ * experiment can inject faults into resources across accounts.
+ *
+ * The parent {@link ExperimentTemplate} must declare
+ * `experimentOptions: { accountTargeting: "multi-account" }`.
+ * ### Registering Target Accounts
+ * **Example:** Add a Target Account to a Multi-Account Template
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const template = yield* AWS.FIS.ExperimentTemplate("CrossAccount", {
+ *   roleArn: orchestratorRole.roleArn,
+ *   experimentOptions: { accountTargeting: "multi-account" },
+ *   actions: {
+ *     Wait: { actionId: "aws:fis:wait", parameters: { duration: "PT1M" } },
+ *   },
+ * });
+ *
+ * const target = yield* AWS.FIS.TargetAccountConfiguration("WorkloadAccount", {
+ *   experimentTemplateId: template.id,
+ *   accountId: "111122223333",
+ *   roleArn: "arn:aws:iam::111122223333:role/FisTargetRole",
+ *   description: "the workload account faults are injected into",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const TargetAccountConfiguration = Resource<TargetAccountConfiguration>(
+  "AWS.FIS.TargetAccountConfiguration",
+)
+
+export const TargetAccountConfigurationProvider = (): infer _ =>
+  Provider.effect(
+    TargetAccountConfiguration,
+    effect {
+      // A missing template and a missing configuration both surface as
+      // ResourceNotFoundException — either way the configuration does not
+      // exist.
+      const observe = effect (experimentTemplateId: string, accountId: string) =>
+        (try fis.getTargetAccountConfiguration({ experimentTemplateId, accountId })).targetAccountConfiguration catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: try Effect.undefined; default: throw e; }
+
+      const toAttrs = (experimentTemplateId: string, config: fis.TargetAccountConfiguration): infer _ => ({
+        experimentTemplateId,
+        accountId: config.accountId!,
+        roleArn: config.roleArn!,
+      })
+
+      return TargetAccountConfiguration.Provider.of({
+        stables: ["experimentTemplateId", "accountId"],
+
+        // The (template, account) pair IS the configuration's identity —
+        // changing either side replaces it. roleArn/description sync in
+        // place.
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return undefined
+          if (
+            olds !== undefined
+            && (olds.experimentTemplateId !== news.experimentTemplateId
+              || olds.accountId !== news.accountId)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ olds, output }) => {
+          const experimentTemplateId = output?.experimentTemplateId ?? olds?.experimentTemplateId
+          const accountId = output?.accountId ?? olds?.accountId
+          if (experimentTemplateId === undefined || accountId === undefined) {
+            return undefined
+          }
+          const config = try observe(experimentTemplateId, accountId)
+          if (config === undefined) return undefined
+          // Target account configurations cannot carry tags; existence under
+          // the parent template is the ownership signal.
+          return toAttrs(experimentTemplateId, config)
+        },
+
+        reconcile: effect ({ news, session }) => {
+          // 1. Observe — the (template, account) pair is the deterministic
+          // identity; cloud state is authoritative.
+          let observed = try observe(news.experimentTemplateId, news.accountId)
+
+          if (observed === undefined) {
+            // 2. Ensure — create when missing; a concurrent create race
+            // surfaces as ConflictException and falls through to observe.
+            observed = (try fis
+              .createTargetAccountConfiguration({
+                experimentTemplateId: news.experimentTemplateId,
+                accountId: news.accountId,
+                roleArn: news.roleArn,
+                description: news.description,
+              })).targetAccountConfiguration catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try observe(news.experimentTemplateId, news.accountId);
+                default: throw e;
+              }
+          } else if (
+            // 3. Sync — diff observed against desired and apply the single
+            // update on any delta. `description` is settable-but-not-removable,
+            // so it only participates while declared.
+            observed.roleArn !== news.roleArn
+            || (news.description !== undefined && observed.description !== news.description)
+          ) {
+            observed = (try fis
+              .updateTargetAccountConfiguration({
+                experimentTemplateId: news.experimentTemplateId,
+                accountId: news.accountId,
+                roleArn: news.roleArn,
+                description: news.description,
+              })).targetAccountConfiguration
+          }
+
+          try session.note(`${news.experimentTemplateId}/${news.accountId}`)
+          return toAttrs(news.experimentTemplateId, observed!)
+        },
+
+        delete: effect ({ output }) => {
+          fis
+            .deleteTargetAccountConfiguration({
+              experimentTemplateId: output.experimentTemplateId,
+              accountId: output.accountId,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        // Enumerate every template's target account configurations.
+        // Single-account templates simply have none.
+        list: effect () => {
+          const templates = Array.from(
+            try (fis.listExperimentTemplates.items({})
+              |> Stream.runCollect(%)),
+          )
+          const results: TargetAccountConfiguration["Attributes"][] = []
+          for (const template of templates) {
+            if (template.id === undefined) continue
+            const configs = (Array.from(
+              try (fis.listTargetAccountConfigurations
+                .items({ experimentTemplateId: template.id })
+                |> Stream.runCollect(%)),
+            )) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; }
+            for (const config of configs) {
+              if (config.accountId === undefined || config.roleArn === undefined) {
+                continue
+              }
+              results.push({
+                experimentTemplateId: template.id,
+                accountId: config.accountId,
+                roleArn: config.roleArn,
+              })
+            }
+          }
+          return results
+        },
+      })
+    },
+  )

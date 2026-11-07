@@ -1,5 +1,6 @@
 import type * as rolldown from "rolldown";
 import { esmExternalRequirePlugin } from "rolldown/plugins";
+import vibelang from "vibelang-unplugin/rolldown";
 import type { BasePluginOptions } from "./options.ts";
 import {
   additionalModulesPlugin,
@@ -26,6 +27,8 @@ const cloudflare: RolldownPlugin = (options = {}) => [
         skipDuplicateCheck: true,
       })
     : null,
+  // Compiles each `.vibe` module the bundle reaches and claims no other file.
+  vibelang(),
   optionsPlugin.rolldown(options),
   cloudflareExternalsPlugin.rolldown(options),
   nodejsAlsPlugin.rolldown(options),

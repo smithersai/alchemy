@@ -6,8 +6,8 @@
  * nothing else; it has no bindings and no network.
  */
 import * as Effect from "effect/Effect";
-import { resolveDeltas, scanPart } from "../Protocol/PartialScan.ts";
-import { decodeDeltaBatch, encodeDeltaResults, encodeScanResult, frame } from "./Protocol.ts";
+import { resolveDeltas, scanPart } from "../Protocol/PartialScan.vibe";
+import { decodeDeltaBatch, encodeDeltaResults, encodeScanResult, frame } from "./Protocol.vibe";
 
 export default {
   async fetch(request: Request): Promise<Response> {

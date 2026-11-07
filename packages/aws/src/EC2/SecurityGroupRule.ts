@@ -17,7 +17,7 @@ import {
   getDefaultVpcEmrManagedSecurityGroupIds,
   getDefaultVpcScope,
 } from "./defaultVpcScope.ts";
-import type { SecurityGroupId, SecurityGroupRuleData } from "./SecurityGroup.ts";
+import type { SecurityGroupId, SecurityGroupRuleData } from "./SecurityGroup.vibe";
 
 export class SecurityGroupRuleUnexpectedResponse extends Data.TaggedError(
   "SecurityGroupRuleUnexpectedResponse",

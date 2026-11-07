@@ -31,8 +31,8 @@ export {
   type SqlExecutor,
 } from "./Format.ts";
 export { classifyTable, tableColumns, type TableShape } from "./Introspect.ts";
-export { makeMySQLMigrationExecutor } from "./MySQLExecutor.ts";
-export { makePgMigrationExecutor } from "./PgExecutor.ts";
+export { makeMySQLMigrationExecutor } from "./MySQLExecutor.vibe";
+export { makePgMigrationExecutor } from "./PgExecutor.vibe";
 export {
   inlineSqlParams,
   quoteIdentifier,

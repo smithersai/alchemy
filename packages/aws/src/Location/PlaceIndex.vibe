@@ -1,0 +1,222 @@
+import * as location from "@distilled.cloud/aws/location"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.ts"
+import { toTagRecord } from "./internal.ts"
+
+export error PlaceIndexUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface PlaceIndexProps {
+  /**
+   * Name of the place index. Immutable — changing it replaces the index.
+   * @default ${app}-${stage}-${id}
+   */
+  indexName?: string
+  /**
+   * Data provider for geocoding/search. Immutable — changing it replaces the
+   * index. One of `Esri`, `Grab`, or `Here`.
+   */
+  dataSource: string
+  /**
+   * How results of the operations that use this index will be stored.
+   * `SingleUse` results can't be stored; `Storage` results can be cached.
+   * @default "SingleUse"
+   */
+  intendedUse?: string
+  /**
+   * Optional description of the place index resource.
+   */
+  description?: string
+  /**
+   * Tags to associate with the place index.
+   */
+  tags?: Record<string, string>
+}
+
+export interface PlaceIndex extends
+  Resource<
+    "AWS.Location.PlaceIndex",
+    PlaceIndexProps,
+    {
+      /** Physical name of the place index. */
+      indexName: string
+      /** ARN of the place index. */
+      indexArn: string
+      /** Data provider backing the index. */
+      dataSource: string
+      /** Intended use of the index results. */
+      intendedUse: string | undefined
+      /** Description of the place index. */
+      description: string | undefined
+      /** Tags currently associated with the index. */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Location Service place index. A place index geocodes text and
+ * positions against a chosen data provider. The data source is immutable;
+ * the intended use and description can be updated in place.
+ *
+ * ### Creating Place Indexes
+ * **Example:** Basic Place Index
+ * ```typescript
+ * import * as Location from "@alchemy.run/aws/Location";
+ *
+ * const index = yield* Location.PlaceIndex("Places", {
+ *   dataSource: "Esri",
+ * });
+ * ```
+ *
+ * **Example:** Storage-Intent Place Index
+ * ```typescript
+ * const index = yield* Location.PlaceIndex("Geocoder", {
+ *   dataSource: "Here",
+ *   intendedUse: "Storage",
+ *   description: "Cacheable geocoding index",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const PlaceIndex = Resource<PlaceIndex>("AWS.Location.PlaceIndex")
+
+const createIndexName = effect (id: string, props: { indexName?: string | undefined }) => {
+  if (props.indexName) return props.indexName
+  return try createPhysicalName({ id, maxLength: 100 })
+}
+
+const readIndex = effect (indexName: string) => {
+  const found = location
+    .describePlaceIndex({ IndexName: indexName }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!found) return undefined
+  return {
+    indexName: found.IndexName,
+    indexArn: found.IndexArn,
+    dataSource: found.DataSource,
+    intendedUse: found.DataSourceConfiguration?.IntendedUse,
+    description: found.Description ? found.Description : undefined,
+    tags: toTagRecord(found.Tags),
+  } satisfies PlaceIndex["Attributes"]
+}
+
+export const PlaceIndexProvider = (): infer _ =>
+  Provider.effect(
+    PlaceIndex,
+    effect {
+      return {
+        stables: ["indexName", "indexArn"],
+        list: effect () => {
+          const names = Array.from(
+            try (location.listPlaceIndexes.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => (page.Entries ?? []).map((entry) => entry.IndexName))
+          const hydrated = try Effect.forEach(names, (name) => readIndex(name), {
+            concurrency: 10,
+          })
+          return hydrated.filter(
+            (attrs): attrs is PlaceIndex["Attributes"] => attrs !== undefined,
+          )
+        },
+        read: effect ({ id, olds, output }) => {
+          const indexName = output?.indexName ?? (try createIndexName(id, olds ?? {}))
+          const state = try readIndex(indexName)
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+        },
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return
+          const oldName = try createIndexName(id, olds)
+          const newName = try createIndexName(id, news)
+          // Name and data source are immutable — either change forces a replace.
+          if (oldName !== newName || olds.dataSource !== news.dataSource) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const indexName = output?.indexName ?? (try createIndexName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          let state = try readIndex(indexName)
+
+          if (state === undefined) {
+            location
+              .createPlaceIndex({
+                IndexName: indexName,
+                DataSource: news.dataSource,
+                Description: news.description,
+                DataSourceConfiguration: news.intendedUse
+                  ? { IntendedUse: news.intendedUse }
+                  : undefined,
+                Tags: desiredTags,
+              }) catch effect (e) => match (e) { when { _tag: "ConflictException" }: try Effect.void; default: throw e; }
+            state = try readIndex(indexName)
+            if (state === undefined) {
+              throw new PlaceIndexUnexpectedResponse({
+                message: `failed to read created place index ${indexName}`,
+              })
+            }
+          }
+
+          if (
+            state.description !== (news.description ?? undefined)
+            || (news.intendedUse !== undefined && state.intendedUse !== news.intendedUse)
+          ) {
+            try location.updatePlaceIndex({
+              IndexName: indexName,
+              Description: news.description,
+              DataSourceConfiguration: news.intendedUse
+                ? { IntendedUse: news.intendedUse }
+                : undefined,
+            })
+          }
+
+          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          if (removed.length > 0) {
+            try location.untagResource({
+              ResourceArn: state.indexArn,
+              TagKeys: removed,
+            })
+          }
+          if (upsert.length > 0) {
+            try location.tagResource({
+              ResourceArn: state.indexArn,
+              Tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+            })
+          }
+
+          try session.note(state.indexArn)
+
+          const final = try readIndex(indexName)
+          if (!final) {
+            throw new PlaceIndexUnexpectedResponse({
+              message: `failed to read reconciled place index ${indexName}`,
+            })
+          }
+          return final
+        },
+        delete: effect ({ output }) => {
+          location
+            .deletePlaceIndex({ IndexName: output.indexName }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

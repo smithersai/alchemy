@@ -1,0 +1,229 @@
+import * as vision from "@distilled.cloud/gcp/vision_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  deleteProductSet,
+  getProductSet,
+  listProductsInSet,
+  locationParent,
+  normalizeLocation,
+  parseResourceName,
+  productSetNameOf,
+  replaceOnIdentity,
+  sameText,
+  syncProductSetMembership,
+  toResourceId,
+  waitUntilGone,
+} from "./internal.vibe"
+
+export type ProductSetProps = {
+  /**
+   * Product Search location. Immutable — changing it replaces the set.
+   * @default "us-west1"
+   */
+  location?: string
+  /**
+   * Product set id (the `{productSet}` segment of
+   * `projects/{project}/locations/{location}/productSets/{productSet}`).
+   * If omitted, a unique id is generated. Immutable — changing it
+   * replaces the set. At most 128 characters; cannot contain `/`.
+   */
+  productSetId?: string
+  /**
+   * User-facing name (max 4096 characters).
+   * @default the product set id
+   */
+  displayName?: string
+  /**
+   * Product resource names or ids to keep in this set. Omitted leaves
+   * membership unchanged; an empty list removes every product.
+   */
+  products?: string[]
+}
+
+export type ProductSet = Resource<
+  "GCP.Vision.ProductSet",
+  ProductSetProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/productSets/{productSet}`. */
+    name: string
+    /** Product set id (last path segment). */
+    productSetId: string
+    /** Project id. */
+    project: string
+    /** Product Search location. */
+    location: string
+    /** User-facing display name. */
+    displayName: string | undefined
+    /** Product resource names currently in this set. */
+    products: string[]
+    /** RFC3339 last-index timestamp, if the set has been indexed. */
+    indexTime: string | undefined
+    /** Indexing error, if the last index failed. */
+    indexError:
+      | {
+        code: number | undefined
+        message: string | undefined
+      }
+      | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Vision Product Search product set.
+ *
+ * Product sets have no labels field, so ownership rests on the
+ * deterministic product set id: a set found without prior state is
+ * reported as unowned and only taken over with `--adopt`. Location and
+ * product set id are identity — changing either replaces the set. Display
+ * name and product membership update in place.
+ *
+ * ### Creating a Product Set
+ * **Example:** Generated id
+ * ```typescript
+ * const set = yield* GCP.Vision.ProductSet("Catalog", {
+ *   displayName: "Summer",
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and location
+ * ```typescript
+ * const set = yield* GCP.Vision.ProductSet("Catalog", {
+ *   location: "us-west1",
+ *   productSetId: "summer-catalog",
+ *   displayName: "Summer",
+ * });
+ * ```
+ *
+ * ### Updating a Product Set
+ * **Example:** Rename and attach products
+ * ```typescript
+ * // Same logical id as before; only the changed props differ.
+ * const set = yield* GCP.Vision.ProductSet("Catalog", {
+ *   location: "us-west1",
+ *   productSetId: "summer-catalog",
+ *   displayName: "Fall",
+ *   products: [shoe.name],
+ * });
+ * ```
+ *
+ * @resource
+ * @category Vision
+ */
+export const ProductSet = Resource<ProductSet>("GCP.Vision.ProductSet")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ProductSetNotResolved extends Data.TaggedError("GCP.Vision.ProductSetNotResolved")<{
+  resourceName: string
+}> {}
+
+const toAttrs = (set: vision.ProductSet, project: string, products: string[]): infer _ => {
+  const name = set.name ?? ""
+  const parsed = parseResourceName(name, project, "productSets")
+  return {
+    name,
+    productSetId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: set.displayName,
+    products,
+    indexTime: set.indexTime,
+    indexError: set.indexError === undefined
+      ? undefined
+      : {
+        code: set.indexError.code,
+        message: set.indexError.message,
+      },
+  }
+}
+
+const productsOf = effect (name: string) =>
+  (try listProductsInSet(name))
+    .map((product) => product.name)
+    .filter((value): value is string => typeof value === "string")
+
+export const ProductSetProvider = (): infer _ =>
+  Provider.succeed(ProductSet, {
+    stables: ["name", "productSetId", "project", "location"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      return replaceOnIdentity({
+        previousId: olds?.productSetId ?? output?.productSetId,
+        nextId: news.productSetId,
+        previousParent: locationParent(
+          env.project,
+          normalizeLocation(olds?.location ?? output?.location),
+        ),
+        nextParent: locationParent(
+          env.project,
+          normalizeLocation(news.location ?? output?.location),
+        ),
+      })
+    },
+
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(olds?.location ?? output?.location)
+      const name = output?.name
+        ?? productSetNameOf(env.project, location, olds?.productSetId ?? output?.productSetId ?? "")
+      const existing = try getProductSet(name)
+      if (existing === undefined) return undefined
+      const products = try productsOf(existing.name ?? name)
+      const attrs = toAttrs(existing, env.project, products)
+      // No labels field: without prior state it may not be ours.
+      return output !== undefined ? attrs : Unowned(attrs)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location)
+      const productSetId = try toResourceId(id, news.productSetId, output?.productSetId)
+      const displayName = news.displayName ?? productSetId
+      const name = output?.name ?? productSetNameOf(env.project, location, productSetId)
+
+      let current = try getProductSet(name)
+
+      if (current === undefined) {
+        const created = vision
+          .createProjectsLocationsProductSets({
+            parent: locationParent(env.project, location),
+            productSetId,
+            body: { displayName },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getProductSet(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ProductSetNotResolved({
+          resourceName: name || productSetNameOf(env.project, location, productSetId),
+        })
+      }
+
+      const currentName = current.name ?? name
+      if (!sameText(current.displayName, displayName)) {
+        current = try vision.patchProjectsLocationsProductSets({
+          name: currentName,
+          updateMask: "display_name",
+          body: { name: currentName, displayName },
+        })
+      }
+
+      try syncProductSetMembership(currentName, env.project, location, news.products)
+      const products = try productsOf(currentName)
+      return toAttrs(current, env.project, products)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      try deleteProductSet(output.name)
+      try waitUntilGone(getProductSet(output.name))
+    },
+  })

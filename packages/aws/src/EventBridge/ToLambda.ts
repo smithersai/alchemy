@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import * as Effect from "effect/Effect";
 import type { Function as LambdaFunction } from "../Lambda/Function.ts";
-import { Permission as LambdaPermission } from "../Lambda/Permission.ts";
+import { Permission as LambdaPermission } from "../Lambda/Permission.vibe";
 import { qualifiedArnOf, qualifiedNameOf } from "../Lambda/QualifiedArn.ts";
-import type { EventBus } from "./EventBus.ts";
-import { Rule, type RuleProps, type RuleTarget } from "./Rule.ts";
+import type { EventBus } from "./EventBus.vibe";
+import { Rule, type RuleProps, type RuleTarget } from "./Rule.vibe";
 
 interface EventDescriptor {
   id?: string;

@@ -1,9 +1,9 @@
 import * as appconfig from "@distilled.cloud/aws/appconfig";
 import * as Output from "alchemy/Output";
-import type { Application } from "./Application.ts";
+import type { Application } from "./Application.vibe";
 import { makeAppConfigHttpBinding } from "./BindingHttp.ts";
-import type { Environment } from "./Environment.ts";
-import { GetDeployment } from "./GetDeployment.ts";
+import type { Environment } from "./Environment.vibe";
+import { GetDeployment } from "./GetDeployment.vibe";
 
 /**
  * HTTP implementation of the {@link GetDeployment} binding. Calls

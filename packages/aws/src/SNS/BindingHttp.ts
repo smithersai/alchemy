@@ -1,8 +1,8 @@
 import * as Effect from "effect/Effect";
 import * as AWSBindings from "../AWSBindings.ts";
-import type { PlatformApplication } from "./PlatformApplication.ts";
-import type { Subscription } from "./Subscription.ts";
-import type { Topic } from "./Topic.ts";
+import type { PlatformApplication } from "./PlatformApplication.vibe";
+import type { Subscription } from "./Subscription.vibe";
+import type { Topic } from "./Topic.vibe";
 
 /**
  * Shared scaffolding for AWS SNS HTTP bindings.

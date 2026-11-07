@@ -1,0 +1,297 @@
+import * as pubsub from "@distilled.cloud/gcp/pubsub_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels, diffLabels, hasAlchemyLabels, stripInternalLabels, toLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+
+export type SnapshotProps = {
+  /**
+   * Snapshot id (the `{snapshot}` segment of
+   * `projects/{project}/snapshots/{snapshot}`). If omitted, a unique name
+   * is generated from the stack, stage, and logical id. Changing it
+   * replaces the snapshot.
+   */
+  snapshotId?: string
+  /**
+   * Subscription whose backlog this snapshot retains. Accepts a full
+   * resource name (`projects/{project}/subscriptions/{subscription}`) or
+   * a subscription id. Immutable — changing it replaces the snapshot.
+   */
+  subscription: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+}
+
+export type Snapshot = Resource<
+  "GCP.PubSub.Snapshot",
+  SnapshotProps,
+  {
+    /** Full resource name `projects/{project}/snapshots/{snapshot}`. */
+    name: string
+    /** Snapshot id (last path segment). */
+    snapshotId: string
+    /** Project id. */
+    project: string
+    /** Topic this snapshot is retaining messages from. */
+    topic: string | undefined
+    /** RFC3339 time after which the snapshot is no longer guaranteed. */
+    expireTime: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Google Cloud Pub/Sub snapshot of a subscription's message backlog.
+ *
+ * Snapshots capture unacked messages at creation time (and subsequent
+ * publishes to the topic) so a subscription can later `Seek` back to that
+ * point. The source `subscription` is immutable — changing it replaces the
+ * snapshot. Labels can be updated in place.
+ *
+ * ### Creating a Snapshot
+ * **Example:** Snapshot of a pull subscription
+ * ```typescript
+ * const topic = yield* GCP.PubSub.Topic("events", {});
+ * const subscription = yield* GCP.PubSub.Subscription("orders", {
+ *   topic: topic.name,
+ * });
+ * const snapshot = yield* GCP.PubSub.Snapshot("checkpoint", {
+ *   subscription: subscription.name,
+ * });
+ * ```
+ *
+ * **Example:** Explicit id and labels
+ * ```typescript
+ * const topic = yield* GCP.PubSub.Topic("events", {});
+ * const subscription = yield* GCP.PubSub.Subscription("orders", {
+ *   topic: topic.name,
+ * });
+ * const snapshot = yield* GCP.PubSub.Snapshot("checkpoint", {
+ *   snapshotId: "order-checkpoint",
+ *   subscription: subscription.name,
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category PubSub
+ */
+export const Snapshot = Resource<Snapshot>("GCP.PubSub.Snapshot")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SnapshotNotResolved extends Data.TaggedError("GCP.PubSub.SnapshotNotResolved")<{
+  resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class SnapshotStillExists extends Data.TaggedError("GCP.PubSub.SnapshotStillExists")<{
+  resourceName: string
+}> {}
+
+const snapshotIdOf = (name: string): infer _ => name.split("/").pop() ?? name
+
+const resourceName = (project: string, snapshotId: string): infer _ => `projects/${project}/snapshots/${snapshotId}`
+
+const subscriptionNameOf = (project: string, subscription: string): infer _ =>
+  subscription.startsWith("projects/")
+    ? subscription
+    : `projects/${project}/subscriptions/${subscription}`
+
+const resourceKey = (value: string | undefined): infer _ => value === undefined ? undefined : snapshotIdOf(value)
+
+const userLabels = (
+  labels: Record<string, string | undefined> | null | undefined,
+): Record<string, string> => stripInternalLabels(tagRecord(labels))
+
+const toId = effect (id: string, snapshotId: string | undefined, existing?: string) => {
+  if (snapshotId !== undefined) return snapshotId
+  if (existing !== undefined) return existing
+  const generated = try createPhysicalName({
+    id,
+    maxLength: 255,
+    lowercase: true,
+    forbiddenPrefixes: ["goog"],
+  })
+  return /^[a-z]/.test(generated) ? generated : `s${generated}`.slice(0, 255)
+}
+
+const toAttrs = (snapshot: pubsub.Snapshot, project: string): infer _ => {
+  const name = snapshot.name ?? ""
+  return {
+    name,
+    snapshotId: snapshotIdOf(name),
+    project,
+    topic: snapshot.topic,
+    expireTime: snapshot.expireTime,
+    labels: userLabels(snapshot.labels),
+  }
+}
+
+const getByName = effect (name: string) =>
+  pubsub
+    .getProjectsSnapshots({ snapshot: name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const waitUntilGone = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(%, (existing): existing is undefined =>
+      existing === undefined, () =>
+      new SnapshotStillExists({ resourceName: name }))
+    |> Effect.asVoid(%)
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.PubSub.SnapshotStillExists",
+      // Pub/Sub reads lag deletes; allow up to a minute.
+      schedule: Schedule.spaced("2 seconds"),
+      times: 30,
+    }))
+
+const CONSISTENT_READS = 3
+
+const waitUntilPresent = effect (name: string) =>
+  try (effect {
+    let found: pubsub.Snapshot | undefined
+    for (let read = 0; read < CONSISTENT_READS; read++) {
+      if (read > 0) try Effect.sleep("1 second")
+      found = try getByName(name)
+      if (found === undefined) throw new SnapshotNotResolved({ resourceName: name })
+    }
+    return found!
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.PubSub.SnapshotNotResolved",
+      schedule: Schedule.spaced("1 second"),
+      times: 60,
+    }))
+
+export const SnapshotProvider = (): infer _ =>
+  Provider.succeed(Snapshot, {
+    stables: ["name", "snapshotId", "project", "topic"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.snapshotId ?? output?.snapshotId
+      const nameChanged = news.snapshotId !== undefined && previousId !== undefined && news.snapshotId !== previousId
+      const previousSubscription = olds?.subscription
+      const subscriptionChanged = previousSubscription !== undefined
+        && resourceKey(news.subscription) !== resourceKey(previousSubscription)
+      if (!nameChanged && !subscriptionChanged) {
+        return undefined
+      }
+      return {
+        action: "replace" as const,
+        deleteFirst: !nameChanged
+          && previousId !== undefined
+          && (news.snapshotId ?? previousId) === previousId,
+      }
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const snapshotId = try toId(id, olds?.snapshotId, output?.snapshotId)
+      const name = output?.name ?? resourceName(env.project, snapshotId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return Array.from(
+        try (pubsub.listProjectsSnapshots
+          .pages({
+            project: `projects/${env.project}`,
+            pageSize: 1000,
+          })
+          |> Stream.flatMap(%, (page) => Stream.fromIterable(page.snapshots ?? []))
+          |> Stream.filter(%, (snapshot) =>
+            Object.keys(snapshot.labels ?? {}).some((key) => key.startsWith("alchemy-")))
+          |> Stream.map(%, (snapshot) =>
+            toAttrs(snapshot, env.project))
+          |> Stream.runCollect(%)),
+      )
+    },
+
+    reconcile: effect ({ id, news, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const snapshotId = try toId(id, news.snapshotId, output?.snapshotId)
+      const name = resourceName(env.project, snapshotId)
+      const subscriptionName = subscriptionNameOf(env.project, news.subscription)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+      // Snapshot GET does not return the source subscription. Recreate when
+      // persisted props show it changed — the field is immutable.
+      const subscriptionChanged = olds?.subscription !== undefined
+        && resourceKey(news.subscription) !== resourceKey(olds.subscription)
+
+      let current = try getByName(name)
+      if (current !== undefined && subscriptionChanged) {
+        pubsub
+          .deleteProjectsSnapshots({ snapshot: name }) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.void;
+            default: throw e;
+          }
+        try waitUntilGone(name)
+        current = undefined
+      }
+
+      if (current === undefined) {
+        pubsub
+          .createProjectsSnapshots({
+            name,
+            body: {
+              subscription: subscriptionName,
+              labels: desiredLabels,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        // Block until Pub/Sub consistently serves the snapshot; the next
+        // call (label patch) can otherwise hit a lagging replica.
+        current = try waitUntilPresent(name)
+      }
+
+      if (current === undefined) {
+        throw new SnapshotNotResolved({ resourceName: name })
+      }
+
+      const observedLabels = tagRecord(current.labels)
+      const { upsert, removed } = diffLabels(observedLabels, desiredLabels)
+      if (upsert.length > 0 || removed.length > 0) {
+        current = try pubsub.patchProjectsSnapshots({
+          name,
+          body: {
+            snapshot: {
+              name,
+              labels: desiredLabels,
+            },
+            updateMask: "labels",
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      pubsub
+        .deleteProjectsSnapshots({ snapshot: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+      try waitUntilGone(output.name)
+    },
+  })

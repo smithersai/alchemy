@@ -19,7 +19,7 @@ import type { DurableObjectState, SqlStorageValue } from "@alchemy.run/cloudflar
  */
 import type * as cf from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
-import { StoreError } from "../Protocol/Store.ts";
+import { StoreError } from "../Protocol/Store.vibe";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DDL (exact, DESIGN.md §3.1)

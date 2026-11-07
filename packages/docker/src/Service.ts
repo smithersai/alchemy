@@ -19,8 +19,8 @@ import * as Schedule from "effect/Schedule";
 import type * as rolldown from "rolldown";
 import { Docker, dockerEngineContextName, dockerPhysicalName } from "./Docker.ts";
 import { healthcheckCommand, isHealthcheckDisabled } from "./HealthcheckCommand.ts";
-import type { Providers } from "./Providers.ts";
-import { makeServiceImage } from "./ServiceImage.ts";
+import type { Providers } from "./Providers.vibe";
+import { makeServiceImage } from "./ServiceImage.vibe";
 
 export interface ServicePropsBase extends PlatformProps {
   /**

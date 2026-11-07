@@ -8,7 +8,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import { bootstrap } from "./bootstrap.ts";
-import { database } from "./database.ts";
+import { database } from "./database.vibe";
 import { todos } from "./schema.ts";
 
 export default class Api extends AWS.Lambda.Function<Api>()(

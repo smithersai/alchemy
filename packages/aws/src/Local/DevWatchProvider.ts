@@ -39,7 +39,6 @@ import * as RpcProvider from "alchemy/Local/RpcProvider";
 import type { Platform } from "alchemy/Platform";
 import type { ProviderService } from "alchemy/Provider";
 import type { ResourceBinding, ResourceClassLike, ResourceLike } from "alchemy/Resource";
-import { moduleExtension } from "alchemy/Util/Node";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -54,8 +53,7 @@ import { withProviderContext } from "./ProviderContext.ts";
  * {@link makeDevWatchProvider} consumer passes this so all floci dev
  * providers are served from the same group by the dev sidecar.
  */
-export const flociProvidersUrl = () =>
-  import.meta.resolve(`./Local${moduleExtension(import.meta.url)}`, import.meta.url);
+export const flociProvidersUrl = () => import.meta.resolve("@alchemy.run/aws/Local/Local");
 
 /** A diff decision produced by {@link DevWatchSpec.replaceOn}. */
 export interface DevReplaceDecision {

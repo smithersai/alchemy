@@ -1,0 +1,153 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { PolicyStatement } from "../IAM/Policy.vibe"
+import type { Service } from "./Service.vibe"
+
+/**
+ * Shared scaffolding for AWS Cloud Map HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the three
+ * builders below. Everything except the operation, the IAM action list, and
+ * the injected identifier is boilerplate.
+ */
+
+/**
+ * Build the impl Effect for a service-scoped control/data operation. The
+ * runtime callable injects the bound {@link Service}'s id as the request's
+ * `ServiceId`; the deploy-time half grants `actions` on the service ARN
+ * plus any `extraStatements` (e.g. the Route 53 record management Cloud Map
+ * performs on the caller's behalf for DNS services).
+ */
+export const makeCloudMapServiceHttpBinding = effect <I extends { ServiceId: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.CloudMap.GetInstance`. */
+  tag: string
+  /** The distilled operation; `ServiceId` is injected from the service. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the service ARN. */
+  actions: readonly string[]
+  /** Additional statements granted alongside the service-scoped one. */
+  extraStatements?: readonly PolicyStatement[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (service: Service) => {
+    const ServiceId = try service.serviceId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${service})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [service.serviceArn],
+          },
+          ...(options.extraStatements ?? []),
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "ServiceId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ServiceId: try ServiceId,
+          } as I)
+        },
+        `${options.tag}(${service.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a discovery data-plane operation
+ * (`DiscoverInstances` / `DiscoverInstancesRevision`). The runtime callable
+ * injects the bound {@link Service}'s namespace and service names; the
+ * deploy-time half grants `actions` on `*` — the discovery data-plane
+ * actions do not support resource-level IAM permissions.
+ */
+export const makeCloudMapDiscoveryHttpBinding = effect <
+  I extends { NamespaceName: string; ServiceName: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.CloudMap.DiscoverInstances`. */
+  tag: string
+  /** The distilled operation; the names are injected from the service. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*` (no resource-level scoping). */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (service: Service) => {
+    const NamespaceName = try service.namespaceName.asEffect()
+    const ServiceName = try service.serviceName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${service})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "NamespaceName" | "ServiceName"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            NamespaceName: try NamespaceName,
+            ServiceName: try ServiceName,
+          } as I)
+        },
+        `${options.tag}(${service.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level operation (`GetOperation`).
+ * The deploy-time half grants `actions` on `*` — these actions do not
+ * support resource-level IAM permissions.
+ */
+export const makeCloudMapAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.CloudMap.GetOperation`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

@@ -5,7 +5,7 @@ import { toWireSeconds } from "alchemy/Util/Duration";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
-import type { SecurityGroupId } from "../EC2/SecurityGroup.ts";
+import type { SecurityGroupId } from "../EC2/SecurityGroup.vibe";
 import type { SubnetId } from "../EC2/Subnet.ts";
 import * as IAM from "../IAM/index.ts";
 import {
@@ -23,7 +23,7 @@ import {
   DBClusterParameterGroup,
   type DBClusterParameterGroupProps,
   type DBClusterParameterGroup as DBClusterParameterGroupResource,
-} from "./DBClusterParameterGroup.ts";
+} from "./DBClusterParameterGroup.vibe";
 import {
   DBInstance,
   type DBInstanceProps,
@@ -33,24 +33,24 @@ import {
   DBParameterGroup,
   type DBParameterGroupProps,
   type DBParameterGroup as DBParameterGroupResource,
-} from "./DBParameterGroup.ts";
-import { DBProxy, type DBProxyProps, type DBProxy as DBProxyResource } from "./DBProxy.ts";
+} from "./DBParameterGroup.vibe";
+import { DBProxy, type DBProxyProps, type DBProxy as DBProxyResource } from "./DBProxy.vibe";
 import {
   DBProxyEndpoint,
   type DBProxyEndpointProps,
   type DBProxyEndpoint as DBProxyEndpointResource,
-} from "./DBProxyEndpoint.ts";
+} from "./DBProxyEndpoint.vibe";
 import {
   DBProxyTargetGroup,
   type DBProxyTargetGroupProps,
   type DBProxyTargetGroup as DBProxyTargetGroupResource,
-} from "./DBProxyTargetGroup.ts";
+} from "./DBProxyTargetGroup.vibe";
 import {
   DBSubnetGroup,
   type DBSubnetGroupProps,
   type DBSubnetGroup as DBSubnetGroupResource,
-} from "./DBSubnetGroup.ts";
-import type { MigrationsTransport } from "./Migrations.ts";
+} from "./DBSubnetGroup.vibe";
+import type { MigrationsTransport } from "./Migrations.vibe";
 
 export interface AuroraSecretProps extends Omit<
   SecretProps,

@@ -15,7 +15,7 @@ import { LOG_FD_ENV, parseRecord, replayRecord } from "../../Util/LogRecord.ts";
 import { nodeLoaderArgs } from "../../Util/Node.ts";
 import { timedShutdownStep } from "../../Util/Shutdown.ts";
 import { traceParentEnv } from "../../Util/TraceParent.ts";
-import { DEV_RELOAD_EXIT_CODE, DevOptions } from "../DevOptions.ts";
+import { DEV_RELOAD_EXIT_CODE, DevOptions } from "../DevOptions.vibe";
 import { consoleSettingsEnv, currentConsoleSettings, RunLog } from "../GlobalLog.ts";
 import { suppressInterruptMessages } from "./errors.ts";
 import {
@@ -29,7 +29,7 @@ import {
   profile,
   resolveStackArgs,
 } from "./flags.ts";
-import { logCommandFailure, VersionCheck } from "./instrument.ts";
+import { logCommandFailure, VersionCheck } from "./instrument.vibe";
 
 /**
  * Trust the Floci emulator CA in `alchemy dev` so cross-cloud data planes

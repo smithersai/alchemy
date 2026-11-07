@@ -1,0 +1,369 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import { listLocations } from "./names.vibe"
+import { waitForOperation } from "./operations.ts"
+import {
+  encodeOwnership,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  ownedByAlchemy,
+  parentOf,
+  parseOwnership,
+  toResourceId,
+} from "./ownership.vibe"
+
+export type TimeSeriesValueType = "SCALAR" | "TENSOR" | "BLOB_SEQUENCE" | (string & {})
+
+export type TensorboardsExperimentsRunsTimeSeriesProps = {
+  /**
+   * Parent TensorboardRun resource name
+   * (`projects/{project}/locations/{location}/tensorboards/{tensorboard}/experiments/{experiment}/runs/{run}`).
+   * Immutable — changing it replaces the time series.
+   */
+  parent: string
+  /**
+   * Time series id (the `{time_series}` segment, `[a-z0-9]{0,128}`). If
+   * omitted, Vertex AI assigns one. Immutable.
+   */
+  timeSeriesId?: string
+  /**
+   * User-facing display name. Must be unique among time series of the
+   * parent run.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. TensorboardTimeSeries has no labels field,
+   * so Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+  /**
+   * Value type. Immutable.
+   * @default "SCALAR"
+   */
+  valueType?: TimeSeriesValueType
+  /**
+   * Plugin name this time series belongs to (`scalars`, `tensors`, …).
+   * Immutable.
+   */
+  pluginName?: string
+  /**
+   * Plugin data, limited to 65KB.
+   */
+  pluginData?: string
+}
+
+export type TensorboardsExperimentsRunsTimeSeries = Resource<
+  "GCP.AIPlatform.TensorboardsExperimentsRunsTimeSeries",
+  TensorboardsExperimentsRunsTimeSeriesProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Time series id (last path segment). */
+    timeSeriesId: string
+    /** Parent run resource name. */
+    parent: string
+    /** Region id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** User-facing display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Value type. */
+    valueType: string | undefined
+    /** Plugin name. */
+    pluginName: string | undefined
+    /** Plugin data. */
+    pluginData: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex AI TensorboardTimeSeries of scalar, tensor, or blob values.
+ *
+ * Time series have no labels field — Alchemy stamps ownership into the
+ * description so `read`, `list`, and `pnpm nuke:gcp` can find them.
+ * Parent run, id, value type, and plugin name are immutable.
+ *
+ * ### Creating a Time Series
+ * **Example:** Scalar series under a run
+ * ```typescript
+ * const series = yield* GCP.AIPlatform.TensorboardsExperimentsRunsTimeSeries(
+ *   "Loss",
+ *   {
+ *     parent: run.name,
+ *     displayName: "loss",
+ *     valueType: "SCALAR",
+ *     pluginName: "scalars",
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const TensorboardsExperimentsRunsTimeSeries = Resource<TensorboardsExperimentsRunsTimeSeries>(
+  "GCP.AIPlatform.TensorboardsExperimentsRunsTimeSeries",
+)
+
+/** Alias matching the factory catalog identifier. */
+export const TensorboardsExperimentsRunsTimeSery = TensorboardsExperimentsRunsTimeSeries
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class TensorboardsExperimentsRunsTimeSeriesNotResolved extends Data.TaggedError(
+  "GCP.AIPlatform.TensorboardsExperimentsRunsTimeSeriesNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const DEFAULT_VALUE_TYPE = "SCALAR"
+
+// Time series ids allow only `[a-z0-9]`, unlike the dashed ids
+// `toResourceId` generates.
+const toTimeSeriesId = effect (
+  id: string,
+  requested: string | undefined,
+  existing: string | undefined,
+) => (requested !== undefined || existing !== undefined
+  ? try toResourceId(id, requested, existing)
+  : (try toResourceId(id, undefined, undefined)).replace(/[^a-z0-9]/g, ""))
+
+const resourceName = (parent: string, timeSeriesId: string): infer _ => `${parent}/timeSeries/${timeSeriesId}`
+
+const toAttrs = (
+  series: aiplatform.GoogleCloudAiplatformV1TensorboardTimeSeries,
+  project: string,
+): infer _ => {
+  const name = series.name ?? ""
+  const parsed = parseOwnership(series.description)
+  return {
+    name,
+    timeSeriesId: lastSegment(name),
+    parent: parentOf(name),
+    location: locationOf(name),
+    project,
+    displayName: series.displayName,
+    description: parsed.text,
+    valueType: series.valueType,
+    pluginName: series.pluginName,
+    pluginData: series.pluginData,
+    createTime: series.createTime,
+    updateTime: series.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : aiplatform
+  .getProjectsLocationsTensorboardsExperimentsRunsTimeSeries({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listTensorboards = effect (project: string, location: string) =>
+  (Array.from(
+    try (aiplatform.listProjectsLocationsTensorboards
+      .pages({
+        parent: locationParent(project, location),
+        pageSize: 100,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboards ?? []))
+      |> Stream.map(%, (board) => board.name ?? "")
+      |> Stream.filter(%, (name) => name.length > 0)
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+
+const listExperiments = effect (parent: string) =>
+  (Array.from(
+    try (aiplatform.listProjectsLocationsTensorboardsExperiments.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboardExperiments ?? []))
+      |> Stream.map(%, (experiment) => experiment.name ?? "")
+      |> Stream.filter(%, (name) => name.length > 0)
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+
+const listRuns = effect (parent: string) =>
+  (Array.from(
+    try (aiplatform.listProjectsLocationsTensorboardsExperimentsRuns.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboardRuns ?? []))
+      |> Stream.map(%, (run) => run.name ?? "")
+      |> Stream.filter(%, (name) => name.length > 0)
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as string[]; default: throw e; }
+
+const listAtParent = effect (parent: string, project: string) =>
+  (Array.from(
+    try (aiplatform.listProjectsLocationsTensorboardsExperimentsRunsTimeSeries
+      .pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboardTimeSeries ?? []))
+      |> Stream.filter(%, (series) => hasOwnershipMarker(series.description))
+      |> Stream.map(%, (series) => toAttrs(series, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findOwned = effect (parent: string, id: string) =>
+  (Option.getOrUndefined(
+    try (aiplatform.listProjectsLocationsTensorboardsExperimentsRunsTimeSeries
+      .pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.tensorboardTimeSeries ?? []))
+      |> Stream.filterEffect(%, effect (series) => try ownedByAlchemy(id, series.description))
+      |> Stream.runHead(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+export const TensorboardsExperimentsRunsTimeSeriesProvider = (): infer _ =>
+  Provider.succeed(TensorboardsExperimentsRunsTimeSeries, {
+    stables: [
+      "name",
+      "timeSeriesId",
+      "parent",
+      "location",
+      "project",
+      "valueType",
+      "pluginName",
+      "createTime",
+    ],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.parent ?? output?.parent
+      if (previousParent !== undefined && news.parent !== previousParent) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.timeSeriesId ?? output?.timeSeriesId
+      if (
+        previousId !== undefined
+        && news.timeSeriesId !== undefined
+        && news.timeSeriesId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      const previousType = olds?.valueType ?? output?.valueType
+      const nextType = news.valueType ?? DEFAULT_VALUE_TYPE
+      if (previousType !== undefined && previousType !== nextType) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      // Vertex AI rejects GETs for ids it did not assign ("Invalid
+      // TensorboardTimeSeries resource name"), so recover by listing.
+      const existing = output?.name !== undefined
+        ? try getByName(output.name)
+        : typeof olds?.parent === "string"
+        ? try findOwned(olds.parent, id)
+        : undefined
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const boards = (try Effect.forEach(listLocations(env.region), effect (location) =>
+        try listTensorboards(env.project, location))).flat()
+      const experiments = (try Effect.forEach(boards, listExperiments, {
+        concurrency: 4,
+      })).flat()
+      const runs = (try Effect.forEach(experiments, listRuns, {
+        concurrency: 4,
+      })).flat()
+      const pages = try Effect.forEach(runs, effect (parent) =>
+        try listAtParent(parent, env.project), {
+        concurrency: 4,
+      })
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const timeSeriesId = try toTimeSeriesId(id, news.timeSeriesId, output?.timeSeriesId)
+      const name = resourceName(news.parent, timeSeriesId)
+      const ownership = try createInternalLabels(id)
+      const desiredDescription = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? timeSeriesId
+      const valueType = news.valueType ?? DEFAULT_VALUE_TYPE
+
+      let current = (output?.name !== undefined ? try getByName(output.name) : undefined)
+        ?? (try findOwned(news.parent, id))
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsTensorboardsExperimentsRunsTimeSeries({
+            parent: news.parent,
+            tensorboardTimeSeriesId: news.timeSeriesId,
+            body: {
+              displayName,
+              description: desiredDescription,
+              valueType,
+              pluginName: news.pluginName,
+              pluginData: news.pluginData,
+            },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try findOwned(news.parent, id);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new TensorboardsExperimentsRunsTimeSeriesNotResolved({
+          resourceName: name,
+        })
+      }
+
+      const displayChanged = (current.displayName ?? "") !== displayName
+      const descriptionChanged = (current.description ?? "") !== desiredDescription
+      const pluginDataChanged = (current.pluginData ?? "") !== (news.pluginData ?? "")
+
+      if (displayChanged || descriptionChanged || pluginDataChanged) {
+        current = try aiplatform.patchProjectsLocationsTensorboardsExperimentsRunsTimeSeries({
+          name,
+          updateMask: [
+            displayChanged ? "displayName" : undefined,
+            descriptionChanged ? "description" : undefined,
+            pluginDataChanged ? "pluginData" : undefined,
+          ]
+            .filter((field): field is string =>
+              field !== undefined
+            )
+            .join(","),
+          body: {
+            name,
+            displayName,
+            description: desiredDescription,
+            pluginData: news.pluginData,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const existing = try getByName(output.name)
+      if (existing === undefined) return
+      const operation = aiplatform
+        .deleteProjectsLocationsTensorboardsExperimentsRunsTimeSeries({
+          name: output.name,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+    },
+  })

@@ -2,7 +2,7 @@ import * as Output from "alchemy/Output";
 import type { Output as OutputType } from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as AWSBindings from "../AWSBindings.ts";
-import type { Repository } from "./Repository.ts";
+import type { Repository } from "./Repository.vibe";
 
 /**
  * Shared scaffolding for CodeArtifact HTTP bindings.

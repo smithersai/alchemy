@@ -1,0 +1,34 @@
+import * as Binding from "alchemy/Binding";
+import { type RuntimeContext } from "alchemy/RuntimeContext";
+import * as Effect from "effect/Effect";
+import type { Function } from "./Function.vibe";
+export interface InvokeFunctionClient {
+    /** Public base URL; access control remains the application's responsibility. */
+    url: Effect.Effect<string, never, RuntimeContext>;
+    /** Stream an HTTP response. Supply caller authorization explicitly; no account API key is attached. */
+    fetch(path?: string, init?: RequestInit): Effect.Effect<Response, InvokeFunctionError, RuntimeContext>;
+}
+declare const InvokeFunctionError_base: new <A extends Record<string, any> = {}>(args: import("effect/Types").VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
+    readonly _tag: "InvokeFunctionError";
+} & Readonly<A>;
+export declare class InvokeFunctionError extends InvokeFunctionError_base<{
+    message: string;
+}> {
+}
+/**
+ * Bind a public Function URL to any Alchemy runtime host.
+ *
+ * ### Invoke a Function
+ * **Example:** Forward explicit caller credentials
+ * ```typescript
+ * const invoke = yield* Neon.InvokeFunction(api);
+ * const response = yield* invoke.fetch("/private", { headers: { authorization: bearer } });
+ * ```
+ *
+ * @binding
+ * @product Function
+ */
+export interface InvokeFunction extends Binding.Service<InvokeFunction, "Neon.InvokeFunction", (fn: Function) => Effect.Effect<InvokeFunctionClient>> {
+}
+export declare const InvokeFunction: InvokeFunction;
+export {};

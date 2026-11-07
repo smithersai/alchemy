@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as HttpApiClient from "effect/http-api/HttpApiClient";
 import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as Layer from "effect/Layer";
-import { BackendApi } from "./BackendApi.ts";
+import { BackendApi } from "./BackendApi.vibe";
 import { env } from "./Env.ts";
 
 const backendClient = HttpApiClient.make(BackendApi, {

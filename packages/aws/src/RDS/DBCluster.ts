@@ -12,7 +12,7 @@ import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { reapLogGroupsByPrefix } from "../Logs/reapLogGroups.ts";
+import { reapLogGroupsByPrefix } from "../Logs/reapLogGroups.vibe";
 import type { Providers } from "../Providers.ts";
 
 export class RDSDBClusterNotReady extends Data.TaggedError("RDSDBClusterNotReady")<{

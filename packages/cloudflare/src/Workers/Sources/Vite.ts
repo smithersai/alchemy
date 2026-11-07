@@ -17,7 +17,7 @@ import type { FoldkitBuildMetadata } from "../../Website/FoldkitBuild.ts";
 import { readAssets } from "../Assets.ts";
 import type { SourceDevHandle, SourceProvider } from "../Source.ts";
 import { runViteBuildChild } from "../ViteChild.ts";
-import { resolveViteMain } from "../ViteMain.ts";
+import { resolveViteMain } from "../ViteMain.vibe";
 import { isSelfUrl, type ViteOptions } from "../Worker.ts";
 import { isContainerDecl } from "../WorkerAsyncBindings.ts";
 import { isWorkerLoader } from "../WorkerLoader.ts";

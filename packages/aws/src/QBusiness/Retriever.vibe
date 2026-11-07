@@ -1,0 +1,370 @@
+import * as qbusiness from "@distilled.cloud/aws/qbusiness"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.ts"
+
+export error RetrieverInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error RetrieverUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type RetrieverStatus = qbusiness.RetrieverStatus
+export type RetrieverType = qbusiness.RetrieverType
+
+export interface RetrieverProps {
+  /**
+   * The identifier of the Amazon Q Business application the retriever
+   * attaches to. Changing it replaces the retriever.
+   */
+  applicationId: string
+  /**
+   * The retriever type — `NATIVE_INDEX` (an Amazon Q Business index) or
+   * `KENDRA_INDEX` (an existing Amazon Kendra index). Changing it replaces
+   * the retriever.
+   */
+  type: RetrieverType
+  /**
+   * Display name of the retriever.
+   * @default ${app}-${stage}-${id}
+   */
+  displayName?: string
+  /**
+   * The index the retriever queries — `nativeIndexConfiguration` for a
+   * `NATIVE_INDEX` retriever, `kendraIndexConfiguration` for a
+   * `KENDRA_INDEX` retriever.
+   */
+  configuration: qbusiness.RetrieverConfiguration
+  /**
+   * ARN of the IAM role the retriever assumes (required for
+   * `KENDRA_INDEX` retrievers to query the Kendra index).
+   */
+  roleArn?: string
+  /**
+   * Tags to associate with the retriever.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Retriever extends
+  Resource<
+    "AWS.QBusiness.Retriever",
+    RetrieverProps,
+    {
+      /**
+       * Service-assigned unique identifier of the retriever (unique within
+       * its application).
+       */
+      retrieverId: string
+      /**
+       * The identifier of the application the retriever belongs to.
+       */
+      applicationId: string
+      /**
+       * ARN of the retriever.
+       */
+      retrieverArn: string
+      /**
+       * The retriever's display name.
+       */
+      displayName: string
+      /**
+       * The retriever type.
+       */
+      type: RetrieverType | undefined
+      /**
+       * Current lifecycle status of the retriever.
+       */
+      status: RetrieverStatus | undefined
+      /**
+       * Current tags reported for the retriever.
+       */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Q Business retriever — the query engine that fetches relevant
+ * passages from an index (native or Kendra) to ground chat responses.
+ *
+ * ### Creating Retrievers
+ * **Example:** Native Index Retriever
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const retriever = yield* AWS.QBusiness.Retriever("Docs", {
+ *   applicationId: app.applicationId,
+ *   type: "NATIVE_INDEX",
+ *   configuration: {
+ *     nativeIndexConfiguration: { indexId: index.indexId },
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** Kendra Index Retriever
+ * ```typescript
+ * const retriever = yield* AWS.QBusiness.Retriever("Kendra", {
+ *   applicationId: app.applicationId,
+ *   type: "KENDRA_INDEX",
+ *   roleArn: role.roleArn,
+ *   configuration: {
+ *     kendraIndexConfiguration: { indexId: kendraIndex.id },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Retriever = Resource<Retriever>("AWS.QBusiness.Retriever")
+
+const createDisplayName = effect (
+  id: string,
+  props: { displayName?: string | undefined },
+) => (props.displayName ? props.displayName : try createPhysicalName({ id, maxLength: 100 }))
+
+const fetchTags = effect (arn: string) => {
+  const response = qbusiness
+    .listTagsForResource({ resourceARN: arn }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  return Object.fromEntries((response?.tags ?? []).map((tag) => [tag.key, tag.value]))
+}
+
+interface RetrieverState {
+  attrs: Retriever["Attributes"]
+  described: qbusiness.GetRetrieverResponse
+}
+
+const readRetrieverById = effect (applicationId: string, retrieverId: string) => {
+  const described = qbusiness
+    .getRetriever({ applicationId, retrieverId }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!described) return undefined
+  const arn = described.retrieverArn
+  if (arn === undefined) return undefined
+  const state: RetrieverState = {
+    described,
+    attrs: {
+      retrieverId: described.retrieverId ?? retrieverId,
+      applicationId: described.applicationId ?? applicationId,
+      retrieverArn: arn,
+      displayName: described.displayName ?? "",
+      type: described.type,
+      status: described.status,
+      tags: try fetchTags(arn),
+    },
+  }
+  return state
+}
+
+const findRetrieverByName = effect (applicationId: string, displayName: string) => {
+  const summaries = (Array.from(
+    try (qbusiness.listRetrievers.pages({ applicationId })
+      |> EffectStream.runCollect(%)),
+  ).flatMap((page) => page.retrievers ?? [])) catch effect (e) => match (e) {
+    when { _tag: "ResourceNotFoundException" }: [] as qbusiness.Retriever[];
+    default: throw e;
+  }
+  const match = summaries.find((summary) => summary.displayName === displayName)
+  if (!match?.retrieverId) return undefined
+  return try readRetrieverById(applicationId, match.retrieverId)
+}
+
+/**
+ * A retriever still transitioning toward `ACTIVE` — retried by
+ * {@link waitForRetrieverActive}'s bounded schedule.
+ */
+error RetrieverNotReady {
+  retrieverId: string
+  status: string | undefined
+}
+
+/**
+ * A retriever whose asynchronous provisioning converged to the terminal
+ * `FAILED` status.
+ */
+export error RetrieverProvisioningFailed {
+  retrieverId: string
+}
+
+// Explicitly-typed retry wrapper — an inline `Effect.retry` in provider
+// lifecycle code leaks `Retry.Return`'s conditional type into declaration
+// emit and widens the provider layer to `unknown` for every consumer of
+// `AWS.providers()`.
+const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "RetrieverNotReady",
+    // Retriever provisioning is fast; poll every 5s up to ~5 min.
+    schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(60)]),
+  })
+
+const waitForRetrieverActive = (applicationId: string, retrieverId: string) =>
+  retryWhileNotReady(
+    effect {
+      const described = qbusiness
+        .getRetriever({ applicationId, retrieverId }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (described?.status === "ACTIVE") return
+      if (described?.status === "FAILED") {
+        throw new RetrieverProvisioningFailed({ retrieverId })
+      }
+      throw new RetrieverNotReady({ retrieverId, status: described?.status })
+    },
+  )
+
+export const RetrieverProvider = (): infer _ =>
+  Provider.effect(
+    Retriever,
+    effect {
+      return {
+        stables: ["retrieverId", "applicationId", "retrieverArn"],
+        // Keyed by a parent application; cannot be enumerated account-wide
+        // without iterating every application — treated as a sub-resource per
+        // the factory list() convention.
+        list: effect () => [],
+        read: effect ({ id, olds, output }) => {
+          const applicationId = output?.applicationId ?? olds?.applicationId
+          if (applicationId === undefined) return undefined
+          const state = output?.retrieverId
+            ? try readRetrieverById(applicationId, output.retrieverId)
+            : try findRetrieverByName(applicationId, try createDisplayName(id, olds ?? {}))
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.attrs.tags as Tags))
+            ? state.attrs
+            : Unowned(state.attrs)
+        },
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          if (olds === undefined) return
+          // The parent application and retriever type are fixed at creation.
+          if (olds.applicationId !== news.applicationId || olds.type !== news.type) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (!news) {
+            throw new RetrieverInvalidProps({
+              message: "QBusiness Retriever requires props",
+            })
+          }
+          const applicationId = news.applicationId
+          const displayName = try createDisplayName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — prefer the cached id; fall back to a name lookup so a
+          // create whose state failed to persist is adopted, not duplicated.
+          let state = output?.retrieverId
+            ? try readRetrieverById(applicationId, output.retrieverId)
+            : try findRetrieverByName(applicationId, displayName)
+
+          // Ensure — create if missing, then wait for ACTIVE.
+          if (state === undefined) {
+            const created = try qbusiness.createRetriever({
+              applicationId,
+              type: news.type,
+              displayName,
+              configuration: news.configuration,
+              roleArn: news.roleArn,
+              tags: Object.entries(desiredTags).map(([key, value]) => ({
+                key,
+                value,
+              })),
+            })
+            if (!created.retrieverId) {
+              throw new RetrieverUnexpectedResponse({
+                message: `CreateRetriever for '${displayName}' returned no retrieverId`,
+              })
+            }
+            try session.note(`Creating retriever ${displayName} (${created.retrieverId})...`)
+            try waitForRetrieverActive(applicationId, created.retrieverId)
+            state = try readRetrieverById(applicationId, created.retrieverId)
+            if (state === undefined) {
+              throw new RetrieverUnexpectedResponse({
+                message: `failed to read created retriever ${displayName}`,
+              })
+            }
+          }
+
+          // Sync mutable settings via UpdateRetriever — only when drifted.
+          const described = state.described
+          const desiredNativeIndexId = news.configuration.nativeIndexConfiguration?.indexId
+          const observedNativeIndexId = described.configuration?.nativeIndexConfiguration?.indexId
+          const desiredKendraIndexId = news.configuration.kendraIndexConfiguration?.indexId
+          const observedKendraIndexId = described.configuration?.kendraIndexConfiguration?.indexId
+          const needsUpdate = displayName !== described.displayName
+            || (news.roleArn !== undefined && news.roleArn !== described.roleArn)
+            || desiredNativeIndexId !== observedNativeIndexId
+            || desiredKendraIndexId !== observedKendraIndexId
+          if (needsUpdate) {
+            try qbusiness.updateRetriever({
+              applicationId,
+              retrieverId: state.attrs.retrieverId,
+              displayName,
+              configuration: news.configuration,
+              roleArn: news.roleArn,
+            })
+            try waitForRetrieverActive(applicationId, state.attrs.retrieverId)
+            try session.note(`Updated retriever ${displayName}`)
+          }
+
+          // Sync tags — diff against observed cloud tags.
+          const { removed, upsert } = diffTags(state.attrs.tags, desiredTags)
+          if (removed.length > 0) {
+            try qbusiness.untagResource({
+              resourceARN: state.attrs.retrieverArn,
+              tagKeys: removed,
+            })
+          }
+          if (upsert.length > 0) {
+            try qbusiness.tagResource({
+              resourceARN: state.attrs.retrieverArn,
+              tags: upsert.map(({ Key, Value }) => ({
+                key: Key,
+                value: Value,
+              })),
+            })
+          }
+
+          try session.note(state.attrs.retrieverArn)
+
+          const final = try readRetrieverById(applicationId, state.attrs.retrieverId)
+          if (!final) {
+            throw new RetrieverUnexpectedResponse({
+              message: `failed to read reconciled retriever ${displayName}`,
+            })
+          }
+          return final.attrs
+        },
+        delete: effect ({ output }) => {
+          qbusiness
+            .deleteRetriever({
+              applicationId: output.applicationId,
+              retrieverId: output.retrieverId,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

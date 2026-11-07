@@ -1,5 +1,5 @@
 import type { FlyMachineConfig } from "@distilled.cloud/fly-io/machines";
-import { pinsFromConfig, sameImageSet, validObservedImageSet } from "./DeploymentImages.ts";
+import { pinsFromConfig, sameImageSet, validObservedImageSet } from "./DeploymentImages.vibe";
 import { alchemyMetadataKeys as keys } from "./Metadata.ts";
 
 type DeploymentState = { protocol: "legacy" | "1" | "2" } | { protocol: "invalid"; reason: string };

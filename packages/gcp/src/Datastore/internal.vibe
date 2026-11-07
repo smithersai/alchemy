@@ -1,0 +1,206 @@
+import * as datastore from "@distilled.cloud/gcp/datastore_v1"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Data from "effect/Data"
+import * as Effect from "effect/Effect"
+import * as Schedule from "effect/Schedule"
+import * as Stream from "effect/Stream"
+import { waitForOperation as waitForGcpOperation } from "../Operation.ts"
+
+export const DEFAULT_ANCESTOR = "NONE"
+export const DEFAULT_DIRECTION = "ASCENDING"
+export const MAX_KIND_LENGTH = 63
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class IndexNotResolved extends Data.TaggedError("GCP.Datastore.IndexNotResolved")<{
+  indexId: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class IndexStillExists extends Data.TaggedError("GCP.Datastore.IndexStillExists")<{
+  indexId: string
+}> {}
+
+export const stringFromMap = (
+  map: datastore.DocumentMap | undefined,
+  key: string,
+): string | undefined => {
+  const value = map?.[key]
+  if (typeof value === "string" && value.length > 0) return value
+  if (value !== null && typeof value === "object") {
+    const record = value as { stringValue?: unknown }
+    if (typeof record.stringValue === "string" && record.stringValue.length > 0) {
+      return record.stringValue
+    }
+  }
+  return undefined
+}
+
+export const normalizeEnum = (value: string | undefined, fallback: string): infer _ => {
+  const next = (value ?? fallback).toUpperCase()
+  return next.endsWith("_UNSPECIFIED") ? fallback : next
+}
+
+export const rfc1035Kind = (name: string, maxLength = MAX_KIND_LENGTH): infer _ => {
+  let next = name
+    .replace(/[^a-zA-Z0-9_]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+  if (!/^[A-Za-z]/.test(next)) next = `K${next}`
+  next = next.slice(0, maxLength).replace(/_+$/g, "")
+  if (next.length === 0) next = "Kind"
+  return next.slice(0, maxLength)
+}
+
+export const toKind = effect (id: string, kind: string | undefined, existing?: string) => {
+  if (kind !== undefined && kind.length > 0) return kind
+  if (existing !== undefined && existing.length > 0) return existing
+  return rfc1035Kind(
+    try createPhysicalName({
+      id,
+      maxLength: MAX_KIND_LENGTH,
+      lowercase: false,
+    }),
+  )
+}
+
+export type IndexedProperty = {
+  /** Property name to index. */
+  name: string
+  /**
+   * Sort direction.
+   * @default "ASCENDING"
+   */
+  direction?: datastore.GoogleDatastoreAdminV1IndexedPropertyDirectionEnum | (string & {})
+}
+
+export const propertyOf = (
+  property: IndexedProperty | datastore.GoogleDatastoreAdminV1IndexedProperty,
+): IndexedProperty => ({
+  name: property.name ?? "",
+  direction: normalizeEnum(property.direction, DEFAULT_DIRECTION),
+})
+
+export const propertiesKey = (
+  properties:
+    | readonly IndexedProperty[]
+    | readonly datastore.GoogleDatastoreAdminV1IndexedProperty[]
+    | undefined,
+): infer _ => JSON.stringify((properties ?? []).map(propertyOf))
+
+export const desiredBody = (input: {
+  kind: string
+  ancestor?: string
+  properties: IndexedProperty[]
+}): datastore.GoogleDatastoreAdminV1Index => ({
+  kind: input.kind,
+  ancestor: normalizeEnum(input.ancestor, DEFAULT_ANCESTOR),
+  properties: input.properties.map(propertyOf),
+})
+
+export const matchesDesired = (
+  index: datastore.GoogleDatastoreAdminV1Index,
+  input: {
+    kind: string
+    ancestor?: string
+    properties: IndexedProperty[]
+  },
+): infer _ => {
+  const desired = desiredBody(input)
+  return (
+    (index.kind ?? "") === desired.kind
+    && normalizeEnum(index.ancestor, DEFAULT_ANCESTOR)
+      === normalizeEnum(desired.ancestor, DEFAULT_ANCESTOR)
+    && propertiesKey(index.properties ?? []) === propertiesKey(desired.properties ?? [])
+  )
+}
+
+export const toAttrs = (index: datastore.GoogleDatastoreAdminV1Index, project: string): infer _ => {
+  const indexId = index.indexId ?? ""
+  return {
+    name: indexId.length > 0
+      ? `projects/${index.projectId ?? project}/indexes/${indexId}`
+      : `projects/${index.projectId ?? project}/indexes`,
+    indexId,
+    project: index.projectId ?? project,
+    kind: index.kind ?? "",
+    ancestor: index.ancestor,
+    state: index.state,
+    properties: (index.properties ?? []).map(propertyOf),
+  }
+}
+
+export const getById = effect (projectId: string, indexId: string) =>
+  datastore
+    .getProjectsIndexes({ projectId, indexId }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+export const listIndexes = effect (projectId: string) =>
+  Array.from(
+    try (datastore.listProjectsIndexes
+      .pages({
+        projectId,
+      })
+      |> Stream.runCollect(%)),
+  ).flatMap((page) => page.indexes ?? [])
+
+/** Wait for a Datastore admin operation (index builds can take minutes). */
+export const waitForOperation = effect (operation: datastore.GoogleLongrunningOperation) =>
+  try effect {
+    try (waitForGcpOperation(operation, effect (name) => try datastore.getProjectsOperations({ name }), {
+      budget: "20 minutes",
+    })
+      |> Effect.catchIf(%, (error) =>
+        error._tag === "GCP.OperationFailed" && error.code === 6, effect () =>
+        try Effect.void))
+    return (operation.name === undefined || operation.name.length === 0
+      ? operation
+      : try datastore.getProjectsOperations({ name: operation.name }))
+  }
+
+export const indexIdFromOperation = (
+  operation: datastore.GoogleLongrunningOperation | undefined,
+): string | undefined => {
+  if (operation === undefined) return undefined
+  return (
+    stringFromMap(operation.response, "indexId")
+      ?? stringFromMap(operation.metadata, "indexId")
+      ?? stringFromMap(operation.metadata, "index")
+  )
+}
+
+export const waitUntilExists = effect (projectId: string, indexId: string) =>
+  try (effect {
+    return try effect {
+      const index = try getById(projectId, indexId)
+      return (index ? index : throw new IndexNotResolved({ indexId }))
+    }
+  }
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.Datastore.IndexNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("2 seconds"),
+    }))
+
+export const waitUntilGone = effect (projectId: string, indexId: string) =>
+  try (getById(projectId, indexId)
+    |> Effect.filterOrFail(%, (index) => index === undefined, () => new IndexStillExists({ indexId }))
+    |> Effect.retry(%, {
+      while: (error) => error._tag === "GCP.Datastore.IndexStillExists",
+      times: 24,
+      schedule: Schedule.spaced("5 seconds"),
+    })
+    |> Effect.asVoid(%))
+
+export const waitUntilDeletable = effect (projectId: string, indexId: string) =>
+  try (getById(projectId, indexId)
+    |> Effect.filterOrFail(%, (index) =>
+      index === undefined || index.state !== "DELETING", () =>
+      new IndexNotResolved({ indexId }))
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.Datastore.IndexNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("2 seconds"),
+    }))

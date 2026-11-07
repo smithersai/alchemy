@@ -4,34 +4,34 @@ export {
   InvalidManagedAuth,
   type AuthProps,
   type AuthAttributes,
-} from "./Auth.ts";
-export * from "./AuthOAuthProvider.ts";
-export * from "./AuthTrustedDomain.ts";
-export * from "./DataApi.ts";
+} from "./Auth.vibe";
+export * from "./AuthOAuthProvider.vibe";
+export * from "./AuthTrustedDomain.vibe";
+export * from "./DataApi.vibe";
 export * from "./AIGateway.ts";
-export * from "./ConnectAuth.ts";
-export * from "./QueryDataApi.ts";
+export * from "./ConnectAuth.vibe";
+export * from "./QueryDataApi.vibe";
 export * from "./QueryAIGateway.ts";
-export * from "./LanguageModel.ts";
+export * from "./LanguageModel.vibe";
 export * from "./Branch.ts";
-export * from "./Connect.ts";
+export * from "./Connect.vibe";
 export * from "./BranchScope.ts";
 export * from "./Credential.ts";
-export * from "./Role.ts";
+export * from "./Role.vibe";
 export * from "./Bucket.ts";
 export * from "./Object.ts";
-export * from "./ReadBucket.ts";
-export * from "./WriteBucket.ts";
-export * from "./ReadWriteBucket.ts";
+export * from "./ReadBucket.vibe";
+export * from "./WriteBucket.vibe";
+export * from "./ReadWriteBucket.vibe";
 export * from "./ReadBucketHttp.ts";
 export * from "./WriteBucketHttp.ts";
 export * from "./ReadWriteBucketHttp.ts";
-export * from "./ReadObject.ts";
-export * from "./WriteObject.ts";
-export * from "./ReadObjectHttp.ts";
-export * from "./WriteObjectHttp.ts";
-export * from "./Credentials.ts";
-export * from "./PostgresOrigin.ts";
+export * from "./ReadObject.vibe";
+export * from "./WriteObject.vibe";
+export * from "./ReadObjectHttp.vibe";
+export * from "./WriteObjectHttp.vibe";
+export * from "./Credentials.vibe";
+export * from "./PostgresOrigin.vibe";
 export * from "./Project.ts";
 export {
   OrganizationApiKey,
@@ -76,19 +76,19 @@ export {
   InvalidProjectVPCEndpoint,
   type ProjectVPCEndpointProps,
   type ProjectVPCEndpointAttributes,
-} from "./ProjectVPCEndpoint.ts";
-export * from "./Providers.ts";
+} from "./ProjectVPCEndpoint.vibe";
+export * from "./Providers.vibe";
 export * as Website from "./Website/index.ts";
-export * from "./Function.ts";
-export * from "./FunctionEnvironment.ts";
-export * from "./FunctionTrigger.ts";
-export * from "./FunctionTriggerEvent.ts";
-export * from "./CustomDomain.ts";
-export * from "./CronEventSource.ts";
-export * from "./CronEventSourceHttp.ts";
-export * from "./BucketEventSource.ts";
-export * from "./BucketEventSourceHttp.ts";
-export * from "./InvokeFunction.ts";
-export * from "./InvokeFunctionHttp.ts";
-export * from "./waitUntil.ts";
-export * from "./upgrade.ts";
+export * from "./Function.vibe";
+export * from "./FunctionEnvironment.vibe";
+export * from "./FunctionTrigger.vibe";
+export * from "./FunctionTriggerEvent.vibe";
+export * from "./CustomDomain.vibe";
+export * from "./CronEventSource.vibe";
+export * from "./CronEventSourceHttp.vibe";
+export * from "./BucketEventSource.vibe";
+export * from "./BucketEventSourceHttp.vibe";
+export * from "./InvokeFunction.vibe";
+export * from "./InvokeFunctionHttp.vibe";
+export * from "./waitUntil.vibe";
+export * from "./upgrade.vibe";

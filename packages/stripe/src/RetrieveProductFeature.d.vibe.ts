@@ -1,0 +1,23 @@
+import type { GetProductFeatureError, GetProductFeatureRequest, ProductFeature as StripeProductFeature } from "@distilled.cloud/stripe/stripe";
+import * as Binding from "alchemy/Binding";
+import type { RuntimeContext } from "alchemy/RuntimeContext";
+import type * as Effect from "effect/Effect";
+import type { ProductFeature } from "./ProductFeature.vibe";
+export interface RetrieveProductFeatureRequest extends Omit<GetProductFeatureRequest, "id" | "product"> {
+}
+/**
+ * Retrieve a bound Stripe Product Feature attachment over HTTP.
+ *
+ * ### Reading a Product Feature
+ * **Example:** Bind and retrieve
+ * ```typescript
+ * const retrieve = yield* Stripe.RetrieveProductFeature(seatsOnPro);
+ * const live = yield* retrieve();
+ * ```
+ *
+ * @binding
+ * @product Product
+ */
+export interface RetrieveProductFeature extends Binding.Service<RetrieveProductFeature, "Stripe.RetrieveProductFeature", (productFeature: ProductFeature) => Effect.Effect<(request?: RetrieveProductFeatureRequest) => Effect.Effect<StripeProductFeature, GetProductFeatureError, RuntimeContext>>> {
+}
+export declare const RetrieveProductFeature: RetrieveProductFeature;

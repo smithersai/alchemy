@@ -1,0 +1,39 @@
+import * as Cloudflare from "@alchemy.run/cloudflare"
+import * as Effect from "effect/Effect"
+
+/**
+ * One instance per short link: keeps the click count in transactional
+ * storage and pushes every change to the dashboards watching it over
+ * hibernatable WebSockets.
+ */
+export default class LinkRoom extends Cloudflare.DurableObject<LinkRoom>()(
+  "LinkRoom",
+  effect {
+    const state = try Effect.service(Cloudflare.DurableObjectState)
+
+    return effect {
+      let clicks = (try state.storage.get<number>("clicks")) ?? 0
+
+      const broadcast = effect () => {
+        for (const socket of try state.getWebSockets()) {
+          try socket.send(JSON.stringify({ clicks }))
+        }
+      }
+
+      return {
+        record: effect (n: number) => {
+          clicks += n
+          try state.storage.put("clicks", clicks)
+          try broadcast()
+          return clicks
+        },
+        clicks: effect () => clicks,
+        fetch: effect {
+          const [response, socket] = try Cloudflare.upgrade()
+          try socket.send(JSON.stringify({ clicks }))
+          return response
+        },
+      }
+    }
+  },
+) {}

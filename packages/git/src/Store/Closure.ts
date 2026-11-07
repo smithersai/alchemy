@@ -36,7 +36,7 @@ import {
   type ManifestEntry,
   type ObjectMeta,
   type ObjectSource,
-} from "../Protocol/Store.ts";
+} from "../Protocol/Store.vibe";
 import type { SqlClient } from "./Sql.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────

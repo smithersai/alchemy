@@ -1,5 +1,5 @@
 import type * as Binding from "./Binding.ts";
-import { makeBindingLayer } from "./BindingLayer.ts";
+import { makeBindingLayer } from "./BindingLayer.vibe";
 import {
   VersionMetadata,
   type VersionMetadataAccessor,

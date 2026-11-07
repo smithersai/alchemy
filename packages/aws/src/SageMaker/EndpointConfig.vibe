@@ -1,0 +1,291 @@
+import * as sagemaker from "@distilled.cloud/aws/sagemaker"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.ts"
+
+export error EndpointConfigInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error EndpointConfigUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface EndpointConfigProps {
+  /**
+   * Name of the endpoint configuration. Maximum 63 characters.
+   * @default ${app}-${stage}-${id}
+   */
+  endpointConfigName?: string
+  /**
+   * The models to host and the resources (instances or serverless capacity)
+   * to deploy each on. At least one variant is required. Use
+   * `ServerlessConfig` for pay-per-request serverless inference or
+   * `InstanceType` + `InitialInstanceCount` for provisioned instances.
+   */
+  productionVariants: sagemaker.ProductionVariant[]
+  /**
+   * Shadow variants that receive a copy of the traffic for testing a new
+   * model behind the production variant.
+   */
+  shadowProductionVariants?: sagemaker.ProductionVariant[]
+  /**
+   * Capture inference request/response payloads to S3 (for monitoring or
+   * retraining).
+   */
+  dataCaptureConfig?: sagemaker.DataCaptureConfig
+  /**
+   * KMS key that SageMaker uses to encrypt data on the storage volume of the
+   * hosting instances. Not supported for serverless variants.
+   */
+  kmsKeyId?: string
+  /**
+   * Configure the endpoint for asynchronous inference.
+   */
+  asyncInferenceConfig?: sagemaker.AsyncInferenceConfig
+  /**
+   * SageMaker Clarify explainer configuration.
+   */
+  explainerConfig?: sagemaker.ExplainerConfig
+  /**
+   * IAM role used by the endpoint (when variants require one).
+   */
+  executionRoleArn?: string
+  /**
+   * VPC configuration for the hosted models.
+   */
+  vpcConfig?: sagemaker.VpcConfig
+  /**
+   * Isolate the hosted containers from the network.
+   * @default false
+   */
+  enableNetworkIsolation?: boolean
+  /**
+   * Tags to associate with the endpoint configuration. Merged with internal
+   * Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface EndpointConfig extends
+  Resource<
+    "AWS.SageMaker.EndpointConfig",
+    EndpointConfigProps,
+    {
+      /**
+       * The endpoint configuration's name.
+       */
+      endpointConfigName: string
+      /**
+       * ARN of the endpoint configuration.
+       */
+      endpointConfigArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon SageMaker EndpointConfig — the deployment recipe that maps one
+ * or more `Model`s to hosting resources (provisioned instances or serverless
+ * capacity). Pure configuration: it costs nothing until an `Endpoint`
+ * references it.
+ *
+ * Endpoint configurations are immutable — any change other than tags
+ * replaces the configuration. To roll a live endpoint onto new settings,
+ * point the `Endpoint` at the replacement config (alchemy creates the new
+ * config first, updates the endpoint, then deletes the old config).
+ * ### Creating Endpoint Configurations
+ * **Example:** Serverless Variant
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const config = yield* AWS.SageMaker.EndpointConfig("MyConfig", {
+ *   productionVariants: [{
+ *     VariantName: "AllTraffic",
+ *     ModelName: model.modelName,
+ *     ServerlessConfig: { MemorySizeInMB: 2048, MaxConcurrency: 5 },
+ *   }],
+ * });
+ * ```
+ *
+ * **Example:** Provisioned Instances
+ * ```typescript
+ * const config = yield* AWS.SageMaker.EndpointConfig("MyConfig", {
+ *   productionVariants: [{
+ *     VariantName: "AllTraffic",
+ *     ModelName: model.modelName,
+ *     InstanceType: "ml.m5.large",
+ *     InitialInstanceCount: 1,
+ *   }],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const EndpointConfig = Resource<EndpointConfig>("AWS.SageMaker.EndpointConfig")
+
+const createConfigName = effect (
+  id: string,
+  props: { endpointConfigName?: string | undefined },
+) => (props.endpointConfigName ? props.endpointConfigName : try createPhysicalName({ id, maxLength: 63 }))
+
+const fetchConfigTags = effect (arn: string) => {
+  const response = sagemaker
+    .listTags({ ResourceArn: arn }) catch effect (e) => match (e) {
+      when { _tag: "AccessDeniedException" }: try Effect.undefined;
+      default: throw e;
+    }
+  return Object.fromEntries(
+    (response?.Tags ?? []).flatMap((tag) => tag.Key !== undefined ? [[tag.Key, tag.Value ?? ""]] : []),
+  )
+}
+
+const readEndpointConfig = effect (name: string) => {
+  const described = sagemaker
+    .describeEndpointConfig({ EndpointConfigName: name }) catch effect (e) => match (e) {
+      when { _tag: "EndpointConfigNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!described) return undefined
+  return {
+    endpointConfigName: described.EndpointConfigName,
+    endpointConfigArn: described.EndpointConfigArn,
+  }
+}
+
+export const EndpointConfigProvider = (): infer _ =>
+  Provider.effect(
+    EndpointConfig,
+    effect {
+      return {
+        stables: ["endpointConfigName", "endpointConfigArn"],
+        list: effect () => {
+          const summaries = Array.from(
+            try (sagemaker.listEndpointConfigs.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => page.EndpointConfigs ?? [])
+          return summaries.flatMap((s) =>
+            s.EndpointConfigName !== undefined && s.EndpointConfigArn !== undefined
+              ? [
+                {
+                  endpointConfigName: s.EndpointConfigName,
+                  endpointConfigArn: s.EndpointConfigArn,
+                },
+              ]
+              : []
+          )
+        },
+        read: effect ({ id, olds, output }) => {
+          const name = output?.endpointConfigName ?? (try createConfigName(id, olds ?? {}))
+          const attrs = try readEndpointConfig(name)
+          if (!attrs) return undefined
+          const tags = try fetchConfigTags(attrs.endpointConfigArn)
+          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : Unowned(attrs)
+        },
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return
+          if (olds === undefined) return
+          // Endpoint configs are immutable — everything except tags replaces.
+          const identity = (props: EndpointConfigProps): infer _ => [
+            props.productionVariants,
+            props.shadowProductionVariants,
+            props.dataCaptureConfig,
+            props.kmsKeyId,
+            props.asyncInferenceConfig,
+            props.explainerConfig,
+            props.executionRoleArn,
+            props.vpcConfig,
+            props.enableNetworkIsolation ?? false,
+          ]
+          const oldName = try createConfigName(id, olds)
+          const newName = try createConfigName(id, news)
+          if (
+            oldName !== newName
+            || JSON.stringify(identity(olds)) !== JSON.stringify(identity(news))
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (!news) {
+            throw new EndpointConfigInvalidProps({
+              message: "SageMaker EndpointConfig requires props",
+            })
+          }
+          const name = output?.endpointConfigName ?? (try createConfigName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe.
+          let attrs = try readEndpointConfig(name)
+
+          // Ensure — create if missing; tolerate the already-exists race.
+          if (attrs === undefined) {
+            sagemaker
+              .createEndpointConfig({
+                EndpointConfigName: name,
+                ProductionVariants: news.productionVariants,
+                ShadowProductionVariants: news.shadowProductionVariants,
+                DataCaptureConfig: news.dataCaptureConfig,
+                KmsKeyId: news.kmsKeyId,
+                AsyncInferenceConfig: news.asyncInferenceConfig,
+                ExplainerConfig: news.explainerConfig,
+                ExecutionRoleArn: news.executionRoleArn,
+                VpcConfig: news.vpcConfig,
+                EnableNetworkIsolation: news.enableNetworkIsolation,
+                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "EndpointConfigAlreadyExists" }: try Effect.void;
+                default: throw e;
+              }
+            attrs = try readEndpointConfig(name)
+            if (attrs === undefined) {
+              throw new EndpointConfigUnexpectedResponse({
+                message: `failed to read created endpoint config ${name}`,
+              })
+            }
+          }
+
+          // Sync tags — diff against OBSERVED cloud tags.
+          const currentTags = try fetchConfigTags(attrs.endpointConfigArn)
+          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          if (removed.length > 0) {
+            try sagemaker.deleteTags({
+              ResourceArn: attrs.endpointConfigArn,
+              TagKeys: removed,
+            })
+          }
+          if (upsert.length > 0) {
+            try sagemaker.addTags({
+              ResourceArn: attrs.endpointConfigArn,
+              Tags: upsert.map(({ Key, Value }) => ({ Key, Value })),
+            })
+          }
+
+          try session.note(attrs.endpointConfigArn)
+          return attrs
+        },
+        delete: effect ({ output }) => {
+          sagemaker
+            .deleteEndpointConfig({
+              EndpointConfigName: output.endpointConfigName,
+            }) catch effect (e) => match (e) {
+              when { _tag: "EndpointConfigNotFound" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

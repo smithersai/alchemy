@@ -1,0 +1,81 @@
+import type { GcpOpContext } from "@distilled.cloud/gcp/contentwarehouse_v1"
+import type { Output } from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.ts"
+import { grantFor, type BindingIam } from "../HttpBinding.ts"
+import type { Document } from "./Document.vibe"
+import type { DocumentSchema } from "./DocumentSchema.ts"
+import type { RuleSet } from "./RuleSet.ts"
+import type { SynonymSet } from "./SynonymSet.vibe"
+
+/**
+ * Distilled ops are OperationMethods: yield them once at Layer construction
+ * (after providing Credentials + HttpClient) so the inner runtime Effect is
+ * `Effect<A, E>` and does not leak `GcpOpContext`.
+ */
+type GcpHttpOp<I, A, E> =
+  & (((input: I) => A!E)!!GcpOpContext)
+  & ((input: I) => A!E!GcpOpContext)
+
+const makeNamedHttpBinding = effect <
+  Resource extends { name: Output<string, never>; LogicalId: string },
+  I extends { name: string },
+  A,
+  E,
+>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (resource: Resource) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${resource})`({
+        iam: [grantFor(options.iam, resource.name)],
+      })
+    }
+    const name = try resource.name.asEffect()
+    return effect (
+      request?: Omit<I, "name"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const resourceName = try name
+          return try run({
+            ...request,
+            name: resourceName,
+          } as I)
+        },
+        `${options.tag}(${resource.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Shared HTTP scaffolding for Content Warehouse bindings.
+ * NOT exported from index.ts.
+ */
+export const makeDocumentSchemaHttpBinding = effect <I extends { name: string }, A, E>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+}) => try makeNamedHttpBinding<DocumentSchema, I, A, E>(options)
+
+export const makeDocumentHttpBinding = effect <I extends { name: string }, A, E>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+}) => try makeNamedHttpBinding<Document, I, A, E>(options)
+
+export const makeRuleSetHttpBinding = effect <I extends { name: string }, A, E>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+}) => try makeNamedHttpBinding<RuleSet, I, A, E>(options)
+
+export const makeSynonymSetHttpBinding = effect <I extends { name: string }, A, E>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+}) => try makeNamedHttpBinding<SynonymSet, I, A, E>(options)

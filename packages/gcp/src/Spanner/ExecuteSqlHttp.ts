@@ -5,7 +5,7 @@ import * as Semaphore from "effect/Semaphore";
 import * as GCPBindings from "../GCPBindings.ts";
 import { grantFor } from "../HttpBinding.ts";
 import type { Database } from "./Database.ts";
-import { ExecuteSql, type ExecuteSqlRequest } from "./ExecuteSql.ts";
+import { ExecuteSql, type ExecuteSqlRequest } from "./ExecuteSql.vibe";
 
 /**
  * HTTP implementation of {@link ExecuteSql}.

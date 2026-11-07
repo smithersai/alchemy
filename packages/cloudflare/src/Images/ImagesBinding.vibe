@@ -1,0 +1,98 @@
+import type * as cf from "@cloudflare/workers-types"
+import * as Binding from "../Workers/Binding.ts"
+import { makeBindingLayer } from "../Workers/BindingLayer.vibe"
+import {
+  Images,
+  ImagesError,
+  type ImagesClient,
+  type ImageTransformationResult,
+  type ImageTransformer,
+} from "./Images.ts"
+
+/** The binding value produced by calling {@link Images} (declared on `env` or `yield*`-ed). */
+export type ImagesBinding = Binding.Binding<Images["key"], ImagesClient, Images>
+
+/**
+ * The layer that provides the Effect-native interface for the Cloudflare
+ * Workers Images binding.
+ *
+ * Provide it on the Worker effect (`Effect.provide(Cloudflare.Images.ImagesBinding)`)
+ * so that yielding an {@link Images} binding attaches the native `images`
+ * binding to the surrounding Worker at deploy time and, at runtime, resolves to
+ * the Effect-native {@link ImagesClient} (wrapping the raw `cf.ImagesBinding` so every
+ * `info` / `input(...).transform(...).output(...)` call returns an `Effect`).
+ */
+export const ImagesBinding = makeBindingLayer<Images, cf.ImagesBinding, ImagesClient>(
+  Images,
+  (raw) =>
+    ({
+      raw,
+      info: effect (stream, options) => {
+        const binding = try raw
+        const readable = try toCfReadable(stream)
+        return try tryPromise(() => binding.info(readable, options))
+      },
+      input: effect (stream, options) => {
+        const binding = try raw
+        const readable = try toCfReadable(stream)
+        return wrapTransformer(
+          try Effect.orDie(Effect.try({ try: () => binding.input(readable, options), catch: (error) => error })),
+        )
+      },
+    }) satisfies ImagesClient,
+)
+
+/**
+ * Wrap a runtime `ImageTransformer` as the Effect-native chainable client.
+ * `transform`/`draw` stay pure; `output` crosses into the runtime.
+ */
+const wrapTransformer = (raw: cf.ImageTransformer): ImageTransformer => ({
+  raw,
+  transform: (transform) => wrapTransformer(raw.transform(transform)),
+  draw: effect <E, R>(
+    image: Stream.Stream<Uint8Array, E, R> | ImageTransformer,
+    options?: cf.ImageDrawOptions,
+  ): ImageTransformer!!R => {
+    if (isTransformerClient(image)) {
+      return wrapTransformer(
+        try Effect.orDie(Effect.try({ try: () => raw.draw(image.raw, options), catch: (error) => error })),
+      )
+    }
+    const image2 = try toCfReadable(image)
+    return wrapTransformer(
+      try Effect.orDie(Effect.try({ try: () => raw.draw(image2, options), catch: (error) => error })),
+    )
+  },
+  output: effect (options) => wrapResult(try tryPromise(() => raw.output(options))),
+})
+
+/** Wrap a runtime `ImageTransformationResult` as the Effect-native result client. */
+const wrapResult = (raw: cf.ImageTransformationResult): ImageTransformationResult => ({
+  raw,
+  response: Effect.sync(() => raw.response()),
+  contentType: Effect.sync(() => raw.contentType()),
+  image: effect (options) => try Effect.sync(() => raw.image(options)),
+})
+
+/**
+ * Convert an Effect `Stream<Uint8Array>` into the `cf.ReadableStream<Uint8Array>`
+ * shape the Images runtime binding expects (identical at runtime).
+ */
+const toCfReadable = effect <E, R>(
+  stream: Stream.Stream<Uint8Array, E, R>,
+): cf.ReadableStream<Uint8Array>!!R =>
+  (try Stream.toReadableStreamEffect(stream)) as unknown as cf.ReadableStream<Uint8Array>
+
+const tryPromise = effect <T>(fn: () => Promise<T>): T!ImagesError =>
+  try Effect.tryPromise({
+    try: fn,
+    catch: (error: any) =>
+      new ImagesError({
+        message: error?.message ?? "Unknown error",
+        code: typeof error?.code === "number" ? error.code : undefined,
+        cause: error,
+      }),
+  })
+
+const isTransformerClient = (image: unknown): image is ImageTransformer =>
+  typeof image === "object" && image !== null && "raw" in image

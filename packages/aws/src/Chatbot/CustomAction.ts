@@ -9,7 +9,7 @@ import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { fromChatbotTags, inChatbotRegion, toChatbotTags } from "./internal.ts";
+import { fromChatbotTags, inChatbotRegion, toChatbotTags } from "./internal.vibe";
 
 /**
  * A criteria block controlling when a custom action button is shown on a

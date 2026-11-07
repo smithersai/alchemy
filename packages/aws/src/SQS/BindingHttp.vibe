@@ -1,0 +1,131 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Queue } from "./Queue.vibe"
+
+/**
+ * Shared scaffolding for AWS SQS HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every near-identical `{Op}Http.ts` in this
+ * service is a thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of
+ * the builders below. Everything except the operation, the IAM action list,
+ * and the injected identifier is boilerplate. Genuinely-different bindings
+ * (the batched `QueueSink`, the dual-queue `StartMessageMoveTask`) stay
+ * bespoke.
+ */
+
+const GrantOnQueue = effect {
+  const bind = try AWSBindings.Bind
+  return effect (tag: string, queue: Queue, actions: readonly string[]) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${tag}(${queue})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...actions],
+            Resource: [Output.interpolate`${queue.queueArn}`],
+          },
+        ],
+      })
+    }
+  }
+}
+
+/**
+ * Build the impl Effect for a queue-scoped operation whose request carries
+ * the queue identity as `QueueUrl` (`SendMessage`, `ReceiveMessage`,
+ * `PurgeQueue`, …): the runtime callable injects the bound {@link Queue}'s
+ * URL and the deploy-time half grants `actions` on the queue's ARN.
+ */
+export const makeQueueUrlHttpBinding = effect <I extends { QueueUrl?: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.SQS.SendMessage`. */
+  tag: string
+  /** The distilled operation; the queue URL is injected as `QueueUrl`. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the queue ARN. */
+  actions: readonly string[]
+}) => {
+  const grantOnQueue = try GrantOnQueue
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (queue: Queue) => {
+    const QueueUrl = try queue.queueUrl.asEffect()
+    try grantOnQueue(options.tag, queue, options.actions)
+    return effect (
+      request?: Omit<I, "QueueUrl"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            QueueUrl: try QueueUrl,
+          } as I)
+        },
+        `${options.tag}(${queue.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a dead-letter-queue-scoped message-move-task
+ * operation whose request carries the queue identity as `SourceArn`
+ * (`ListMessageMoveTasks`): the runtime callable injects the bound
+ * {@link Queue}'s ARN and the deploy-time half grants `actions` on it.
+ */
+export const makeQueueArnHttpBinding = effect <I extends { SourceArn?: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.SQS.ListMessageMoveTasks`. */
+  tag: string
+  /** The distilled operation; the queue ARN is injected as `SourceArn`. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the queue ARN. */
+  actions: readonly string[]
+}) => {
+  const grantOnQueue = try GrantOnQueue
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (queue: Queue) => {
+    const SourceArn = try queue.queueArn.asEffect()
+    try grantOnQueue(options.tag, queue, options.actions)
+    return effect (
+      request?: Omit<I, "SourceArn"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            SourceArn: try SourceArn,
+          } as I)
+        },
+        `${options.tag}(${queue.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a queue-scoped operation whose request carries
+ * no queue identity at all (`CancelMessageMoveTask`): the runtime callable
+ * passes the caller's request through unchanged while the deploy-time half
+ * still grants `actions` on the bound {@link Queue}'s ARN.
+ */
+export const makeQueueGrantHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.SQS.CancelMessageMoveTask`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the queue ARN. */
+  actions: readonly string[]
+}) => {
+  const grantOnQueue = try GrantOnQueue
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (queue: Queue) => {
+    try grantOnQueue(options.tag, queue, options.actions)
+    return effect (request: I) =>
+      try withSpan(
+        effect {
+          return try op(request)
+        },
+        `${options.tag}(${queue.LogicalId})`,
+      )
+  }
+}

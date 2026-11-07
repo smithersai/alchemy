@@ -9,11 +9,11 @@ import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as HttpClient from "effect/http/HttpClient";
 import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
-import { bindBackendEnvironment } from "./BackendConnection.ts";
+import { bindBackendEnvironment } from "./BackendConnection.vibe";
 import type { Bucket } from "./Bucket.ts";
 import { Credential, validateCredential } from "./Credential.ts";
-import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.ts";
-import { FunctionEnvironment } from "./FunctionEnvironment.ts";
+import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.vibe";
+import { FunctionEnvironment } from "./FunctionEnvironment.vibe";
 import { makeStorageClient, type StorageClient, type StorageConfig } from "./Storage.ts";
 
 export interface StorageBindingOptions {

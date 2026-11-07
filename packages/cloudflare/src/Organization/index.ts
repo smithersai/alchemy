@@ -1,1 +1,1 @@
-export * from "./Organization.ts";
+export * from "./Organization.vibe";

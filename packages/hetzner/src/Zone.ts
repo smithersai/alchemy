@@ -12,7 +12,7 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { waitForZoneAction } from "./actions.ts";
+import { waitForZoneAction } from "./actions.vibe";
 import {
   alchemyStackSelector,
   createInternalLabels,
@@ -20,8 +20,8 @@ import {
   labelSelector,
   stripInternalLabels,
   toLabels,
-} from "./Labels.ts";
-import type { Providers } from "./Providers.ts";
+} from "./Labels.vibe";
+import type { Providers } from "./Providers.vibe";
 
 export type ZoneMode = "primary" | "secondary";
 export type ZoneStatus = "ok" | "updating" | "error";

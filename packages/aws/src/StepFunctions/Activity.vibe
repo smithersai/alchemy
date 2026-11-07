@@ -1,0 +1,224 @@
+import * as sfn from "@distilled.cloud/aws/sfn"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+
+export interface ActivityProps {
+  /**
+   * Name of the activity (1-80 characters; letters, digits, dashes and
+   * underscores). If omitted, a deterministic physical name is generated
+   * from the app, stage, and logical ID. Changing the name triggers a
+   * replacement.
+   */
+  activityName?: string
+  /**
+   * Tags to apply to the activity. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Activity extends
+  Resource<
+    "AWS.StepFunctions.Activity",
+    ActivityProps,
+    {
+      /**
+       * Physical name of the activity.
+       */
+      activityName: string
+      /**
+       * ARN of the activity — reference it from a state machine Task state's
+       * `Resource` field.
+       */
+      activityArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Step Functions activity — a named endpoint that external workers
+ * poll for tasks (`GetActivityTask`) and complete with the `SendTask*`
+ * callback operations.
+ *
+ * Activities support worker-hosted task processing outside Lambda. For
+ * most callback flows the `.waitForTaskToken` service-integration pattern
+ * on a {@link StateMachine} Task state is preferred.
+ * ### Creating Activities
+ * **Example:** Basic Activity
+ * ```typescript
+ * import * as StepFunctions from "@alchemy.run/aws/StepFunctions";
+ *
+ * const activity = yield* StepFunctions.Activity("ApprovalActivity");
+ * ```
+ *
+ * **Example:** Reference an Activity from a State Machine
+ * ```typescript
+ * const machine = yield* StepFunctions.StateMachine("ApprovalFlow", {
+ *   definition: {
+ *     StartAt: "WaitForWorker",
+ *     States: {
+ *       WaitForWorker: {
+ *         Type: "Task",
+ *         Resource: activity.activityArn,
+ *         End: true,
+ *       },
+ *     },
+ *   },
+ * });
+ * ```
+ *
+ * ### Completing Tasks at Runtime
+ * **Example:** Send a task result scoped to the activity
+ * ```typescript
+ * // init
+ * const sendTaskSuccess = yield* StepFunctions.SendTaskSuccess(activity);
+ *
+ * // runtime
+ * yield* sendTaskSuccess({
+ *   taskToken: token,
+ *   output: JSON.stringify({ approved: true }),
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Activity = Resource<Activity>("AWS.StepFunctions.Activity")
+
+const toSfnTags = (tags: Record<string, string>): sfn.Tag[] =>
+  Object.entries(tags).map(([key, value]) => ({ key, value }))
+
+const fromSfnTags = (tags: ReadonlyArray<sfn.Tag> | undefined): Record<string, string> =>
+  Object.fromEntries(
+    (tags ?? [])
+      .filter(
+        (tag): tag is { key: string; value: string } => typeof tag.key === "string" && typeof tag.value === "string",
+      )
+      .map((tag) => [tag.key, tag.value]),
+  )
+
+export const ActivityProvider = (): infer _ =>
+  Provider.effect(
+    Activity,
+    effect {
+      const createName = effect (
+        id: string,
+        props: Pick<ActivityProps, "activityName">,
+      ) => props.activityName ?? (try createPhysicalName({ id, maxLength: 80 }))
+
+      const activityArnOf = (region: string, accountId: string, name: string): infer _ =>
+        `arn:aws:states:${region}:${accountId}:activity:${name}`
+
+      const describeOrUndefined = effect (activityArn: string) =>
+        sfn
+          .describeActivity({ activityArn }) catch effect (e) => match (e) {
+            when { _tag: "ActivityDoesNotExist" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      const fetchObservedTags = effect (resourceArn: string) =>
+        (fromSfnTags((try sfn.listTagsForResource({ resourceArn })).tags)) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFound" }: {} as Record<string, string>;
+          default: throw e;
+        }
+
+      return Activity.Provider.of({
+        stables: ["activityName", "activityArn"],
+
+        list: effect () => {
+          const pages = try sfn.listActivities.pages({}).pipe(Stream.runCollect)
+          return Array.from(pages)
+            .flatMap((page) => page.activities ?? [])
+            .map((activity) => ({
+              activityName: activity.name,
+              activityArn: activity.activityArn,
+            }))
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.activityName ?? (try createName(id, olds ?? {}))
+          const activityArn = output?.activityArn ?? activityArnOf(region, accountId, name)
+          const found = try describeOrUndefined(activityArn)
+          if (!found) return undefined
+          const attrs = {
+            activityName: found.name,
+            activityArn: found.activityArn,
+          }
+          const tags = try fetchObservedTags(activityArn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds ?? {})
+          const newName = try createName(id, news ?? {})
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+          // tags converge via update
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          // `news` is undefined when the resource is declared without a
+          // props argument (`Activity("id")`).
+          const props = news ?? {}
+          const name = output?.activityName ?? (try createName(id, props))
+          const activityArn = activityArnOf(region, accountId, name)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...props.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative.
+          const observed = try describeOrUndefined(activityArn)
+
+          // 2. ENSURE — createActivity is idempotent for an identical
+          //    configuration; ActivityAlreadyExists only fires when the
+          //    existing activity differs (encryption config), in which case
+          //    we keep the existing one (the ARN is deterministic).
+          if (observed === undefined) {
+            sfn
+              .createActivity({ name, tags: toSfnTags(desiredTags) }) catch effect (e) => match (e) {
+                when { _tag: "ActivityAlreadyExists" }: try Effect.void;
+                default: throw e;
+              }
+          }
+
+          // 3. SYNC TAGS — against OBSERVED cloud tags (create-time tags
+          //    only apply on first create; adoption may carry foreign tags).
+          const observedTags = try fetchObservedTags(activityArn)
+          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0) {
+            try sfn.tagResource({
+              resourceArn: activityArn,
+              tags: upsert.map(({ Key, Value }) => ({
+                key: Key,
+                value: Value,
+              })),
+            })
+          }
+          if (removed.length > 0) {
+            try sfn.untagResource({
+              resourceArn: activityArn,
+              tagKeys: removed,
+            })
+          }
+
+          try session.note(activityArn)
+          return { activityName: name, activityArn }
+        },
+
+        delete: effect ({ output }) => {
+          // deleteActivity is idempotent — deleting a non-existent activity
+          // succeeds.
+          try sfn.deleteActivity({ activityArn: output.activityArn })
+        },
+      })
+    },
+  )

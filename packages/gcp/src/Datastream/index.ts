@@ -1,5 +1,5 @@
-export * from "./ConnectionProfile.ts";
+export * from "./ConnectionProfile.vibe";
 export * from "./PrivateConnection.ts";
-export * from "./PrivateConnectionsRoute.ts";
-export * from "./Stream.ts";
-export type { DatastreamError } from "./Stream.ts";
+export * from "./PrivateConnectionsRoute.vibe";
+export * from "./Stream.vibe";
+export type { DatastreamError } from "./Stream.vibe";

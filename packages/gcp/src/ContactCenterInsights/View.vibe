@@ -1,0 +1,251 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnershipLine,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  MAX_VIEW_DISPLAY_NAME_LENGTH,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./ownership.vibe"
+
+export type ViewProps = {
+  /**
+   * View id (the `{view}` segment of
+   * `projects/{project}/locations/{location}/views/{view}`). If omitted, a
+   * unique id is generated. Immutable — changing it replaces the view.
+   */
+  viewId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * view. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * Display name (max 64 characters including Alchemy's ownership
+   * marker). Views have no labels field, so ownership is stored in a
+   * `[alchemy …]` prefix and stripped from attributes.
+   */
+  displayName?: string
+  /**
+   * Filter reducing conversation results to a subset. See
+   * https://cloud.google.com/contact-center/insights/docs/filtering.
+   */
+  value?: string
+}
+
+export type View = Resource<
+  "GCP.ContactCenterInsights.View",
+  ViewProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/views/{view}`. */
+    name: string
+    /** View id (last path segment). */
+    viewId: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** User display name with the Alchemy ownership prefix stripped. */
+    displayName: string | undefined
+    /** Conversation filter. */
+    value: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Contact Center AI Insights saved view — a named conversation filter.
+ *
+ * Views have no labels field — Alchemy stamps ownership into the display
+ * name. Location and id are immutable. Display name and filter value
+ * update in place.
+ *
+ * ### Creating a View
+ * **Example:** Chat-only view
+ * ```typescript
+ * const view = yield* GCP.ContactCenterInsights.View("Chat", {
+ *   displayName: "chat",
+ *   value: 'medium="CHAT"',
+ * });
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const View = Resource<View>("GCP.ContactCenterInsights.View")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ViewNotResolved extends Data.TaggedError("GCP.ContactCenterInsights.ViewNotResolved")<{
+  resourceName: string
+}> {}
+
+const resourceName = (project: string, location: string, viewId: string): infer _ =>
+  `${locationParent(project, location)}/views/${viewId}`
+
+const toAttrs = (view: cci.GoogleCloudContactcenterinsightsV1View, project: string): infer _ => {
+  const name = view.name ?? ""
+  const parsed = parseOwnership(view.displayName)
+  return {
+    name,
+    viewId: lastSegment(name),
+    location: locationOf(name),
+    project,
+    displayName: parsed.text,
+    value: view.value,
+    createTime: view.createTime,
+    updateTime: view.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+  .getProjectsLocationsViews({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string) =>
+  (Array.from(
+    try (cci.listProjectsLocationsViews.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.views ?? []))
+      |> Stream.filter(%, (view) => hasOwnershipMarker(view.displayName))
+      |> Stream.map(%, (view) => toAttrs(view, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+const findByDisplayName = effect (parent: string, displayName: string) =>
+  (try effect {
+    const option = try (cci.listProjectsLocationsViews.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.views ?? []))
+      |> Stream.filter(%, (view) => view.displayName === displayName)
+      |> Stream.runHead(%))
+    return (option._tag === "Some" ? option.value : undefined)
+  }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+
+export const ViewProvider = (): infer _ =>
+  Provider.succeed(View, {
+    stables: ["name", "viewId", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousLocation = olds?.location ?? output?.location
+      if (
+        previousLocation !== undefined
+        && news.location !== undefined
+        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.viewId ?? output?.viewId
+      if (previousId !== undefined && news.viewId !== undefined && news.viewId !== previousId) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const viewId = try toResourceId(id, olds?.viewId, output?.viewId)
+      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const name = output?.name ?? resourceName(env.project, location, viewId)
+      let existing = try getByName(name)
+      if (existing === undefined && output?.name === undefined) {
+        const ownership = try createInternalLabels(id)
+        existing = try findByDisplayName(
+          locationParent(env.project, location),
+          encodeOwnershipLine(ownership, olds?.displayName, MAX_VIEW_DISPLAY_NAME_LENGTH),
+        )
+      }
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.displayName)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAt(locationParent(env.project, env.region), env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const parent = locationParent(env.project, location)
+      const viewId = try toResourceId(id, news.viewId, output?.viewId)
+      const name = output?.name ?? resourceName(env.project, location, viewId)
+      const ownership = try createInternalLabels(id)
+      const displayName = encodeOwnershipLine(
+        ownership,
+        news.displayName,
+        MAX_VIEW_DISPLAY_NAME_LENGTH,
+      )
+
+      let current = try getByName(name)
+      if (current === undefined) {
+        current = try findByDisplayName(parent, displayName)
+      }
+
+      if (current === undefined) {
+        const created = cci
+          .createProjectsLocationsViews({
+            parent,
+            body: {
+              name,
+              displayName,
+              value: news.value,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? (try findByDisplayName(parent, displayName))
+      }
+
+      if (current === undefined) {
+        throw new ViewNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = (current.displayName ?? "") !== displayName
+      const valueChanged = !sameText(current.value, news.value)
+
+      if (displayChanged || valueChanged) {
+        current = try cci.patchProjectsLocationsViews({
+          name: currentName,
+          updateMask: updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            valueChanged ? "value" : undefined,
+          ),
+          body: {
+            name: currentName,
+            displayName,
+            value: news.value,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      cci
+        .deleteProjectsLocationsViews({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

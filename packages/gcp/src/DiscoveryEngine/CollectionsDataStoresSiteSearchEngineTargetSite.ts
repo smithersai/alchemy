@@ -14,8 +14,8 @@ import {
   parseResourceName,
   siteSearchEngineParent,
   matchesUriPattern,
-} from "./internal.ts";
-import { waitForOperation } from "./operations.ts";
+} from "./internal.vibe";
+import { waitForOperation } from "./operations.vibe";
 
 export type CollectionsDataStoresSiteSearchEngineTargetSiteProps = {
   /**

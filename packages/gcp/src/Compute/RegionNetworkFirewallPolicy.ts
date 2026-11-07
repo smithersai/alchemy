@@ -17,8 +17,8 @@ import type {
   FirewallPolicyRuleMatcher,
   FirewallPolicyType,
 } from "./FirewallPolicy.ts";
-import { ignoredCodes } from "./internal.ts";
-import { waitRegionOperation } from "./operations.ts";
+import { ignoredCodes } from "./internal.vibe";
+import { waitRegionOperation } from "./operations.vibe";
 
 const DEFAULT_POLICY_TYPE = "VPC_POLICY";
 const RESERVED_PRIORITY_MIN = 2147483548;

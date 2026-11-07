@@ -1,0 +1,41 @@
+import { BackendClient } from "./BackendClient"
+import { env } from "./Env"
+import { FrontendApi, Hello, KvOk, KvValue } from "./NextApi.vibe"
+
+const kvGet = (key: string) =>
+  Effect.tryPromise({
+    try: () => env.KV.get(key),
+    catch: (cause) => new Error(String(cause)),
+  }) |> Effect.orDie(%)
+
+const kvPut = (key: string, value: string) =>
+  Effect.tryPromise({
+    try: () => env.KV.put(key, value),
+    catch: (cause) => new Error(String(cause)),
+  }) |> Effect.orDie(%)
+
+export const FrontendHandlers = HttpApiBuilder.group(
+  FrontendApi,
+  "frontend",
+  effect (handlers) => {
+    const client = try BackendClient
+
+    return handlers
+      .handle("hello", () =>
+        client.Backend.listNotes()
+        |> Effect.map(
+          %,
+          (listed) =>
+            new Hello({
+              message: env.GREETING ?? "Hello from vinext!",
+              noteCount: listed.notes.length,
+            }),
+        )
+        |> Effect.orDie(%))
+      .handle("listNotes", () => client.Backend.listNotes() |> Effect.orDie(%))
+      .handle("createNote", ({ payload }) => client.Backend.createNote({ payload }) |> Effect.orDie(%))
+      .handle("deleteNote", ({ params }) => client.Backend.deleteNote({ params }) |> Effect.orDie(%))
+      .handle("getKv", ({ params }) => kvGet(params.key) |> Effect.map(%, (value) => new KvValue({ value })))
+      .handle("putKv", ({ params, payload }) => kvPut(params.key, payload) |> Effect.as(%, new KvOk({ ok: true })))
+  },
+)

@@ -4,7 +4,7 @@ import * as Effect from "effect/Effect";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
-import { Network, NetworkLive } from "./Network.ts";
+import { Network, NetworkLive } from "./Network.vibe";
 
 export default class Server extends AWS.EC2.Instance<Server>()(
   "ServerInstance",

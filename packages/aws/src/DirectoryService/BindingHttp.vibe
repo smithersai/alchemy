@@ -1,0 +1,104 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Directory } from "./Directory.ts"
+
+/**
+ * Shared scaffolding for AWS Directory Service HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the two builders
+ * below. Everything except the operation and the IAM action list is
+ * boilerplate.
+ */
+
+/**
+ * Build the impl Effect for an account-level Directory Service operation
+ * (enumerating directories, reading account limits). The deploy-time half
+ * grants `actions` on `*` — these actions do not support resource-level
+ * permissions.
+ */
+export const makeDirectoryServiceAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.DirectoryService.GetDirectoryLimits`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a Directory Service operation scoped to one
+ * {@link Directory}: the deploy-time half grants `actions` on the bound
+ * directory's ARN (`arn:aws:ds:{region}:{account}:directory/{id}`), and the
+ * runtime half injects the directory's `DirectoryId` into every request.
+ */
+export const makeDirectoryHttpBinding = effect <I extends { DirectoryId?: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.DirectoryService.CreateSnapshot`. */
+  tag: string
+  /** The distilled operation; `DirectoryId` is injected from the directory. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the directory ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (directory: Directory) => {
+    const DirectoryId = try directory.directoryId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const { accountId, region } = try (AWSEnvironment.current as unknown as {
+        accountId: string;
+        region: string;
+      }!!)
+      try bind`${options.tag}(${directory})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [
+              Output.interpolate`arn:aws:ds:${region}:${accountId}:directory/${directory.directoryId}`,
+            ],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "DirectoryId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            DirectoryId: try DirectoryId,
+          } as I)
+        },
+        `${options.tag}(${directory.LogicalId})`,
+      )
+  }
+}

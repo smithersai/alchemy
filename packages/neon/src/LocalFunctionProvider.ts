@@ -12,9 +12,13 @@ import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as Result from "effect/Result";
 import * as SemVer from "effect/SemVer";
 import * as Stream from "effect/Stream";
-import { branchScopeOf, Function } from "./Function.ts";
+import { branchScopeOf, Function } from "./Function.vibe";
 import { buildFunctionArtifact, validateFunctionZip } from "./FunctionArtifact.ts";
-import { FunctionConfigurationError, functionEnvironment, functionSlug } from "./FunctionConfig.ts";
+import {
+  FunctionConfigurationError,
+  functionEnvironment,
+  functionSlug,
+} from "./FunctionConfig.vibe";
 
 export const LocalFunctionProvider = () =>
   LocalProvider.make(

@@ -23,7 +23,7 @@ import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import { makeImageSource, type ImageSourceLike } from "../ECR/ImageSource.ts";
 import { AWSEnvironment } from "../Environment.ts";
-import type { PolicyStatement } from "../IAM/Policy.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
 /**
  * The `aws-eks` {@link ClusterAdapter}: everything platform-specific about
  * running `Kubernetes.*` workloads on Amazon EKS.

@@ -21,8 +21,8 @@ import {
   toId,
   toResourcePath,
   userLabels,
-} from "./names.ts";
-import { waitForOperation } from "./operations.ts";
+} from "./names.vibe";
+import { waitForOperation } from "./operations.vibe";
 
 const COLLECTION = "mirroringEndpointGroups";
 const DEFAULT_TYPE = "DIRECT" satisfies networksecurity.MirroringEndpointGroupTypeEnum;

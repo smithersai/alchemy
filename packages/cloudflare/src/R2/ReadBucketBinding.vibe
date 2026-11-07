@@ -1,0 +1,44 @@
+import type * as runtime from "@cloudflare/workers-types"
+import * as Layer from "effect/Layer"
+import { makeBucketBinding, makeHelpers } from "./BucketBinding.ts"
+import type { GetOptions, ListOptions, Objects } from "./BucketTypes.ts"
+import { ReadBucket, type ReadBucketClient } from "./ReadBucket.vibe"
+
+/**
+ * Implementation of the {@link ReadBucket} binding that uses a Worker binding.
+ */
+export const ReadBucketBinding = Layer.effect(
+  ReadBucket,
+  effect {
+    return try makeBucketBinding({ makeClient: makeRead })
+  },
+)
+
+/** Build the read half of the binding client. */
+export const makeRead = ({
+  raw,
+  use,
+  wrapR2Object,
+  wrapR2ObjectOrBody,
+}: ReturnType<typeof makeHelpers>): ReadBucketClient => {
+  const wrapR2Objects = (objects: runtime.R2Objects): Objects =>
+    ({
+      objects: objects.objects.map(wrapR2Object),
+      delimitedPrefixes: objects.delimitedPrefixes,
+      ...("cursor" in objects ? { cursor: objects.cursor } : {}),
+      ...("truncated" in objects ? { truncated: objects.truncated } : {}),
+    }) as Objects
+
+  return {
+    raw,
+    head: effect (key: string) =>
+      try effect {
+        const object = try use((raw) => raw.head(key))
+        return (object ? wrapR2Object(object) : object)
+      },
+    get:
+      (effect (key: string, options?: GetOptions) =>
+        wrapR2ObjectOrBody(try use((raw) => raw.get(key, options)))) as any,
+    list: effect (options?: ListOptions) => wrapR2Objects(try use((raw) => raw.list(options))),
+  }
+}

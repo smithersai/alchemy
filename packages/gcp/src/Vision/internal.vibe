@@ -1,0 +1,256 @@
+import * as vision from "@distilled.cloud/gcp/vision_v1"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Effect from "effect/Effect"
+
+// Product Search only exists in PRODUCT_SEARCH_LOCATIONS, so the stack region is not a usable default.
+export const DEFAULT_LOCATION = "us-west1"
+export const DEFAULT_PRODUCT_CATEGORY = "homegoods-v2"
+const MAX_ID_LENGTH = 128
+
+const lastSegment = (value: string): infer _ => {
+  const trimmed = value.replace(/\/+$/, "")
+  const parts = trimmed.split("/")
+  return parts[parts.length - 1] || trimmed
+}
+
+const parentOf = (name: string): infer _ => {
+  const parts = name.split("/").filter((part) => part.length > 0)
+  return parts.slice(0, -2).join("/")
+}
+
+export const normalizeLocation = (location: string | undefined): infer _ =>
+  lastSegment(location ?? DEFAULT_LOCATION).toLowerCase()
+
+export const locationParent = (project: string, location: string): infer _ =>
+  `projects/${project}/locations/${location}`
+
+export const productSetNameOf = (project: string, location: string, productSetId: string): infer _ => {
+  if (productSetId.length === 0) return ""
+  if (productSetId.includes("/productSets/")) {
+    return productSetId.replace(/\/+$/, "")
+  }
+  return `${locationParent(project, location)}/productSets/${lastSegment(productSetId)}`
+}
+
+export const productNameOf = (project: string, location: string, productId: string): infer _ => {
+  if (productId.length === 0) return ""
+  if (productId.includes("/products/")) {
+    return productId.replace(/\/+$/, "")
+  }
+  return `${locationParent(project, location)}/products/${lastSegment(productId)}`
+}
+
+export const referenceImageNameOf = (parent: string, imageId: string): infer _ => {
+  if (imageId.length === 0) return ""
+  if (imageId.includes("/referenceImages/")) {
+    return imageId.replace(/\/+$/, "")
+  }
+  return `${parent}/referenceImages/${lastSegment(imageId)}`
+}
+
+const expandProductName = (project: string, location: string, value: string): infer _ =>
+  productNameOf(project, location, value)
+
+export const parseResourceName = (name: string, fallbackProject: string, collection: string): infer _ => {
+  const parts = name.split("/").filter((part) => part.length > 0)
+  const collectionAt = parts.lastIndexOf(collection)
+  const locationsAt = parts.lastIndexOf("locations")
+  const projectsAt = parts.lastIndexOf("projects")
+  return {
+    name,
+    project: projectsAt >= 0 && parts[projectsAt + 1] ? parts[projectsAt + 1]! : fallbackProject,
+    location: locationsAt >= 0 && parts[locationsAt + 1] ? parts[locationsAt + 1]! : DEFAULT_LOCATION,
+    id: collectionAt >= 0 && parts[collectionAt + 1] ? parts[collectionAt + 1]! : lastSegment(name),
+    parent: collectionAt >= 0 ? parts.slice(0, collectionAt).join("/") : parentOf(name),
+  }
+}
+
+export const sameText = (left: string | undefined, right: string | undefined): infer _ => (left ?? "") === (right ?? "")
+
+export const jsonEqual = (left: unknown, right: unknown): infer _ =>
+  JSON.stringify(left ?? null) === JSON.stringify(right ?? null)
+
+export const updateMaskOf = (...fields: Array<string | undefined>): infer _ =>
+  fields.filter((field): field is string => field !== undefined).join(",")
+
+export const replaceOnIdentity = (input: {
+  previousId?: string
+  nextId?: string
+  previousParent?: string
+  nextParent?: string
+  extra?: boolean
+}): infer _ => {
+  if (input.extra === true) {
+    return { action: "replace" as const, deleteFirst: false }
+  }
+  if (
+    input.previousId !== undefined
+    && input.nextId !== undefined
+    && input.previousId !== input.nextId
+  ) {
+    return { action: "replace" as const, deleteFirst: false }
+  }
+  if (
+    input.previousParent !== undefined
+    && input.nextParent !== undefined
+    && input.previousParent !== input.nextParent
+  ) {
+    return { action: "replace" as const, deleteFirst: false }
+  }
+  return undefined
+}
+
+export const toResourceId = effect (
+  id: string,
+  requested: string | undefined,
+  existing: string | undefined,
+  maxLength = MAX_ID_LENGTH,
+) => {
+  if (requested !== undefined && requested.length > 0) {
+    return lastSegment(requested).slice(0, maxLength)
+  }
+  if (existing !== undefined && existing.length > 0) {
+    return lastSegment(existing).slice(0, maxLength)
+  }
+  const generated = try createPhysicalName({
+    id,
+    maxLength,
+    lowercase: true,
+  })
+  const next = /^[a-z]/.test(generated) ? generated : `v${generated}`.slice(0, maxLength)
+  return next.length >= 4 ? next : `${next}xxxx`.slice(0, maxLength)
+}
+
+const emptyList = effect <A>() => [] as A[]
+
+const catchMissing = effect <A, E extends { readonly _tag: string }, R>(effect: A!E!R) =>
+  try (effect
+    |> Effect.catchIf(%, (error): error is E & { readonly _tag: "NotFound" } =>
+      error._tag === "NotFound", effect () =>
+      try Effect.undefined))
+
+const ignoreMissing = effect <E extends { readonly _tag: string }, R>(
+  effect: unknown!E!R,
+) =>
+  try (effect
+    |> Effect.catchIf(%, (error): error is E & { readonly _tag: "NotFound" } =>
+      error._tag === "NotFound", effect () =>
+      try Effect.void))
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class DeleteNotConfirmed extends Data.TaggedError("GCP.Vision.DeleteNotConfirmed")<{}> {}
+
+/** Poll until the resource is gone; fails if it is still readable after ~60s. */
+export const waitUntilGone = effect <A, E, R>(get: A | undefined!E!R) =>
+  try ((try (get
+      |> Effect.repeat(%, {
+        schedule: Schedule.spaced("2 seconds"),
+        until: (value) => value === undefined,
+        times: 30,
+      }))) === undefined
+    ? Effect.void
+    : throw new DeleteNotConfirmed())
+
+const collectPages = effect <Page, Item, E extends { readonly _tag: string }, R>(
+  pages: Stream.Stream<Page, E, R>,
+  items: (page: Page) => readonly Item[] | null | undefined,
+) =>
+  try (effect {
+    return Array.from(
+      try (pages
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(items(page) ?? []))
+        |> Stream.runCollect(%)),
+    ) as Item[]
+  }
+    |> Effect.catchIf(%, (error): error is E & { readonly _tag: "NotFound" } =>
+      error._tag === "NotFound", effect () =>
+      try emptyList<Item>()))
+
+export const getProductSet = effect (
+  name: string,
+) => (name.length === 0 ? try Effect.undefined : try catchMissing(vision.getProjectsLocationsProductSets({ name })))
+
+export const getProduct = effect (
+  name: string,
+) => (name.length === 0 ? try Effect.undefined : try catchMissing(vision.getProjectsLocationsProducts({ name })))
+
+export const getReferenceImage = effect (
+  name: string,
+) => (name.length === 0
+  ? try Effect.undefined
+  : try catchMissing(vision.getProjectsLocationsProductsReferenceImages({ name })))
+
+export const listProductsInSet = effect (name: string) =>
+  name.length === 0
+    ? try emptyList<vision.Product>()
+    : try collectPages(
+      vision.listProjectsLocationsProductSetsProducts.pages({
+        name,
+        pageSize: 100,
+      }),
+      (page) => page.products,
+    )
+
+export const productLabelsOf = (
+  labels: ReadonlyArray<{ key?: string; value?: string }> | undefined,
+): Array<{ key: string; value: string }> =>
+  (labels ?? []).flatMap((item) => (item.key ? [{ key: item.key, value: item.value ?? "" }] : []))
+
+export const sameProductLabels = (
+  left: ReadonlyArray<{ key: string; value: string }> | undefined,
+  right: ReadonlyArray<{ key: string; value: string }> | undefined,
+): infer _ =>
+  jsonEqual(
+    [...(left ?? [])].map((item) => `${item.key}=${item.value}`).sort(),
+    [...(right ?? [])].map((item) => `${item.key}=${item.value}`).sort(),
+  )
+
+export const deleteProductSet = effect (
+  name: string,
+) => (name.length === 0 ? try Effect.void : try ignoreMissing(vision.deleteProjectsLocationsProductSets({ name })))
+
+export const deleteProduct = effect (
+  name: string,
+) => (name.length === 0 ? try Effect.void : try ignoreMissing(vision.deleteProjectsLocationsProducts({ name })))
+
+export const deleteReferenceImage = effect (
+  name: string,
+) => (name.length === 0
+  ? try Effect.void
+  : try ignoreMissing(vision.deleteProjectsLocationsProductsReferenceImages({ name })))
+
+export const syncProductSetMembership = effect (
+  setName: string,
+  project: string,
+  location: string,
+  desired: readonly string[] | undefined,
+) => {
+  if (desired === undefined) return
+  const wanted = new Set(
+    desired
+      .filter((value) => value.length > 0)
+      .map((value) => expandProductName(project, location, value)),
+  )
+  const observed = try listProductsInSet(setName)
+  const present = new Set(
+    observed
+      .map((product) => product.name)
+      .filter((name): name is string => typeof name === "string"),
+  )
+  for (const product of wanted) {
+    if (present.has(product)) continue
+    vision
+      .addProductProjectsLocationsProductSets({
+        name: setName,
+        body: { product },
+      }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.void; default: throw e; }
+  }
+  for (const product of present) {
+    if (wanted.has(product)) continue
+    vision
+      .removeProductProjectsLocationsProductSets({
+        name: setName,
+        body: { product },
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+  }
+}

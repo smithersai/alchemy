@@ -7,11 +7,11 @@ import { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { isKnownError, PlanetscaleConflict, waitForBranchReady } from "../Util.ts";
 import type { PostgresBranch } from "./PostgresBranch.ts";
 import type { PostgresDatabase } from "./PostgresDatabase.ts";
-import type { PostgresOrigin } from "./PostgresOrigin.ts";
+import type { PostgresOrigin } from "./PostgresOrigin.vibe";
 
 /**
  * Built-in PostgreSQL roles that can be inherited from. Custom role names

@@ -8,11 +8,11 @@ import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import LinkRoom from "./LinkRoom.ts";
+import LinkRoom from "./LinkRoom.vibe";
 import { Links, type Link } from "./Links.ts";
 import { LinksDynamo } from "./LinksDynamo.ts";
 import { Clicks, Jobs, type ClickEvent, type UnfurlJob } from "./Queues.ts";
-import { ShortyApi } from "./ShortyApi.ts";
+import { ShortyApi } from "./ShortyApi.vibe";
 import { unfurl } from "./unfurl.ts";
 
 const DAY = 24 * 60 * 60 * 1000;

@@ -1,0 +1,59 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { Connect, connectEnvPrefix } from "./Connect.vibe"
+import type { ServerlessCache } from "./ServerlessCache.vibe"
+
+/**
+ * Environment-only implementation of {@link Connect}. At deploy time it
+ * publishes the cache endpoint as `ELASTICACHE_{LOGICAL_ID}_{HOST,PORT,TLS}`
+ * environment variables on the host Function; at runtime it resolves the
+ * same values into a typed connection descriptor. No IAM policy is attached
+ * — the classic valkey/redis/memcached data plane is governed by VPC
+ * security groups, not IAM.
+ */
+export const ConnectHttp = Layer.effect(
+  Connect,
+  effect {
+    const bind = try AWSBindings.Bind
+    return effect (cache: ServerlessCache) => {
+      const Host = try cache.endpointAddress.asEffect()
+      const Port = try cache.endpointPort.asEffect()
+      const ReaderHost = try cache.readerEndpointAddress.asEffect()
+      const ReaderPort = try cache.readerEndpointPort.asEffect()
+
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        const prefix = connectEnvPrefix(cache.LogicalId)
+        try bind`AWS.ElastiCache.Connect(${cache})`({
+          env: {
+            [`${prefix}_HOST`]: cache.endpointAddress,
+            // Lambda environment variables are strings — stringify the port.
+            [`${prefix}_PORT`]: Output.interpolate`${cache.endpointPort}`,
+            // Serverless caches are TLS-only.
+            [`${prefix}_TLS`]: "true",
+          },
+        })
+      }
+
+      return effect {
+        const host = try Host
+        const port = try Port
+        const readerHost = try ReaderHost
+        const readerPort = try ReaderPort
+        if (!host || port === undefined) {
+          return try Effect.die(
+            `ElastiCache endpoint for '${cache.LogicalId}' is not available yet`,
+          )
+        }
+        return {
+          host,
+          port,
+          readerHost,
+          readerPort,
+          tls: true,
+        }
+      }
+    }
+  },
+)

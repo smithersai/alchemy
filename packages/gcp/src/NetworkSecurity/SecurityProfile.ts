@@ -19,8 +19,8 @@ import {
   resourceName,
   toId,
   userLabels,
-} from "./names.ts";
-import { waitForOperation } from "./operations.ts";
+} from "./names.vibe";
+import { waitForOperation } from "./operations.vibe";
 import { sameJson } from "./ownership.ts";
 
 const COLLECTION = "securityProfiles";

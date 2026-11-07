@@ -4,7 +4,7 @@ import { findProviderByType } from "../Provider.ts";
 import { stampedMode } from "../ProviderMode.ts";
 import type { ConfiguredStack } from "../Stack.ts";
 import * as State from "../State/index.ts";
-import { AlchemistInvalidInput } from "./Errors.ts";
+import { AlchemistInvalidInput } from "./Errors.vibe";
 import { buildStack, type BuildOptions } from "./Operations.ts";
 
 export interface ResourceIdentity {

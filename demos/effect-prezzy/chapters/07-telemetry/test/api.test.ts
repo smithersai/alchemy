@@ -11,7 +11,7 @@ import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as Layer from "effect/Layer";
 import * as Schedule from "effect/Schedule";
 import Stack from "../alchemy.run.ts";
-import { ShortyApi } from "../src/ShortyApi.ts";
+import { ShortyApi } from "../src/ShortyApi.vibe";
 
 const { test, beforeAll, afterAll, deploy, destroy } = Test.make({
   providers: Layer.mergeAll(Cloudflare.providers(), Neon.providers(), Axiom.providers()),

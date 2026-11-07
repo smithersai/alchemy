@@ -1,0 +1,291 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { lastSegment, orgParent, organizationFromName, toResourceId } from "./names.vibe"
+import { waitForOperation } from "./operations.ts"
+import { listOwnedInstances } from "./org.vibe"
+
+const MAX_NAME_LENGTH = 32
+
+export type InstancesNatAddressProps = {
+  /**
+   * Apigee organization id. Defaults to the current GCP project id.
+   * Immutable — changing it replaces the NAT address.
+   */
+  organization?: string
+  /**
+   * Parent instance id or full name
+   * (`organizations/{org}/instances/{instance}`). Immutable — changing it
+   * replaces the NAT address.
+   */
+  instance: string
+  /**
+   * NAT address id (the `{nataddress}` segment of
+   * `organizations/{org}/instances/{instance}/natAddresses/{nataddress}`).
+   * If omitted, a unique name is generated from the stack, stage, and
+   * logical id. Immutable — changing it replaces the NAT address.
+   */
+  natAddressId?: string
+  /**
+   * When true, activate the address after it reaches `RESERVED` so the
+   * instance uses it for Internet egress. Activation is one-way.
+   * @default false
+   */
+  activate?: boolean
+}
+
+export type InstancesNatAddress = Resource<
+  "GCP.Apigee.InstancesNatAddress",
+  InstancesNatAddressProps,
+  {
+    /** Full resource name `organizations/{org}/instances/{instance}/natAddresses/{nataddress}`. */
+    name: string
+    /** NAT address id (last path segment). */
+    natAddressId: string
+    /** Parent instance id. */
+    instanceId: string
+    /** Apigee organization id. */
+    organization: string
+    /** Provisioned static IPv4 address, if assigned. */
+    ipAddress: string | undefined
+    /** Server-reported state (`CREATING`, `RESERVED`, `ACTIVE`, `DELETING`). */
+    state: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A static NAT address on an Apigee runtime instance.
+ *
+ * NAT addresses have no labels or description. `list` enumerates
+ * addresses on alchemy-owned instances so `pnpm nuke:gcp` can find
+ * leaked rows. Organization, instance, and name are identity — changing
+ * them replaces the address. `activate` updates in place (RESERVED →
+ * ACTIVE) and cannot be reversed.
+ *
+ * ### Creating a NAT Address
+ * **Example:** Reserve a NAT address on a runtime instance
+ * ```typescript
+ * const runtime = yield* GCP.Apigee.Instance("Runtime", {});
+ * const nat = yield* GCP.Apigee.InstancesNatAddress("Egress", {
+ *   instance: runtime.name,
+ * });
+ * ```
+ *
+ * **Example:** Reserve and activate
+ * ```typescript
+ * const nat = yield* GCP.Apigee.InstancesNatAddress("Egress", {
+ *   instance: runtime.name,
+ *   natAddressId: "app-egress",
+ *   activate: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const InstancesNatAddress = Resource<InstancesNatAddress>("GCP.Apigee.InstancesNatAddress")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class InstancesNatAddressNotResolved extends Data.TaggedError(
+  "GCP.Apigee.InstancesNatAddressNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class InstancesNatAddressNotReady extends Data.TaggedError(
+  "GCP.Apigee.InstancesNatAddressNotReady",
+)<{
+  resourceName: string
+  state: string
+}> {}
+
+const instanceIdOf = (instance: string): infer _ => lastSegment(instance)
+
+const instanceName = (organization: string, instance: string): infer _ =>
+  instance.includes("/") ? instance : `${orgParent(organization)}/instances/${instance}`
+
+const resourceName = (organization: string, instance: string, natAddressId: string): infer _ =>
+  `${instanceName(organization, instance)}/natAddresses/${natAddressId}`
+
+const toAttrs = (
+  address: apigee.GoogleCloudApigeeV1NatAddress,
+  organization: string,
+  instanceId: string,
+): infer _ => {
+  const raw = address.name ?? ""
+  const name = raw.includes("/") ? raw : resourceName(organization, instanceId, raw)
+  return {
+    name,
+    natAddressId: lastSegment(name),
+    instanceId,
+    organization: organizationFromName(name) ?? organization,
+    ipAddress: address.ipAddress,
+    state: address.state,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsInstancesNatAddresses({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listByInstance = effect (parent: string) =>
+  (Array.from(
+    try (apigee.listOrganizationsInstancesNatAddresses
+      .pages({
+        parent,
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.natAddresses ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: [] as apigee.GoogleCloudApigeeV1NatAddress[];
+    default: throw e;
+  }
+
+const waitUntilState = effect (name: string, allowed: ReadonlySet<string>) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(%, (address): address is apigee.GoogleCloudApigeeV1NatAddress =>
+      address !== undefined, () =>
+      new InstancesNatAddressNotResolved({ resourceName: name }))
+    |> Effect.filterOrFail(%, (address) =>
+      allowed.has(address.state ?? "STATE_UNSPECIFIED"), (address) =>
+      new InstancesNatAddressNotReady({
+        resourceName: name,
+        state: address.state ?? "STATE_UNSPECIFIED",
+      }))
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.Apigee.InstancesNatAddressNotReady"
+        || error._tag === "GCP.Apigee.InstancesNatAddressNotResolved",
+      times: 8,
+      schedule: Schedule.spaced("5 seconds"),
+    }))
+
+export const InstancesNatAddressProvider = (): infer _ =>
+  Provider.succeed(InstancesNatAddress, {
+    stables: ["name", "natAddressId", "instanceId", "organization"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousId = olds?.natAddressId ?? output?.natAddressId
+      const previousInstance = olds?.instance ?? output?.instanceId
+      const previousOrg = olds?.organization ?? output?.organization
+      if (
+        (previousId !== undefined
+          && news.natAddressId !== undefined
+          && news.natAddressId !== previousId)
+        || (previousInstance !== undefined
+          && instanceIdOf(news.instance) !== instanceIdOf(previousInstance))
+        || (previousOrg !== undefined
+          && news.organization !== undefined
+          && news.organization !== previousOrg)
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = organizationFromName(output?.name) ?? olds?.organization ?? env.project
+      const instanceId = instanceIdOf(olds?.instance ?? output?.instanceId ?? "")
+      if (instanceId.length === 0) return undefined
+      const natAddressId = try toResourceId(
+        id,
+        olds?.natAddressId,
+        output?.natAddressId,
+        MAX_NAME_LENGTH,
+      )
+      const name = output?.name ?? resourceName(organization, instanceId, natAddressId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      return toAttrs(existing, organization, instanceId)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const instances = try listOwnedInstances(env.project)
+      const pages = try Effect.forEach(
+        instances,
+        effect (instance) => {
+          const parent = instance.name?.includes("/")
+            ? instance.name
+            : `${orgParent(env.project)}/instances/${lastSegment(instance.name ?? "")}`
+          const instanceId = lastSegment(parent)
+          return (try listByInstance(parent)).map((address) => toAttrs(address, env.project, instanceId))
+        },
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = news.organization ?? output?.organization ?? env.project
+      const instanceId = instanceIdOf(news.instance)
+      const natAddressId = try toResourceId(
+        id,
+        news.natAddressId,
+        output?.natAddressId,
+        MAX_NAME_LENGTH,
+      )
+      const parent = instanceName(organization, instanceId)
+      const name = resourceName(organization, instanceId, natAddressId)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsInstancesNatAddresses({
+            parent,
+            body: { name: natAddressId },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created, { alreadyExistsOk: true })
+        }
+        current = try getByName(name)
+      }
+
+      if (current === undefined) {
+        throw new InstancesNatAddressNotResolved({ resourceName: name })
+      }
+
+      if ((current.state ?? "") === "CREATING") {
+        current = (waitUntilState(name, new Set(["RESERVED", "ACTIVE"])) catch effect (e) => match (e) {
+          when { _tag: "GCP.Apigee.InstancesNatAddressNotReady" }: try getByName(name);
+          default: throw e;
+        }) ?? current
+      }
+
+      if (news.activate === true && (current.state ?? "") === "RESERVED") {
+        const activated = try apigee.activateOrganizationsInstancesNatAddresses({
+          name: current.name?.includes("/") ? current.name : name,
+          body: {},
+        })
+        try waitForOperation(activated)
+        current = (try getByName(name)) ?? current
+      }
+
+      return toAttrs(current, organization, instanceId)
+    },
+
+    delete: effect ({ output }) => {
+      const deleted = apigee
+        .deleteOrganizationsInstancesNatAddresses({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (deleted !== undefined) {
+        try waitForOperation(deleted, { notFoundOk: true })
+      }
+    },
+  })

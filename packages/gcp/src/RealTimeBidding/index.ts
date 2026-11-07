@@ -1,1 +1,1 @@
-export * from "./BiddersPretargetingConfig.ts";
+export * from "./BiddersPretargetingConfig.vibe";

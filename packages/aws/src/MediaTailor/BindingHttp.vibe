@@ -1,0 +1,125 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { PlaybackConfiguration } from "./PlaybackConfiguration.vibe"
+
+/**
+ * Shared HTTP scaffolding for the AWS Elemental MediaTailor runtime
+ * bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the two
+ * builders below. Everything except the operation, the identifier resolver,
+ * and the IAM action list is boilerplate.
+ */
+
+/**
+ * Builder for account-level MediaTailor bindings (channel assembly control
+ * and reads). Channel/program names are runtime request parameters, so the
+ * deploy-time half grants `iamActions` on `Resource: ["*"]` and the runtime
+ * callable passes the request through unchanged.
+ */
+export const makeMediaTailorHttpBinding = effect <I, A, E, R>(options: {
+  /** Short capability name used in the binding sid and runtime span. */
+  capability: string
+  /** IAM actions granted on `Resource: ["*"]`. */
+  iamActions: readonly string[]
+  /** The distilled operation implementing the capability. */
+  operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.MediaTailor.${options.capability}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            // Channel-assembly resource names are runtime parameters;
+            // their ARNs are unknowable at deploy time.
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request: I) =>
+      try withSpan(
+        effect {
+          return try op(request)
+        },
+        `AWS.MediaTailor.${options.capability}`,
+      )
+  }
+}
+
+/**
+ * Builder for bindings scoped to a {@link PlaybackConfiguration} (the
+ * prefetch-schedule data plane). The runtime callable injects the bound
+ * configuration's name as `PlaybackConfigurationName`, and the deploy-time
+ * half grants `iamActions` on the configuration's ARN and the derived
+ * `…:prefetchSchedule/{name}/*` ARN space.
+ */
+export const makeMediaTailorPlaybackHttpBinding = effect <
+  I extends { PlaybackConfigurationName: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Short capability name used in the binding sid and runtime span. */
+  capability: string
+  /** IAM actions granted on the configuration + prefetch-schedule ARNs. */
+  iamActions: readonly string[]
+  /**
+   * The distilled operation; `PlaybackConfigurationName` is injected from
+   * the bound configuration.
+   */
+  operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (config: PlaybackConfiguration) => {
+    const name = try config.name.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.MediaTailor.${options.capability}(${config})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: [
+              Output.interpolate`${config.playbackConfigurationArn}`,
+              // Prefetch schedules live in a sibling ARN space:
+              // arn:…:prefetchSchedule/{configurationName}/{name}
+              Output.map(
+                config.playbackConfigurationArn,
+                (arn) => `${arn.replace(":playbackConfiguration/", ":prefetchSchedule/")}/*`,
+              ),
+              // ListPrefetchSchedules is authorized against the bare
+              // account/region wildcard `…:prefetchSchedule/*` (the
+              // configuration name is not part of the authorization
+              // resource), so every prefetch binding also grants it.
+              Output.map(
+                config.playbackConfigurationArn,
+                (arn) => arn.replace(/:playbackConfiguration\/.*$/, ":prefetchSchedule/*"),
+              ),
+            ],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "PlaybackConfigurationName">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            PlaybackConfigurationName: try name,
+          } as I)
+        },
+        `AWS.MediaTailor.${options.capability}(${config.LogicalId})`,
+      )
+  }
+}

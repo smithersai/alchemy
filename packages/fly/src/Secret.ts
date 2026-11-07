@@ -9,9 +9,9 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
-import { App, listOwnedApps } from "./App.ts";
+import { App, listOwnedApps } from "./App.vibe";
 import { createFlyVolumeName, matchesAlchemyPhysicalName } from "./Metadata.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 /**
  * A resource-valued prop: the resource itself, or an Effect that produces

@@ -1,0 +1,206 @@
+import * as firebaserules from "@distilled.cloud/gcp/firebaserules_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  expandRulesetName,
+  getRelease,
+  isGeneratedReleaseId,
+  listReleases,
+  projectParent,
+  releaseIdOf,
+  releaseResourceName,
+  sameText,
+  toReleaseId,
+} from "./internal.vibe"
+
+export type ReleaseProps = {
+  /**
+   * Release id (the `{release_id}` segment of
+   * `projects/{project}/releases/{release_id}`). May contain `/` (e.g.
+   * `cloud.firestore` or `prod/v23`). If omitted, a unique `alc-`
+   * prefixed name is generated from the stack, stage, and logical id.
+   * Firebase Rules releases have no labels field, so generated ids carry
+   * the `alc-` prefix for `list` / nuke. Immutable — changing it
+   * replaces the release.
+   */
+  releaseId?: string
+  /**
+   * Ruleset this release points at
+   * (`projects/{project}/rulesets/{rulesetId}` or a bare ruleset id).
+   * The ruleset must exist. Updating this patches the release in place.
+   */
+  rulesetName: string
+}
+
+export type Release = Resource<
+  "GCP.FirebaseRules.Release",
+  ReleaseProps,
+  {
+    /** Full resource name `projects/{project}/releases/{releaseId}`. */
+    name: string
+    /** Release id (path after `/releases/`). */
+    releaseId: string
+    /** Project id. */
+    project: string
+    /** Full ruleset resource name this release refers to. */
+    rulesetName: string
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A named Firebase Security Rules release pointing at a `Ruleset`.
+ *
+ * Releases have no labels field. Generated release ids are prefixed
+ * `alc-` so `list` / nuke can find them. `releaseId` is identity —
+ * changing it replaces the release. `rulesetName` updates in place.
+ *
+ * ### Creating a Release
+ * **Example:** Generated id
+ * ```typescript
+ * const ruleset = yield* GCP.FirebaseRules.Ruleset("Firestore", {
+ *   source: {
+ *     files: [
+ *       {
+ *         name: "firestore.rules",
+ *         content: "rules_version = '2'; service cloud.firestore { match /databases/{database}/documents { match /{document=**} { allow read, write: if false; } } }",
+ *       },
+ *     ],
+ *   },
+ * });
+ * const release = yield* GCP.FirebaseRules.Release("Live", {
+ *   rulesetName: ruleset.name,
+ * });
+ * ```
+ *
+ * **Example:** Named release
+ * ```typescript
+ * const release = yield* GCP.FirebaseRules.Release("Live", {
+ *   releaseId: "prod",
+ *   rulesetName: ruleset.name,
+ * });
+ * ```
+ *
+ * ### Updating a Release
+ * **Example:** Point at a new ruleset
+ * ```typescript
+ * const release = yield* GCP.FirebaseRules.Release("Live", {
+ *   rulesetName: nextRuleset.name,
+ * });
+ * ```
+ *
+ * @resource
+ * @category FirebaseRules
+ */
+export const Release = Resource<Release>("GCP.FirebaseRules.Release")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class ReleaseNotResolved extends Data.TaggedError("GCP.FirebaseRules.ReleaseNotResolved")<{
+  resourceName: string
+}> {}
+
+const toAttrs = (release: firebaserules.Release, project: string): infer _ => {
+  const name = release.name ?? ""
+  return {
+    name,
+    releaseId: releaseIdOf(name),
+    project,
+    rulesetName: release.rulesetName ?? "",
+    createTime: release.createTime,
+    updateTime: release.updateTime,
+  }
+}
+
+export const ReleaseProvider = (): infer _ =>
+  Provider.succeed(Release, {
+    stables: ["name", "releaseId", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previous = olds?.releaseId ?? output?.releaseId
+      if (news.releaseId !== undefined && previous !== undefined && news.releaseId !== previous) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const releaseId = try toReleaseId(id, olds?.releaseId, output?.releaseId)
+      const name = output?.name ?? releaseResourceName(env.project, releaseId)
+      const existing = try getRelease(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      if (isGeneratedReleaseId(attrs.releaseId) || output?.name === attrs.name) {
+        return attrs
+      }
+      return Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const releases = try listReleases(env.project)
+      return releases
+        .filter((release) => isGeneratedReleaseId(releaseIdOf(release.name ?? "")))
+        .map((release) => toAttrs(release, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const parent = projectParent(env.project)
+      const releaseId = try toReleaseId(id, news.releaseId, output?.releaseId)
+      const name = releaseResourceName(env.project, releaseId)
+      const desiredRuleset = expandRulesetName(env.project, news.rulesetName)
+
+      let current = try getRelease(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = firebaserules
+          .createProjectsReleases({
+            name: parent,
+            body: {
+              name,
+              rulesetName: desiredRuleset,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getRelease(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new ReleaseNotResolved({ resourceName: name })
+      }
+
+      if (!sameText(current.rulesetName, desiredRuleset)) {
+        current = try firebaserules.patchProjectsReleases({
+          name: current.name ?? name,
+          body: {
+            release: {
+              name: current.name ?? name,
+              rulesetName: desiredRuleset,
+            },
+            updateMask: "rulesetName",
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      if (!output.name) return
+      firebaserules
+        .deleteProjectsReleases({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

@@ -12,7 +12,7 @@ import Agent from "./Agent.ts";
 import { Gateway } from "./AiGateway.ts";
 import { Bucket } from "./Bucket.ts";
 import { KV } from "./KV.ts";
-import NotifyWorkflow from "./NotifyWorkflow.ts";
+import NotifyWorkflow from "./NotifyWorkflow.vibe";
 import { Queue } from "./Queue.ts";
 import { Repos } from "./Repos.ts";
 import Room from "./Room.ts";

@@ -1,0 +1,224 @@
+import * as mediaconvert from "@distilled.cloud/aws/mediaconvert"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.ts"
+import { readMcTags, syncMcTags } from "./internal.vibe"
+
+export interface QueueProps {
+  /**
+   * Name of the queue. Must be unique within the account/region and match
+   * `^[\w-]+$`. If omitted, a unique name is generated. Changing the name
+   * replaces the queue.
+   */
+  queueName?: string
+  /**
+   * Optional description of the queue.
+   */
+  description?: string
+  /**
+   * Pricing plan for the queue. `ON_DEMAND` queues bill per transcode minute;
+   * `RESERVED` queues purchase a reservation (a paid commitment). Changing the
+   * pricing plan replaces the queue.
+   * @default "ON_DEMAND"
+   */
+  pricingPlan?: mediaconvert.PricingPlan
+  /**
+   * Reservation plan for a `RESERVED` queue (commitment, renewal type, and the
+   * number of reserved render units). Ignored for `ON_DEMAND` queues.
+   */
+  reservationPlanSettings?: mediaconvert.ReservationPlanSettings
+  /**
+   * Initial/desired queue status. `ACTIVE` queues process jobs; `PAUSED`
+   * queues hold submitted jobs until resumed.
+   * @default "ACTIVE"
+   */
+  status?: mediaconvert.QueueStatus
+  /**
+   * Maximum number of jobs the queue processes concurrently (ON_DEMAND).
+   */
+  concurrentJobs?: number
+  /**
+   * User-defined tags for the queue.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Queue extends
+  Resource<
+    "AWS.MediaConvert.Queue",
+    QueueProps,
+    {
+      queueName: string
+      queueArn: string
+      type: string | undefined
+      status: string | undefined
+      pricingPlan: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Elemental MediaConvert queue — the pool that submitted transcode jobs
+ * are scheduled against. Every account has a system `Default` on-demand queue;
+ * create additional queues to isolate workloads or to purchase reserved
+ * render capacity.
+ *
+ * ### Creating a Queue
+ * **Example:** On-Demand Queue
+ * ```typescript
+ * const queue = yield* MediaConvert.Queue("Transcode", {
+ *   description: "Marketing video transcodes",
+ * });
+ * ```
+ *
+ * **Example:** Paused Queue
+ * ```typescript
+ * const queue = yield* MediaConvert.Queue("Transcode", {
+ *   status: "PAUSED",
+ *   tags: { team: "media" },
+ * });
+ * ```
+ *
+ * ### Reserved Capacity
+ * **Example:** Reserved Queue with a One-Year Commitment
+ * ```typescript
+ * const queue = yield* MediaConvert.Queue("Reserved", {
+ *   pricingPlan: "RESERVED",
+ *   reservationPlanSettings: {
+ *     Commitment: "ONE_YEAR",
+ *     RenewalType: "EXPIRE",
+ *     ReservedSlots: 1,
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Queue = Resource<Queue>("AWS.MediaConvert.Queue")
+
+export const QueueProvider = (): infer _ =>
+  Provider.effect(
+    Queue,
+    effect {
+      const createName = effect (id: string, props: QueueProps) =>
+        props.queueName ?? (try createPhysicalName({ id, maxLength: 128 }))
+
+      const toAttrs = (queue: mediaconvert.Queue & { Name: string }): infer _ => ({
+        queueName: queue.Name,
+        queueArn: queue.Arn!,
+        type: queue.Type,
+        status: queue.Status,
+        pricingPlan: queue.PricingPlan,
+      })
+
+      /** Get a queue by name; typed not-found → undefined. */
+      const getQueue = effect (name: string) => {
+        const response = mediaconvert
+          .getQueue({ Name: name }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.Queue
+      }
+
+      return {
+        stables: ["queueName", "queueArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          // The name is the queue's identity; a change means a new queue.
+          if (oldName !== newName) return { action: "replace" } as const
+          // Pricing plan is immutable once the queue exists.
+          if ((olds.pricingPlan ?? "ON_DEMAND") !== (news.pricingPlan ?? "ON_DEMAND")) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.queueName ?? (try createName(id, olds ?? {}))
+          const queue = try getQueue(name)
+          if (queue === undefined) return undefined
+          const attrs = toAttrs(queue)
+          const tags = try readMcTags(queue.Arn!)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const name = output?.queueName ?? (try createName(id, news))
+
+          // 1. Observe — cloud state is authoritative; output is an id cache.
+          let queue = try getQueue(name)
+
+          // 2. Ensure — create if missing.
+          if (queue === undefined) {
+            const created = try mediaconvert.createQueue({
+              Name: name,
+              Description: news.description,
+              PricingPlan: news.pricingPlan,
+              ReservationPlanSettings: news.reservationPlanSettings,
+              Status: news.status,
+              ConcurrentJobs: news.concurrentJobs,
+              Tags: desiredTags,
+            })
+            queue = created.Queue!
+          } else {
+            // 3. Sync — MediaConvert's UpdateQueue is a full in-place update of
+            // the mutable fields. Apply whenever any of them drift.
+            const statusDrift = (news.status ?? "ACTIVE") !== (queue.Status ?? "ACTIVE")
+            const descDrift = (news.description ?? undefined) !== (queue.Description ?? undefined)
+            const concurrencyDrift = news.concurrentJobs !== undefined && news.concurrentJobs !== queue.ConcurrentJobs
+            if (statusDrift || descDrift || concurrencyDrift) {
+              const updated = try mediaconvert.updateQueue({
+                Name: name,
+                Description: news.description,
+                Status: news.status,
+                ConcurrentJobs: news.concurrentJobs,
+                ReservationPlanSettings: news.reservationPlanSettings,
+              })
+              queue = updated.Queue!
+            }
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags.
+          try syncMcTags(queue.Arn!, desiredTags)
+
+          try session.note(name)
+          return toAttrs(queue as mediaconvert.Queue & { Name: string })
+        },
+
+        delete: effect ({ output }) => {
+          try (effect {
+            return mediaconvert.deleteQueue({ Name: output.queueName }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          }
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "ConflictException",
+              schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(10)]),
+            }))
+        },
+
+        list: effect () =>
+          (Array.from(
+            try (mediaconvert.listQueues.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Queues ?? []))
+            // The built-in `Default` queue is an AWS SYSTEM queue that
+            // always exists and can never be deleted — keep it out of
+            // enumeration for account-wide teardown (nuke).
+            .filter((q) => q.Type !== "SYSTEM")
+            .map(toAttrs),
+      }
+    },
+  )

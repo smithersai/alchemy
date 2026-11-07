@@ -3,9 +3,9 @@ import { Railway, type ServiceDomain as RailwayServiceDomain } from "@distilled.
 import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { waitUntilDeleted } from "./GraphQL.ts";
-import { sanitizeRailwayName } from "./Metadata.ts";
-import { withEnvironmentConfigLock } from "./transient.ts";
+import { waitUntilDeleted } from "./GraphQL.vibe";
+import { sanitizeRailwayName } from "./Metadata.vibe";
+import { withEnvironmentConfigLock } from "./transient.vibe";
 
 const domainFields = <E>(domain: Query<RailwayServiceDomain, E>) => ({
   id: domain.id,

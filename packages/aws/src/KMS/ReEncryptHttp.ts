@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as AWSBindings from "../AWSBindings.ts";
 import { keyLabel, keyPolicyStatement, type KeyLike } from "./KeyBinding.ts";
-import { ReEncrypt, type ReEncryptRequest } from "./ReEncrypt.ts";
+import { ReEncrypt, type ReEncryptRequest } from "./ReEncrypt.vibe";
 
 /**
  * Bespoke (not scaffolded): ReEncrypt spans two keys — `kms:ReEncryptTo` on

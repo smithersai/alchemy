@@ -14,9 +14,9 @@ import {
   webhookSecretEnvName,
   type ConsumeEventsProps,
   type EventSourceService,
-} from "./ConsumeEvents.ts";
+} from "./ConsumeEvents.vibe";
 import type { StripeEventClass, StripeEventInstance } from "./Events.ts";
-import { WebhookEndpoint } from "./WebhookEndpoint.ts";
+import { WebhookEndpoint } from "./WebhookEndpoint.vibe";
 
 /** A host that accepts environment bindings, such as a Cloudflare Worker. */
 export interface EnvBindingHost {

@@ -1,0 +1,250 @@
+import * as cci from "@distilled.cloud/gcp/contactcenterinsights_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnership,
+  hasOwnershipMarker,
+  lastSegment,
+  locationOf,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseOwnership,
+  sameText,
+  toResourceId,
+  updateMaskOf,
+} from "./ownership.vibe"
+
+export type QaScorecardProps = {
+  /**
+   * Scorecard id (the `{qa_scorecard}` segment of
+   * `projects/{project}/locations/{location}/qaScorecards/{qa_scorecard}`).
+   * If omitted, a unique id is generated. Must match `^[a-z0-9-]{4,64}$`.
+   * Immutable — changing it replaces the scorecard.
+   */
+  qaScorecardId?: string
+  /**
+   * Location (`us-central1`, …). Immutable — changing it replaces the
+   * scorecard. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, else the profile region, else `us-central1`)
+   */
+  location?: string
+  /**
+   * User-facing display name.
+   */
+  displayName?: string
+  /**
+   * Human-readable description. Scorecards have no labels field, so
+   * Alchemy ownership is stored in a `[alchemy …]` prefix and stripped
+   * from attributes.
+   */
+  description?: string
+  /**
+   * Whether this scorecard is the project default. Default scorecards
+   * cannot be deleted.
+   * @default false
+   */
+  isDefault?: boolean
+}
+
+export type QaScorecard = Resource<
+  "GCP.ContactCenterInsights.QaScorecard",
+  QaScorecardProps,
+  {
+    /** Full resource name `projects/{project}/locations/{location}/qaScorecards/{qa_scorecard}`. */
+    name: string
+    /** Scorecard id (last path segment). */
+    qaScorecardId: string
+    /** Location id. */
+    location: string
+    /** Project id. */
+    project: string
+    /** User-facing display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Whether this is the project default scorecard. */
+    isDefault: boolean
+    /** Server-reported scorecard source. */
+    source: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Contact Center AI Insights QA scorecard — a collection of questions
+ * scored during analysis.
+ *
+ * Scorecards have no labels field — Alchemy stamps ownership into the
+ * description. Location and id are immutable. Display name and
+ * description update in place. Delete uses `force` so child revisions
+ * and questions are removed.
+ *
+ * ### Creating a QA Scorecard
+ * **Example:** Generated id
+ * ```typescript
+ * const card = yield* GCP.ContactCenterInsights.QaScorecard("Quality", {
+ *   displayName: "quality",
+ *   description: "call quality",
+ * });
+ * ```
+ *
+ * @resource
+ * @category ContactCenterInsights
+ */
+export const QaScorecard = Resource<QaScorecard>("GCP.ContactCenterInsights.QaScorecard")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class QaScorecardNotResolved extends Data.TaggedError(
+  "GCP.ContactCenterInsights.QaScorecardNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const resourceName = (project: string, location: string, qaScorecardId: string): infer _ =>
+  `${locationParent(project, location)}/qaScorecards/${qaScorecardId}`
+
+const toAttrs = (card: cci.GoogleCloudContactcenterinsightsV1QaScorecard, project: string): infer _ => {
+  const name = card.name ?? ""
+  const parsed = parseOwnership(card.description)
+  return {
+    name,
+    qaScorecardId: lastSegment(name),
+    location: locationOf(name),
+    project,
+    displayName: card.displayName,
+    description: parsed.text,
+    isDefault: card.isDefault === true,
+    source: card.source,
+    createTime: card.createTime,
+    updateTime: card.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : cci
+  .getProjectsLocationsQaScorecards({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listAt = effect (parent: string, project: string) =>
+  (Array.from(
+    try (cci.listProjectsLocationsQaScorecards.pages({ parent, pageSize: 100 })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.qaScorecards ?? []))
+      |> Stream.filter(%, (card) => hasOwnershipMarker(card.description))
+      |> Stream.map(%, (card) => toAttrs(card, project))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: []; default: throw e; }
+
+export const QaScorecardProvider = (): infer _ =>
+  Provider.succeed(QaScorecard, {
+    stables: ["name", "qaScorecardId", "location", "project", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousLocation = olds?.location ?? output?.location
+      if (
+        previousLocation !== undefined
+        && news.location !== undefined
+        && normalizeLocation(previousLocation) !== normalizeLocation(news.location)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousId = olds?.qaScorecardId ?? output?.qaScorecardId
+      if (
+        previousId !== undefined
+        && news.qaScorecardId !== undefined
+        && news.qaScorecardId !== previousId
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const qaScorecardId = try toResourceId(id, olds?.qaScorecardId, output?.qaScorecardId)
+      const location = normalizeLocation(olds?.location ?? output?.location ?? env.region)
+      const name = output?.name ?? resourceName(env.project, location, qaScorecardId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      return try listAt(locationParent(env.project, env.region), env.project)
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const location = normalizeLocation(news.location ?? output?.location ?? env.region)
+      const parent = locationParent(env.project, location)
+      const qaScorecardId = try toResourceId(id, news.qaScorecardId, output?.qaScorecardId)
+      const name = resourceName(env.project, location, qaScorecardId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? qaScorecardId
+      const isDefault = news.isDefault === true
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = cci
+          .createProjectsLocationsQaScorecards({
+            parent,
+            qaScorecardId,
+            body: {
+              displayName,
+              description,
+              isDefault,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new QaScorecardNotResolved({ resourceName: name })
+      }
+
+      const currentName = current.name ?? name
+      const displayChanged = !sameText(current.displayName, displayName)
+      const descriptionChanged = (current.description ?? "") !== description
+
+      if (displayChanged || descriptionChanged) {
+        current = try cci.patchProjectsLocationsQaScorecards({
+          name: currentName,
+          updateMask: updateMaskOf(
+            displayChanged ? "display_name" : undefined,
+            descriptionChanged ? "description" : undefined,
+          ),
+          body: {
+            name: currentName,
+            displayName,
+            description,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      cci
+        .deleteProjectsLocationsQaScorecards({
+          name: output.name,
+          force: true,
+        }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.void; default: throw e; }
+    },
+  })

@@ -1,3 +1,3 @@
-export * from "./Federation.ts";
-export * from "./Service.ts";
-export * from "./ServicesBackup.ts";
+export * from "./Federation.vibe";
+export * from "./Service.vibe";
+export * from "./ServicesBackup.vibe";

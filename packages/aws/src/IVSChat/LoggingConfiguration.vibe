@@ -1,0 +1,325 @@
+import * as ivschat from "@distilled.cloud/aws/ivschat"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.ts"
+import { retryWhileConflict, retryWhileThrottled, syncIvsChatTags, toTagRecord } from "./internal.vibe"
+
+export interface LoggingConfigurationDestination {
+  /**
+   * Deliver chat logs to an S3 bucket. Exactly one destination must be
+   * specified.
+   */
+  s3?: { bucketName: string }
+  /**
+   * Deliver chat logs to a CloudWatch Logs log group. Exactly one
+   * destination must be specified.
+   */
+  cloudWatchLogs?: { logGroupName: string }
+  /**
+   * Deliver chat logs to a Kinesis Data Firehose delivery stream.
+   * Exactly one destination must be specified.
+   */
+  firehose?: { deliveryStreamName: string }
+}
+
+export interface LoggingConfigurationProps {
+  /**
+   * Where chat messages are delivered: exactly one of `s3`,
+   * `cloudWatchLogs`, or `firehose`.
+   */
+  destinationConfiguration: LoggingConfigurationDestination
+  /**
+   * Name of the logging configuration (not unique). If omitted, a
+   * deterministic physical name is generated. Mutable — changing the
+   * name updates the configuration in place.
+   */
+  loggingConfigurationName?: string
+  /**
+   * Tags to apply to the logging configuration. Merged with internal
+   * Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface LoggingConfiguration extends
+  Resource<
+    "AWS.IVSChat.LoggingConfiguration",
+    LoggingConfigurationProps,
+    {
+      /**
+       * The logging configuration's physical name.
+       */
+      loggingConfigurationName: string
+      /**
+       * ARN of the logging configuration.
+       */
+      loggingConfigurationArn: string
+      /**
+       * Unique ID of the logging configuration.
+       */
+      loggingConfigurationId: string
+      /**
+       * Lifecycle state reported by IVS Chat (e.g. `ACTIVE`).
+       */
+      state: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon IVS Chat logging configuration — records the chat messages of
+ * the rooms it is attached to into S3, CloudWatch Logs, or a Kinesis
+ * Data Firehose delivery stream.
+ * ### Creating Logging Configurations
+ * **Example:** CloudWatch Logs Destination
+ * ```typescript
+ * import * as IVSChat from "@alchemy.run/aws/IVSChat";
+ * import * as Logs from "@alchemy.run/aws/Logs";
+ *
+ * const logGroup = yield* Logs.LogGroup("ChatLogGroup");
+ * const logging = yield* IVSChat.LoggingConfiguration("ChatLogs", {
+ *   destinationConfiguration: {
+ *     cloudWatchLogs: { logGroupName: logGroup.logGroupName },
+ *   },
+ * });
+ * ```
+ *
+ * **Example:** S3 Destination
+ * ```typescript
+ * const logging = yield* IVSChat.LoggingConfiguration("ChatLogs", {
+ *   destinationConfiguration: {
+ *     s3: { bucketName: bucket.bucketName },
+ *   },
+ * });
+ * ```
+ *
+ * ### Attaching to Rooms
+ * **Example:** Log a Room's Messages
+ * ```typescript
+ * const room = yield* IVSChat.Room("LiveChat", {
+ *   loggingConfigurationIdentifiers: [logging.loggingConfigurationArn],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const LoggingConfiguration = Resource<LoggingConfiguration>(
+  "AWS.IVSChat.LoggingConfiguration",
+)
+
+/**
+ * Raised when a `LoggingConfiguration` does not specify exactly one of
+ * `s3`, `cloudWatchLogs`, or `firehose`, or when the API returns a
+ * configuration missing its identifiers.
+ */
+export error IvsChatLoggingConfigurationInvalid { mutable message: string }
+
+/** Narrow the plain destination prop to the exactly-one wire union. */
+const toWireDestination = effect (
+  destination: LoggingConfigurationDestination,
+): ivschat.DestinationConfiguration!IvsChatLoggingConfigurationInvalid => {
+  const specified = [destination.s3, destination.cloudWatchLogs, destination.firehose].filter(
+    (d) => d !== undefined,
+  )
+  if (specified.length !== 1) {
+    throw new IvsChatLoggingConfigurationInvalid({
+      message: "destinationConfiguration must specify exactly one of s3, cloudWatchLogs, or firehose",
+    })
+  }
+  if (destination.s3) return { s3: destination.s3 }
+  if (destination.cloudWatchLogs) {
+    return { cloudWatchLogs: destination.cloudWatchLogs }
+  }
+  return { firehose: destination.firehose! }
+}
+
+/**
+ * Explicitly-typed pipeable poll helper: repeat a read until the
+ * configuration reaches a settled state (bounded — ~60s).
+ */
+const pollUntilSettled = effect <A extends { state?: string | undefined } | undefined, E, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.repeat(self, {
+    until: (config) => config === undefined || (config.state !== "CREATING" && config.state !== "UPDATING"),
+    schedule: Schedule.fixed("2 seconds"),
+    times: 30,
+  })
+
+type LoggingConfigurationState = {
+  arn?: string | undefined
+  id?: string | undefined
+  name?: string | undefined
+  destinationConfiguration?: ivschat.DestinationConfiguration | undefined
+  state?: string | undefined
+  tags?: { [key: string]: string | undefined } | undefined
+}
+
+export const LoggingConfigurationProvider = (): infer _ =>
+  Provider.effect(
+    LoggingConfiguration,
+    effect {
+      const toName = effect (
+        id: string,
+        props: { loggingConfigurationName?: string | undefined },
+      ) => (props.loggingConfigurationName
+        ? props.loggingConfigurationName
+        : try createPhysicalName({ id, maxLength: 128 }))
+
+      const toAttrs = effect (config: LoggingConfigurationState) => {
+        if (!config.arn || !config.id || !config.name) {
+          throw new IvsChatLoggingConfigurationInvalid({
+            message: "IVS Chat logging configuration is missing its ARN, ID, or name",
+          })
+        }
+        return {
+          loggingConfigurationName: config.name,
+          loggingConfigurationArn: config.arn,
+          loggingConfigurationId: config.id,
+          state: config.state,
+        }
+      }
+
+      const getByIdentifier = effect (identifier: string) =>
+        (try (ivschat.getLoggingConfiguration({ identifier })
+          |> retryWhileThrottled(%))) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      /** No name filter on ListLoggingConfigurations — enumerate + match. */
+      const findByName = effect (name: string) => {
+        const summaries = try (effect {
+          return Array.from(
+            try (ivschat.listLoggingConfigurations.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.loggingConfigurations)
+        }
+          |> retryWhileThrottled(%))
+        const match = summaries.find((s) => s.name === name && s.arn)
+        return match?.arn ? try getByIdentifier(match.arn) : undefined
+      }
+
+      return {
+        stables: ["loggingConfigurationArn", "loggingConfigurationId"],
+
+        read: effect ({ id, olds, output }) => {
+          const config = output?.loggingConfigurationArn
+            ? try getByIdentifier(output.loggingConfigurationArn)
+            : try findByName(try toName(id, olds ?? {}))
+          if (config === undefined) return undefined
+          const attrs = try toAttrs(config)
+          return (try hasAlchemyTags(id, toTagRecord(config.tags))) ? attrs : Unowned(attrs)
+        },
+
+        diff: effect ({ news }) => {
+          if (!isResolved(news)) return undefined
+          // Validate the exactly-one destination shape before any AWS call.
+          try toWireDestination(news.destinationConfiguration)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = try toName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const desiredDestination = try toWireDestination(news.destinationConfiguration)
+
+          // 1. Observe — and wait out any in-flight state transition so
+          // the sync step below is allowed to mutate.
+          let observed = output?.loggingConfigurationArn
+            ? try pollUntilSettled(getByIdentifier(output.loggingConfigurationArn))
+            : try findByName(name)
+
+          // 2. Ensure — create if missing, then wait for ACTIVE (a
+          // configuration is created in state CREATING).
+          if (observed === undefined) {
+            const created = try (ivschat
+              .createLoggingConfiguration({
+                name,
+                destinationConfiguration: desiredDestination,
+                tags: desiredTags,
+              })
+              |> retryWhileThrottled(%))
+            if (created.arn !== undefined) {
+              observed = try pollUntilSettled(getByIdentifier(created.arn))
+            }
+          }
+          const arn = observed?.arn
+          if (observed === undefined || arn === undefined) {
+            throw new IvsChatLoggingConfigurationInvalid({
+              message: "IVS Chat CreateLoggingConfiguration returned no ARN",
+            })
+          }
+
+          // 3. Sync — name and destination are mutable via
+          // UpdateLoggingConfiguration (allowed only in a settled state;
+          // Conflict retried through a bounded window).
+          const patch: Partial<ivschat.UpdateLoggingConfigurationRequest> = {}
+          if (observed.name !== name) patch.name = name
+          if (
+            JSON.stringify(observed.destinationConfiguration) !== JSON.stringify(desiredDestination)
+          ) {
+            patch.destinationConfiguration = desiredDestination
+          }
+          if (Object.keys(patch).length > 0) {
+            try (ivschat
+              .updateLoggingConfiguration({ identifier: arn, ...patch })
+              |> retryWhileThrottled(%)
+              |> retryWhileConflict(%))
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags.
+          try syncIvsChatTags(arn, desiredTags)
+
+          // 4. Return fresh, settled attributes.
+          const final = try pollUntilSettled(getByIdentifier(arn))
+          if (final === undefined) {
+            throw new IvsChatLoggingConfigurationInvalid({
+              message: `IVS Chat logging configuration '${arn}' vanished during reconcile`,
+            })
+          }
+          try session.note(arn)
+          return try toAttrs(final)
+        },
+
+        delete: effect ({ output }) => {
+          // Deleting mid-transition raises ConflictException — retry
+          // through a bounded window, then tolerate already-gone.
+          ;(try (ivschat
+            .deleteLoggingConfiguration({
+              identifier: output.loggingConfigurationArn,
+            })
+            |> retryWhileThrottled(%)
+            |> retryWhileConflict(%))) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        list: effect () =>
+          (try (effect {
+            return Array.from(
+              try (ivschat.listLoggingConfigurations.pages({})
+                |> Stream.runCollect(%)),
+            ).flatMap((page) => page.loggingConfigurations)
+          }
+            |> Effect.flatMap(
+              %,
+              Effect.forEach(
+                effect (summary) =>
+                  toAttrs(summary) catch effect (e) => match (e) {
+                    when { _tag: "IvsChatLoggingConfigurationInvalid" }: try Effect.undefined;
+                    default: throw e;
+                  },
+                { concurrency: 5 },
+              ),
+            ))).filter((item) => item !== undefined),
+      }
+    },
+  )

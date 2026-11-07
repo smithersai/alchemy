@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { makeReadBucketClient } from "./ReadBucketHttp.ts";
-import { ReadWriteBucket } from "./ReadWriteBucket.ts";
+import { ReadWriteBucket } from "./ReadWriteBucket.vibe";
 import { makeStorageBinding, storageHttpLayer } from "./StorageBinding.ts";
 import { makeWriteBucketClient } from "./WriteBucketHttp.ts";
 

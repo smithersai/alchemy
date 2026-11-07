@@ -7,14 +7,14 @@ import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type * as Redacted from "effect/Redacted";
 import { Docker, dockerContextName, dockerPhysicalName } from "./Docker.ts";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 import {
   type ImageRegistry,
   parseCreatedAt,
   publishedRepoDigest,
   repositoryFromImageRef,
   withRegistryHost,
-} from "./Registry.ts";
+} from "./Registry.vibe";
 
 export interface DockerBuildOptions {
   /**

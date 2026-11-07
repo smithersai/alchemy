@@ -10,7 +10,7 @@ export default Contributions.make({
     aws: {
       description: "DynamoDB state store in the profile's AWS account",
       load: Contributions.lazy(
-        () => import("./Alchemist/DynamoDBStateStore.ts"),
+        () => import("./Alchemist/DynamoDBStateStore.vibe"),
         (module) => module.stateStore,
       ),
     },
@@ -26,17 +26,17 @@ export default Contributions.make({
     provider: {
       description: "Manage AWS provider prerequisites",
       load: Contributions.lazy(
-        () => import("./Cli.ts"),
+        () => import("./Cli.vibe"),
         (module) => module.awsCommand,
       ),
     },
   },
   testServices: Contributions.lazy(
-    () => import("./Local/TestServices.ts"),
+    () => import("./Local/TestServices.vibe"),
     (module) => module.testServices(),
   ),
   devEnv: Contributions.lazy(
-    () => import("./Local/DevEnv.ts"),
+    () => import("./Local/DevEnv.vibe"),
     (module) => module.devEnv,
   ),
 });

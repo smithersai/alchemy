@@ -1,9 +1,9 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { makeK2LocalAuth } from "./K2Http.ts";
-import { ReadSubscription } from "./ReadSubscription.ts";
+import { ReadSubscription } from "./ReadSubscription.vibe";
 import { makeReadSubscriptionClient } from "./ReadSubscriptionHttp.ts";
-import type { Subscription } from "./Subscription.ts";
+import type { Subscription } from "./Subscription.vibe";
 
 /**
  * Local implementation of the {@link ReadSubscription} service — leases

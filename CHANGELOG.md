@@ -1,3 +1,9 @@
+## Unreleased
+
+### Bug fixes
+
+- Compiler-generated inline module helpers could appear as public package subpaths. Named helper implementations now stay private while their public facades remain usable.
+
 ## v2.0.0-beta.84
 
 ### &nbsp;&nbsp;&nbsp;🚨 Breaking Changes

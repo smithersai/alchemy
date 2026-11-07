@@ -15,7 +15,7 @@ import {
   type GcpIamResourceKind,
   type IamCondition,
 } from "./IamPolicy.ts";
-import type { BoundContainer } from "./Run/Container.ts";
+import type { BoundContainer } from "./Run/Container.vibe";
 import { parseServiceAccountKey } from "./Token.ts";
 
 export type { GcpIamResourceKind } from "./IamPolicy.ts";

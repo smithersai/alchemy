@@ -21,7 +21,7 @@ import { findProviderByType, Provider } from "./Provider.ts";
 import { stampedMode } from "./ProviderMode.ts";
 import { resourceSession } from "./Report.ts";
 import type { ResourceLike } from "./Resource.ts";
-import { ResourceContext } from "./ResourceContext.ts";
+import { ResourceContext } from "./ResourceContext.vibe";
 import {
   isActionState,
   State,

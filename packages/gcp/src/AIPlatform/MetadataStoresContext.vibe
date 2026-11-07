@@ -1,0 +1,350 @@
+import * as aiplatform from "@distilled.cloud/gcp/aiplatform_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { tagRecord } from "alchemy/Tags"
+import { GcpEnvironment } from "../Environment.ts"
+import { hasAlchemyLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  createInternalLabels,
+  hasAlchemyPrefix,
+  labelsDiffer,
+  listLocations,
+  locationOf,
+  lastSegment,
+  projectOf,
+  stableJson,
+  toDisplayName,
+  toLabels,
+  toResourceId,
+  userLabels,
+} from "./names.vibe"
+import { waitForOperation } from "./operations.ts"
+
+const DEFAULT_SCHEMA_TITLE = "system.Experiment"
+
+export type MetadataStoresContextProps = {
+  /**
+   * Parent MetadataStore resource name
+   * `projects/{project}/locations/{location}/metadataStores/{metadatastore}`.
+   * Immutable — changing it replaces the context.
+   */
+  metadataStore: string
+  /**
+   * Context id. If omitted, a unique id is generated. Must be 4-128
+   * characters of `a-z` and `-`. Immutable.
+   */
+  contextId?: string
+  /**
+   * Display name (max 128 Unicode characters).
+   */
+  displayName?: string
+  /**
+   * Human-readable description.
+   */
+  description?: string
+  /**
+   * User labels. Alchemy ownership labels are merged in automatically.
+   */
+  labels?: Record<string, string>
+  /**
+   * Schema title registered in the MetadataStore. Vertex AI rejects
+   * entries without one.
+   * @default "system.Experiment"
+   */
+  schemaTitle?: string
+  /**
+   * Schema version registered in the MetadataStore.
+   */
+  schemaVersion?: string
+  /**
+   * Arbitrary metadata properties.
+   */
+  metadata?: aiplatform.DocumentMap
+}
+
+export type MetadataStoresContext = Resource<
+  "GCP.AIPlatform.MetadataStoresContext",
+  MetadataStoresContextProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Context id (last path segment). */
+    contextId: string
+    /** Parent MetadataStore resource name. */
+    metadataStore: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Display name. */
+    displayName: string | undefined
+    /** User-provided description. */
+    description: string | undefined
+    /** User labels (Alchemy ownership labels stripped). */
+    labels: Record<string, string>
+    /** Schema title. */
+    schemaTitle: string | undefined
+    /** Schema version. */
+    schemaVersion: string | undefined
+    /** Parent context resource names. */
+    parentContexts: string[]
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Vertex ML Metadata Context associated with a MetadataStore.
+ *
+ * Changing `metadataStore` or `contextId` replaces the context. Display
+ * name, description, labels, schema, and metadata update in place.
+ *
+ * ### Creating a Context
+ * **Example:** Experiment context
+ * ```typescript
+ * const context = yield* GCP.AIPlatform.MetadataStoresContext("Experiment", {
+ *   metadataStore: store.name,
+ *   displayName: "training-run",
+ *   labels: { env: "prod" },
+ * });
+ * ```
+ *
+ * @resource
+ * @category AIPlatform
+ */
+export const MetadataStoresContext = Resource<MetadataStoresContext>(
+  "GCP.AIPlatform.MetadataStoresContext",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MetadataStoresContextNotResolved extends Data.TaggedError(
+  "GCP.AIPlatform.MetadataStoresContextNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class MetadataStoresContextStillExists extends Data.TaggedError(
+  "GCP.AIPlatform.MetadataStoresContextStillExists",
+)<{
+  resourceName: string
+}> {}
+
+const parentOf = (name: string): infer _ => {
+  const at = name.lastIndexOf("/contexts/")
+  return at >= 0 ? name.slice(0, at) : name
+}
+
+const resourceName = (metadataStore: string, contextId: string): infer _ => `${metadataStore}/contexts/${contextId}`
+
+const toAttrs = (context: aiplatform.GoogleCloudAiplatformV1Context, project: string): infer _ => {
+  const name = context.name ?? ""
+  return {
+    name,
+    contextId: lastSegment(name),
+    metadataStore: parentOf(name),
+    project: projectOf(name, project),
+    location: locationOf(name),
+    displayName: context.displayName,
+    description: context.description,
+    labels: userLabels(context.labels),
+    schemaTitle: context.schemaTitle,
+    schemaVersion: context.schemaVersion,
+    parentContexts: context.parentContexts ?? [],
+    createTime: context.createTime,
+    updateTime: context.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  aiplatform
+    .getProjectsLocationsMetadataStoresContexts({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listContexts = effect (parent: string) =>
+  (Array.from(
+    try (aiplatform.listProjectsLocationsMetadataStoresContexts.pages({ parent, pageSize: 100 })
+      |> Stream.runCollect(%)),
+  ).flatMap((page) => page.contexts ?? [])) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1Context[];
+    default: throw e;
+  }
+
+const listStores = effect (parent: string) =>
+  (Array.from(
+    try (aiplatform.listProjectsLocationsMetadataStores.pages({ parent, pageSize: 100 })
+      |> Stream.runCollect(%)),
+  ).flatMap((page) => page.metadataStores ?? [])) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: [] as aiplatform.GoogleCloudAiplatformV1MetadataStore[];
+    default: throw e;
+  }
+
+const waitUntilGone = effect (name: string) =>
+  try (getByName(name)
+    |> Effect.filterOrFail(%, (context) =>
+      context === undefined, () =>
+      new MetadataStoresContextStillExists({ resourceName: name }))
+    |> Effect.asVoid(%)
+    |> Effect.retry(%, {
+      while: (error) =>
+        error._tag === "GCP.AIPlatform.MetadataStoresContextStillExists",
+      times: 10,
+      schedule: Schedule.spaced("1 second"),
+    }))
+
+export const MetadataStoresContextProvider = (): infer _ =>
+  Provider.succeed(MetadataStoresContext, {
+    stables: ["name", "contextId", "metadataStore", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousParent = olds?.metadataStore ?? output?.metadataStore
+      const nextParent = news.metadataStore ?? previousParent
+      const previousId = olds?.contextId ?? output?.contextId
+      const nextId = news.contextId ?? previousId
+      if (
+        (previousParent !== undefined
+          && nextParent !== undefined
+          && nextParent !== previousParent)
+        || (previousId !== undefined && nextId !== undefined && nextId !== previousId)
+      ) {
+        return {
+          action: "replace" as const,
+          deleteFirst: previousParent === nextParent && previousId !== undefined && nextId === previousId,
+        }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const contextId = try toResourceId(id, olds?.contextId, output?.contextId)
+      const metadataStore = olds?.metadataStore ?? output?.metadataStore
+      const name = output?.name ?? (metadataStore !== undefined ? resourceName(metadataStore, contextId) : "")
+      if (name.length === 0) return undefined
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project)
+      return (try hasAlchemyLabels(id, tagRecord(existing.labels))) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const stores = try Effect.forEach(
+        listLocations(env.region),
+        effect (location) => try listStores(`projects/${env.project}/locations/${location}`),
+        { concurrency: 4 },
+      )
+      const contexts = try Effect.forEach(
+        stores.flat().filter((store) => store.name !== undefined),
+        effect (store) => try listContexts(store.name!),
+        { concurrency: 4 },
+      )
+      return contexts
+        .flat()
+        .filter((context) => hasAlchemyPrefix(context.labels))
+        .map((context) => toAttrs(context, env.project))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const contextId = try toResourceId(id, news.contextId, output?.contextId)
+      const metadataStore = news.metadataStore
+      const name = resourceName(metadataStore, contextId)
+      const displayName = try toDisplayName(id, news.displayName, output?.displayName)
+      const desiredLabels = {
+        ...toLabels(news.labels),
+        ...(try createInternalLabels(id)),
+      }
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = aiplatform
+          .createProjectsLocationsMetadataStoresContexts({
+            parent: metadataStore,
+            contextId,
+            body: {
+              displayName,
+              description: news.description,
+              labels: desiredLabels,
+              schemaTitle: news.schemaTitle ?? DEFAULT_SCHEMA_TITLE,
+              schemaVersion: news.schemaVersion,
+              metadata: news.metadata,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try getByName(name); default: throw e; }
+        current = created ?? undefined
+      }
+
+      if (current === undefined) {
+        throw new MetadataStoresContextNotResolved({ resourceName: name })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== (news.description ?? "")
+      const displayChanged = (current.displayName ?? "") !== displayName
+      const labelsChanged = labelsDiffer(current.labels, desiredLabels)
+      const schemaTitleChanged = (current.schemaTitle ?? "") !== (news.schemaTitle ?? DEFAULT_SCHEMA_TITLE)
+      const schemaVersionChanged = (current.schemaVersion ?? "") !== (news.schemaVersion ?? "")
+      const metadataChanged = news.metadata !== undefined && stableJson(current.metadata) !== stableJson(news.metadata)
+
+      if (
+        descriptionChanged
+        || displayChanged
+        || labelsChanged
+        || schemaTitleChanged
+        || schemaVersionChanged
+        || metadataChanged
+      ) {
+        current = try aiplatform.patchProjectsLocationsMetadataStoresContexts({
+          name,
+          updateMask: [
+            descriptionChanged ? "description" : undefined,
+            displayChanged ? "display_name" : undefined,
+            labelsChanged ? "labels" : undefined,
+            schemaTitleChanged ? "schema_title" : undefined,
+            schemaVersionChanged ? "schema_version" : undefined,
+            metadataChanged ? "metadata" : undefined,
+          ]
+            .filter((field): field is string => field !== undefined)
+            .join(","),
+          body: {
+            name,
+            displayName,
+            description: news.description,
+            labels: desiredLabels,
+            schemaTitle: news.schemaTitle ?? DEFAULT_SCHEMA_TITLE,
+            schemaVersion: news.schemaVersion,
+            metadata: news.metadata,
+            etag: current.etag,
+          },
+        })
+      }
+
+      return toAttrs(current, env.project)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (aiplatform
+        .deleteProjectsLocationsMetadataStoresContexts({
+          name: output.name,
+        })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        try waitForOperation(operation, { notFoundOk: true })
+      }
+      try waitUntilGone(output.name)
+    },
+  })

@@ -15,8 +15,8 @@ import * as AWS from "@alchemy.run/aws";
  */
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import { HyperPodInfra } from "./src/infra.ts";
-import { UploadLifecycleScript } from "./src/lifecycle.ts";
+import { HyperPodInfra } from "./src/infra.vibe";
+import { UploadLifecycleScript } from "./src/lifecycle.vibe";
 
 export default Alchemy.Stack(
   "AwsHyperPodExample",

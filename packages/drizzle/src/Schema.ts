@@ -13,7 +13,7 @@ import * as Path from "effect/Path";
 import * as Record from "effect/Record";
 import * as S from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
-import type { Providers } from "./Providers.ts";
+import type { Providers } from "./Providers.vibe";
 
 export type Dialect = "postgres" | "mysql" | "sqlite";
 

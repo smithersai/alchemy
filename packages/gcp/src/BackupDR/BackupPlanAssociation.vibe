@@ -1,0 +1,363 @@
+import * as backupdr from "@distilled.cloud/gcp/backupdr_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  backupPlanOf,
+  collectPages,
+  hasAlchemyLabelMap,
+  listAtLocation,
+  normalizeLocation,
+  parentOf,
+  parseName,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  sameText,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+  waitUntilReady,
+} from "./internal.ts"
+
+export type RuleConfigInfo = {
+  /** Backup rule id from the plan. */
+  ruleId?: string
+  /** Last backup state for the rule. */
+  lastBackupState?: string
+  /** Last backup error message. */
+  lastBackupError?: string
+  /** Last successful backup consistency time. */
+  lastSuccessfulBackupConsistencyTime?: string
+}
+
+export type BackupPlanAssociationProps = {
+  /**
+   * Association id (the `{backupPlanAssociation}` segment of
+   * `projects/{project}/locations/{location}/backupPlanAssociations/{backupPlanAssociation}`).
+   * If omitted, a unique RFC1035 name is generated from the stack, stage,
+   * and logical id. Immutable — changing it replaces the association.
+   */
+  backupPlanAssociationId?: string
+  /**
+   * Region (`us-central1`, `us-east1`, …). Immutable — changing it
+   * replaces the association. `US-CENTRAL1` is accepted and normalized to
+   * `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  location?: string
+  /**
+   * Workload resource the plan is applied to. Resource name
+   * (`projects/{project}/zones/{zone}/instances/{instance}`) or full URI.
+   * Immutable — changing it replaces the association.
+   */
+  resource: string
+  /**
+   * Workload resource type, e.g. `compute.googleapis.com/Instance`.
+   * Immutable — changing it replaces the association.
+   */
+  resourceType: string
+  /**
+   * Backup plan to apply. Full name
+   * `projects/{project}/locations/{location}/backupPlans/{backupPlan}`
+   * or a plan id combined with `location`.
+   */
+  backupPlan: string
+}
+
+export type BackupPlanAssociation = Resource<
+  "GCP.BackupDR.BackupPlanAssociation",
+  BackupPlanAssociationProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Association id (last path segment). */
+    backupPlanAssociationId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** Workload resource name. */
+    resource: string | undefined
+    /** Workload resource type. */
+    resourceType: string | undefined
+    /** Backup plan name. */
+    backupPlan: string | undefined
+    /** Data source used as the backup storage location. */
+    dataSource: string | undefined
+    /** Backup plan revision name. */
+    backupPlanRevisionName: string | undefined
+    /** User-friendly revision id (`v0`, `v1`, …). */
+    backupPlanRevisionId: string | undefined
+    /** Per-rule backup status. */
+    rulesConfigInfo: RuleConfigInfo[]
+    /** Cloud SQL instance create time, if applicable. */
+    cloudSqlInstanceCreateTime: string | undefined
+    /** Filestore instance create time, if applicable. */
+    filestoreInstanceCreateTime: string | undefined
+    /** AlloyDB cluster uid, if applicable. */
+    alloydbClusterUid: string | undefined
+    /** Server-reported state. */
+    state: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Backup and DR backup plan association — applies a Backup Plan to a
+ * workload (Compute instance, Cloud SQL, AlloyDB, Filestore, or disk).
+ *
+ * Associations have no labels field. Nuke discovers them by following the
+ * referenced Backup Plan's Alchemy ownership labels.
+ *
+ * Changing `backupPlanAssociationId`, `location`, `resource`, or
+ * `resourceType` replaces the association. `backupPlan` updates in place.
+ *
+ * ### Creating an Association
+ * **Example:** Protect a Compute instance
+ * ```typescript
+ * const association = yield* GCP.BackupDR.BackupPlanAssociation("VmPlan", {
+ *   resource: instance.selfLink,
+ *   resourceType: "compute.googleapis.com/Instance",
+ *   backupPlan: plan.name,
+ * });
+ * ```
+ *
+ * ### Updating an Association
+ * **Example:** Point at a new plan
+ * ```typescript
+ * // Same logical id, changed props: the engine updates it in place.
+ * const association = yield* GCP.BackupDR.BackupPlanAssociation("VmPlan", {
+ *   resource: instance.selfLink,
+ *   resourceType: "compute.googleapis.com/Instance",
+ *   backupPlan: otherPlan.name,
+ * });
+ * ```
+ *
+ * @resource
+ * @category BackupDR
+ */
+export const BackupPlanAssociation = Resource<BackupPlanAssociation>(
+  "GCP.BackupDR.BackupPlanAssociation",
+)
+
+const resourceName = (project: string, location: string, backupPlanAssociationId: string): infer _ =>
+  `projects/${project}/locations/${location}/backupPlanAssociations/${backupPlanAssociationId}`
+
+const toRules = (rules: readonly backupdr.RuleConfigInfo[] | undefined): RuleConfigInfo[] =>
+  (rules ?? []).map((rule) => ({
+    ruleId: rule.ruleId,
+    lastBackupState: rule.lastBackupState,
+    lastBackupError: rule.lastBackupError?.message,
+    lastSuccessfulBackupConsistencyTime: rule.lastSuccessfulBackupConsistencyTime,
+  }))
+
+const toAttrs = (item: backupdr.BackupPlanAssociation, project: string, region: string): infer _ => {
+  const name = item.name ?? ""
+  const parsed = parseName(name, "backupPlanAssociations", region)
+  return {
+    name,
+    backupPlanAssociationId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    resource: item.resource,
+    resourceType: item.resourceType,
+    backupPlan: item.backupPlan,
+    dataSource: item.dataSource,
+    backupPlanRevisionName: item.backupPlanRevisionName,
+    backupPlanRevisionId: item.backupPlanRevisionId,
+    rulesConfigInfo: toRules(item.rulesConfigInfo),
+    cloudSqlInstanceCreateTime: item.cloudSqlInstanceBackupPlanAssociationProperties?.instanceCreateTime,
+    filestoreInstanceCreateTime: item.filestoreInstanceBackupPlanAssociationProperties?.instanceCreateTime,
+    alloydbClusterUid: item.alloydbClusterBackupPlanAssociationProperties?.clusterUid,
+    state: item.state,
+    createTime: item.createTime,
+    updateTime: item.updateTime,
+  }
+}
+
+const getByName = effect (name: string) =>
+  backupdr
+    .getProjectsLocationsBackupPlanAssociations({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const getPlan = effect (
+  name: string | undefined,
+) => (name === undefined || name.length === 0 ? try Effect.undefined : backupdr
+  .getProjectsLocationsBackupPlans({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string, region: string) => {
+  const items = try listAtLocation(project, region, effect (parent) =>
+    try collectPages(
+      backupdr.listProjectsLocationsBackupPlanAssociations.pages({
+        parent,
+        pageSize: 1000,
+      }),
+      (page) => page.backupPlanAssociations,
+    ))
+  const planNames = [
+    ...new Set(
+      items
+        .map((item) => item.backupPlan)
+        .filter((name): name is string => name !== undefined && name.length > 0),
+    ),
+  ]
+  const ownedPlans = try Effect.forEach(
+    planNames,
+    effect (name) =>
+      try effect {
+        const plan = try getPlan(name)
+        return plan !== undefined && hasAlchemyLabelMap(plan.labels) ? name : undefined
+      },
+    { concurrency: 8 },
+  )
+  const owned = new Set(ownedPlans.filter((name): name is string => name !== undefined))
+  return items.filter((item) => item.backupPlan !== undefined && owned.has(item.backupPlan))
+}
+
+export const BackupPlanAssociationProvider = (): infer _ =>
+  Provider.succeed(BackupPlanAssociation, {
+    stables: ["name", "backupPlanAssociationId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousResource = olds?.resource ?? output?.resource
+      const previousType = olds?.resourceType ?? output?.resourceType
+      return replaceOnIdentity({
+        previousId: olds?.backupPlanAssociationId ?? output?.backupPlanAssociationId,
+        nextId: news.backupPlanAssociationId
+          ?? olds?.backupPlanAssociationId
+          ?? output?.backupPlanAssociationId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: (previousType !== undefined
+          && news.resourceType !== undefined
+          && previousType !== news.resourceType)
+          || (previousResource !== undefined
+            && news.resource !== undefined
+            && previousResource !== news.resource
+            && !previousResource.endsWith(`/${news.resource}`)),
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const backupPlanAssociationId = try toPhysicalId(
+        id,
+        olds?.backupPlanAssociationId,
+        output?.backupPlanAssociationId,
+        "backupplanassoc",
+      )
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, backupPlanAssociationId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      if (output !== undefined) return attrs
+      const plan = try getPlan(existing.backupPlan)
+      return plan !== undefined && hasAlchemyLabelMap(plan.labels) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const backupPlanAssociationId = try toPhysicalId(
+        id,
+        news.backupPlanAssociationId,
+        output?.backupPlanAssociationId,
+        "backupplanassoc",
+      )
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, backupPlanAssociationId)
+      const backupPlan = backupPlanOf(news.backupPlan, env.project, location)
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = backupdr
+          .createProjectsLocationsBackupPlanAssociations({
+            parent: parentOf(env.project, location),
+            backupPlanAssociationId,
+            body: {
+              resource: news.resource,
+              resourceType: news.resourceType,
+              backupPlan,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          // ALREADY_EXISTS (6): a concurrent create won the race.
+          waitForOperation(created) catch effect (error) => match (error) {
+            when { _tag: "GCP.OperationFailed" }: try (error.code === 6 ? Effect.void : throw error);
+            default: throw error;
+          }
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      current = try waitUntilReady(
+        getByName(current.name ?? name),
+        current.name ?? name,
+        (item) => item.state,
+      )
+
+      if (!sameText(current.backupPlan, backupPlan)) {
+        const operation = try backupdr.patchProjectsLocationsBackupPlanAssociations({
+          name: current.name ?? name,
+          updateMask: "backupPlan",
+          body: { backupPlan },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilReady(
+          getByName(current.name ?? name),
+          current.name ?? name,
+          (item) => item.state,
+        )
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (backupdr
+        .deleteProjectsLocationsBackupPlanAssociations({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        // NOT_FOUND (5): already gone.
+        waitForOperation(operation) catch effect (error) => match (error) {
+          when { _tag: "GCP.OperationFailed" }: try (error.code === 5 ? Effect.void : throw error);
+          default: throw error;
+        }
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

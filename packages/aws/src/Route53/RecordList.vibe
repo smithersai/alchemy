@@ -1,0 +1,295 @@
+import * as route53 from "@distilled.cloud/aws/route-53"
+import type { DnsRecord, DnsRecordType } from "alchemy/DNS/Adapter"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.ts"
+import { resolveHostedZoneId } from "./HostedZoneLookup.vibe"
+import { normalizeHostedZoneId } from "./Record.ts"
+
+export interface RecordListProps {
+  /**
+   * Hosted zone that owns every record. When omitted, each record's zone
+   * is the most specific PUBLIC hosted zone in the account containing its
+   * name, so one list may span several zones (e.g. certificate validation
+   * records for `example.com` and `example.org`).
+   */
+  hostedZoneId?: string
+  /**
+   * Records to publish.
+   *
+   * - `CNAME` — the record set at the name is overwritten (`UPSERT`).
+   * - `A` / `AAAA` — the name's record set of that type holds exactly the
+   *   listed values.
+   * - `TXT` — the listed values are merged into the name's TXT record set,
+   *   alongside values published by anyone else.
+   */
+  records: DnsRecord[]
+}
+
+/** One record published by a {@link RecordList}. */
+export interface RecordListEntry {
+  /** Hosted zone the record lives in. */
+  hostedZoneId: string
+  /** Normalized record name (lowercase, no trailing dot). */
+  name: string
+  /** Record type. */
+  type: DnsRecordType
+  /** Normalized record value (TXT values unquoted). */
+  value: string
+  /** TTL in seconds. */
+  ttl: number
+}
+
+export interface RecordList extends
+  Resource<
+    "AWS.Route53.RecordList",
+    RecordListProps,
+    {
+      /** Every record this list currently publishes. */
+      records: RecordListEntry[]
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An explicit list of Route 53 records whose values are typically computed
+ * from another resource's outputs — ACM certificate validation CNAMEs, a
+ * platform's ownership-verification TXT, a Fly App's addresses.
+ *
+ * This is the resource an `AWS.Route53.Adapter()` declares for
+ * `domain.dns` record publication (see
+ * [DNS Adapters](/infrastructure-as-code/dns-adapters)). Each record's
+ * hosted zone is inferred from its name unless `hostedZoneId` is set, and
+ * only the values the list published are removed when they leave the list
+ * or the list is destroyed.
+ * ### Publishing Records
+ * **Example:** Verification TXT For A Railway Domain
+ * ```typescript
+ * yield* AWS.Route53.RecordList("Verify", {
+ *   records: [
+ *     {
+ *       name: "_railway-verify.app.example.com",
+ *       type: "TXT",
+ *       value: "railway-verify=abc123",
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const RecordList = Resource<RecordList>("AWS.Route53.RecordList")
+
+const DEFAULT_TTL = 300
+
+const normalizeName = (name: string): infer _ => name.replace(/\.$/, "").toLowerCase()
+
+const unquote = (value: string): infer _ => value.replace(/^"|"$/g, "")
+
+const normalizeValue = (type: DnsRecordType, value: string): infer _ =>
+  type === "TXT" ? unquote(value) : normalizeName(value)
+
+const toWire = (type: DnsRecordType, value: string): infer _ => (type === "TXT" ? `"${value}"` : value)
+
+const keyOf = (entry: RecordListEntry): infer _ => `${entry.hostedZoneId}|${entry.name}|${entry.type}|${entry.value}`
+
+const groupKeyOf = (entry: { hostedZoneId: string; name: string; type: string }): infer _ =>
+  `${entry.hostedZoneId}|${entry.name}|${entry.type}`
+
+const waitForChange = effect (changeId: string) =>
+  try (effect {
+    return (try route53.getChange({ Id: changeId.replace(/^\/change\//, "") })).ChangeInfo.Status catch effect (e) => match (e) {
+      when { _tag: "NoSuchChange" }: "PENDING" as const;
+      default: throw e;
+    }
+  }
+    |> Effect.repeat(%, {
+      schedule: Schedule.max([Schedule.fixed("2 seconds"), Schedule.recurs(60)]),
+      until: (status) => status === "INSYNC",
+    }))
+
+const findRecordSet = effect (hostedZoneId: string, name: string, type: DnsRecordType) =>
+  (((try route53
+    .listResourceRecordSets({
+      HostedZoneId: normalizeHostedZoneId(hostedZoneId),
+      StartRecordName: `${name}.`,
+      StartRecordType: type,
+      MaxItems: 10,
+    })).ResourceRecordSets ?? []).find(
+      (recordSet) =>
+        normalizeName(recordSet.Name) === name
+        && recordSet.Type === type
+        && recordSet.SetIdentifier === undefined
+        && recordSet.AliasTarget === undefined,
+    )) catch effect (e) => match (e) { when { _tag: "NoSuchHostedZone" }: try Effect.undefined; default: throw e; }
+
+const liveValuesOf = (type: DnsRecordType, recordSet: route53.ResourceRecordSet | undefined): infer _ =>
+  (recordSet?.ResourceRecords ?? []).map((record) => normalizeValue(type, record.Value))
+
+const sameValues = (a: string[], b: string[]): infer _ =>
+  a.length === b.length && [...a].sort().every((value, index) => value === [...b].sort()[index])
+
+/**
+ * Plan the change converging one `(zone, name, type)` record set: `desired`
+ * are the values this list publishes there now, `previous` the values it
+ * published before (removed unless still desired). `undefined` when the
+ * live record set already matches.
+ */
+const planRecordSetChange = effect (
+  hostedZoneId: string,
+  name: string,
+  type: DnsRecordType,
+  desired: RecordListEntry[],
+  previous: RecordListEntry[],
+) => {
+  const live = try findRecordSet(hostedZoneId, name, type)
+  const liveValues = liveValuesOf(type, live)
+  const desiredValues = desired.map((entry) => entry.value)
+  const removed = new Set(
+    previous.map((entry) => entry.value).filter((value) => !desiredValues.includes(value)),
+  )
+  const values = type === "TXT"
+    ? [...new Set([...liveValues.filter((value) => !removed.has(value)), ...desiredValues])]
+    : type === "CNAME"
+    ? desiredValues.slice(-1)
+    : [...new Set(desiredValues)]
+  const ttl = desired[0]?.ttl ?? live?.TTL ?? DEFAULT_TTL
+
+  if (values.length === 0) {
+    // Nothing of ours (or anyone's, for TXT) remains: delete what we own.
+    const ours = live !== undefined && (type === "TXT" || liveValues.every((value) => removed.has(value)))
+    return ours ? ({ Action: "DELETE", ResourceRecordSet: live } as route53.Change) : undefined
+  }
+  if (live === undefined || !sameValues(liveValues, values) || live.TTL !== ttl) {
+    return {
+      Action: "UPSERT",
+      ResourceRecordSet: {
+        Name: `${name}.`,
+        Type: type,
+        TTL: ttl,
+        ResourceRecords: values.map((value) => ({
+          Value: toWire(type, value),
+        })),
+      },
+    } as route53.Change
+  }
+  return undefined
+}
+
+const submitChanges = (hostedZoneId: string, changes: route53.Change[]) =>
+  route53.changeResourceRecordSets({
+    HostedZoneId: normalizeHostedZoneId(hostedZoneId),
+    ChangeBatch: { Comment: "Alchemy Route53 record list", Changes: changes },
+  })
+
+/**
+ * Apply one zone's changes as a single batch and wait for it once — each
+ * Route 53 change takes up to a minute to reach `INSYNC`. A rejected batch
+ * (e.g. a DELETE racing another writer) falls back to one change at a
+ * time, where a rejected DELETE is benign and anything else fails.
+ */
+const applyChanges = effect (hostedZoneId: string, changes: route53.Change[]) => {
+  if (changes.length === 0) return
+  const batch = [(try submitChanges(hostedZoneId, changes)).ChangeInfo.Id] catch effect (error) => match (error) {
+    when { _tag: "InvalidChangeBatch" }: try (changes.length === 1 && changes[0]?.Action !== "DELETE"
+      ? throw error
+      : effect {
+        return (try Effect.forEach(
+          changes,
+          effect (change) =>
+            [(try submitChanges(hostedZoneId, [change])).ChangeInfo.Id] catch effect (error) => match (error) {
+              when { _tag: "InvalidChangeBatch" }: try (change.Action === "DELETE" ? [] as string[] : throw error);
+              default: throw error;
+            },
+        )).flat()
+      });
+    default: throw error;
+  }
+  try Effect.forEach(batch, waitForChange, { discard: true })
+}
+
+/**
+ * Converge every `(zone, name, type)` record set touched by `desired` or
+ * `previous`, one change batch per hosted zone.
+ */
+const syncRecordSets = effect (desired: RecordListEntry[], previous: RecordListEntry[]) => {
+  const desiredGroups = groupBy(desired)
+  const previousGroups = groupBy(previous)
+  const changesByZone = new Map<string, route53.Change[]>()
+  for (const key of new Set([...desiredGroups.keys(), ...previousGroups.keys()])) {
+    const group = desiredGroups.get(key) ?? []
+    const before = previousGroups.get(key) ?? []
+    const sample = group[0] ?? before[0]
+    const change = try planRecordSetChange(
+      sample.hostedZoneId,
+      sample.name,
+      sample.type,
+      group,
+      before,
+    )
+    if (change !== undefined) {
+      changesByZone.set(sample.hostedZoneId, [
+        ...(changesByZone.get(sample.hostedZoneId) ?? []),
+        change,
+      ])
+    }
+  }
+  for (const [hostedZoneId, changes] of changesByZone) {
+    try applyChanges(hostedZoneId, changes)
+  }
+}
+
+const groupBy = (entries: RecordListEntry[]): infer _ => {
+  const groups = new Map<string, RecordListEntry[]>()
+  for (const entry of entries) {
+    const key = groupKeyOf(entry)
+    groups.set(key, [...(groups.get(key) ?? []), entry])
+  }
+  return groups
+}
+
+export const RecordListProvider = (): infer _ =>
+  Provider.succeed(RecordList, {
+    // No `diff`: every change (records, a pinned zone moving) converges in
+    // place — reconcile removes values the list no longer publishes.
+    read: effect ({ output }) => {
+      if (output === undefined) return undefined
+      const present = try Effect.forEach(output.records, effect (entry) =>
+        liveValuesOf(entry.type, try findRecordSet(entry.hostedZoneId, entry.name, entry.type)).includes(entry.value)
+          ? [entry]
+          : [])
+      return { records: present.flat() }
+    },
+
+    reconcile: effect ({ news, output, session }) => {
+      const zoneCache = new Map<string, string>()
+      const desiredByKey = new Map<string, RecordListEntry>()
+      for (const record of news.records) {
+        const name = normalizeName(record.name)
+        let hostedZoneId = zoneCache.get(name)
+        if (hostedZoneId === undefined) {
+          hostedZoneId = normalizeHostedZoneId(try resolveHostedZoneId(news.hostedZoneId, name))
+          zoneCache.set(name, hostedZoneId)
+        }
+        const entry: RecordListEntry = {
+          hostedZoneId,
+          name,
+          type: record.type,
+          value: normalizeValue(record.type, record.value),
+          ttl: record.ttl ?? DEFAULT_TTL,
+        }
+        desiredByKey.set(keyOf(entry), entry)
+      }
+      const desired = [...desiredByKey.values()]
+      try syncRecordSets(desired, output?.records ?? [])
+
+      try session.note(`${desired.length} record(s)`)
+      return { records: desired }
+    },
+
+    delete: effect ({ output }) => {
+      try syncRecordSets([], output.records)
+    },
+  })

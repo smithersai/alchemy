@@ -31,7 +31,7 @@ export const traceWebsiteFiles = Effect.fn(function* (input: TraceInput) {
   yield* fs.writeFileString(inputPath, JSON.stringify(input));
   const runner = yield* path.fromFileUrl(
     new URL(
-      import.meta.url.endsWith(".ts") ? "./TraceRunner.ts" : "./TraceRunner.js",
+      new URL(import.meta.url).pathname.endsWith(".js") ? "./TraceRunner.js" : "./TraceRunner.ts",
       import.meta.url,
     ),
   );

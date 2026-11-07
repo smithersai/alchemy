@@ -1,1 +1,1 @@
-export * from "./Customer.ts";
+export * from "./Customer.vibe";

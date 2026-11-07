@@ -4,8 +4,8 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
 import type { Gateway as GatewayResource } from "./Gateway.ts";
-import { makeLanguageModelLayer } from "./LanguageModel.ts";
-import { GatewayError, QueryGateway, type QueryGatewayClient } from "./QueryGateway.ts";
+import { makeLanguageModelLayer } from "./LanguageModel.vibe";
+import { GatewayError, QueryGateway, type QueryGatewayClient } from "./QueryGateway.vibe";
 
 /**
  * Runtime layer for {@link QueryGateway}.

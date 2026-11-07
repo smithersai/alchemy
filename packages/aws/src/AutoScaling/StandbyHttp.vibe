@@ -1,0 +1,57 @@
+import * as autoscaling from "@distilled.cloud/aws/auto-scaling"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts"
+import { Standby, type EnterStandbyRequest, type ExitStandbyRequest } from "./Standby.vibe"
+
+// Bespoke (not the shared scaffold): a multi-operation client over
+// `enterStandby` + `exitStandby` behind one IAM grant.
+export const StandbyHttp = Layer.effect(
+  Standby,
+  effect {
+    const bind = try AWSBindings.Bind
+    const enter = try AWSBindings.withCredentials(autoscaling.enterStandby)
+    const exit = try AWSBindings.withCredentials(autoscaling.exitStandby)
+
+    return effect (group: AutoScalingGroup) => {
+      const AutoScalingGroupName = try group.autoScalingGroupName.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.AutoScaling.Standby(${group})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["autoscaling:EnterStandby", "autoscaling:ExitStandby"],
+              Resource: [group.autoScalingGroupArn],
+            },
+          ],
+        })
+      }
+      return {
+        enter: effect (
+          request: EnterStandbyRequest,
+        ) =>
+          try withSpan(
+            effect {
+              return try enter({
+                ...request,
+                AutoScalingGroupName: try AutoScalingGroupName,
+              })
+            },
+            `AWS.AutoScaling.EnterStandby(${group.LogicalId})`,
+          ),
+        exit: effect (
+          request: ExitStandbyRequest,
+        ) =>
+          try withSpan(
+            effect {
+              return try exit({
+                ...request,
+                AutoScalingGroupName: try AutoScalingGroupName,
+              })
+            },
+            `AWS.AutoScaling.ExitStandby(${group.LogicalId})`,
+          ),
+      }
+    }
+  },
+)

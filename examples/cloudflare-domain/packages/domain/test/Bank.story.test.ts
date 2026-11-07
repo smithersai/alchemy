@@ -2,62 +2,62 @@ import { Story } from "@alchemy.run/domain/Story";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { Account } from "../src/Account/Account.aggregate.ts";
-import { mainAccountId } from "../src/Account/Account.id.ts";
-import { AccountActivity } from "../src/Account/AccountActivity.view.ts";
-import { AccountCard, CardChanged } from "../src/Account/AccountCard.stream.ts";
-import { AccountSummary } from "../src/Account/AccountSummary.view.ts";
+import { Account } from "../src/Account/Account.aggregate.vibe";
+import { mainAccountId } from "../src/Account/Account.id.vibe";
+import { AccountActivity } from "../src/Account/AccountActivity.view.vibe";
+import { AccountCard, CardChanged } from "../src/Account/AccountCard.stream.vibe";
+import { AccountSummary } from "../src/Account/AccountSummary.view.vibe";
 import { ChangeOwner, NotPermitted, OwnerChanged } from "../src/Account/ChangeOwner.command.ts";
 import { AccountClosed, CloseAccount } from "../src/Account/CloseAccount.command.ts";
 import { TransferCredited } from "../src/Account/CreditTransfer.command.ts";
 import { TransferDebited } from "../src/Account/DebitTransfer.command.ts";
 import { MoneyDeposited } from "../src/Account/DepositMoney.command.ts";
-import { AccountFrozen, FreezeAccount } from "../src/Account/FreezeAccount.command.ts";
-import { Frozen } from "../src/Account/Frozen.rejection.ts";
+import { AccountFrozen, FreezeAccount } from "../src/Account/FreezeAccount.command.vibe";
+import { Frozen } from "../src/Account/Frozen.rejection.vibe";
 import { InsufficientFunds } from "../src/Account/InsufficientFunds.rejection.ts";
 import { NotOwner } from "../src/Account/NotOwner.rejection.ts";
-import { AccountOpened } from "../src/Account/OpenAccount.command.ts";
+import { AccountOpened } from "../src/Account/OpenAccount.command.vibe";
 import {
   RecordSettlement,
   SettlementOnClosedAccount,
-} from "../src/Account/RecordSettlement.command.ts";
+} from "../src/Account/RecordSettlement.command.vibe";
 import { TransferRefunded } from "../src/Account/RefundTransfer.command.ts";
-import { Statement } from "../src/Account/Statement.view.ts";
+import { Statement } from "../src/Account/Statement.view.vibe";
 import {
   DailyLimitExceeded,
   MoneyWithdrawn,
   WithdrawMoney,
 } from "../src/Account/WithdrawMoney.command.ts";
-import { type Actor, agent, customer, system } from "../src/Actor.ts";
-import { Bank, BankHandlers } from "../src/Bank.model.ts";
+import { type Actor, agent, customer, system } from "../src/Actor.vibe";
+import { Bank, BankHandlers } from "../src/Bank.model.vibe";
 import { CurrentActor } from "../src/CurrentActor.context.ts";
 import { UsernameClaimed } from "../src/Customer/ClaimUsername.command.ts";
-import { CustomerRegistered } from "../src/Customer/ConfirmRegistration.command.ts";
-import { Customer } from "../src/Customer/Customer.aggregate.ts";
-import { CustomerId } from "../src/Customer/Customer.id.ts";
-import { CustomerDashboard } from "../src/Customer/CustomerDashboard.view.ts";
+import { CustomerRegistered } from "../src/Customer/ConfirmRegistration.command.vibe";
+import { Customer } from "../src/Customer/Customer.aggregate.vibe";
+import { CustomerId } from "../src/Customer/Customer.id.vibe";
+import { CustomerDashboard } from "../src/Customer/CustomerDashboard.view.vibe";
 import {
   RegisterCustomer,
   RegistrationRequested,
-} from "../src/Customer/RegisterCustomer.command.ts";
-import { RegistrationRejected } from "../src/Customer/RejectRegistration.command.ts";
-import { Username } from "../src/Customer/Username.ts";
-import { UsernameClaim } from "../src/Customer/UsernameClaim.aggregate.ts";
-import { DailyOutflow } from "../src/Fraud/DailyOutflow.view.ts";
-import { FraudCheck } from "../src/Fraud/FraudCheck.external.ts";
+} from "../src/Customer/RegisterCustomer.command.vibe";
+import { RegistrationRejected } from "../src/Customer/RejectRegistration.command.vibe";
+import { Username } from "../src/Customer/Username.vibe";
+import { UsernameClaim } from "../src/Customer/UsernameClaim.aggregate.vibe";
+import { DailyOutflow } from "../src/Fraud/DailyOutflow.view.vibe";
+import { FraudCheck } from "../src/Fraud/FraudCheck.external.vibe";
 import { MemoryLedgerStore, memoryLedger } from "../src/Ledger/LedgerStore.ts";
-import { Payments } from "../src/Settlement/Payments.external.ts";
-import { AccountTransfers } from "../src/Transfer/AccountTransfers.view.ts";
+import { Payments } from "../src/Settlement/Payments.external.vibe";
+import { AccountTransfers } from "../src/Transfer/AccountTransfers.view.vibe";
 import {
   ApproveTransfer,
   NotAwaitingApproval,
   TransferApproved,
 } from "../src/Transfer/ApproveTransfer.command.ts";
 import { TransferCompleted } from "../src/Transfer/CompleteTransfer.command.ts";
-import { TransferFailed } from "../src/Transfer/FailTransfer.command.ts";
-import { RequestTransfer, TransferRequested } from "../src/Transfer/RequestTransfer.command.ts";
-import { Transfer } from "../src/Transfer/Transfer.aggregate.ts";
-import { TransferStatus } from "../src/Transfer/TransferStatus.view.ts";
+import { TransferFailed } from "../src/Transfer/FailTransfer.command.vibe";
+import { RequestTransfer, TransferRequested } from "../src/Transfer/RequestTransfer.command.vibe";
+import { Transfer } from "../src/Transfer/Transfer.aggregate.vibe";
+import { TransferStatus } from "../src/Transfer/TransferStatus.view.vibe";
 
 const {
   call,

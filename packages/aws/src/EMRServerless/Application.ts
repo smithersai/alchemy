@@ -11,7 +11,7 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import type { Providers } from "../Providers.ts";
-import { awaitApplicationCreated, awaitApplicationStopped } from "./internal.ts";
+import { awaitApplicationCreated, awaitApplicationStopped } from "./internal.vibe";
 
 /**
  * The engine an EMR Serverless application runs. Changing the type replaces

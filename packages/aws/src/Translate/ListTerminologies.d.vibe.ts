@@ -1,0 +1,23 @@
+import type * as translate from "@distilled.cloud/aws/translate";
+import * as Binding from "alchemy/Binding";
+import type * as Effect from "effect/Effect";
+/**
+ * Runtime binding for `translate:ListTerminologies` — list the custom
+ * terminologies in the account and region.
+ *
+ * ### Reading Terminologies
+ * **Example:** List terminologies
+ * ```typescript
+ * // init
+ * const listTerminologies = yield* AWS.Translate.ListTerminologies();
+ *
+ * // runtime
+ * const result = yield* listTerminologies({ MaxResults: 50 });
+ * // result.TerminologyPropertiesList -> [{ Name, Arn, TermCount, … }, …]
+ * ```
+ *
+ * @binding
+ */
+export interface ListTerminologies extends Binding.Service<ListTerminologies, "AWS.Translate.ListTerminologies", () => Effect.Effect<(request?: translate.ListTerminologiesRequest) => Effect.Effect<translate.ListTerminologiesResponse, translate.ListTerminologiesError>>> {
+}
+export declare const ListTerminologies: ListTerminologies;

@@ -1,0 +1,377 @@
+import * as sagemaker from "@distilled.cloud/aws/sagemaker"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.ts"
+
+export error ClusterSchedulerConfigInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error ClusterSchedulerConfigUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type SchedulerResourceStatus = sagemaker.SchedulerResourceStatus
+
+export interface ClusterSchedulerConfigProps {
+  /**
+   * Name of the cluster policy. Maximum 63 characters, alphanumeric and
+   * hyphens.
+   * @default ${app}-${stage}-${id}
+   */
+  name?: string
+  /**
+   * ARN of the EKS-orchestrated HyperPod cluster the policy applies to.
+   * Changing the cluster replaces the policy. AWS allows ONE cluster
+   * policy per cluster — creating a second fails with the typed
+   * `ClusterSchedulerConfigAlreadyExists` error.
+   */
+  clusterArn: string
+  /**
+   * The policy itself: task priority classes, fair-share allocation, and
+   * idle-resource sharing.
+   */
+  schedulerConfig?: sagemaker.SchedulerConfig
+  /**
+   * A description of the cluster policy.
+   */
+  description?: string
+  /**
+   * Tags to associate with the cluster policy. Merged with internal Alchemy
+   * tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface ClusterSchedulerConfig extends
+  Resource<
+    "AWS.SageMaker.ClusterSchedulerConfig",
+    ClusterSchedulerConfigProps,
+    {
+      /**
+       * The cluster policy's ID.
+       */
+      clusterSchedulerConfigId: string
+      /**
+       * ARN of the cluster policy.
+       */
+      clusterSchedulerConfigArn: string
+      /**
+       * The cluster policy's name.
+       */
+      name: string
+      /**
+       * ARN of the HyperPod cluster the policy applies to.
+       */
+      clusterArn: string
+      /**
+       * The policy's current version (incremented on every update).
+       */
+      clusterSchedulerConfigVersion: number
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A SageMaker HyperPod cluster policy (task governance) — configures how an
+ * EKS-orchestrated HyperPod cluster prioritizes tasks and allocates idle
+ * compute across teams via priority classes and fair-share weights.
+ * ### Creating Cluster Policies
+ * **Example:** Priority Classes with Fair-Share
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const policy = yield* AWS.SageMaker.ClusterSchedulerConfig("Scheduler", {
+ *   clusterArn: hyperpod.clusterArn,
+ *   schedulerConfig: {
+ *     PriorityClasses: [
+ *       { Name: "inference", Weight: 100 },
+ *       { Name: "training", Weight: 75 },
+ *     ],
+ *     FairShare: "Enabled",
+ *   },
+ *   description: "Prioritize inference over training",
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ClusterSchedulerConfig = Resource<ClusterSchedulerConfig>(
+  "AWS.SageMaker.ClusterSchedulerConfig",
+)
+
+const createConfigName = effect (
+  id: string,
+  props: { name?: string | undefined },
+) => (props.name ? props.name : try createPhysicalName({ id, maxLength: 63 }))
+
+const describeConfigOrUndefined = effect (configId: string) =>
+  sagemaker
+    .describeClusterSchedulerConfig({ ClusterSchedulerConfigId: configId }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+/**
+ * Look a cluster policy up by exact name — used when state was lost (read
+ * without output) or a create raced.
+ */
+const findConfigByName = effect (name: string) => {
+  const summaries = Array.from(
+    try (sagemaker.listClusterSchedulerConfigs.pages({ NameContains: name })
+      |> EffectStream.runCollect(%)),
+  ).flatMap((page) => page.ClusterSchedulerConfigSummaries ?? [])
+  return summaries.find((s) => s.Name === name && s.Status !== "Deleted")
+}
+
+const fetchConfigTags = effect (arn: string) => {
+  const response = sagemaker
+    .listTags({ ResourceArn: arn }) catch effect (e) => match (e) {
+      when { _tag: "AccessDeniedException" }: try Effect.undefined;
+      default: throw e;
+    }
+  return Object.fromEntries(
+    (response?.Tags ?? []).flatMap((tag) => tag.Key !== undefined ? [[tag.Key, tag.Value ?? ""]] : []),
+  )
+}
+
+const toAttrs = (
+  described: sagemaker.DescribeClusterSchedulerConfigResponse,
+): ClusterSchedulerConfig["Attributes"] => ({
+  clusterSchedulerConfigId: described.ClusterSchedulerConfigId,
+  clusterSchedulerConfigArn: described.ClusterSchedulerConfigArn,
+  name: described.Name,
+  clusterArn: described.ClusterArn ?? "",
+  clusterSchedulerConfigVersion: described.ClusterSchedulerConfigVersion,
+})
+
+/**
+ * The cluster policy is still transitioning toward the awaited state —
+ * retried by the bounded wait schedule.
+ */
+error SchedulerConfigNotReady {
+  configId: string
+  status: string | undefined
+}
+
+/**
+ * The cluster policy converged to a terminal failed status.
+ */
+export error SchedulerConfigFailed {
+  configId: string
+  status: string | undefined
+  message: string | undefined
+}
+
+const FAILED_STATUSES: string[] = [
+  "CreateFailed",
+  "CreateRollbackFailed",
+  "UpdateFailed",
+  "UpdateRollbackFailed",
+  "DeleteFailed",
+  "DeleteRollbackFailed",
+]
+
+// Explicitly-typed retry wrapper — an inline `Effect.retry` in provider
+// lifecycle code leaks `Retry.Return`'s conditional type into declaration
+// emit and widens the provider layer to `unknown` for every consumer of
+// `AWS.providers()`.
+const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "SchedulerConfigNotReady",
+    schedule: Schedule.max([Schedule.spaced("5 seconds"), Schedule.recurs(60)]),
+  })
+
+const waitForConfig = (configId: string, target: "Ready" | "Gone") =>
+  retryWhileNotReady(
+    effect {
+      const described = try describeConfigOrUndefined(configId)
+      if (target === "Gone") {
+        if (described === undefined || described.Status === "Deleted") return
+        if (FAILED_STATUSES.includes(described.Status)) {
+          throw new SchedulerConfigFailed({
+            configId,
+            status: described.Status,
+            message: described.FailureReason,
+          })
+        }
+        throw new SchedulerConfigNotReady({ configId, status: described.Status })
+      }
+      if (described?.Status === "Created" || described?.Status === "Updated") {
+        return
+      }
+      if (described !== undefined && FAILED_STATUSES.includes(described.Status)) {
+        throw new SchedulerConfigFailed({
+          configId,
+          status: described.Status,
+          message: described.FailureReason,
+        })
+      }
+      throw new SchedulerConfigNotReady({ configId, status: described?.Status })
+    },
+  )
+
+export const ClusterSchedulerConfigProvider = (): infer _ =>
+  Provider.effect(
+    ClusterSchedulerConfig,
+    effect {
+      return {
+        stables: ["clusterSchedulerConfigId", "clusterSchedulerConfigArn", "name", "clusterArn"],
+        list: effect () => {
+          const summaries = Array.from(
+            try (sagemaker.listClusterSchedulerConfigs.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => page.ClusterSchedulerConfigSummaries ?? [])
+          return summaries.flatMap((s) =>
+            s.ClusterSchedulerConfigId !== undefined && s.Status !== "Deleted"
+              ? [
+                {
+                  clusterSchedulerConfigId: s.ClusterSchedulerConfigId,
+                  clusterSchedulerConfigArn: s.ClusterSchedulerConfigArn ?? "",
+                  name: s.Name ?? "",
+                  clusterArn: s.ClusterArn ?? "",
+                  clusterSchedulerConfigVersion: s.ClusterSchedulerConfigVersion ?? 1,
+                },
+              ]
+              : []
+          )
+        },
+        read: effect ({ id, olds, output }) => {
+          const configId = output?.clusterSchedulerConfigId
+            ?? (try findConfigByName(try createConfigName(id, olds ?? {})))
+              ?.ClusterSchedulerConfigId
+          if (configId === undefined) return undefined
+          const described = try describeConfigOrUndefined(configId)
+          if (!described || described.Status === "Deleting" || described.Status === "Deleted") {
+            return undefined
+          }
+          const attrs = toAttrs(described)
+          const tags = try fetchConfigTags(attrs.clusterSchedulerConfigArn)
+          return (try hasAlchemyTags(id, tags as Tags)) ? attrs : Unowned(attrs)
+        },
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return
+          if (olds === undefined) return
+          const oldName = try createConfigName(id, olds)
+          const newName = try createConfigName(id, news)
+          // The name and target cluster are fixed at creation.
+          if (oldName !== newName || olds.clusterArn !== news.clusterArn) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (!news) {
+            throw new ClusterSchedulerConfigInvalidProps({
+              message: "SageMaker ClusterSchedulerConfig requires props",
+            })
+          }
+          const name = try createConfigName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — by cached id first, then by name (lost state or race).
+          let configId = output?.clusterSchedulerConfigId
+          let described = configId !== undefined ? try describeConfigOrUndefined(configId) : undefined
+          if (described === undefined) {
+            const found = try findConfigByName(name)
+            described = found?.ClusterSchedulerConfigId !== undefined
+              ? try describeConfigOrUndefined(found.ClusterSchedulerConfigId)
+              : undefined
+          }
+
+          // Ensure — create if missing; a Conflict means a concurrent
+          // create won the race, so re-observe by name.
+          if (described === undefined) {
+            const created = sagemaker
+              .createClusterSchedulerConfig({
+                Name: name,
+                ClusterArn: news.clusterArn,
+                SchedulerConfig: news.schedulerConfig,
+                Description: news.description,
+                Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                  Key,
+                  Value,
+                })),
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try Effect.undefined;
+                default: throw e;
+              }
+            configId = created?.ClusterSchedulerConfigId
+              ?? (try findConfigByName(name))?.ClusterSchedulerConfigId
+            if (configId === undefined) {
+              throw new ClusterSchedulerConfigUnexpectedResponse({
+                message: `failed to create cluster scheduler config ${name}`,
+              })
+            }
+            try session.note(`Creating cluster policy ${name}...`)
+            try waitForConfig(configId, "Ready")
+          } else {
+            configId = described.ClusterSchedulerConfigId
+            // Wait out any in-flight transition before diffing.
+            try waitForConfig(configId, "Ready")
+            described = try describeConfigOrUndefined(configId)
+            // Sync — diff observed policy against desired.
+            if (
+              described !== undefined
+              && (JSON.stringify(described.SchedulerConfig) !== JSON.stringify(news.schedulerConfig)
+                || (described.Description ?? undefined) !== (news.description ?? undefined))
+            ) {
+              try sagemaker.updateClusterSchedulerConfig({
+                ClusterSchedulerConfigId: configId,
+                TargetVersion: described.ClusterSchedulerConfigVersion,
+                SchedulerConfig: news.schedulerConfig,
+                Description: news.description,
+              })
+              try session.note(`Updating cluster policy ${name}...`)
+              try waitForConfig(configId, "Ready")
+            }
+          }
+
+          described = try describeConfigOrUndefined(configId)
+          if (described === undefined) {
+            throw new ClusterSchedulerConfigUnexpectedResponse({
+              message: `failed to read reconciled cluster scheduler config ${name}`,
+            })
+          }
+          const attrs = toAttrs(described)
+
+          // Sync tags — diff against OBSERVED cloud tags.
+          const currentTags = try fetchConfigTags(attrs.clusterSchedulerConfigArn)
+          const { removed, upsert } = diffTags(currentTags, desiredTags)
+          if (removed.length > 0) {
+            try sagemaker.deleteTags({
+              ResourceArn: attrs.clusterSchedulerConfigArn,
+              TagKeys: removed,
+            })
+          }
+          if (upsert.length > 0) {
+            try sagemaker.addTags({
+              ResourceArn: attrs.clusterSchedulerConfigArn,
+              Tags: upsert.map(({ Key, Value }) => ({ Key, Value })),
+            })
+          }
+
+          try session.note(attrs.clusterSchedulerConfigArn)
+          return attrs
+        },
+        delete: effect ({ output }) => {
+          sagemaker
+            .deleteClusterSchedulerConfig({
+              ClusterSchedulerConfigId: output.clusterSchedulerConfigId,
+            }) catch effect (e) => match (e) { when { _tag: "ResourceNotFound" }: try Effect.void; default: throw e; }
+          try waitForConfig(output.clusterSchedulerConfigId, "Gone")
+        },
+      }
+    },
+  )

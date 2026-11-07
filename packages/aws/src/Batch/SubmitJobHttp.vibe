@@ -1,0 +1,45 @@
+import * as batch from "@distilled.cloud/aws/batch"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { JobDefinition } from "./JobDefinition.ts"
+import type { JobQueue } from "./JobQueue.vibe"
+import { SubmitJob, type SubmitJobRequest } from "./SubmitJob.vibe"
+
+export const SubmitJobHttp = Layer.effect(
+  SubmitJob,
+  effect {
+    const bind = try AWSBindings.Bind
+    const submitJob = try AWSBindings.withCredentials(batch.submitJob)
+
+    return effect (queue: JobQueue, jobDefinition: JobDefinition) => {
+      // Outputs yield a DEFERRED effect — resolve again per invocation below.
+      const JobQueueArn = try queue.jobQueueArn.asEffect()
+      const JobDefinitionArn = try jobDefinition.jobDefinitionArn.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.Batch.SubmitJob(${queue}, ${jobDefinition})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["batch:SubmitJob"],
+              Resource: [queue.jobQueueArn, jobDefinition.jobDefinitionArn],
+            },
+          ],
+        })
+      }
+      return effect (request: SubmitJobRequest) =>
+        try withSpan(
+          effect {
+            const jobQueueArn = try JobQueueArn
+            const jobDefinitionArn = try JobDefinitionArn
+            return try submitJob({
+              ...request,
+              jobQueue: jobQueueArn,
+              jobDefinition: jobDefinitionArn,
+            })
+          },
+          `AWS.Batch.SubmitJob(${queue.LogicalId}, ${jobDefinition.LogicalId})`,
+        )
+    }
+  },
+)

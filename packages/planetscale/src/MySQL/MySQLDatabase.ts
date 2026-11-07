@@ -15,7 +15,7 @@ import { recordsEqual } from "alchemy/Util/equal";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import type { BaseDatabaseAttributes, BaseDatabaseProps } from "../Database.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import {
   deleteUnprotectedDatabase,
   PlanetscaleConflict,
@@ -28,7 +28,7 @@ import {
   observeDefaultKeyspaceReplicas,
   type MySQLClusterSize,
 } from "./MySQLClusterSize.ts";
-import { runMySQLImports, runMySQLMigrations } from "./MySQLMigrations.ts";
+import { runMySQLImports, runMySQLMigrations } from "./MySQLMigrations.vibe";
 
 /**
  * Properties for creating or updating a MySQL PlanetScale database.

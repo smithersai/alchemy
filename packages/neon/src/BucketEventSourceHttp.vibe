@@ -1,0 +1,91 @@
+import { AlchemyContext } from "alchemy/AlchemyContext"
+import * as Namespace from "alchemy/Namespace"
+import { ProviderModePolicy } from "alchemy/ProviderMode"
+import * as Layer from "effect/Layer"
+import type { Bucket } from "./Bucket.ts"
+import { BucketEventSource, type BucketEventSourceProps, type BucketEventSourceService } from "./BucketEventSource.vibe"
+import { Function } from "./Function.vibe"
+import { FunctionRequest } from "./FunctionEnvironment.vibe"
+import { FunctionTrigger } from "./FunctionTrigger.vibe"
+import { decodeFunctionTriggerEvent, type BucketEvent } from "./FunctionTriggerEvent.vibe"
+
+/**
+ * Neon Function HTTP object-event dispatch and deployment wiring.
+ *
+ * ### Subscribe to uploads
+ * **Example:** Provide the subscription implementation
+ * ```typescript
+ * const application = Effect.gen(function* () {
+ *   yield* Neon.BucketEventSource(uploads, { name: "Uploads" }, event =>
+ *     Effect.log(event.objectKey),
+ *   );
+ *   return { fetch: Effect.succeed(HttpServerResponse.text("ok")) };
+ * }).pipe(Effect.provide(Neon.BucketEventSourceHttp));
+ * ```
+ *
+ * @layer
+ * @product Bucket
+ * @provides Neon.BucketEventSource
+ */
+export const BucketEventSourceHttp = Layer.effect(
+  BucketEventSource,
+  effect {
+    const host = try Function
+    const Trigger = try FunctionTrigger
+    return (effect (
+      bucket: Bucket,
+      props: BucketEventSourceProps,
+      handler: (event: BucketEvent) => void!unknown,
+    ) => {
+      const path = `/__alchemy/neon/bucket/${encodeURIComponent(props.name)}`
+      const triggerName = `${host.FQN}:${props.name}`
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        const context = try AlchemyContext
+        const remote = try Effect.service(ProviderModePolicy)
+        if (!context.dev || remote) {
+          try Namespace.push(
+            host.LogicalId,
+            Trigger(props.name, {
+              function: host,
+              type: "storage_object_created",
+              name: triggerName,
+              storageObjectCreated: { bucket, prefix: props.prefix },
+              path,
+              enabled: props.enabled,
+            }),
+          )
+        }
+      }
+      const bucketName = try bucket.bucketName.asEffect()
+      try host.route(
+        path,
+        effect {
+          return (try effect {
+            const event = try decodeFunctionTriggerEvent(try Effect.service(FunctionRequest))
+            if (
+              event.trigger.type !== "storage_object_created"
+              || event.trigger.name !== triggerName
+              || !("bucket_name" in event.data)
+              || event.data.bucket_name !== (try bucketName)
+              || (props.prefix && !event.data.object_key.startsWith(props.prefix))
+            ) {
+              return HttpServerResponse.empty({ status: 400 })
+            }
+            try (handler({
+              invocationId: event.invocation_id,
+              triggerId: event.trigger.id,
+              name: props.name,
+              bucketName: event.data.bucket_name,
+              objectKey: event.data.object_key,
+            })
+              |> Effect.orDie(%))
+            return HttpServerResponse.empty({ status: 204 })
+          }) catch effect (error) => match (error) {
+            when { _tag: "FunctionTriggerEventError" }: HttpServerResponse.empty({ status: error.status });
+            default: throw error;
+          }
+        },
+      )
+    }) as BucketEventSourceService
+  },
+)

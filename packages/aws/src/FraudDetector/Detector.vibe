@@ -1,0 +1,188 @@
+import * as frauddetector from "@distilled.cloud/aws/frauddetector"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.ts"
+import { readFraudDetectorTags, syncFraudDetectorTags } from "./internal.vibe"
+
+export interface DetectorProps {
+  /**
+   * The detector identifier. If omitted, a unique lowercase id is generated
+   * from the app, stage, and logical ID. Changing it replaces the detector.
+   */
+  detectorId?: string
+  /**
+   * Human-readable description. This is an in-place update.
+   */
+  description?: string
+  /**
+   * Name of the event type this detector evaluates. Immutable — changing it
+   * replaces the detector.
+   */
+  eventTypeName: string
+  /**
+   * User-defined tags for the detector.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Detector extends
+  Resource<
+    "AWS.FraudDetector.Detector",
+    DetectorProps,
+    {
+      /** The detector identifier. */
+      detectorId: string
+      /** The ARN of the detector. */
+      arn: string
+      /** The event type the detector evaluates. */
+      eventTypeName: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Fraud Detector detector — the container that binds an event type
+ * to versioned rule sets and models used to evaluate fraud. Creating the
+ * detector is cheap; the rules, models, and detector versions that produce
+ * predictions are provisioned separately.
+ *
+ * ### Creating a Detector
+ * **Example:** Basic Detector
+ * ```typescript
+ * const detector = yield* FraudDetector.Detector("checkout", {
+ *   eventTypeName: purchase.name,
+ * });
+ * ```
+ *
+ * **Example:** Detector with an Active Version
+ * ```typescript
+ * const detector = yield* FraudDetector.Detector("checkout", {
+ *   eventTypeName: purchase.name,
+ * });
+ *
+ * const version = yield* FraudDetector.DetectorVersion("v1", {
+ *   detectorId: detector.detectorId,
+ *   status: "ACTIVE",
+ *   rules: [
+ *     {
+ *       ruleId: "high_risk",
+ *       expression: '$email == "fraud@example.com"',
+ *       outcomes: [review.name],
+ *     },
+ *   ],
+ * });
+ * ```
+ *
+ * ### Runtime Predictions
+ * Bind `GetEventPrediction` in the init phase (providing the
+ * `GetEventPredictionHttp` layer on the Function effect) and score events at
+ * runtime against the detector's `ACTIVE` version.
+ *
+ * **Example:** Score an event from a Lambda
+ * ```typescript
+ * // init
+ * const getEventPrediction = yield* FraudDetector.GetEventPrediction(detector);
+ *
+ * // runtime
+ * const { ruleResults } = yield* getEventPrediction({
+ *   eventId: "order-123",
+ *   eventTypeName: "purchase",
+ *   eventTimestamp: new Date().toISOString(),
+ *   entities: [{ entityType: "customer", entityId: "cust-1" }],
+ *   eventVariables: { email: "buyer@example.com", ip: "1.2.3.4" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Detector = Resource<Detector>("AWS.FraudDetector.Detector")
+
+export const DetectorProvider = (): infer _ =>
+  Provider.effect(
+    Detector,
+    effect {
+      const createId = effect (id: string, props: Partial<DetectorProps>) => (
+        props.detectorId ?? (try createPhysicalName({ id, maxLength: 64, lowercase: true }))
+      )
+
+      const get = effect (detectorId: string) => {
+        const response = frauddetector
+          .getDetectors({ detectorId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.detectors?.[0]
+      }
+
+      const toAttrs = (detector: frauddetector.Detector): infer _ => ({
+        detectorId: detector.detectorId!,
+        arn: detector.arn!,
+        eventTypeName: detector.eventTypeName!,
+      })
+
+      return {
+        stables: ["detectorId", "arn"],
+
+        diff: effect ({ id, olds = {}, news }) => {
+          if (!isResolved(news)) return undefined
+          const oldId = try createId(id, olds)
+          const newId = try createId(id, news)
+          if (
+            oldId !== newId
+            || (olds.eventTypeName ?? undefined) !== (news.eventTypeName ?? undefined)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const detectorId = output?.detectorId ?? (try createId(id, olds ?? {}))
+          const detector = try get(detectorId)
+          if (detector === undefined) return undefined
+          const attrs = toAttrs(detector)
+          const tags = try readFraudDetectorTags(detector.arn!)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, session }) => {
+          const detectorId = try createId(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // putDetector is an idempotent upsert — call it to converge whether
+          // creating or updating the description.
+          try frauddetector.putDetector({
+            detectorId,
+            description: news.description,
+            eventTypeName: news.eventTypeName,
+          })
+
+          const detector = try get(detectorId)
+          try syncFraudDetectorTags(detector!.arn!, desiredTags)
+
+          try session.note(detectorId)
+          return toAttrs(detector!)
+        },
+
+        delete: effect ({ output }) => {
+          frauddetector
+            .deleteDetector({ detectorId: output.detectorId }) catch effect (e) => match (e) {
+              when { _tag: "ValidationException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        list: effect () =>
+          Array.from(
+            try (frauddetector.getDetectors.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => (page.detectors ?? []).map(toAttrs)),
+      }
+    },
+  )

@@ -18,7 +18,7 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { waitGlobalOperation } from "./operations.ts";
+import { waitGlobalOperation } from "./operations.vibe";
 
 const DEFAULT_REDUNDANCY_TYPE = "TWO_IPS_REDUNDANCY";
 const MAX_NAME_LENGTH = 63;

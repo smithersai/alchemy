@@ -1,0 +1,163 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { ComponentVersion } from "./ComponentVersion.vibe"
+import type { Deployment } from "./Deployment.vibe"
+
+/**
+ * Shared scaffolding for IoT Greengrass V2 HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the three
+ * builders below. Everything except the operation and the IAM action list is
+ * boilerplate.
+ */
+
+/**
+ * Build the impl Effect for a Greengrass V2 operation scoped to a
+ * {@link ComponentVersion}: the deploy-time half grants `actions` on the
+ * bound component version's ARN, and the runtime half injects the component
+ * version's `arn` into every request.
+ */
+export const makeGreengrassComponentHttpBinding = effect <I extends { arn: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.GreengrassV2.GetComponent`. */
+  tag: string
+  /** The distilled operation. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the component version ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (component: ComponentVersion) => {
+    const Arn = try component.arn.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${component})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [component.arn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "arn"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const arn = try Arn
+          return try op({ ...request, arn } as I)
+        },
+        `${options.tag}(${component.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a Greengrass V2 operation scoped to a
+ * {@link Deployment}: the deploy-time half grants `actions` on the bound
+ * deployment's ARN, and the runtime half injects the `deploymentId` into
+ * every request.
+ */
+export const makeGreengrassDeploymentHttpBinding = effect <
+  I extends { deploymentId: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.GreengrassV2.GetDeployment`. */
+  tag: string
+  /** The distilled operation. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the deployment ARN. */
+  actions: readonly string[]
+  /**
+   * Dependent IAM actions granted on `*`. Greengrass V2 deployments are
+   * implemented on IoT Jobs and resolve their thing/thing-group targets with
+   * the caller's credentials, so deployment-plane operations require
+   * `iot:DescribeJob`/`iot:DescribeThing`-family permissions (see the
+   * "dependent actions" column of the service authorization reference).
+   * These cannot be scoped to the deployment ARN — the backing job and
+   * target thing have their own ARNs.
+   */
+  dependentActions?: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (deployment: Deployment) => {
+    const DeploymentId = try deployment.deploymentId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${deployment})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [deployment.deploymentArn],
+          },
+          ...(options.dependentActions !== undefined && options.dependentActions.length > 0
+            ? [
+              {
+                Effect: "Allow" as const,
+                Action: [...options.dependentActions],
+                Resource: ["*"],
+              },
+            ]
+            : []),
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, "deploymentId"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const deploymentId = try DeploymentId
+          return try op({ ...request, deploymentId } as I)
+        },
+        `${options.tag}(${deployment.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an account-level Greengrass V2 operation (listing
+ * components/deployments/core devices, core-device data-plane calls keyed by
+ * a thing name the caller supplies at runtime). The deploy-time half grants
+ * `actions` on `*` — core devices register themselves and are not modeled as
+ * Alchemy resources, so there is no resource ARN to scope down to.
+ */
+export const makeGreengrassAccountHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.GreengrassV2.ListComponents`. */
+  tag: string
+  /** The distilled operation, invoked with the caller's request as-is. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*`. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}()`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          return try op((request ?? {}) as I)
+        },
+        options.tag,
+      )
+  }
+}

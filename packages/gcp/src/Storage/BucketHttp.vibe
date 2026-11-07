@@ -1,0 +1,85 @@
+import * as storage from "@distilled.cloud/gcp/storage_v1"
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.ts"
+import type { Bucket } from "./Bucket.vibe"
+import { GrantOnBucket } from "./ObjectHttp.vibe"
+import { makeObjectMedia } from "./ObjectMedia.ts"
+import type { ReadBucketClient } from "./ReadBucket.vibe"
+import type { WriteBucketClient } from "./WriteBucket.vibe"
+
+/**
+ * Shared HTTP scaffolding for the Storage Read/Write/ReadWrite bindings:
+ * resolves the distilled operations and media endpoints once at Layer
+ * construction and grants `role` on the bound bucket at deploy time.
+ *
+ * NOT exported from `index.ts`.
+ */
+export const makeStorageBucketHelpers = effect {
+  const media = try makeObjectMedia
+  const getObject = try GCPBindings.withCredentials(storage.getObjects)
+  const listObjects = try GCPBindings.withCredentials(storage.listObjects)
+  const deleteObject = try GCPBindings.withCredentials(storage.deleteObjects)
+
+  const makeRead = (bucketName: string!!): ReadBucketClient => ({
+    head: effect (object) =>
+      (try effect {
+        const bucket = try bucketName
+        return try getObject({ bucket, object })
+      }) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; },
+    get: effect (object, options) =>
+      (try effect {
+        const bucket = try bucketName
+        return try media.download({ bucket, object, generation: options?.generation })
+      }) catch effect (e) => match (e) {
+        when { _tag: "GCP.Storage.ObjectNotFound" }: try Effect.undefined;
+        default: throw e;
+      },
+    list: effect (options) =>
+      try effect {
+        const page = try effect {
+          const bucket = try bucketName
+          return try listObjects({ bucket, ...options })
+        }
+        return ({
+          objects: page.items ?? [],
+          prefixes: page.prefixes ?? [],
+          nextPageToken: page.nextPageToken,
+        })
+      },
+  })
+
+  const makeWrite = (bucketName: string!!): WriteBucketClient => ({
+    put: effect (name, body, options) => try media.upload(try bucketName, { ...options, name, body }),
+    delete: effect (object) =>
+      (try (effect {
+        return try effect {
+          const bucket = try bucketName
+          return try deleteObject({ bucket, object })
+        }
+      }
+        |> Effect.asVoid(%))) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        },
+  })
+
+  return { makeRead, makeWrite }
+}
+
+/** Build a bucket binding that grants `role` and returns `makeClient`'s client. */
+export const makeStorageBucketBinding = effect <Client>(options: {
+  tag: string
+  role: string
+  makeClient: (
+    helpers: Effect.Success<typeof makeStorageBucketHelpers>,
+    bucketName: string!!,
+  ) => Client
+}) => {
+  const grantOnBucket = try GrantOnBucket
+  const helpers = try makeStorageBucketHelpers
+  return effect (bucket: Bucket) => {
+    try grantOnBucket(options.tag, bucket, options.role)
+    const bucketName = try bucket.bucketName.asEffect()
+    return options.makeClient(helpers, bucketName)
+  }
+}

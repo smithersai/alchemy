@@ -1,0 +1,21 @@
+import type * as SVC from "@distilled.cloud/aws/finspace";
+import * as Binding from "alchemy/Binding";
+import type * as Effect from "effect/Effect";
+import type { KxEnvironment } from "./KxEnvironment.vibe";
+/**
+ * Runtime binding for `finspace:ListKxClusters` — lists the kdb clusters of the bound environment, optionally filtered by cluster type.
+ * Provide the implementation with
+ * `Effect.provide(AWS.FinSpace.ListKxClustersHttp)`.
+ * ### Monitoring Clusters
+ * **Example:** List HDB Clusters
+ * ```typescript
+ * const listClusters = yield* AWS.FinSpace.ListKxClusters(kdb);
+ *
+ * const { kxClusterSummaries } = yield* listClusters({ clusterType: "HDB" });
+ * ```
+ *
+ * @binding
+ */
+export interface ListKxClusters extends Binding.Service<ListKxClusters, "AWS.FinSpace.ListKxClusters", <K extends KxEnvironment>(environment: K) => Effect.Effect<(request?: Omit<SVC.ListKxClustersRequest, "environmentId">) => Effect.Effect<SVC.ListKxClustersResponse, SVC.ListKxClustersError>>> {
+}
+export declare const ListKxClusters: ListKxClusters;

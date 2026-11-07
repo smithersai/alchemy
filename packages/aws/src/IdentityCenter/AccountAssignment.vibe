@@ -1,0 +1,406 @@
+import * as ssoAdmin from "@distilled.cloud/aws/sso-admin"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.ts"
+import { listInstances, resolveInstance, retryIdentityCenter } from "./common.ts"
+
+export error AccountAssignmentUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export error AccountAssignmentOperationFailed {
+  message: string
+  cause?: unknown
+}
+
+export interface AccountAssignmentProps {
+  /**
+   * Explicit Identity Center instance ARN.
+   * If omitted, Alchemy adopts the only visible instance.
+   */
+  instanceArn?: string
+  /**
+   * Permission set ARN to assign.
+   */
+  permissionSetArn: string
+  /**
+   * Principal ID from the IAM Identity Center identity store.
+   */
+  principalId: string
+  /**
+   * Principal type.
+   */
+  principalType: "USER" | "GROUP"
+  /**
+   * Target AWS account ID.
+   */
+  targetId: string
+}
+
+export interface AccountAssignment extends
+  Resource<
+    "AWS.IdentityCenter.AccountAssignment",
+    AccountAssignmentProps,
+    {
+      /** The Identity Center instance the assignment lives in. */
+      instanceArn: string
+      /** The permission set provisioned to the target. */
+      permissionSetArn: string
+      /** The user or group ID that was assigned. */
+      principalId: string
+      /** Whether the principal is a `USER` or `GROUP`. */
+      principalType: "USER" | "GROUP"
+      /** The AWS account ID the assignment targets. */
+      targetId: string
+      /** The target type (`AWS_ACCOUNT`). */
+      targetType: "AWS_ACCOUNT"
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Assigns an IAM Identity Center permission set to a user or group in an AWS
+ * account.
+ * ### Creating Assignments
+ * **Example:** Assign A Group To A Workload Account
+ * ```typescript
+ * const assignment = yield* AccountAssignment("ProdAdminAssignment", {
+ *   permissionSetArn: admin.permissionSetArn,
+ *   principalType: "GROUP",
+ *   principalId: engineers.groupId,
+ *   targetId: prod.accountId,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const AccountAssignment = Resource<AccountAssignment>(
+  "AWS.IdentityCenter.AccountAssignment",
+)
+
+export const AccountAssignmentProvider = (): infer _ =>
+  Provider.effect(
+    AccountAssignment,
+    effect {
+      return {
+        stables: [
+          "instanceArn",
+          "permissionSetArn",
+          "principalId",
+          "principalType",
+          "targetId",
+          "targetType",
+        ],
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return
+          if (
+            olds?.instanceArn !== news.instanceArn
+            || olds?.permissionSetArn !== news.permissionSetArn
+            || olds?.principalId !== news.principalId
+            || olds?.principalType !== news.principalType
+            || olds?.targetId !== news.targetId
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        // Enumerate every account assignment in the account/region. Assignments
+        // are keyed by (instance, permissionSet, account, principal) with no
+        // top-level list API, so fan out: list instances -> permission sets per
+        // instance -> accounts provisioned to each permission set -> account
+        // assignments per (account, permissionSet). Each `listAccountAssignments`
+        // item already carries every field of the `read`-shaped Attributes, so
+        // no per-item hydration is needed. All pagination is exhausted; missing
+        // parents (deleted concurrently) are skipped via the typed
+        // `ResourceNotFoundException` tag. Bounded concurrency keeps the fan-out
+        // from exploding.
+        list: effect () => {
+          const instances = try listInstances()
+
+          const perInstance = try Effect.forEach(
+            instances,
+            (instance) => {
+              const instanceArn = instance.InstanceArn
+              if (!instanceArn) {
+                return [] as AccountAssignment["Attributes"][]
+              }
+              return listAssignmentsForInstance(instanceArn)
+            },
+            { concurrency: 5 },
+          )
+
+          return perInstance.flat()
+        },
+        read: effect ({ olds, output }) => {
+          if (output?.instanceArn) {
+            return try readAssignment({
+              instanceArn: output.instanceArn,
+              permissionSetArn: output.permissionSetArn,
+              principalId: output.principalId,
+              principalType: output.principalType,
+              targetId: output.targetId,
+            })
+          }
+
+          if (!olds) {
+            return undefined
+          }
+
+          return try readAssignment(olds)
+        },
+        reconcile: effect ({ news, output, session }) => {
+          // Observe — look up the assignment between (principal,
+          // permissionSet, target). All identifying fields are stable;
+          // diff() forces a replace on any change, so this reconcile is
+          // existence-only.
+          const existing = try readAssignment({
+            ...news,
+            instanceArn: output?.instanceArn ?? news.instanceArn,
+          })
+          if (existing) {
+            try session.note(
+              `${existing.targetId}:${existing.permissionSetArn}:${existing.principalId}`,
+            )
+            return existing
+          }
+
+          // Ensure — create the assignment if missing.
+          const instance = try resolveInstance(news.instanceArn)
+          const response = try retryIdentityCenter(
+            ssoAdmin.createAccountAssignment({
+              InstanceArn: instance.InstanceArn!,
+              PermissionSetArn: news.permissionSetArn,
+              PrincipalId: news.principalId,
+              PrincipalType: news.principalType,
+              TargetId: news.targetId,
+              TargetType: "AWS_ACCOUNT",
+            }),
+          )
+
+          const requestId = response.AccountAssignmentCreationStatus?.RequestId ?? undefined
+          if (requestId) {
+            try waitForAssignmentCreation(instance.InstanceArn!, requestId)
+          }
+
+          const created = try readAssignment({
+            ...news,
+            instanceArn: instance.InstanceArn,
+          })
+          if (!created) {
+            throw new AccountAssignmentUnexpectedResponse({
+              message: "account assignment not found after create",
+            })
+          }
+
+          try session.note(
+            `${created.targetId}:${created.permissionSetArn}:${created.principalId}`,
+          )
+          return created
+        },
+        delete: effect ({ output }) => {
+          if (!(try readAssignment(output))) {
+            return
+          }
+
+          const response = try retryIdentityCenter(
+            effect {
+              return ssoAdmin
+                .deleteAccountAssignment({
+                  InstanceArn: output.instanceArn,
+                  PermissionSetArn: output.permissionSetArn,
+                  PrincipalId: output.principalId,
+                  PrincipalType: output.principalType,
+                  TargetId: output.targetId,
+                  TargetType: "AWS_ACCOUNT",
+                }) catch effect (e) => match (e) {
+                  when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                  default: throw e;
+                }
+            },
+          )
+
+          const requestId = response?.AccountAssignmentDeletionStatus?.RequestId ?? undefined
+          if (requestId) {
+            try waitForAssignmentDeletion(output.instanceArn, requestId)
+          }
+        },
+      }
+    },
+  )
+
+const listAssignmentsForInstance = effect (instanceArn: string) => {
+  const permissionSetArns = retryIdentityCenter(
+    ssoAdmin.listPermissionSets.items({ InstanceArn: instanceArn, MaxResults: 100 })
+      |> Stream.runCollect(%)
+      |> Effect.map(%, (items) => Array.from(items) as string[]),
+  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; }
+
+  const perPermissionSet = try Effect.forEach(
+    permissionSetArns,
+    (permissionSetArn) => listAssignmentsForPermissionSet(instanceArn, permissionSetArn),
+    { concurrency: 10 },
+  )
+
+  return perPermissionSet.flat()
+}
+
+const listAssignmentsForPermissionSet = effect (
+  instanceArn: string,
+  permissionSetArn: string,
+) => {
+  const accountIds = retryIdentityCenter(
+    ssoAdmin.listAccountsForProvisionedPermissionSet
+      .items({
+        InstanceArn: instanceArn,
+        PermissionSetArn: permissionSetArn,
+        MaxResults: 100,
+      })
+      |> Stream.runCollect(%)
+      |> Effect.map(%, (items) => Array.from(items) as string[]),
+  ) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; }
+
+  const perAccount = try Effect.forEach(
+    accountIds,
+    effect (accountId) =>
+      ((try (effect {
+        return Array.from(
+          try (ssoAdmin.listAccountAssignments
+            .items({
+              InstanceArn: instanceArn,
+              AccountId: accountId,
+              PermissionSetArn: permissionSetArn,
+              MaxResults: 100,
+            })
+            |> Stream.runCollect(%)),
+        ) as ssoAdmin.AccountAssignment[]
+      }
+        |> retryIdentityCenter(%))).flatMap((assignment): AccountAssignment["Attributes"][] => {
+          if (
+            !assignment.AccountId
+            || !assignment.PermissionSetArn
+            || !assignment.PrincipalId
+            || (assignment.PrincipalType !== "USER" && assignment.PrincipalType !== "GROUP")
+          ) {
+            return []
+          }
+          return [
+            {
+              instanceArn,
+              permissionSetArn: assignment.PermissionSetArn,
+              principalId: assignment.PrincipalId,
+              principalType: assignment.PrincipalType as "USER" | "GROUP",
+              targetId: assignment.AccountId,
+              targetType: "AWS_ACCOUNT",
+            },
+          ]
+        })) catch effect (e) => match (e) { when { _tag: "ResourceNotFoundException" }: []; default: throw e; },
+    { concurrency: 10 },
+  )
+
+  return perAccount.flat()
+}
+
+const readAssignment = effect ({
+  instanceArn,
+  permissionSetArn,
+  principalId,
+  principalType,
+  targetId,
+}: AccountAssignmentProps) => {
+  // A `creating` row can serialize without resolved Outputs (`targetId`
+  // from `account.accountId`, etc.). Distilled `ListAccountAssignments`
+  // then fails with `ParseError: Expected string at ["AccountId"]`.
+  if (!targetId || !permissionSetArn || !principalId) {
+    return undefined
+  }
+
+  const instance = try resolveInstance(instanceArn)
+  const assignments = Array.from(
+    try (ssoAdmin.listAccountAssignments
+      .items({
+        InstanceArn: instance.InstanceArn!,
+        AccountId: targetId,
+        PermissionSetArn: permissionSetArn,
+        MaxResults: 100,
+      })
+      |> Stream.runCollect(%)),
+  ) as ssoAdmin.AccountAssignment[]
+
+  const match = assignments.find(
+    (assignment) => assignment.PrincipalId === principalId && assignment.PrincipalType === principalType,
+  )
+
+  if (!match) {
+    return undefined
+  }
+  const result: AccountAssignment["Attributes"] = {
+    instanceArn: instance.InstanceArn!,
+    permissionSetArn,
+    principalId,
+    principalType,
+    targetId,
+    targetType: "AWS_ACCOUNT",
+  }
+  return result
+}
+
+const waitForAssignmentCreation = effect (instanceArn: string, requestId: string) =>
+  try (effect {
+    const response = try retryIdentityCenter(
+      ssoAdmin.describeAccountAssignmentCreationStatus({
+        InstanceArn: instanceArn,
+        AccountAssignmentCreationRequestId: requestId,
+      }),
+    )
+    const status = response.AccountAssignmentCreationStatus
+
+    if (!status?.Status || status.Status === "IN_PROGRESS") {
+      throw {
+        _tag: "AssignmentCreationInProgress" as const,
+      }
+    }
+
+    if (status.Status === "FAILED") {
+      throw new AccountAssignmentOperationFailed({
+        message: `account assignment creation failed: ${status.FailureReason ?? "unknown failure"}`,
+      })
+    }
+
+    return status
+  }
+    |> Effect.retry(%, {
+      while: (error: any) => error?._tag === "AssignmentCreationInProgress",
+      schedule: Schedule.max([Schedule.spaced("2 seconds"), Schedule.recurs(120)]),
+    }))
+
+const waitForAssignmentDeletion = effect (instanceArn: string, requestId: string) =>
+  try (effect {
+    const response = try retryIdentityCenter(
+      ssoAdmin.describeAccountAssignmentDeletionStatus({
+        InstanceArn: instanceArn,
+        AccountAssignmentDeletionRequestId: requestId,
+      }),
+    )
+    const status = response.AccountAssignmentDeletionStatus
+
+    if (!status?.Status || status.Status === "IN_PROGRESS") {
+      throw {
+        _tag: "AssignmentDeletionInProgress" as const,
+      }
+    }
+
+    if (status.Status === "FAILED") {
+      throw new AccountAssignmentOperationFailed({
+        message: `account assignment deletion failed: ${status.FailureReason ?? "unknown failure"}`,
+      })
+    }
+
+    return status
+  }
+    |> Effect.retry(%, {
+      while: (error: any) => error?._tag === "AssignmentDeletionInProgress",
+      schedule: Schedule.max([Schedule.spaced("2 seconds"), Schedule.recurs(120)]),
+    }))

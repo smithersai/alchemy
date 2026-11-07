@@ -1,0 +1,116 @@
+import * as turso from "@distilled.cloud/turso/turso"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { organization } from "./Credentials.vibe"
+import type { Providers } from "./Providers.vibe"
+
+/** Role granted to an invited or added organization member. */
+export type MemberRole = "admin" | "member" | "viewer"
+
+export interface OrganizationInviteProps {
+  /** Email address to invite. Changing it replaces the invite. */
+  email: string
+  /**
+   * Role the invitee receives on accepting.
+   * @default "member"
+   */
+  role?: MemberRole
+}
+
+export interface OrganizationInviteAttributes {
+  /** The invited email address. */
+  email: string
+  /** The organization slug the invite is for. */
+  organization: string
+  /** Role the invitee receives on accepting. */
+  role: string
+}
+
+export type OrganizationInvite = Resource<
+  "Turso.OrganizationInvite",
+  OrganizationInviteProps,
+  OrganizationInviteAttributes,
+  never,
+  Providers
+>
+
+/**
+ * An invitation for someone to join your Turso organization by email.
+ * Changing `role` re-sends the invite with the new role; destroying the
+ * resource withdraws a pending invite. Requires a team organization on a
+ * paid plan — the Starter plan rejects invites with `BadRequest`.
+ * @see https://docs.turso.tech/api-reference/organizations/invites/create
+ *
+ * ### Inviting Members
+ * **Example:** Invite a teammate as an admin
+ * ```typescript
+ * yield* Turso.OrganizationInvite("Alice", {
+ *   email: "alice@example.com",
+ *   role: "admin",
+ * });
+ * ```
+ *
+ * @resource
+ * @product Organization
+ */
+export const OrganizationInvite = Resource<OrganizationInvite>("Turso.OrganizationInvite")
+
+export const OrganizationInviteProvider = (): infer _ =>
+  Provider.effect(
+    OrganizationInvite,
+    effect {
+      const observe = effect (org: string, email: string) =>
+        try effect {
+          const { invites } = try turso
+            .listOrganizationInvitesV2({ organizationSlug: org })
+          return (invites ?? []).find((i) => i.email?.toLowerCase() === email.toLowerCase())
+        }
+
+      const withdraw = effect (org: string, email: string) =>
+        (try (turso.deleteOrganizationInviteByEmailV2({ organizationSlug: org, email })
+          |> Effect.asVoid(%))) catch effect (e) => match (e) {
+            when { _tag: "NotFound" }: try Effect.void;
+            default: throw e;
+          }
+
+      return {
+        stables: ["email", "organization"],
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if (news.email.toLowerCase() !== olds?.email.toLowerCase()) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ olds, output }) => {
+          const org = output?.organization ?? (try organization)
+          const invite = try observe(org, output?.email ?? olds.email)
+          if (!invite?.email) return undefined
+          return { email: invite.email, organization: org, role: invite.role ?? "member" }
+        },
+        reconcile: effect ({ news, output }) => {
+          const org = output?.organization ?? (try organization)
+          const role = news.role ?? "member"
+
+          // Observe
+          const invite = try observe(org, news.email)
+
+          // Ensure / sync — invites have no update API, so a role change
+          // withdraws and re-sends.
+          if (invite?.role === role) {
+            return { email: invite.email ?? news.email, organization: org, role }
+          }
+          if (invite) try withdraw(org, news.email)
+          const { invited } = try turso.inviteOrganizationMemberV2({
+            organizationSlug: org,
+            email: news.email,
+            role,
+          })
+          return { email: invited?.email ?? news.email, organization: org, role }
+        },
+        delete: effect ({ output }) => {
+          try withdraw(output.organization, output.email)
+        },
+      }
+    },
+  )

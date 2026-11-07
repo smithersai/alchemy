@@ -1,0 +1,187 @@
+import * as mediaconvert from "@distilled.cloud/aws/mediaconvert"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.ts"
+import { readMcTags, syncMcTags } from "./internal.vibe"
+
+export interface PresetProps {
+  /**
+   * Name of the preset. Must be unique within the account/region and match
+   * `^[\w-]+$`. If omitted, a unique name is generated. Changing the name
+   * replaces the preset.
+   */
+  presetName?: string
+  /**
+   * Optional description of the preset.
+   */
+  description?: string
+  /**
+   * Optional category used to group presets in the MediaConvert console.
+   */
+  category?: string
+  /**
+   * The transcode output settings this preset applies — audio descriptions,
+   * caption descriptions, container settings, and the video description
+   * (codec, resolution, bitrate, …). Required.
+   */
+  settings: mediaconvert.PresetSettings
+  /**
+   * User-defined tags for the preset.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Preset extends
+  Resource<
+    "AWS.MediaConvert.Preset",
+    PresetProps,
+    {
+      presetName: string
+      presetArn: string
+      type: string | undefined
+      category: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS Elemental MediaConvert output preset — a reusable, named bundle of
+ * output settings (container, video codec/resolution/bitrate, audio, and
+ * captions) that job templates and jobs reference to produce one output.
+ *
+ * ### Creating a Preset
+ * **Example:** MP4 / H.264 Preset
+ * ```typescript
+ * const preset = yield* MediaConvert.Preset("Mp4", {
+ *   description: "1080p H.264 MP4",
+ *   settings: {
+ *     ContainerSettings: { Container: "MP4" },
+ *     VideoDescription: {
+ *       Width: 1920,
+ *       Height: 1080,
+ *       CodecSettings: {
+ *         Codec: "H_264",
+ *         H264Settings: { RateControlMode: "QVBR", MaxBitrate: 5000000 },
+ *       },
+ *     },
+ *     AudioDescriptions: [
+ *       {
+ *         CodecSettings: {
+ *           Codec: "AAC",
+ *           AacSettings: {
+ *             Bitrate: 96000,
+ *             CodingMode: "CODING_MODE_2_0",
+ *             SampleRate: 48000,
+ *           },
+ *         },
+ *       },
+ *     ],
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Preset = Resource<Preset>("AWS.MediaConvert.Preset")
+
+export const PresetProvider = (): infer _ =>
+  Provider.effect(
+    Preset,
+    effect {
+      const createName = effect (id: string, props: PresetProps) =>
+        props.presetName ?? (try createPhysicalName({ id, maxLength: 128 }))
+
+      const toAttrs = (preset: mediaconvert.Preset & { Name: string }): infer _ => ({
+        presetName: preset.Name,
+        presetArn: preset.Arn!,
+        type: preset.Type,
+        category: preset.Category,
+      })
+
+      /** Get a preset by name; typed not-found → undefined. */
+      const getPreset = effect (name: string) => {
+        const response = mediaconvert
+          .getPreset({ Name: name }) catch effect (e) => match (e) {
+            when { _tag: "NotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.Preset
+      }
+
+      return {
+        stables: ["presetName", "presetArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds)
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.presetName ?? (try createName(id, olds ?? {}))
+          const preset = try getPreset(name)
+          if (preset === undefined) return undefined
+          const attrs = toAttrs(preset)
+          const tags = try readMcTags(preset.Arn!)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+          const name = output?.presetName ?? (try createName(id, news))
+
+          // 1. Observe — cloud state is authoritative.
+          let preset = try getPreset(name)
+
+          // 2. Ensure — create if missing.
+          if (preset === undefined) {
+            const created = try mediaconvert.createPreset({
+              Name: name,
+              Description: news.description,
+              Category: news.category,
+              Settings: news.settings,
+              Tags: desiredTags,
+            })
+            preset = created.Preset!
+          } else {
+            // 3. Sync — UpdatePreset re-applies the mutable fields in place.
+            const updated = try mediaconvert.updatePreset({
+              Name: name,
+              Description: news.description,
+              Category: news.category,
+              Settings: news.settings,
+            })
+            preset = updated.Preset!
+          }
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags.
+          try syncMcTags(preset.Arn!, desiredTags)
+
+          try session.note(name)
+          return toAttrs(preset as mediaconvert.Preset & { Name: string })
+        },
+
+        delete: effect ({ output }) => {
+          mediaconvert
+            .deletePreset({ Name: output.presetName }) catch effect (e) => match (e) {
+              when { _tag: "NotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        list: effect () =>
+          (Array.from(
+            try (mediaconvert.listPresets.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Presets ?? [])).map(toAttrs),
+      }
+    },
+  )

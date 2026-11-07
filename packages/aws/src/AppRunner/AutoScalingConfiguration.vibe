@@ -1,0 +1,307 @@
+import * as apprunner from "@distilled.cloud/aws/apprunner"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.ts"
+import { isActiveStatus, readAppRunnerTags, syncAppRunnerTags, toWireTags } from "./internal.vibe"
+
+export error AutoScalingConfigurationUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+/**
+ * Derive the revision-less "name partial" ARN
+ * (`...:autoscalingconfiguration/{name}`) from any configuration ARN.
+ * `DeleteAllRevisions` rejects revision-qualified ARNs (observed live:
+ * "You cannot specify full auto scaling configuration ARN and
+ * DeleteAllRevisions as true at same time").
+ */
+const toNamePartialArn = (arn: string): string =>
+  // "arn:...:autoscalingconfiguration/{name}/{revision}/{uuid}" -> keep
+  // everything up to and including {name}.
+  arn.split("/").slice(0, 2).join("/")
+
+export interface AutoScalingConfigurationProps {
+  /**
+   * Name of the auto scaling configuration. Must be 4-32 characters
+   * (letters, digits, hyphens, underscores). If omitted, a deterministic
+   * physical name is generated. Changing the name replaces the
+   * configuration (all revisions of the old name are deleted).
+   */
+  autoScalingConfigurationName?: string
+  /**
+   * Maximum number of concurrent requests an instance processes before
+   * App Runner scales up.
+   * @default 100
+   */
+  maxConcurrency?: number
+  /**
+   * Minimum number of provisioned (warm) instances. Higher values spread
+   * the service over more Availability Zones at a higher minimal cost.
+   * @default 1
+   */
+  minSize?: number
+  /**
+   * Maximum number of instances the service scales up to.
+   * @default 25
+   */
+  maxSize?: number
+  /**
+   * User-defined tags for the configuration.
+   */
+  tags?: Record<string, string>
+}
+
+export interface AutoScalingConfiguration extends
+  Resource<
+    "AWS.AppRunner.AutoScalingConfiguration",
+    AutoScalingConfigurationProps,
+    {
+      /**
+       * Name of the auto scaling configuration.
+       */
+      autoScalingConfigurationName: string
+      /**
+       * ARN of this auto scaling configuration revision.
+       */
+      autoScalingConfigurationArn: string
+      /**
+       * Revision number of the configuration (revisions are immutable).
+       */
+      autoScalingConfigurationRevision: number
+      /**
+       * Maximum concurrent requests per instance before scaling out.
+       */
+      maxConcurrency: number | undefined
+      /**
+       * Minimum number of provisioned instances.
+       */
+      minSize: number | undefined
+      /**
+       * Maximum number of instances the service may scale out to.
+       */
+      maxSize: number | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS App Runner auto scaling configuration.
+ *
+ * Auto scaling configurations are immutable revisions: changing
+ * `maxConcurrency`, `minSize`, or `maxSize` creates a new revision under
+ * the same name (the ARN and revision attributes change). A configuration
+ * can be shared across multiple App Runner services.
+ * ### Creating an Auto Scaling Configuration
+ * **Example:** Basic Configuration
+ * ```typescript
+ * const scaling = yield* AppRunner.AutoScalingConfiguration("Scaling", {
+ *   maxConcurrency: 50,
+ *   minSize: 1,
+ *   maxSize: 3,
+ * });
+ * ```
+ *
+ * ### Using with an App Runner Service
+ * **Example:** Attach to a Service
+ * ```typescript
+ * const service = yield* AppRunner.Service("Api", {
+ *   imageRepository: {
+ *     imageIdentifier: "public.ecr.aws/aws-containers/hello-app-runner:latest",
+ *     imageRepositoryType: "ECR_PUBLIC",
+ *     port: "8000",
+ *   },
+ *   autoScalingConfigurationArn: scaling.autoScalingConfigurationArn,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const AutoScalingConfiguration = Resource<AutoScalingConfiguration>(
+  "AWS.AppRunner.AutoScalingConfiguration",
+)
+
+export const AutoScalingConfigurationProvider = (): infer _ =>
+  Provider.effect(
+    AutoScalingConfiguration,
+    effect {
+      const toName = effect (id: string, props: AutoScalingConfigurationProps) => (props.autoScalingConfigurationName
+        ? props.autoScalingConfigurationName
+        : try createPhysicalName({ id, maxLength: 32 }))
+
+      /** Find the latest ACTIVE revision of a configuration by name. */
+      const findLatest = effect (name: string) => {
+        const page = try apprunner.listAutoScalingConfigurations({
+          AutoScalingConfigurationName: name,
+          LatestOnly: true,
+        })
+        const summary = (page.AutoScalingConfigurationSummaryList ?? []).find(
+          (s) =>
+            s.AutoScalingConfigurationName === name
+            && isActiveStatus(s.Status)
+            && s.AutoScalingConfigurationArn !== undefined,
+        )
+        if (!summary?.AutoScalingConfigurationArn) {
+          return undefined
+        }
+        const described = apprunner
+          .describeAutoScalingConfiguration({
+            AutoScalingConfigurationArn: summary.AutoScalingConfigurationArn,
+          }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        const config = described?.AutoScalingConfiguration
+        return config !== undefined && isActiveStatus(config.Status) ? config : undefined
+      }
+
+      const toAttrs = effect (config: apprunner.AutoScalingConfiguration) => {
+        if (
+          !config.AutoScalingConfigurationName
+          || !config.AutoScalingConfigurationArn
+          || config.AutoScalingConfigurationRevision === undefined
+        ) {
+          throw new AutoScalingConfigurationUnexpectedResponse({
+            message: "App Runner auto scaling configuration is missing its name, ARN, or revision",
+          })
+        }
+        return {
+          autoScalingConfigurationName: config.AutoScalingConfigurationName,
+          autoScalingConfigurationArn: config.AutoScalingConfigurationArn,
+          autoScalingConfigurationRevision: config.AutoScalingConfigurationRevision,
+          maxConcurrency: config.MaxConcurrency,
+          minSize: config.MinSize,
+          maxSize: config.MaxSize,
+        }
+      }
+
+      return {
+        stables: ["autoScalingConfigurationName"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.autoScalingConfigurationName ?? (try toName(id, olds ?? {}))
+          const config = try findLatest(name)
+          if (config === undefined) return undefined
+          const attrs = try toAttrs(config)
+          const tags = try readAppRunnerTags(attrs.autoScalingConfigurationArn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news = {}, output, session }) => {
+          const name = output?.autoScalingConfigurationName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe — the latest ACTIVE revision is authoritative.
+          let observed = try findLatest(name)
+
+          // 2/3. Ensure + sync — scaling settings live on immutable
+          // revisions, so a drift on any user-specified field is converged
+          // by creating a new revision under the same name. Only compare
+          // fields the user actually specified: the service fills in
+          // defaults that must not trigger spurious revisions.
+          const drifted = observed !== undefined
+            && ((news.maxConcurrency !== undefined
+              && news.maxConcurrency !== observed.MaxConcurrency)
+              || (news.minSize !== undefined && news.minSize !== observed.MinSize)
+              || (news.maxSize !== undefined && news.maxSize !== observed.MaxSize))
+
+          if (observed === undefined || drifted) {
+            const created = try apprunner.createAutoScalingConfiguration({
+              AutoScalingConfigurationName: name,
+              MaxConcurrency: news.maxConcurrency,
+              MinSize: news.minSize,
+              MaxSize: news.maxSize,
+              Tags: toWireTags(desiredTags),
+            })
+            observed = created.AutoScalingConfiguration
+          }
+
+          // 3b. Sync tags on the latest revision ARN — diff against
+          // OBSERVED cloud tags.
+          if (observed.AutoScalingConfigurationArn) {
+            try syncAppRunnerTags(observed.AutoScalingConfigurationArn, desiredTags)
+          }
+
+          // 4. Return fresh attributes.
+          try session.note(name)
+          return try toAttrs(observed)
+        },
+
+        delete: effect ({ output }) => {
+          // DeleteAllRevisions removes every revision that shares the
+          // configuration name; it requires the revision-less name partial
+          // ARN. A configuration still referenced by a service (App Runner
+          // releases the association asynchronously after the service
+          // finishes deleting) rejects with InvalidRequestException —
+          // retry through that window (bounded).
+          try (effect {
+            return apprunner
+              .deleteAutoScalingConfiguration({
+                AutoScalingConfigurationArn: toNamePartialArn(output.autoScalingConfigurationArn),
+                DeleteAllRevisions: true,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: try Effect.void;
+                default: throw e;
+              }
+          }
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "InvalidRequestException",
+              schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(24)]),
+            }))
+        },
+
+        list: effect () =>
+          (try (effect {
+            return Array.from(
+              try (apprunner.listAutoScalingConfigurations.pages({ LatestOnly: true })
+                |> Stream.runCollect(%)),
+            ).flatMap((page) =>
+              (page.AutoScalingConfigurationSummaryList ?? []).filter(
+                (
+                  s,
+                ): s is apprunner.AutoScalingConfigurationSummary & {
+                  AutoScalingConfigurationArn: string
+                } =>
+                  isActiveStatus(s.Status)
+                  && s.AutoScalingConfigurationArn !== undefined
+                  // App Runner ships an AWS-managed `DefaultConfiguration`
+                  // revision that always exists and can never be deleted
+                  // — keep it out of enumeration for account-wide
+                  // teardown (nuke).
+                  && s.AutoScalingConfigurationName !== "DefaultConfiguration",
+              )
+            )
+          }
+            |> Effect.flatMap(
+              %,
+              Effect.forEach(
+                effect (summary) =>
+                  (try toAttrs(
+                    (try apprunner
+                      .describeAutoScalingConfiguration({
+                        AutoScalingConfigurationArn: summary.AutoScalingConfigurationArn,
+                      })).AutoScalingConfiguration,
+                  )) catch effect (e) => match (e) {
+                    when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+                    default: throw e;
+                  },
+                { concurrency: 4 },
+              ),
+            ))).filter((item) => item !== undefined),
+      }
+    },
+  )

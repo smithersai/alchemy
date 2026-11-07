@@ -1,0 +1,198 @@
+import * as elasticache from "@distilled.cloud/aws/elasticache"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.ts"
+import { readElastiCacheTags, sameStringSet, tagsToWire } from "./internal.vibe"
+
+export error ElastiCacheSubnetGroupUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface SubnetGroupProps {
+  /** Name of the subnet group. Generated deterministically when omitted. */
+  subnetGroupName?: string
+  /** Human-readable description. */
+  description: string
+  /** VPC subnet IDs. Use at least two AZs for a highly-available cache. */
+  subnetIds: string[]
+  /** User-defined tags. */
+  tags?: Record<string, string>
+}
+
+export interface SubnetGroup extends
+  Resource<
+    "AWS.ElastiCache.SubnetGroup",
+    SubnetGroupProps,
+    {
+      subnetGroupName: string
+      subnetGroupArn: string
+      description: string | undefined
+      vpcId: string | undefined
+      subnetIds: string[]
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * A VPC subnet group for provisioned ElastiCache resources.
+ *
+ * ### Creating a Subnet Group
+ * **Example:** Two Availability Zones
+ * ```typescript
+ * const subnets = yield* SubnetGroup("CacheSubnets", {
+ *   description: "cache subnets",
+ *   subnetIds: [subnetA.subnetId, subnetB.subnetId],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const SubnetGroup = Resource<SubnetGroup>("AWS.ElastiCache.SubnetGroup")
+
+export const SubnetGroupProvider = (): infer _ =>
+  Provider.effect(
+    SubnetGroup,
+    effect {
+      const toName = effect (id: string, props: SubnetGroupProps) => (props.subnetGroupName
+        ? props.subnetGroupName
+        : try createPhysicalName({ id, maxLength: 40, lowercase: true }))
+      const readGroup = effect (name: string) => {
+        const response = elasticache
+          .describeCacheSubnetGroups({ CacheSubnetGroupName: name }) catch effect (e) => match (e) {
+            when { _tag: "CacheSubnetGroupNotFoundFault" }: try Effect.undefined;
+            default: throw e;
+          }
+        return response?.CacheSubnetGroups?.[0]
+      }
+      const attrs = effect (group: elasticache.CacheSubnetGroup) => {
+        if (!group.CacheSubnetGroupName || !group.ARN) {
+          throw new ElastiCacheSubnetGroupUnexpectedResponse({
+            message: "ElastiCache subnet group is missing its name or ARN",
+          })
+        }
+        return {
+          subnetGroupName: group.CacheSubnetGroupName,
+          subnetGroupArn: group.ARN,
+          description: group.CacheSubnetGroupDescription,
+          vpcId: group.VpcId,
+          subnetIds: (group.Subnets ?? [])
+            .map((subnet) => subnet.SubnetIdentifier)
+            .filter((id): id is string => id !== undefined),
+          tags: try readElastiCacheTags(group.ARN),
+        }
+      }
+
+      return {
+        stables: ["subnetGroupName", "subnetGroupArn"],
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if (
+            (try toName(id, olds ?? { description: "", subnetIds: [] }))
+              !== (try toName(id, news ?? { description: "", subnetIds: [] }))
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ id, olds, output }) => {
+          const group = try readGroup(
+            output?.subnetGroupName
+              ?? (try toName(id, olds ?? { description: "", subnetIds: [] })),
+          )
+          if (!group?.ARN) return undefined
+          const result = try attrs(group)
+          return (try hasAlchemyTags(id, result.tags)) ? result : Unowned(result)
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          const props = news!
+          const name = output?.subnetGroupName ?? (try toName(id, props))
+          const desiredTags = {
+            ...(try createInternalTags(id)),
+            ...props.tags,
+          }
+          let group = try readGroup(name)
+          if (!group) {
+            elasticache
+              .createCacheSubnetGroup({
+                CacheSubnetGroupName: name,
+                CacheSubnetGroupDescription: props.description,
+                SubnetIds: props.subnetIds,
+                Tags: tagsToWire(desiredTags),
+              }) catch effect (e) => match (e) {
+                when { _tag: "CacheSubnetGroupAlreadyExistsFault" }: try Effect.void;
+                default: throw e;
+              }
+            group = try readGroup(name)
+          }
+          if (!group) {
+            throw new ElastiCacheSubnetGroupUnexpectedResponse({
+              message: `Subnet group '${name}' not found after create`,
+            })
+          }
+          const observedSubnets = (group.Subnets ?? [])
+            .map((subnet) => subnet.SubnetIdentifier)
+            .filter((id): id is string => id !== undefined)
+          if (
+            group.CacheSubnetGroupDescription !== props.description
+            || !sameStringSet(observedSubnets, props.subnetIds)
+          ) {
+            group = (try elasticache.modifyCacheSubnetGroup({
+              CacheSubnetGroupName: name,
+              CacheSubnetGroupDescription: props.description,
+              SubnetIds: props.subnetIds,
+            })).CacheSubnetGroup ?? group
+          }
+          if (group.ARN) {
+            const { removed, upsert } = diffTags(
+              try readElastiCacheTags(group.ARN),
+              desiredTags,
+            )
+            if (upsert.length) {
+              try elasticache.addTagsToResource({
+                ResourceName: group.ARN,
+                Tags: upsert,
+              })
+            }
+            if (removed.length) {
+              try elasticache.removeTagsFromResource({
+                ResourceName: group.ARN,
+                TagKeys: removed,
+              })
+            }
+          }
+          try session.note(name)
+          return try attrs(group)
+        },
+        delete: effect ({ output }) => {
+          try (effect {
+            return elasticache
+              .deleteCacheSubnetGroup({
+                CacheSubnetGroupName: output.subnetGroupName,
+              }) catch effect (e) => match (e) {
+                when { _tag: "CacheSubnetGroupNotFoundFault" }: try Effect.void;
+                default: throw e;
+              }
+          }
+            |> Effect.retry(%, {
+              while: (error) => error._tag === "CacheSubnetGroupInUse",
+              schedule: Schedule.max([Schedule.fixed("5 seconds"), Schedule.recurs(8)]),
+            }))
+        },
+        list: effect () =>
+          try Effect.forEach(
+            (Array.from(
+              try (elasticache.describeCacheSubnetGroups.pages({})
+                |> Stream.runCollect(%)),
+            ).flatMap((page) => page.CacheSubnetGroups ?? [])).filter((group) => group.ARN),
+            attrs,
+          ),
+      }
+    },
+  )

@@ -10,7 +10,7 @@ import type { PlatformError } from "effect/PlatformError";
 import * as Predicate from "effect/Predicate";
 import type { Simplify } from "effect/Types";
 import type { ActionLike } from "./Action.ts";
-import { makeResolveContext } from "./ActionRuntimeContext.ts";
+import { makeResolveContext } from "./ActionRuntimeContext.vibe";
 import {
   OwnedBySomeoneElse,
   stripUnowned,
@@ -34,7 +34,7 @@ import {
 } from "./Auth/Demand.ts";
 import { havePropsChanged, isResolved, stripEffects, stripUnresolved } from "./Diff.ts";
 import { captureEmit, type ApplyEvent, type ApplyStatus } from "./Events.ts";
-import type { Input } from "./Input.ts";
+import type { Input } from "./Input.vibe";
 import { generateInstanceId } from "./InstanceId.ts";
 import * as Output from "./Output.ts";
 import { type ActionApply, type Apply, type Delete, type Plan } from "./Plan.ts";
@@ -48,7 +48,7 @@ import {
 import { stampedMode, type ProviderMode } from "./ProviderMode.ts";
 import { resourceSession } from "./Report.ts";
 import type { ResourceBinding } from "./Resource.ts";
-import { ResourceContext } from "./ResourceContext.ts";
+import { ResourceContext } from "./ResourceContext.vibe";
 import { RuntimeContext } from "./RuntimeContext.ts";
 import { Stack } from "./Stack.ts";
 import { Stage } from "./Stage.ts";

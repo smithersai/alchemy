@@ -1,7 +1,7 @@
 import * as Cloudflare from "@alchemy.run/cloudflare";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
-import NotesWorker from "./src/NotesWorker.ts";
+import NotesWorker from "./src/NotesWorker.vibe";
 
 export default Alchemy.Stack(
   "DomainBetterAuth",

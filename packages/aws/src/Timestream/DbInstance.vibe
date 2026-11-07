@@ -1,0 +1,459 @@
+import * as influxdb from "@distilled.cloud/aws/timestream-influxdb"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as Redacted from "effect/Redacted"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.ts"
+
+export error DbInstanceInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error DbInstanceUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type DbInstanceStatus = influxdb.Status
+
+export interface DbInstanceProps {
+  /**
+   * Name that uniquely identifies the DB instance. Must be 3–40 characters,
+   * start with a letter, and contain only lowercase letters, numbers, and
+   * hyphens.
+   * @default ${app}-${stage}-${id}
+   */
+  name?: string
+  /**
+   * The compute instance type to run InfluxDB on (e.g. `db.influx.medium`).
+   */
+  dbInstanceType: influxdb.DbInstanceType
+  /**
+   * The amount of storage to allocate, in GiB.
+   */
+  allocatedStorage: number
+  /**
+   * The IDs of the VPC subnets the DB instance is attached to.
+   */
+  vpcSubnetIds: string[]
+  /**
+   * The VPC security group IDs to associate with the DB instance.
+   */
+  vpcSecurityGroupIds: string[]
+  /**
+   * The initial InfluxDB admin password. Stored in AWS Secrets Manager by
+   * Timestream; supplied only at creation. Must be alphanumeric
+   * (`[a-zA-Z0-9]+`, 8-64 characters). Pass a redacted value, e.g.
+   * `Redacted.make("SuperSecretPassword1")`.
+   */
+  password: Redacted.Redacted<string>
+  /**
+   * The initial InfluxDB admin username.
+   * @default "admin"
+   */
+  username?: string
+  /**
+   * The name of the initial InfluxDB organization.
+   */
+  organization?: string
+  /**
+   * The name of the initial InfluxDB bucket.
+   */
+  bucket?: string
+  /**
+   * The storage tier (IOPS profile) for the DB instance.
+   */
+  dbStorageType?: influxdb.DbStorageType
+  /**
+   * Whether the DB instance has a public IP and is reachable from the internet.
+   * @default false
+   */
+  publiclyAccessible?: boolean
+  /**
+   * Single- or multi-AZ deployment.
+   * @default "SINGLE_AZ"
+   */
+  deploymentType?: influxdb.DeploymentType
+  /**
+   * The identifier of an InfluxDB parameter group to associate.
+   */
+  dbParameterGroupIdentifier?: string
+  /**
+   * Log delivery (S3) configuration for InfluxDB engine logs.
+   */
+  logDeliveryConfiguration?: influxdb.LogDeliveryConfiguration
+  /**
+   * The port InfluxDB listens on.
+   * @default 8086
+   */
+  port?: number
+  /**
+   * The network protocol (IPv4 or dual-stack).
+   */
+  networkType?: influxdb.NetworkType
+  /**
+   * Tags to associate with the DB instance.
+   */
+  tags?: Record<string, string>
+}
+
+export interface DbInstance extends
+  Resource<
+    "AWS.Timestream.DbInstance",
+    DbInstanceProps,
+    {
+      /**
+       * Service-assigned unique identifier for the DB instance.
+       */
+      id: string
+      /**
+       * The DB instance's name.
+       */
+      name: string
+      /**
+       * ARN of the DB instance.
+       */
+      arn: string
+      /**
+       * Current lifecycle status of the DB instance.
+       */
+      status: DbInstanceStatus | undefined
+      /**
+       * The connection endpoint (host) for the DB instance.
+       */
+      endpoint: string | undefined
+      /**
+       * The port InfluxDB is listening on.
+       */
+      port: number | undefined
+      /**
+       * ARN of the Secrets Manager secret holding the InfluxDB auth parameters.
+       */
+      influxAuthParametersSecretArn: string | undefined
+      /**
+       * The compute instance type backing the DB instance.
+       */
+      dbInstanceType: influxdb.DbInstanceType | undefined
+      /**
+       * The allocated storage, in GiB.
+       */
+      allocatedStorage: number | undefined
+      /**
+       * The subnets the DB instance is attached to.
+       */
+      vpcSubnetIds: string[]
+      /**
+       * Current tags reported for the DB instance.
+       */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An Amazon Timestream for InfluxDB DB instance — a managed, single-tenant
+ * InfluxDB engine for time-series workloads.
+ *
+ * `DbInstance` owns the instance's lifecycle and its mutable configuration
+ * (instance type, storage, port, parameter group, log delivery, deployment
+ * type, and tags). Networking (subnets, security groups), the initial
+ * credentials, organization, and bucket are fixed at creation.
+ *
+ * :::caution
+ * Provisioning a DB instance takes ~15–20 minutes and incurs EC2-backed cost.
+ * :::
+ * ### Creating DB Instances
+ * **Example:** Basic InfluxDB Instance
+ * ```typescript
+ * import * as Timestream from "@alchemy.run/aws/Timestream";
+ *
+ * const influx = yield* Timestream.DbInstance("Influx", {
+ *   name: "my-influx",
+ *   dbInstanceType: "db.influx.medium",
+ *   allocatedStorage: 20,
+ *   vpcSubnetIds: [subnetA.subnetId, subnetB.subnetId],
+ *   vpcSecurityGroupIds: [securityGroup.groupId],
+ *   password: Redacted.make("SuperSecretPassword1"),
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const DbInstance = Resource<DbInstance>("AWS.Timestream.DbInstance")
+
+const createInstanceName = effect (id: string, props: { name?: string | undefined }) => {
+  if (props.name) {
+    return props.name
+  }
+  return try createPhysicalName({ id, maxLength: 40 })
+}
+
+const toAttrs = (
+  instance: influxdb.GetDbInstanceOutput,
+  tags: Record<string, string>,
+): DbInstance["Attributes"] => ({
+  id: instance.id,
+  name: instance.name,
+  arn: instance.arn,
+  status: instance.status,
+  endpoint: instance.endpoint,
+  port: instance.port,
+  influxAuthParametersSecretArn: instance.influxAuthParametersSecretArn,
+  dbInstanceType: instance.dbInstanceType,
+  allocatedStorage: instance.allocatedStorage,
+  vpcSubnetIds: instance.vpcSubnetIds,
+  tags,
+})
+
+const fetchTags = effect (arn: string) => {
+  const response = influxdb
+    .listTagsForResource({ resourceArn: arn }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  const tags = response?.tags ?? {}
+  return Object.fromEntries(
+    Object.entries(tags).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+  )
+}
+
+const readInstanceById = effect (identifier: string) => {
+  const instance = influxdb
+    .getDbInstance({ identifier }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!instance) return undefined
+  return toAttrs(instance, try fetchTags(instance.arn))
+}
+
+const findInstanceByName = effect (name: string) => {
+  const summaries = Array.from(
+    try (influxdb.listDbInstances.pages({})
+      |> EffectStream.runCollect(%)),
+  ).flatMap((page) => page.items ?? [])
+  const match = summaries.find((summary) => summary.name === name)
+  if (!match) return undefined
+  return try readInstanceById(match.id)
+}
+
+/**
+ * A DB instance still transitioning toward the awaited status — retried by
+ * {@link waitForStatus}'s bounded schedule.
+ */
+error DbInstanceNotReady {
+  identifier: string
+  status: string | undefined
+}
+
+/**
+ * A DB instance whose asynchronous provisioning converged to a terminal
+ * failure status (`FAILED` / `REBOOT_FAILED`).
+ */
+export error DbInstanceProvisioningFailed {
+  identifier: string
+  status: string
+}
+
+// Explicitly-typed retry wrapper — an inline `Effect.retry` in provider
+// lifecycle code leaks `Retry.Return`'s conditional type into declaration
+// emit and widens the provider layer to `unknown` for every consumer of
+// `AWS.providers()`.
+const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    // ParseError: a CREATING instance can transiently decode incompletely
+    // while fields are still being populated — treat it as not-ready.
+    while: (e) => e._tag === "DbInstanceNotReady" || e._tag === "ParseError",
+    // Provisioning is slow (~15–20 min); poll every 20s up to ~30 min.
+    schedule: Schedule.max([Schedule.spaced("20 seconds"), Schedule.recurs(90)]),
+  })
+
+const waitForStatus = (identifier: string, target: "AVAILABLE" | "DELETED") =>
+  retryWhileNotReady(
+    effect {
+      const instance = influxdb
+        .getDbInstance({ identifier }) catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (target === "DELETED") {
+        if (instance === undefined) return
+        throw new DbInstanceNotReady({ identifier, status: instance.status })
+      }
+      if (instance?.status === "AVAILABLE") return
+      if (instance?.status === "FAILED" || instance?.status === "REBOOT_FAILED") {
+        throw new DbInstanceProvisioningFailed({
+          identifier,
+          status: instance.status,
+        })
+      }
+      throw new DbInstanceNotReady({ identifier, status: instance?.status })
+    },
+  )
+
+export const DbInstanceProvider = (): infer _ =>
+  Provider.effect(
+    DbInstance,
+    effect {
+      return {
+        stables: ["id", "arn", "name"],
+        list: effect () => {
+          const summaries = Array.from(
+            try (influxdb.listDbInstances.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => page.items ?? [])
+          const hydrated = try Effect.forEach(
+            summaries,
+            (summary) => readInstanceById(summary.id),
+            { concurrency: 5 },
+          )
+          return hydrated.filter(
+            (attrs): attrs is DbInstance["Attributes"] => attrs !== undefined,
+          )
+        },
+        read: effect ({ id, olds, output }) => {
+          const state = output?.id
+            ? try readInstanceById(output.id)
+            : try findInstanceByName(try createInstanceName(id, olds ?? {}))
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.tags as Tags)) ? state : Unowned(state)
+        },
+        diff: effect ({ id, news, olds = {} }) => {
+          if (!isResolved(news)) return
+          const oldName = try createInstanceName(id, olds)
+          const newName = try createInstanceName(id, news)
+          // Name and the networking/credential aspects are immutable — changing
+          // any of them requires a replacement.
+          const arraysDiffer = (a?: string[], b?: string[]): infer _ =>
+            JSON.stringify([...(a ?? [])].sort()) !== JSON.stringify([...(b ?? [])].sort())
+          if (
+            oldName !== newName
+            || arraysDiffer(olds.vpcSubnetIds, news.vpcSubnetIds)
+            || arraysDiffer(olds.vpcSecurityGroupIds, news.vpcSecurityGroupIds)
+            || olds.username !== news.username
+            || olds.organization !== news.organization
+            || olds.bucket !== news.bucket
+            || olds.publiclyAccessible !== news.publiclyAccessible
+            || olds.networkType !== news.networkType
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (!news) {
+            throw new DbInstanceInvalidProps({
+              message: "Timestream DbInstance requires props",
+            })
+          }
+          const name = output?.name ?? (try createInstanceName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — prefer the cached id; fall back to a name lookup so a
+          // create whose state failed to persist is adopted rather than
+          // duplicated.
+          let state = output?.id
+            ? try readInstanceById(output.id)
+            : try findInstanceByName(name)
+
+          // Ensure — create if missing, then wait for AVAILABLE.
+          if (state === undefined) {
+            const created = try influxdb.createDbInstance({
+              name,
+              dbInstanceType: news.dbInstanceType,
+              allocatedStorage: news.allocatedStorage,
+              vpcSubnetIds: news.vpcSubnetIds,
+              vpcSecurityGroupIds: news.vpcSecurityGroupIds,
+              password: Redacted.value(news.password),
+              username: news.username,
+              organization: news.organization,
+              bucket: news.bucket,
+              dbStorageType: news.dbStorageType,
+              publiclyAccessible: news.publiclyAccessible,
+              deploymentType: news.deploymentType,
+              dbParameterGroupIdentifier: news.dbParameterGroupIdentifier,
+              logDeliveryConfiguration: news.logDeliveryConfiguration,
+              port: news.port,
+              networkType: news.networkType,
+              tags: desiredTags,
+            })
+            try session.note(`Creating DB instance ${name} (${created.id})...`)
+            try waitForStatus(created.id, "AVAILABLE")
+            state = try readInstanceById(created.id)
+            if (state === undefined) {
+              throw new DbInstanceUnexpectedResponse({
+                message: `failed to read created DB instance ${name}`,
+              })
+            }
+          }
+
+          // Sync mutable settings via UpdateDbInstance. It is a partial upsert;
+          // only send it when a mutable aspect drifted from observed state.
+          const needsUpdate = (news.dbInstanceType !== undefined && news.dbInstanceType !== state.dbInstanceType)
+            || (news.allocatedStorage !== undefined
+              && news.allocatedStorage !== state.allocatedStorage)
+            || (news.port !== undefined && news.port !== state.port)
+            || news.dbParameterGroupIdentifier !== undefined
+            || news.logDeliveryConfiguration !== undefined
+            || news.deploymentType !== undefined
+            || news.dbStorageType !== undefined
+          if (needsUpdate) {
+            try influxdb.updateDbInstance({
+              identifier: state.id,
+              dbInstanceType: news.dbInstanceType,
+              allocatedStorage: news.allocatedStorage,
+              port: news.port,
+              dbParameterGroupIdentifier: news.dbParameterGroupIdentifier,
+              logDeliveryConfiguration: news.logDeliveryConfiguration,
+              deploymentType: news.deploymentType,
+              dbStorageType: news.dbStorageType,
+            })
+            try waitForStatus(state.id, "AVAILABLE")
+            try session.note(`Updated DB instance ${name}`)
+          }
+
+          // Sync tags — diff against observed cloud tags.
+          const { removed, upsert } = diffTags(state.tags, desiredTags)
+          if (removed.length > 0) {
+            try influxdb.untagResource({
+              resourceArn: state.arn,
+              tagKeys: removed,
+            })
+          }
+          if (upsert.length > 0) {
+            try influxdb.tagResource({
+              resourceArn: state.arn,
+              tags: Object.fromEntries(upsert.map(({ Key, Value }) => [Key, Value])),
+            })
+          }
+
+          try session.note(state.arn)
+
+          const final = try readInstanceById(state.id)
+          if (!final) {
+            throw new DbInstanceUnexpectedResponse({
+              message: `failed to read reconciled DB instance ${name}`,
+            })
+          }
+          return final
+        },
+        delete: effect ({ output }) => {
+          influxdb
+            .deleteDbInstance({ identifier: output.id }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          try waitForStatus(output.id, "DELETED")
+        },
+      }
+    },
+  )

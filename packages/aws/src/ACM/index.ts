@@ -1,33 +1,33 @@
-export { AccountConfiguration, AccountConfigurationProvider } from "./AccountConfiguration.ts";
+export { AccountConfiguration, AccountConfigurationProvider } from "./AccountConfiguration.vibe";
 export {
   Certificate,
   CertificateCaaError,
   CertificateProvider,
   validationRecordsOf,
   type CertificateProps,
-} from "./Certificate.ts";
+} from "./Certificate.vibe";
 export {
   CertificateValidation,
   CertificateValidationProvider,
   type CertificateValidationProps,
-} from "./CertificateValidation.ts";
-export * from "./DescribeCertificate.ts";
-export * from "./DescribeCertificateHttp.ts";
+} from "./CertificateValidation.vibe";
+export * from "./DescribeCertificate.vibe";
+export * from "./DescribeCertificateHttp.vibe";
 export * from "./ExpiryEventSource.ts";
-export * from "./ExportCertificate.ts";
-export * from "./ExportCertificateHttp.ts";
-export * from "./GetCertificate.ts";
-export * from "./GetCertificateHttp.ts";
-export * from "./ImportCertificate.ts";
-export * from "./ImportCertificateHttp.ts";
-export * from "./ListCertificates.ts";
-export * from "./ListCertificatesHttp.ts";
-export * from "./RenewCertificate.ts";
-export * from "./RenewCertificateHttp.ts";
-export * from "./ResendValidationEmail.ts";
-export * from "./ResendValidationEmailHttp.ts";
-export * from "./RevokeCertificate.ts";
-export * from "./RevokeCertificateHttp.ts";
-export * from "./SearchCertificates.ts";
-export * from "./SearchCertificatesHttp.ts";
+export * from "./ExportCertificate.vibe";
+export * from "./ExportCertificateHttp.vibe";
+export * from "./GetCertificate.vibe";
+export * from "./GetCertificateHttp.vibe";
+export * from "./ImportCertificate.vibe";
+export * from "./ImportCertificateHttp.vibe";
+export * from "./ListCertificates.vibe";
+export * from "./ListCertificatesHttp.vibe";
+export * from "./RenewCertificate.vibe";
+export * from "./RenewCertificateHttp.vibe";
+export * from "./ResendValidationEmail.vibe";
+export * from "./ResendValidationEmailHttp.vibe";
+export * from "./RevokeCertificate.vibe";
+export * from "./RevokeCertificateHttp.vibe";
+export * from "./SearchCertificates.vibe";
+export * from "./SearchCertificatesHttp.vibe";
 // NOTE: BindingHttp.ts is shared scaffolding and intentionally NOT exported.

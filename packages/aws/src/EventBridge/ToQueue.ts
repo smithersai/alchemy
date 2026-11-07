@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 import * as Effect from "effect/Effect";
-import type { PolicyStatement } from "../IAM/Policy.ts";
-import type { Queue } from "../SQS/Queue.ts";
-import type { EventBus } from "./EventBus.ts";
-import { Rule, type RuleProps, type RuleTarget } from "./Rule.ts";
+import type { PolicyStatement } from "../IAM/Policy.vibe";
+import type { Queue } from "../SQS/Queue.vibe";
+import type { EventBus } from "./EventBus.vibe";
+import { Rule, type RuleProps, type RuleTarget } from "./Rule.vibe";
 
 interface EventDescriptor {
   id?: string;

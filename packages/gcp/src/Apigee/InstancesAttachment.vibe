@@ -1,0 +1,242 @@
+import * as apigee from "@distilled.cloud/gcp/apigee_v1"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { lastSegment, orgParent, organizationFromName } from "./names.vibe"
+import { waitForOperation } from "./operations.ts"
+import { listOwnedInstances } from "./org.vibe"
+
+export type InstancesAttachmentProps = {
+  /**
+   * Apigee organization id. Defaults to the current GCP project id.
+   * Immutable — changing it replaces the attachment.
+   */
+  organization?: string
+  /**
+   * Parent instance id or full name
+   * (`organizations/{org}/instances/{instance}`). Immutable — changing it
+   * replaces the attachment.
+   */
+  instance: string
+  /**
+   * Environment id to attach. Immutable — changing it replaces the
+   * attachment.
+   */
+  environment: string
+}
+
+export type InstancesAttachment = Resource<
+  "GCP.Apigee.InstancesAttachment",
+  InstancesAttachmentProps,
+  {
+    /** Full resource name `organizations/{org}/instances/{instance}/attachments/{attachment}`. */
+    name: string
+    /** Attachment id (last path segment). */
+    attachmentId: string
+    /** Parent instance id. */
+    instanceId: string
+    /** Attached environment id. */
+    environment: string
+    /** Apigee organization id. */
+    organization: string
+    /** Creation time in milliseconds since epoch. */
+    createdAt: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An attachment of an Apigee environment onto a runtime instance.
+ *
+ * Attachments have no labels or description. `list` enumerates
+ * attachments on alchemy-owned instances so `pnpm nuke:gcp` can find
+ * leaked rows. Organization, instance, and environment are identity —
+ * changing them replaces the attachment. There is nothing else to
+ * update in place.
+ *
+ * ### Creating an Attachment
+ * **Example:** Attach an environment to a runtime instance
+ * ```typescript
+ * const runtime = yield* GCP.Apigee.Instance("Runtime", {});
+ * const attachment = yield* GCP.Apigee.InstancesAttachment("Eval", {
+ *   instance: runtime.name,
+ *   environment: "eval",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Apigee
+ */
+export const InstancesAttachment = Resource<InstancesAttachment>("GCP.Apigee.InstancesAttachment")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class InstancesAttachmentNotResolved extends Data.TaggedError(
+  "GCP.Apigee.InstancesAttachmentNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const instanceIdOf = (instance: string): infer _ => lastSegment(instance)
+
+const instanceName = (organization: string, instance: string): infer _ =>
+  instance.includes("/") ? instance : `${orgParent(organization)}/instances/${instance}`
+
+const resourceName = (organization: string, instance: string, attachmentId: string): infer _ =>
+  `${instanceName(organization, instance)}/attachments/${attachmentId}`
+
+const toAttrs = (
+  attachment: apigee.GoogleCloudApigeeV1InstanceAttachment,
+  organization: string,
+  instanceId: string,
+): infer _ => {
+  const raw = attachment.name ?? ""
+  const name = raw.includes("/") ? raw : resourceName(organization, instanceId, raw)
+  return {
+    name,
+    attachmentId: lastSegment(name),
+    instanceId,
+    environment: attachment.environment ?? "",
+    organization: organizationFromName(name) ?? organization,
+    createdAt: attachment.createdAt,
+  }
+}
+
+const getByName = effect (name: string) =>
+  apigee
+    .getOrganizationsInstancesAttachments({ name }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listByInstance = effect (parent: string) =>
+  (Array.from(
+    try (apigee.listOrganizationsInstancesAttachments
+      .pages({
+        parent,
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.attachments ?? []))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }:
+      [] as apigee.GoogleCloudApigeeV1InstanceAttachment[];
+    default: throw e;
+  }
+
+const findByEnvironment = effect (
+  parent: string,
+  environment: string,
+  organization: string,
+  instanceId: string,
+) =>
+  try effect {
+    const attachment = (try listByInstance(parent)).find((attachment) => attachment.environment === environment)
+    return attachment === undefined ? undefined : toAttrs(attachment, organization, instanceId)
+  }
+
+export const InstancesAttachmentProvider = (): infer _ =>
+  Provider.succeed(InstancesAttachment, {
+    stables: ["name", "attachmentId", "instanceId", "organization", "createdAt"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousInstance = olds?.instance ?? output?.instanceId
+      const previousEnv = olds?.environment ?? output?.environment
+      const previousOrg = olds?.organization ?? output?.organization
+      if (
+        (previousInstance !== undefined
+          && instanceIdOf(news.instance) !== instanceIdOf(previousInstance))
+        || (previousEnv !== undefined && news.environment !== previousEnv)
+        || (previousOrg !== undefined
+          && news.organization !== undefined
+          && news.organization !== previousOrg)
+      ) {
+        return { action: "replace" as const, deleteFirst: true }
+      }
+      return undefined
+    },
+
+    read: effect ({ olds, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = organizationFromName(output?.name) ?? olds?.organization ?? env.project
+      const instanceId = instanceIdOf(olds?.instance ?? output?.instanceId ?? "")
+      if (instanceId.length === 0) return undefined
+      const parent = instanceName(organization, instanceId)
+      if (output?.name !== undefined) {
+        const existing = try getByName(output.name)
+        if (existing === undefined) return undefined
+        return toAttrs(existing, organization, instanceId)
+      }
+      const environment = olds?.environment ?? output?.environment
+      if (environment === undefined) return undefined
+      const found = try findByEnvironment(parent, environment, organization, instanceId)
+      return found
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const instances = try listOwnedInstances(env.project)
+      const pages = try Effect.forEach(
+        instances,
+        effect (instance) => {
+          const parent = instance.name?.includes("/")
+            ? instance.name
+            : `${orgParent(env.project)}/instances/${lastSegment(instance.name ?? "")}`
+          const instanceId = lastSegment(parent)
+          return (try listByInstance(parent)).map((attachment) => toAttrs(attachment, env.project, instanceId))
+        },
+        { concurrency: 4 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ news, output }) => {
+      const env = try GcpEnvironment.current
+      const organization = news.organization ?? output?.organization ?? env.project
+      const instanceId = instanceIdOf(news.instance)
+      const parent = instanceName(organization, instanceId)
+      const existingName = output?.name
+
+      let current = existingName !== undefined ? try getByName(existingName) : undefined
+      if (current === undefined) {
+        const found = try findByEnvironment(parent, news.environment, organization, instanceId)
+        if (found !== undefined) {
+          current = try getByName(found.name)
+        }
+      }
+
+      if (current === undefined) {
+        const created = apigee
+          .createOrganizationsInstancesAttachments({
+            parent,
+            body: { environment: news.environment },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          try waitForOperation(created, { alreadyExistsOk: true })
+        }
+        const found = try findByEnvironment(parent, news.environment, organization, instanceId)
+        if (found === undefined) {
+          throw new InstancesAttachmentNotResolved({
+            resourceName: `${parent}/attachments/${news.environment}`,
+          })
+        }
+        return found
+      }
+
+      return toAttrs(current, organization, instanceId)
+    },
+
+    delete: effect ({ output }) => {
+      const deleted = apigee
+        .deleteOrganizationsInstancesAttachments({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" } or { _tag: "ApigeeResourceNotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (deleted !== undefined) {
+        try waitForOperation(deleted, { notFoundOk: true })
+      }
+    },
+  })

@@ -1,0 +1,51 @@
+import * as turso from "@distilled.cloud/turso/turso";
+import * as Provider from "alchemy/Provider";
+import { Resource } from "alchemy/Resource";
+import type { Providers } from "./Providers.vibe";
+export interface OrganizationSettingsProps {
+    /** Allow usage beyond the plan's quota to be billed as overages. */
+    overages?: boolean;
+    /**
+     * Require every member to enable multi-factor authentication. The
+     * deploying user must have MFA enabled first.
+     */
+    requireMfa?: boolean;
+    /**
+     * Keep deleted databases and groups recoverable. Requires an admin or
+     * owner.
+     */
+    restoreEnabled?: boolean;
+}
+interface Settings {
+    overages: boolean;
+    requireMfa: boolean;
+    restoreEnabled: boolean;
+}
+export interface OrganizationSettingsAttributes extends Settings {
+    /** The organization slug. */
+    organization: string;
+    /** Settings observed before Alchemy first changed them; restored on destroy. */
+    original: Settings;
+}
+export type OrganizationSettings = Resource<"Turso.OrganizationSettings", OrganizationSettingsProps, OrganizationSettingsAttributes, never, Providers>;
+/**
+ * Settings of the Turso organization your credentials act on. Only the
+ * settings you set are managed; destroying the resource restores the values
+ * observed before Alchemy first changed them.
+ * @see https://docs.turso.tech/api-reference/organizations/update
+ *
+ * ### Configuring the Organization
+ * **Example:** Enable overages and require MFA
+ * ```typescript
+ * yield* Turso.OrganizationSettings("Org", {
+ *   overages: true,
+ *   requireMfa: true,
+ * });
+ * ```
+ *
+ * @resource
+ * @product Organization
+ */
+export declare const OrganizationSettings: import("alchemy/Resource").ResourceClass<OrganizationSettings>;
+export declare const OrganizationSettingsProvider: () => import("effect/Layer").Layer<Provider.Provider<OrganizationSettings>, never, import("./Credentials.vibe").Organization | turso.TursoOpContext>;
+export {};

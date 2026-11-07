@@ -1,0 +1,285 @@
+import * as vm from "@distilled.cloud/gcp/vmmigration_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { GcpEnvironment } from "../Environment.ts"
+import { createInternalLabels } from "../Labels.ts"
+import type { Providers } from "../Providers.ts"
+import {
+  encodeOwnership,
+  fieldMask,
+  hasOwnershipMarker,
+  locationParent,
+  normalizeLocation,
+  ownedByAlchemy,
+  parseName,
+  parseOwnership,
+  replaceOnIdentity,
+  ResourceNotResolved,
+  toPhysicalId,
+  waitForOperation,
+  waitUntilExists,
+  waitUntilGone,
+} from "./internal.ts"
+
+export type GroupMigrationTargetType = vm.GroupMigrationTargetTypeEnum | (string & {})
+
+export type GroupProps = {
+  /**
+   * Group id (the `{group}` segment of
+   * `projects/{project}/locations/{location}/groups/{group}`). If omitted,
+   * a unique RFC1035 name is generated. Immutable — changing it replaces
+   * the group.
+   */
+  groupId?: string
+  /**
+   * Region (`us-central1`, …). Immutable — changing it replaces the
+   * group. `US-CENTRAL1` is accepted and normalized to `us-central1`.
+   * @default the stack's GCP region (`GCP.Region`, profile region, `us-central1`)
+   */
+  location?: string
+  /**
+   * User-friendly display name.
+   */
+  displayName?: string
+  /**
+   * Free-text description. Groups have no labels field, so Alchemy
+   * ownership is stored in a `[alchemy …]` prefix and stripped from
+   * attributes.
+   */
+  description?: string
+  /**
+   * Target type of this group. Immutable — changing it replaces the
+   * group.
+   * @default "MIGRATION_TARGET_TYPE_GCE"
+   */
+  migrationTargetType?: GroupMigrationTargetType
+}
+
+export type Group = Resource<
+  "GCP.VMMigration.Group",
+  GroupProps,
+  {
+    /** Full resource name. */
+    name: string
+    /** Group id (last path segment). */
+    groupId: string
+    /** Project id. */
+    project: string
+    /** Location id. */
+    location: string
+    /** User-friendly display name. */
+    displayName: string | undefined
+    /** User description with the Alchemy ownership prefix stripped. */
+    description: string | undefined
+    /** Target type of this group. */
+    migrationTargetType: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A VM Migration group that bundles migrating VMs so they can be
+ * managed together.
+ *
+ * Groups have no labels field — Alchemy stamps ownership into the
+ * description so `list` / nuke can find them. `groupId`, `location`, and
+ * `migrationTargetType` are immutable. Display name and description
+ * update in place.
+ *
+ * ### Creating a Group
+ * **Example:** Generated name
+ * ```typescript
+ * const group = yield* GCP.VMMigration.Group("Workloads", {
+ *   displayName: "workloads",
+ *   description: "production vms",
+ * });
+ * ```
+ *
+ * **Example:** Disk-target group
+ * ```typescript
+ * const group = yield* GCP.VMMigration.Group("Disks", {
+ *   groupId: "disk-workloads",
+ *   migrationTargetType: "MIGRATION_TARGET_TYPE_DISKS",
+ * });
+ * ```
+ *
+ * @resource
+ * @category VMMigration
+ */
+export const Group = Resource<Group>("GCP.VMMigration.Group")
+
+const DEFAULT_TARGET: GroupMigrationTargetType = "MIGRATION_TARGET_TYPE_GCE"
+
+const resourceName = (project: string, location: string, groupId: string): infer _ =>
+  `${locationParent(project, location)}/groups/${groupId}`
+
+const toAttrs = (group: vm.Group, project: string, region: string): infer _ => {
+  const name = group.name ?? ""
+  const parsed = parseName(name, "groups", region)
+  const ownership = parseOwnership(group.description)
+  return {
+    name,
+    groupId: parsed.id,
+    project: parsed.project || project,
+    location: parsed.location,
+    displayName: group.displayName,
+    description: ownership.text,
+    migrationTargetType: group.migrationTargetType,
+    createTime: group.createTime,
+    updateTime: group.updateTime,
+  }
+}
+
+const getByName = effect (name: string) => (name.length === 0 ? try Effect.undefined : vm
+  .getProjectsLocationsGroups({ name }) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: try Effect.undefined;
+    default: throw e;
+  })
+
+const listOwned = effect (project: string, region: string) =>
+  (Array.from(
+    try (vm.listProjectsLocationsGroups
+      .pages({
+        parent: `projects/${project}/locations/-`,
+        pageSize: 1000,
+      })
+      |> Stream.flatMap(%, (page) => Stream.fromIterable(page.groups ?? []))
+      |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) {
+    when { _tag: "NotFound" }: (Array.from(
+      try (vm.listProjectsLocationsGroups
+        .pages({
+          parent: locationParent(project, region),
+          pageSize: 1000,
+        })
+        |> Stream.flatMap(%, (page) => Stream.fromIterable(page.groups ?? []))
+        |> Stream.filter(%, (item) => hasOwnershipMarker(item.description))
+        |> Stream.runCollect(%)),
+    )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as vm.Group[]; default: throw e; };
+    default: throw e;
+  }
+
+export const GroupProvider = (): infer _ =>
+  Provider.succeed(Group, {
+    stables: ["name", "groupId", "project", "location", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const env = try GcpEnvironment.current
+      const previousType = olds?.migrationTargetType ?? output?.migrationTargetType ?? DEFAULT_TARGET
+      const nextType = news.migrationTargetType ?? previousType
+      return replaceOnIdentity({
+        previousId: olds?.groupId ?? output?.groupId,
+        nextId: news.groupId ?? olds?.groupId ?? output?.groupId,
+        previousLocation: normalizeLocation(olds?.location ?? output?.location, env.region),
+        nextLocation: normalizeLocation(
+          news.location ?? olds?.location ?? output?.location,
+          env.region,
+        ),
+        extra: previousType !== nextType,
+      })
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const env = try GcpEnvironment.current
+      const groupId = try toPhysicalId(id, olds?.groupId, output?.groupId, "group")
+      const location = normalizeLocation(olds?.location ?? output?.location, env.region)
+      const name = output?.name ?? resourceName(env.project, location, groupId)
+      const existing = try getByName(name)
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing, env.project, env.region)
+      return (try ownedByAlchemy(id, existing.description)) ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const env = try GcpEnvironment.current
+      const items = try listOwned(env.project, env.region)
+      return items.map((item) => toAttrs(item, env.project, env.region))
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const env = try GcpEnvironment.current
+      const groupId = try toPhysicalId(id, news.groupId, output?.groupId, "group")
+      const location = normalizeLocation(news.location ?? output?.location, env.region)
+      const name = resourceName(env.project, location, groupId)
+      const ownership = try createInternalLabels(id)
+      const description = encodeOwnership(ownership, news.description)
+      const displayName = news.displayName ?? groupId
+      const migrationTargetType = news.migrationTargetType ?? DEFAULT_TARGET
+
+      let current = try getByName(output?.name ?? name)
+
+      if (current === undefined) {
+        const created = vm
+          .createProjectsLocationsGroups({
+            parent: locationParent(env.project, location),
+            groupId,
+            body: {
+              displayName,
+              description,
+              migrationTargetType,
+            },
+          }) catch effect (e) => match (e) { when { _tag: "Conflict" }: try Effect.undefined; default: throw e; }
+        if (created !== undefined) {
+          // ALREADY_EXISTS (6): a concurrent create won the race.
+          waitForOperation(created) catch effect (error) => match (error) {
+            when { _tag: "GCP.OperationFailed" }: try (error.code === 6 ? Effect.void : throw error);
+            default: throw error;
+          }
+        }
+        current = try waitUntilExists(getByName(name), name)
+      }
+
+      if (current === undefined) {
+        throw new ResourceNotResolved({ resourceName: name })
+      }
+
+      const descriptionChanged = (current.description ?? "") !== description
+      const displayNameChanged = (current.displayName ?? "") !== displayName
+      const mask = fieldMask([
+        descriptionChanged && "description",
+        displayNameChanged && "displayName",
+      ])
+
+      if (mask.length > 0) {
+        const operation = try vm.patchProjectsLocationsGroups({
+          name: current.name ?? name,
+          updateMask: mask,
+          body: {
+            name: current.name ?? name,
+            displayName,
+            description,
+          },
+        })
+        try waitForOperation(operation)
+        current = try waitUntilExists(getByName(current.name ?? name), current.name ?? name)
+      }
+
+      return toAttrs(current, env.project, env.region)
+    },
+
+    delete: effect ({ output }) => {
+      const operation = (try (vm.deleteProjectsLocationsGroups({ name: output.name })
+        |> Effect.retry(%, {
+          while: (error) => error._tag === "Conflict",
+          times: 8,
+          schedule: Schedule.spaced("2 seconds"),
+        }))) catch effect (e) => match (e) { when { _tag: "NotFound" }: try Effect.undefined; default: throw e; }
+      if (operation !== undefined) {
+        // NOT_FOUND (5): already gone.
+        waitForOperation(operation) catch effect (error) => match (error) {
+          when { _tag: "GCP.OperationFailed" }: try (error.code === 5 ? Effect.void : throw error);
+          default: throw error;
+        }
+      }
+      try waitUntilGone(getByName(output.name), output.name)
+    },
+  })

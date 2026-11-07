@@ -1,0 +1,128 @@
+import { fromChain } from "@distilled.cloud/aws/Credentials"
+import { Region } from "@distilled.cloud/aws/Region"
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime"
+import * as NodeServices from "@effect/platform-node/NodeServices"
+/**
+ * AWS leak sweep — finds (and optionally deletes) alchemy-tagged TEST resources
+ * left behind by crashed/interrupted test runs.
+ *
+ * Discovery is tag-driven: every alchemy resource is branded with
+ * `alchemy::stack` / `alchemy::stage` / `alchemy::id` (see src/Tags.ts
+ * createInternalTags). Test suites deploy with stage `test_$USER` (the default
+ * in packages/alchemy-test/src/Core.ts), so we sweep everything tagged
+ * `alchemy::stage = test_$USER`.
+ *
+ * Primary discovery path: resourcegroupstaggingapi GetResources (regional).
+ * Fallbacks for resources the tagging API can't see from a regional query:
+ *   - IAM roles/policies (global service): listRoles/listPolicies + tag reads
+ *   - EventBridge Scheduler schedules (not taggable): name-pattern heuristic
+ *     (physical names embed `-{stage}-`, see src/PhysicalName.ts)
+ *
+ * Usage:
+ *   node scripts/aws-leak-sweep.ts                      # DRY RUN (default)
+ *   node scripts/aws-leak-sweep.ts --delete             # actually delete
+ *   node scripts/aws-leak-sweep.ts --older-than 12      # only >= 12h old (default 6)
+ *   node scripts/aws-leak-sweep.ts --stage test_sam     # tag stage filter (default test_$USER)
+ *   node scripts/aws-leak-sweep.ts --region us-west-2   # region (default env or us-west-2)
+ *
+ * KMS keys are ALWAYS report-only — never deleted by this tool.
+ * Resources whose age can't be determined are treated as eligible (a leak with
+ * an unknown birthday is still a leak) and shown with age `?`.
+ */
+import { main as main$platform } from "./aws-leak-sweep.platform.ts"
+
+// ---------------------------------------------------------------------------
+// CLI args
+// ---------------------------------------------------------------------------
+
+interface Args {
+  delete: boolean
+  olderThanHours: number
+  stage: string
+  region: string
+}
+// ---------------------------------------------------------------------------
+// Model
+// ---------------------------------------------------------------------------
+
+type Env = import("@distilled.cloud/aws/Credentials").Credentials | Region | HttpClient
+interface Leak {
+  arn: string
+  /** display kind, e.g. "sqs:queue" */
+  kind: string
+  /** physical name / identifier used by delete calls */
+  name: string
+  tags: Record<string, string>
+  createdAt: Date | undefined
+  hourly: boolean
+  reportOnly: boolean
+  reportOnlyReason?: string
+  /** deletion ordering: lower phases first */
+  phase: number
+}
+// ---------------------------------------------------------------------------
+// ARN classification
+// ---------------------------------------------------------------------------
+
+interface Parsed {
+  service: string
+  region: string
+  account: string
+  rest: string
+}
+interface Classified {
+  kind: string
+  name: string
+  hourly: boolean
+  reportOnly: boolean
+  reportOnlyReason?: string
+  phase: number
+}
+const main: typeof main$platform = main$platform
+const command = Command.make(
+  "aws-leak-sweep",
+  {
+    delete: Flag.Boolean("delete").pipe(
+      Flag.withDescription("Actually delete the eligible resources (default is a dry run)"),
+      Flag.withDefault(false),
+    ),
+    olderThanHours: Flag.Finite("older-than").pipe(
+      Flag.withDescription("Only sweep resources at least this many hours old"),
+      Flag.withDefault(6),
+    ),
+    stage: Flag.String("stage").pipe(
+      Flag.withDescription("alchemy::stage tag to sweep (default test_$USER)"),
+      Flag.withFallbackConfig(
+        Config.NonEmptyString("USER").pipe(
+          Config.orElse(() => Config.NonEmptyString("USERNAME")),
+          Config.withDefault("unknown"),
+          Config.map((user) => `test_${user}`),
+        ),
+      ),
+    ),
+    region: Flag.String("region").pipe(
+      Flag.withDescription("AWS region (default $AWS_REGION, $AWS_DEFAULT_REGION or us-west-2)"),
+      Flag.withFallbackConfig(
+        Config.String("AWS_REGION").pipe(
+          Config.orElse(() => Config.String("AWS_DEFAULT_REGION")),
+          Config.withDefault("us-west-2"),
+        ),
+      ),
+    ),
+  },
+  (args) =>
+    main(args)
+    |> Effect.provide(
+      %,
+      Layer.mergeAll(
+        fromChain(),
+        Layer.succeed(Region, Effect.succeed(args.region as any)),
+        FetchHttpClient.layer,
+      ),
+    ),
+).pipe(
+  Command.withDescription("Find (and optionally delete) leaked alchemy-tagged AWS test resources"),
+)
+Command.run(command, { version: "0.0.0" })
+  |> Effect.provide(%, NodeServices.layer)
+  |> NodeRuntime.runMain(%)

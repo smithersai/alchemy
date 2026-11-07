@@ -76,7 +76,8 @@ export interface PurePluginOptions {
 }
 
 const PURE_COMMENT = "/*#__PURE__*/ ";
-const SUPPORTED_FILE_RE = /\.(?:m?[jt]sx?|cjs|cts)$/;
+// A `.vibe` module reaches the transform as the JavaScript VibeLang's plugin compiled.
+const SUPPORTED_FILE_RE = /\.(?:m?[jt]sx?|cjs|cts|vibe)$/;
 
 /**
  * Rolldown plugin that injects `/*#__PURE__*\/` annotations on top-level

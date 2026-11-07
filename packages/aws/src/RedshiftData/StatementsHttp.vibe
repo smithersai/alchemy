@@ -1,0 +1,262 @@
+import * as data from "@distilled.cloud/aws/redshift-data"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Workgroup } from "../RedshiftServerless/Workgroup.vibe"
+import {
+  RedshiftStatementFailed,
+  Statements,
+  type BatchExecuteStatementRequest,
+  type DescribeTableRequest,
+  type ExecuteStatementRequest,
+  type ListDatabasesRequest,
+  type ListSchemasRequest,
+  type ListStatementsRequest,
+  type ListTablesRequest,
+  type StatementsClient,
+  type StatementsOptions,
+} from "./Statements.vibe"
+
+/** Statement statuses that mean the run is over. */
+const isTerminal = (status: string | undefined): boolean =>
+  status === "FINISHED" || status === "FAILED" || status === "ABORTED"
+
+export const StatementsHttp = Layer.effect(
+  Statements,
+  effect {
+    const bind = try AWSBindings.Bind
+    const executeStatement = try AWSBindings.withCredentials(data.executeStatement)
+    const batchExecuteStatement = try AWSBindings.withCredentials(data.batchExecuteStatement)
+    const describeStatement = try AWSBindings.withCredentials(data.describeStatement)
+    const cancelStatement = try AWSBindings.withCredentials(data.cancelStatement)
+    const getStatementResult = try AWSBindings.withCredentials(data.getStatementResult)
+    const getStatementResultV2 = try AWSBindings.withCredentials(data.getStatementResultV2)
+    const describeTableOp = try AWSBindings.withCredentials(data.describeTable)
+    const listDatabasesOp = try AWSBindings.withCredentials(data.listDatabases)
+    const listSchemasOp = try AWSBindings.withCredentials(data.listSchemas)
+    const listTablesOp = try AWSBindings.withCredentials(data.listTables)
+    const listStatementsOp = try AWSBindings.withCredentials(data.listStatements)
+
+    return effect (workgroup: Workgroup, options: StatementsOptions = {}) => {
+      const workgroupName = try workgroup.workgroupName.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.RedshiftData.Statements(${workgroup})`({
+          policyStatements: [
+            {
+              // Workgroup-scoped Data API actions (submit statements and
+              // read database metadata through the workgroup).
+              Effect: "Allow",
+              Action: [
+                "redshift-data:ExecuteStatement",
+                "redshift-data:BatchExecuteStatement",
+                "redshift-data:DescribeTable",
+                "redshift-data:ListDatabases",
+                "redshift-data:ListSchemas",
+                "redshift-data:ListTables",
+              ],
+              Resource: [workgroup.workgroupArn],
+            },
+            {
+              // Statement-scoped actions are authorized per-statement
+              // (owner condition), not by ARN.
+              Effect: "Allow",
+              Action: [
+                "redshift-data:DescribeStatement",
+                "redshift-data:GetStatementResult",
+                "redshift-data:GetStatementResultV2",
+                "redshift-data:CancelStatement",
+                "redshift-data:ListStatements",
+              ],
+              Resource: ["*"],
+            },
+            {
+              // IAM temporary-credential auth against the serverless
+              // workgroup (used when no SecretArn is supplied).
+              Effect: "Allow",
+              Action: ["redshift-serverless:GetCredentials"],
+              Resource: [workgroup.workgroupArn],
+            },
+            ...(options.secretArn
+              ? [
+                {
+                  Effect: "Allow" as const,
+                  Action: ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"],
+                  Resource: [options.secretArn],
+                },
+              ]
+              : []),
+          ],
+        })
+      }
+
+      const database = options.database ?? "dev"
+
+      const execute = effect (request: ExecuteStatementRequest) =>
+        try withSpan(
+          effect {
+            return try executeStatement({
+              ...request,
+              WorkgroupName: try workgroupName,
+              Database: database,
+              SecretArn: options.secretArn,
+              DbUser: options.dbUser,
+            })
+          },
+          `AWS.RedshiftData.Statements.execute(${workgroup.LogicalId})`,
+        )
+
+      const executeBatch = effect (request: BatchExecuteStatementRequest) =>
+        try withSpan(
+          effect {
+            return try batchExecuteStatement({
+              ...request,
+              WorkgroupName: try workgroupName,
+              Database: database,
+              SecretArn: options.secretArn,
+              DbUser: options.dbUser,
+            })
+          },
+          `AWS.RedshiftData.Statements.executeBatch(${workgroup.LogicalId})`,
+        )
+
+      const describe = effect (id: string) =>
+        try withSpan(
+          effect {
+            return try describeStatement({ Id: id })
+          },
+          `AWS.RedshiftData.Statements.describe(${workgroup.LogicalId})`,
+        )
+
+      const cancel = effect (id: string) =>
+        try withSpan(
+          effect {
+            return try cancelStatement({ Id: id })
+          },
+          `AWS.RedshiftData.Statements.cancel(${workgroup.LogicalId})`,
+        )
+
+      const getResult = effect (id: string, nextToken?: string | undefined) =>
+        try withSpan(
+          effect {
+            return try getStatementResult({ Id: id, NextToken: nextToken })
+          },
+          `AWS.RedshiftData.Statements.getResult(${workgroup.LogicalId})`,
+        )
+
+      const getResultV2 = effect (id: string, nextToken?: string | undefined) =>
+        try withSpan(
+          effect {
+            return try getStatementResultV2({ Id: id, NextToken: nextToken })
+          },
+          `AWS.RedshiftData.Statements.getResultV2(${workgroup.LogicalId})`,
+        )
+
+      const describeTable = effect (request: DescribeTableRequest) =>
+        try withSpan(
+          effect {
+            return try describeTableOp({
+              ...request,
+              WorkgroupName: try workgroupName,
+              Database: database,
+              SecretArn: options.secretArn,
+              DbUser: options.dbUser,
+            })
+          },
+          `AWS.RedshiftData.Statements.describeTable(${workgroup.LogicalId})`,
+        )
+
+      const listDatabases = effect (request: ListDatabasesRequest = {}) =>
+        try withSpan(
+          effect {
+            return try listDatabasesOp({
+              ...request,
+              WorkgroupName: try workgroupName,
+              Database: database,
+              SecretArn: options.secretArn,
+              DbUser: options.dbUser,
+            })
+          },
+          `AWS.RedshiftData.Statements.listDatabases(${workgroup.LogicalId})`,
+        )
+
+      const listSchemas = effect (request: ListSchemasRequest = {}) =>
+        try withSpan(
+          effect {
+            return try listSchemasOp({
+              ...request,
+              WorkgroupName: try workgroupName,
+              Database: database,
+              SecretArn: options.secretArn,
+              DbUser: options.dbUser,
+            })
+          },
+          `AWS.RedshiftData.Statements.listSchemas(${workgroup.LogicalId})`,
+        )
+
+      const listTables = effect (request: ListTablesRequest = {}) =>
+        try withSpan(
+          effect {
+            return try listTablesOp({
+              ...request,
+              WorkgroupName: try workgroupName,
+              Database: database,
+              SecretArn: options.secretArn,
+              DbUser: options.dbUser,
+            })
+          },
+          `AWS.RedshiftData.Statements.listTables(${workgroup.LogicalId})`,
+        )
+
+      const listStatements = effect (request: ListStatementsRequest = {}) =>
+        try withSpan(
+          effect {
+            return try listStatementsOp({
+              ...request,
+              WorkgroupName: try workgroupName,
+            })
+          },
+          `AWS.RedshiftData.Statements.listStatements(${workgroup.LogicalId})`,
+        )
+
+      const query = effect (sql: string, parameters?: data.SqlParameter[] | undefined) =>
+        try withSpan(
+          effect {
+            const submitted = try execute({ Sql: sql, Parameters: parameters })
+            const id = submitted.Id!
+            // Poll until the statement reaches a terminal status. Redshift
+            // Serverless typically finishes simple statements in a few seconds;
+            // budget ~2.5 min (30 * 5s).
+            const described = try (describe(id)
+              |> Effect.repeat(%, {
+                schedule: Schedule.spaced("5 seconds"),
+                until: (r) => isTerminal(r.Status),
+                times: 30,
+              }))
+            if (described.Status !== "FINISHED") {
+              throw new RedshiftStatementFailed({
+                statementId: id,
+                status: described.Status ?? "UNKNOWN",
+                error: described.Error,
+              })
+            }
+            return try getResult(id)
+          },
+          `AWS.RedshiftData.Statements.query(${workgroup.LogicalId})`,
+        )
+
+      return {
+        execute,
+        executeBatch,
+        describe,
+        cancel,
+        getResult,
+        getResultV2,
+        describeTable,
+        listDatabases,
+        listSchemas,
+        listTables,
+        listStatements,
+        query,
+      } satisfies StatementsClient
+    }
+  },
+)

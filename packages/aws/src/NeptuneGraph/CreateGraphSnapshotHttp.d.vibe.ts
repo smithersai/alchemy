@@ -1,0 +1,3 @@
+import * as Layer from "effect/Layer";
+import { CreateGraphSnapshot } from "./CreateGraphSnapshot.vibe";
+export declare const CreateGraphSnapshotHttp: Layer.Layer<CreateGraphSnapshot, never, never>;

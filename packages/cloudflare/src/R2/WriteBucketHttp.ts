@@ -2,7 +2,7 @@ import * as r2 from "@distilled.cloud/cloudflare/r2";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-import { authorizeWith } from "../HttpClientUtils.ts";
+import { authorizeWith } from "../HttpClientUtils.vibe";
 import {
   baseObject,
   makeHttpBucketBinding,
@@ -13,7 +13,7 @@ import {
   type R2Auth,
 } from "./BucketHttp.ts";
 import { R2Error, type PutOptions } from "./BucketTypes.ts";
-import { WriteBucket, type WriteBucketClient } from "./WriteBucket.ts";
+import { WriteBucket, type WriteBucketClient } from "./WriteBucket.vibe";
 
 /**
  * HTTP-backed implementation of the {@link WriteBucket} binding.

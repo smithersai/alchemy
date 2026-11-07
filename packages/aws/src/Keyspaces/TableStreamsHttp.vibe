@@ -1,0 +1,84 @@
+import * as keyspacesstreams from "@distilled.cloud/aws/keyspacesstreams"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Table } from "./Table.ts"
+import { TableStreams, type ListTableStreamsRequest, type TableStreamsClient } from "./TableStreams.vibe"
+
+/**
+ * HTTP implementation of {@link TableStreams}: grants the CDC stream read
+ * actions (`cassandra:ListStreams` / `GetStream` / `GetShardIterator` /
+ * `GetRecords`) on the bound table and its streams, and calls the Keyspaces
+ * streams HTTP API with the function's IAM credentials.
+ */
+export const TableStreamsHttp = Layer.effect(
+  TableStreams,
+  effect {
+    const bind = try AWSBindings.Bind
+    const listStreams = try AWSBindings.withCredentials(keyspacesstreams.listStreams)
+    const getStream = try AWSBindings.withCredentials(keyspacesstreams.getStream)
+    const getShardIterator = try AWSBindings.withCredentials(keyspacesstreams.getShardIterator)
+    const getRecords = try AWSBindings.withCredentials(keyspacesstreams.getRecords)
+
+    return effect <T extends Table>(table: T) => {
+      const KeyspaceName = try table.keyspaceName.asEffect()
+      const TableName = try table.tableName.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.Keyspaces.TableStreams(${table})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: [
+                "cassandra:GetRecords",
+                "cassandra:GetShardIterator",
+                "cassandra:GetStream",
+                "cassandra:ListStreams",
+              ],
+              Resource: [table.tableArn, Output.interpolate`${table.tableArn}/stream/*`],
+            },
+          ],
+        })
+      }
+      const logicalId = table.LogicalId
+      const client: TableStreamsClient = {
+        listStreams: effect (
+          request?: ListTableStreamsRequest | undefined,
+        ) =>
+          try withSpan(
+            effect {
+              const keyspaceName = try KeyspaceName
+              const tableName = try TableName
+              return try listStreams({ ...request, keyspaceName, tableName })
+            },
+            `AWS.Keyspaces.TableStreams.listStreams(${logicalId})`,
+          ),
+        getStream: effect (
+          request: keyspacesstreams.GetStreamInput,
+        ) =>
+          try withSpan(
+            effect {
+              return try getStream(request)
+            },
+            `AWS.Keyspaces.TableStreams.getStream(${logicalId})`,
+          ),
+        getShardIterator: effect (request: keyspacesstreams.GetShardIteratorInput) =>
+          try withSpan(
+            effect {
+              return try getShardIterator(request)
+            },
+            `AWS.Keyspaces.TableStreams.getShardIterator(${logicalId})`,
+          ),
+        getRecords: effect (
+          request: keyspacesstreams.GetRecordsInput,
+        ) =>
+          try withSpan(
+            effect {
+              return try getRecords(request)
+            },
+            `AWS.Keyspaces.TableStreams.getRecords(${logicalId})`,
+          ),
+      }
+      return client
+    }
+  },
+)

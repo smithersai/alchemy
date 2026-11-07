@@ -1,0 +1,252 @@
+import * as elbv2 from "@distilled.cloud/aws/elastic-load-balancing-v2"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags } from "alchemy/Tags"
+import type { AccountID } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import type { RegionID } from "../Region.ts"
+
+export type TrustStoreArn = `arn:aws:elasticloadbalancing:${RegionID}:${AccountID}:truststore/${string}`
+
+export interface TrustStoreProps {
+  /** The trust store name. If omitted, a unique name is generated. Changing it replaces the trust store. */
+  name?: string
+  /** The S3 bucket holding the CA certificate bundle (PEM). */
+  caCertificatesBundleS3Bucket: string
+  /** The S3 key of the CA certificate bundle. */
+  caCertificatesBundleS3Key: string
+  /** The S3 object version of the CA certificate bundle. */
+  caCertificatesBundleS3ObjectVersion?: string
+  /** Tags to apply to the trust store. */
+  tags?: Record<string, string>
+}
+
+export interface TrustStore extends
+  Resource<
+    "AWS.ELBv2.TrustStore",
+    TrustStoreProps,
+    {
+      /** The ARN of the trust store. */
+      trustStoreArn: TrustStoreArn
+      /** The name of the trust store. */
+      name: string
+      /** The status of the trust store (`ACTIVE` or `CREATING`). */
+      status: string
+      /** The number of CA certificates in the trust store's bundle. */
+      numberOfCaCertificates: number
+      /** The tags applied to the trust store. */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An ELBv2 trust store. A trust store holds the CA certificate bundle used by
+ * an HTTPS listener configured for mutual TLS (mTLS) `verify` mode to validate
+ * client certificates.
+ * ### Creating a Trust Store
+ * **Example:** Basic trust store from an S3 CA bundle
+ * ```typescript
+ * const trustStore = yield* TrustStore("mtls", {
+ *   caCertificatesBundleS3Bucket: "my-ca-bundles",
+ *   caCertificatesBundleS3Key: "ca-bundle.pem",
+ * });
+ * ```
+ *
+ * **Example:** Using a trust store on an mTLS listener
+ * ```typescript
+ * const listener = yield* Listener("https", {
+ *   loadBalancerArn: lb.loadBalancerArn,
+ *   port: 443,
+ *   protocol: "HTTPS",
+ *   certificates: [certArn],
+ *   mutualAuthentication: {
+ *     mode: "verify",
+ *     trustStoreArn: trustStore.trustStoreArn,
+ *   },
+ *   defaultActions: [
+ *     { type: "forward", targetGroups: [{ targetGroupArn: tg.targetGroupArn }] },
+ *   ],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const TrustStore = Resource<TrustStore>("AWS.ELBv2.TrustStore")
+
+export const TrustStoreProvider = (): infer _ =>
+  Provider.effect(
+    TrustStore,
+    effect {
+      const toName = effect (
+        id: string,
+        props: { name?: string } = {},
+      ) => (props.name ? props.name : try createPhysicalName({ id, maxLength: 32, lowercase: true }))
+
+      const observedTags = effect (arn: string) => {
+        const tagDescriptions = try elbv2.describeTags({
+          ResourceArns: [arn],
+        })
+        return Object.fromEntries(
+          (tagDescriptions.TagDescriptions?.[0]?.Tags ?? [])
+            .filter(
+              (t): t is { Key: string; Value: string } => typeof t.Key === "string" && typeof t.Value === "string",
+            )
+            .map((t) => [t.Key, t.Value]),
+        )
+      }
+
+      return {
+        stables: ["trustStoreArn", "name"],
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return
+          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+            return { action: "replace" } as const
+          }
+        },
+        read: effect ({ output }) => {
+          if (!output) {
+            return undefined
+          }
+          const described = elbv2
+            .describeTrustStores({
+              TrustStoreArns: [output.trustStoreArn],
+            }) catch effect (e) => match (e) {
+              when { _tag: "TrustStoreNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+          const trustStore = described?.TrustStores?.[0]
+          if (!trustStore?.TrustStoreArn) {
+            return undefined
+          }
+          return {
+            ...output,
+            name: trustStore.Name!,
+            status: trustStore.Status!,
+            numberOfCaCertificates: trustStore.NumberOfCaCertificates ?? 0,
+          }
+        },
+        list: effect () => {
+          const trustStores = Array.from(
+            try (elbv2.describeTrustStores.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) =>
+            (page.TrustStores ?? []).filter(
+              (ts): ts is elbv2.TrustStore & { TrustStoreArn: string } => ts.TrustStoreArn != null,
+            )
+          )
+          return try Effect.forEach(
+            trustStores,
+            effect (ts) => {
+              const tags = observedTags(ts.TrustStoreArn) catch effect (e) => match (e) {
+                when { _tag: "TrustStoreNotFoundException" }: {} as Record<string, string>;
+                default: throw e;
+              }
+              return {
+                trustStoreArn: ts.TrustStoreArn as TrustStoreArn,
+                name: ts.Name!,
+                status: ts.Status!,
+                numberOfCaCertificates: ts.NumberOfCaCertificates ?? 0,
+                tags,
+              }
+            },
+            { concurrency: 10 },
+          )
+        },
+        reconcile: effect ({ id, news, session }) => {
+          const name = try toName(id, news)
+          const desiredTags = {
+            ...(try createInternalTags(id)),
+            ...news.tags,
+          }
+
+          // Observe — look up by deterministic name.
+          const described = elbv2
+            .describeTrustStores({ Names: [name] }) catch effect (e) => match (e) {
+              when { _tag: "TrustStoreNotFoundException" }: try Effect.undefined;
+              default: throw e;
+            }
+          let trustStore = described?.TrustStores?.[0]
+
+          // Ensure — create if missing.
+          if (!trustStore?.TrustStoreArn) {
+            const created = try elbv2.createTrustStore({
+              Name: name,
+              CaCertificatesBundleS3Bucket: news.caCertificatesBundleS3Bucket,
+              CaCertificatesBundleS3Key: news.caCertificatesBundleS3Key,
+              CaCertificatesBundleS3ObjectVersion: news.caCertificatesBundleS3ObjectVersion,
+              Tags: Object.entries(desiredTags).map(([Key, Value]) => ({
+                Key,
+                Value,
+              })),
+            })
+            trustStore = created.TrustStores?.[0]
+            if (!trustStore?.TrustStoreArn) {
+              return try Effect.die(new Error("createTrustStore returned no trust store"))
+            }
+          } else {
+            // Sync the CA bundle in place.
+            const modified = try elbv2.modifyTrustStore({
+              TrustStoreArn: trustStore.TrustStoreArn,
+              CaCertificatesBundleS3Bucket: news.caCertificatesBundleS3Bucket,
+              CaCertificatesBundleS3Key: news.caCertificatesBundleS3Key,
+              CaCertificatesBundleS3ObjectVersion: news.caCertificatesBundleS3ObjectVersion,
+            })
+            trustStore = modified.TrustStores?.[0] ?? trustStore
+          }
+
+          const trustStoreArn = trustStore.TrustStoreArn as TrustStoreArn
+
+          // Wait until the trust store is ACTIVE (bundle validation completes).
+          const active = try (effect {
+            return (try elbv2.describeTrustStores({ TrustStoreArns: [trustStoreArn] })).TrustStores?.[0]
+          }
+            |> Effect.repeat(%, {
+              schedule: Schedule.spaced("3 seconds"),
+              until: (ts) => ts?.Status === "ACTIVE",
+              times: 10,
+            }))
+
+          // Sync tags — diff observed cloud tags against desired.
+          const observed = try observedTags(trustStoreArn)
+          const { removed, upsert } = diffTags(observed, desiredTags)
+          if (upsert.length > 0) {
+            try elbv2.addTags({
+              ResourceArns: [trustStoreArn],
+              Tags: upsert,
+            })
+          }
+          if (removed.length > 0) {
+            try elbv2.removeTags({
+              ResourceArns: [trustStoreArn],
+              TagKeys: removed,
+            })
+          }
+
+          try session.note(trustStoreArn)
+          return {
+            trustStoreArn,
+            name: trustStore.Name!,
+            status: active?.Status ?? trustStore.Status!,
+            numberOfCaCertificates: active?.NumberOfCaCertificates ?? trustStore.NumberOfCaCertificates ?? 0,
+            tags: desiredTags,
+          }
+        },
+        delete: effect ({ output }) => {
+          ;(try (elbv2.deleteTrustStore({ TrustStoreArn: output.trustStoreArn })
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "TrustStoreInUseException",
+              schedule: Schedule.max([Schedule.spaced("3 seconds"), Schedule.recurs(8)]),
+            }))) catch effect (e) => match (e) {
+              when { _tag: "TrustStoreNotFoundException" }: try Effect.void;
+              when { _tag: "TrustStoreInUseException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

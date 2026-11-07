@@ -2,7 +2,7 @@ import * as AWS from "@alchemy.run/aws";
 import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
-import { database } from "./database.ts";
+import { database } from "./database.vibe";
 
 // One atomic, replay-safe initial migration. Application roles never own DDL.
 const initialMigration = `DO $$

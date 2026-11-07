@@ -1,0 +1,60 @@
+import type * as runtime from "@cloudflare/workers-types"
+import * as Layer from "effect/Layer"
+import { Worker, WorkerEnvironment } from "../Workers/Worker.ts"
+import { Send, SendEmailError, type SendClient, type SendEmailMessage } from "./Send.vibe"
+import type { SendEmail } from "./SendEmail.ts"
+
+export const SendBinding = Layer.effect(
+  Send,
+  effect {
+    const host = try Worker
+    const env = try Effect.service(WorkerEnvironment)
+
+    return effect (sender: SendEmail) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try host.bind(sender.name, {
+          bindings: [
+            {
+              type: "send_email",
+              name: sender.name,
+              destinationAddress: sender.destinationAddress,
+              allowedDestinationAddresses: sender.allowedDestinationAddresses,
+              allowedSenderAddresses: sender.allowedSenderAddresses,
+            },
+          ],
+          // Dev-only local-emulation opt-out, contributed as a parallel
+          // channel (like `hyperdrives`) so the wire binding stays pure.
+          ...(sender.devRemote ? { devRemote: { [sender.name]: true } } : {}),
+        })
+      }
+
+      const raw = effect {
+        return try Effect.sync(() => (env as Record<string, runtime.SendEmail>)[sender.name]!)
+      }
+
+      const tryPromise = effect <T>(fn: () => Promise<T>): T!SendEmailError =>
+        try Effect.tryPromise({
+          try: fn,
+          catch: (error: any) =>
+            new SendEmailError({
+              message: error?.message ?? "Unknown send_email error",
+              cause: error,
+            }),
+        })
+
+      return {
+        raw,
+        send: effect (message: SendEmailMessage) =>
+          try effect {
+            const s = try raw
+            return try tryPromise(() => s.send(message))
+          },
+        sendRaw: effect (message: runtime.EmailMessage) =>
+          try effect {
+            const s = try raw
+            return try tryPromise(() => s.send(message))
+          },
+      } satisfies SendClient
+    }
+  },
+)

@@ -2,7 +2,7 @@ import * as AWS from "@alchemy.run/aws";
 import type { Output } from "alchemy/Output";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import Api from "./ApiLambda.ts";
+import Api from "./ApiLambda.vibe";
 
 const widget = (name: Output<string>) => ({
   type: "metric" as const,

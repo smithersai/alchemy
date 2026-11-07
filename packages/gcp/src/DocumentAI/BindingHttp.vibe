@@ -1,0 +1,74 @@
+import type { GcpOpContext } from "@distilled.cloud/gcp/documentai_v1"
+import type { Output } from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as GCPBindings from "../GCPBindings.ts"
+import { grantFor, type BindingIam } from "../HttpBinding.ts"
+import type { Processor } from "./Processor.vibe"
+import type { Schema } from "./Schema.vibe"
+import type { SchemasSchemaVersion } from "./SchemasSchemaVersion.vibe"
+
+/**
+ * Distilled ops are OperationMethods: yield them once at Layer construction
+ * (after providing Credentials + HttpClient) so the inner runtime Effect is
+ * `Effect<A, E>` and does not leak `GcpOpContext`.
+ */
+type GcpHttpOp<I, A, E> =
+  & (((input: I) => A!E)!!GcpOpContext)
+  & ((input: I) => A!E!GcpOpContext)
+
+const makeNamedHttpBinding = effect <
+  Resource extends { name: Output<string, never>; LogicalId: string },
+  I extends { name: string },
+  A,
+  E,
+>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+}) => {
+  const bind = try GCPBindings.Bind
+  const run = try GCPBindings.withCredentials(options.operation)
+  return effect (resource: Resource) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${resource})`({
+        iam: [grantFor(options.iam, resource.name)],
+      })
+    }
+    const name = try resource.name.asEffect()
+    return effect (
+      request?: Omit<I, "name"> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          const resourceName = try name
+          return try run({
+            ...request,
+            name: resourceName,
+          } as I)
+        },
+        `${options.tag}(${resource.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Shared HTTP scaffolding for Document AI bindings.
+ * NOT exported from index.ts.
+ */
+export const makeProcessorHttpBinding = effect <I extends { name: string }, A, E>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+}) => try makeNamedHttpBinding<Processor, I, A, E>(options)
+
+export const makeSchemaHttpBinding = effect <I extends { name: string }, A, E>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+}) => try makeNamedHttpBinding<Schema, I, A, E>(options)
+
+export const makeSchemaVersionHttpBinding = effect <I extends { name: string }, A, E>(options: {
+  tag: string
+  iam: BindingIam
+  operation: GcpHttpOp<I, A, E>
+}) => try makeNamedHttpBinding<SchemasSchemaVersion, I, A, E>(options)

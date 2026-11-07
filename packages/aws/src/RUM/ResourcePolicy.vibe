@@ -1,0 +1,167 @@
+import * as rum from "@distilled.cloud/aws/rum"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.ts"
+
+export interface ResourcePolicyProps {
+  /**
+   * Name of the CloudWatch RUM app monitor the policy is attached to. An app
+   * monitor has at most one resource-based policy. Changing the app monitor
+   * replaces the policy.
+   */
+  appMonitorName: string
+  /**
+   * The IAM resource-based policy document (JSON) that controls who may send
+   * events to the app monitor. RUM only accepts `rum:PutRumEvents` as the
+   * statement action. Updated in place. Maximum size is 4 KB.
+   */
+  policyDocument: string
+}
+
+export interface ResourcePolicy extends
+  Resource<
+    "AWS.RUM.ResourcePolicy",
+    ResourcePolicyProps,
+    {
+      /**
+       * Name of the app monitor the policy is attached to.
+       */
+      appMonitorName: string
+      /**
+       * Revision id of the policy document, changed on every update.
+       */
+      policyRevisionId: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * The resource-based policy of a CloudWatch RUM app monitor — controls which
+ * principals may send events to (`rum:PutRumEvents`) or read data from the
+ * app monitor. An app monitor has at most one.
+ *
+ * ### Creating a Resource Policy
+ * **Example:** Allow the Account to Send RUM Events
+ * ```typescript
+ * const monitor = yield* RUM.AppMonitor("SiteMonitor", {
+ *   domain: "example.com",
+ * });
+ * const policy = yield* RUM.ResourcePolicy("SitePolicy", {
+ *   appMonitorName: monitor.appMonitorName,
+ *   policyDocument: monitor.appMonitorArn.map((arn) =>
+ *     JSON.stringify({
+ *       Version: "2012-10-17",
+ *       Statement: [
+ *         {
+ *           Effect: "Allow",
+ *           Principal: { AWS: "arn:aws:iam::123456789012:root" },
+ *           Action: ["rum:PutRumEvents"],
+ *           Resource: arn,
+ *         },
+ *       ],
+ *     }),
+ *   ),
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ResourcePolicy = Resource<ResourcePolicy>("AWS.RUM.ResourcePolicy")
+
+/** Order-insensitive canonical form of a JSON policy document. */
+const canonicalJson = (document: string): string => {
+  const sort = (value: unknown): unknown =>
+    Array.isArray(value)
+      ? value.map(sort)
+      : value !== null && typeof value === "object"
+      ? Object.fromEntries(
+        Object.entries(value as Record<string, unknown>)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([k, v]) => [k, sort(v)]),
+      )
+      : value
+  try {
+    return JSON.stringify(sort(JSON.parse(document)))
+  } catch {
+    return document
+  }
+}
+
+export const ResourcePolicyProvider = (): infer _ =>
+  Provider.effect(
+    ResourcePolicy,
+    effect {
+      /** Read the live policy; typed not-found (policy or monitor) → undefined. */
+      const describe = effect (appMonitorName: string) =>
+        rum
+          .getResourcePolicy({ Name: appMonitorName }) catch effect (e) => match (e) {
+            when { _tag: "PolicyNotFoundException" } or { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      return {
+        stables: ["appMonitorName"],
+
+        diff: effect ({ olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if (olds?.appMonitorName !== news.appMonitorName) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ olds, output }) => {
+          const appMonitorName = output?.appMonitorName ?? olds?.appMonitorName
+          if (!appMonitorName) return undefined
+          const policy = try describe(appMonitorName)
+          if (policy === undefined) return undefined
+          // Resource policies are not taggable — ownership is implied by the
+          // owned parent app monitor.
+          return { appMonitorName, policyRevisionId: policy.PolicyRevisionId }
+        },
+
+        reconcile: effect ({ news, session }) => {
+          const appMonitorName = news!.appMonitorName
+
+          // 1. Observe — the live policy is authoritative.
+          const existing = try describe(appMonitorName)
+
+          // 2/3. Ensure + sync — `putResourcePolicy` is a true upsert; call
+          // it only when the canonical document drifts (the observed
+          // revision id guards against concurrent writers).
+          const policy = existing?.PolicyDocument !== undefined
+              && canonicalJson(existing.PolicyDocument) === canonicalJson(news!.policyDocument)
+            ? existing
+            : try rum.putResourcePolicy({
+              Name: appMonitorName,
+              PolicyDocument: news!.policyDocument,
+              PolicyRevisionId: existing?.PolicyRevisionId,
+            })
+
+          try session.note(appMonitorName)
+          return {
+            appMonitorName,
+            policyRevisionId: policy.PolicyRevisionId,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          try (effect {
+            return rum.deleteResourcePolicy({ Name: output.appMonitorName }) catch effect (e) => match (e) {
+              when { _tag: "PolicyNotFoundException" } or { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+          }
+            |> Effect.retry(%, {
+              while: (e) => e._tag === "ConflictException",
+              schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(8)]),
+            }))
+        },
+
+        // Singleton sub-resource keyed by its parent app monitor.
+        list: effect () => [],
+      }
+    },
+  )

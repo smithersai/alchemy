@@ -1,0 +1,273 @@
+import * as sitewise from "@distilled.cloud/aws/iotsitewise"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags, type Tags } from "alchemy/Tags"
+import * as EffectStream from "effect/Stream"
+import type { Providers } from "../Providers.ts"
+import { fetchSiteWiseTags, matchesDesired, syncSiteWiseTags } from "./internal.vibe"
+
+export error IoTSiteWiseGatewayConflict {
+  message: string
+  cause?: unknown
+}
+
+export error IoTSiteWiseGatewayInvalidProps {
+  message: string
+  cause?: unknown
+}
+
+export error IoTSiteWiseGatewayUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export type GatewayPlatform = sitewise.GatewayPlatform
+
+export interface GatewayProps {
+  /**
+   * A unique name for the gateway.
+   * @default ${app}-${stage}-${id}
+   */
+  gatewayName?: string
+  /**
+   * The gateway's platform: exactly one of `greengrassV2` (an IoT
+   * Greengrass V2 core device), `siemensIE` (a Siemens Industrial Edge
+   * device), or the legacy `greengrass` group. Changing the platform
+   * replaces the gateway.
+   */
+  gatewayPlatform: GatewayPlatform
+  /**
+   * The version of the gateway to create (`"2.0"` or `"3.0"` for
+   * Greengrass V2 platforms). Changing the version replaces the gateway.
+   */
+  gatewayVersion?: string
+  /**
+   * Tags to associate with the gateway.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Gateway extends
+  Resource<
+    "AWS.IoTSiteWise.Gateway",
+    GatewayProps,
+    {
+      /**
+       * Service-assigned UUID of the gateway.
+       */
+      gatewayId: string
+      /**
+       * ARN of the gateway.
+       */
+      gatewayArn: string
+      /**
+       * The gateway's name.
+       */
+      gatewayName: string
+      /**
+       * The gateway's platform, as reported by the service.
+       */
+      gatewayPlatform: GatewayPlatform | undefined
+      /**
+       * The gateway's version, as reported by the service.
+       */
+      gatewayVersion: string | undefined
+      /**
+       * Current tags reported for the gateway.
+       */
+      tags: Record<string, string>
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS IoT SiteWise gateway — the ingestion point that connects
+ * on-premises industrial data sources (e.g. OPC UA servers) to IoT
+ * SiteWise, hosted on an IoT Greengrass V2 core device or a Siemens
+ * Industrial Edge device.
+ *
+ * The cloud-side gateway resource registers immediately; the edge
+ * software syncs to it asynchronously once the referenced core device is
+ * online (the device does not need to exist to create the gateway).
+ *
+ * ### Creating Gateways
+ * **Example:** Greengrass V2 Gateway
+ * ```typescript
+ * import * as AWS from "@alchemy.run/aws";
+ *
+ * const gateway = yield* AWS.IoTSiteWise.Gateway("FactoryGateway", {
+ *   gatewayPlatform: {
+ *     greengrassV2: { coreDeviceThingName: "FactoryCoreDevice" },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Gateway = Resource<Gateway>("AWS.IoTSiteWise.Gateway")
+
+const createGatewayName = effect (
+  id: string,
+  props: { gatewayName?: string | undefined },
+) => (props.gatewayName ? props.gatewayName : try createPhysicalName({ id, maxLength: 256 }))
+
+interface GatewayState {
+  attrs: Gateway["Attributes"]
+  described: sitewise.DescribeGatewayResponse
+}
+
+const readGatewayById = effect (gatewayId: string) => {
+  const described = sitewise
+    .describeGateway({ gatewayId }) catch effect (e) => match (e) {
+      when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+      default: throw e;
+    }
+  if (!described) return undefined
+  const state: GatewayState = {
+    described,
+    attrs: {
+      gatewayId: described.gatewayId,
+      gatewayArn: described.gatewayArn,
+      gatewayName: described.gatewayName,
+      gatewayPlatform: described.gatewayPlatform,
+      gatewayVersion: described.gatewayVersion,
+      tags: try fetchSiteWiseTags(described.gatewayArn),
+    },
+  }
+  return state
+}
+
+const findGatewayByName = effect (name: string) => {
+  const summaries = Array.from(
+    try (sitewise.listGateways.pages({})
+      |> EffectStream.runCollect(%)),
+  ).flatMap((page) => page.gatewaySummaries)
+  const match = summaries.find((summary) => summary.gatewayName === name)
+  if (!match) return undefined
+  return try readGatewayById(match.gatewayId)
+}
+
+export const GatewayProvider = (): infer _ =>
+  Provider.effect(
+    Gateway,
+    effect {
+      return {
+        stables: ["gatewayId", "gatewayArn"],
+        list: effect () => {
+          const summaries = Array.from(
+            try (sitewise.listGateways.pages({})
+              |> EffectStream.runCollect(%)),
+          ).flatMap((page) => page.gatewaySummaries)
+          const hydrated = try Effect.forEach(
+            summaries.map((summary) => summary.gatewayId),
+            (gatewayId) => readGatewayById(gatewayId),
+            { concurrency: 5 },
+          )
+          return hydrated.flatMap((state) => (state === undefined ? [] : [state.attrs]))
+        },
+        read: effect ({ id, olds, output }) => {
+          const state = output?.gatewayId
+            ? try readGatewayById(output.gatewayId)
+            : try findGatewayByName(try createGatewayName(id, olds ?? {}))
+          if (!state) return undefined
+          return (try hasAlchemyTags(id, state.attrs.tags as Tags))
+            ? state.attrs
+            : Unowned(state.attrs)
+        },
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return
+          if (olds === undefined) return
+          // Platform and version are fixed at creation; only the name is
+          // mutable via UpdateGateway.
+          if (
+            !matchesDesired(news.gatewayPlatform, olds.gatewayPlatform)
+            || !matchesDesired(olds.gatewayPlatform, news.gatewayPlatform)
+            || (news.gatewayVersion !== undefined && news.gatewayVersion !== olds.gatewayVersion)
+          ) {
+            return { action: "replace" } as const
+          }
+        },
+        reconcile: effect ({ id, news, output, session }) => {
+          if (!news) {
+            throw new IoTSiteWiseGatewayInvalidProps({
+              message: "IoT SiteWise Gateway requires props",
+            })
+          }
+          const name = try createGatewayName(id, news)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // Observe — prefer the cached id; fall back to a name lookup.
+          let state = output?.gatewayId
+            ? try readGatewayById(output.gatewayId)
+            : try findGatewayByName(name)
+
+          // Ensure — create if missing (gateway creation is synchronous).
+          if (state === undefined) {
+            const created = sitewise
+              .createGateway({
+                gatewayName: name,
+                gatewayPlatform: news.gatewayPlatform,
+                gatewayVersion: news.gatewayVersion,
+                tags: desiredTags,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ResourceAlreadyExistsException" }: try effect {
+                  const existing = try findGatewayByName(name)
+                  if (existing === undefined) {
+                    throw new IoTSiteWiseGatewayConflict({
+                      message: `gateway '${name}' already exists but was not found by name`,
+                    })
+                  }
+                  return {
+                    gatewayId: existing.attrs.gatewayId,
+                    gatewayArn: existing.attrs.gatewayArn,
+                  }
+                };
+                default: throw e;
+              }
+            try session.note(`Created gateway ${name} (${created.gatewayId})`)
+            state = try readGatewayById(created.gatewayId)
+            if (state === undefined) {
+              throw new IoTSiteWiseGatewayUnexpectedResponse({
+                message: `failed to read created gateway ${name}`,
+              })
+            }
+          }
+
+          // Sync — only the name is mutable.
+          if (name !== state.described.gatewayName) {
+            try sitewise.updateGateway({
+              gatewayId: state.attrs.gatewayId,
+              gatewayName: name,
+            })
+            try session.note(`Renamed gateway to ${name}`)
+          }
+
+          // Sync tags — diff against observed cloud tags.
+          try syncSiteWiseTags(state.attrs.gatewayArn, state.attrs.tags, desiredTags)
+
+          try session.note(state.attrs.gatewayArn)
+
+          const final = try readGatewayById(state.attrs.gatewayId)
+          if (!final) {
+            throw new IoTSiteWiseGatewayUnexpectedResponse({
+              message: `failed to read reconciled gateway ${name}`,
+            })
+          }
+          return final.attrs
+        },
+        delete: effect ({ output }) => {
+          sitewise
+            .deleteGateway({ gatewayId: output.gatewayId }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      }
+    },
+  )

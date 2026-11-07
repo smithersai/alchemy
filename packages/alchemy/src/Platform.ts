@@ -14,14 +14,14 @@ import * as Option from "effect/Option";
 import * as Redacted from "effect/Redacted";
 import { Scope } from "effect/Scope";
 import type * as Stream from "effect/Stream";
-import type { Dependencies } from "./Dependencies.ts";
+import type { Dependencies } from "./Dependencies.vibe";
 import { toFqn } from "./FQN.ts";
 import type { HttpEffect } from "./Http.ts";
-import type { InputProps } from "./Input.ts";
+import type { InputProps } from "./Input.vibe";
 import type { Named, Tag } from "./Named.ts";
 import { CurrentNamespace } from "./Namespace.ts";
 import * as Output from "./Output.ts";
-import { ALCHEMY_PHASE } from "./Phase.ts";
+import { ALCHEMY_PHASE } from "./Phase.vibe";
 import type { Provider, ProviderCollectionLike } from "./Provider.ts";
 import { Resource, type ResourceLike } from "./Resource.ts";
 import type { Rpc } from "./Rpc.ts";
@@ -32,9 +32,9 @@ import {
   sanitizeKey,
   type BaseRuntimeContext,
 } from "./RuntimeContext.ts";
-import { Self } from "./Self.ts";
+import { Self } from "./Self.vibe";
 import type { Stack, StackServices } from "./Stack.ts";
-import { StackContext } from "./StackContext.ts";
+import { StackContext } from "./StackContext.vibe";
 import type { Stage } from "./Stage.ts";
 import { effectClass } from "./Util/effect.ts";
 

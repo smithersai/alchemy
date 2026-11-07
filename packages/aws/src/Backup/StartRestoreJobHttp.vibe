@@ -1,0 +1,56 @@
+import * as backup from "@distilled.cloud/aws/backup"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { Role } from "../IAM/Role.ts"
+import { StartRestoreJob, type StartRestoreJobRequest } from "./StartRestoreJob.vibe"
+
+export const StartRestoreJobHttp = Layer.effect(
+  StartRestoreJob,
+  effect {
+    const bind = try AWSBindings.Bind
+    const startRestoreJob = try AWSBindings.withCredentials(backup.startRestoreJob)
+
+    return effect <R extends Role>(restoreRole: R) => {
+      const RoleArn = try restoreRole.roleArn.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.Backup.StartRestoreJob(${restoreRole})`({
+          policyStatements: [
+            // StartRestoreJob authorizes on the recovery point's
+            // underlying resource ARN (a snapshot ARN unknowable at
+            // deploy time), so the grant is on `*`.
+            {
+              Effect: "Allow",
+              Action: ["backup:StartRestoreJob"],
+              Resource: ["*"],
+            },
+            // CRITICAL: without iam:PassRole on the restore role,
+            // StartRestoreJob fails only at runtime with an AccessDenied.
+            {
+              Effect: "Allow",
+              Action: ["iam:PassRole"],
+              Resource: [Output.interpolate`${restoreRole.roleArn}`],
+              Condition: {
+                StringEquals: {
+                  "iam:PassedToService": "backup.amazonaws.com",
+                },
+              },
+            },
+          ],
+        })
+      }
+      return effect (
+        request: StartRestoreJobRequest,
+      ) =>
+        try withSpan(
+          effect {
+            return try startRestoreJob({
+              ...request,
+              IamRoleArn: request.IamRoleArn ?? (try RoleArn),
+            })
+          },
+          `AWS.Backup.StartRestoreJob(${restoreRole.LogicalId})`,
+        )
+    }
+  },
+)

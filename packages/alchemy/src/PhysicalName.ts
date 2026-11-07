@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import * as Effect from "effect/Effect";
 import { base32 } from ".//Util/base32.ts";
-import { ResourceContext } from "./ResourceContext.ts";
+import { ResourceContext } from "./ResourceContext.vibe";
 import { Stack } from "./Stack.ts";
 import { Stage } from "./Stage.ts";
 

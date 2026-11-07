@@ -12,8 +12,8 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
 import { inputExpr, isExpr, nodeOf, variableExpr, type ExprNode } from "./Jsonata.ts";
-import type { AslNode } from "./Node.ts";
-import { isSfnEffect, type SfnEffect } from "./Program.ts";
+import type { AslNode } from "./Node.vibe";
+import { isSfnEffect, type SfnEffect } from "./Program.vibe";
 
 /**
  * The simulation itself went wrong — a missing handler, an unsupported raw

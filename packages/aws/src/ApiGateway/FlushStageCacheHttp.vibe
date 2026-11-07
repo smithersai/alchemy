@@ -1,0 +1,43 @@
+import * as ag from "@distilled.cloud/aws/api-gateway"
+import * as Output from "alchemy/Output"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { RegisterApiGatewayBinding } from "./BindingHttp.vibe"
+import { FlushStageCache } from "./FlushStageCache.vibe"
+import type { ApiGatewayStage } from "./Stage.vibe"
+
+/**
+ * HTTP implementation of the {@link FlushStageCache} binding. Grants
+ * `apigateway:DELETE` on the stage's `/cache/data` path and calls the API
+ * with the host Function's credentials.
+ */
+export const FlushStageCacheHttp = Layer.effect(
+  FlushStageCache,
+  effect {
+    const registerApiGatewayBinding = try RegisterApiGatewayBinding
+    const flushStageCache = try AWSBindings.withCredentials(ag.flushStageCache)
+    return effect <S extends ApiGatewayStage>(stage: S) => {
+      const RestApiId = try stage.restApiId.asEffect()
+      const StageName = try stage.stageName.asEffect()
+      try registerApiGatewayBinding({
+        cap: "AWS.ApiGateway.FlushStageCache",
+        target: stage,
+        verb: "DELETE",
+        paths: (region) => [
+          Output
+            .interpolate`arn:aws:apigateway:${region}::/restapis/${stage.restApiId}/stages/${stage.stageName}/cache/data`,
+        ],
+      })
+      return effect () =>
+        try withSpan(
+          effect {
+            return try flushStageCache({
+              restApiId: try RestApiId,
+              stageName: try StageName,
+            })
+          },
+          `AWS.ApiGateway.FlushStageCache(${stage.LogicalId})`,
+        )
+    }
+  },
+)

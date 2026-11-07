@@ -1,0 +1,322 @@
+import * as greengrassv2 from "@distilled.cloud/aws/greengrassv2"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+
+export interface ComponentVersionProps {
+  /**
+   * The inline component recipe, as a JSON or YAML string. The recipe defines
+   * the component's name (`ComponentName`), version (`ComponentVersion`),
+   * lifecycle, and platform capability.
+   *
+   * Component versions are immutable — changing the recipe replaces the
+   * component version.
+   */
+  recipe: string
+  /**
+   * Tags to apply to the component version. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface ComponentVersion extends
+  Resource<
+    "AWS.GreengrassV2.ComponentVersion",
+    ComponentVersionProps,
+    {
+      /** The ARN of this component version. */
+      arn: string
+      /** The name of the component. */
+      componentName: string
+      /** The semantic version of the component. */
+      componentVersion: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An IoT Greengrass V2 component version created from an inline recipe.
+ * Components are software modules that run on Greengrass core devices.
+ *
+ * Component versions are immutable in the cloud: any change to the recipe
+ * replaces the component version (a new name/version pair is registered and
+ * the previous one is deleted). Only tags are mutable in place.
+ *
+ * ### Creating Component Versions
+ * **Example:** Component from an inline JSON recipe
+ * ```typescript
+ * import * as GreengrassV2 from "@alchemy.run/aws/GreengrassV2";
+ *
+ * const component = yield* GreengrassV2.ComponentVersion("Hello", {
+ *   recipe: JSON.stringify({
+ *     RecipeFormatVersion: "2020-01-25",
+ *     ComponentName: "com.example.Hello",
+ *     ComponentVersion: "1.0.0",
+ *     ComponentDescription: "Prints a greeting",
+ *     ComponentPublisher: "Example",
+ *     Manifests: [
+ *       {
+ *         Platform: { os: "linux" },
+ *         Lifecycle: { run: "echo hello" },
+ *       },
+ *     ],
+ *   }),
+ * });
+ * ```
+ *
+ * **Example:** Tagged component version
+ * ```typescript
+ * const component = yield* GreengrassV2.ComponentVersion("Hello", {
+ *   recipe,
+ *   tags: { team: "edge" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ComponentVersion = Resource<ComponentVersion>("AWS.GreengrassV2.ComponentVersion")
+
+/**
+ * Raised when the inline recipe does not declare a `ComponentName` and
+ * `ComponentVersion` that Alchemy can derive the component identity from.
+ */
+export error GreengrassInvalidRecipe {
+  mutable message: string
+}
+
+/**
+ * Raised when the cloud reports the component version entered the `FAILED`
+ * or `DEPRECATED` state instead of becoming `DEPLOYABLE`.
+ */
+export error GreengrassComponentFailed {
+  mutable message: string
+}
+
+/**
+ * Internal signal used to poll a freshly created component version until the
+ * cloud marks it `DEPLOYABLE`.
+ */
+export error GreengrassComponentNotReady {
+  mutable message: string
+}
+
+// Explicitly-typed pipeable retry helper — inlining `Effect.retry` in a
+// provider lifecycle op leaks `Retry.Return`'s conditional into declaration
+// emit and widens the provider layer to `unknown` R for every consumer of
+// `AWS.providers()`.
+const retryWhileNotReady = effect <A, E extends { readonly _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "GreengrassComponentNotReady",
+    schedule: Schedule.max([Schedule.fixed(2000), Schedule.recurs(15)]),
+  })
+
+/**
+ * Derives `{ componentName, componentVersion }` from an inline recipe string.
+ * JSON recipes are parsed; YAML recipes are scanned for the top-level
+ * `ComponentName:` / `ComponentVersion:` keys.
+ */
+const parseRecipeIdentity = effect (recipe: string) => {
+  const fromJson = try Effect.sync(() => {
+    try {
+      const parsed = JSON.parse(recipe) as Record<string, unknown>
+      const name = parsed.ComponentName
+      const version = parsed.ComponentVersion
+      return typeof name === "string" && typeof version === "string"
+        ? { componentName: name, componentVersion: version }
+        : undefined
+    } catch {
+      return undefined
+    }
+  })
+  if (fromJson !== undefined) return fromJson
+  const yamlValue = (key: string): infer _ => {
+    const match = recipe.match(new RegExp(`^${key}:[ \\t]*['"]?([^'"#\\s]+)`, "m"))
+    return match?.[1]
+  }
+  const componentName = yamlValue("ComponentName")
+  const componentVersion = yamlValue("ComponentVersion")
+  if (componentName === undefined || componentVersion === undefined) {
+    throw new GreengrassInvalidRecipe({
+      message: "the inline recipe must declare top-level ComponentName and ComponentVersion (JSON or YAML)",
+    })
+  }
+  return { componentName, componentVersion }
+}
+
+const normalizeTags = (
+  tags: { [key: string]: string | undefined } | undefined,
+): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(tags ?? {}).filter((entry): entry is [string, string] => entry[1] !== undefined),
+  )
+
+export const ComponentVersionProvider = (): infer _ =>
+  Provider.effect(
+    ComponentVersion,
+    effect {
+      // The component version ARN is deterministic from the recipe identity,
+      // so read/reconcile never depend on persisted output to find it.
+      const componentArn = effect (recipe: string) => {
+        const { accountId, region } = try AWSEnvironment.current
+        const { componentName, componentVersion } = try parseRecipeIdentity(recipe)
+        return {
+          componentName,
+          componentVersion,
+          arn: `arn:aws:greengrass:${region}:${accountId}:components:${componentName}:versions:${componentVersion}`,
+        }
+      }
+
+      const observeComponent = effect (arn: string) =>
+        greengrassv2
+          .describeComponent({ arn }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      return ComponentVersion.Provider.of({
+        stables: ["arn", "componentName", "componentVersion"],
+        list: effect () => {
+          const components = try greengrassv2.listComponents
+            .items({ scope: "PRIVATE" })
+            .pipe(Stream.runCollect)
+          const results: {
+            arn: string
+            componentName: string
+            componentVersion: string
+          }[] = []
+          for (const component of components) {
+            if (component.arn === undefined) continue
+            const versions = (try (greengrassv2.listComponentVersions
+              .items({ arn: component.arn })
+              |> Stream.runCollect(%))) catch effect (e) => match (e) {
+                when { _tag: "ResourceNotFoundException" }: [] as const;
+                default: throw e;
+              }
+            for (const version of versions) {
+              if (
+                version.arn !== undefined
+                && version.componentName !== undefined
+                && version.componentVersion !== undefined
+              ) {
+                results.push({
+                  arn: version.arn,
+                  componentName: version.componentName,
+                  componentVersion: version.componentVersion,
+                })
+              }
+            }
+          }
+          return results
+        },
+        read: effect ({ id, olds, output }) => {
+          const arn = output?.arn
+            ?? (olds !== undefined ? (try componentArn(olds.recipe)).arn : undefined)
+          if (arn === undefined) return undefined
+          const found = try observeComponent(arn)
+          if (
+            found?.arn === undefined
+            || found.componentName === undefined
+            || found.componentVersion === undefined
+          ) {
+            return undefined
+          }
+          const attrs = {
+            arn: found.arn,
+            componentName: found.componentName,
+            componentVersion: found.componentVersion,
+          }
+          return (try hasAlchemyTags(id, normalizeTags(found.tags))) ? attrs : Unowned(attrs)
+        },
+        diff: effect ({ news, olds }) => {
+          if (!isResolved(news)) return undefined
+          // Component versions are immutable — any recipe change replaces.
+          if (olds !== undefined && news.recipe !== olds.recipe) {
+            return { action: "replace" } as const
+          }
+          // fall through: engine default update (tags sync in reconcile)
+        },
+        reconcile: effect ({ id, news, session }) => {
+          const identity = try componentArn(news.recipe)
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative.
+          let live = try observeComponent(identity.arn)
+
+          // 2. ENSURE — create when missing. A concurrent create surfaces as
+          //    the typed ConflictException / RequestAlreadyInProgressException
+          //    tags, which we treat as races and re-observe.
+          if (live === undefined) {
+            greengrassv2
+              .createComponentVersion({
+                inlineRecipe: new TextEncoder().encode(news.recipe),
+                tags: desiredTags,
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" } or { _tag: "RequestAlreadyInProgressException" }: try Effect
+                  .undefined;
+                default: throw e;
+              }
+            // Wait until the cloud marks the version DEPLOYABLE (bounded ~30s;
+            // inline-recipe components typically settle within seconds).
+            live = try (effect {
+              const observed = try observeComponent(identity.arn)
+              const state = observed?.status?.componentState
+              if (state === "FAILED" || state === "DEPRECATED") {
+                throw new GreengrassComponentFailed({
+                  message: `component ${identity.componentName}@${identity.componentVersion} entered state ${state}: ${
+                    observed?.status?.message ?? "no message"
+                  }`,
+                })
+              }
+              if (observed === undefined || state !== "DEPLOYABLE") {
+                throw new GreengrassComponentNotReady({
+                  message: `component ${identity.componentName}@${identity.componentVersion} is ${state ?? "missing"}`,
+                })
+              }
+              return observed
+            }
+              |> retryWhileNotReady(%))
+          }
+
+          // 3. SYNC TAGS — diff against OBSERVED cloud tags so adoption
+          //    converges (create-time tags only apply on first create).
+          const observedTags = normalizeTags(live.tags)
+          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0) {
+            try greengrassv2.tagResource({
+              resourceArn: identity.arn,
+              tags: Object.fromEntries(upsert.map((t) => [t.Key, t.Value])),
+            })
+          }
+          if (removed.length > 0) {
+            try greengrassv2.untagResource({
+              resourceArn: identity.arn,
+              tagKeys: removed,
+            })
+          }
+
+          try session.note(`${identity.componentName}@${identity.componentVersion}`)
+          return {
+            arn: identity.arn,
+            componentName: identity.componentName,
+            componentVersion: identity.componentVersion,
+          }
+        },
+        delete: effect ({ output }) => {
+          greengrassv2
+            .deleteComponent({ arn: output.arn }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

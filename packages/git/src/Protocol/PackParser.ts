@@ -40,7 +40,7 @@ import {
   type Oid,
   type PackEntryType,
 } from "./ObjectCodec.ts";
-import { type StoreError } from "./Store.ts";
+import { type StoreError } from "./Store.vibe";
 import { deflate, inflate, inflateEntry, inflateEntrySync, ZlibError } from "./Zlib.ts";
 
 // ─────────────────────────────────────────────────────────────────────────────

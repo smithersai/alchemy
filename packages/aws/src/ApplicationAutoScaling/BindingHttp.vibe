@@ -1,0 +1,130 @@
+import type * as aas from "@distilled.cloud/aws/application-auto-scaling"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { ScalableTarget } from "./ScalableTarget.vibe"
+import type { ScalingPolicy } from "./ScalingPolicy.vibe"
+
+/**
+ * Shared scaffolding for Application Auto Scaling HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the two
+ * builders below. Everything except the operation and the IAM action list is
+ * boilerplate: the runtime callable injects the scalable target's identity
+ * triple (`ServiceNamespace`/`ResourceId`/`ScalableDimension`) — plus
+ * `PolicyName` for policy-scoped operations — from the bound resource.
+ *
+ * All grants use `Resource: ["*"]` because Application Auto Scaling's
+ * describe/get actions do not support resource-level permissions (only the
+ * tagging actions accept the `scalable-target/…` ARN).
+ */
+
+/** The request fields identifying a scalable target, injected from the bound resource. */
+interface TargetTriple {
+  ServiceNamespace: aas.ServiceNamespace
+  ResourceId: string
+  ScalableDimension: aas.ScalableDimension
+}
+
+/**
+ * Build the impl Effect for a scalable-target-scoped operation: the runtime
+ * callable injects the bound {@link ScalableTarget}'s identity triple and the
+ * deploy-time half grants `actions` on `*`.
+ */
+export const makeTargetScopedHttpBinding = effect <I extends TargetTriple, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.ApplicationAutoScaling.DescribeScalingActivities`. */
+  tag: string
+  /** The distilled operation; the identity triple is injected from the target. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*` (no resource-level permission support). */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (target: ScalableTarget) => {
+    const ServiceNamespace = try target.serviceNamespace.asEffect()
+    const ResourceId = try target.resourceId.asEffect()
+    const ScalableDimension = try target.scalableDimension.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${target})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (
+      request?: Omit<I, keyof TargetTriple> | undefined,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ServiceNamespace: try ServiceNamespace,
+            ResourceId: try ResourceId,
+            ScalableDimension: try ScalableDimension,
+          } as I)
+        },
+        `${options.tag}(${target.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a scaling-policy-scoped operation: the runtime
+ * callable injects the bound {@link ScalingPolicy}'s identity triple and
+ * `PolicyName`, and the deploy-time half grants `actions` on `*`.
+ */
+export const makePolicyScopedHttpBinding = effect <
+  I extends TargetTriple & { PolicyName: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.ApplicationAutoScaling.GetPredictiveScalingForecast`. */
+  tag: string
+  /** The distilled operation; the triple and `PolicyName` are injected from the policy. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on `*` (no resource-level permission support). */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (policy: ScalingPolicy) => {
+    const ServiceNamespace = try policy.serviceNamespace.asEffect()
+    const ResourceId = try policy.resourceId.asEffect()
+    const ScalableDimension = try policy.scalableDimension.asEffect()
+    const PolicyName = try policy.policyName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${policy})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: ["*"],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, keyof TargetTriple | "PolicyName">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            ServiceNamespace: try ServiceNamespace,
+            ResourceId: try ResourceId,
+            ScalableDimension: try ScalableDimension,
+            PolicyName: try PolicyName,
+          } as I)
+        },
+        `${options.tag}(${policy.LogicalId})`,
+      )
+  }
+}

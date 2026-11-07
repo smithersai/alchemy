@@ -19,8 +19,8 @@ import {
   parseLinkName,
   resolveDatasetParent,
   toLinkId,
-} from "./internal.ts";
-import { waitForOperation } from "./operations.ts";
+} from "./internal.vibe";
+import { waitForOperation } from "./operations.vibe";
 
 export type BucketsDatasetsLinkProps = {
   /**

@@ -18,8 +18,8 @@ import {
   toLabels,
 } from "../Labels.ts";
 import type { Providers } from "../Providers.ts";
-import { ignoredCodes } from "./internal.ts";
-import { waitRegionOperation } from "./operations.ts";
+import { ignoredCodes } from "./internal.vibe";
+import { waitRegionOperation } from "./operations.vibe";
 import type {
   SecurityPolicyAdaptiveProtectionConfig,
   SecurityPolicyAdvancedOptionsConfig,

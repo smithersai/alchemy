@@ -1,0 +1,73 @@
+import { Query, type UnwrapPlan } from "@distilled.cloud/core/query"
+import { Railway, type Region } from "@distilled.cloud/railway"
+import * as Effect from "effect/Effect"
+import { resolveWorkspace } from "./Environment.ts"
+
+const regionFields = <E>(region: Query<Region, E>): infer _ => ({
+  id: region.id,
+  name: region.name,
+  region: region.region,
+})
+type RegionsResultItem = UnwrapPlan<ReturnType<typeof regionFields>>
+
+const readRegions = Query.fn((projectId?: string) =>
+  Railway.regions(projectId === undefined ? {} : { projectId }).pipe(Query.map(regionFields))
+)
+
+export type CatalogKind = "region" | "workspace"
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class CatalogNotFound extends Data.TaggedError("Railway.CatalogNotFound")<{
+  kind: CatalogKind
+  ref: string
+}> {}
+
+const notFound = (kind: CatalogKind, ref: string): infer _ => new CatalogNotFound({ kind, ref })
+
+/**
+ * Current token workspace (`me.workspace ?? me.workspaces[0]`).
+ * Feeds `projectCreate({ input: { workspaceId } })`. Not a resource.
+ */
+export const currentWorkspace = resolveWorkspace
+
+/**
+ * List Railway regions via `regions`. Pass `projectId` to scope the
+ * catalog to a project; omit it for the workspace default set.
+ */
+export const listRegions = effect (projectId?: string | undefined) => {
+  const regions = try readRegions(projectId)
+  return regions ?? []
+}
+
+/**
+ * Resolve a Railway region by code (`us-west2`, `us-east4`, …), display
+ * name, or id.
+ */
+export const findRegion = effect (ref: string) => {
+  const regions = try listRegions()
+  const found = regions.find(
+    (item) => item.region === ref || item.name === ref || item.id === ref,
+  )
+  if (found === undefined) {
+    throw notFound("region", ref)
+  }
+  return found
+}
+
+export type RailwayRegion = RegionsResultItem
+
+/**
+ * Workspace audit logs. Query-only — Railway has no audit-log
+ * create/update/delete, so this is not a resource.
+ */
+export {
+  AuditLog,
+  getAuditLog,
+  listAuditLogEventTypes,
+  listAuditLogs,
+  type AuditLogEntry,
+  type AuditLogEnvironment,
+  type AuditLogEventType,
+  type AuditLogProject,
+  type ListAuditLogsOptions,
+} from "./AuditLog.ts"

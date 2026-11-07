@@ -9,8 +9,8 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
-import { waitUntilDeleted } from "./GraphQL.ts";
-import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.ts";
+import { waitUntilDeleted } from "./GraphQL.vibe";
+import { createRailwayName, matchesAlchemyPhysicalName } from "./Metadata.vibe";
 import { ownedProjects, projectEnvironmentIds, type Project } from "./Project.ts";
 import type { Providers } from "./Providers.ts";
 

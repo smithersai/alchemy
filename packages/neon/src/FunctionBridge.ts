@@ -16,7 +16,7 @@ import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Scope from "effect/Scope";
-import { FunctionEnvironment, FunctionRequest } from "./FunctionEnvironment.ts";
+import { FunctionEnvironment, FunctionRequest } from "./FunctionEnvironment.vibe";
 import type { FunctionRuntimeContext } from "./FunctionRuntimeContext.ts";
 import { FunctionUpgradeSockets } from "./FunctionUpgrade.ts";
 

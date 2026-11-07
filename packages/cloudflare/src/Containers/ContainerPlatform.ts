@@ -13,7 +13,7 @@ import type {
   ContainerApplication,
   ContainerServices,
   ContainerShape,
-} from "./ContainerApplication.ts";
+} from "./ContainerApplication.vibe";
 import {
   containerApplicationSettings,
   durableObjectContainerBinding,

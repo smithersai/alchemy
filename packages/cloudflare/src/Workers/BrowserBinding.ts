@@ -3,7 +3,7 @@ import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
 import * as Binding from "./Binding.ts";
-import { makeBindingLayer } from "./BindingLayer.ts";
+import { makeBindingLayer } from "./BindingLayer.vibe";
 import { Browser, type BrowserClient, BrowserError, type BrowserResponse } from "./Browser.ts";
 
 /** The binding value produced by calling {@link Browser} (declared on `env` or `yield*`-ed). */

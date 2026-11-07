@@ -9,8 +9,8 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { GcpEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
-import { normalizeLocation, parentOf, parseResourceName, resourceName, toId } from "./names.ts";
-import { waitForOperation } from "./operations.ts";
+import { normalizeLocation, parentOf, parseResourceName, resourceName, toId } from "./names.vibe";
+import { waitForOperation } from "./operations.vibe";
 import {
   createInternalLabels,
   encodeDescription,

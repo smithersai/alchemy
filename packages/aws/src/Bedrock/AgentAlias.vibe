@@ -1,0 +1,280 @@
+import * as bedrock from "@distilled.cloud/aws/bedrock-agent"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, diffTags, hasAlchemyTags } from "alchemy/Tags"
+
+/**
+ * A rule pointing an alias at a specific agent version (optionally with
+ * provisioned throughput). Omit `routingConfiguration` entirely to have
+ * Bedrock snapshot the current DRAFT into a new version and point the alias
+ * at it — the common "deploy the current agent" case.
+ */
+export interface AgentAliasRoutingConfig {
+  /** The agent version this alias routes invocations to. */
+  agentVersion?: string
+  /** The ARN of a provisioned-throughput commitment to use. */
+  provisionedThroughput?: string
+}
+
+export interface AgentAliasProps {
+  /**
+   * The id of the {@link Agent} this alias belongs to. Accepts an agent's
+   * `agentId` output. Changing the agent triggers a replacement.
+   */
+  agentId: string
+  /**
+   * Name of the alias (1-100 characters; letters, digits, and the
+   * characters `_-`). If omitted, a deterministic physical name is
+   * generated from the app, stage, and logical ID. Changing the name
+   * triggers a replacement.
+   */
+  agentAliasName?: string
+  /**
+   * A description of the alias.
+   */
+  description?: string
+  /**
+   * Which agent version(s) the alias routes to. When omitted, Bedrock
+   * snapshots the current DRAFT into a new version and routes the alias to
+   * it on create.
+   */
+  routingConfiguration?: AgentAliasRoutingConfig[]
+  /**
+   * Tags to apply to the alias. Merged with internal Alchemy tags.
+   */
+  tags?: Record<string, string>
+}
+
+export interface AgentAlias extends
+  Resource<
+    "AWS.Bedrock.AgentAlias",
+    AgentAliasProps,
+    {
+      /**
+       * The unique identifier of the agent the alias routes to.
+       */
+      agentId: string
+      /**
+       * The unique identifier of the alias.
+       */
+      agentAliasId: string
+      /**
+       * The ARN of the alias.
+       */
+      agentAliasArn: string
+      /**
+       * Name of the alias.
+       */
+      agentAliasName: string
+    }
+  >
+{}
+
+/**
+ * An alias for an Amazon Bedrock {@link Agent} — a stable, invocable pointer
+ * to one or more agent versions.
+ *
+ * An alias is what applications invoke (via `bedrock-agent-runtime`
+ * `InvokeAgent`). Creating an alias with no `routingConfiguration` snapshots
+ * the agent's current DRAFT into a new immutable version and routes the alias
+ * to it, so redeploying an updated + prepared agent and recreating the alias
+ * publishes a new version.
+ *
+ * ### Creating Aliases
+ * **Example:** Alias Pointing at the Current Agent
+ * ```typescript
+ * import * as Bedrock from "@alchemy.run/aws/Bedrock";
+ *
+ * const agent = yield* Bedrock.Agent("assistant", {
+ *   foundationModel: "us.anthropic.claude-3-5-sonnet-20240620-v1:0",
+ *   instruction: "You are a helpful assistant.",
+ * });
+ *
+ * const alias = yield* Bedrock.AgentAlias("prod", {
+ *   agentId: agent.agentId,
+ * });
+ * ```
+ *
+ * **Example:** Alias Pinned to a Specific Version
+ * ```typescript
+ * const alias = yield* Bedrock.AgentAlias("prod", {
+ *   agentId: agent.agentId,
+ *   routingConfiguration: [{ agentVersion: "3" }],
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const AgentAlias = Resource<AgentAlias>("AWS.Bedrock.AgentAlias")
+
+/** Alias status values indicating an in-flight transition to wait out. */
+const ALIAS_TRANSIENT = new Set(["CREATING", "UPDATING"])
+
+export const AgentAliasProvider = (): infer _ =>
+  Provider.effect(
+    AgentAlias,
+    effect {
+      const createName = effect (
+        id: string,
+        props: Pick<AgentAliasProps, "agentAliasName">,
+      ) => props.agentAliasName ?? (try createPhysicalName({ id, maxLength: 100 }))
+
+      const getAliasOrUndefined = effect (agentId: string, agentAliasId: string) =>
+        (try bedrock.getAgentAlias({ agentId, agentAliasId })).agentAlias catch effect (e) => match (e) {
+          when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+
+      const findByName = effect (agentId: string, name: string) => {
+        const pages = try bedrock.listAgentAliases.pages({ agentId }).pipe(Stream.runCollect)
+        return Array.from(pages)
+          .flatMap((page) => page.agentAliasSummaries ?? [])
+          .find((s) => s.agentAliasName === name)?.agentAliasId
+      }
+
+      const fetchObservedTags = effect (resourceArn: string) =>
+        (((try bedrock.listTagsForResource({ resourceArn })).tags ?? {}) as Record<string, string>) catch effect (
+          e,
+        ) => match (e) { when { _tag: "ResourceNotFoundException" }: {} as Record<string, string>; default: throw e; }
+
+      const waitForSettled = effect (agentId: string, agentAliasId: string) =>
+        try (effect {
+          return (try bedrock.getAgentAlias({ agentId, agentAliasId })).agentAlias catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+        }
+          |> Effect.repeat(%, {
+            schedule: Schedule.fixed("3 seconds"),
+            until: (alias) => alias === undefined || !ALIAS_TRANSIENT.has(alias.agentAliasStatus),
+            times: 40,
+          }))
+
+      return AgentAlias.Provider.of({
+        stables: ["agentId", "agentAliasId", "agentAliasArn", "agentAliasName"],
+
+        // Aliases are scoped to a parent agent — enumeration requires the
+        // agent id, so this returns empty (the engine keys off state).
+        list: effect () => [],
+
+        read: effect ({ id, olds, output }) => {
+          const agentId = output?.agentId ?? olds?.agentId
+          if (agentId === undefined) return undefined
+          const aliasId = output?.agentAliasId
+            ?? (try findByName(
+              agentId,
+              output?.agentAliasName ?? (try createName(id, olds ?? ({} as AgentAliasProps))),
+            ))
+          if (aliasId === undefined) return undefined
+          const alias = try getAliasOrUndefined(agentId, aliasId)
+          if (alias === undefined || alias.agentAliasStatus === "DELETING") {
+            return undefined
+          }
+          const attrs = {
+            agentId: alias.agentId,
+            agentAliasId: alias.agentAliasId,
+            agentAliasArn: alias.agentAliasArn,
+            agentAliasName: alias.agentAliasName,
+          }
+          const tags = try fetchObservedTags(alias.agentAliasArn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          if ((olds?.agentId ?? undefined) !== (news?.agentId ?? undefined)) {
+            return { action: "replace" } as const
+          }
+          const oldName = try createName(id, olds ?? ({} as AgentAliasProps))
+          const newName = try createName(id, news ?? ({} as AgentAliasProps))
+          if (oldName !== newName) {
+            return { action: "replace" } as const
+          }
+          // description, routingConfiguration, and tags converge via update.
+        },
+
+        reconcile: effect ({ id, news = {} as AgentAliasProps, output, session }) => {
+          const name = output?.agentAliasName ?? (try createName(id, news))
+          const agentId = news.agentId
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE
+          let alias = output?.agentAliasId
+            ? try getAliasOrUndefined(agentId, output.agentAliasId)
+            : undefined
+          if (alias === undefined) {
+            const foundId = try findByName(agentId, name)
+            if (foundId !== undefined) {
+              alias = try getAliasOrUndefined(agentId, foundId)
+            }
+          }
+
+          if (alias === undefined) {
+            // 2. ENSURE
+            const created = try bedrock.createAgentAlias({
+              agentId,
+              agentAliasName: name,
+              description: news.description,
+              routingConfiguration: news.routingConfiguration,
+              tags: desiredTags,
+            })
+            alias = created.agentAlias
+            alias = (try waitForSettled(agentId, alias.agentAliasId)) ?? alias
+          } else {
+            // 3. SYNC
+            alias = (try waitForSettled(agentId, alias.agentAliasId)) ?? alias
+            try bedrock.updateAgentAlias({
+              agentId,
+              agentAliasId: alias.agentAliasId,
+              agentAliasName: name,
+              description: news.description,
+              routingConfiguration: news.routingConfiguration,
+            })
+            alias = (try waitForSettled(agentId, alias.agentAliasId)) ?? alias
+          }
+
+          const agentAliasId = alias.agentAliasId
+          const agentAliasArn = alias.agentAliasArn
+
+          // 3b. SYNC TAGS against observed cloud tags.
+          const observedTags = try fetchObservedTags(agentAliasArn)
+          const { upsert, removed } = diffTags(observedTags, desiredTags)
+          if (upsert.length > 0) {
+            try bedrock.tagResource({
+              resourceArn: agentAliasArn,
+              tags: Object.fromEntries(upsert.map(({ Key, Value }) => [Key, Value])),
+            })
+          }
+          if (removed.length > 0) {
+            try bedrock.untagResource({
+              resourceArn: agentAliasArn,
+              tagKeys: removed,
+            })
+          }
+
+          try session.note(agentAliasArn)
+          return {
+            agentId,
+            agentAliasId,
+            agentAliasArn,
+            agentAliasName: name,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          bedrock
+            .deleteAgentAlias({
+              agentId: output.agentId,
+              agentAliasId: output.agentAliasId,
+            }) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

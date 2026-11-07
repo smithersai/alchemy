@@ -11,7 +11,7 @@ import type { AccountID } from "../Environment.ts";
 import { AWSEnvironment } from "../Environment.ts";
 import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
-import type { VpcId } from "./Vpc.ts";
+import type { VpcId } from "./Vpc.vibe";
 
 export class EgressOnlyInternetGatewayUnexpectedResponse extends Data.TaggedError(
   "EgressOnlyInternetGatewayUnexpectedResponse",

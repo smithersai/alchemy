@@ -16,8 +16,8 @@ import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import * as Stream from "effect/Stream";
 import type { Bucket } from "../Bucket.ts";
-import { TigrisCredentialsMissing } from "../Errors.ts";
-import type { Providers } from "../Providers.ts";
+import { TigrisCredentialsMissing } from "../Errors.vibe";
+import type { Providers } from "../Providers.vibe";
 
 const s3Concurrency = 16;
 

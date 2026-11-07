@@ -1,0 +1,337 @@
+import * as cloudidentity from "@distilled.cloud/gcp/cloudidentity_v1"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.ts"
+import {
+  expandGroup,
+  findSsoAssignment,
+  getSsoAssignment,
+  lastSegment,
+  listOwnedGroups,
+  listSsoAssignments,
+  normalizeCustomer,
+  replaceOnIdentity,
+  sameJson,
+  sameText,
+  updateMaskOf,
+} from "./internal.vibe"
+import { resourceNameFromOperation, waitForOperation, waitUntilPresent } from "./operations.vibe"
+
+export type InboundSsoAssignmentSamlSsoInfo = {
+  /** `inboundSamlSsoProfiles/{id}` to use when `ssoMode` is `SAML_SSO`. */
+  inboundSamlSsoProfile?: string
+}
+
+export type InboundSsoAssignmentOidcSsoInfo = {
+  /** `inboundOidcSsoProfiles/{id}` to use when `ssoMode` is `OIDC_SSO`. */
+  inboundOidcSsoProfile?: string
+}
+
+export type InboundSsoAssignmentSignInBehavior = {
+  /** When to redirect sign-ins to the IdP. */
+  redirectCondition?: cloudidentity.SignInBehaviorRedirectConditionEnum | (string & {})
+}
+
+export type InboundSsoAssignmentProps = {
+  /**
+   * Customer (`customers/C0123abc` or `customers/my_customer`).
+   * Immutable — changing it replaces the assignment.
+   * @default "customers/my_customer"
+   */
+  customer?: string
+  /**
+   * Target group (`groups/{group}`). Immutable — changing it
+   * replaces the assignment. Rank must be ≥ 1 when set.
+   */
+  targetGroup?: string
+  /**
+   * Target org unit (`orgUnits/{org_unit}`). Immutable — changing
+   * it replaces the assignment. Rank must be 0 (the default).
+   */
+  targetOrgUnit?: string
+  /**
+   * Inbound SSO behavior.
+   */
+  ssoMode?: cloudidentity.InboundSsoAssignmentSsoModeEnum | (string & {})
+  /**
+   * Priority among group-targeted assignments. Zero for org units;
+   * ≥ 1 for groups.
+   */
+  rank?: number
+  /**
+   * SAML profile, required when `ssoMode` is `SAML_SSO`.
+   */
+  samlSsoInfo?: InboundSsoAssignmentSamlSsoInfo
+  /**
+   * OIDC profile, required when `ssoMode` is `OIDC_SSO`.
+   */
+  oidcSsoInfo?: InboundSsoAssignmentOidcSsoInfo
+  /**
+   * Sign-in redirect behavior.
+   */
+  signInBehavior?: InboundSsoAssignmentSignInBehavior
+}
+
+export type InboundSsoAssignment = Resource<
+  "GCP.CloudIdentity.InboundSsoAssignment",
+  InboundSsoAssignmentProps,
+  {
+    /** Resource name `inboundSsoAssignments/{assignment}`. */
+    name: string
+    /** Assignment id (last path segment). */
+    assignmentId: string
+    /** Customer. */
+    customer: string | undefined
+    /** Target group, if any. */
+    targetGroup: string | undefined
+    /** Target org unit, if any. */
+    targetOrgUnit: string | undefined
+    /** SSO mode. */
+    ssoMode: string | undefined
+    /** Rank. */
+    rank: number | undefined
+    /** SAML profile, if any. */
+    samlSsoInfo: InboundSsoAssignmentSamlSsoInfo | undefined
+    /** OIDC profile, if any. */
+    oidcSsoInfo: InboundSsoAssignmentOidcSsoInfo | undefined
+    /** Sign-in behavior. */
+    signInBehavior: InboundSsoAssignmentSignInBehavior | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * An inbound SSO assignment for a Cloud Identity group or org unit.
+ *
+ * Assignments have no labels or description, so Alchemy lists
+ * assignments whose `targetGroup` is an alchemy-owned group for
+ * `list` / nuke. Customer, target group, and target org unit are
+ * identity; mode, rank, and IdP details update in place.
+ *
+ * ### Creating an Assignment
+ * **Example:** SAML SSO for a group
+ * ```typescript
+ * const assignment = yield* GCP.CloudIdentity.InboundSsoAssignment(
+ *   "EngSso",
+ *   {
+ *     targetGroup: group.name,
+ *     ssoMode: "SAML_SSO",
+ *     rank: 1,
+ *     samlSsoInfo: { inboundSamlSsoProfile: profile.name },
+ *   },
+ * );
+ * ```
+ *
+ * @resource
+ * @category CloudIdentity
+ */
+export const InboundSsoAssignment = Resource<InboundSsoAssignment>(
+  "GCP.CloudIdentity.InboundSsoAssignment",
+)
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class InboundSsoAssignmentNotResolved extends Data.TaggedError(
+  "GCP.CloudIdentity.InboundSsoAssignmentNotResolved",
+)<{
+  resourceName: string
+}> {}
+
+const toAttrs = (assignment: cloudidentity.InboundSsoAssignment): infer _ => {
+  const name = assignment.name ?? ""
+  return {
+    name,
+    assignmentId: lastSegment(name),
+    customer: assignment.customer,
+    targetGroup: assignment.targetGroup,
+    targetOrgUnit: assignment.targetOrgUnit,
+    ssoMode: assignment.ssoMode,
+    rank: assignment.rank,
+    samlSsoInfo: assignment.samlSsoInfo
+      ? { inboundSamlSsoProfile: assignment.samlSsoInfo.inboundSamlSsoProfile }
+      : undefined,
+    oidcSsoInfo: assignment.oidcSsoInfo
+      ? { inboundOidcSsoProfile: assignment.oidcSsoInfo.inboundOidcSsoProfile }
+      : undefined,
+    signInBehavior: assignment.signInBehavior
+      ? { redirectCondition: assignment.signInBehavior.redirectCondition }
+      : undefined,
+  }
+}
+
+const expandTargetGroup = (value: string | undefined): infer _ =>
+  value !== undefined && value.length > 0 ? expandGroup(value) : undefined
+
+const observeAssignment = effect (input: {
+  name?: string
+  targetGroup?: string
+  targetOrgUnit?: string
+  ssoMode?: string
+}) =>
+  try findSsoAssignment({
+    name: input.name,
+    targetGroup: expandTargetGroup(input.targetGroup),
+    targetOrgUnit: input.targetOrgUnit,
+    ssoMode: input.ssoMode,
+  })
+
+export const InboundSsoAssignmentProvider = (): infer _ =>
+  Provider.succeed(InboundSsoAssignment, {
+    stables: ["name", "assignmentId", "customer", "targetGroup", "targetOrgUnit"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousCustomer = olds?.customer ?? output?.customer
+      const nextCustomer = news.customer !== undefined ? normalizeCustomer(news.customer) : previousCustomer
+      const previousGroup = olds?.targetGroup ?? output?.targetGroup
+      const nextGroup = expandTargetGroup(news.targetGroup)
+      const previousOu = olds?.targetOrgUnit ?? output?.targetOrgUnit
+      return replaceOnIdentity({
+        previousId: previousGroup,
+        nextId: nextGroup,
+        previousParent: previousCustomer,
+        nextParent: nextCustomer,
+        extra: news.targetOrgUnit !== undefined
+          && previousOu !== undefined
+          && news.targetOrgUnit !== previousOu,
+      })
+    },
+
+    read: effect ({ olds, output }) => {
+      const existing = try observeAssignment({
+        name: output?.name,
+        targetGroup: olds?.targetGroup ?? output?.targetGroup,
+        targetOrgUnit: olds?.targetOrgUnit ?? output?.targetOrgUnit,
+        ssoMode: olds?.ssoMode ?? output?.ssoMode,
+      })
+      if (existing === undefined) return undefined
+      const attrs = toAttrs(existing)
+      return output !== undefined ? attrs : Unowned(attrs)
+    },
+
+    list: effect () => {
+      const groups = try listOwnedGroups()
+      const names = new Set(
+        groups.map((group) => group.name).filter((name): name is string => name !== undefined),
+      )
+      const assignments = try listSsoAssignments()
+      return assignments
+        .filter(
+          (assignment) => assignment.targetGroup !== undefined && names.has(assignment.targetGroup),
+        )
+        .map(toAttrs)
+    },
+
+    reconcile: effect ({ news, output }) => {
+      const customer = normalizeCustomer(news.customer ?? output?.customer)
+      const targetGroup = expandTargetGroup(news.targetGroup)
+      const desired: cloudidentity.InboundSsoAssignment = {
+        customer,
+        targetGroup,
+        targetOrgUnit: news.targetOrgUnit,
+        ssoMode: news.ssoMode,
+        rank: news.rank,
+        samlSsoInfo: news.samlSsoInfo,
+        oidcSsoInfo: news.oidcSsoInfo,
+        signInBehavior: news.signInBehavior,
+      }
+
+      let current = try observeAssignment({
+        name: output?.name,
+        targetGroup,
+        targetOrgUnit: news.targetOrgUnit ?? output?.targetOrgUnit,
+        ssoMode: news.ssoMode ?? output?.ssoMode,
+      })
+
+      if (current === undefined) {
+        const created = cloudidentity
+          .createInboundSsoAssignments({ body: desired }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try Effect.undefined;
+            default: throw e;
+          }
+        if (created !== undefined) {
+          waitForOperation(created) catch effect (e) => match (e) {
+            when { _tag: "GCP.CloudIdentity.OperationPending" }: try Effect.void;
+            default: throw e;
+          }
+          const createdName = resourceNameFromOperation(created)
+          if (createdName !== undefined) {
+            current = try getSsoAssignment(createdName)
+          }
+        }
+        if (current === undefined) {
+          current = waitUntilPresent(
+            observeAssignment({
+              name: output?.name,
+              targetGroup,
+              targetOrgUnit: news.targetOrgUnit,
+              ssoMode: news.ssoMode,
+            }),
+            targetGroup ?? news.targetOrgUnit ?? "",
+          ) catch effect (e) => match (e) {
+            when { _tag: "GCP.CloudIdentity.OperationPending" }: try observeAssignment({
+              targetGroup,
+              targetOrgUnit: news.targetOrgUnit,
+              ssoMode: news.ssoMode,
+            });
+            default: throw e;
+          }
+        }
+      }
+
+      if (current === undefined) {
+        throw new InboundSsoAssignmentNotResolved({
+          resourceName: output?.name ?? targetGroup ?? news.targetOrgUnit ?? "",
+        })
+      }
+
+      const name = current.name ?? output?.name ?? ""
+      const modeChanged = news.ssoMode !== undefined && !sameText(current.ssoMode, news.ssoMode)
+      const rankChanged = news.rank !== undefined && (current.rank ?? 0) !== news.rank
+      const samlChanged = news.samlSsoInfo !== undefined && !sameJson(current.samlSsoInfo, news.samlSsoInfo)
+      const oidcChanged = news.oidcSsoInfo !== undefined && !sameJson(current.oidcSsoInfo, news.oidcSsoInfo)
+      const signInChanged = news.signInBehavior !== undefined && !sameJson(current.signInBehavior, news.signInBehavior)
+      const updateMask = updateMaskOf(
+        modeChanged ? "sso_mode" : undefined,
+        rankChanged ? "rank" : undefined,
+        samlChanged ? "saml_sso_info" : undefined,
+        oidcChanged ? "oidc_sso_info" : undefined,
+        signInChanged ? "sign_in_behavior" : undefined,
+      )
+
+      if (updateMask.length > 0 && name.length > 0) {
+        const patched = try cloudidentity.patchInboundSsoAssignments({
+          name,
+          updateMask,
+          body: {
+            ssoMode: news.ssoMode,
+            rank: news.rank,
+            samlSsoInfo: news.samlSsoInfo,
+            oidcSsoInfo: news.oidcSsoInfo,
+            signInBehavior: news.signInBehavior,
+          },
+        })
+        waitForOperation(patched) catch effect (e) => match (e) {
+          when { _tag: "GCP.CloudIdentity.OperationPending" }: try Effect.void;
+          default: throw e;
+        }
+        current = (try getSsoAssignment(name)) ?? current
+      }
+
+      return toAttrs(current)
+    },
+
+    delete: effect ({ output }) => {
+      if (output.name.length === 0) return
+      const deleted = cloudidentity
+        .deleteInboundSsoAssignments({ name: output.name }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.undefined;
+          default: throw e;
+        }
+      if (deleted !== undefined) {
+        try waitForOperation(deleted, { notFoundOk: true })
+      }
+    },
+  })

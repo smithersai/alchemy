@@ -54,7 +54,7 @@ import {
   type ResourceBinding,
   type ResourceLike,
 } from "./Resource.ts";
-import { ResourceContext } from "./ResourceContext.ts";
+import { ResourceContext } from "./ResourceContext.vibe";
 import {
   InvalidResourceSelection,
   UnsafeSelectionBoundary,

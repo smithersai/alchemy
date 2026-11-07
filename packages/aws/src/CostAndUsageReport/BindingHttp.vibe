@@ -1,0 +1,132 @@
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { PolicyStatement } from "../IAM/Policy.vibe"
+import { Region } from "../Region.ts"
+import type { ReportDefinition } from "./ReportDefinition.vibe"
+
+/**
+ * Shared HTTP scaffolding for the AWS Cost and Usage Report (`cur`) runtime
+ * bindings.
+ *
+ * NOT exported from `index.ts` — every `{Op}Http.ts` in this service is a
+ * thin `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below.
+ *
+ * The CUR control plane is a global service hosted only in `us-east-1`, so
+ * every operation is resolved with the distilled Region pinned there —
+ * exactly like the {@link ReportDefinition} provider. The distilled Region
+ * service value is `Effect<RegionName>`, not a raw string, hence
+ * `Effect.succeed`.
+ */
+const CUR_REGION = "us-east-1" as const
+
+const pinCur = effect <A, E, R>(effect: A!E!R) =>
+  try effect {
+    provide Region = Effect.succeed(CUR_REGION) {
+      return try effect
+    }
+  }
+
+/**
+ * Build the impl Effect for an account-level CUR operation.
+ * `cur:DescribeReportDefinitions` enumerates every report definition in the
+ * account, so the grant is on `Resource: ["*"]`.
+ */
+export const makeCurHttpBinding = effect <I extends object, A, E, R>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"DescribeReportDefinitions"`.
+   */
+  capability: string
+  /** IAM actions granted on `Resource: ["*"]`. */
+  iamActions: readonly string[]
+  /** The distilled operation implementing the capability. */
+  operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try (options.operation
+    |> pinCur(%)
+    |> AWSBindings.withCredentials(%))
+
+  return effect () => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const policyStatements: PolicyStatement[] = [
+        {
+          Effect: "Allow",
+          Action: [...options.iamActions],
+          Resource: ["*"],
+        },
+      ]
+      try bind`AWS.CostAndUsageReport.${options.capability}()`({
+        policyStatements,
+      })
+    }
+    return effect (request?: I | undefined) =>
+      try withSpan(
+        effect {
+          // The region must also be pinned at the call site: the yield-time
+          // snapshot is only a fallback — the calling fiber's ambient Region
+          // (the host Function's own region) wins over it.
+          return try pinCur(op((request ?? {}) as I))
+        },
+        `AWS.CostAndUsageReport.${options.capability}`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an operation scoped to one
+ * {@link ReportDefinition}. The runtime callable injects the bound report's
+ * name as the request's `ReportName`; the deploy-time half grants
+ * `iamActions` on the report definition's ARN
+ * (`arn:aws:cur:us-east-1:{account}:definition/{name}`).
+ */
+export const makeReportDefinitionHttpBinding = effect <
+  I extends { ReportName?: string },
+  A,
+  E,
+  R,
+>(options: {
+  /**
+   * Short capability name used in the binding sid and runtime span, e.g.
+   * `"ListTagsForResource"`.
+   */
+  capability: string
+  /** IAM actions granted on the report definition's ARN. */
+  iamActions: readonly string[]
+  /** The distilled operation; `ReportName` is injected. */
+  operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try (options.operation
+    |> pinCur(%)
+    |> AWSBindings.withCredentials(%))
+
+  return effect (report: ReportDefinition) => {
+    const ReportName = try report.reportName.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`AWS.CostAndUsageReport.${options.capability}(${report})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.iamActions],
+            Resource: [report.reportArn],
+          },
+        ],
+      })
+    }
+    return effect (request?: Omit<I, "ReportName"> | undefined) =>
+      try withSpan(
+        effect {
+          // Call-site region pin — see makeCurHttpBinding above.
+          return try pinCur(
+            op({
+              ...request,
+              ReportName: try ReportName,
+            } as I),
+          )
+        },
+        `AWS.CostAndUsageReport.${options.capability}(${report.LogicalId})`,
+      )
+  }
+}

@@ -18,6 +18,9 @@
 // Every phase is timed. Each timing is printed as it finishes, prefixed with
 // the package name, and the build's timings are appended to the package's
 // `.cache/build-timings.jsonl`.
+import { spawnSync } from "node:child_process";
+import { existsSync, realpathSync } from "node:fs";
+import * as NodePath from "node:path";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Console from "effect/Console";
@@ -49,6 +52,16 @@ export interface BuildOptions {
     readonly worker?: boolean;
     /** Subpaths that resolve to source in every condition. */
     readonly sourceOnly?: ReadonlyArray<string>;
+    /** Per-entry runtime targets; types and ordinary Node targets are preserved. */
+    readonly runtimeConditions?: Readonly<
+      Record<
+        string,
+        {
+          readonly bun?: string;
+          readonly worker?: string;
+        }
+      >
+    >;
   };
   /** Copy THIRD_PARTY_LICENSES.md into the package. */
   readonly thirdPartyLicenses?: boolean;
@@ -107,17 +120,67 @@ export const exec = (bin: string, ...args: Array<string>): Step => ({
   }),
 });
 
-/**
- * Run the TypeScript compiler: tsrs where it ships a native binary, `tsc`
- * elsewhere (Windows, Intel macOS).
- */
-export const typescript = (...args: Array<string>): Step =>
-  exec(
-    ["darwin-arm64", "linux-x64", "linux-arm64"].includes(`${process.platform}-${process.arch}`)
-      ? "tsrs"
-      : "tsc",
-    ...args,
+/** Whether a recursive build reaches a project containing VibeLang source. */
+const buildReachesVibe = (project: string, seen = new Set<string>()): boolean => {
+  if (!existsSync(project)) return false;
+  const file = realpathSync(project);
+  if (seen.has(file)) return false;
+  seen.add(file);
+  const result = spawnSync(
+    process.env.VIBELANG_BINARY || "vibelang",
+    ["--showConfig", "--project", file, "--pretty", "false"],
+    { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
   );
+  if (result.error || result.status !== 0) {
+    throw new Error(
+      `Cannot inspect build project ${file}: ${result.error?.message || result.stdout + result.stderr}`,
+    );
+  }
+  const config = JSON.parse(result.stdout) as {
+    files?: Array<string>;
+    references?: Array<{ path: string }>;
+  };
+  if (config.files?.some((source) => source.endsWith(".vibe"))) return true;
+  return (config.references || []).some(({ path }) => {
+    const target = NodePath.resolve(NodePath.dirname(file), path);
+    return buildReachesVibe(
+      target.endsWith(".json") ? target : NodePath.join(target, "tsconfig.json"),
+      seen,
+    );
+  });
+};
+
+/**
+ * Compile a package and its VibeLang project references with `vibelang`.
+ * A wholly TypeScript build uses `tsrs` where it ships a native binary and
+ * `tsc` elsewhere. A stock recursive build must never overwrite Vibe outputs.
+ */
+export const typescript = (...args: Array<string>): Step => ({
+  name: `typescript ${args.join(" ")}`,
+  run: Effect.fn(function* (packageDirectory) {
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    const sources = yield* fs.readDirectory(path.join(packageDirectory, "src"), {
+      recursive: true,
+    });
+    const native =
+      sources.some((file) => file.endsWith(".vibe")) ||
+      (yield* Effect.sync(() => {
+        const projects = ["tsconfig.json", ...args.filter((arg) => arg.endsWith(".json"))];
+        const seen = new Set<string>();
+        return projects.some((project) =>
+          buildReachesVibe(NodePath.resolve(packageDirectory, project), seen),
+        );
+      }));
+    const binary = native
+      ? "vibelang"
+      : ["darwin-arm64", "linux-x64", "linux-arm64"].includes(`${process.platform}-${process.arch}`)
+        ? "tsrs"
+        : "tsc";
+    yield* Console.log(`[typescript] compiler=${binary}`);
+    yield* exec(binary, ...args).run(packageDirectory);
+  }),
+});
 
 /** Copy a file, paths relative to the package directory. */
 export const copy = (from: string, to: string): Step => ({
@@ -152,6 +215,12 @@ const generateExports = Effect.fn(function* (
   const path = yield* Path.Path;
   const sourceDirectory = path.join(packageDirectory, "src");
   const directories = yield* sourceDirectories(sourceDirectory);
+  const vibeModules = (yield* fs.readDirectory(sourceDirectory, { recursive: true }))
+    .map((file) => file.split(path.sep).join("/"))
+    .filter((file) => file.endsWith(".vibe") && !file.endsWith("/index.vibe"))
+    .map((file) => file.slice(0, -".vibe".length))
+    .filter((module) => module !== "index")
+    .sort((a, b) => a.localeCompare(b));
 
   const indexes: Array<string> = [];
   for (const directory of directories) {
@@ -173,6 +242,7 @@ const generateExports = Effect.fn(function* (
         .sort((a, b) => a.localeCompare(b))
         .map((directory) => [`./${directory}`, `./src/${directory}/index.ts`]),
     ),
+    ...Object.fromEntries(vibeModules.map((module) => [`./${module}`, `./src/${module}.vibe`])),
     "./*": "./src/*.ts",
     "./package.json": "./package.json",
   } as Record<string, string | null>;
@@ -199,13 +269,162 @@ const internalBlocks = Effect.fn(function* (packageDirectory: string) {
         .filter((directory) => !isInternal(directory.split("/").slice(0, -1).join("/")))
         .map((directory) => [`./${directory}/*`, null]),
     ),
-    ...(files.includes("internal.ts") ? { "./internal": null } : {}),
+    ...(files.includes("internal.ts") || files.includes("internal.vibe")
+      ? { "./internal": null }
+      : {}),
     ...(files.some(
-      (file) => file.endsWith("/internal.ts") && !isInternal(file.slice(0, file.lastIndexOf("/"))),
+      (file) =>
+        (file.endsWith("/internal.ts") || file.endsWith("/internal.vibe")) &&
+        !isInternal(file.slice(0, file.lastIndexOf("/"))),
     )
       ? { "./*/internal": null }
       : {}),
   };
+});
+
+// Exact entries with the same ordered target as their winning wildcard
+// add no resolution behavior and make Node repeatedly deserialize a large map.
+const compactPublishExports = (entries: Record<string, unknown>): Record<string, unknown> => {
+  const result = { ...entries };
+  const patterns = Object.keys(result)
+    .filter((key) => key.includes("*"))
+    .sort((a, b) => b.indexOf("*") - a.indexOf("*") || b.length - a.length);
+  const expand = (value: unknown, capture: string): unknown => {
+    if (typeof value === "string") return value.replaceAll("*", capture);
+    if (Array.isArray(value)) return value.map((item) => expand(item, capture));
+    if (value !== null && typeof value === "object")
+      return Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [key, expand(item, capture)]),
+      );
+    return value;
+  };
+  for (const [key, value] of Object.entries(result)) {
+    if (key === "." || key.includes("*") || value === null) continue;
+    const pattern = patterns.find((candidate) => {
+      const star = candidate.indexOf("*");
+      return (
+        star === candidate.lastIndexOf("*") &&
+        key.length >= candidate.length &&
+        key.startsWith(candidate.slice(0, star)) &&
+        key.endsWith(candidate.slice(star + 1))
+      );
+    });
+    if (!pattern) continue;
+    const star = pattern.indexOf("*");
+    const capture = key.slice(star, key.length - (pattern.length - star - 1));
+    if (JSON.stringify(value) === JSON.stringify(expand(result[pattern], capture)))
+      delete result[key];
+  }
+  return result;
+};
+
+const applyRuntimeConditions = (
+  entries: Record<string, unknown>,
+  overrides: NonNullable<BuildOptions["exports"]>["runtimeConditions"],
+): Record<string, unknown> => {
+  const result = { ...entries };
+  const patterns = Object.keys(result)
+    .filter((key) => key.includes("*"))
+    .sort((a, b) => b.indexOf("*") - a.indexOf("*") || b.length - a.length);
+  for (const [key, override] of Object.entries(overrides ?? {})) {
+    let entry = result[key];
+    if (!Object.hasOwn(result, key)) {
+      const pattern = patterns.find((candidate) => {
+        const star = candidate.indexOf("*");
+        return (
+          star === candidate.lastIndexOf("*") &&
+          key.length >= candidate.length &&
+          key.startsWith(candidate.slice(0, star)) &&
+          key.endsWith(candidate.slice(star + 1))
+        );
+      });
+      if (pattern) {
+        const star = pattern.indexOf("*");
+        const capture = key.slice(star, key.length - (pattern.length - star - 1));
+        const target = result[pattern];
+        entry =
+          target !== null && typeof target === "object" && !Array.isArray(target)
+            ? Object.fromEntries(
+                Object.entries(target).map(([name, value]) => [
+                  name,
+                  typeof value === "string" ? value.replaceAll("*", capture) : value,
+                ]),
+              )
+            : target;
+      }
+    }
+    if (entry === null || typeof entry !== "object" || Array.isArray(entry))
+      throw new Error("Runtime conditions need an existing module export: " + key);
+    const conditions = Object.fromEntries(
+      Object.entries(override).filter(([, value]) => value !== undefined),
+    );
+    const target = entry as Record<string, unknown>;
+    result[key] = Object.fromEntries([
+      ...(Object.hasOwn(target, "types") ? [["types", target.types]] : []),
+      ...Object.entries(conditions),
+      ...Object.entries(target).filter(
+        ([name]) => name !== "types" && !Object.hasOwn(conditions, name),
+      ),
+    ]);
+  }
+  return result;
+};
+
+export const bunEntries = (...entries: Array<string>): Step => ({
+  name: "Bun source entries",
+  run: (directory) =>
+    Effect.tryPromise(async () => {
+      const { buildBunEntries } = await import("./bun-entries.ts");
+      await buildBunEntries(directory, entries);
+    }),
+});
+
+// Ask the installed compiler which top-level declarations are inline modules.
+// Comment/string lookalikes never become export exclusions.
+const inlineModuleBlocks = Effect.fn(function* (packageDirectory: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const sourceDirectory = path.join(packageDirectory, "src");
+  const files = (yield* fs.readDirectory(sourceDirectory, { recursive: true })).map((file) =>
+    file.split(path.sep).join("/"),
+  );
+  const authored = new Set(files);
+  const blocks: Record<string, null> = {};
+  for (const file of files.filter((name) => /\.vibex?$/.test(name))) {
+    const sourcePath = path.join(sourceDirectory, file);
+    const source = yield* fs.readFileString(sourcePath);
+    if (!/\bmodule\s/.test(source)) continue;
+    const result = spawnSync(
+      NodePath.join(import.meta.dirname, "node_modules/.bin/vibelang"),
+      ["--estree", sourcePath],
+      { input: source, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 },
+    );
+    if (result.status !== 0)
+      throw new Error("Cannot inspect inline modules in " + file + ": " + result.stderr);
+    const ast = JSON.parse(result.stdout) as {
+      ast: { body: Array<{ type: string; id?: { name: string } }> };
+    };
+    for (const declaration of ast.ast.body) {
+      if (declaration.type !== "VibeModuleDeclaration") continue;
+      const name = declaration.id?.name;
+      if (!name) throw new Error("Inline module has no identifier in " + file);
+      // Current compiler spelling plus VIP-40's injective filename spelling.
+      const lower = Array.from(name, (char) => Array.from(char.toLowerCase())[0]).join("");
+      const encoded = Array.from(name, (char) =>
+        /^[a-z0-9_]$/.test(char) ? char : "-" + char.codePointAt(0)!.toString(16) + "-",
+      ).join("");
+      for (const suffix of new Set([lower, encoded])) {
+        const stem = file + "." + suffix;
+        if (
+          suffix !== "raw" &&
+          [".ts", ".tsx", ".mts", ".cts", ".vibe", ".vibex"].some((ext) => authored.has(stem + ext))
+        )
+          throw new Error("Inline module output collides with an authored source: " + stem);
+        blocks["./" + stem] = null;
+      }
+    }
+  }
+  return blocks;
 });
 
 const syncPublishExports = Effect.fn(function* (
@@ -227,42 +446,86 @@ const syncPublishExports = Effect.fn(function* (
     yield* fs.readFileString(path.join(packageDirectory, "tsconfig.json")),
   ) as { compilerOptions: { outDir: string } };
   const outDir = `./${path.normalize(tsconfig.compilerOptions.outDir)}/`;
+  const hasVibeSource = (yield* fs.readDirectory(path.join(packageDirectory, "src"), {
+    recursive: true,
+  })).some((file) => file.endsWith(".vibe"));
+
+  // Inline TypeScript modules emit *.vibe.raw implementations. They are
+  // compiler details, while the facade remains a public module.
+  if (hasVibeSource) {
+    const sourceExports = packageJson.exports;
+    packageJson.exports = Object.fromEntries(
+      Object.entries(sourceExports).flatMap((entry) => [
+        ...(entry[0].endsWith("*") && !Object.hasOwn(sourceExports, entry[0] + ".vibe.raw")
+          ? [[entry[0] + ".vibe.raw", null] as const]
+          : []),
+        entry,
+      ]),
+    );
+  }
+
+  const inlineBlocks = yield* inlineModuleBlocks(packageDirectory);
+  for (const key of Object.keys(inlineBlocks)) {
+    if (Object.hasOwn(packageJson.exports, key) && packageJson.exports[key] !== null)
+      throw new Error("Inline module output conflicts with a public export: " + key);
+  }
+  packageJson.exports = { ...packageJson.exports, ...inlineBlocks };
 
   const exports = Object.fromEntries(
-    Object.entries(packageJson.exports).map(([subpath, source]) => {
-      // Non-source entries (bin scripts, package.json) publish as-is.
-      if (source === null || !source.startsWith("./src/")) {
-        return [subpath, source];
-      }
-      if (options.sourceOnly?.includes(subpath)) {
-        return [subpath, { types: source, bun: source, default: source }];
-      }
+    Object.entries(packageJson.exports)
+      // Development tests may reach internal modules; published consumers may not.
+      .filter(([subpath, source]) => source === null || !isInternal(subpath))
+      .map(([subpath, source]) => {
+        // Non-source entries (bin scripts, package.json) publish as-is.
+        if (source === null || !source.startsWith("./src/")) {
+          return [subpath, source];
+        }
+        if (options.sourceOnly?.includes(subpath)) {
+          return [subpath, { types: source, bun: source, default: source }];
+        }
 
-      const output = source.replace(/^\.\/src\//, outDir);
-      return [
-        subpath,
-        {
-          types: output.replace(/\.tsx?$/, ".d.ts"),
-          bun: source,
-          ...(options.worker ? { worker: source } : {}),
-          default: output.replace(/\.tsx?$/, ".js"),
-        },
-      ];
-    }),
+        const output = source.replace(/^\.\/src\//, outDir);
+        return [
+          subpath,
+          {
+            types: output.replace(/\.(?:tsx?|vibe)$/, ".d.ts"),
+            // Published .vibe source needs VibeLang's loader, and a .ts source can import it, so
+            // a package holding any .vibe module gives its consumers the build everywhere.
+            ...(hasVibeSource
+              ? {}
+              : { bun: source, ...(options.worker ? { worker: source } : {}) }),
+            default: output.replace(/\.(?:tsx?|vibe)$/, ".js"),
+          },
+        ];
+      }),
   );
 
   // Blocks go just before `./*` so the published map reads top to bottom.
   const blocks = options.generate ? yield* internalBlocks(packageDirectory) : {};
   const published = Object.fromEntries(
-    Object.entries(exports).flatMap((entry) =>
-      entry[0] === "./*" ? [...Object.entries(blocks), entry] : [entry],
-    ),
+    Object.entries(exports).flatMap((entry) => [
+      // A declaration sidecar is not a runtime module. Keep it private even
+      // where a source-only wildcard intentionally publishes TypeScript.
+      ...(options.sourceOnly?.includes(entry[0]) && entry[0].endsWith("*")
+        ? [[entry[0] + ".d.vibe", null] as const]
+        : []),
+      ...(entry[0] === "./*" ? Object.entries(blocks) : []),
+      entry,
+    ]),
   );
 
   yield* fs.writeFileString(
     packageJsonPath,
     JSON.stringify(
-      { ...packageJson, publishConfig: { ...packageJson.publishConfig, exports: published } },
+      {
+        ...packageJson,
+        publishConfig: {
+          ...packageJson.publishConfig,
+          exports: compactPublishExports(
+            applyRuntimeConditions(published, options.runtimeConditions),
+          ),
+        },
+      },
       null,
       2,
     ) + "\n",

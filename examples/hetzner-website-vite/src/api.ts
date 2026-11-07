@@ -6,7 +6,7 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import { ENSURE_NOTES_SQL, Notes } from "./schema.ts";
-import { API_PORT, Box, NeonBranch } from "./shared.ts";
+import { API_PORT, Box, NeonBranch } from "./shared.vibe";
 
 const cors = {
   "access-control-allow-origin": "*",

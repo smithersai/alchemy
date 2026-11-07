@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as AWSBindings from "../AWSBindings.ts";
-import type { Stream } from "./Stream.ts";
-import type { StreamConsumer } from "./StreamConsumer.ts";
+import type { Stream } from "./Stream.vibe";
+import type { StreamConsumer } from "./StreamConsumer.vibe";
 
 /**
  * Shared scaffolding for AWS Kinesis HTTP bindings.

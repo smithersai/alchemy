@@ -2,10 +2,10 @@ import type * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import { makeBatchedSink } from "alchemy/Util/BatchedSink";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { BatchWriteItem } from "./BatchWriteItem.ts";
+import { BatchWriteItem } from "./BatchWriteItem.vibe";
 import { GrantTables } from "./BindingHttp.ts";
 import type { Table } from "./Table.ts";
-import { TableSink, type TableSinkEntry } from "./TableSink.ts";
+import { TableSink, type TableSinkEntry } from "./TableSink.vibe";
 
 const encoder = new TextEncoder();
 

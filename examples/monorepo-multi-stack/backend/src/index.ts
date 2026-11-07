@@ -1,3 +1,3 @@
-export * from "./Client.ts";
-export * from "./Spec.ts";
+export * from "./Client.vibe";
+export * from "./Spec.vibe";
 export * from "./Stack.ts";

@@ -1,0 +1,198 @@
+import * as appconfig from "@distilled.cloud/aws/appconfig"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, hasAlchemyTags } from "alchemy/Tags"
+import { AWSEnvironment } from "../Environment.ts"
+import type { Providers } from "../Providers.ts"
+import { applicationArn, readAppConfigTags, syncAppConfigTags } from "./internal.vibe"
+
+export interface ApplicationProps {
+  /**
+   * Name of the application. Must be 1-64 characters. If omitted, a
+   * deterministic physical name is generated. Changing the name replaces the
+   * application.
+   */
+  applicationName?: string
+  /**
+   * Description of the application.
+   */
+  description?: string
+  /**
+   * User-defined tags for the application.
+   */
+  tags?: Record<string, string>
+}
+
+export interface Application extends
+  Resource<
+    "AWS.AppConfig.Application",
+    ApplicationProps,
+    {
+      applicationId: string
+      applicationName: string
+      applicationArn: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS AppConfig application — the top-level container that groups the
+ * environments and configuration profiles for one application's configuration.
+ *
+ * ### Creating an Application
+ * **Example:** Basic Application
+ * ```typescript
+ * const app = yield* AppConfig.Application("MyApp", {
+ *   description: "Configuration for my service",
+ * });
+ * ```
+ *
+ * **Example:** Named Application with Tags
+ * ```typescript
+ * const app = yield* AppConfig.Application("MyApp", {
+ *   applicationName: "my-service",
+ *   tags: { team: "platform" },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const Application = Resource<Application>("AWS.AppConfig.Application")
+
+export const ApplicationProvider = (): infer _ =>
+  Provider.effect(
+    Application,
+    effect {
+      const toName = effect (
+        id: string,
+        props: Partial<ApplicationProps>,
+      ) => (props.applicationName ? props.applicationName : try createPhysicalName({ id, maxLength: 64 }))
+
+      /** Find an application by name (get requires the generated id). */
+      const findByName = effect (name: string) => {
+        const apps = Array.from(
+          try (appconfig.listApplications.pages({})
+            |> Stream.runCollect(%)),
+        ).flatMap((page) => page.Items ?? [])
+        return apps.find((a) => a.Name === name)
+      }
+
+      const readApplication = effect (applicationId: string) =>
+        appconfig
+          .getApplication({ ApplicationId: applicationId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      return {
+        stables: ["applicationId", "applicationName", "applicationArn"],
+
+        diff: effect ({ id, olds, news }) => {
+          if (!isResolved(news)) return undefined
+          if ((try toName(id, olds ?? {})) !== (try toName(id, news ?? {}))) {
+            return { action: "replace" } as const
+          }
+        },
+
+        read: effect ({ id, olds, output }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const app = output?.applicationId
+            ? try readApplication(output.applicationId)
+            : try findByName(try toName(id, olds ?? {}))
+          if (app?.Id === undefined) return undefined
+          const arn = applicationArn(region, accountId, app.Id)
+          const attrs = {
+            applicationId: app.Id,
+            applicationName: app.Name!,
+            applicationArn: arn,
+          }
+          const tags = try readAppConfigTags(arn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const { accountId, region } = try AWSEnvironment.current
+          const name = output?.applicationName ?? (try toName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...internalTags, ...news.tags }
+
+          // 1. Observe — cloud state is authoritative; output is only a cache.
+          let observed = output?.applicationId
+            ? try readApplication(output.applicationId)
+            : undefined
+          if (observed === undefined) {
+            observed = try findByName(name)
+          }
+
+          // 2. Ensure — create if missing.
+          if (observed?.Id === undefined) {
+            observed = try appconfig.createApplication({
+              Name: name,
+              Description: news.description,
+              Tags: desiredTags,
+            })
+          } else if (news.description !== undefined && observed.Description !== news.description) {
+            // 3. Sync — description is mutable in place.
+            observed = try appconfig.updateApplication({
+              ApplicationId: observed.Id,
+              Description: news.description,
+            })
+          }
+
+          const arn = applicationArn(region, accountId, observed.Id!)
+
+          // 3b. Sync tags — diff against OBSERVED cloud tags.
+          try syncAppConfigTags(arn, desiredTags)
+
+          try session.note(name)
+          return {
+            applicationId: observed.Id!,
+            applicationName: observed.Name ?? name,
+            applicationArn: arn,
+          }
+        },
+
+        delete: effect ({ output }) => {
+          // An application cannot be deleted while environments or
+          // configuration profiles still exist under it ("Cannot delete
+          // application ..., because there are still environments existing
+          // under it" — surfaced as BadRequestException). Children are
+          // deleted first by the engine/nuke, but their deletion is
+          // eventually consistent, so absorb the window with a bounded retry.
+          ;(try (appconfig.deleteApplication({ ApplicationId: output.applicationId })
+            |> Effect.retry(%, {
+              while: (e): boolean => e._tag === "BadRequestException",
+              schedule: Schedule.fixed("3 seconds"),
+              times: 5,
+            }))) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+
+        list: effect () => {
+          const { accountId, region } = try AWSEnvironment.current
+          const apps = Array.from(
+            try (appconfig.listApplications.pages({})
+              |> Stream.runCollect(%)),
+          ).flatMap((page) => page.Items ?? [])
+          return apps.flatMap((a) =>
+            a.Id !== undefined && a.Name !== undefined
+              ? [
+                {
+                  applicationId: a.Id,
+                  applicationName: a.Name,
+                  applicationArn: applicationArn(region, accountId, a.Id),
+                },
+              ]
+              : []
+          )
+        },
+      }
+    },
+  )

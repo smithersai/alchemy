@@ -16,7 +16,7 @@ import {
   cappedKvsRetrySchedule,
   retryForKvsReadiness,
   withKvsRegionFn,
-} from "./common.ts";
+} from "./common.vibe";
 
 export interface KvRoutesUpdateProps {
   /** ARN of the CloudFront KeyValueStore. */

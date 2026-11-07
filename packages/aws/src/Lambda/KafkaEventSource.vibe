@@ -1,0 +1,181 @@
+import * as Namespace from "alchemy/Namespace"
+import * as Output from "alchemy/Output"
+import type lambda from "aws-lambda"
+import * as Layer from "effect/Layer"
+import {
+  KafkaEventSource as MSKKafkaEventSource,
+  type KafkaEventSourceProps,
+  type KafkaEventSourceService,
+  type MSKRecord,
+} from "../Kafka/ClusterEventSource.vibe"
+import type { ServerlessCluster } from "../Kafka/ServerlessCluster.vibe"
+import { EventSourceMapping } from "./EventSourceMapping.ts"
+import * as Lambda from "./Function.ts"
+
+export const isMSKEvent = (event: any): event is lambda.MSKEvent =>
+  event?.eventSource === "aws:kafka"
+  && typeof event?.records === "object"
+  && event.records !== null
+
+// The cluster ARN is `arn:...:cluster/name/uuid`. Topic and consumer-group
+// resources live under sibling namespaces (`topic/` and `group/`) scoped to the
+// same cluster path; MSK IAM auth grants data-plane access via these ARNs.
+const topicArnGlob = (clusterArn: string): infer _ => `${clusterArn.replace(":cluster/", ":topic/")}/*`
+const groupArnGlob = (clusterArn: string): infer _ => `${clusterArn.replace(":cluster/", ":group/")}/*`
+// `arn:{partition}:kafka:{region}:{account}:cluster/...` →
+// `arn:{partition}:ec2:{region}:{account}:`
+const ec2ArnPrefix = (clusterArn: string): infer _ => {
+  const [arn, partition, , region, account] = clusterArn.split(":")
+  return `${arn}:${partition}:ec2:${region}:${account}:`
+}
+
+/** @binding */
+export const KafkaEventSource = Layer.effect(
+  MSKKafkaEventSource,
+  effect {
+    const host = try Lambda.eventSourceHost("AWS.Lambda.KafkaEventSource")
+    const Mapping = try EventSourceMapping
+
+    return (effect <StreamReq = never, Req = never>(
+      cluster: ServerlessCluster,
+      props: KafkaEventSourceProps,
+      process: (
+        stream: Stream<MSKRecord, never, StreamReq>,
+      ) => void!never!Req,
+    ) => {
+      // Deploy-time: grant the IAM actions MSK IAM authentication requires and
+      // create the event-source mapping. Skipped once running inside the
+      // deployed Function (the global guard). Namespaced under the host so the
+      // mapping's logical identity is stable.
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try Namespace.push(
+          host.LogicalId,
+          effect {
+            try host.bind`Allow(${host}, AWS.Lambda.KafkaEventSource(${cluster}))`({
+              policyStatements: [
+                {
+                  // Cluster-level: connect + describe (Lambda poller + IAM auth).
+                  Effect: "Allow",
+                  Action: [
+                    "kafka-cluster:Connect",
+                    "kafka-cluster:DescribeCluster",
+                    "kafka-cluster:DescribeClusterDynamicConfiguration",
+                    "kafka:DescribeClusterV2",
+                    "kafka:GetBootstrapBrokers",
+                  ],
+                  Resource: [cluster.clusterArn],
+                },
+                {
+                  // Topic-level: read records + describe topics.
+                  Effect: "Allow",
+                  Action: ["kafka-cluster:DescribeTopic", "kafka-cluster:ReadData"],
+                  Resource: [cluster.clusterArn.pipe(Output.map(topicArnGlob))],
+                },
+                {
+                  // Consumer-group-level: join/commit as a consumer group.
+                  Effect: "Allow",
+                  Action: ["kafka-cluster:DescribeGroup", "kafka-cluster:AlterGroup"],
+                  Resource: [cluster.clusterArn.pipe(Output.map(groupArnGlob))],
+                },
+                {
+                  // The poller reaches the cluster through ENIs in its VPC;
+                  // Lambda validates these on the execution role when the
+                  // mapping is created. EC2 Describe* actions do not support
+                  // resource-level permissions, so scope them to the
+                  // cluster's region instead.
+                  Effect: "Allow",
+                  Action: [
+                    "ec2:DescribeNetworkInterfaces",
+                    "ec2:DescribeSecurityGroups",
+                    "ec2:DescribeSubnets",
+                    "ec2:DescribeVpcs",
+                  ],
+                  Resource: ["*"],
+                  Condition: {
+                    StringEquals: {
+                      "aws:RequestedRegion": cluster.clusterArn.pipe(
+                        Output.map((arn) => arn.split(":")[3]!),
+                      ),
+                    },
+                  },
+                },
+                {
+                  // ENIs may only be created in the cluster's subnets with
+                  // the cluster's security groups.
+                  Effect: "Allow",
+                  Action: ["ec2:CreateNetworkInterface"],
+                  Resource: Output.all(
+                    cluster.clusterArn,
+                    cluster.subnetIds,
+                    cluster.securityGroupIds,
+                  ).pipe(
+                    Output.map(([clusterArn, subnetIds, securityGroupIds]) => [
+                      `${ec2ArnPrefix(clusterArn)}network-interface/*`,
+                      ...subnetIds.map((id) => `${ec2ArnPrefix(clusterArn)}subnet/${id}`),
+                      ...securityGroupIds.map(
+                        (id) => `${ec2ArnPrefix(clusterArn)}security-group/${id}`,
+                      ),
+                    ]),
+                  ),
+                },
+                {
+                  // ...and only ENIs in those subnets may be deleted.
+                  Effect: "Allow",
+                  Action: ["ec2:DeleteNetworkInterface"],
+                  Resource: [
+                    cluster.clusterArn.pipe(
+                      Output.map((arn) => `${ec2ArnPrefix(arn)}network-interface/*`),
+                    ),
+                  ],
+                  Condition: {
+                    ArnEquals: {
+                      "ec2:Subnet": Output.all(cluster.clusterArn, cluster.subnetIds).pipe(
+                        Output.map(([clusterArn, subnetIds]) =>
+                          subnetIds.map((id) => `${ec2ArnPrefix(clusterArn)}subnet/${id}`)
+                        ),
+                      ),
+                    },
+                  },
+                },
+              ],
+            })
+
+            try Mapping(
+              `AWS.Lambda.EventSourceMapping(${host.LogicalId}, ${cluster.LogicalId})`,
+              {
+                functionName: Lambda.qualifiedNameOf(host),
+                eventSourceArn: cluster.clusterArn,
+                topics: props.topics,
+                amazonManagedKafkaEventSourceConfig: props.consumerGroupId
+                  ? { ConsumerGroupId: props.consumerGroupId }
+                  : undefined,
+                batchSize: props.batchSize,
+                maximumBatchingWindow: props.maximumBatchingWindow,
+                startingPosition: props.startingPosition ?? "LATEST",
+                enabled: props.enabled ?? true,
+                filterCriteria: props.filterCriteria,
+                provisionedPollerConfig: props.provisionedPollerConfig,
+              },
+            )
+          },
+        )
+      }
+
+      try host.listen(
+        effect {
+          return effect (event: any) => {
+            if (isMSKEvent(event)) {
+              // `event.records` maps `topic-partition` → MSKRecord[]; flatten
+              // to a single stream of records.
+              const records = Object.values(event.records).flat() as MSKRecord[]
+              if (records.length > 0) {
+                return try (process(Stream.fromArray(records))
+                  |> Effect.orDie(%))
+              }
+            }
+          }
+        },
+      )
+    }) as KafkaEventSourceService
+  },
+)

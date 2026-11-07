@@ -1,0 +1,241 @@
+import * as elbv2 from "@distilled.cloud/aws/elastic-load-balancing-v2"
+import { isResolved } from "alchemy/Diff"
+import type { Input } from "alchemy/Input"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import type { Providers } from "../Providers.ts"
+import { type TargetGroup, type TargetGroupArn } from "./TargetGroup.vibe"
+
+export interface TargetGroupAttachmentProps {
+  /** The target group to register the target with. Changing it replaces the attachment. */
+  targetGroupArn: Input<TargetGroupArn> | TargetGroup
+  /**
+   * The target ID: an instance ID (`instance` target type), an IP address
+   * (`ip`), a Lambda function ARN (`lambda`), or an ALB ARN (`alb`). Changing
+   * it replaces the attachment.
+   */
+  targetId: string
+  /**
+   * The port on which the target receives traffic. Defaults to the target
+   * group port. Not applicable to `lambda` targets. Changing it replaces the
+   * attachment.
+   */
+  port?: number
+  /**
+   * The Availability Zone of the target. Set to `all` to register an IP
+   * target outside the target group's VPC (e.g. an on-prem address). Changing
+   * it replaces the attachment.
+   */
+  availabilityZone?: string
+}
+
+export interface TargetGroupAttachment extends
+  Resource<
+    "AWS.ELBv2.TargetGroupAttachment",
+    TargetGroupAttachmentProps,
+    {
+      /** The ARN of the target group the target is registered with. */
+      targetGroupArn: TargetGroupArn
+      /** The registered target: an instance ID, IP address, or Lambda/ALB ARN. */
+      targetId: string
+      /** The port the target receives traffic on, if applicable. */
+      port: number | undefined
+      /** The Availability Zone the target was registered in, if specified. */
+      availabilityZone: string | undefined
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * Registers a single target (instance, IP address, Lambda function, or ALB)
+ * with an ELBv2 target group. ECS services register their own tasks, so this
+ * resource matters for Lambda-behind-ALB, EC2 instances, and static IPs.
+ *
+ * For `lambda` targets, the Lambda function's resource policy must allow
+ * `elasticloadbalancing.amazonaws.com` to invoke it, scoped to the target
+ * group ARN — create a {@link Permission} first. The provider retries the
+ * registration briefly while that permission propagates.
+ * ### Registering Targets
+ * **Example:** Lambda function target
+ * ```typescript
+ * const tg = yield* TargetGroup("fn", { targetType: "lambda" });
+ * yield* Lambda.Permission("AlbInvoke", {
+ *   action: "lambda:InvokeFunction",
+ *   functionName: fn.functionArn.as<string>(),
+ *   principal: "elasticloadbalancing.amazonaws.com",
+ *   sourceArn: tg.targetGroupArn.as<string>(),
+ * });
+ * yield* TargetGroupAttachment("fn-target", {
+ *   targetGroupArn: tg.targetGroupArn,
+ *   targetId: fn.functionArn.as<string>(),
+ * });
+ * ```
+ *
+ * **Example:** IP address target
+ * ```typescript
+ * yield* TargetGroupAttachment("ip-target", {
+ *   targetGroupArn: tg.targetGroupArn,
+ *   targetId: "10.0.1.15",
+ *   port: 8080,
+ * });
+ * ```
+ *
+ * **Example:** EC2 instance target
+ * ```typescript
+ * yield* TargetGroupAttachment("instance-target", {
+ *   targetGroupArn: tg.targetGroupArn,
+ *   targetId: instance.instanceId,
+ *   port: 80,
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const TargetGroupAttachment = Resource<TargetGroupAttachment>(
+  "AWS.ELBv2.TargetGroupAttachment",
+)
+
+// Registering a Lambda target validates that the function's resource policy
+// grants elasticloadbalancing.amazonaws.com invoke permission. The Permission
+// resource is often created in the same deploy with no data dependency on the
+// attachment, so registerTargets can run before the policy lands. ELB surfaces
+// the missing-permission case as either `InvalidTargetException` or an
+// empty-message `AccessDeniedException` (both members of the registerTargets
+// error union — AccessDeniedException via CommonErrors), so retry both briefly
+// while IAM propagates. Explicitly typed so `Retry.Return`'s conditional type
+// never leaks into declaration emit.
+const retryThroughPermissionPropagation = effect <A, E extends { _tag: string }, R>(
+  self: A!E!R,
+): A!E!R =>
+  try Effect.retry(self, {
+    while: (e) => e._tag === "InvalidTargetException" || e._tag === "AccessDeniedException",
+    schedule: Schedule.max([Schedule.fixed("3 seconds"), Schedule.recurs(15)]),
+  })
+
+const wireTarget = (props: {
+  targetId: string
+  port?: number
+  availabilityZone?: string
+}): elbv2.TargetDescription => ({
+  Id: props.targetId,
+  Port: props.port,
+  AvailabilityZone: props.availabilityZone,
+})
+
+export const TargetGroupAttachmentProvider = (): infer _ =>
+  Provider.succeed(TargetGroupAttachment, {
+    stables: ["targetGroupArn", "targetId", "port", "availabilityZone"],
+    diff: effect ({ olds, news }) => {
+      if (!isResolved(news)) return
+      // Registration has no mutable aspect — every change is a replacement.
+      if (
+        olds.targetGroupArn !== news.targetGroupArn
+        || olds.targetId !== news.targetId
+        || olds.port !== news.port
+        || olds.availabilityZone !== news.availabilityZone
+      ) {
+        return { action: "replace" } as const
+      }
+    },
+    read: effect ({ output }) => {
+      if (!output) {
+        return undefined
+      }
+      // describeTargetHealth without an explicit Targets filter lists only
+      // registered targets, so presence in the response means registered.
+      const health = elbv2
+        .describeTargetHealth({ TargetGroupArn: output.targetGroupArn }) catch effect (e) => match (e) {
+          when { _tag: "TargetGroupNotFoundException" }: try Effect.undefined;
+          default: throw e;
+        }
+      const registered = health?.TargetHealthDescriptions?.some(
+        (d) =>
+          d.Target?.Id === output.targetId
+          && (output.port === undefined || d.Target?.Port === output.port),
+      )
+      return registered ? output : undefined
+    },
+    // Attachments belong to a target group. Enumerate every target group,
+    // then every registered target.
+    list: effect () => {
+      const targetGroupArns = Array.from(
+        try (elbv2.describeTargetGroups.pages({})
+          |> Stream.runCollect(%)),
+      ).flatMap((page) =>
+        (page.TargetGroups ?? []).flatMap((tg) => tg.TargetGroupArn ? [tg.TargetGroupArn as TargetGroupArn] : [])
+      )
+      const rows = try Effect.forEach(
+        targetGroupArns,
+        effect (targetGroupArn) =>
+          (((try elbv2.describeTargetHealth({ TargetGroupArn: targetGroupArn })).TargetHealthDescriptions ?? [])
+            .flatMap((d) =>
+              d.Target?.Id
+                ? [
+                  {
+                    targetGroupArn,
+                    targetId: d.Target.Id,
+                    port: d.Target.Port,
+                    availabilityZone: d.Target.AvailabilityZone,
+                  },
+                ]
+                : []
+            )) catch effect (e) => match (e) { when { _tag: "TargetGroupNotFoundException" }: []; default: throw e; },
+        { concurrency: 10 },
+      )
+      const result: TargetGroupAttachment["Attributes"][] = rows.flat()
+      return result
+    },
+    reconcile: effect ({ news, session }) => {
+      const targetGroupArn = news.targetGroupArn as TargetGroupArn
+      const target = wireTarget(news)
+
+      // Observe — is the target already registered?
+      const health = elbv2
+        .describeTargetHealth({ TargetGroupArn: targetGroupArn }) catch effect (e) => match (e) {
+          when { _tag: "InvalidTargetException" }: try Effect.undefined;
+          default: throw e;
+        }
+      const registered = health?.TargetHealthDescriptions?.some(
+        (d) =>
+          d.Target?.Id === news.targetId
+          && (news.port === undefined || d.Target?.Port === news.port),
+      )
+
+      // Ensure — registerTargets is an idempotent put, but skip the call
+      // (and its permission-propagation retry) when already registered.
+      if (!registered) {
+        try retryThroughPermissionPropagation(
+          elbv2.registerTargets({
+            TargetGroupArn: targetGroupArn,
+            Targets: [target],
+          }),
+        )
+      }
+
+      try session.note(`${news.targetId} -> ${targetGroupArn}`)
+      return {
+        targetGroupArn,
+        targetId: news.targetId,
+        port: news.port,
+        availabilityZone: news.availabilityZone,
+      }
+    },
+    delete: effect ({ output }) => {
+      elbv2
+        .deregisterTargets({
+          TargetGroupArn: output.targetGroupArn,
+          Targets: [
+            wireTarget({
+              targetId: output.targetId,
+              port: output.port,
+              availabilityZone: output.availabilityZone,
+            }),
+          ],
+        }) catch effect (e) => match (e) {
+          when { _tag: "InvalidTargetException" } or { _tag: "TargetGroupNotFoundException" }: try Effect.void;
+          default: throw e;
+        }
+    },
+  })

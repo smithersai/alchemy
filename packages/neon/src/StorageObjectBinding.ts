@@ -3,7 +3,7 @@ import { isResource } from "alchemy/Resource";
 import { CurrentRuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { bindBackendEnvironment } from "./BackendConnection.ts";
+import { bindBackendEnvironment } from "./BackendConnection.vibe";
 import type { Bucket } from "./Bucket.ts";
 import {
   ObjectDecodeError,
@@ -11,13 +11,13 @@ import {
   storageBodyBytes,
   type Object,
 } from "./Object.ts";
-import type { ReadObjectClient, ObjectValue } from "./ReadObject.ts";
+import type { ReadObjectClient, ObjectValue } from "./ReadObject.vibe";
 import {
   makeStorageBinding,
   StorageBindingError,
   type StorageBindingOptions,
 } from "./StorageBinding.ts";
-import type { WriteObjectClient } from "./WriteObject.ts";
+import type { WriteObjectClient } from "./WriteObject.vibe";
 
 const isBucket = (value: unknown): value is Bucket =>
   isResource(value) && value.Type === "Neon.Bucket";

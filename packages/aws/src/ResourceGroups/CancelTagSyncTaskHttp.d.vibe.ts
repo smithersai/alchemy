@@ -1,0 +1,3 @@
+import * as Layer from "effect/Layer";
+import { CancelTagSyncTask } from "./CancelTagSyncTask.vibe";
+export declare const CancelTagSyncTaskHttp: Layer.Layer<CancelTagSyncTask, never, never>;

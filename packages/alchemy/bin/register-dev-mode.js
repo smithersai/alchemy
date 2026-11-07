@@ -14,6 +14,9 @@
 // 2. node-utils handles the actual `.ts`/`.tsx` loading with Rolldown's Oxc
 //    transformer and source maps. Node's built-in TypeScript support does not
 //    cover TSX and cannot apply each package's nearest tsconfig.
+// 3. VibeLang's loader (`vibelang/register`) loads `.vibe` modules. It is
+//    registered last, so its hooks run first: it serves `.vibe` files and
+//    passes every other module on to the Oxc loader.
 //
 // Dev-only: the launcher (`bin/cli.js`) and the dev supervisor pass this
 // via `--import` when spawning node in a checkout. Published installs run
@@ -51,3 +54,5 @@ const { registerOxc } = await import("@alchemy.run/node-utils/register-oxc");
 // TSX therefore uses Alchemy's React settings while the user's config and its
 // dependencies retain their own compiler settings.
 registerOxc({ conditions: ["bun"] });
+
+await import("vibelang/register");

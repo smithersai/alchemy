@@ -18,7 +18,7 @@ import {
   InvokeServiceError,
   type InvokeServiceRequestInit,
   type InvokeServiceResponse,
-} from "./InvokeService.ts";
+} from "./InvokeService.vibe";
 import type { Service } from "./Service.ts";
 
 const IDENTITY_ENDPOINT =

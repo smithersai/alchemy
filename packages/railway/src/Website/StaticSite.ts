@@ -8,7 +8,7 @@ import { loadFrontendCore } from "alchemy/Website/FrontendCore";
 import * as Effect from "effect/Effect";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
-import { CustomDomain } from "../CustomDomain.ts";
+import { CustomDomain } from "../CustomDomain.vibe";
 import { Project } from "../Project.ts";
 import { Service } from "../Service.ts";
 import {
@@ -17,7 +17,7 @@ import {
   websiteDomainName,
   type FrameworkSiteProps,
   type Website,
-} from "./FrameworkSite.ts";
+} from "./FrameworkSite.vibe";
 
 // `env` comes from FrameworkSiteProps (which additionally accepts `Output`
 // values, e.g. `VITE_API_URL: api.url`) — it must be omitted from the

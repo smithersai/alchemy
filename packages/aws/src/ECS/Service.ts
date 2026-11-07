@@ -22,18 +22,18 @@ import type { HttpClient } from "effect/http/HttpClient";
 import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
-import { ScalableTarget } from "../ApplicationAutoScaling/ScalableTarget.ts";
-import { ScalingPolicy } from "../ApplicationAutoScaling/ScalingPolicy.ts";
-import { Service as CloudMapService } from "../CloudMap/Service.ts";
+import { ScalableTarget } from "../ApplicationAutoScaling/ScalableTarget.vibe";
+import { ScalingPolicy } from "../ApplicationAutoScaling/ScalingPolicy.vibe";
+import { Service as CloudMapService } from "../CloudMap/Service.vibe";
 import type { Credentials } from "../Credentials.ts";
-import { domainCertificate, isRoute53Dns, resolveDomainDns } from "../CustomDomain.ts";
+import { domainCertificate, isRoute53Dns, resolveDomainDns } from "../CustomDomain.vibe";
 import {
   SecurityGroup,
   type SecurityGroupId,
   type SecurityGroupRuleData,
-} from "../EC2/SecurityGroup.ts";
+} from "../EC2/SecurityGroup.vibe";
 import type { SubnetId } from "../EC2/Subnet.ts";
-import type { VpcId } from "../EC2/Vpc.ts";
+import type { VpcId } from "../EC2/Vpc.vibe";
 import {
   makeBunBootstrap,
   makeImageSource,
@@ -42,18 +42,18 @@ import {
   type ImageSourceLike,
   type RegistryImageSource,
 } from "../ECR/ImageSource.ts";
-import type { ListenerAction, ListenerRuleCondition } from "../ELBv2/common.ts";
-import { Listener } from "../ELBv2/Listener.ts";
+import type { ListenerAction, ListenerRuleCondition } from "../ELBv2/common.vibe";
+import { Listener } from "../ELBv2/Listener.vibe";
 import { ListenerRule } from "../ELBv2/ListenerRule.ts";
-import { LoadBalancer } from "../ELBv2/LoadBalancer.ts";
-import { TargetGroup, type TargetGroupArn } from "../ELBv2/TargetGroup.ts";
+import { LoadBalancer } from "../ELBv2/LoadBalancer.vibe";
+import { TargetGroup, type TargetGroupArn } from "../ELBv2/TargetGroup.vibe";
 import { AWSEnvironment, type AccountID } from "../Environment.ts";
 import { plainJson } from "../internal/Observe.ts";
 import { syncLogGroupRetention, type LogRetentionConfig } from "../Logs/LogRetention.ts";
 import type { Providers } from "../Providers.ts";
 import type { RegionID } from "../Region.ts";
-import { findPublicHostedZoneId } from "../Route53/HostedZoneLookup.ts";
-import type { ClusterArn } from "./Cluster.ts";
+import { findPublicHostedZoneId } from "../Route53/HostedZoneLookup.vibe";
+import type { ClusterArn } from "./Cluster.vibe";
 import {
   attachTaskBindings,
   createContainerRuntimeContext,

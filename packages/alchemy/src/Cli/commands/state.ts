@@ -16,7 +16,7 @@ import { formatLocalTimestamp } from "../Format.ts";
 import { confirmOrDecline } from "./confirm.ts";
 import { failWithHelp, UserInputError } from "./errors.ts";
 import { envFile, parseSince, profile, yes } from "./flags.ts";
-import { instrumentCommand } from "./instrument.ts";
+import { instrumentCommand } from "./instrument.vibe";
 
 const backend = Flag.String("backend").pipe(
   Flag.withDescription(

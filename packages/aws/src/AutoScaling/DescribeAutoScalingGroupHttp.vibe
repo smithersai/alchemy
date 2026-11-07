@@ -1,0 +1,42 @@
+import * as autoscaling from "@distilled.cloud/aws/auto-scaling"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import type { AutoScalingGroup } from "./AutoScalingGroup.ts"
+import { DescribeAutoScalingGroup } from "./DescribeAutoScalingGroup.vibe"
+
+// Bespoke (not the shared scaffold): `describeAutoScalingGroups` takes the
+// group name inside the `AutoScalingGroupNames` array and the client unwraps
+// the single-element response.
+export const DescribeAutoScalingGroupHttp = Layer.effect(
+  DescribeAutoScalingGroup,
+  effect {
+    const bind = try AWSBindings.Bind
+    const describe = try AWSBindings.withCredentials(autoscaling.describeAutoScalingGroups)
+
+    return effect (group: AutoScalingGroup) => {
+      const AutoScalingGroupName = try group.autoScalingGroupName.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.AutoScaling.DescribeAutoScalingGroup(${group})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["autoscaling:DescribeAutoScalingGroups"],
+              Resource: ["*"],
+            },
+          ],
+        })
+      }
+      return effect () =>
+        try withSpan(
+          effect {
+            const result = try describe({
+              AutoScalingGroupNames: [try AutoScalingGroupName],
+            })
+            return result.AutoScalingGroups?.[0]
+          },
+          `AWS.AutoScaling.DescribeAutoScalingGroup(${group.LogicalId})`,
+        )
+    }
+  },
+)

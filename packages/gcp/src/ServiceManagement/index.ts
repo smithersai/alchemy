@@ -1,1 +1,1 @@
-export * from "./Service.ts";
+export * from "./Service.vibe";

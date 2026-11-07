@@ -2,10 +2,10 @@ import { Effect, Option } from "effect";
 import { Server } from "foldkit/experimental";
 import * as Url from "foldkit/url";
 import { init, view } from "./main";
-import { urlToAppRoute } from "./route";
+import { urlToAppRoute } from "./route.vibe";
 
 export const renderDocument = Server.renderDocument;
-export { prerenderPaths } from "./route";
+export { prerenderPaths } from "./route.vibe";
 
 export const renderPage = (request: Request): Promise<Server.EntryResult> =>
   Effect.runPromise(

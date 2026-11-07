@@ -5,7 +5,7 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as Layer from "effect/Layer";
 import { LinkNotFound, newCode, type Link } from "./Link.ts";
-import { ShortyApi } from "./ShortyApi.ts";
+import { ShortyApi } from "./ShortyApi.vibe";
 
 export default class Api extends Cloudflare.Worker<Api>()(
   "Api",

@@ -1,0 +1,207 @@
+import * as storage from "@distilled.cloud/gcp/storage_v1"
+import { isResolved } from "alchemy/Diff"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { DeleteNotConfirmed } from "../Errors.vibe"
+import type { Providers } from "../Providers.ts"
+import { listAlchemyBuckets, toFolderName, withTrailingSlash } from "./internal.vibe"
+
+export type FolderProps = {
+  /**
+   * Name of the hierarchical-namespace bucket that contains this folder.
+   * Immutable — changing it replaces the folder.
+   */
+  bucketName: string
+  /**
+   * Folder path. A trailing slash is added if omitted. If omitted
+   * entirely, a unique name is generated from the stack, stage, and
+   * logical id. Immutable — changing it replaces the folder.
+   */
+  folderName?: string
+}
+
+export type Folder = Resource<
+  "GCP.Storage.Folder",
+  FolderProps,
+  {
+    /** Parent bucket name. */
+    bucketName: string
+    /** Folder path, including the trailing slash. */
+    folderName: string
+    /** Server-assigned id (`{bucket}/{folder}`). */
+    id: string | undefined
+    /** Metadata generation. */
+    metageneration: string | undefined
+    /** RFC3339 creation timestamp. */
+    createTime: string | undefined
+    /** RFC3339 last-update timestamp. */
+    updateTime: string | undefined
+    /** GCS self-link. */
+    selfLink: string | undefined
+  },
+  never,
+  Providers
+>
+
+/**
+ * A Cloud Storage folder in a hierarchical-namespace bucket.
+ *
+ * Folders exist only on buckets created with `hierarchicalNamespace:
+ * true` (which also requires uniform bucket-level access). Identity is
+ * `(bucket, folder name)`. Folders have no mutable fields and no labels,
+ * so `list` / `pnpm nuke:gcp` discover them by enumerating
+ * alchemy-labeled buckets.
+ *
+ * ### Creating a Folder
+ * **Example:** Generated name
+ * ```typescript
+ * const bucket = yield* GCP.Storage.Bucket("tree", {
+ *   hierarchicalNamespace: true,
+ *   uniformBucketLevelAccess: true,
+ *   forceDestroy: true,
+ * });
+ * const folder = yield* GCP.Storage.Folder("uploads", {
+ *   bucketName: bucket.bucketName,
+ * });
+ * ```
+ *
+ * **Example:** Explicit path
+ * ```typescript
+ * const folder = yield* GCP.Storage.Folder("uploads", {
+ *   bucketName: bucket.bucketName,
+ *   folderName: "uploads/incoming/",
+ * });
+ * ```
+ *
+ * @resource
+ * @category Storage
+ */
+export const Folder = Resource<Folder>("GCP.Storage.Folder")
+
+// @vibelang-diagnostics-next-line EK4830:off
+export class FolderNotResolved extends Data.TaggedError("GCP.Storage.FolderNotResolved")<{
+  bucketName: string
+  folderName: string
+}> {}
+
+const toAttrs = (folder: storage.Folder, bucketName: string): infer _ => ({
+  bucketName: folder.bucket ?? bucketName,
+  folderName: withTrailingSlash(folder.name ?? ""),
+  id: folder.id,
+  metageneration: folder.metageneration,
+  createTime: folder.createTime,
+  updateTime: folder.updateTime,
+  selfLink: folder.selfLink,
+})
+
+const getByName = effect (bucketName: string, folderName: string) =>
+  storage
+    .getFolders({ bucket: bucketName, folder: folderName }) catch effect (e) => match (e) {
+      when { _tag: "NotFound" }: try Effect.undefined;
+      default: throw e;
+    }
+
+const listOnBucket = effect (bucketName: string) =>
+  (Array.from(
+    try (storage.listFolders.items({ bucket: bucketName, pageSize: 1000 })
+      |> Stream.runCollect(%)),
+  )) catch effect (e) => match (e) { when { _tag: "NotFound" }: [] as storage.Folder[]; default: throw e; }
+
+const waitUntilGone = effect (bucketName: string, folderName: string) =>
+  try ((try (effect {
+      return ((try getByName(bucketName, folderName)) === undefined ? ("gone" as const) : ("found" as const))
+    }
+      |> Effect.repeat(%, {
+        schedule: Schedule.spaced("1 second"),
+        until: (status) => status === "gone",
+        times: 30,
+      }))) === "gone"
+    ? Effect.void
+    : throw new DeleteNotConfirmed({
+      resource: `${bucketName}/folders/${folderName}`,
+    }))
+
+export const FolderProvider = (): infer _ =>
+  Provider.succeed(Folder, {
+    stables: ["bucketName", "folderName", "id", "selfLink", "createTime"],
+
+    diff: effect ({ news, olds, output }) => {
+      if (!isResolved(news)) return undefined
+      const previousBucket = olds?.bucketName ?? output?.bucketName
+      if (previousBucket !== undefined && news.bucketName !== previousBucket) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      const previousName = olds?.folderName ?? output?.folderName
+      if (
+        news.folderName !== undefined
+        && previousName !== undefined
+        && withTrailingSlash(news.folderName) !== withTrailingSlash(previousName)
+      ) {
+        return { action: "replace" as const, deleteFirst: false }
+      }
+      return undefined
+    },
+
+    read: effect ({ id, olds, output }) => {
+      const bucketName = olds?.bucketName ?? output?.bucketName
+      if (!bucketName) return undefined
+      const folderName = try toFolderName(id, olds?.folderName, output?.folderName)
+      const existing = try getByName(bucketName, folderName)
+      if (existing === undefined) return undefined
+      return toAttrs(existing, bucketName)
+    },
+
+    list: effect () => {
+      const buckets = try listAlchemyBuckets()
+      const pages = try Effect.forEach(
+        buckets,
+        effect (bucket) => {
+          const bucketName = bucket.name
+          if (!bucketName || bucket.hierarchicalNamespace?.enabled !== true) {
+            return [] as Array<Folder["Attributes"]>
+          }
+          return (try listOnBucket(bucketName)).map((item) => toAttrs(item, bucketName))
+        },
+        { concurrency: 8 },
+      )
+      return pages.flat()
+    },
+
+    reconcile: effect ({ id, news, output }) => {
+      const bucketName = news.bucketName
+      const folderName = try toFolderName(id, news.folderName, output?.folderName)
+
+      let current = try getByName(bucketName, folderName)
+
+      if (current === undefined) {
+        const created = storage
+          .insertFolders({
+            bucket: bucketName,
+            recursive: true,
+            body: { name: folderName },
+          }) catch effect (e) => match (e) {
+            when { _tag: "Conflict" }: try getByName(bucketName, folderName);
+            default: throw e;
+          }
+        current = created ?? undefined
+      }
+
+      if (current === undefined || !(current.name ?? current.id)) {
+        throw new FolderNotResolved({ bucketName, folderName })
+      }
+
+      return toAttrs(current, bucketName)
+    },
+
+    delete: effect ({ output }) => {
+      const bucketName = output.bucketName
+      const folderName = output.folderName
+      if (!bucketName || !folderName) return
+      storage
+        .deleteFolders({ bucket: bucketName, folder: folderName }) catch effect (e) => match (e) {
+          when { _tag: "NotFound" }: try Effect.void;
+          default: throw e;
+        }
+      try waitUntilGone(bucketName, folderName)
+    },
+  })

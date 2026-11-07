@@ -16,7 +16,7 @@ import type {
   AnyContainerApplicationProps,
   ContainerApplication,
   DevContainerImage,
-} from "./ContainerApplication.ts";
+} from "./ContainerApplication.vibe";
 import {
   createContainerApplicationName,
   makeContainerEnv,

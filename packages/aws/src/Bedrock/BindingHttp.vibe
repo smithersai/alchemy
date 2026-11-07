@@ -1,0 +1,290 @@
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as AWSBindings from "../AWSBindings.ts"
+import { AWSEnvironment } from "../Environment.ts"
+import type { AgentAlias } from "./AgentAlias.vibe"
+import type { DataSource } from "./DataSource.vibe"
+import type { KnowledgeBase } from "./KnowledgeBase.vibe"
+import { bedrockModelArns } from "./ModelArns.ts"
+
+/**
+ * Shared scaffolding for Bedrock HTTP bindings.
+ *
+ * NOT exported from `index.ts` — every thin `{Op}Http.ts` in this service is
+ * a `Layer.effect(Cap, make…HttpBinding({ … }))` over one of the builders
+ * below. Everything except the operation, the IAM action list, and the
+ * injected identifier(s) is boilerplate. Genuinely-different bindings
+ * (e.g. `Rerank`, which grants a wildcard `bedrock:Rerank` alongside
+ * model-scoped `bedrock:InvokeModel`) stay bespoke.
+ */
+
+const currentEnv = AWSEnvironment.current as unknown as {
+  accountId: string;
+  region: string;
+}!!
+
+/**
+ * Build the impl Effect for a model-scoped `bedrock-runtime` operation whose
+ * request carries a top-level `modelId`. The binding accepts one or more
+ * model references (foundation-model id, cross-region inference profile id,
+ * or full ARN), grants `actions` on exactly the resolved model ARNs, and the
+ * runtime callable defaults `modelId` to the first bound model.
+ */
+export const makeModelScopedHttpBinding = effect <I extends { modelId: string }, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Bedrock.Converse`. */
+  tag: string
+  /** The distilled operation; `modelId` defaults to the first bound model. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the bound model ARNs. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect (model: string, ...additionalModels: string[]) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const { accountId, region } = try currentEnv
+      // Sort so the binding identity (SID + ARN list) is deterministic
+      // regardless of argument order.
+      const sorted = [...new Set([model, ...additionalModels])].sort()
+      try bind`${options.tag}(${sorted.join(",")})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [
+              ...new Set(sorted.flatMap((id) => bedrockModelArns(region, accountId, id))),
+            ],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "modelId"> & { modelId?: string },
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            modelId: request.modelId ?? model,
+          } as unknown as I)
+        },
+        `${options.tag}(${model})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a knowledge-base-scoped `bedrock-agent-runtime`
+ * operation whose request carries a top-level `knowledgeBaseId`. The binding
+ * grants `actions` on the bound {@link KnowledgeBase}'s ARN and the runtime
+ * callable injects its `knowledgeBaseId`.
+ */
+export const makeKnowledgeBaseScopedHttpBinding = effect <
+  I extends { knowledgeBaseId: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Bedrock.Retrieve`. */
+  tag: string
+  /** The distilled operation; `knowledgeBaseId` is injected. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the knowledge-base ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect <K extends KnowledgeBase>(knowledgeBase: K) => {
+    const KnowledgeBaseId = try knowledgeBase.knowledgeBaseId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${knowledgeBase})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [knowledgeBase.knowledgeBaseArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "knowledgeBaseId">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            knowledgeBaseId: try KnowledgeBaseId,
+          } as unknown as I)
+        },
+        `${options.tag}(${knowledgeBase.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a data-source-scoped `bedrock-agent` operation
+ * whose request carries top-level `knowledgeBaseId` + `dataSourceId`
+ * (ingestion jobs, direct document ingestion). Bedrock authorizes these
+ * actions against the parent knowledge-base ARN, so the deploy-time half
+ * grants `actions` on the bound {@link DataSource}'s knowledge base; the
+ * runtime callable injects both identifiers.
+ */
+export const makeDataSourceScopedHttpBinding = effect <
+  I extends { knowledgeBaseId: string; dataSourceId: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Bedrock.StartIngestionJob`. */
+  tag: string
+  /** The distilled operation; both identifiers are injected. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the parent knowledge-base ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect <D extends DataSource>(dataSource: D) => {
+    const KnowledgeBaseId = try dataSource.knowledgeBaseId.asEffect()
+    const DataSourceId = try dataSource.dataSourceId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const { accountId, region } = try currentEnv
+      try bind`${options.tag}(${dataSource})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [
+              dataSource.knowledgeBaseId.pipe(
+                Output.map((id) => `arn:aws:bedrock:${region}:${accountId}:knowledge-base/${id}`),
+              ),
+            ],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "knowledgeBaseId" | "dataSourceId">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            knowledgeBaseId: try KnowledgeBaseId,
+            dataSourceId: try DataSourceId,
+          } as unknown as I)
+        },
+        `${options.tag}(${dataSource.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for an agent-alias-scoped `bedrock-agent-runtime`
+ * operation whose request carries top-level `agentId` + `agentAliasId`. The
+ * binding grants `actions` on the bound {@link AgentAlias}'s ARN and the
+ * runtime callable injects both identifiers.
+ */
+export const makeAgentAliasScopedHttpBinding = effect <
+  I extends { agentId: string; agentAliasId: string },
+  A,
+  E,
+  R,
+>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Bedrock.InvokeAgent`. */
+  tag: string
+  /** The distilled operation; both identifiers are injected. */
+  operation: ((input: I) => A!E)!never!R
+  /** IAM actions granted on the agent-alias ARN. */
+  actions: readonly string[]
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect <AA extends AgentAlias>(alias: AA) => {
+    const AgentId = try alias.agentId.asEffect()
+    const AgentAliasId = try alias.agentAliasId.asEffect()
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      try bind`${options.tag}(${alias})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: [...options.actions],
+            Resource: [alias.agentAliasArn],
+          },
+        ],
+      })
+    }
+    return effect (
+      request: Omit<I, "agentId" | "agentAliasId">,
+    ) =>
+      try withSpan(
+        effect {
+          return try op({
+            ...request,
+            agentId: try AgentId,
+            agentAliasId: try AgentAliasId,
+          } as unknown as I)
+        },
+        `${options.tag}(${alias.LogicalId})`,
+      )
+  }
+}
+
+/**
+ * Build the impl Effect for a managed-RAG operation (`RetrieveAndGenerate` /
+ * `RetrieveAndGenerateStream`). The binding grants `bedrock:Retrieve` +
+ * `bedrock:RetrieveAndGenerate` on the bound {@link KnowledgeBase} plus
+ * `bedrock:InvokeModel` scoped to the named generation models (or all
+ * foundation models + cross-region inference profiles when none are named).
+ * The request passes through unchanged — the knowledge base is referenced
+ * inside `retrieveAndGenerateConfiguration`.
+ */
+export const makeRagHttpBinding = effect <I, A, E, R>(options: {
+  /** Fully-qualified binding tag, e.g. `AWS.Bedrock.RetrieveAndGenerate`. */
+  tag: string
+  /** The distilled operation; the request passes through unchanged. */
+  operation: ((input: I) => A!E)!never!R
+}) => {
+  const bind = try AWSBindings.Bind
+  const op = try AWSBindings.withCredentials(options.operation)
+
+  return effect <K extends KnowledgeBase>(knowledgeBase: K, ...models: string[]) => {
+    if (!globalThis.__ALCHEMY_RUNTIME__) {
+      const { accountId, region } = try currentEnv
+      // Scope InvokeModel to the named models, or all foundation models +
+      // cross-region inference profiles when the caller names none.
+      const modelResources = models.length > 0
+        ? [...new Set(models.flatMap((id) => bedrockModelArns(region, accountId, id)))]
+        : [
+          `arn:aws:bedrock:${region}::foundation-model/*`,
+          `arn:aws:bedrock:${region}:${accountId}:inference-profile/*`,
+        ]
+      try bind`${options.tag}(${knowledgeBase})`({
+        policyStatements: [
+          {
+            Effect: "Allow",
+            Action: ["bedrock:Retrieve", "bedrock:RetrieveAndGenerate"],
+            Resource: [knowledgeBase.knowledgeBaseArn],
+          },
+          {
+            Effect: "Allow",
+            Action: ["bedrock:InvokeModel"],
+            Resource: modelResources,
+          },
+        ],
+      })
+    }
+    return effect (request: I) =>
+      try withSpan(
+        effect {
+          return try op(request)
+        },
+        `${options.tag}(${knowledgeBase.LogicalId})`,
+      )
+  }
+}

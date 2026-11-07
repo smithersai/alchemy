@@ -8,7 +8,7 @@ import * as Data from "effect/Data";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
-import type { FunctionProps } from "./Function.ts";
+import type { FunctionProps } from "./Function.vibe";
 import { nativeArtifactError } from "./NativeArtifact.ts";
 
 export class FunctionArtifactError extends Data.TaggedError("FunctionArtifactError")<{

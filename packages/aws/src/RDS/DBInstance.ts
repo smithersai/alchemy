@@ -25,10 +25,10 @@ import {
   normalizePolicyDocument,
   stringifyPolicyDocument,
   type PolicyDocument,
-} from "../IAM/Policy.ts";
-import { reapLogGroupsByPrefix } from "../Logs/reapLogGroups.ts";
+} from "../IAM/Policy.vibe";
+import { reapLogGroupsByPrefix } from "../Logs/reapLogGroups.vibe";
 import type { Providers } from "../Providers.ts";
-import { runDBInstanceMigrations, type MigrationsTransport } from "./Migrations.ts";
+import { runDBInstanceMigrations, type MigrationsTransport } from "./Migrations.vibe";
 
 export interface DBInstanceProps {
   /**

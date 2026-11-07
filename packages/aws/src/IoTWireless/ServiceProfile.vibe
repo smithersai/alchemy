@@ -1,0 +1,238 @@
+import * as iotw from "@distilled.cloud/aws/iot-wireless"
+import { Unowned } from "alchemy/AdoptPolicy"
+import { isResolved } from "alchemy/Diff"
+import { createPhysicalName } from "alchemy/PhysicalName"
+import * as Provider from "alchemy/Provider"
+import { Resource } from "alchemy/Resource"
+import { createInternalTags, createTagsList, hasAlchemyTags } from "alchemy/Tags"
+import type { Providers } from "../Providers.ts"
+import { readIotWirelessTags, sameShape, syncIotWirelessTags } from "./internal.vibe"
+
+export error ServiceProfileUnexpectedResponse {
+  message: string
+  cause?: unknown
+}
+
+export interface ServiceProfileProps {
+  /**
+   * Name of the service profile. If omitted, a deterministic physical name
+   * is generated from the app, stage, and logical ID. Service profiles are
+   * immutable — changing the name replaces the profile.
+   */
+  name?: string
+  /**
+   * LoRaWAN service profile configuration (data-rate bounds, gateway
+   * metadata, roaming flags, transmission counts). Immutable — changing any
+   * field replaces the profile.
+   */
+  loRaWAN?: iotw.LoRaWANServiceProfile
+  /**
+   * Tags applied to the service profile. Alchemy ownership tags are merged
+   * in automatically.
+   */
+  tags?: Record<string, string>
+}
+
+export interface ServiceProfile extends
+  Resource<
+    "AWS.IoTWireless.ServiceProfile",
+    ServiceProfileProps,
+    {
+      /** Server-assigned ID of the service profile. */
+      serviceProfileId: string
+      /** ARN of the service profile. */
+      serviceProfileArn: string
+      /** Name of the service profile. */
+      serviceProfileName: string
+    },
+    never,
+    Providers
+  >
+{}
+
+/**
+ * An AWS IoT Core for LoRaWAN service profile — the network-level parameters
+ * (data-rate bounds, gateway metadata reporting, roaming permissions) shared
+ * by a fleet of wireless devices.
+ *
+ * Service profiles are immutable after creation: any change to `name` or
+ * `loRaWAN` replaces the profile. Only tags update in place.
+ * ### Creating Service Profiles
+ * **Example:** Default Service Profile
+ * ```typescript
+ * import * as IoTWireless from "@alchemy.run/aws/IoTWireless";
+ *
+ * const profile = yield* IoTWireless.ServiceProfile("Fleet");
+ * ```
+ *
+ * **Example:** Service Profile with Gateway Metadata
+ * ```typescript
+ * const profile = yield* IoTWireless.ServiceProfile("Fleet", {
+ *   loRaWAN: { AddGwMetadata: true, DrMin: 0, DrMax: 10 },
+ *   tags: { team: "iot" },
+ * });
+ * ```
+ *
+ * ### Referencing from Devices
+ * **Example:** Wire a device to the profile
+ * ```typescript
+ * const device = yield* IoTWireless.WirelessDevice("Sensor", {
+ *   type: "LoRaWAN",
+ *   destinationName: destination.destinationName,
+ *   loRaWAN: {
+ *     DevEui: "1122334455667788",
+ *     ServiceProfileId: profile.serviceProfileId,
+ *     DeviceProfileId: deviceProfile.deviceProfileId,
+ *     OtaaV1_0_x: { AppKey: "...", AppEui: "..." },
+ *   },
+ * });
+ * ```
+ *
+ * @resource
+ */
+export const ServiceProfile = Resource<ServiceProfile>("AWS.IoTWireless.ServiceProfile")
+
+export const ServiceProfileProvider = (): infer _ =>
+  Provider.effect(
+    ServiceProfile,
+    effect {
+      const createName = effect (id: string, props: { name?: string }) =>
+        props.name ?? (try createPhysicalName({ id, maxLength: 256 }))
+
+      const getById = effect (serviceProfileId: string) =>
+        iotw
+          .getServiceProfile({ Id: serviceProfileId }) catch effect (e) => match (e) {
+            when { _tag: "ResourceNotFoundException" }: try Effect.undefined;
+            default: throw e;
+          }
+
+      // Service profiles have no name-keyed Get — enumerate and match. The
+      // physical name is deterministic, so this recovers identity after a
+      // lost state write.
+      const findByName = effect (name: string) =>
+        Array.from(
+          try (iotw.listServiceProfiles.pages({})
+            |> Stream.runCollect(%)),
+        )
+          .flatMap((page) => page.ServiceProfileList ?? [])
+          .find((p) => p.Name === name)
+
+      const observe = effect (
+        output: ServiceProfile["Attributes"] | undefined,
+        name: string,
+      ) => {
+        if (output?.serviceProfileId !== undefined) {
+          const found = try getById(output.serviceProfileId)
+          if (found !== undefined) return found
+        }
+        const summary = try findByName(name)
+        if (summary?.Id === undefined) return undefined
+        return try getById(summary.Id)
+      }
+
+      const toAttrs = effect (profile: iotw.GetServiceProfileResponse, name: string) => {
+        if (profile.Id === undefined || profile.Arn === undefined) {
+          throw new ServiceProfileUnexpectedResponse({
+            message: `IoT Wireless service profile '${name}' returned without Id/Arn`,
+          })
+        }
+        return {
+          serviceProfileId: profile.Id,
+          serviceProfileArn: profile.Arn,
+          serviceProfileName: profile.Name ?? name,
+        }
+      }
+
+      return ServiceProfile.Provider.of({
+        stables: ["serviceProfileId", "serviceProfileArn", "serviceProfileName"],
+
+        list: effect () =>
+          Array.from(
+            try (iotw.listServiceProfiles.pages({})
+              |> Stream.runCollect(%)),
+          )
+            .flatMap((page) => page.ServiceProfileList ?? [])
+            .flatMap((p) =>
+              p.Id !== undefined && p.Arn !== undefined
+                ? [
+                  {
+                    serviceProfileId: p.Id,
+                    serviceProfileArn: p.Arn,
+                    serviceProfileName: p.Name ?? p.Id,
+                  },
+                ]
+                : []
+            ),
+
+        read: effect ({ id, olds, output }) => {
+          const name = output?.serviceProfileName ?? (try createName(id, olds ?? {}))
+          const profile = try observe(output, name)
+          if (profile === undefined) return undefined
+          const attrs = try toAttrs(profile, name)
+          const tags = try readIotWirelessTags(attrs.serviceProfileArn)
+          return (try hasAlchemyTags(id, tags)) ? attrs : Unowned(attrs)
+        },
+
+        // There is no UpdateServiceProfile API — name and LoRaWAN config are
+        // create-only, so any change to either replaces the profile. Tags
+        // stay update-in-place.
+        diff: effect ({ id, news, olds }) => {
+          if (!isResolved(news)) return undefined
+          const oldName = try createName(id, olds ?? {})
+          const newName = try createName(id, news)
+          if (oldName !== newName) return { action: "replace" } as const
+          if (!sameShape(olds?.loRaWAN, news.loRaWAN)) {
+            return { action: "replace" } as const
+          }
+        },
+
+        reconcile: effect ({ id, news, output, session }) => {
+          const name = output?.serviceProfileName ?? (try createName(id, news))
+          const internalTags = try createInternalTags(id)
+          const desiredTags = { ...news.tags, ...internalTags }
+
+          // 1. OBSERVE — cloud state is authoritative; output is an id cache.
+          let profile = try observe(output, name)
+
+          // 2. ENSURE — create if missing. CreateServiceProfile always mints
+          //    a new profile (names are not unique keys), so re-observing by
+          //    name after a Conflict race keeps this idempotent.
+          if (profile === undefined) {
+            try session.note(`creating service profile ${name}`)
+            const created = iotw
+              .createServiceProfile({
+                Name: name,
+                LoRaWAN: news.loRaWAN,
+                Tags: createTagsList(desiredTags),
+              }) catch effect (e) => match (e) {
+                when { _tag: "ConflictException" }: try Effect.undefined;
+                default: throw e;
+              }
+            profile = created?.Id !== undefined
+              ? try getById(created.Id)
+              : try observe(undefined, name)
+          }
+          if (profile === undefined) {
+            throw new ServiceProfileUnexpectedResponse({
+              message: `IoT Wireless service profile '${name}' not found after create`,
+            })
+          }
+
+          // 3. SYNC — only tags are mutable; diff against OBSERVED tags.
+          const attrs = try toAttrs(profile, name)
+          try syncIotWirelessTags(attrs.serviceProfileArn, desiredTags)
+
+          try session.note(attrs.serviceProfileId)
+          return attrs
+        },
+
+        delete: effect ({ output }) => {
+          ;(try (iotw.deleteServiceProfile({ Id: output.serviceProfileId })
+            |> Effect.asVoid(%))) catch effect (e) => match (e) {
+              when { _tag: "ResourceNotFoundException" }: try Effect.void;
+              default: throw e;
+            }
+        },
+      })
+    },
+  )

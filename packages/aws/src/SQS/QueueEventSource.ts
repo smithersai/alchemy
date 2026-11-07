@@ -2,7 +2,7 @@ import * as Binding from "alchemy/Binding";
 import type * as lambda from "aws-lambda";
 import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import type { Queue } from "./Queue.ts";
+import type { Queue } from "./Queue.vibe";
 
 export type SQSRecord = lambda.SQSRecord;
 

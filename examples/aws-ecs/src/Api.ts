@@ -3,8 +3,8 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
-import { OrdersCluster, OrdersIngress, OrdersNetwork, OrdersTable } from "./infra.ts";
-import SeedTask from "./SeedTask.ts";
+import { OrdersCluster, OrdersIngress, OrdersNetwork, OrdersTable } from "./infra.vibe";
+import SeedTask from "./SeedTask.vibe";
 
 /**
  * The orders API: an `AWS.ECS.Service` in the TAGGED form — the class

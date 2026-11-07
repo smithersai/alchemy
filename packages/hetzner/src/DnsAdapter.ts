@@ -12,8 +12,8 @@ import type { Input } from "alchemy/Input";
 import * as Output from "alchemy/Output";
 import * as RemovalPolicy from "alchemy/RemovalPolicy";
 import * as Effect from "effect/Effect";
-import { RecordList } from "./DnsRecordList.ts";
-import type { Providers } from "./Providers.ts";
+import { RecordList } from "./DnsRecordList.vibe";
+import type { Providers } from "./Providers.vibe";
 
 /** The {@link DnsConfig.type} of the Hetzner DNS adapter. */
 export const HETZNER_DNS = "Hetzner.DNS";

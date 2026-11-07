@@ -1,0 +1,54 @@
+import * as bedrock from "@distilled.cloud/aws/bedrock-agent-runtime"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { AWSEnvironment } from "../Environment.ts"
+import { bedrockModelArns } from "./ModelArns.ts"
+import { Rerank, type RerankRequest } from "./Rerank.vibe"
+
+// Bespoke (not the shared model-scoped scaffold): Rerank authorizes the
+// `bedrock:Rerank` action only against `*`, alongside model-scoped
+// `bedrock:InvokeModel`, and the model is referenced inside
+// `rerankingConfiguration` rather than a top-level `modelId`.
+export const RerankHttp = Layer.effect(
+  Rerank,
+  effect {
+    const bind = try AWSBindings.Bind
+    const rerank = try AWSBindings.withCredentials(bedrock.rerank)
+
+    return effect (model: string, ...additionalModels: string[]) => {
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        const { accountId, region } = try (AWSEnvironment.current as unknown as {
+          accountId: string;
+          region: string;
+        }!!)
+        // Sort so the binding identity (SID + ARN list) is deterministic
+        // regardless of argument order.
+        const sorted = [...new Set([model, ...additionalModels])].sort()
+        try bind`AWS.Bedrock.Rerank(${sorted.join(",")})`({
+          policyStatements: [
+            {
+              // bedrock:Rerank does not support resource-level scoping.
+              Effect: "Allow",
+              Action: ["bedrock:Rerank"],
+              Resource: ["*"],
+            },
+            {
+              Effect: "Allow",
+              Action: ["bedrock:InvokeModel"],
+              Resource: [
+                ...new Set(sorted.flatMap((id) => bedrockModelArns(region, accountId, id))),
+              ],
+            },
+          ],
+        })
+      }
+      return effect (request: RerankRequest) =>
+        try withSpan(
+          effect {
+            return try rerank(request)
+          },
+          `AWS.Bedrock.Rerank(${model})`,
+        )
+    }
+  },
+)

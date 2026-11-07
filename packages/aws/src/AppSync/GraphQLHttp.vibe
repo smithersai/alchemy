@@ -1,0 +1,113 @@
+import * as Credentials from "@distilled.cloud/aws/Credentials"
+import * as Region from "@distilled.cloud/aws/Region"
+import * as SigV4 from "@distilled.cloud/aws/SigV4"
+import * as Output from "alchemy/Output"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as Redacted from "effect/Redacted"
+import * as AWSBindings from "../AWSBindings.ts"
+import { GraphQL, GraphQLApiError, type GraphQLClient, type GraphQLRequest, type GraphQLResult } from "./GraphQL.vibe"
+import type { GraphqlApi } from "./GraphqlApi.vibe"
+
+/**
+ * HTTP implementation of the {@link GraphQL} binding. The AppSync data
+ * plane has no SDK operation — each request is a SigV4-signed POST
+ * (service `"appsync"`) to the API's `graphqlUrl`, made with the host
+ * Function's own credentials. Grants `appsync:GraphQL` on every field of
+ * the bound API (`{apiArn}/types/*&#47;fields/*`).
+ */
+export const GraphQLHttp = Layer.effect(
+  GraphQL,
+  effect {
+    const bind = try AWSBindings.Bind
+    // Resolve the ambient distilled context once at layer construction —
+    // credentials themselves are re-read per request (SSO/STS rotate).
+    const services = try AWSBindings.withCredentials(
+      Effect.context<Credentials.Credentials | Region.Region>(),
+    )
+
+    return effect (api: GraphqlApi) => {
+      // Outputs yield DEFERRED effects — resolving them here registers the
+      // attribute on the host environment; re-yield per invocation below.
+      const GraphqlUrl = try api.graphqlUrl.asEffect()
+
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.AppSync.GraphQL(${api})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["appsync:GraphQL"],
+              Resource: [Output.interpolate`${api.apiArn}/types/*/fields/*`],
+            },
+          ],
+        })
+      }
+
+      const execute = effect (
+        request: GraphQLRequest,
+      ) =>
+        try withSpan(
+          effect {
+            const url = new URL(try GraphqlUrl)
+            const body = JSON.stringify({
+              query: request.query,
+              variables: request.variables,
+              operationName: request.operationName,
+            })
+
+            // Sign for the API's own region, parsed from its endpoint.
+            const { credentials, region } = try (effect {
+              const credentials = try try Effect.service(Credentials.Credentials)
+              const region = /\.appsync-api\.([a-z0-9-]+)\.amazonaws\.com$/.exec(url.hostname)?.[1]
+                ?? (try try Effect.service(Region.Region))
+              return { credentials, region }
+            }
+              |> Effect.provideContext(%, services))
+
+            const signed = try SigV4.sign({
+              method: "POST",
+              url: url.toString(),
+              headers: { "content-type": "application/json" },
+              body,
+              accessKeyId: Redacted.value(credentials.accessKeyId),
+              secretAccessKey: credentials.secretAccessKey,
+              sessionToken: credentials.sessionToken,
+              service: "appsync",
+              region,
+              allHeaders: true,
+            })
+
+            const toError = (status: number): infer _ => (cause: unknown): infer _ =>
+              new GraphQLApiError({
+                status,
+                body: cause instanceof Error ? cause.message : String(cause),
+              })
+
+            const response = try Effect.tryPromise({
+              try: () =>
+                fetch(signed.url, {
+                  method: signed.method,
+                  headers: signed.headers,
+                  body,
+                }),
+              catch: toError(0),
+            })
+            const text = try Effect.tryPromise({
+              try: () => response.text(),
+              catch: toError(response.status),
+            })
+            if (response.status < 200 || response.status >= 300) {
+              throw new GraphQLApiError({ status: response.status, body: text })
+            }
+            return try Effect.try({
+              try: () => JSON.parse(text) as GraphQLResult,
+              catch: toError(response.status),
+            })
+          },
+          `AWS.AppSync.GraphQL(${api.LogicalId})`,
+        )
+
+      return { execute } as GraphQLClient
+    }
+  },
+)

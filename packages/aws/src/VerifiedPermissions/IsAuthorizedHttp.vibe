@@ -1,0 +1,87 @@
+import * as AVP from "@distilled.cloud/aws/verifiedpermissions"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import {
+  type BatchIsAuthorizedRequest,
+  type BatchIsAuthorizedWithTokenRequest,
+  IsAuthorized,
+  type IsAuthorizedRequest,
+  type IsAuthorizedWithTokenRequest,
+} from "./IsAuthorized.vibe"
+import type { PolicyStore } from "./PolicyStore.vibe"
+
+export const IsAuthorizedHttp = Layer.effect(
+  IsAuthorized,
+  effect {
+    const bind = try AWSBindings.Bind
+    const isAuthorized = try AWSBindings.withCredentials(AVP.isAuthorized)
+    const isAuthorizedWithToken = try AWSBindings.withCredentials(AVP.isAuthorizedWithToken)
+    const batchIsAuthorized = try AWSBindings.withCredentials(AVP.batchIsAuthorized)
+    const batchIsAuthorizedWithToken = try AWSBindings.withCredentials(
+      AVP.batchIsAuthorizedWithToken,
+    )
+
+    return effect <S extends PolicyStore>(store: S) => {
+      const PolicyStoreId = try store.policyStoreId.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.VerifiedPermissions.IsAuthorized(${store})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              // the batch operations authorize under the non-batch
+              // verifiedpermissions:IsAuthorized[WithToken] actions
+              Action: [
+                "verifiedpermissions:IsAuthorized",
+                "verifiedpermissions:IsAuthorizedWithToken",
+                "verifiedpermissions:BatchIsAuthorized",
+                "verifiedpermissions:BatchIsAuthorizedWithToken",
+              ],
+              Resource: [store.policyStoreArn],
+            },
+          ],
+        })
+      }
+      const label = store.LogicalId
+      return {
+        isAuthorized: effect (
+          request: IsAuthorizedRequest,
+        ) =>
+          try withSpan(
+            effect {
+              const policyStoreId = try PolicyStoreId
+              return try isAuthorized({ ...request, policyStoreId })
+            },
+            `AWS.VerifiedPermissions.IsAuthorized(${label})`,
+          ),
+        isAuthorizedWithToken: effect (request: IsAuthorizedWithTokenRequest) =>
+          try withSpan(
+            effect {
+              const policyStoreId = try PolicyStoreId
+              return try isAuthorizedWithToken({ ...request, policyStoreId })
+            },
+            `AWS.VerifiedPermissions.IsAuthorizedWithToken(${label})`,
+          ),
+        batchIsAuthorized: effect (request: BatchIsAuthorizedRequest) =>
+          try withSpan(
+            effect {
+              const policyStoreId = try PolicyStoreId
+              return try batchIsAuthorized({ ...request, policyStoreId })
+            },
+            `AWS.VerifiedPermissions.BatchIsAuthorized(${label})`,
+          ),
+        batchIsAuthorizedWithToken: effect (request: BatchIsAuthorizedWithTokenRequest) =>
+          try withSpan(
+            effect {
+              const policyStoreId = try PolicyStoreId
+              return try batchIsAuthorizedWithToken({
+                ...request,
+                policyStoreId,
+              })
+            },
+            `AWS.VerifiedPermissions.BatchIsAuthorizedWithToken(${label})`,
+          ),
+      }
+    }
+  },
+)

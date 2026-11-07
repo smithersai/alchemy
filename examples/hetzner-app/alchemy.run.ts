@@ -14,9 +14,9 @@ import * as Hetzner from "@alchemy.run/hetzner";
 import * as Alchemy from "alchemy";
 import * as Output from "alchemy/Output";
 import * as Effect from "effect/Effect";
-import Api from "./src/api.ts";
+import Api from "./src/api.vibe";
 import { API_PORT, AppRecord, Box, Data, DnsZone, Edge, Net, Wall } from "./src/shared.ts";
-import Worker from "./src/worker.ts";
+import Worker from "./src/worker.vibe";
 
 export default Alchemy.Stack(
   "HetznerApp",

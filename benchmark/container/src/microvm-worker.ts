@@ -9,12 +9,12 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import type * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
-import { BunMicrovm } from "./bun-image.ts";
+import { BunMicrovm } from "./bun-image.vibe";
 import { EffectfulBun } from "./effectful-bun.ts";
 import { EffectfulNode } from "./effectful-node.ts";
-import { ExternalMicrovm } from "./external-image.ts";
-import { NodeMicrovm } from "./node-image.ts";
-import { OpencodeMicrovm } from "./opencode-image.ts";
+import { ExternalMicrovm } from "./external-image.vibe";
+import { NodeMicrovm } from "./node-image.vibe";
+import { OpencodeMicrovm } from "./opencode-image.vibe";
 
 /**
  * Cloudflare Worker host for the MicroVM cold-start benchmark — the cross-cloud

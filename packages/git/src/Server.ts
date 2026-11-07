@@ -38,7 +38,7 @@ import * as Layer from "effect/Layer";
 import * as Redacted from "effect/Redacted";
 import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
-import { GitApi, InternalApi, RepoCreated } from "./Api.ts";
+import { GitApi, InternalApi, RepoCreated } from "./Api.vibe";
 import { BlobStore, type BlobStoreError } from "./BlobStore.ts";
 import { Engine, EngineLive } from "./Engine.ts";
 import { gitHubCompatRoutes } from "./GitHubCompat.ts";
@@ -49,14 +49,14 @@ import {
   HASHER_BINDING,
   InternalSecret,
 } from "./Hasher/Hasher.ts";
-import { decodeDeltaBatch, encodeDeltaResults } from "./Hasher/Protocol.ts";
+import { decodeDeltaBatch, encodeDeltaResults } from "./Hasher/Protocol.vibe";
 import * as ReceivePackHttp from "./Http/ReceivePack.ts";
-import { bundleCovers, type BundleInfo } from "./Jobs/Bundle.ts";
+import { bundleCovers, type BundleInfo } from "./Jobs/Bundle.vibe";
 import { Operations } from "./Operations.ts";
 import { concatBytes, utf8Decode } from "./Protocol/ObjectCodec.ts";
-import { hashBounds, resolveDeltas, scanPart } from "./Protocol/PartialScan.ts";
+import { hashBounds, resolveDeltas, scanPart } from "./Protocol/PartialScan.vibe";
 import { decodePktLines, flushPkt, pktText } from "./Protocol/Pkt.ts";
-import { progressMessage, pumpPackBody, wrapSideband } from "./Protocol/Sideband.ts";
+import { progressMessage, pumpPackBody, wrapSideband } from "./Protocol/Sideband.vibe";
 import {
   buildAdvertisement,
   BUNDLE_COUNT_HEADER,

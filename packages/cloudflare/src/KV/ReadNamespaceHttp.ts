@@ -10,7 +10,7 @@ import {
   toKVNamespaceError,
   type KVAuth,
 } from "./NamespaceHttp.ts";
-import { ReadNamespace, type ReadNamespaceClient } from "./ReadNamespace.ts";
+import { ReadNamespace, type ReadNamespaceClient } from "./ReadNamespace.vibe";
 
 /**
  * HTTP-backed implementation of the {@link ReadNamespace} binding.

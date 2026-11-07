@@ -1,0 +1,42 @@
+import * as ec2 from "@distilled.cloud/aws/ec2"
+import * as Effect from "effect/Effect"
+import * as Layer from "effect/Layer"
+import * as AWSBindings from "../AWSBindings.ts"
+import { DescribeInstance } from "./DescribeInstance.vibe"
+import { type Instance } from "./Instance.ts"
+
+// Bespoke (not the shared scaffold): `describeInstances` nests results under
+// Reservations[].Instances[] and the client unwraps the single bound
+// instance.
+export const DescribeInstanceHttp = Layer.effect(
+  DescribeInstance,
+  effect {
+    const bind = try AWSBindings.Bind
+    const describe = try AWSBindings.withCredentials(ec2.describeInstances)
+
+    return effect (instance: Instance) => {
+      const instanceId = try instance.instanceId.asEffect()
+      if (!globalThis.__ALCHEMY_RUNTIME__) {
+        try bind`AWS.EC2.DescribeInstance(${instance})`({
+          policyStatements: [
+            {
+              Effect: "Allow",
+              Action: ["ec2:DescribeInstances"],
+              Resource: ["*"],
+            },
+          ],
+        })
+      }
+      return effect () =>
+        try withSpan(
+          effect {
+            const result = try describe({
+              InstanceIds: [try instanceId],
+            })
+            return result.Reservations?.[0]?.Instances?.[0]
+          },
+          `AWS.EC2.DescribeInstance(${instance.LogicalId})`,
+        )
+    }
+  },
+)
