@@ -14,7 +14,7 @@ import {
   backendSecret,
   backendString,
   bindBackendEnvironment,
-} from "./BackendConnection.ts";
+} from "./BackendConnection.vibe";
 import { Credential, validateCredential } from "./Credential.ts";
 import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.vibe";
 import { FunctionEnvironment } from "./FunctionEnvironment.vibe";
