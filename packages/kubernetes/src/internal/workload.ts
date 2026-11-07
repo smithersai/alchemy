@@ -21,7 +21,7 @@ import type {
   WorkloadBindingContract,
   WorkloadImageSource,
 } from "../ClusterAdapter.ts";
-import type { ClusterLike, Connection, ConnectionAuth } from "../Connection.vibe";
+import type { ClusterLike, Connection, ConnectionAuth } from "../Connection.ts";
 import type { ConnectionRegistry } from "./registry.ts";
 
 /**

@@ -21,8 +21,8 @@ import {
   findClusterAdapter,
   type ClusterTransport,
 } from "./ClusterAdapter.ts";
-import type { Connection } from "./Connection.vibe";
-import { driftMask, hashDriftSelection } from "./internal/declared.vibe";
+import type { Connection } from "./Connection.ts";
+import { driftMask, hashDriftSelection } from "./internal/declared.ts";
 import {
   buildKubernetesObjectPathWithSpec,
   chunkByApplyRank,
