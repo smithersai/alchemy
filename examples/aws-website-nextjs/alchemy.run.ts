@@ -1,5 +1,6 @@
-import * as AWS from "@alchemy.run/aws"
-import * as Alchemy from "alchemy"
+import * as AWS from "@alchemy.run/aws";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
   "AwsWebsiteNextjsExample",
@@ -7,8 +8,8 @@ export default Alchemy.Stack(
     providers: AWS.providers(),
     state: AWS.state(),
   },
-  effect {
-    const site = try AWS.Website.Nextjs("Nextjs", {
+  Effect.gen(function* () {
+    const site = yield* AWS.Website.Nextjs("Nextjs", {
       // Only hash the files that affect the build, so unchanged sources
       // skip the OpenNext build (and the deploy) entirely.
       memo: {
@@ -26,10 +27,10 @@ export default Alchemy.Stack(
       env: {
         GREETING: "Hello from Next.js on AWS!",
       },
-    })
+    });
 
     return {
       url: site.url,
-    }
-  },
-)
+    };
+  }),
+);
