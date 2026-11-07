@@ -1,5 +1,6 @@
-import * as Fly from "@alchemy.run/fly"
-import * as Alchemy from "alchemy"
+import * as Fly from "@alchemy.run/fly";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
   "FlyWebsiteReactRouterExample",
@@ -7,8 +8,8 @@ export default Alchemy.Stack(
     providers: Fly.providers(),
     state: Alchemy.localState(),
   },
-  effect {
-    const site = try Fly.Website.ReactRouter("Website", {
+  Effect.gen(function* () {
+    const site = yield* Fly.Website.ReactRouter("Website", {
       // Only hash the files that affect the build, so unchanged sources
       // skip the React Router build (and the deploy) entirely.
       memo: {
@@ -23,10 +24,10 @@ export default Alchemy.Stack(
       env: {
         GREETING: "Hello from React Router on Fly!",
       },
-    })
+    });
 
     return {
       url: site.url,
-    }
-  },
-)
+    };
+  }),
+);

@@ -1,5 +1,6 @@
-import * as Hetzner from "@alchemy.run/hetzner"
-import * as Alchemy from "alchemy"
+import * as Hetzner from "@alchemy.run/hetzner";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
   "HetznerWebsiteTanStackStartExample",
@@ -7,8 +8,8 @@ export default Alchemy.Stack(
     providers: Hetzner.providers(),
     state: Alchemy.localState(),
   },
-  effect {
-    const site = try Hetzner.Website.TanStackStart("Website", {
+  Effect.gen(function* () {
+    const site = yield* Hetzner.Website.TanStackStart("Website", {
       // Only hash the files that affect the build, so unchanged sources
       // skip the Vite build (and the deploy) entirely.
       memo: {
@@ -17,10 +18,10 @@ export default Alchemy.Stack(
       env: {
         GREETING: "Hello from TanStack Start on Hetzner!",
       },
-    })
+    });
 
     return {
       url: site.url,
-    }
-  },
-)
+    };
+  }),
+);

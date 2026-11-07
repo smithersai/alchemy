@@ -1,5 +1,6 @@
-import * as Fly from "@alchemy.run/fly"
-import * as Alchemy from "alchemy"
+import * as Fly from "@alchemy.run/fly";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
   "FlyWebsiteVinextExample",
@@ -7,8 +8,8 @@ export default Alchemy.Stack(
     providers: Fly.providers(),
     state: Alchemy.localState(),
   },
-  effect {
-    const site = try Fly.Website.Vinext("Vinext", {
+  Effect.gen(function* () {
+    const site = yield* Fly.Website.Vinext("Vinext", {
       memo: {
         lockfile: true,
         include: ["app/**", "public/**", "package.json", "vite.config.ts", "tsconfig.json"],
@@ -16,10 +17,10 @@ export default Alchemy.Stack(
       env: {
         GREETING: "Hello from vinext on Fly!",
       },
-    })
+    });
 
     return {
       url: site.url,
-    }
-  },
-)
+    };
+  }),
+);

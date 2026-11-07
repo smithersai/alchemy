@@ -1,5 +1,6 @@
-import * as Hetzner from "@alchemy.run/hetzner"
-import * as Alchemy from "alchemy"
+import * as Hetzner from "@alchemy.run/hetzner";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
   "HetznerWebsiteNuxtExample",
@@ -7,8 +8,8 @@ export default Alchemy.Stack(
     providers: Hetzner.providers(),
     state: Alchemy.localState(),
   },
-  effect {
-    const site = try Hetzner.Website.Nuxt("NuxtSite", {
+  Effect.gen(function* () {
+    const site = yield* Hetzner.Website.Nuxt("NuxtSite", {
       // Only hash the files that affect the build, so unchanged sources
       // skip the Nuxt build (and the deploy) entirely.
       memo: {
@@ -24,10 +25,10 @@ export default Alchemy.Stack(
       env: {
         GREETING: "Hello from Nuxt on Hetzner!",
       },
-    })
+    });
 
     return {
       url: site.url,
-    }
-  },
-)
+    };
+  }),
+);

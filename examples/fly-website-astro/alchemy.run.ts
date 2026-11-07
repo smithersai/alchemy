@@ -1,5 +1,6 @@
-import * as Fly from "@alchemy.run/fly"
-import * as Alchemy from "alchemy"
+import * as Fly from "@alchemy.run/fly";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
   "FlyWebsiteAstroExample",
@@ -7,8 +8,8 @@ export default Alchemy.Stack(
     providers: Fly.providers(),
     state: Alchemy.localState(),
   },
-  effect {
-    const site = try Fly.Website.Astro("Astro", {
+  Effect.gen(function* () {
+    const site = yield* Fly.Website.Astro("Astro", {
       // Only hash the files that affect the build, so unchanged sources
       // skip the Astro build (and the deploy) entirely.
       memo: {
@@ -17,10 +18,10 @@ export default Alchemy.Stack(
       env: {
         GREETING: "Hello from Astro on Fly!",
       },
-    })
+    });
 
     return {
       url: site.url,
-    }
-  },
-)
+    };
+  }),
+);
