@@ -1,7 +1,4 @@
 import * as Effect from "effect/Effect";
-import type { BlobStoreShape } from "../BlobStore.ts";
-import { StoreError } from "../Protocol/Store.vibe";
-import type { SqlClient } from "../Store/Sql.ts";
 /**
  * The compaction alarm job (DESIGN.md §12.1) — the v2 storage plane.
  *
@@ -31,6 +28,9 @@ import type { SqlClient } from "../Store/Sql.ts";
  * {@link MAX_OBJECTS_PER_RUN} objects / {@link MAX_BYTES_PER_RUN} bytes are
  * moved per alarm, and the job reports whether more remain.
  */
+import type { BlobStoreShape } from "../BlobStore.ts";
+import { StoreError } from "../Protocol/Store.vibe";
+import type { SqlClient } from "../Store/Sql.ts";
 /** Objects moved per alarm run. */
 export declare const MAX_OBJECTS_PER_RUN = 2000;
 /**

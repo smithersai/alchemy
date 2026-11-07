@@ -5,19 +5,6 @@ import type * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import { PrometheusApiError, type PrometheusTime } from "./PrometheusTypes.vibe";
 import type { Workspace } from "./Workspace.vibe";
-/**
- * Shared scaffolding for AMP data-plane HTTP bindings.
- *
- * Amazon Managed Service for Prometheus exposes its data plane as a
- * Prometheus-compatible HTTP API under the workspace's `prometheusEndpoint`
- * (`aps:RemoteWrite`, `aps:QueryMetrics`, `aps:GetLabels`, `aps:GetSeries`,
- * `aps:GetMetricMetadata`). There is no distilled operation for these — every
- * request is a SigV4-signed HTTP call (service `"aps"`) made with the host
- * Function's own credentials.
- *
- * NOT exported from `index.ts` — only the per-capability contracts and
- * `*Http` layers are public.
- */
 /** A request against the workspace's Prometheus-compatible endpoint. */
 export interface AmpHttpRequest {
     method: "GET" | "POST";

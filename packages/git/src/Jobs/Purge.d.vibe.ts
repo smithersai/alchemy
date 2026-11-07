@@ -1,6 +1,4 @@
 import * as Effect from "effect/Effect";
-import type { BlobStoreShape } from "../BlobStore.ts";
-import { StoreError } from "../Protocol/Store.vibe";
 /**
  * The delete-purge alarm job (DESIGN.md §2.3 Delete).
  *
@@ -22,6 +20,8 @@ import { StoreError } from "../Protocol/Store.vibe";
  * {@link MAX_PAGES_PER_RUN} × 1000 R2 objects and reports `"continue"` so
  * the caller re-arms the alarm instead of blowing the 15-minute budget.
  */
+import type { BlobStoreShape } from "../BlobStore.ts";
+import { StoreError } from "../Protocol/Store.vibe";
 /** R2 `list` pages drained per alarm run (1000 keys per page). */
 export declare const MAX_PAGES_PER_RUN = 10;
 /** Outcome of one purge run. */

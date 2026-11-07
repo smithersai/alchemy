@@ -1,6 +1,5 @@
 import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
 import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
-import { RepoNotFound, PushDenied } from "./Schema.ts";
 /**
  * The `protocol` group: git smart HTTP v0 at the repository's root path.
  * The routes are streaming binary (pkt-lines in, sideband packs out),
@@ -9,6 +8,7 @@ import { RepoNotFound, PushDenied } from "./Schema.ts";
  *
  * `:repo` may carry a `.git` suffix; the handlers strip it.
  */
+import { RepoNotFound, PushDenied } from "./Schema.ts";
 /** `GET /:owner/:repo/info/refs?service=…`: the ref advertisement. */
 export declare const InfoRefs: HttpApiEndpoint.HttpApiEndpoint<"infoRefs", "GET", "/:owner/:repo/info/refs", import("effect/Schema").toCodecStringTree<import("effect/Schema").Struct<{
     readonly owner: import("effect/Schema").String;

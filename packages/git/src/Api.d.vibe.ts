@@ -1,11 +1,4 @@
 import * as HttpApi from "effect/http-api/HttpApi";
-import type * as HttpServerRequest from "effect/http/HttpServerRequest";
-import { GitHub } from "./Api/GitHub.vibe";
-import { Objects } from "./Api/Objects.vibe";
-import { Protocol } from "./Api/Protocol.vibe";
-import { Pulls } from "./Api/Pulls.vibe";
-import { Refs } from "./Api/Refs.vibe";
-import { Repos } from "./Api/Repos.vibe";
 /**
  * The typed HTTP contract for git-service (DESIGN.md §5): every plane as
  * one Effect `HttpApi`, so the Worker, the clients
@@ -29,6 +22,13 @@ import { Repos } from "./Api/Repos.vibe";
  * {@link InternalApi}, mounted separately. Shared schemas and tagged
  * errors live in `Api/Schema.ts` and are re-exported flatly from here.
  */
+import type * as HttpServerRequest from "effect/http/HttpServerRequest";
+import { GitHub } from "./Api/GitHub.vibe";
+import { Objects } from "./Api/Objects.vibe";
+import { Protocol } from "./Api/Protocol.vibe";
+import { Pulls } from "./Api/Pulls.vibe";
+import { Refs } from "./Api/Refs.vibe";
+import { Repos } from "./Api/Repos.vibe";
 export * from "./Api/Schema.ts";
 export * from "./Api/GitHub.vibe";
 export * from "./Api/Internal.vibe";

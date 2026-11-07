@@ -1,8 +1,5 @@
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
-import { type BlobStoreShape } from "../BlobStore.ts";
-import { type Oid } from "../Protocol/ObjectCodec.ts";
-import { StoreError, type ManifestEntry } from "../Protocol/Store.vibe";
 /**
  * The clone-bundle alarm job (DESIGN.md §12.2) — the v2 serving plane.
  *
@@ -26,6 +23,9 @@ import { StoreError, type ManifestEntry } from "../Protocol/Store.vibe";
  * entry is `varint(type,size) + zdata`, and both are known from the object
  * index), so bundling a large repo never buffers the pack in memory.
  */
+import { type BlobStoreShape } from "../BlobStore.ts";
+import { type Oid } from "../Protocol/ObjectCodec.ts";
+import { StoreError, type ManifestEntry } from "../Protocol/Store.vibe";
 /** A ref as it appears in a bundle's covered snapshot. */
 export interface BundleRef {
     readonly name: string;

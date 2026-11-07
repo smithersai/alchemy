@@ -1,10 +1,10 @@
 import * as HttpApi from "effect/http-api/HttpApi";
-import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
-import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 /**
  * The engine's internal API: routes the engine calls on itself, never a
  * user. Register `Git.InternalApiLive` beside public routes, outside user middleware.
  */
+import * as HttpApiEndpoint from "effect/http-api/HttpApiEndpoint";
+import * as HttpApiGroup from "effect/http-api/HttpApiGroup";
 /**
  * The push pipeline's hashing endpoint (DESIGN §22.7), reached through the
  * Worker's self service binding by the fan-out {@link Hasher} and
