@@ -3,7 +3,7 @@ import * as Provider from "alchemy/Provider";
 import { Stack } from "alchemy/Stack";
 import type * as Types from "effect/Types";
 import { Service } from "./Service.ts";
-export { ServiceRegionNotApplied } from "./ServiceRegion.ts";
+export { ServiceRegionNotApplied } from "./ServiceRegion.vibe";
 export { ServiceContextPathInvalid, ServiceContextPathUnsupported, ServiceContextSymlinkUnsupported, ServiceContextTooLarge, ServiceDockerfileOutsideContext, ServiceDockerfilePathInvalid, ServiceImageOrMainRequired, ServiceSourceInvalid, } from "./local-context.ts";
 declare const ServiceNotCreated_base: new <A extends Record<string, any> = {}>(args: Types.VoidIfEmpty<{ readonly [P in keyof A as P extends "_tag" ? never : P]: A[P]; }>) => import("effect/Cause").YieldableError & {
     readonly _tag: "Railway.ServiceNotCreated";
