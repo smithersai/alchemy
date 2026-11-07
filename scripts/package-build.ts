@@ -45,7 +45,8 @@ export interface BuildOptions {
      * Also generate the workspace `exports` from `src/`: the root, one entry
      * per directory index (`./S3` → `./src/S3/index.ts`), the `sourceOnly`
      * subpaths, and `./*` for every other file. Published packages block
-     * every `internal/` directory.
+     * every `internal/` directory. Existing TypeScript entries and explicit
+     * private blocks are retained while their source boundaries are in use.
      */
     readonly generate?: boolean;
     /** Add a `worker` condition on source for Worker bundlers. */
@@ -210,6 +211,7 @@ const isInternal = (directory: string) => directory.split("/").includes("interna
 const generateExports = Effect.fn(function* (
   packageDirectory: string,
   options: NonNullable<BuildOptions["exports"]>,
+  previousExports: Readonly<Record<string, string | null>>,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -230,7 +232,7 @@ const generateExports = Effect.fn(function* (
     }
   }
 
-  return {
+  const exports = {
     ...((yield* fs.exists(path.join(sourceDirectory, "index.ts")))
       ? { ".": "./src/index.ts" }
       : {}),
@@ -246,6 +248,21 @@ const generateExports = Effect.fn(function* (
     "./*": "./src/*.ts",
     "./package.json": "./package.json",
   } as Record<string, string | null>;
+
+  for (const [subpath, source] of Object.entries(previousExports)) {
+    if (Object.hasOwn(exports, subpath)) continue;
+    if (source === null) {
+      exports[subpath] = null;
+    } else if (
+      typeof source === "string" &&
+      !subpath.includes("*") &&
+      /^\.\/src\/.+\.[cm]?tsx?$/.test(source) &&
+      (yield* fs.exists(path.join(packageDirectory, source)))
+    ) {
+      exports[subpath] = source;
+    }
+  }
+  return exports;
 });
 
 /**
@@ -440,7 +457,7 @@ const syncPublishExports = Effect.fn(function* (
     publishConfig?: Record<string, unknown>;
   };
   if (options.generate) {
-    packageJson.exports = yield* generateExports(packageDirectory, options);
+    packageJson.exports = yield* generateExports(packageDirectory, options, packageJson.exports);
   }
   const tsconfig = JSON.parse(
     yield* fs.readFileString(path.join(packageDirectory, "tsconfig.json")),
