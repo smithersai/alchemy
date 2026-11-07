@@ -4,7 +4,7 @@ import * as Alchemy from "alchemy";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { Connector } from "./src/Connector.ts";
-import { Hyperdrive } from "./src/Hyperdrive.ts";
+import { Hyperdrive } from "./src/Hyperdrive.vibe";
 
 export default Alchemy.Stack(
   "CloudflareHyperdriveAwsVpc",
