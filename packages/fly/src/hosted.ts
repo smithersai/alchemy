@@ -32,7 +32,7 @@ import * as Schedule from "effect/Schedule";
 import type * as rolldown from "rolldown";
 import { buildOnRemoteBuilder } from "./internal/RemoteBuilder.vibe";
 import type { BoundTarget, DiskSpec, ServiceBinding } from "./MountVolume.vibe";
-import { rpcMethodsOf, serveFlyRpc } from "./rpc.ts";
+import { rpcMethodsOf, serveFlyRpc } from "./rpc.vibe";
 
 export type FlyHostRuntimeContext = HostRuntimeContext;
 
