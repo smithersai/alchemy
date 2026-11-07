@@ -4,7 +4,7 @@ export {
   matchForeignRows,
   type ConvertedRow,
   type ForeignHistory,
-} from "./Convert.vibe";
+} from "./Convert.ts";
 export { detectLayout, type MigrationLayout } from "./Detect.ts";
 export {
   makeStatementExecutor,
@@ -30,7 +30,7 @@ export {
   type MigrationRecord,
   type SqlExecutor,
 } from "./Format.ts";
-export { classifyTable, tableColumns, type TableShape } from "./Introspect.vibe";
+export { classifyTable, tableColumns, type TableShape } from "./Introspect.ts";
 export { makeMySQLMigrationExecutor } from "./MySQLExecutor.ts";
 export { makePgMigrationExecutor } from "./PgExecutor.ts";
 export {
@@ -60,7 +60,7 @@ export {
   type NormalizedMigrationsInput,
   type ResolvedMigrations,
   type StampedMigrationsState,
-} from "./Registry.vibe";
+} from "./Registry.ts";
 export {
   scanSqlScript,
   splitSqlScript,

@@ -4,7 +4,7 @@ import {
   findForeignHistory,
   matchForeignRows,
   toTimestampString,
-} from "./Convert.vibe";
+} from "./Convert.ts";
 import {
   describeRewrittenHistory,
   MigrationError,
@@ -15,7 +15,7 @@ import {
   type MigrationRecord,
   type SqlExecutor,
 } from "./Format.ts";
-import { classifyTable, tableColumns } from "./Introspect.vibe";
+import { classifyTable, tableColumns } from "./Introspect.ts";
 import { bookkeepingColumns, quoteIdentifier, scalarText, sqlLiteral } from "./Utils.ts";
 
 export const ALCHEMY_DEFAULT_TABLE = "__alchemy_migrations";
