@@ -1,63 +1,64 @@
-import * as Data from "effect/Data";
-import type * as Duration from "effect/Duration";
-import * as Effect from "effect/Effect";
-import type * as Scope from "effect/Scope";
-import { RuntimeContext } from "./RuntimeContext.ts";
+import type * as Duration from "effect/Duration"
+import * as Effect from "effect/Effect"
+import type * as Scope from "effect/Scope"
+import { RuntimeContext } from "./RuntimeContext.ts"
 
 /** A durable callback could not be registered, scheduled, cancelled, or dispatched. */
-export class CallbackError extends Data.TaggedError("CallbackError")<{
-  readonly callback: string;
-  readonly message: string;
-  readonly cause?: unknown;
-}> {}
+export error CallbackError {
+  callback: string
+  message: string
+  cause?: unknown
+}
 
 export interface CallbackOptions {
   /** Bounded backoff for unsuccessful deliveries and self-rescheduling without progress. */
   readonly retry?: {
     /** Initial delay. Defaults to 30 seconds; positive durations below one second use one second. */
-    readonly delay?: Duration.Input;
+    readonly delay?: Duration.Input
     /** Attempts without progress before parking. Must be a positive safe integer. Defaults to eight. */
-    readonly maxAttempts?: number;
+    readonly maxAttempts?: number
     /** Recovery interval for parked work. Must be at least one hour and the initial delay. Defaults to the greater of those two values. */
-    readonly parkedDelay?: Duration.Input;
-  };
+    readonly parkedDelay?: Duration.Input
+  }
 }
 
-export type CallbackScheduleOptions<Payload> = {
-  /** JSON-serializable data delivered to the callback. */
-  readonly payload: Payload;
-  /**
-   * Committed source version or sequence, as a nonnegative safe integer.
-   * A strictly increasing value resets the retry budget. Replayed external
-   * schedules cannot replace newer work. Commit progress and scheduling in the
-   * same storage transaction; changing IDs, payloads, or deadlines is not progress.
-   */
-  readonly progress?: number;
-} & (
-  | {
+export type CallbackScheduleOptions<Payload> =
+  & {
+    /** JSON-serializable data delivered to the callback. */
+    readonly payload: Payload
+    /**
+     * Committed source version or sequence, as a nonnegative safe integer.
+     * A strictly increasing value resets the retry budget. Replayed external
+     * schedules cannot replace newer work. Commit progress and scheduling in the
+     * same storage transaction; changing IDs, payloads, or deadlines is not progress.
+     */
+    readonly progress?: number
+  }
+  & (
+    | {
       /** Absolute delivery time, as a Date or positive milliseconds since the Unix epoch. */
-      readonly at: Date | number;
-      readonly after?: never;
+      readonly at: Date | number
+      readonly after?: never
     }
-  | {
+    | {
       /** Minimum delay before delivery. Zero schedules the callback as soon as possible. */
-      readonly after: Duration.Input;
-      readonly at?: never;
+      readonly after: Duration.Input
+      readonly at?: never
     }
-);
+  )
 
 /** Durable scheduling state, available without decoding the job's payload. */
 export interface CallbackStatus {
   /** Requested delivery time in milliseconds since the Unix epoch; preserved across retries. */
-  readonly scheduledAt: number;
+  readonly scheduledAt: number
   /** Earliest recovery time in milliseconds since the Unix epoch, if an attempt has started. */
-  readonly retryAt: number | undefined;
+  readonly retryAt: number | undefined
   /** Attempts started without reported progress, capped when the job is parked. */
-  readonly attempts: number;
+  readonly attempts: number
   /** Whether the job is retained for recovery at the parked interval. */
-  readonly parked: boolean;
+  readonly parked: boolean
   /** Latest committed source cursor supplied when scheduling, if any. */
-  readonly progress: number | undefined;
+  readonly progress: number | undefined
 }
 
 export interface Callback<Payload> {
@@ -65,13 +66,13 @@ export interface Callback<Payload> {
   readonly schedule: (
     id: string,
     options: CallbackScheduleOptions<Payload>,
-  ) => Effect.Effect<void, CallbackError, RuntimeContext>;
+  ) => void!CallbackError!RuntimeContext
   /** Cancel a pending job. Cancelling an absent ID succeeds; an already-running handler is not interrupted. */
-  readonly cancel: (id: string) => Effect.Effect<void, CallbackError, RuntimeContext>;
+  readonly cancel: (id: string) => void!CallbackError!RuntimeContext
   /** Inspect a pending job. Returns undefined after successful completion or cancellation. */
   readonly getStatus: (
     id: string,
-  ) => Effect.Effect<CallbackStatus | undefined, CallbackError, RuntimeContext>;
+  ) => CallbackStatus | undefined!CallbackError!RuntimeContext
 }
 
 /**
@@ -84,9 +85,9 @@ export interface Callback<Payload> {
  */
 export type CallbackFactory = <Payload, E, R>(
   name: string,
-  handler: (payload: Payload) => Effect.Effect<unknown, E, R>,
+  handler: (payload: Payload) => unknown!E!R,
   options?: CallbackOptions,
-) => Effect.Effect<Callback<Payload>, never, RuntimeContext | Exclude<R, Scope.Scope>>;
+) => Callback<Payload>!never!RuntimeContext | Exclude<R, Scope.Scope>
 
 /**
  * Register a durable callback with the current host.
@@ -168,20 +169,19 @@ export type CallbackFactory = <Payload, E, R>(
  * pending jobs remain stored, but may need an explicitly rearmed native alarm.
  * Other implementations must document their own transaction integration.
  */
-export const makeCallback = <Payload, E, R>(
+export const makeCallback = effect <Payload, E, R>(
   name: string,
-  handler: (payload: Payload) => Effect.Effect<unknown, E, R>,
+  handler: (payload: Payload) => unknown!E!R,
   options?: CallbackOptions,
-): Effect.Effect<Callback<Payload>, never, RuntimeContext | Exclude<R, Scope.Scope>> =>
-  Effect.gen(function* () {
-    const context = yield* RuntimeContext;
-    if (!context.makeCallback) {
-      return yield* Effect.die(
-        new CallbackError({
-          callback: name,
-          message: `Durable callbacks are not supported by ${context.Type}`,
-        }),
-      );
-    }
-    return yield* context.makeCallback(name, handler, options);
-  });
+): Callback<Payload>!never!RuntimeContext | Exclude<R, Scope.Scope> => {
+  const context = try RuntimeContext
+  if (!context.makeCallback) {
+    return try Effect.die(
+      new CallbackError({
+        callback: name,
+        message: `Durable callbacks are not supported by ${context.Type}`,
+      }),
+    )
+  }
+  return try context.makeCallback(name, handler, options)
+}

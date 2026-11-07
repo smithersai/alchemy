@@ -6,7 +6,7 @@ import * as Contributions from "../../Contributions.ts";
 import { Interaction } from "../../Interaction.ts";
 import { setExitCode } from "./errors.ts";
 import { config, envFile, profile } from "./flags.ts";
-import { instrumentCommand } from "./instrument.ts";
+import { instrumentCommand } from "./instrument.vibe";
 
 /** Optional repeatable filter for checking a subset of registered providers. */
 const checkedProviders = Flag.String("provider").pipe(

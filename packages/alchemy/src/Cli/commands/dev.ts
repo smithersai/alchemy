@@ -29,7 +29,7 @@ import {
   profile,
   resolveStackArgs,
 } from "./flags.ts";
-import { logCommandFailure, VersionCheck } from "./instrument.ts";
+import { logCommandFailure, VersionCheck } from "./instrument.vibe";
 
 /**
  * Trust the Floci emulator CA in `alchemy dev` so cross-cloud data planes

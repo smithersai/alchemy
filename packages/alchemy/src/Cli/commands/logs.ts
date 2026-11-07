@@ -7,7 +7,7 @@ import * as Alchemist from "../../Alchemist/index.ts";
 import { paint } from "../../Util/Terminal.ts";
 import { formatLocalTimestamp, TAIL_COLORS } from "../Format.ts";
 import { config, envFile, parseSince, profile, resolveStage, stage } from "./flags.ts";
-import { instrumentCommand } from "./instrument.ts";
+import { instrumentCommand } from "./instrument.vibe";
 
 const logsLimit = Flag.Int("limit").pipe(
   Flag.withDescription("Number of log entries to fetch (default: 100)"),

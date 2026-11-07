@@ -24,7 +24,7 @@ import * as Config from "effect/Config";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { makeEntrypointLayer } from "../Runtime.ts";
+import { makeEntrypointLayer } from "../Runtime.vibe";
 import { Self } from "../Self.vibe";
 import { Stack } from "../Stack.ts";
 import { Stage } from "../Stage.ts";

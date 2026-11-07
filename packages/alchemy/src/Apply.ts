@@ -10,7 +10,7 @@ import type { PlatformError } from "effect/PlatformError";
 import * as Predicate from "effect/Predicate";
 import type { Simplify } from "effect/Types";
 import type { ActionLike } from "./Action.ts";
-import { makeResolveContext } from "./ActionRuntimeContext.ts";
+import { makeResolveContext } from "./ActionRuntimeContext.vibe";
 import {
   OwnedBySomeoneElse,
   stripUnowned,

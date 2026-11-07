@@ -2,7 +2,7 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type { Pipeable } from "effect/Pipeable";
-import { makeCaptureContext } from "./ActionRuntimeContext.ts";
+import { makeCaptureContext } from "./ActionRuntimeContext.vibe";
 import { toFqn } from "./FQN.ts";
 import type { Input } from "./Input.vibe";
 import { CurrentNamespace, type NamespaceNode } from "./Namespace.ts";

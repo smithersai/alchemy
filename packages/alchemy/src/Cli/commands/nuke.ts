@@ -10,7 +10,7 @@ import { renderNukeScan, renderNukeDelete, reviewNuke } from "../components/view
 import { formatElapsed } from "../Format.ts";
 import { exitDeclined, UserInputError } from "./errors.ts";
 import { configPath, envFile, optionalConfig, profile, resolveConfig, yes } from "./flags.ts";
-import { instrumentCommand } from "./instrument.ts";
+import { instrumentCommand } from "./instrument.vibe";
 
 const includeFlag = Flag.String("include").pipe(
   Flag.withDescription("Glob of provider IDs to include (repeatable)"),

@@ -22,7 +22,7 @@ import * as Interaction from "../Interaction.ts";
 import * as RpcProviderProxy from "../Local/RpcProviderProxy.ts";
 import { forwardSidecarLogs } from "../Local/RpcSpawner.ts";
 import { renderApply } from "../Report.ts";
-import { TelemetryLive } from "../Telemetry/Layer.ts";
+import { TelemetryLive } from "../Telemetry/Layer.vibe";
 import { LogProcess, parentLogLayer } from "../Util/LogRecord.ts";
 import { initialCwd } from "../Util/Node.ts";
 import { PlatformServices } from "../Util/PlatformServices.ts";
@@ -33,7 +33,7 @@ import { renderPlanning } from "./commands/render.ts";
 import { stackOutputsView } from "./components/view/StackOutputs.tsx";
 import { DEV_RELOAD_EXIT_CODE, DevOptions } from "./DevOptions.vibe";
 import { ConsoleLogLive } from "./GlobalLog.ts";
-import { selectCliServices } from "./selectCli.ts";
+import { selectCliServices } from "./selectCli.vibe";
 
 // Interactive dev/deploy runs use the Sigil progress UI; CI, redirected output,
 // and other non-interactive terminals still select the append-only renderer.
