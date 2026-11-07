@@ -1,5 +1,6 @@
+// The platform code of aws-leak-sweep.vibe, which a .vibe file does not import as a value (EK4402).
+
 import * as Logs from "@distilled.cloud/aws/cloudwatch-logs";
-import { fromChain } from "@distilled.cloud/aws/Credentials";
 import * as DynamoDB from "@distilled.cloud/aws/dynamodb";
 import * as EC2 from "@distilled.cloud/aws/ec2";
 import * as ECS from "@distilled.cloud/aws/ecs";
@@ -22,42 +23,9 @@ import * as SecretsManager from "@distilled.cloud/aws/secrets-manager";
 import * as SNS from "@distilled.cloud/aws/sns";
 import * as SQS from "@distilled.cloud/aws/sqs";
 import * as SSM from "@distilled.cloud/aws/ssm";
-import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
-import * as NodeServices from "@effect/platform-node/NodeServices";
-/**
- * AWS leak sweep — finds (and optionally deletes) alchemy-tagged TEST resources
- * left behind by crashed/interrupted test runs.
- *
- * Discovery is tag-driven: every alchemy resource is branded with
- * `alchemy::stack` / `alchemy::stage` / `alchemy::id` (see src/Tags.ts
- * createInternalTags). Test suites deploy with stage `test_$USER` (the default
- * in packages/alchemy-test/src/Core.ts), so we sweep everything tagged
- * `alchemy::stage = test_$USER`.
- *
- * Primary discovery path: resourcegroupstaggingapi GetResources (regional).
- * Fallbacks for resources the tagging API can't see from a regional query:
- *   - IAM roles/policies (global service): listRoles/listPolicies + tag reads
- *   - EventBridge Scheduler schedules (not taggable): name-pattern heuristic
- *     (physical names embed `-{stage}-`, see src/PhysicalName.ts)
- *
- * Usage:
- *   node scripts/aws-leak-sweep.ts                      # DRY RUN (default)
- *   node scripts/aws-leak-sweep.ts --delete             # actually delete
- *   node scripts/aws-leak-sweep.ts --older-than 12      # only >= 12h old (default 6)
- *   node scripts/aws-leak-sweep.ts --stage test_sam     # tag stage filter (default test_$USER)
- *   node scripts/aws-leak-sweep.ts --region us-west-2   # region (default env or us-west-2)
- *
- * KMS keys are ALWAYS report-only — never deleted by this tool.
- * Resources whose age can't be determined are treated as eligible (a leak with
- * an unknown birthday is still a leak) and shown with age `?`.
- */
-import { Command, Flag } from "effect/cli";
-import * as Config from "effect/Config";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
-import { FetchHttpClient } from "effect/http";
 import type * as HttpClient from "effect/http/HttpClient";
-import * as Layer from "effect/Layer";
 import * as Result from "effect/Result";
 import * as Schedule from "effect/Schedule";
 
@@ -71,13 +39,11 @@ interface Args {
   stage: string;
   region: string;
 }
-
 // ---------------------------------------------------------------------------
 // Model
 // ---------------------------------------------------------------------------
 
 type Env = import("@distilled.cloud/aws/Credentials").Credentials | Region | HttpClient.HttpClient;
-
 interface Leak {
   arn: string;
   /** display kind, e.g. "sqs:queue" */
@@ -92,7 +58,6 @@ interface Leak {
   /** deletion ordering: lower phases first */
   phase: number;
 }
-
 const toDate = (v: Date | string | number | undefined): Date | undefined => {
   if (v === undefined || v === null) return undefined;
   if (v instanceof Date) return v;
@@ -107,17 +72,14 @@ const toDate = (v: Date | string | number | undefined): Date | undefined => {
   const d = new Date(v);
   return Number.isNaN(d.getTime()) ? undefined : d;
 };
-
 const ageHours = (d: Date | undefined): number | undefined =>
   d === undefined ? undefined : (Date.now() - d.getTime()) / 3_600_000;
-
 const tagRecord = (
   tags: readonly { Key?: string; Value?: string }[] | undefined,
 ): Record<string, string> =>
   Object.fromEntries(
     (tags ?? []).filter((t) => t.Key !== undefined).map((t) => [t.Key as string, t.Value ?? ""]),
   );
-
 /** best-effort: any failure (missing perms, races, region mismatch) -> undefined */
 const tryDate = <E, R>(
   eff: Effect.Effect<Date | string | number | undefined, E, R>,
@@ -126,7 +88,6 @@ const tryDate = <E, R>(
     Effect.map(toDate),
     Effect.orElseSucceed(() => undefined),
   );
-
 // ---------------------------------------------------------------------------
 // ARN classification
 // ---------------------------------------------------------------------------
@@ -137,7 +98,6 @@ interface Parsed {
   account: string;
   rest: string;
 }
-
 const parseArn = (arn: string): Parsed | undefined => {
   const parts = arn.split(":");
   if (parts.length < 6 || parts[0] !== "arn") return undefined;
@@ -148,7 +108,6 @@ const parseArn = (arn: string): Parsed | undefined => {
     rest: parts.slice(5).join(":"),
   };
 };
-
 interface Classified {
   kind: string;
   name: string;
@@ -157,7 +116,6 @@ interface Classified {
   reportOnlyReason?: string;
   phase: number;
 }
-
 const classify = (arn: string): Classified => {
   const p = parseArn(arn);
   const unsupported = (reason: string): Classified => ({
@@ -333,7 +291,6 @@ const classify = (arn: string): Classified => {
       return unsupported("no sweep handler for this service");
   }
 };
-
 // ---------------------------------------------------------------------------
 // Age enrichment (best-effort, one describe per resource)
 // ---------------------------------------------------------------------------
@@ -342,7 +299,6 @@ const sqsQueueUrl = (leak: Leak, region: string): string => {
   const p = parseArn(leak.arn)!;
   return `https://sqs.${region}.amazonaws.com/${p.account}/${leak.name}`;
 };
-
 const lookupCreatedAt = (
   leak: Leak,
   region: string,
@@ -449,7 +405,6 @@ const lookupCreatedAt = (
       return Effect.undefined;
   }
 };
-
 // ---------------------------------------------------------------------------
 // Deletion (typed per service; not-found tags forgiven; bounded dep retries)
 // ---------------------------------------------------------------------------
@@ -468,9 +423,7 @@ const retryDependencies = <A, E extends { _tag: string }, R>(
       times: 6,
     }),
   );
-
 const GONE = /NotFound|NoSuchEntity|DoesNotExist|NoSuch|Missing|Gone|Deleted/i;
-
 const emptyBucket = (bucket: string) =>
   Effect.gen(function* () {
     // re-list from the start after each batch delete; bounded passes
@@ -487,7 +440,6 @@ const emptyBucket = (bucket: string) =>
       if (!listing.IsTruncated) return;
     }
   });
-
 const deleteIamRole = (roleName: string) =>
   Effect.gen(function* () {
     const profiles = yield* IAM.listInstanceProfilesForRole({
@@ -522,7 +474,6 @@ const deleteIamRole = (roleName: string) =>
     );
     yield* retryDependencies(IAM.deleteRole({ RoleName: roleName }));
   });
-
 const deleteIamPolicy = (policyArn: string) =>
   Effect.gen(function* () {
     const versions = yield* IAM.listPolicyVersions({ PolicyArn: policyArn });
@@ -537,7 +488,6 @@ const deleteIamPolicy = (policyArn: string) =>
     );
     yield* retryDependencies(IAM.deletePolicy({ PolicyArn: policyArn }));
   });
-
 const deleteEcsService = (leak: Leak) =>
   Effect.gen(function* () {
     // name = "service/{cluster}/{service}"
@@ -547,7 +497,6 @@ const deleteEcsService = (leak: Leak) =>
     );
     yield* retryDependencies(ECS.deleteService({ cluster, service, force: true }));
   });
-
 const deleteEventsRule = (leak: Leak) =>
   Effect.gen(function* () {
     // name is "name" (default bus) or "{bus}/{name}"
@@ -574,7 +523,6 @@ const deleteEventsRule = (leak: Leak) =>
       Force: true,
     });
   });
-
 /**
  * A leaked VPC can't be deleted while its subnets / route tables / IGW /
  * security groups exist, so tear those down first. NEVER touches the default
@@ -644,7 +592,6 @@ const deleteVpcDeep = (vpcId: string) =>
 
     yield* retryDependencies(EC2.deleteVpc({ VpcId: vpcId }));
   });
-
 const deleteEfs = (fileSystemId: string) =>
   Effect.gen(function* () {
     const mts = yield* EFS.describeMountTargets({
@@ -657,7 +604,6 @@ const deleteEfs = (fileSystemId: string) =>
     );
     yield* retryDependencies(EFS.deleteFileSystem({ FileSystemId: fileSystemId }));
   });
-
 const destroyLeak = (leak: Leak, region: string): Effect.Effect<unknown, { _tag: string }, Env> => {
   switch (leak.kind) {
     case "sqs:queue":
@@ -739,7 +685,6 @@ const destroyLeak = (leak: Leak, region: string): Effect.Effect<unknown, { _tag:
       return Effect.void;
   }
 };
-
 // ---------------------------------------------------------------------------
 // Discovery
 // ---------------------------------------------------------------------------
@@ -752,7 +697,6 @@ const destroyLeak = (leak: Leak, region: string): Effect.Effect<unknown, { _tag:
  * fixed.
  */
 const MAX_PAGES = 50;
-
 const discoverTagged = (stage: string) =>
   Effect.gen(function* () {
     const all: import("@distilled.cloud/aws/resource-groups-tagging-api").ResourceTagMapping[] = [];
@@ -769,7 +713,6 @@ const discoverTagged = (stage: string) =>
     }
     return all;
   });
-
 /**
  * IAM is a global service — a regional GetResources call does not return IAM
  * resources, so list roles/local policies directly and confirm ownership via
@@ -853,7 +796,6 @@ const discoverIam = (stage: string, account: string) =>
     }
     return leaks;
   });
-
 /**
  * EventBridge Scheduler schedules are not taggable, so the tagging API can't
  * find them. Fall back to listing all schedules and matching the alchemy
@@ -886,14 +828,12 @@ const discoverSchedules = (stage: string, region: string, account: string) =>
         createdAt: toDate(s.CreationDate),
       }));
   }).pipe(Effect.orElseSucceed(() => []));
-
 // ---------------------------------------------------------------------------
 // Report
 // ---------------------------------------------------------------------------
 
 const fmtAge = (h: number | undefined): string =>
   h === undefined ? "?" : h >= 48 ? `${(h / 24).toFixed(1)}d` : `${h.toFixed(1)}h`;
-
 const printTable = Effect.fn(function* (leaks: Leak[]) {
   const rows = leaks.map((l) => ({
     age: fmtAge(ageHours(l.createdAt)),
@@ -920,12 +860,11 @@ const printTable = Effect.fn(function* (leaks: Leak[]) {
   yield* Console.log(cols.map((c) => "-".repeat(width(c))).join("  "));
   for (const r of rows) yield* Console.log(line(r));
 });
-
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
-const main = Effect.fn(function* (args: Args) {
+export const main = Effect.fn(function* (args: Args) {
   yield* Console.log(
     `aws-leak-sweep: region=${args.region} stage=${args.stage} older-than=${args.olderThanHours}h mode=${args.delete ? "DELETE" : "DRY-RUN"}`,
   );
@@ -1103,53 +1042,3 @@ const main = Effect.fn(function* (args: Args) {
     });
   }
 });
-
-const command = Command.make(
-  "aws-leak-sweep",
-  {
-    delete: Flag.Boolean("delete").pipe(
-      Flag.withDescription("Actually delete the eligible resources (default is a dry run)"),
-      Flag.withDefault(false),
-    ),
-    olderThanHours: Flag.Finite("older-than").pipe(
-      Flag.withDescription("Only sweep resources at least this many hours old"),
-      Flag.withDefault(6),
-    ),
-    stage: Flag.String("stage").pipe(
-      Flag.withDescription("alchemy::stage tag to sweep (default test_$USER)"),
-      Flag.withFallbackConfig(
-        Config.NonEmptyString("USER").pipe(
-          Config.orElse(() => Config.NonEmptyString("USERNAME")),
-          Config.withDefault("unknown"),
-          Config.map((user) => `test_${user}`),
-        ),
-      ),
-    ),
-    region: Flag.String("region").pipe(
-      Flag.withDescription("AWS region (default $AWS_REGION, $AWS_DEFAULT_REGION or us-west-2)"),
-      Flag.withFallbackConfig(
-        Config.String("AWS_REGION").pipe(
-          Config.orElse(() => Config.String("AWS_DEFAULT_REGION")),
-          Config.withDefault("us-west-2"),
-        ),
-      ),
-    ),
-  },
-  (args) =>
-    main(args).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          fromChain(),
-          Layer.succeed(Region, Effect.succeed(args.region as any)),
-          FetchHttpClient.layer,
-        ),
-      ),
-    ),
-).pipe(
-  Command.withDescription("Find (and optionally delete) leaked alchemy-tagged AWS test resources"),
-);
-
-Command.run(command, { version: "0.0.0" }).pipe(
-  Effect.provide(NodeServices.layer),
-  NodeRuntime.runMain,
-);
