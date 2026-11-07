@@ -1,6 +1,6 @@
 export * from "./BuiltinAdapters.vibe";
 export * from "./ClusterAdapter.ts";
-export * from "./Connection.ts";
+export * from "./Connection.vibe";
 export * from "./Deployment.vibe";
 export * from "./HelmChart.vibe";
 export * from "./Job.ts";

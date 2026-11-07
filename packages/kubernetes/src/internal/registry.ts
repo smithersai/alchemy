@@ -13,7 +13,7 @@ import { createPhysicalName } from "alchemy/PhysicalName";
  */
 import * as Effect from "effect/Effect";
 import type { RegistryState, WorkloadImageSource } from "../ClusterAdapter.ts";
-import type { ContainerRegistry } from "../Connection.ts";
+import type { ContainerRegistry } from "../Connection.vibe";
 
 /** Docker credentials for a registry, or `undefined` to use `docker login`. */
 const credentialsOf = (registry: ContainerRegistry): RegistryCredentials | undefined =>

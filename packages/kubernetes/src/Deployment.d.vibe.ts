@@ -8,7 +8,7 @@ import { type HostRuntimeContext, type ServerHost as ServerHostService } from "a
 import { Stack } from "alchemy/Stack";
 import * as Effect from "effect/Effect";
 import { type IdentityState, type RegistryState, type WorkloadBindingContract, type WorkloadIdentityOptions, type WorkloadImageSource, type WorkloadServices } from "./ClusterAdapter.ts";
-import { type ClusterLike, type Connection } from "./Connection.ts";
+import { type ClusterLike, type Connection } from "./Connection.vibe";
 import { type KubernetesObjectRef } from "./Objects.ts";
 import type { Providers } from "./Providers.vibe";
 export declare const isDeployment: (value: any) => value is Deployment;
