@@ -1,7 +1,7 @@
-import * as GCP from "@alchemy.run/gcp"
-import * as Kubernetes from "@alchemy.run/kubernetes"
-import * as Effect from "effect/Effect"
-import { EntriesDatabase, entryPath, GuestbookCluster, GuestbookNamespace } from "./infra.vibe"
+import * as GCP from "@alchemy.run/gcp";
+import * as Kubernetes from "@alchemy.run/kubernetes";
+import * as Effect from "effect/Effect";
+import { EntriesDatabase, entryPath, GuestbookCluster, GuestbookNamespace } from "./infra.vibe";
 
 export const seedEntries = [
   { id: "ada", message: "First computers, now clusters." },
@@ -10,7 +10,7 @@ export const seedEntries = [
     message: "A cluster in port is safe, but that is not what clusters are for.",
   },
   { id: "linus", message: "Talk is cheap. Show me the manifest." },
-]
+];
 
 /**
  * A one-shot `Kubernetes.Job` in the INLINE EFFECT form: props + an init Effect
@@ -31,9 +31,9 @@ export const seedEntries = [
 export default Kubernetes.Job(
   "SeedJob",
   // Props are themselves an Effect so they can reference shared resources.
-  effect {
-    const cluster = try GuestbookCluster
-    const ns = try GuestbookNamespace
+  Effect.gen(function* () {
+    const cluster = yield* GuestbookCluster;
+    const ns = yield* GuestbookNamespace;
     return {
       cluster,
       main: import.meta.url,
@@ -48,34 +48,25 @@ export default Kubernetes.Job(
         requests: { cpu: "250m", memory: "512Mi" },
         limits: { cpu: "250m", memory: "512Mi" },
       },
-    }
-  },
-  effect {
-    return try effect {
-      provide GCP.Firestore.WriteDatabaseHttp {
-        return try effect {
-          const db = try GCP.Firestore.WriteDatabase(EntriesDatabase)
+    };
+  }),
+  Effect.gen(function* () {
+    const db = yield* GCP.Firestore.WriteDatabase(EntriesDatabase);
 
-          return {
-            // One-shot entry: seed the database, log, exit 0.
-            run: effect {
-              return try (effect {
-                try Effect.forEach(
-                  seedEntries,
-                  effect (entry) =>
-                    try db.set(entryPath(entry.id), {
-                      author: entry.id,
-                      message: entry.message,
-                    }),
-                  { discard: true },
-                )
-                try Effect.log(`seeded ${seedEntries.length} guestbook entries`)
-              }
-                |> Effect.orDie(%))
-            },
-          }
-        }
-      }
-    }
-  },
-)
+    return {
+      // One-shot entry: seed the database, log, exit 0.
+      run: Effect.gen(function* () {
+        yield* Effect.forEach(
+          seedEntries,
+          (entry) =>
+            db.set(entryPath(entry.id), {
+              author: entry.id,
+              message: entry.message,
+            }),
+          { discard: true },
+        );
+        yield* Effect.log(`seeded ${seedEntries.length} guestbook entries`);
+      }).pipe(Effect.orDie),
+    };
+  }).pipe(Effect.provide(GCP.Firestore.WriteDatabaseHttp)),
+);

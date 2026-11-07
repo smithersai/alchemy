@@ -1,20 +1,21 @@
-import * as AWS from "@alchemy.run/aws"
-import * as Alchemy from "alchemy"
-import Api from "./src/Api.ts"
-import { database } from "./src/database.vibe"
+import * as AWS from "@alchemy.run/aws";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
+import Api from "./src/Api.ts";
+import { database } from "./src/database.vibe";
 
 export default Alchemy.Stack(
   "aws-aurora-drizzle",
   { providers: AWS.providers(), state: Alchemy.localState() },
-  effect {
-    const api = try Api
-    const db = try database
+  Effect.gen(function* () {
+    const api = yield* Api;
+    const db = yield* database;
     return {
       url: api.functionUrl,
       functionName: api.functionName,
       clusterId: db.cluster.dbClusterIdentifier,
       writerId: db.writer.dbInstanceIdentifier,
       vpcId: db.vpc.vpcId,
-    }
-  },
-)
+    };
+  }),
+);

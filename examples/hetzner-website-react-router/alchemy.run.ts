@@ -1,14 +1,15 @@
-import * as AWS from "@alchemy.run/aws"
-import * as Alchemy from "alchemy"
+import * as Hetzner from "@alchemy.run/hetzner";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
-  "AwsWebsiteReactRouterExample",
+  "HetznerWebsiteReactRouterExample",
   {
-    providers: AWS.providers(),
-    state: AWS.state(),
+    providers: Hetzner.providers(),
+    state: Alchemy.localState(),
   },
-  effect {
-    const site = try AWS.Website.ReactRouter("Website", {
+  Effect.gen(function* () {
+    const site = yield* Hetzner.Website.ReactRouter("Website", {
       // Only hash the files that affect the build, so unchanged sources
       // skip the React Router build (and the deploy) entirely.
       memo: {
@@ -20,14 +21,13 @@ export default Alchemy.Stack(
           "vite.config.ts",
         ],
       },
-      forceDestroy: true,
       env: {
-        GREETING: "Hello from React Router on AWS!",
+        GREETING: "Hello from React Router on Hetzner!",
       },
-    })
+    });
 
     return {
       url: site.url,
-    }
-  },
-)
+    };
+  }),
+);

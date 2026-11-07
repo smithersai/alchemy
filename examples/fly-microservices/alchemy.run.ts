@@ -1,4 +1,4 @@
-import * as Fly from "@alchemy.run/fly"
+import * as Fly from "@alchemy.run/fly";
 /**
  * Three Services connected over a private Fly network:
  *
@@ -12,10 +12,11 @@ import * as Fly from "@alchemy.run/fly"
  * `Fly.bindService` connects them: only a Service that binds another
  * receives its caller token, so it can call its methods.
  */
-import * as Alchemy from "alchemy"
-import Gateway from "./src/gateway.vibe"
-import Orders from "./src/orders.vibe"
-import Users from "./src/users.vibe"
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
+import Gateway from "./src/gateway.vibe";
+import Orders from "./src/orders.vibe";
+import Users from "./src/users.vibe";
 
 export default Alchemy.Stack(
   "FlyMicroservices",
@@ -23,10 +24,10 @@ export default Alchemy.Stack(
     providers: Fly.providers(),
     state: Alchemy.localState(),
   },
-  effect {
-    const users = try Users
-    const orders = try Orders
-    const gateway = try Gateway
+  Effect.gen(function* () {
+    const users = yield* Users;
+    const orders = yield* Orders;
+    const gateway = yield* Gateway;
 
     return {
       url: gateway.url,
@@ -34,6 +35,6 @@ export default Alchemy.Stack(
       usersUrl: users.url,
       usersPrivateUrl: users.privateUrl,
       ordersPrivateUrl: orders.privateUrl,
-    }
-  },
-)
+    };
+  }),
+);

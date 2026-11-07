@@ -1,5 +1,6 @@
-import * as Hetzner from "@alchemy.run/hetzner"
-import * as Alchemy from "alchemy"
+import * as Hetzner from "@alchemy.run/hetzner";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
   "HetznerWebsiteVinextExample",
@@ -7,8 +8,8 @@ export default Alchemy.Stack(
     providers: Hetzner.providers(),
     state: Alchemy.localState(),
   },
-  effect {
-    const site = try Hetzner.Website.Vinext("Vinext", {
+  Effect.gen(function* () {
+    const site = yield* Hetzner.Website.Vinext("Vinext", {
       memo: {
         lockfile: true,
         include: ["app/**", "public/**", "package.json", "vite.config.ts", "tsconfig.json"],
@@ -16,10 +17,10 @@ export default Alchemy.Stack(
       env: {
         GREETING: "Hello from vinext on Hetzner!",
       },
-    })
+    });
 
     return {
       url: site.url,
-    }
-  },
-)
+    };
+  }),
+);

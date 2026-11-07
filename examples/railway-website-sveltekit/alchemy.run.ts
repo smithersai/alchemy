@@ -1,5 +1,6 @@
-import * as Railway from "@alchemy.run/railway"
-import * as Alchemy from "alchemy"
+import * as Railway from "@alchemy.run/railway";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
   "RailwayWebsiteSvelteKitExample",
@@ -7,8 +8,8 @@ export default Alchemy.Stack(
     providers: Railway.providers(),
     state: Alchemy.localState(),
   },
-  effect {
-    const site = try Railway.Website.SvelteKit("SvelteKitSite", {
+  Effect.gen(function* () {
+    const site = yield* Railway.Website.SvelteKit("SvelteKitSite", {
       // Only hash the files that affect the build, so unchanged sources
       // skip the SvelteKit build (and the deploy) entirely.
       memo: {
@@ -17,10 +18,10 @@ export default Alchemy.Stack(
       env: {
         GREETING: "Hello from SvelteKit on Railway!",
       },
-    })
+    });
 
     return {
       url: site.url,
-    }
-  },
-)
+    };
+  }),
+);

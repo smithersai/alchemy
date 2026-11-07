@@ -1,4 +1,4 @@
-import * as Fly from "@alchemy.run/fly"
+import * as Fly from "@alchemy.run/fly";
 /**
  * A Fly.io app that exercises the full module-scope graph:
  *
@@ -12,10 +12,11 @@ import * as Fly from "@alchemy.run/fly"
  * `Fly.MountVolume({ path, sizeGb })` inside the Service — one Volume
  * per replica, not a standalone Volume resource.
  */
-import * as Alchemy from "alchemy"
-import Api from "./src/api.vibe"
-import { Marker, PublicIp, Site } from "./src/shared.vibe"
-import Worker from "./src/worker.vibe"
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
+import Api from "./src/api.vibe";
+import { Marker, PublicIp, Site } from "./src/shared.ts";
+import Worker from "./src/worker.vibe";
 
 export default Alchemy.Stack(
   "FlyService",
@@ -23,12 +24,12 @@ export default Alchemy.Stack(
     providers: Fly.providers(),
     state: Alchemy.localState(),
   },
-  effect {
-    const site = try Site
-    const secret = try Marker
-    const ip = try PublicIp
-    const worker = try Worker
-    const api = try Api
+  Effect.gen(function* () {
+    const site = yield* Site;
+    const secret = yield* Marker;
+    const ip = yield* PublicIp;
+    const worker = yield* Worker;
+    const api = yield* Api;
 
     return {
       appName: site.appName,
@@ -45,6 +46,6 @@ export default Alchemy.Stack(
       apiState: api.state,
       apiUrl: api.url,
       apiRegion: api.region,
-    }
-  },
-)
+    };
+  }),
+);

@@ -1,5 +1,6 @@
-import * as Railway from "@alchemy.run/railway"
-import * as Alchemy from "alchemy"
+import * as Railway from "@alchemy.run/railway";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
   "RailwayWebsiteNextjsExample",
@@ -7,8 +8,8 @@ export default Alchemy.Stack(
     providers: Railway.providers(),
     state: Alchemy.localState(),
   },
-  effect {
-    const site = try Railway.Website.Nextjs("Nextjs", {
+  Effect.gen(function* () {
+    const site = yield* Railway.Website.Nextjs("Nextjs", {
       // Only hash the files that affect the build, so unchanged sources
       // skip the Node build (and the deploy) entirely.
       memo: {
@@ -24,10 +25,10 @@ export default Alchemy.Stack(
       env: {
         GREETING: "Hello from Next.js on Railway!",
       },
-    })
+    });
 
     return {
       url: site.url,
-    }
-  },
-)
+    };
+  }),
+);

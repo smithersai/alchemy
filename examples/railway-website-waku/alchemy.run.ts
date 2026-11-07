@@ -1,5 +1,6 @@
-import * as Railway from "@alchemy.run/railway"
-import * as Alchemy from "alchemy"
+import * as Railway from "@alchemy.run/railway";
+import * as Alchemy from "alchemy";
+import * as Effect from "effect/Effect";
 
 export default Alchemy.Stack(
   "RailwayWebsiteWakuExample",
@@ -7,8 +8,8 @@ export default Alchemy.Stack(
     providers: Railway.providers(),
     state: Alchemy.localState(),
   },
-  effect {
-    const site = try Railway.Website.Waku("WakuSite", {
+  Effect.gen(function* () {
+    const site = yield* Railway.Website.Waku("WakuSite", {
       // Only hash the files that affect the build, so unchanged sources
       // skip the Waku build (and the deploy) entirely.
       memo: {
@@ -17,10 +18,10 @@ export default Alchemy.Stack(
       env: {
         GREETING: "Hello from Waku on Railway!",
       },
-    })
+    });
 
     return {
       url: site.url,
-    }
-  },
-)
+    };
+  }),
+);
