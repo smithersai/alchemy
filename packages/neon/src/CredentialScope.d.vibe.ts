@@ -1,6 +1,6 @@
 import type { ProviderMode } from "alchemy/ProviderMode";
 import { type ResourceLike } from "alchemy/Resource";
-import type { AIGatewayProps } from "./AIGateway.vibe";
+import type { AIGatewayProps } from "./AIGateway.ts";
 type CredentialScope = Pick<AIGatewayProps, "branch" | "project">;
 export declare const scopeIdentity: (scope: CredentialScope) => string | undefined;
 /** Unknown scope identity falls back to a managed credential. */
