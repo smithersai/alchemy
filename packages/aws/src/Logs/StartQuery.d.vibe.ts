@@ -10,7 +10,7 @@ export interface StartQueryRequest extends Omit<Logs.StartQueryRequest, "logGrou
  * Bind this operation to a `LogGroup` inside a function runtime to get a
  * callable that starts an Insights query scoped to the group, automatically
  * injecting the log group name. Pair with
- * {@link import("./GetQueryResults.ts").GetQueryResults} to poll for results.
+ * {@link import("./GetQueryResults.vibe").GetQueryResults} to poll for results.
  * ### Logs Insights
  * **Example:** Start an Insights Query
  * ```typescript
