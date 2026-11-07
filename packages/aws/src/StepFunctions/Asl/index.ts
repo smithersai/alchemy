@@ -59,7 +59,7 @@ export {
   waitForTaskToken,
   when,
 } from "./combinators.vibe";
-export { compileProgram, SfnCompileError, type CompiledProgram } from "./compile.vibe";
+export { compileProgram, SfnCompileError, type CompiledProgram } from "./compile.ts";
 export {
   simulate,
   SimulateError,

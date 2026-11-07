@@ -1,5 +1,5 @@
 import * as Layer from "effect/Layer";
-import { ScheduleEventSource as SchedulerScheduleEventSource } from "../Scheduler/ScheduleEventSource.vibe";
+import { ScheduleEventSource as SchedulerScheduleEventSource } from "../Scheduler/ScheduleEventSource.ts";
 import * as Lambda from "./Function.ts";
 /**
  * Lambda runtime implementation for `AWS.Scheduler.consumeSchedule(...)` —

@@ -8,7 +8,7 @@ export * from "./GetScheduleHttp.vibe";
 export * from "./ListSchedules.vibe";
 export * from "./ListSchedulesHttp.vibe";
 export * from "./Schedule.vibe";
-export * from "./ScheduleEventSource.vibe";
+export * from "./ScheduleEventSource.ts";
 export * from "./ScheduleGroup.vibe";
 export * from "./UpdateSchedule.vibe";
 export * from "./UpdateScheduleHttp.vibe";
