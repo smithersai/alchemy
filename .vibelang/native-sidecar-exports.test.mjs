@@ -67,7 +67,7 @@ function fixture(dir, prefix, peer, declaration, sourceForm = "vibe") {
   );
   return prefix + "/Consumer.ts";
 }
-test("committed native re-export metadata resolves in the stock compiler", () => {
+void test("committed native re-export metadata resolves in the stock compiler", () => {
   const dir = mkdtempSync(join(tmpdir(), "alchemy-sidecar-export-"));
   try {
     const text = readFileSync(join(root, corpus.sidecar), "utf8");
@@ -85,7 +85,7 @@ test("committed native re-export metadata resolves in the stock compiler", () =>
     rmSync(dir, { recursive: true, force: true });
   }
 });
-test("native sidecar resolution distinguishes renamed and preserved TypeScript targets", () => {
+void test("native sidecar resolution distinguishes renamed and preserved TypeScript targets", () => {
   const dir = mkdtempSync(join(tmpdir(), "alchemy-sidecar-neighborhood-"));
   try {
     const names = fc.sample(
