@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
-import { OrdersCluster, OrdersIngress, OrdersNetwork, OrdersTable } from "./infra.ts";
+import { OrdersCluster, OrdersIngress, OrdersNetwork, OrdersTable } from "./infra.vibe";
 import SeedTask from "./SeedTask.vibe";
 
 /**

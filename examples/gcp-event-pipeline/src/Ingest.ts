@@ -3,7 +3,7 @@ import * as Effect from "effect/Effect";
 import { HttpServerRequest } from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import Drain from "./Drain.vibe";
-import { Events, EventsTable, type EventRow } from "./resources.ts";
+import { Events, EventsTable, type EventRow } from "./resources.vibe";
 
 /**
  * The front door of an analytics pipeline.
