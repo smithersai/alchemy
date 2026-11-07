@@ -17,7 +17,7 @@ import {
 } from "./BackendConnection.ts";
 import { Credential, validateCredential } from "./Credential.ts";
 import { scopeIdentity, usesInjectedCredentials } from "./CredentialScope.vibe";
-import { FunctionEnvironment } from "./FunctionEnvironment.ts";
+import { FunctionEnvironment } from "./FunctionEnvironment.vibe";
 import { makeLanguageModelLayer, type LanguageModelOptions } from "./LanguageModel.vibe";
 
 export interface QueryAIGatewayClient {

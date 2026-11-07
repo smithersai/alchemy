@@ -5,7 +5,7 @@ import type { Resource } from "alchemy/Resource";
 import * as Effect from "effect/Effect";
 import type * as Redacted from "effect/Redacted";
 import type { BranchScope } from "./BranchScope.ts";
-import type { FunctionEnvironment, FunctionRequest } from "./FunctionEnvironment.ts";
+import type { FunctionEnvironment, FunctionRequest } from "./FunctionEnvironment.vibe";
 import { type FunctionRuntimeContext } from "./FunctionRuntimeContext.ts";
 import type { Providers } from "./Providers.vibe";
 /**

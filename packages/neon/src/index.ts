@@ -80,7 +80,7 @@ export {
 export * from "./Providers.vibe";
 export * as Website from "./Website/index.ts";
 export * from "./Function.vibe";
-export * from "./FunctionEnvironment.ts";
+export * from "./FunctionEnvironment.vibe";
 export * from "./FunctionTrigger.vibe";
 export * from "./FunctionTriggerEvent.vibe";
 export * from "./CustomDomain.vibe";
