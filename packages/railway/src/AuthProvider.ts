@@ -31,7 +31,7 @@ import {
   loginSessionUrl,
   pollLoginSessionToken,
   provideAnonymousRailway,
-} from "./LoginSession.vibe";
+} from "./LoginSession.ts";
 
 export const RAILWAY_AUTH_PROVIDER_NAME = "Railway";
 export const RAILWAY_API_TOKEN_ENV = "RAILWAY_API_TOKEN";
