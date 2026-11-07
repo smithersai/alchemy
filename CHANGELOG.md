@@ -2,6 +2,7 @@
 
 ### Bug fixes
 
+- Frozen dependency installs could reject an unchanged workspace hook. The lockfile now records its checksum without changing dependency versions.
 - Compiler-generated inline module helpers could appear as public package subpaths. Named helper implementations now stay private while their public facades remain usable.
 
 ## v2.0.0-beta.84
