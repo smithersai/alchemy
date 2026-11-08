@@ -1133,15 +1133,19 @@ When a canonical resource needs mutable event-source configuration and there is 
 Always run type checking before committing changes:
 
 ```bash
-pnpm exec tsrs -b
+pnpm typecheck
 ```
 
-[`tsrs`](https://www.npmjs.com/package/tsrs) is a Rust port of the TypeScript 7 compiler, taking the same flags as `tsc` and running several times faster. `typescript` stays installed for compatibility: `pnpm exec tsc -b` is the reference check if you suspect a tsrs conformance bug.
-
-This runs the TypeScript compiler in build mode, which checks all projects in the workspace (including the distilled packages, which are project references). This is critical because CI will fail if there are type errors.
+The pinned VibeLang compiler checks native and retained TypeScript projects.
+Generated `*.d.vibe.ts` caches let stock TypeScript tools resolve native modules.
+`prepare` and the standalone tooling commands generate them automatically; they
+are ignored by version control. The generator preserves each project's compiler
+emit options and generates referenced projects before their consumers. Its
+incremental emit cache is separate from the full typecheck cache.
 
 ```bash
-pnpm typecheck      # rebuild stale dist packages, then tsrs -b
+pnpm sidecars       # rebuild shared outputs and native declaration caches
+pnpm typecheck      # generate declarations, then check the complete project graph
 pnpm ensure:built   # rebuild cloudflare-runtime / frontend-frameworks if stale
 pnpm build          # in a package: builds it and its workspace dependencies
 ```

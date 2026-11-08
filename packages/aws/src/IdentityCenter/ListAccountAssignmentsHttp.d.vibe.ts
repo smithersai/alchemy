@@ -1,3 +1,0 @@
-import * as Layer from "effect/Layer";
-import { ListAccountAssignments } from "./ListAccountAssignments.vibe";
-export declare const ListAccountAssignmentsHttp: Layer.Layer<ListAccountAssignments, never, never>;

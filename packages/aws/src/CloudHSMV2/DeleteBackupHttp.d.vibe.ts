@@ -1,3 +1,0 @@
-import * as Layer from "effect/Layer";
-import { DeleteBackup } from "./DeleteBackup.vibe";
-export declare const DeleteBackupHttp: Layer.Layer<DeleteBackup, never, never>;

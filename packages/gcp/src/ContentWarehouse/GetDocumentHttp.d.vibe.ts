@@ -1,9 +1,0 @@
-import * as Layer from "effect/Layer";
-import { GetDocument } from "./GetDocument.vibe";
-/**
- * HTTP implementation of {@link GetDocument}.
- *
- * @layer
- * @provides GCP.ContentWarehouse.GetDocument
- */
-export declare const GetDocumentHttp: Layer.Layer<GetDocument, never, never>;

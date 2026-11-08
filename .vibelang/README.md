@@ -18,3 +18,19 @@ behaviour with:
 
 The tests cover development and published exports, source-only conditions,
 nested paths, Unicode module names and relative imports through public facades.
+
+## Generated declarations
+
+The compiler writes `*.d.vibe.ts` beside native modules so stock TypeScript tools
+can resolve their types. These files are build caches rather than tracked source.
+`pnpm install` generates them during `prepare`; `pnpm sidecars` recreates deleted
+caches in dependency order using a separate incremental emit cache. Full type
+checking remains in `pnpm typecheck`. The helper
+preserves project emit options and builds shared runtime outputs
+before generating declarations.
+
+Standalone lint and API-documentation commands generate declarations first.
+Run `pnpm test:vibelang-tools` for the migration regressions, including seeded
+stock-TypeScript consumers that exercise initial generation, an unchanged build,
+and regeneration after deleting the cache. Packages that publish source continue
+to include the generated declarations in their existing source directories.

@@ -1,3 +1,0 @@
-import * as Layer from "effect/Layer";
-import { DeletePartition } from "./DeletePartition.vibe";
-export declare const DeletePartitionHttp: Layer.Layer<DeletePartition, never, never>;
