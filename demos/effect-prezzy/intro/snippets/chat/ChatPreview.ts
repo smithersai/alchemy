@@ -5,26 +5,26 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 
 // #region show
 // #region top
-export default Cloudflare.Worker(
-  "Chat",
-  Effect.gen(function* () {
-    const { stage } = yield* Stack;
-    return {
+export default Effect.gen(function* () {
+  const { stage } = yield* Stack;
+  return yield* Cloudflare.Worker(
+    "Chat",
+    {
       main: import.meta.url,
       // #region preview
       preview: stage.startsWith("pr-")
         ? { of: yield* Cloudflare.Worker.ref("Chat", { stage: "staging" }) }
         : undefined,
       // #endregion preview
-    };
-  }),
-  Effect.gen(function* () {
-    // #endregion top
-    return {
-      fetch: Effect.succeed(HttpServerResponse.text("hello")),
-    };
-    // #region bottom
-  }),
-);
+    },
+    Effect.gen(function* () {
+      // #endregion top
+      return {
+        fetch: Effect.succeed(HttpServerResponse.text("hello")),
+      };
+      // #region bottom
+    }),
+  );
+});
 // #endregion bottom
 // #endregion show

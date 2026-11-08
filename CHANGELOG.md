@@ -2,6 +2,7 @@
 
 ### Bug fixes
 
+- Chat examples could leave room and history services unprovided. Every Worker variant now supplies the room implementation, and preview setup reads its stack before construction.
 - Linting could reject the declaration-cache generator. It now spells out the same deterministic source ordering.
 - Test collection progress could name a file that had already loaded. It now identifies the import in progress and clears the filename while idle.
 - Fresh checkouts now generate native declaration caches before TypeScript tooling runs, so generated declarations no longer need to be committed.
