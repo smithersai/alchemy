@@ -24,7 +24,7 @@ import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import { isLiveId } from "../LocalRuntime.ts";
-import { CloudflareLogs, type TelemetryFilter } from "../Logs.ts";
+import { CloudflareLogs, type TelemetryFilter } from "../Logs.vibe";
 import type {
   AnyContainerApplicationProps,
   ContainerApplication,
@@ -48,7 +48,7 @@ import {
 } from "./ContainerConfiguration.ts";
 import { waitForContainerImage } from "./ContainerImagePreparation.vibe";
 import { ContainerPlatform } from "./ContainerPlatform.ts";
-import { retryContainerBuild, retryContainerPublication } from "./ContainerPublication.ts";
+import { retryContainerBuild, retryContainerPublication } from "./ContainerPublication.vibe";
 import { retryNamespacePropagation } from "./DurableObjectApplication.ts";
 
 export class ContainerProviderConflict extends Data.TaggedError("ContainerProviderConflict")<{

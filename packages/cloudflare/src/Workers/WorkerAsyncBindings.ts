@@ -40,7 +40,7 @@ import { isMtlsCertificate } from "../MtlsCertificate/MtlsCertificate.ts";
 import { isLegacyPipeline } from "../Pipelines/LegacyPipeline.ts";
 import { isStream as isPipelinesStream } from "../Pipelines/Stream.ts";
 import { isQueue } from "../Queues/Queue.ts";
-import { maybeQueueShim } from "../Queues/QueueShim.ts";
+import { maybeQueueShim } from "../Queues/QueueShim.vibe";
 import { isBucket } from "../R2/Bucket.ts";
 import { bindS3Credentials, isS3Credentials, resolveBucket } from "../R2/S3CredentialsBinding.ts";
 import { isSecret } from "../SecretsStore/Secret.ts";

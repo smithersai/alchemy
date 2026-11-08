@@ -12,10 +12,10 @@ import {
   SqlMigrationsRuntime,
   type SqlMigrationSnapshot,
   type SqlMigrationsExport,
-} from "./SqlMigrationsRuntime.ts";
+} from "./SqlMigrationsRuntime.vibe";
 import { Worker } from "./Worker.ts";
 
-export type { SqlMigrationSnapshot } from "./SqlMigrationsRuntime.ts";
+export type { SqlMigrationSnapshot } from "./SqlMigrationsRuntime.vibe";
 
 /** Captured SQL migrations with a runtime-only application method. */
 export interface SqlMigrations extends SqlMigrationSnapshot {

@@ -8,7 +8,7 @@ import {
   toKVNamespaceError,
   type KVAuth,
 } from "./NamespaceHttp.ts";
-import { NamespaceError } from "./NamespaceTypes.ts";
+import { NamespaceError } from "./NamespaceTypes.vibe";
 import { WriteNamespace, type WriteNamespaceClient } from "./WriteNamespace.vibe";
 
 /**

@@ -10,7 +10,7 @@ import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export class BookmarkUnexpectedResponse extends Data.TaggedError("BookmarkUnexpectedResponse")<{
   readonly message: string;

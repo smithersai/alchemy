@@ -10,7 +10,7 @@ import type * as rolldown from "rolldown";
 import { isWorkflowExport } from "../../Workflows/Workflow.ts";
 import { isDurableObjectExport } from "../DurableObject.ts";
 import type { SourceContext, SourceProvider } from "../Source.ts";
-import type { SqlMigrationSnapshot } from "../SqlMigrationsRuntime.ts";
+import type { SqlMigrationSnapshot } from "../SqlMigrationsRuntime.vibe";
 import type { WorkerExport } from "../WorkerRuntimeContext.ts";
 import { bundleSource } from "./shared.ts";
 import { workerModulePlugin } from "./WorkerModulePlugin.ts";

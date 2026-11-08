@@ -16,7 +16,7 @@ import {
   LOCAL_PROVIDERS_URL,
   localRuntimeServices,
 } from "../LocalRuntime.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { listAllZones } from "../Zone/lookup.ts";
 import { LocalEdge } from "./LocalEdge.ts";
 import { routePatternHost, routePatternUrl } from "./RoutePattern.ts";

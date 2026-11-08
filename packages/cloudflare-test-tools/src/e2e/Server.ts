@@ -13,7 +13,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import type * as Scope from "effect/Scope";
 import { makeCloudflareTarget } from "./CloudflareTarget.ts";
-import { Cwd } from "./Cwd.ts";
+import { Cwd } from "./Cwd.vibe";
 import * as Options from "./Options.ts";
 
 export interface Instance {

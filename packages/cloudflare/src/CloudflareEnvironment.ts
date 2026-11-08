@@ -5,9 +5,9 @@ import {
   CLOUDFLARE_AUTH_PROVIDER_NAME,
   type CloudflareResolvedCredentials,
 } from "./Auth/AuthConfig.ts";
-import { CloudflareEnvironment } from "./CloudflareEnvironmentService.ts";
+import { CloudflareEnvironment } from "./CloudflareEnvironmentService.vibe";
 
-export { CloudflareEnvironment } from "./CloudflareEnvironmentService.ts";
+export { CloudflareEnvironment } from "./CloudflareEnvironmentService.vibe";
 
 export const fromProfile = () =>
   Layer.effect(

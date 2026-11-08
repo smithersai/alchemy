@@ -11,7 +11,7 @@ import {
   type HttpMetadata,
   type R2Auth,
 } from "./BucketHttp.ts";
-import { R2Error, type GetOptions, type ListOptions, type Objects } from "./BucketTypes.ts";
+import { R2Error, type GetOptions, type ListOptions, type Objects } from "./BucketTypes.vibe";
 import { ReadBucket, type ReadBucketClient } from "./ReadBucket.vibe";
 
 /**

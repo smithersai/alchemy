@@ -5,7 +5,7 @@ import { Resource } from "alchemy/Resource";
 import { stripNullFields, stripUndefinedFields, unwrapRedacted } from "alchemy/Util/data";
 import * as Effect from "effect/Effect";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { resolveZoneId, type Reference } from "../Zone/index.ts";
 import { listAllZones } from "../Zone/lookup.ts";
 import { defineZarazEvents } from "./ZarazEventTypes.vibe";

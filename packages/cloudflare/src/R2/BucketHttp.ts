@@ -10,7 +10,7 @@ import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
 import type { Credentials } from "../Credentials.ts";
 import { requireLiveResource } from "../HttpBindingDev.vibe";
 import type { Bucket } from "./Bucket.ts";
-import { R2Error, type R2Object } from "./BucketTypes.ts";
+import { R2Error, type R2Object } from "./BucketTypes.vibe";
 
 /**
  * Injectable auth used by the R2 HTTP client builders. Both the token-scoped

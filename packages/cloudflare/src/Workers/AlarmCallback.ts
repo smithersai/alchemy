@@ -17,10 +17,10 @@ import * as Logger from "effect/Logger";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as Tracer from "effect/Tracer";
-import { ensureAlarmTables, reconcileDurableObjectAlarm } from "./DurableObjectAlarmStorage.ts";
+import { ensureAlarmTables, reconcileDurableObjectAlarm } from "./DurableObjectAlarmStorage.vibe";
 import { DurableObjectState, fromDurableObjectState } from "./DurableObjectState.ts";
 import { fromDurableObjectStorage } from "./DurableObjectStorage.ts";
-import { ActiveStorageTransactions } from "./DurableObjectTransactionContext.ts";
+import { ActiveStorageTransactions } from "./DurableObjectTransactionContext.vibe";
 
 type InvocationServices = RuntimeContext | DurableObjectState | Scope.Scope;
 interface RetryPolicy {

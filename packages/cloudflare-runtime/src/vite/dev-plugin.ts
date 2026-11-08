@@ -14,7 +14,7 @@ import { parseViteEnvironments } from "../rolldown/options.ts";
 import type { OptionsApi } from "../rolldown/plugins/index.ts";
 import { workerEntryId } from "../rolldown/plugins/index.ts";
 import { resolvePluginApi } from "../rolldown/utils.ts";
-import { VITE_ASSET_REQUEST } from "./assets/ViteAssets.ts";
+import { VITE_ASSET_REQUEST } from "./assets/ViteAssets.vibe";
 import { DistilledDevEnvironment } from "./dev-environment.ts";
 import type { ServerHandle } from "./dev-server.ts";
 import { configuredExportTypes, mergeExportTypes } from "./export-types.ts";

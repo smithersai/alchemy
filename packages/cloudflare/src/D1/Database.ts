@@ -22,12 +22,12 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import { localAccountId } from "../LocalAccount.ts";
+import { localAccountId } from "../LocalAccount.vibe";
 import { generateLocalId, LOCAL_PROVIDERS_URL, localRuntimeServices } from "../LocalRuntime.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { makeD1MigrationExecutor } from "./ApplyMigrations.ts";
-import { cloneDatabase } from "./CloneDatabase.ts";
-import { importD1Database } from "./ImportDatabase.ts";
+import { cloneDatabase } from "./CloneDatabase.vibe";
+import { importD1Database } from "./ImportDatabase.vibe";
 import { withLocalD1Executor, withLocalD1Query } from "./LocalD1Gateway.ts";
 
 export const isDatabase = (value: unknown): value is Database =>

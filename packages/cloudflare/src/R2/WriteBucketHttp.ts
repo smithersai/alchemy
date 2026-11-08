@@ -12,7 +12,7 @@ import {
   toR2Error,
   type R2Auth,
 } from "./BucketHttp.ts";
-import { R2Error, type PutOptions } from "./BucketTypes.ts";
+import { R2Error, type PutOptions } from "./BucketTypes.vibe";
 import { WriteBucket, type WriteBucketClient } from "./WriteBucket.vibe";
 
 /**

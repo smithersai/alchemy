@@ -7,7 +7,7 @@ import * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import { Request } from "./Request.ts";
+import { Request } from "./Request.vibe";
 import type { WorkerServices } from "./Worker.ts";
 import { isWorkerEvent } from "./WorkerRuntime.ts";
 

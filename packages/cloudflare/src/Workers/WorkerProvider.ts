@@ -31,7 +31,7 @@ import {
   mergeWorkerContainers,
 } from "../Containers/ContainerConfiguration.ts";
 import { localRuntimeServices } from "../LocalRuntime.ts";
-import { CloudflareLogs } from "../Logs.ts";
+import { CloudflareLogs } from "../Logs.vibe";
 import { detachQueueConsumersOfScript } from "../Queues/Consumer.ts";
 import { resolveZoneId, type Reference as ZoneReference } from "../Zone/lookup.ts";
 import {

@@ -20,5 +20,5 @@ export * from "./ZoneTransferOutgoing.ts";
 export * from "./ZoneTransferPeer.ts";
 export * from "./ZoneTransferTsig.ts";
 export * from "./Adapter.ts";
-export * from "./RecordList.ts";
+export * from "./RecordList.vibe";
 export * from "./Records.ts";

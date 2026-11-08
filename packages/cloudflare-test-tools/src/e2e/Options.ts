@@ -6,7 +6,7 @@ import type * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Predicate from "effect/Predicate";
 import type * as Miniflare from "../miniflare/miniflare.ts";
-import { Cwd } from "./Cwd.ts";
+import { Cwd } from "./Cwd.vibe";
 
 const kOptions = Symbol("@alchemy.run/cloudflare-test-tools/e2e/Options");
 

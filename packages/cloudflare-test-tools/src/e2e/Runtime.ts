@@ -7,7 +7,7 @@ import * as Scope from "effect/Scope";
 import * as Framework from "./Framework.ts";
 import * as Server from "./Server.ts";
 
-export { Cwd } from "./Cwd.ts";
+export { Cwd } from "./Cwd.vibe";
 
 export const layer = Server.layer.pipe(
   Layer.provideMerge(Framework.layer),

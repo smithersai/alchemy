@@ -9,8 +9,8 @@ import * as Option from "effect/Option";
 import type { WorkflowExport } from "../Workflows/Workflow.ts";
 import type { DurableObjectExport } from "./DurableObject.ts";
 import { makeRequestHandler } from "./HttpServer.ts";
-import type { SqlMigrationsExport } from "./SqlMigrationsRuntime.ts";
-import { WebhookHostLive } from "./WebhookHost.ts";
+import type { SqlMigrationsExport } from "./SqlMigrationsRuntime.vibe";
+import { WebhookHostLive } from "./WebhookHost.vibe";
 import {
   ExportedHandlerMethods,
   WorkerEnvironment,

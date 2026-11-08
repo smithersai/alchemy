@@ -24,7 +24,7 @@ import * as Logger from "effect/Logger";
 import { MinimumLogLevel } from "effect/References";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
-import { CloudflareEnvironment } from "../CloudflareEnvironmentService.ts";
+import { CloudflareEnvironment } from "../CloudflareEnvironmentService.vibe";
 import cloudflare_workers from "./cloudflare_workers.vibe";
 import { isScopeEjected } from "./HttpServer.ts";
 import {

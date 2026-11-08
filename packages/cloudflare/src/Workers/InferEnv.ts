@@ -38,7 +38,7 @@ import type { WorkflowBinding, WorkflowLike } from "../Workflows/Workflow.ts";
 import type { AIBinding } from "./AIBinding.vibe";
 import type { Assets } from "./Assets.ts";
 import type * as WorkerOnlyBinding from "./Binding.ts";
-import type { BrowserBinding } from "./BrowserBinding.ts";
+import type { BrowserBinding } from "./BrowserBinding.vibe";
 import type { DurableObjectLike } from "./DurableObject.ts";
 import type { RateLimitBinding } from "./RateLimitBinding.vibe";
 import type { RpcErrorEnvelope, RpcStreamEnvelope } from "./Rpc.ts";

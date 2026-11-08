@@ -29,8 +29,8 @@ import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import * as Access from "../Access.ts";
 import * as CloudflareEnvironment from "../CloudflareEnvironment.ts";
-import { EdgeSessionError, createEdgeSession } from "../EdgeSession.ts";
-import * as Cloudflare from "../Providers.ts";
+import { EdgeSessionError, createEdgeSession } from "../EdgeSession.vibe";
+import * as Cloudflare from "../Providers.vibe";
 import { STATE_STORE_SCRIPT_NAME, STATE_STORE_VERSION } from "./Api.ts";
 import {
   deleteStoreCredentials,

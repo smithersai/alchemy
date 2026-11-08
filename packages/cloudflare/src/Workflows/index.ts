@@ -4,4 +4,4 @@ export {
   layerDurableObjectEngine,
   type DurableObjectEngineOptions,
 } from "./DurableObjectEngine.ts";
-export { NativeEngine } from "./NativeEngine.ts";
+export { NativeEngine } from "./NativeEngine.vibe";

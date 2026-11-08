@@ -2,8 +2,8 @@ import type * as runtime from "@cloudflare/workers-types";
 import * as Effect from "effect/Effect";
 import { Worker, WorkerEnvironment } from "../Workers/Worker.ts";
 import type { Queue } from "./Queue.ts";
-import { maybeQueueShim } from "./QueueShim.ts";
-import { SendError } from "./QueueTypes.ts";
+import { maybeQueueShim } from "./QueueShim.vibe";
+import { SendError } from "./QueueTypes.vibe";
 
 /**
  * Shared scaffolding for the Worker-binding implementations of the Queue

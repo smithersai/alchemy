@@ -8,13 +8,13 @@ import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import { localAccountId } from "../LocalAccount.ts";
-import type { Providers } from "../Providers.ts";
+import { localAccountId } from "../LocalAccount.vibe";
+import type { Providers } from "../Providers.vibe";
 import {
   createInstantNamespaceLocalId,
   isInstantNamespaceLocalId,
 } from "./InstantNamespaceLocal.ts";
-import { NamespaceModeMismatch } from "./NamespaceTypes.ts";
+import { NamespaceModeMismatch } from "./NamespaceTypes.vibe";
 
 export const isInstantNamespace = (value: unknown): value is InstantNamespace =>
   isResourceOfType(value, "Cloudflare.KV.InstantNamespace");

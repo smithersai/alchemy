@@ -11,7 +11,7 @@ import type {
   PutOptions,
   UploadPartOptions,
   UploadedPart,
-} from "./BucketTypes.ts";
+} from "./BucketTypes.vibe";
 import { WriteBucket, type WriteBucketClient } from "./WriteBucket.vibe";
 
 /**

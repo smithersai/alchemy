@@ -1,3 +1,3 @@
-export * from "./Fetch.ts";
+export * from "./Fetch.vibe";
 export * from "./FetchBinding.vibe";
 export * from "./MtlsCertificate.ts";

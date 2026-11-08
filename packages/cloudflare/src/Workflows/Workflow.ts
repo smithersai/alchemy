@@ -18,18 +18,18 @@ import * as Effect from "effect/Effect";
 import { Scope } from "effect/Scope";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import { localAccountId } from "../LocalAccount.ts";
+import { localAccountId } from "../LocalAccount.vibe";
 import { generateLocalId } from "../LocalRuntime.ts";
 import { Worker, WorkerEnvironment, type WorkerServices } from "../Workers/Worker.ts";
 import { generateWorkflowName } from "./WorkflowName.ts";
-import { type WorkflowEvent, WorkflowStep, WorkflowStepContext } from "./WorkflowRuntime.ts";
+import { type WorkflowEvent, WorkflowStep, WorkflowStepContext } from "./WorkflowRuntime.vibe";
 
 export class WorkflowInvalidProps extends Data.TaggedError("WorkflowInvalidProps")<{
   readonly message: string;
   readonly cause?: unknown;
 }> {}
 
-export { WorkflowEvent, WorkflowStep, WorkflowStepContext } from "./WorkflowRuntime.ts";
+export { WorkflowEvent, WorkflowStep, WorkflowStepContext } from "./WorkflowRuntime.vibe";
 
 type TypeId = "Cloudflare.Workflow";
 const TypeId = "Cloudflare.Workflow" as const;

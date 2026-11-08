@@ -48,7 +48,7 @@ import {
   assertBindingContainersOnAsyncClasses,
   mergeWorkerContainers,
 } from "../Containers/ContainerConfiguration.ts";
-import { localAccountId } from "../LocalAccount.ts";
+import { localAccountId } from "../LocalAccount.vibe";
 import {
   isLiveId,
   LOCAL_PROVIDERS_URL,

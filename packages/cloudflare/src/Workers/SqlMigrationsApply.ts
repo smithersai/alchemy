@@ -8,7 +8,7 @@ import { inlineSqlParams } from "@alchemy.run/sql/Migrations/Utils";
 import type { RuntimeContext } from "alchemy/RuntimeContext";
 import * as Effect from "effect/Effect";
 import { DurableObjectState } from "./DurableObjectState.ts";
-import type { SqlMigrationSnapshot } from "./SqlMigrationsRuntime.ts";
+import type { SqlMigrationSnapshot } from "./SqlMigrationsRuntime.vibe";
 
 /** @internal */
 export const applySqlMigrations: (

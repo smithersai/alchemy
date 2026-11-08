@@ -10,7 +10,7 @@ import type * as HttpClient from "effect/http/HttpClient";
 import * as Predicate from "effect/Predicate";
 import * as Redacted from "effect/Redacted";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 const TypeId = "Cloudflare.Pipelines.LegacyPipeline" as const;
 type TypeId = typeof TypeId;

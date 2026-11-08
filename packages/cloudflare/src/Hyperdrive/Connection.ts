@@ -10,9 +10,9 @@ import * as Redacted from "effect/Redacted";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import { localAccountId } from "../LocalAccount.ts";
+import { localAccountId } from "../LocalAccount.vibe";
 import { generateLocalId } from "../LocalRuntime.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 
 export type Scheme = "postgres" | "postgresql" | "mysql";
 

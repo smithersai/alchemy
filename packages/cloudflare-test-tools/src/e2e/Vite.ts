@@ -9,7 +9,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import type * as Scope from "effect/Scope";
 import type * as ViteModule from "vite";
-import { Cwd } from "./Cwd.ts";
+import { Cwd } from "./Cwd.vibe";
 
 export class ViteError extends Data.TaggedError<"ViteError">("ViteError")<{
   readonly message: string;

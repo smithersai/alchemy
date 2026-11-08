@@ -32,6 +32,7 @@ const workerConfig = (
   // copy; the structural compare between the two plugin types blows tsc's
   // depth limit, so bridge through `unknown`.
   plugins: [
+    vibelang(),
     cloudflare({
       compatibilityDate: DEFAULT_COMPATIBILITY_DATE,
       compatibilityFlags: options.compatibilityFlags,
@@ -70,7 +71,7 @@ export default defineConfig([
   // worker itself, so it isn't an entry: it's bundled into its importers (as
   // a shared chunk when there are several).
   workerConfig([
-    "src/core/**/*.worker.ts",
+    "src/core/**/*.worker.{ts,vibe}",
     "!src/core/internal/shared.worker.ts",
     "!src/core/**/R2Bucket.worker.ts",
   ]),
@@ -88,9 +89,11 @@ export default defineConfig([
   {
     cwd: ".",
     entry: [
-      "src/core/**/*.ts",
-      "!src/core/**/*.worker.ts",
+      "src/core/**/*.{ts,vibe}",
+      "!src/core/**/*.worker.{ts,vibe}",
       "!src/core/globals.d.ts",
+      "!src/core/**/*.d.vibe.ts",
+      "!src/core/**/*.platform.ts",
       "!src/core/scripts/**/*.ts",
       "!src/core/test/**/*.ts",
     ],

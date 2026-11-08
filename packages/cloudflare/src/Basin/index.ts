@@ -11,7 +11,7 @@ export * from "../Pipelines/StreamSink.vibe";
 export * from "../Pipelines/StreamSinkBinding.vibe";
 export * from "../Pipelines/StreamSinkHttp.vibe";
 export * from "../Pipelines/StreamSinkLocal.vibe";
-export * from "../Pipelines/WriteStream.ts";
+export * from "../Pipelines/WriteStream.vibe";
 export * from "../Pipelines/WriteStreamBinding.vibe";
 export * from "../Pipelines/WriteStreamHttp.vibe";
 export * from "../Pipelines/WriteStreamLocal.vibe";

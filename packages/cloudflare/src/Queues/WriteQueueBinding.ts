@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import { makeQueueBinding, makeQueueHelpers } from "./QueueBinding.ts";
-import type { SendMessage, SendOptions } from "./QueueTypes.ts";
+import type { SendMessage, SendOptions } from "./QueueTypes.vibe";
 import { WriteQueue, type WriteQueueClient } from "./WriteQueue.vibe";
 
 /**

@@ -1,8 +1,8 @@
 // ── cross-cutting utilities (flat) ──
 export * from "./CloudflareEnvironment.ts";
-export * from "./EdgeSession.ts";
+export * from "./EdgeSession.vibe";
 export * from "./Fetcher.ts";
-export * from "./Providers.ts";
+export * from "./Providers.vibe";
 export * from "./StateStore/index.ts";
 export * from "./Workers/RpcAsync.vibe";
 

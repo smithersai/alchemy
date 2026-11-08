@@ -5,7 +5,7 @@ import {
 } from "@alchemy.run/frontend-frameworks/core";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { Cwd } from "./Cwd.ts";
+import { Cwd } from "./Cwd.vibe";
 import * as Options from "./Options.ts";
 import * as Vite from "./Vite.ts";
 

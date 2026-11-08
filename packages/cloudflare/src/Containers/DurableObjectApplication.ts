@@ -8,9 +8,9 @@ import { normalizeNulls } from "alchemy/Util/stable";
 import * as Effect from "effect/Effect";
 import * as Schedule from "effect/Schedule";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import { localAccountId } from "../LocalAccount.ts";
+import { localAccountId } from "../LocalAccount.vibe";
 import { generateLocalId, isLiveId } from "../LocalRuntime.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import type { DurableObjectApplicationSettings } from "./ContainerApplication.vibe";
 import { createContainerApplicationName } from "./ContainerBundle.ts";
 import {

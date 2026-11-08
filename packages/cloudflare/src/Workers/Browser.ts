@@ -4,7 +4,7 @@ import * as Data from "effect/Data";
 import type * as Effect from "effect/Effect";
 import type * as Stream from "effect/Stream";
 import * as Binding from "./Binding.ts";
-import type { BrowserBinding } from "./BrowserBinding.ts";
+import type { BrowserBinding } from "./BrowserBinding.vibe";
 
 const TypeId = "Cloudflare.Browser" as const;
 type TypeId = typeof TypeId;

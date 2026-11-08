@@ -10,7 +10,7 @@ export default Contributions.make({
     cloudflare: {
       description: "State-store Worker in the profile's Cloudflare account",
       load: Contributions.lazy(
-        () => import("./Alchemist/StateStore.ts"),
+        () => import("./Alchemist/StateStore.vibe"),
         (module) => module.stateStore,
       ),
     },

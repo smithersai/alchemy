@@ -19,7 +19,7 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import { ReadSecret } from "../SecretsStore/ReadSecret.vibe";
-import { ReadSecretBinding } from "../SecretsStore/ReadSecretBinding.ts";
+import { ReadSecretBinding } from "../SecretsStore/ReadSecretBinding.vibe";
 import { Worker } from "../Workers/Worker.ts";
 import Store, { retrySecretRead } from "./Store.ts";
 import { AuthToken, DEFAULT_STATE_STORE_NAME, StateStoreName } from "./Token.ts";

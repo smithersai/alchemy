@@ -8,11 +8,11 @@ import * as Fiber from "effect/Fiber";
 import * as Pipeable from "effect/Pipeable";
 import * as Scheduler from "effect/Scheduler";
 import * as Stream from "effect/Stream";
-import { flushDurableObjectAlarm } from "./DurableObjectAlarmStorage.ts";
+import { flushDurableObjectAlarm } from "./DurableObjectAlarmStorage.vibe";
 import {
   ActiveStorageTransactions,
   type ActiveStorageTransaction,
-} from "./DurableObjectTransactionContext.ts";
+} from "./DurableObjectTransactionContext.vibe";
 
 /** A native transaction failure or invalid use of a transaction's owner. */
 export class DurableObjectStorageError extends Data.TaggedError("DurableObjectStorageError")<{

@@ -23,7 +23,7 @@ import {
   WorkflowEvent as WorkflowEventService,
   WorkflowStep,
   WorkflowStepContext,
-} from "./WorkflowRuntime.ts";
+} from "./WorkflowRuntime.vibe";
 
 /**
  * Create a WorkflowBridge class that extends `WorkflowEntrypoint` and

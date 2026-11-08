@@ -11,7 +11,7 @@ import { requireLiveResource } from "../HttpBindingDev.vibe";
 import { authorizeWith } from "../HttpClientUtils.vibe";
 import type { InstantNamespace } from "./InstantNamespace.ts";
 import type { Namespace } from "./Namespace.ts";
-import { NamespaceError } from "./NamespaceTypes.ts";
+import { NamespaceError } from "./NamespaceTypes.vibe";
 
 /**
  * Shared scaffolding for the HTTP-backed KV services.

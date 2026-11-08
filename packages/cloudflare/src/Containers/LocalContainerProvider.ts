@@ -10,7 +10,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
-import { localAccountId } from "../LocalAccount.ts";
+import { localAccountId } from "../LocalAccount.vibe";
 import { generateLocalId, LOCAL_PROVIDERS_URL } from "../LocalRuntime.ts";
 import type {
   AnyContainerApplicationProps,

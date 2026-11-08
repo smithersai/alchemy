@@ -37,7 +37,7 @@ import type { WorkflowLike } from "../Workflows/Workflow.ts";
 import type { AIBinding } from "./AIBinding.vibe";
 import type { Assets } from "./Assets.ts";
 import type { AnyBindingEffect } from "./Binding.ts";
-import type { BrowserBinding } from "./BrowserBinding.ts";
+import type { BrowserBinding } from "./BrowserBinding.vibe";
 import cloudflare_workers from "./cloudflare_workers.vibe";
 import type { DurableObjectLike } from "./DurableObject.ts";
 import type { RateLimitBinding } from "./RateLimitBinding.vibe";

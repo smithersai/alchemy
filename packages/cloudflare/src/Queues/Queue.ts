@@ -16,7 +16,7 @@ import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 import * as Stream from "effect/Stream";
 import { CloudflareEnvironment } from "../CloudflareEnvironment.ts";
-import { localAccountId } from "../LocalAccount.ts";
+import { localAccountId } from "../LocalAccount.vibe";
 import {
   generateLocalId,
   isLiveId,
@@ -24,7 +24,7 @@ import {
   LocalRuntimeState,
   localRuntimeServices,
 } from "../LocalRuntime.ts";
-import type { Providers } from "../Providers.ts";
+import type { Providers } from "../Providers.vibe";
 import { detachQueueConsumersOfScript } from "./Consumer.ts";
 
 export const isQueue = (value: unknown): value is Queue =>

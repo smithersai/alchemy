@@ -10,5 +10,5 @@ export * from "./Workers/RpcAsync.vibe";
 // ── runtime bridge factories ──
 export { makeDurableObjectBridge } from "./Workers/DurableObjectBridge.ts";
 export { makeWorkerBridge } from "./Workers/WorkerBridge.ts";
-export { withSqlMigrations } from "./Workers/SqlMigrationsRuntime.ts";
+export { withSqlMigrations } from "./Workers/SqlMigrationsRuntime.vibe";
 export { makeWorkflowBridge } from "./Workflows/WorkflowBridge.ts";

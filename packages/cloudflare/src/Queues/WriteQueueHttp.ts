@@ -8,7 +8,7 @@ import {
   toQueueSendError,
   type QueueAuth,
 } from "./QueueHttp.ts";
-import { SendError, type SendMessage } from "./QueueTypes.ts";
+import { SendError, type SendMessage } from "./QueueTypes.vibe";
 import { WriteQueue, type WriteQueueClient } from "./WriteQueue.vibe";
 
 /**
