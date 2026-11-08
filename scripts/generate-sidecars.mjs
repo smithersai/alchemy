@@ -29,7 +29,7 @@ const files = [
       ),
     ),
   ),
-].sort();
+].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 const sidecar = (file) => file.slice(0, -5) + ".d.vibe.ts";
 const missing = () => files.filter((file) => !existsSync(sidecar(file)));
 const projects = targets.length
@@ -50,7 +50,7 @@ const projects = targets.length
           return join(directory, "tsconfig.json");
         }),
       ),
-    ].sort();
+    ].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0));
 
 if (files.length === 0) {
   console.info("sidecars: no VibeLang sources");
